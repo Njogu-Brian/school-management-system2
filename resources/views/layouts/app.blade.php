@@ -46,23 +46,37 @@
     <div class="sidebar">
         <h3 class="text-center">Navigation</h3>
 
+        {{-- Admin Navigation --}}
         @if(optional(Auth::user())->role === 'admin')
             <a href="{{ route('admin.dashboard') }}">Admin Dashboard</a>
             <a href="{{ route('students.index') }}">Manage Students</a>
+
+            {{-- Transport Dropdown --}}
+            <a href="#" data-bs-toggle="collapse" data-bs-target="#transportMenu" aria-expanded="false" aria-controls="transportMenu">
+                Transport
+            </a>
+            <div class="collapse" id="transportMenu">
+                <a href="{{ route('vehicles.index') }}" style="margin-left: 15px;">Manage Vehicles</a>
+                <a href="{{ route('routes.index') }}" style="margin-left: 15px;">Manage Routes</a>
+            </div>
+
+            <a href="{{ route('notify-kitchen') }}">Notify Kitchen</a>
+            <a href="{{ route('attendance.mark.form') }}">Mark Attendance</a>
+
+        {{-- Teacher Navigation --}}
         @elseif(Auth::user()->role === 'teacher')
             <a href="{{ route('teacher.dashboard') }}">Teacher Dashboard</a>
+            <a href="{{ route('attendance.mark.form') }}">Mark Attendance</a>
         @endif
 
-        <a href="{{ route('attendance.mark.form') }}">Mark Attendance</a>
-        <a href="{{ route('transport.index') }}">Transport</a>
-        <a href="{{ route('notify-kitchen') }}">Notify Kitchen</a>
-
+        {{-- Logout --}}
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">Logout</a>
         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
             @csrf
         </form>
     </div>
     @endif
+
 
     <!-- Main Content Area -->
     <div class="content">

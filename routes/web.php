@@ -8,6 +8,8 @@ use App\Http\Controllers\KitchenController;
 use App\Http\Controllers\TransportController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\RouteController;
+use App\Http\Controllers\VehicleController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -32,6 +34,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/transport', [TransportController::class, 'index'])->name('transport.index');
     Route::post('/transport/assign-driver', [TransportController::class, 'assignDriver'])->name('transport.assign.driver');
     Route::post('/transport/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('transport.assign.student');
+    // Route Management
+    Route::resource('routes', RouteController::class)->except(['show']);
+
+    // Vehicle Management
+    Route::resource('vehicles', VehicleController::class)->except(['show']);
+
 
     // ✅ Student Management (Only Admins)
     Route::resource('students', StudentController::class)->except(['destroy']);

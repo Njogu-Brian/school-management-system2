@@ -9,50 +9,32 @@ class Trip extends Model
 {
     use HasFactory;
 
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'trip';
+    // ✅ Remove this since Laravel automatically assumes 'trips'
+    // protected $table = 'trip';
 
-    /**
-     * The primary key associated with the table.
-     *
-     * @var string
-     */
-    protected $primaryKey = 'id';
+    protected $primaryKey = 'id'; // optional — this is also assumed by default
 
-    /**
-     * Indicates if the model should be timestamped.
-     *
-     * @var bool
-     */
     public $timestamps = true;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
     protected $fillable = [
         'student_id',
-        'transport_id',
+        'route_id',
+        'vehicle_id',
+        'drop_off_point',
     ];
 
-    /**
-     * Get the student associated with the trip.
-     */
     public function student()
     {
-        return $this->belongsTo(Student::class, 'student_id');
+        return $this->belongsTo(Student::class);
     }
 
-    /**
-     * Get the transport vehicle associated with the trip.
-     */
-    public function transport()
+    public function route()
     {
-        return $this->belongsTo(Transport::class, 'transport_id');
+        return $this->belongsTo(Route::class);
+    }
+
+    public function vehicle()
+    {
+        return $this->belongsTo(Vehicle::class);
     }
 }
