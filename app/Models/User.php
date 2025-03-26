@@ -62,7 +62,13 @@ class User extends Authenticatable
     protected function type(): Attribute
     {
         return new Attribute(
-            get: fn ($value) =>  ["student", "admin", "teacher"][$value],
+            get: fn ($value) => match($value) {
+                0 => 'student',
+                1 => 'admin',
+                2 => 'teacher',
+                default => 'unknown',
+            },
         );
     }
+    
 }

@@ -18,14 +18,18 @@
                     <th>Present Students</th>
                 </tr>
             </thead>
-            <tbody>
-                @foreach ($classCounts as $class => $count)
-                    <tr>
-                        <td>{{ $class }}</td>
-                        <td>{{ $count }}</td>
-                    </tr>
-                @endforeach
-            </tbody>
+                <tbody>
+                    @forelse ($classCounts as $classCount)
+                        <tr>
+                            <td>{{ $classCount->class }}</td>
+                            <td>{{ $classCount->count }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="2" class="text-center">No attendance marked yet.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
         </table>
         <button type="submit" class="btn btn-primary">Notify Kitchen</button>
     </form>
