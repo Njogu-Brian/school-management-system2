@@ -10,6 +10,8 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\StaffController;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
     return view('welcome');
@@ -45,6 +47,13 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('students', StudentController::class)->except(['destroy']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])->name('students.archive');
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
+
+    // ✅ Staff Management
+    Route::resource('staff', App\Http\Controllers\StaffController::class);
+    Route::post('/staff/{id}/archive', [App\Http\Controllers\StaffController::class, 'archive'])->name('staff.archive');
+    Route::post('/staff/{id}/restore', [App\Http\Controllers\StaffController::class, 'restore'])->name('staff.restore');
+    // Route::get('/staff/create', [StaffController::class, 'create'])->name('staff.create');
+
 });
 
 /*------------------------------------------
@@ -73,6 +82,21 @@ Route::middleware(['auth', 'user-access:student'])->group(function () {
     Route::get('/student/dashboard', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
 });
 
-Route::get('/home', [HomeController::class, 'index'])->name('home');
+Route::get('/home', function () {
+    /** @var \App\Models\User $user */
+    $user = auth()->user();
+    $user->load('roles'); // Make sure roles are loaded
+
+    if ($user->hasRole('admin')) {
+        return redirect()->route('admin.dashboard');
+    } elseif ($user->hasRole('teacher')) {
+        return redirect()->route('teacher.dashboard');
+    } elseif ($user->hasRole('student')) {
+        return redirect()->route('student.dashboard');
+    }
+
+    return abort(403);
+})->middleware('auth')->name('home');
+
 
 

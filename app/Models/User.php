@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class User extends Authenticatable
 {
+    protected $with = ['roles'];
+
     protected $fillable = [
         'name', 'email', 'password', 'role','type'
     ];
@@ -28,6 +30,17 @@ class User extends Authenticatable
     {
         return $this->role === 'student';
     }
+
+    public function roles()
+    {
+        return $this->belongsToMany(\App\Models\Role::class);
+    }
+
+    public function hasRole($roleName)
+    {
+        return $this->roles->contains('name', $roleName);
+    }
+
 
     /**
      * The attributes that should be hidden for serialization.

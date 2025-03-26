@@ -12,7 +12,7 @@
         <div class="alert alert-danger">{{ session('error') }}</div>
     @endif
 
-    @if(optional(Auth::user())->role === 'admin')
+    @if(Auth::user() && Auth::user()->hasRole('admin'))
         @include('dashboard.partials.filters')
 
         <div class="row">
