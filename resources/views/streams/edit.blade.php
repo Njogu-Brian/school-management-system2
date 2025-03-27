@@ -14,15 +14,16 @@
         </div>
 
         <div class="mb-3">
-            <label>Assign Classroom</label>
-            <select name="classroom_id" class="form-control">
-                <option value="">Select Classroom</option>
+            <label>Assign Classrooms</label>
+            <div class="row">
                 @foreach ($classrooms as $classroom)
-                    <option value="{{ $classroom->id }}" {{ $stream->classroom_id == $classroom->id ? 'selected' : '' }}>
-                        {{ $classroom->name }}
-                    </option>
+                    <div class="col-md-4">
+                        <input type="checkbox" name="classroom_ids[]" value="{{ $classroom->id }}"
+                        {{ $stream->classrooms->contains($classroom->id) ? 'checked' : '' }}>
+                        <label>{{ $classroom->name }}</label>
+                    </div>
                 @endforeach
-            </select>
+            </div>
         </div>
 
         <button type="submit" class="btn btn-primary">Update Stream</button>

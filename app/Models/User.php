@@ -40,6 +40,11 @@ class User extends Authenticatable
     {
         return $this->roles->contains('name', $roleName);
     }
+    public function streams()
+    {
+        return $this->belongsToMany(Stream::class, 'stream_teacher', 'teacher_id', 'stream_id');
+    }
+
 
 
     /**

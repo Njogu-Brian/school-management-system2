@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 
 class Classroom extends Model
 {
-    protected $fillable = ['name', 'teacher_id'];
+    protected $fillable = ['name'];
 
     public function streams()
     {
-        return $this->hasMany(Stream::class);
+        return $this->belongsToMany(Stream::class, 'classroom_stream');
     }
 
     public function students()
@@ -18,8 +18,8 @@ class Classroom extends Model
         return $this->hasMany(Student::class);
     }
 
-    public function teacher()
+    public function teachers()
     {
-        return $this->belongsTo(Staff::class, 'teacher_id');
+        return $this->belongsToMany(User::class, 'classroom_teacher', 'classroom_id', 'teacher_id');
     }
 }

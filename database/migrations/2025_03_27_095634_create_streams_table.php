@@ -4,16 +4,18 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('streams', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('class_id');
-            $table->string('name'); // e.g., A, B, Red, Blue
+            $table->string('name');
+            $table->unsignedBigInteger('classroom_id');
             $table->timestamps();
 
-            $table->foreign('class_id')->references('id')->on('classes')->onDelete('cascade');
+            // Foreign key reference to classrooms
+            $table->foreign('classroom_id')->references('id')->on('classrooms')->onDelete('cascade');
         });
     }
 

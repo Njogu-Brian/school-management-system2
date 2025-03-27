@@ -14,11 +14,10 @@
         </div>
 
         <div class="mb-3">
-            <label>Assign Teacher</label>
-            <select name="teacher_id" class="form-control">
-                <option value="">No Teacher Assigned</option>
+            <label>Assign Teachers</label>
+            <select name="teacher_ids[]" class="form-control" multiple>
                 @foreach ($teachers as $teacher)
-                    <option value="{{ $teacher->id }}" {{ $classroom->teacher_id == $teacher->id ? 'selected' : '' }}>
+                    <option value="{{ $teacher->id }}" @if(in_array($teacher->id, $assignedTeachers)) selected @endif>
                         {{ $teacher->first_name }} {{ $teacher->last_name }}
                     </option>
                 @endforeach

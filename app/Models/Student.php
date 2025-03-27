@@ -18,16 +18,14 @@ class Student extends Model
         'middle_name',
         'last_name',
         'gender',
-        'date_of_birth',
-        'address',
-        'class_id',
-        'stream_id',
+        'dob',
         'parent_id',
+        'classroom_id',
+        'stream_id',
         'category_id',
-        'route_id',
-        'drop_off_point',
-        'status',
-        'archive'
+        'nemis_number',
+        'knec_assessment_number',
+        'archive',
     ];
 
     public function parent()

@@ -13,7 +13,7 @@
         <thead>
             <tr>
                 <th>Stream Name</th>
-                <th>Classroom</th>
+                <th>Classrooms</th>
                 <th>Actions</th>
             </tr>
         </thead>
@@ -21,7 +21,13 @@
             @foreach ($streams as $stream)
             <tr>
                 <td>{{ $stream->name }}</td>
-                <td>{{ $stream->classroom ? $stream->classroom->name : 'Not Assigned' }}</td>
+                <td>
+                    @if($stream->classrooms->isEmpty())
+                        Not Assigned
+                    @else
+                        {{ $stream->classrooms->pluck('name')->implode(', ') }}
+                    @endif
+                </td>
                 <td>
                     <a href="{{ route('streams.edit', $stream->id) }}" class="btn btn-sm btn-primary">Edit</a>
                     <form action="{{ route('streams.destroy', $stream->id) }}" method="POST" style="display:inline;">

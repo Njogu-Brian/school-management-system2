@@ -14,10 +14,12 @@
             <label>First Name</label>
             <input type="text" name="first_name" class="form-control" value="{{ $student->first_name }}" required>
         </div>
+
         <div class="mb-3">
-            <label>Middle Name</label>
+            <label>Middle Name (Optional)</label>
             <input type="text" name="middle_name" class="form-control" value="{{ $student->middle_name }}">
         </div>
+
         <div class="mb-3">
             <label>Last Name</label>
             <input type="text" name="last_name" class="form-control" value="{{ $student->last_name }}" required>
@@ -37,25 +39,29 @@
         {{-- Class and Category --}}
         <div class="mb-3">
             <label>Class</label>
-            <select name="classroom_id" class="form-control" required>
-                @foreach ($classes as $class)
-                    <option value="{{ $class->id }}" {{ $student->classroom_id == $class->id ? 'selected' : '' }}>
-                        {{ $class->name }}
+            <select id="classroom" name="classroom_id" class="form-control" required>
+                <option value="">Select Class</option>
+                @foreach ($classes as $classroom)
+                    <option value="{{ $classroom->id }}" {{ isset($student) && $student->classroom_id == $classroom->id ? 'selected' : '' }}>
+                        {{ $classroom->name }}
                     </option>
                 @endforeach
             </select>
         </div>
+
         <div class="mb-3">
-            <label>Stream</label>
-            <select name="stream_id" class="form-control">
-                <option value="">Select Stream</option>
+            <label>Stream (Optional)</label>
+            <select id="stream" name="stream_id" class="form-control">
+                <option value="">Select Stream (Optional)</option>
                 @foreach ($streams as $stream)
-                    <option value="{{ $stream->id }}" {{ $student->stream_id == $stream->id ? 'selected' : '' }}>
+                    <option value="{{ $stream->id }}" {{ isset($student) && $student->stream_id == $stream->id ? 'selected' : '' }}>
                         {{ $stream->name }}
                     </option>
                 @endforeach
             </select>
         </div>
+
+
         <div class="mb-3">
             <label>Student Category</label>
             <select name="category_id" class="form-control">
@@ -96,38 +102,38 @@
         <h5>Father's Information</h5>
         <div class="mb-3">
             <label>Name</label>
-            <input type="text" name="father_name" class="form-control" value="{{ $student->parent->father_name }}">
+            <input type="text" name="father_name" class="form-control" value="{{ optional($student->parent)->father_name }}">
         </div>
         <div class="mb-3">
             <label>Phone</label>
-            <input type="text" name="father_phone" class="form-control" value="{{ $student->parent->father_phone }}">
+            <input type="text" name="father_phone" class="form-control" value="{{ optional($student->parent)->father_phone }}">
         </div>
         <div class="mb-3">
             <label>Email</label>
-            <input type="email" name="father_email" class="form-control" value="{{ $student->parent->father_email }}">
+            <input type="email" name="father_email" class="form-control" value="{{ optional($student->parent)->father_email }}">
         </div>
         <div class="mb-3">
             <label>ID Number</label>
-            <input type="text" name="father_id_number" class="form-control" value="{{ $student->parent->father_id_number }}">
+            <input type="text" name="father_id_number" class="form-control" value="{{ optional($student->parent)->father_id_number }}">
         </div>
 
         {{-- Mother's Details --}}
         <h5>Mother's Information</h5>
         <div class="mb-3">
             <label>Name</label>
-            <input type="text" name="mother_name" class="form-control" value="{{ $student->parent->mother_name }}">
+            <input type="text" name="mother_name" class="form-control" value="{{ optional($student->parent)->mother_name }}">
         </div>
         <div class="mb-3">
             <label>Phone</label>
-            <input type="text" name="mother_phone" class="form-control" value="{{ $student->parent->mother_phone }}">
+            <input type="text" name="mother_phone" class="form-control" value="{{ optional($student->parent)->mother_phone }}">
         </div>
         <div class="mb-3">
             <label>Email</label>
-            <input type="email" name="mother_email" class="form-control" value="{{ $student->parent->mother_email }}">
+            <input type="email" name="mother_email" class="form-control" value="{{ optional($student->parent)->mother_email }}">
         </div>
         <div class="mb-3">
             <label>ID Number</label>
-            <input type="text" name="mother_id_number" class="form-control" value="{{ $student->parent->mother_id_number }}">
+            <input type="text" name="mother_id_number" class="form-control" value="{{ optional($student->parent)->mother_id_number }}">
         </div>
 
         {{-- Document Uploads --}}

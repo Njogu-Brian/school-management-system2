@@ -2,40 +2,57 @@
 
 @section('content')
 <div class="container">
-    <h1>Student Details</h1>
+    <h1 class="mb-4">Student Details</h1>
     
-    <h4>Student Information</h4>
-    <p><strong>Admission Number:</strong> {{ $student->admission_number }}</p>
-    <p><strong>Name:</strong> {{ $student->first_name }} {{ $student->middle_name }} {{ $student->last_name }}</p>
-    <p><strong>Gender:</strong> {{ $student->gender }}</p>
-    <p><strong>Date of Birth:</strong> {{ $student->dob }}</p>
-    <p><strong>Class:</strong> {{ $student->classroom->name ?? 'N/A' }}</p>
-    <p><strong>Stream:</strong> {{ $student->stream->name ?? 'N/A' }}</p>
-    <p><strong>Category:</strong> {{ $student->category->name ?? 'N/A' }}</p>
-    <p><strong>NEMIS Number:</strong> {{ $student->nemis_number }}</p>
-    <p><strong>KNEC Assessment Number:</strong> {{ $student->knec_assessment_number }}</p>
+    {{-- Student Information --}}
+    <div class="card mb-4">
+        <div class="card-header">Student Information</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6"><strong>Admission Number:</strong> {{ $student->admission_number }}</div>
+                <div class="col-md-6"><strong>Name:</strong> {{ $student->first_name }} {{ $student->middle_name ?? '' }} {{ $student->last_name }}</div>
+                <div class="col-md-6"><strong>Gender:</strong> {{ $student->gender }}</div>
+                <div class="col-md-6"><strong>Date of Birth:</strong> {{ $student->dob }}</div>
+                <div class="col-md-6"><strong>Class:</strong> {{ $student->classroom->name ?? 'N/A' }}</div>
+                <div class="col-md-6"><strong>Stream:</strong> {{ $student->stream->name ?? 'N/A' }}</div>
+                <div class="col-md-6"><strong>Category:</strong> {{ $student->category->name ?? 'N/A' }}</div>
+                <div class="col-md-6"><strong>NEMIS Number:</strong> {{ $student->nemis_number ?? 'N/A' }}</div>
+                <div class="col-md-6"><strong>KNEC Assessment Number:</strong> {{ $student->knec_assessment_number ?? 'N/A' }}</div>
+            </div>
+        </div>
+    </div>
 
     {{-- Parent Details --}}
-    <h4>Parent/Guardian Details</h4>
-    @if ($student->parent)
-        <p><strong>Father's Name:</strong> {{ $student->parent->father_name ?? 'N/A' }}</p>
-        <p><strong>Mother's Name:</strong> {{ $student->parent->mother_name ?? 'N/A' }}</p>
-        <p><strong>Guardian's Name:</strong> {{ $student->parent->guardian_name ?? 'N/A' }}</p>
-    @else
-        <p>No parent/guardian information available.</p>
-    @endif
+    <div class="card mb-4">
+        <div class="card-header">Parent/Guardian Details</div>
+        <div class="card-body">
+            @if ($student->parent)
+                <div class="row">
+                    <div class="col-md-6"><strong>Father's Name:</strong> {{ $student->parent->father_name ?? 'N/A' }}</div>
+                    <div class="col-md-6"><strong>Mother's Name:</strong> {{ $student->parent->mother_name ?? 'N/A' }}</div>
+                    <div class="col-md-6"><strong>Guardian's Name:</strong> {{ $student->parent->guardian_name ?? 'N/A' }}</div>
+                </div>
+            @else
+                <p>No parent/guardian information available.</p>
+            @endif
+        </div>
+    </div>
 
     {{-- Documents --}}
-    <h4>Uploaded Documents</h4>
-    @if ($student->passport_photo)
-        <p><strong>Passport Photo:</strong> <a href="{{ asset('storage/' . $student->passport_photo) }}" target="_blank">View Photo</a></p>
-    @endif
-    @if ($student->birth_certificate)
-        <p><strong>Birth Certificate:</strong> <a href="{{ asset('storage/' . $student->birth_certificate) }}" target="_blank">View Certificate</a></p>
-    @endif
-    @if ($student->parent_id_card)
-        <p><strong>Parent's ID:</strong> <a href="{{ asset('storage/' . $student->parent_id_card) }}" target="_blank">View Parent's ID</a></p>
-    @endif
+    <div class="card mb-4">
+        <div class="card-header">Uploaded Documents</div>
+        <div class="card-body">
+            @if ($student->passport_photo)
+                <p><strong>Passport Photo:</strong> <a href="{{ asset('storage/' . $student->passport_photo) }}" target="_blank">View Photo</a></p>
+            @endif
+            @if ($student->birth_certificate)
+                <p><strong>Birth Certificate:</strong> <a href="{{ asset('storage/' . $student->birth_certificate) }}" target="_blank">View Certificate</a></p>
+            @endif
+            @if ($student->parent_id_card)
+                <p><strong>Parent's ID:</strong> <a href="{{ asset('storage/' . $student->parent_id_card) }}" target="_blank">View Parent's ID</a></p>
+            @endif
+        </div>
+    </div>
 
     {{-- Back Button --}}
     <a href="{{ route('students.index') }}" class="btn btn-primary">Back to Students</a>

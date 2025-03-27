@@ -3,7 +3,6 @@
 @section('content')
 <div class="container">
     <h1>Add New Stream</h1>
-
     <form action="{{ route('streams.store') }}" method="POST">
         @csrf
 
@@ -13,13 +12,17 @@
         </div>
 
         <div class="mb-3">
-            <label>Assign Classroom</label>
-            <select name="classroom_id" class="form-control">
-                <option value="">Select Classroom</option>
+            <label>Select Classrooms</label>
+            <div>
                 @foreach ($classrooms as $classroom)
-                    <option value="{{ $classroom->id }}">{{ $classroom->name }}</option>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="classroom_ids[]" value="{{ $classroom->id }}" id="classroom_{{ $classroom->id }}">
+                        <label class="form-check-label" for="classroom_{{ $classroom->id }}">
+                            {{ $classroom->name }}
+                        </label>
+                    </div>
                 @endforeach
-            </select>
+            </div>
         </div>
 
         <button type="submit" class="btn btn-success">Add Stream</button>

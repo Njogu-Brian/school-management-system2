@@ -52,11 +52,15 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('students', StudentController::class)->except(['destroy']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])->name('students.archive');
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
+    Route::get('/students/{id}/edit', [StudentController::class, 'edit'])->name('students.edit');
+
 
     // ✅ Academic Management
     Route::resource('classrooms', ClassroomController::class)->except(['show']);
     Route::resource('streams', StreamController::class)->except(['show']);
     Route::resource('student-categories', StudentCategoryController::class)->except(['show']);
+    Route::post('/get-streams', [StudentController::class, 'getStreams'])->name('students.getStreams');
+
 
     // ✅ Parent Management
     Route::resource('parent-info', ParentInfoController::class)->except(['show']);

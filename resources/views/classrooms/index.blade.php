@@ -13,6 +13,7 @@
         <thead>
             <tr>
                 <th>Class Name</th>
+                <th>Streams</th>
                 <th>Teacher</th>
                 <th>Actions</th>
             </tr>
@@ -21,13 +22,35 @@
             @foreach ($classrooms as $classroom)
             <tr>
                 <td>{{ $classroom->name }}</td>
-                <td>{{ $classroom->teacher ? $classroom->teacher->first_name . ' ' . $classroom->teacher->last_name : 'Not Assigned' }}</td>
+                
+                <!-- Display Streams -->
+                <td>
+                    @if($classroom->streams->count())
+                        @foreach($classroom->streams as $stream)
+                            <span class="badge bg-info">{{ $stream->name }}</span>
+                        @endforeach
+                    @else
+                        <span class="text-muted">No Stream Assigned</span>
+                    @endif
+                </td>
+
+                <!-- Display Teacher (If implemented) -->
+                <td>
+                    @if($classroom->teachers->count())
+                        @foreach($classroom->teachers as $teacher)
+                            {{ $teacher->first_name }} {{ $teacher->last_name }}<br>
+                        @endforeach
+                    @else
+                        Not Assigned
+                    @endif
+                </td>
+
                 <td>
                     <a href="{{ route('classrooms.edit', $classroom->id) }}" class="btn btn-sm btn-primary">Edit</a>
                     <form action="{{ route('classrooms.destroy', $classroom->id) }}" method="POST" style="display:inline;">
                         @csrf
                         @method('DELETE')
-                        <button class="btn btn-sm btn-danger">Delete</button>
+                        <button class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
                     </form>
                 </td>
             </tr>

@@ -8,4 +8,10 @@ class Teacher extends Authenticatable
 {
     protected $guard = 'teacher';
     protected $fillable = ['name', 'email', 'password', 'class'];
+
+    public function classrooms()
+    {
+        return $this->belongsToMany(Classroom::class, 'classroom_teacher');
+    }
+
 }

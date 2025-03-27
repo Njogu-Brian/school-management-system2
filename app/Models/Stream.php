@@ -6,15 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 
 class Stream extends Model
 {
-    protected $fillable = ['name', 'class_id'];
+    protected $fillable = ['name'];
 
-    public function classroom()
+    public function classrooms()
     {
-        return $this->belongsTo(Classroom::class, 'class_id');
+        return $this->belongsToMany(Classroom::class, 'classroom_stream');
     }
 
     public function students()
     {
         return $this->hasMany(Student::class);
+    }
+
+    public function teachers()
+    {
+        return $this->belongsToMany(User::class, 'stream_teacher', 'stream_id', 'teacher_id');
     }
 }

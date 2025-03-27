@@ -13,14 +13,17 @@
             <label>First Name</label>
             <input type="text" name="first_name" class="form-control" required>
         </div>
+
         <div class="mb-3">
-            <label>Middle Name</label>
+            <label>Middle Name (Optional)</label>
             <input type="text" name="middle_name" class="form-control">
         </div>
+
         <div class="mb-3">
             <label>Last Name</label>
             <input type="text" name="last_name" class="form-control" required>
         </div>
+
         <div class="mb-3">
             <label>Gender</label>
             <select name="gender" class="form-control" required>
@@ -36,21 +39,21 @@
         {{-- Class and Category --}}
         <div class="mb-3">
             <label>Class</label>
-            <select name="classroom_id" class="form-control" required>
-                @foreach ($classes as $class)
-                    <option value="{{ $class->id }}">{{ $class->name }}</option>
+            <select id="classroom" name="classroom_id" class="form-control" required>
+                <option value="">Select Class</option>
+                @foreach ($classrooms as $classroom)
+                    <option value="{{ $classroom->id }}">{{ $classroom->name }}</option>
                 @endforeach
             </select>
         </div>
+
         <div class="mb-3">
             <label>Stream</label>
-            <select name="stream_id" class="form-control">
-                <option value="">Select Stream</option>
-                @foreach ($streams as $stream)
-                    <option value="{{ $stream->id }}">{{ $stream->name }}</option>
-                @endforeach
+            <select id="stream" name="stream_id" class="form-control">
+                <option value="">Select Stream (Optional)</option>
             </select>
         </div>
+
         <div class="mb-3">
             <label>Student Category</label>
             <select name="category_id" class="form-control">
@@ -180,5 +183,42 @@ document.getElementById('sibling-select').addEventListener('change', function() 
             });
     }
 });
+document.getElementById('classroom').addEventListener('change', function() {
+    const classroomId = this.value;
+    const streamSelect = document.getElementById('stream');
+
+    // Clear previous options
+    streamSelect.innerHTML = '<option value="">Select Stream (Optional)</option>';
+
+    if (classroomId) {
+        fetch('/get-streams', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('input[name=_token]').value
+            },
+            body: JSON.stringify({ classroom_id: classroomId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.length > 0) {
+                data.forEach(stream => {
+                    const option = document.createElement('option');
+                    option.value = stream.id;
+                    option.textContent = stream.name;
+                    streamSelect.appendChild(option);
+                });
+            } else {
+                // Show no streams available and allow form submission without it
+                const option = document.createElement('option');
+                option.textContent = 'No Active Streams';
+                option.disabled = true;
+                streamSelect.appendChild(option);
+            }
+        })
+        .catch(error => console.error('Error fetching streams:', error));
+    }
+});
+
 </script>
 @endsection
