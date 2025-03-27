@@ -69,4 +69,8 @@ class Student extends Model
     {
         return $this->belongsTo(Classroom::class);
     }
+    public function siblings()
+    {
+        return $this->belongsToMany(Student::class, 'student_siblings', 'student_id', 'sibling_id');
+    }
 }

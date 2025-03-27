@@ -32,15 +32,17 @@ class StudentController extends Controller
 }
 
 
-    public function create()
-    {
-        $parents = ParentInfo::all();
-        $categories = StudentCategory::all();
-        $classes = Classroom::all();
-        $streams = Stream::all();
+public function create()
+{
+    $parents = ParentInfo::all();
+    $categories = StudentCategory::all();
+    $classes = Classroom::all();
+    $streams = Stream::all();
+    $students = Student::with('parent')->get(); // Fetch all students for sibling management
 
-        return view('students.create', compact('parents', 'categories', 'classes', 'streams'));
-    }
+    return view('students.create', compact('parents', 'categories', 'classes', 'streams', 'students'));
+}
+
 
     public function store(Request $request)
     {
