@@ -2,90 +2,119 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Student;
 use App\Models\ParentInfo;
+use App\Models\StudentCategory;
+use App\Models\Classroom;
+use App\Models\Stream;
+use Illuminate\Http\Request;
 
 class StudentController extends Controller
 {
-    // Display all active students
-    public function index()
-    {
-        $students = Student::where('archive', false)->get();
-        return view('students.index', compact('students'));
-    }
+    public function index(Request $request)
+{
+    $students = Student::with(['parent', 'classroom', 'stream', 'category'])
+        ->when($request->name, function ($query, $name) {
+            $query->where('name', 'like', "%$name%");
+        })
+        ->when($request->admission_number, function ($query, $admission_number) {
+            $query->where('admission_number', $admission_number);
+        })
+        ->when($request->classroom_id, function ($query, $classroom_id) {
+            $query->where('classroom_id', $classroom_id);
+        })
+        ->where('archive', false)
+        ->get();
 
-    // Show form to create student
+    $classes = Classroom::all(); // Fetch all classes to be passed to the view
+
+    return view('students.index', compact('students', 'classes'));
+}
+
+
     public function create()
     {
         $parents = ParentInfo::all();
-        return view('students.create', compact('parents'));
+        $categories = StudentCategory::all();
+        $classes = Classroom::all();
+        $streams = Stream::all();
+
+        return view('students.create', compact('parents', 'categories', 'classes', 'streams'));
     }
 
-    // Store student details
     public function store(Request $request)
     {
         $request->validate([
-            'admission_number' => 'required|unique:students',
             'name' => 'required|string|max:255',
-            'class' => 'required|string|max:255',
+            'gender' => 'required',
+            'dob' => 'nullable|date',
             'parent_id' => 'nullable|exists:parent_info,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'category_id' => 'nullable|exists:student_categories,id',
         ]);
+
+        $admission_number = Student::max('admission_number') + 1;
 
         Student::create([
-            'admission_number' => $request->admission_number,
+            'admission_number' => $admission_number,
             'name' => $request->name,
-            'class' => $request->class,
+            'gender' => $request->gender,
+            'dob' => $request->dob,
             'parent_id' => $request->parent_id,
+            'classroom_id' => $request->classroom_id,
+            'stream_id' => $request->stream_id,
+            'category_id' => $request->category_id,
         ]);
 
-        return redirect()->route('students.index')->with('success', 'Student added successfully.');
+        return redirect()->route('students.index')->with('success', 'Student created successfully.');
     }
 
-    // Show form to edit student
     public function edit($id)
     {
         $student = Student::findOrFail($id);
         $parents = ParentInfo::all();
-        return view('students.edit', compact('student', 'parents'));
+        $categories = StudentCategory::all();
+        $classes = Classroom::all();
+        $streams = Stream::all();
+
+        return view('students.edit', compact('student', 'parents', 'categories', 'classes', 'streams'));
     }
 
-    // Update student details
     public function update(Request $request, $id)
     {
         $request->validate([
-            'admission_number' => 'required|unique:students,admission_number,' . $id,
             'name' => 'required|string|max:255',
-            'class' => 'required|string|max:255',
+            'gender' => 'required',
+            'dob' => 'nullable|date',
             'parent_id' => 'nullable|exists:parent_info,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'category_id' => 'nullable|exists:student_categories,id',
         ]);
 
         $student = Student::findOrFail($id);
-        $student->update([
-            'admission_number' => $request->admission_number,
-            'name' => $request->name,
-            'class' => $request->class,
-            'parent_id' => $request->parent_id,
-        ]);
+
+        $student->update($request->only([
+            'name', 'gender', 'dob', 'parent_id', 'classroom_id', 'stream_id', 'category_id'
+        ]));
 
         return redirect()->route('students.index')->with('success', 'Student updated successfully.');
     }
 
-    // Archive student instead of deleting
     public function archive($id)
     {
         $student = Student::findOrFail($id);
         $student->update(['archive' => true]);
 
-        return redirect()->route('students.index')->with('success', 'Student archived successfully.');
+        return redirect()->route('students.index')->with('success', 'Student archived.');
     }
 
-    // Restore archived student
     public function restore($id)
     {
         $student = Student::findOrFail($id);
         $student->update(['archive' => false]);
 
-        return redirect()->route('students.index')->with('success', 'Student restored successfully.');
+        return redirect()->route('students.index')->with('success', 'Student restored.');
     }
 }

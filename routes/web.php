@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AttendanceController;
@@ -11,16 +12,18 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\StaffController;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\ClassroomController;
+use App\Http\Controllers\StreamController;
+use App\Http\Controllers\StudentCategoryController;
+use App\Http\Controllers\ParentInfoController;
 
 Route::get('/', function () {
     return view('welcome');
 });
 
 Auth::routes();
-// ✅ Redirect users based on role
+
 Route::middleware(['auth'])->group(function () {
-    // Route::get('/dashboard', function () { if (auth()->check()) { return auth()->user()->isAdmin() ? redirect()->route('admin.dashboard') : redirect()->route('teacher.dashboard'); } return redirect()->route('login'); })->name('dashboard');
 
     // ✅ Attendance Routes
     Route::get('/attendance/mark', [AttendanceController::class, 'showForm'])->name('attendance.mark.form');
@@ -33,59 +36,59 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notify-kitchen', [KitchenController::class, 'notifyKitchen'])->name('notify-kitchen.submit');
 
     // ✅ Transport Module
+    Route::resource('routes', RouteController::class)->except(['show']);
+    Route::resource('vehicles', VehicleController::class)->except(['show']);
     Route::get('/transport', [TransportController::class, 'index'])->name('transport.index');
     Route::post('/transport/assign-driver', [TransportController::class, 'assignDriver'])->name('transport.assign.driver');
     Route::post('/transport/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('transport.assign.student');
-    // Route Management
-    Route::resource('routes', RouteController::class)->except(['show']);
 
-    // Vehicle Management
-    Route::resource('vehicles', VehicleController::class)->except(['show']);
+    // ✅ Staff Management
+    Route::resource('staff', StaffController::class);
+    Route::post('/staff/{id}/archive', [StaffController::class, 'archive'])->name('staff.archive');
+    Route::post('/staff/{id}/restore', [StaffController::class, 'restore'])->name('staff.restore');
 
-
-    // ✅ Student Management (Only Admins)
+    // ✅ Student Management
     Route::resource('students', StudentController::class)->except(['destroy']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])->name('students.archive');
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
 
-    // ✅ Staff Management
-    Route::resource('staff', App\Http\Controllers\StaffController::class);
-    Route::post('/staff/{id}/archive', [App\Http\Controllers\StaffController::class, 'archive'])->name('staff.archive');
-    Route::post('/staff/{id}/restore', [App\Http\Controllers\StaffController::class, 'restore'])->name('staff.restore');
-    // Route::get('/staff/create', [StaffController::class, 'create'])->name('staff.create');
+    // ✅ Academic Management
+    Route::resource('classrooms', ClassroomController::class)->except(['show']);
+    Route::resource('streams', StreamController::class)->except(['show']);
+    Route::resource('student-categories', StudentCategoryController::class)->except(['show']);
 
+    // ✅ Parent Management
+    Route::resource('parent-info', ParentInfoController::class)->except(['show']);
 });
 
 /*------------------------------------------
---------------------------------------------
-All Admin Routes
---------------------------------------------
---------------------------------------------*/
+| Admin Routes
+------------------------------------------*/
 Route::middleware(['auth', 'user-access:admin'])->group(function () {
     Route::get('/admin/home', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
 });
+
 /*------------------------------------------
---------------------------------------------
-All Teachers Routes
---------------------------------------------
---------------------------------------------*/
+| Teacher Routes
+------------------------------------------*/
 Route::middleware(['auth', 'user-access:teacher'])->group(function () {
     Route::get('/teacher/dashboard', [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
 });
 
 /*------------------------------------------
---------------------------------------------
-All Teachers Routes
---------------------------------------------
---------------------------------------------*/
+| Student Routes
+------------------------------------------*/
 Route::middleware(['auth', 'user-access:student'])->group(function () {
     Route::get('/student/dashboard', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
 });
 
+/*------------------------------------------
+| Fallback Home Redirection
+------------------------------------------*/
 Route::get('/home', function () {
     /** @var \App\Models\User $user */
     $user = auth()->user();
-    $user->load('roles'); // Make sure roles are loaded
+    $user->load('roles');
 
     if ($user->hasRole('admin')) {
         return redirect()->route('admin.dashboard');
@@ -97,6 +100,3 @@ Route::get('/home', function () {
 
     return abort(403);
 })->middleware('auth')->name('home');
-
-
-

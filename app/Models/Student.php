@@ -5,33 +5,68 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Transport;
 use App\Models\Attendance;
+use App\Models\ParentInfo;
+use App\Models\StudentCategory;
+use App\Models\Stream;
+use App\Models\Classroom;
 
 class Student extends Model
 {
-    protected $fillable = ['admission_number', 'name', 'class', 'parent_id', 'archive'];
+    protected $fillable = [
+        'admission_number',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'gender',
+        'date_of_birth',
+        'address',
+        'class_id',
+        'stream_id',
+        'parent_id',
+        'category_id',
+        'route_id',
+        'drop_off_point',
+        'status',
+        'archive'
+    ];
 
-    // Relationship with Parent
     public function parent()
     {
         return $this->belongsTo(ParentInfo::class, 'parent_id');
     }
 
-    // ✅ Updated to `attendances()` for consistency
     public function attendances()
     {
         return $this->hasMany(Attendance::class);
     }
 
-    // Relationship with Transport
+    public function attendanceForToday()
+    {
+        return $this->hasOne(Attendance::class)->whereDate('date', today());
+    }
+
     public function route()
     {
         return $this->belongsTo(Transport::class, 'route_id');
     }
 
-    // Fetch today's attendance for a student
-    public function attendanceForToday()
+    public function stream()
     {
-        return $this->hasOne(Attendance::class)
-            ->whereDate('date', today());
+        return $this->belongsTo(Stream::class);
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(StudentCategory::class, 'category_id');
+    }
+
+    public function getFullNameAttribute()
+    {
+        return "{$this->first_name} {$this->middle_name} {$this->last_name}";
+    }
+
+    public function classroom()
+    {
+        return $this->belongsTo(Classroom::class);
     }
 }
