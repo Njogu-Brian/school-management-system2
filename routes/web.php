@@ -16,6 +16,7 @@ use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\StreamController;
 use App\Http\Controllers\StudentCategoryController;
 use App\Http\Controllers\ParentInfoController;
+use App\Http\Controllers\OnlineAdmissionController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -59,6 +60,14 @@ Route::middleware(['auth'])->group(function () {
 
     // ✅ Parent Management
     Route::resource('parent-info', ParentInfoController::class)->except(['show']);
+
+    //Online Admission
+    Route::get('/online-admissions', [OnlineAdmissionController::class, 'index'])->name('online-admissions.index');
+    Route::post('/online-admissions/approve/{id}', [OnlineAdmissionController::class, 'approve'])->name('online-admissions.approve');
+    Route::post('/online-admissions/reject/{id}', [OnlineAdmissionController::class, 'reject'])->name('online-admissions.reject');
+    //Admission Form
+    Route::get('/admission-form', [OnlineAdmissionController::class, 'showForm'])->name('online-admission.form');
+    Route::post('/admission-form', [OnlineAdmissionController::class, 'submitForm'])->name('online-admission.submit');
 });
 
 /*------------------------------------------
