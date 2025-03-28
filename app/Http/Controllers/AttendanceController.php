@@ -25,7 +25,9 @@ class AttendanceController extends Controller
      */
     public function showForm(Request $request)
 {
-    $classes = Student::select('class')->distinct()->pluck('class');
+    // Fetch distinct classes from the classrooms table instead of the students table
+    $classes = \App\Models\Classroom::pluck('name', 'id');
+
     $selectedClass = $request->input('class', '');
     $selectedDate = $request->input('date', today()->toDateString());
 
@@ -33,75 +35,79 @@ class AttendanceController extends Controller
     $attendanceRecords = collect();
 
     if ($selectedClass) {
-        $students = Student::where('class', $selectedClass)->get();
+        // Fetch students based on classroom_id instead of class
+        $students = Student::with('classroom')->where('classroom_id', $selectedClass)->get();
+        if ($students->isEmpty()) {
+            Log::info("No students found for Class ID: $selectedClass");
+        } else {
+            Log::info("Students found for Class ID: $selectedClass - Count: " . $students->count());
+        }
+        
         $attendanceRecords = Attendance::whereIn('student_id', $students->pluck('id'))
             ->whereDate('date', $selectedDate)
             ->get()
-            ->keyBy('student_id'); // Organize records by student_id for easy access
+            ->keyBy('student_id');
     }
 
     return view('attendance.mark', compact('classes', 'selectedClass', 'students', 'attendanceRecords', 'selectedDate'));
 }
 
 
+
     /**
      * Mark attendance for students in a class.
      */
     public function markAttendance(Request $request)
-    {
-        $request->validate([
-            'class' => 'required|string',
-        ]);
-    
-        $students = Student::where('class', $request->class)->get();
-    
-        foreach ($students as $student) {
-            $status = $request->input("status_{$student->id}"); // Get attendance status
-            
-            if ($status === null) {
-                continue; // Skip if no status was selected
-            }
-    
-            $isPresent = $status == "1" ? 1 : 0;
-            $reason = $request->input("reason_{$student->id}", null);
-    
-            Attendance::updateOrCreate(
-                ['student_id' => $student->id, 'date' => today()],
-                ['is_present' => $isPresent, 'reason' => $isPresent ? null : $reason]
-            );
-    
-            // Send SMS if absent
-            if (!$isPresent && $student->parent && $student->parent->phone) {
-                $message = "Dear Parent, your child {$student->name} (Class: {$student->class}) was marked absent today. Reason: {$reason}.";
-    
-                try {
-                    $this->smsService->sendSMS($student->parent->phone, $message);
-                    Log::info("Absent SMS sent to parent: {$student->parent->phone}");
-    
-                    // **Log SMS into `sms_logs` table**
-                    \App\Models\SmsLog::create([
-                        'phone_number' => $student->parent->phone,
-                        'message' => $message,
-                        'status' => 'sent', // You can update this based on your SMS service response
-                        'response' => 'Success' // Modify if API response is available
-                    ]);
-    
-                } catch (\Exception $e) {
-                    Log::error("Failed to send absent SMS: " . $e->getMessage());
-    
-                    // **Log failed SMS attempt**
-                    \App\Models\SmsLog::create([
-                        'phone_number' => $student->parent->phone,
-                        'message' => $message,
-                        'status' => 'failed',
-                        'response' => $e->getMessage()
-                    ]);
-                }
+{
+    $request->validate([
+        'class' => 'required|exists:classrooms,id', // Validate class using classrooms table
+    ]);
+
+    // Retrieve students using classroom_id instead of class
+    $students = Student::where('classroom_id', $request->class)->get();
+
+    foreach ($students as $student) {
+        $status = $request->input("status_{$student->id}");
+        if ($status === null) {
+            continue; // Skip if no status is selected
+        }
+
+        $isPresent = $status == "1" ? 1 : 0;
+        $reason = $request->input("reason_{$student->id}", null);
+
+        Attendance::updateOrCreate(
+            ['student_id' => $student->id, 'date' => today()],
+            ['is_present' => $isPresent, 'reason' => $isPresent ? null : $reason]
+        );
+
+        // Send SMS if absent
+        if (!$isPresent && $student->parent && $student->parent->phone) {
+            $message = "Dear Parent, your child {$student->getFullNameAttribute()} (Class: {$student->classroom->name}) was marked absent today. Reason: {$reason}.";
+
+            try {
+                $this->smsService->sendSMS($student->parent->phone, $message);
+                Log::info("Absent SMS sent to parent: {$student->parent->phone}");
+                \App\Models\SmsLog::create([
+                    'phone_number' => $student->parent->phone,
+                    'message' => $message,
+                    'status' => 'sent',
+                    'response' => 'Success'
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Failed to send absent SMS: " . $e->getMessage());
+                \App\Models\SmsLog::create([
+                    'phone_number' => $student->parent->phone,
+                    'message' => $message,
+                    'status' => 'failed',
+                    'response' => $e->getMessage()
+                ]);
             }
         }
-    
-        return redirect()->back()->with('success', 'Attendance marked successfully.');
     }
+
+    return redirect()->back()->with('success', 'Attendance marked successfully.');
+}
+
     
     /**
  * Show edit form for attendance.

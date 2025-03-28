@@ -3,6 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Classroom;
+use App\Models\Student;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use App\Models\Teacher;
 
 class Stream extends Model
 {

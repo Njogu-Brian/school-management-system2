@@ -18,55 +18,49 @@ class KitchenController extends Controller
     }
 
     public function showForm()
-    {
-        // Fetch the number of present students per class
-        $classCounts = \App\Models\Attendance::whereDate('date', today())
-            ->where('is_present', true)
-            ->join('students', 'attendance.student_id', '=', 'students.id')
-            ->select('students.class', \Illuminate\Support\Facades\DB::raw('COUNT(*) as count'))
-            ->groupBy('students.class')
-            ->get();
+{
+    // Fixing the query using the relationship with classrooms
+    $classCounts = \App\Models\Attendance::whereDate('date', today())
+        ->where('is_present', true)
+        ->join('students', 'attendance.student_id', '=', 'students.id')
+        ->join('classrooms', 'students.classroom_id', '=', 'classrooms.id')
+        ->select('classrooms.name as class', DB::raw('COUNT(*) as count'))
+        ->groupBy('classrooms.name')
+        ->get();
 
-        return view('notify-kitchen', compact('classCounts'));
+    return view('notify-kitchen', compact('classCounts'));
+}
+
+public function notifyKitchen(Request $request)
+{
+    // Fixing the query using the relationship with classrooms
+    $classCounts = \App\Models\Attendance::whereDate('date', today())
+        ->where('is_present', true)
+        ->join('students', 'attendance.student_id', '=', 'students.id')
+        ->join('classrooms', 'students.classroom_id', '=', 'classrooms.id')
+        ->select('classrooms.name as class', DB::raw('COUNT(*) as count'))
+        ->groupBy('classrooms.name')
+        ->get();
+
+    // Prepare the message for the kitchen team
+    $message = "Daily Attendance Summary:\n";
+    foreach ($classCounts as $classCount) {
+        $message .= "Class {$classCount->class}: {$classCount->count} students present\n";
     }
 
-    public function notifyKitchen(Request $request)
-    {
-        // Fetch the number of present students per class
-        $classCounts = \App\Models\Attendance::whereDate('date', today())
-            ->where('is_present', true)
-            ->join('students', 'attendance.student_id', '=', 'students.id')
-            ->select('students.class', \Illuminate\Support\Facades\DB::raw('COUNT(*) as count'))
-            ->groupBy('students.class')
-            ->get();
+    // Phone number of the kitchen team (replace with actual number)
+    $phoneNumber = '254708225397';
 
-        // Prepare the message for the kitchen team
-        $message = "Daily Attendance Summary:\n";
-        foreach ($classCounts as $classCount) {
-            $message .= "Class {$classCount->class}: {$classCount->count} students present\n";
-        }
+    // Send the SMS using the SMS service
+    try {
+        $response = $this->smsService->sendSMS($phoneNumber, $message);
+        Log::info('SMS Response:', ['response' => $response]);
 
-        // Phone number of the kitchen team (replace with the actual phone number)
-        $phoneNumber = '254708225397'; // Replace with the actual phone number
-
-        // Send the SMS using the SMS service
-        try {
-            $response = $this->smsService->sendSMS($phoneNumber, $message);
-
-            // Convert response to array if it's a JSON string
-            if (is_string($response)) {
-                $response = json_decode($response, true);
-            }
-
-            // Log the response for debugging purposes
-            \Illuminate\Support\Facades\Log::info('SMS Response:', ['response' => $response]);
-
-            // Redirect back with a success message
-            return redirect()->route('dashboard')->with('success', 'Kitchen notified successfully.');
-        } catch (\Exception $e) {
-            // Log the error and redirect back with an error message
-            \Illuminate\Support\Facades\Log::error('SMS Sending Failed:', ['error' => $e->getMessage()]);
-            return redirect()->back()->with('error', 'Failed to notify the kitchen: ' . $e->getMessage());
-        }
+        return redirect()->route('dashboard')->with('success', 'Kitchen notified successfully.');
+    } catch (\Exception $e) {
+        Log::error('SMS Sending Failed:', ['error' => $e->getMessage()]);
+        return redirect()->back()->with('error', 'Failed to notify the kitchen: ' . $e->getMessage());
     }
+}
+
 }

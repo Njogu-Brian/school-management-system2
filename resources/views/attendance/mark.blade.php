@@ -16,10 +16,10 @@
         <label for="class">Select Class:</label>
         <select name="class" id="class" class="form-control" onchange="this.form.submit()">
             <option value="">-- Select Class --</option>
-            @foreach($classes as $class)
-            <option value="{{ $class }}" {{ isset($selectedClass) && $selectedClass == $class ? 'selected' : '' }}>
-                Class {{ $class }}
-            </option>
+            @foreach($classes as $id => $name)
+                <option value="{{ $id }}" {{ isset($selectedClass) && $selectedClass == $id ? 'selected' : '' }}>
+                    {{ $name }}
+                </option>
             @endforeach
         </select>
     </form>
@@ -61,22 +61,21 @@
                         }
                     @endphp
                     <tr>
-                        <td>{{ $student->name }}</td>
                         <td>
-                        <select name="status_{{ $student->id }}" class="form-control attendance-select" required>
+                            {{ $student->full_name ?? "{$student->first_name} {$student->middle_name} {$student->last_name}" }}
+                        </td>
+                        <td>
+                            <select name="status_{{ $student->id }}" class="form-control attendance-select" required>
                                 <option value="">-- Select --</option>
                                 <option value="1" {{ isset($attendance) && $attendance->is_present ? 'selected' : '' }}>Present</option>
                                 <option value="0" {{ isset($attendance) && !$attendance->is_present ? 'selected' : '' }}>Absent</option>
                             </select>
-
-
                         </td>
                         <td>
-                        <input type="text" name="reason_{{ $student->id }}" 
-       class="form-control reason-input"
-       value="{{ isset($attendance) ? $attendance->reason : '' }}"
-       {{ (isset($attendance) && $attendance->is_present) ? 'disabled' : '' }}>
-
+                            <input type="text" name="reason_{{ $student->id }}" 
+                                   class="form-control reason-input"
+                                   value="{{ isset($attendance) ? $attendance->reason : '' }}"
+                                   {{ (isset($attendance) && $attendance->is_present) ? 'disabled' : '' }}>
                         </td>
                         <td>
                             @if ($attendance)
@@ -125,5 +124,4 @@
         });
     });
 </script>
-
 @endsection

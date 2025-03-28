@@ -13,8 +13,13 @@
                 <tbody>
                     @foreach ($students as $student)
                         <tr>
-                            <td>{{ $student->name }}</td>
-                            <td>{{ $student->class }}</td>
+                            <!-- Display Full Name -->
+                            <td>{{ $student->full_name ?? "{$student->first_name} {$student->middle_name} {$student->last_name}" }}</td>
+                            
+                            <!-- Display Class Name -->
+                            <td>{{ $student->classroom->name ?? 'N/A' }}</td>
+                            
+                            <!-- Display Attendance Status -->
                             <td>
                                 @if ($student->attendances->where('date', $selectedDate)->where('is_present', 1)->count())
                                     <span class="badge bg-success">Present</span>
