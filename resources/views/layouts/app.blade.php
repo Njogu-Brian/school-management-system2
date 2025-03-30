@@ -66,67 +66,70 @@
 </head>
 <body>
 
-    <!-- Sidebar Navigation -->
+   <!-- Sidebar Navigation -->
     @if(Auth::check())
-<div class="sidebar">
-    <h3 class="text-center">Navigation</h3>
+    <div class="sidebar">
+        <h3 class="text-center">Navigation</h3>
 
-    @if(Auth::user()->hasRole('admin'))
-        <!-- Dashboard -->
-        <a href="{{ route('admin.dashboard') }}"><i class="bi bi-speedometer2"></i> Admin Dashboard</a>
+        @if(Auth::user()->hasRole('admin'))
+            <!-- Dashboard -->
+            <a href="{{ route('admin.dashboard') }}"><i class="bi bi-speedometer2"></i> Admin Dashboard</a>
 
-        <!-- Student Information -->
-        <a href="#studentMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="studentMenu">
-            <i class="bi bi-person"></i> Student Information
+            <!-- Student Information -->
+            <a href="#studentMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="studentMenu">
+                <i class="bi bi-person"></i> Student Information
+            </a>
+            <div class="collapse" id="studentMenu">
+                <a href="{{ route('students.create') }}" class="sublink"><i class="bi bi-person-plus"></i> New Admissions</a>
+                <a href="{{ route('students.index') }}" class="sublink"><i class="bi bi-people"></i> Student Details</a>
+                <a href="{{ route('online-admissions.index') }}" class="sublink"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
+                <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
+            </div>
+
+            <!-- Academic Management -->
+            <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="academicsMenu">
+                <i class="bi bi-journal-bookmark"></i> Academics
+            </a>
+            <div class="collapse" id="academicsMenu">
+                <a href="{{ route('classrooms.index') }}" class="sublink"><i class="bi bi-house-door"></i> Classrooms</a>
+                <a href="{{ route('streams.index') }}" class="sublink"><i class="bi bi-signpost-split"></i> Streams</a>
+                <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
+            </div>
+
+            <!-- Staff Management -->
+            <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
+
+            <!-- Transport Management -->
+            <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="transportMenu">
+                <i class="bi bi-truck"></i> Transport
+            </a>
+            <div class="collapse" id="transportMenu">
+                <a href="{{ route('vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
+                <a href="{{ route('routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
+                <a href="{{ route('trips.index') }}" class="sublink"><i class="bi bi-geo-alt"></i> Manage Trips</a>
+                <a href="{{ route('transport.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
+            </div>
+
+            <!-- Kitchen and Attendance -->
+            <a href="{{ route('notify-kitchen') }}"><i class="bi bi-bell"></i> Notify Kitchen</a>
+            <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
+        @endif
+
+        @if(Auth::user()->hasRole('teacher'))
+            <a href="{{ route('teacher.dashboard') }}"><i class="bi bi-speedometer2"></i> Teacher Dashboard</a>
+            <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
+        @endif
+
+        <!-- Logout -->
+        <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">
+            <i class="bi bi-box-arrow-right"></i> Logout
         </a>
-        <div class="collapse" id="studentMenu">
-            <a href="{{ route('students.create') }}" class="sublink"><i class="bi bi-person-plus"></i> New Admissions</a>
-            <a href="{{ route('students.index') }}" class="sublink"><i class="bi bi-people"></i> Student Details</a>
-            <a href="{{ route('online-admissions.index') }}" class="sublink"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
-            <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
-        </div>
-
-        <!-- Academic Management -->
-        <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="academicsMenu">
-            <i class="bi bi-journal-bookmark"></i> Academics
-        </a>
-        <div class="collapse" id="academicsMenu">
-            <a href="{{ route('classrooms.index') }}" class="sublink"><i class="bi bi-house-door"></i> Classrooms</a>
-            <a href="{{ route('streams.index') }}" class="sublink"><i class="bi bi-signpost-split"></i> Streams</a>
-            <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
-        </div>
-
-        <!-- Staff Management -->
-        <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
-
-        <!-- Transport Management -->
-        <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="transportMenu">
-            <i class="bi bi-truck"></i> Transport
-        </a>
-        <div class="collapse" id="transportMenu">
-            <a href="{{ route('vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
-            <a href="{{ route('routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
-        </div>
-
-        <!-- Kitchen and Attendance -->
-        <a href="{{ route('notify-kitchen') }}"><i class="bi bi-bell"></i> Notify Kitchen</a>
-        <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
+        <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+            @csrf
+        </form>
+    </div>
     @endif
 
-    @if(Auth::user()->hasRole('teacher'))
-        <a href="{{ route('teacher.dashboard') }}"><i class="bi bi-speedometer2"></i> Teacher Dashboard</a>
-        <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
-    @endif
-
-    <!-- Logout -->
-    <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">
-        <i class="bi bi-box-arrow-right"></i> Logout
-    </a>
-    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-        @csrf
-    </form>
-</div>
-@endif
 
 
     <!-- Main Content Area -->

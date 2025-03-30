@@ -9,32 +9,28 @@ class Trip extends Model
 {
     use HasFactory;
 
-    // ✅ Remove this since Laravel automatically assumes 'trips'
-    // protected $table = 'trip';
-
-    protected $primaryKey = 'id'; // optional — this is also assumed by default
-
-    public $timestamps = true;
-
     protected $fillable = [
-        'student_id',
+        'name',
+        'type',
         'route_id',
         'vehicle_id',
-        'drop_off_point',
     ];
 
-    public function student()
-    {
-        return $this->belongsTo(Student::class);
-    }
-
+    // Relationship with Route
     public function route()
     {
         return $this->belongsTo(Route::class);
     }
 
+    // Relationship with Vehicle
     public function vehicle()
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    // Relationship with Students through StudentAssignment
+    public function assignments()
+    {
+        return $this->hasMany(StudentAssignment::class);
     }
 }

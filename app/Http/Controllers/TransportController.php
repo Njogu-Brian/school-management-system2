@@ -7,6 +7,8 @@ use App\Models\Vehicle;
 use App\Models\Route as TransportRoute;
 use App\Models\Student;
 use App\Models\Trip;
+use App\Models\StudentAssignment;
+
 
 class TransportController extends Controller
 {
@@ -34,23 +36,26 @@ class TransportController extends Controller
     return redirect()->back()->with('success', 'Driver assigned to vehicle successfully.');
 }
 
+public function assignStudentToRoute(Request $request)
+{
+    $request->validate([
+        'student_id' => 'required|exists:students,id',
+        'route_id' => 'required|exists:routes,id',
+        'trip_id' => 'required|exists:trips,id',
+        'drop_off_point_id' => 'required|exists:drop_off_points,id',
+        'vehicle_id' => 'nullable|exists:vehicles,id',
+    ]);
 
-    public function assignStudentToRoute(Request $request)
-    {
-        $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'vehicle_id' => 'nullable|exists:vehicles,id',
-            'route_id' => 'required|exists:routes,id',
-            'drop_off_point' => 'required|string|max:255',
-        ]);
+    StudentAssignment::create([
+        'student_id' => $request->student_id,
+        'route_id' => $request->route_id,
+        'trip_id' => $request->trip_id,
+        'drop_off_point_id' => $request->drop_off_point_id,
+        'vehicle_id' => $request->vehicle_id,
+    ]);
 
-        Trip::create([
-            'student_id' => $request->student_id,
-            'vehicle_id' => $request->vehicle_id,
-            'route_id' => $request->route_id,
-            'drop_off_point' => $request->drop_off_point,
-        ]);
+    return back()->with('success', 'Student successfully assigned to route and trip.');
+}
 
-        return redirect()->back()->with('success', 'Student assigned to route successfully.');
-    }
+    
 }

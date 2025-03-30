@@ -9,6 +9,10 @@ use App\Models\ParentInfo;
 use App\Models\StudentCategory;
 use App\Models\Stream;
 use App\Models\Classroom;
+use App\Models\StudentAssignment;
+use App\Models\DropOffPoint;
+use App\Models\Trip;
+use App\Models\Vehicle;
 
 class Student extends Model
 {
@@ -71,4 +75,9 @@ class Student extends Model
     {
         return $this->belongsToMany(Student::class, 'student_siblings', 'student_id', 'sibling_id');
     }
+    public function assignments()
+    {
+        return $this->hasMany(StudentAssignment::class);
+    }
+
 }

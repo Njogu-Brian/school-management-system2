@@ -6,17 +6,20 @@ use App\Models\Route;
 use Illuminate\Http\Request;
 use App\Models\Student;
 use App\Models\Vehicle;
-
+use App\Models\DropOffPoint;
+use App\Models\Trip;
 class RouteController extends Controller
 {
 
     public function index()
 {
-    $routes = Route::all();
+    $routes = Route::with('vehicles', 'dropOffPoints')->get();
     $students = Student::all();
-    $vehicles = Vehicle::all(); // since you're using this in the form too
+    $vehicles = Vehicle::all();
+    $trips = Trip::all();
+    $dropOffPoints = DropOffPoint::all();
 
-    return view('routes.index', compact('routes', 'students', 'vehicles'));
+    return view('routes.index', compact('routes', 'students', 'vehicles', 'trips', 'dropOffPoints'));
 }
 
     public function create()

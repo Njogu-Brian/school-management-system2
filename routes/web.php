@@ -17,6 +17,9 @@ use App\Http\Controllers\StreamController;
 use App\Http\Controllers\StudentCategoryController;
 use App\Http\Controllers\ParentInfoController;
 use App\Http\Controllers\OnlineAdmissionController;
+use App\Http\Controllers\DropOffPointController;
+use App\Http\Controllers\StudentAssignmentController;
+use App\Http\Controllers\TripController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -42,6 +45,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/transport', [TransportController::class, 'index'])->name('transport.index');
     Route::post('/transport/assign-driver', [TransportController::class, 'assignDriver'])->name('transport.assign.driver');
     Route::post('/transport/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('transport.assign.student');
+    Route::resource('trips', TripController::class);
 
     // ✅ Staff Management
     Route::resource('staff', StaffController::class);

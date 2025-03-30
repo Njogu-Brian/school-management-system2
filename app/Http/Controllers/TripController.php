@@ -2,30 +2,60 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Trip;
-use App\Http\Controllers\Controller;
+use App\Models\Vehicle;
+use App\Models\Route;
+use Illuminate\Http\Request;
 
 class TripController extends Controller
 {
     public function index()
     {
-        $trips = Trip::all();
+        $trips = Trip::with(['vehicle', 'route'])->get();
         return view('trips.index', compact('trips'));
+    }
+
+    public function create()
+    {
+        $vehicles = Vehicle::all();
+        $routes = Route::all();
+        return view('trips.create', compact('vehicles', 'routes'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'transport_id' => 'required|exists:transports,id',
+            'vehicle_id' => 'required|exists:vehicles,id',
+            'route_id' => 'required|exists:routes,id',
+            'trip_name' => 'required|string|max:255',
         ]);
 
-        Trip::create([
-            'student_id' => $request->student_id,
-            'transport_id' => $request->transport_id,
+        Trip::create($request->all());
+        return redirect()->route('trips.index')->with('success', 'Trip created successfully.');
+    }
+
+    public function edit(Trip $trip)
+    {
+        $vehicles = Vehicle::all();
+        $routes = Route::all();
+        return view('trips.edit', compact('trip', 'vehicles', 'routes'));
+    }
+
+    public function update(Request $request, Trip $trip)
+    {
+        $request->validate([
+            'vehicle_id' => 'required|exists:vehicles,id',
+            'route_id' => 'required|exists:routes,id',
+            'trip_name' => 'required|string|max:255',
         ]);
 
-        return redirect()->back()->with('success', 'Trip created successfully.');
+        $trip->update($request->all());
+        return redirect()->route('trips.index')->with('success', 'Trip updated successfully.');
+    }
+
+    public function destroy(Trip $trip)
+    {
+        $trip->delete();
+        return redirect()->route('trips.index')->with('success', 'Trip deleted successfully.');
     }
 }
