@@ -38,10 +38,22 @@ class StudentAssignmentController extends Controller
             'vehicle_id' => 'nullable|exists:vehicles,id',
             'drop_off_point_id' => 'required|exists:drop_off_points,id',
         ]);
-
+        
+        // Check if student is already assigned to the same trip and route
+        $exists = StudentAssignment::where([
+            'student_id' => $request->student_id,
+            'route_id' => $request->route_id,
+            'trip_id' => $request->trip_id,
+        ])->exists();
+        
+        if ($exists) {
+            return redirect()->back()->with('error', 'Student is already assigned to this trip and route.');
+        }
+        
         StudentAssignment::create($request->all());
-
+        
         return redirect()->route('student_assignments.index')->with('success', 'Student assigned successfully.');
+        
     }
 
     public function edit(StudentAssignment $assignment)

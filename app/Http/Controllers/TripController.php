@@ -17,10 +17,12 @@ class TripController extends Controller
 
     public function create()
     {
-        $vehicles = Vehicle::all();
         $routes = Route::all();
+        $vehicles = Vehicle::all();
         return view('trips.create', compact('vehicles', 'routes'));
     }
+
+    
 
     public function store(Request $request)
     {
@@ -36,26 +38,33 @@ class TripController extends Controller
 
     public function edit(Trip $trip)
     {
-        $vehicles = Vehicle::all();
         $routes = Route::all();
+        $vehicles = Vehicle::all();
         return view('trips.edit', compact('trip', 'vehicles', 'routes'));
     }
 
     public function update(Request $request, Trip $trip)
     {
         $request->validate([
-            'vehicle_id' => 'required|exists:vehicles,id',
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:Morning,Evening',
             'route_id' => 'required|exists:routes,id',
-            'trip_name' => 'required|string|max:255',
+            'vehicle_id' => 'required|exists:vehicles,id',
         ]);
-
+    
         $trip->update($request->all());
-        return redirect()->route('trips.index')->with('success', 'Trip updated successfully.');
-    }
+    
+        return redirect()->route('trips.index')->with('success', 'Trip updated successfully!');
+    } 
 
     public function destroy(Trip $trip)
     {
+        if ($trip->assignments()->exists()) {
+            return redirect()->route('trips.index')->with('error', 'Cannot delete a trip with assigned students.');
+        }
+        
         $trip->delete();
         return redirect()->route('trips.index')->with('success', 'Trip deleted successfully.');
     }
+
 }

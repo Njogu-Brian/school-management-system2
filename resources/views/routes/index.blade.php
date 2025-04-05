@@ -35,9 +35,11 @@
                     @endforelse
                 </td>
                 <td>
-                    @foreach ($route->dropOffPoints as $point)
+                    @forelse ($route->dropOffPoints as $point)
                         {{ $point->name }} <br>
-                    @endforeach
+                    @empty
+                        <span class="text-muted">No Drop-Off Points Assigned</span>
+                    @endforelse
                 </td>
                 <td>
                     <a href="{{ route('routes.edit', $route) }}" class="btn btn-sm btn-primary">Edit</a>
@@ -57,6 +59,7 @@
 <h3>Assign Student to Route</h3>
 <form action="{{ route('transport.assign.student') }}" method="POST">
     @csrf
+
     <!-- Student Selection -->
     <div class="mb-3">
         <label for="student_id">Select Student</label>
@@ -73,42 +76,15 @@
     <div class="mb-3">
         <label for="route_id">Select Route</label>
         <select name="route_id" class="form-control" id="route-select" required>
-        @foreach($routes as $route)
-    <tr>
-        <td>{{ $route->name }}</td>
-        <td>{{ $route->area }}</td>
-        <td>
-            @if ($route->vehicles->isNotEmpty())
-                @foreach ($route->vehicles as $vehicle)
-                    {{ $vehicle->vehicle_number }} (Driver: {{ $vehicle->driver_name ?? 'Unassigned' }})<br>
-                @endforeach
-            @else
-                <span class="text-muted">No Vehicle Assigned</span>
-            @endif
-        </td>
-        <td>
-            @if ($route->dropOffPoints->isNotEmpty())
-                @foreach ($route->dropOffPoints as $point)
-                    {{ $point->name }} <br>
-                @endforeach
-            @else
-                <span class="text-muted">No Drop-Off Points Assigned</span>
-            @endif
-        </td>
-        <td>
-            <a href="{{ route('routes.edit', $route) }}" class="btn btn-sm btn-primary">Edit</a>
-            <form action="{{ route('routes.destroy', $route) }}" method="POST" style="display:inline;">
-                @csrf @method('DELETE')
-                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this route?')">Delete</button>
-            </form>
-        </td>
-    </tr>
-@endforeach
-
+            @foreach ($routes as $route)
+                <option value="{{ $route->id }}">
+                    {{ $route->name }} - {{ $route->area }}
+                </option>
+            @endforeach
         </select>
     </div>
 
-    <!-- Vehicle Selection (Automatically Filtered by Route) -->
+    <!-- Vehicle Selection (Filtered by Route) -->
     <div class="mb-3">
         <label for="vehicle_id">Select Vehicle (optional)</label>
         <select name="vehicle_id" class="form-control" id="vehicle-select">
@@ -126,7 +102,9 @@
         <label for="trip_id">Select Trip</label>
         <select name="trip_id" class="form-control">
             @foreach ($trips as $trip)
-                <option value="{{ $trip->id }}">{{ $trip->name }} ({{ $trip->type }})</option>
+                <option value="{{ $trip->id }}">
+                    {{ $trip->name }} ({{ $trip->type }})
+                </option>
             @endforeach
         </select>
     </div>

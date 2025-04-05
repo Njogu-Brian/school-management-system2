@@ -2,21 +2,28 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Route;
-use App\Models\StudentAssignment;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DropOffPoint extends Model
 {
-    protected $fillable = ['route_id', 'point_name'];
+    use HasFactory, SoftDeletes;
 
+    protected $fillable = [
+        'name',
+        'route_id',
+    ];
+
+    // Relationship with Route
     public function route()
     {
         return $this->belongsTo(Route::class);
     }
 
-    public function studentAssignments()
+    // Relationship with Student Assignments
+    public function assignments()
     {
-        return $this->hasMany(StudentAssignment::class);
+        return $this->hasMany(StudentAssignment::class, 'drop_off_point_id');
     }
 }

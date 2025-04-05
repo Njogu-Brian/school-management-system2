@@ -8,18 +8,22 @@ use App\Models\Route as TransportRoute;
 use App\Models\Student;
 use App\Models\Trip;
 use App\Models\StudentAssignment;
+use App\Models\DropOffPoint;
 
 
 class TransportController extends Controller
 {
     public function index()
     {
-        $students = Student::all();
-        $vehicles = Vehicle::all();
-        $routes = TransportRoute::all();
-
-        return view('transport.index', compact('students', 'vehicles', 'routes'));
+        $students = Student::count();
+        $vehicles = Vehicle::count();
+        $routes = TransportRoute::count();
+        $trips = Trip::count();
+        $assignments = StudentAssignment::count();
+    
+        return view('transport.index', compact('students', 'vehicles', 'routes', 'trips', 'assignments'));
     }
+    
 
     public function assignDriver(Request $request)
 {
@@ -56,6 +60,20 @@ public function assignStudentToRoute(Request $request)
 
     return back()->with('success', 'Student successfully assigned to route and trip.');
 }
+
+public function getRouteData($routeId)
+{
+    $dropOffPoints = DropOffPoint::where('route_id', $routeId)->get();
+    $trips = Trip::where('route_id', $routeId)->get();
+    $vehicles = TransportRoute::findOrFail($routeId)->vehicles;
+
+    return response()->json([
+        'dropOffPoints' => $dropOffPoints,
+        'trips' => $trips,
+        'vehicles' => $vehicles,
+    ]);
+}
+
 
     
 }

@@ -3,10 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Stream;
-use App\Models\User;
-use App\Models\Student;
-use App\Models\Teacher;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Classroom extends Model
 {

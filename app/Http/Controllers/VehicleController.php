@@ -11,14 +11,14 @@ class VehicleController extends Controller
 {
     public function index()
     {
-        $vehicles = Vehicle::with('trips.student')->get();
-
+        $vehicles = Vehicle::with('routes', 'trips.student')->get();
         $drivers = Staff::whereHas('user.roles', function ($query) {
             $query->where('name', 'driver');
         })->where('status', '!=', 'archived')->get();
 
         return view('vehicles.index', compact('vehicles', 'drivers'));
     }
+
     public function create()
     {
         return view('vehicles.create');

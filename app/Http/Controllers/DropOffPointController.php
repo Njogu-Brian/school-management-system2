@@ -50,7 +50,15 @@ class DropOffPointController extends Controller
 
     public function destroy(DropOffPoint $dropOffPoint)
     {
-        $dropOffPoint->delete();
-        return redirect()->route('dropoffpoints.index')->with('success', 'Drop-Off Point deleted successfully.');
+        // Check if the drop-off point has any assigned students
+        if ($dropOffPoint->assignments()->exists()) {
+            return redirect()->route('dropoffpoints.index')->with('error', 'Cannot delete drop-off point with assigned students.');
+        }
+    
+        // Permanently delete using forceDelete
+        $dropOffPoint->forceDelete();
+        return redirect()->route('dropoffpoints.index')->with('success', 'Drop-Off Point permanently deleted successfully.');
     }
+    
+
 }

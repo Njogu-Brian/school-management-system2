@@ -36,7 +36,15 @@
                                 onclick="return confirm('Delete this vehicle?')">Delete</button>
                     </form>
                 </td>
-            </tr>
+                <td>
+                    @if($vehicle->insurance_document)
+                        <a href="{{ asset('storage/' . $vehicle->insurance_document) }}" target="_blank">Insurance Document</a><br>
+                    @endif
+                    @if($vehicle->logbook_document)
+                        <a href="{{ asset('storage/' . $vehicle->logbook_document) }}" target="_blank">Logbook Document</a>
+                    @endif
+                </td>
+          </tr>
         @endforeach
     </tbody>
 </table>

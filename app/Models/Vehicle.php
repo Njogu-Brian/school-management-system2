@@ -24,7 +24,7 @@ class Vehicle extends Model
     // Relationship with Routes (Many-to-Many)
     public function routes()
     {
-        return $this->belongsToMany(Route::class);
+        return $this->belongsToMany(Route::class, 'route_vehicle');
     }
 
     // Relationship with Trips

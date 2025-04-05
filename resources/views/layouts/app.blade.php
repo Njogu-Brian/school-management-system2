@@ -100,6 +100,7 @@
             <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
 
             <!-- Transport Management -->
+            <!-- Transport Management -->
             <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="transportMenu">
                 <i class="bi bi-truck"></i> Transport
             </a>
@@ -107,9 +108,10 @@
                 <a href="{{ route('vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
                 <a href="{{ route('routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
                 <a href="{{ route('trips.index') }}" class="sublink"><i class="bi bi-geo-alt"></i> Manage Trips</a>
-                <a href="{{ route('transport.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
+                <a href="{{ route('dropoffpoints.index') }}" class="sublink"><i class="bi bi-geo"></i> Drop-Off Points</a>
+                <a href="{{ route('student_assignments.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
             </div>
-
+            
             <!-- Kitchen and Attendance -->
             <a href="{{ route('notify-kitchen') }}"><i class="bi bi-bell"></i> Notify Kitchen</a>
             <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>

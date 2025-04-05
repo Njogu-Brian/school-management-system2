@@ -42,10 +42,17 @@ Route::middleware(['auth'])->group(function () {
     // ✅ Transport Module
     Route::resource('routes', RouteController::class)->except(['show']);
     Route::resource('vehicles', VehicleController::class)->except(['show']);
+    Route::resource('trips', TripController::class);
+    Route::resource('dropoffpoints', DropOffPointController::class);
+    Route::resource('student_assignments', StudentAssignmentController::class);
+    Route::get('/get-route-data/{routeId}', [TransportController::class, 'getRouteData'])->name('get.route.data');
+
+
+    // Additional Transport Routes
     Route::get('/transport', [TransportController::class, 'index'])->name('transport.index');
     Route::post('/transport/assign-driver', [TransportController::class, 'assignDriver'])->name('transport.assign.driver');
     Route::post('/transport/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('transport.assign.student');
-    Route::resource('trips', TripController::class);
+    Route::post('/routes/{route}/assign-vehicle', [RouteController::class, 'assignVehicle'])->name('routes.assignVehicle');
 
     // ✅ Staff Management
     Route::resource('staff', StaffController::class);
@@ -58,22 +65,19 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
     Route::get('/students/{id}/edit', [StudentController::class, 'edit'])->name('students.edit');
 
-
     // ✅ Academic Management
     Route::resource('classrooms', ClassroomController::class)->except(['show']);
     Route::resource('streams', StreamController::class)->except(['show']);
     Route::resource('student-categories', StudentCategoryController::class)->except(['show']);
     Route::post('/get-streams', [StudentController::class, 'getStreams'])->name('students.getStreams');
 
-
     // ✅ Parent Management
     Route::resource('parent-info', ParentInfoController::class)->except(['show']);
 
-    //Online Admission
+    // ✅ Online Admission
     Route::get('/online-admissions', [OnlineAdmissionController::class, 'index'])->name('online-admissions.index');
     Route::post('/online-admissions/approve/{id}', [OnlineAdmissionController::class, 'approve'])->name('online-admissions.approve');
     Route::post('/online-admissions/reject/{id}', [OnlineAdmissionController::class, 'reject'])->name('online-admissions.reject');
-    //Admission Form
     Route::get('/admission-form', [OnlineAdmissionController::class, 'showForm'])->name('online-admission.form');
     Route::post('/admission-form', [OnlineAdmissionController::class, 'submitForm'])->name('online-admission.submit');
 });
@@ -103,7 +107,6 @@ Route::middleware(['auth', 'user-access:student'])->group(function () {
 | Fallback Home Redirection
 ------------------------------------------*/
 Route::get('/home', function () {
-    /** @var \App\Models\User $user */
     $user = auth()->user();
     $user->load('roles');
 
