@@ -22,8 +22,9 @@
             top: 0;
             left: 0;
             padding-top: 20px;
+            overflow-y: auto; /* 👈 enables vertical scroll */
+            scroll-behavior: smooth;
         }
-
         .sidebar a {
             color: white;
             text-decoration: none;
@@ -99,7 +100,7 @@
             <!-- Staff Management -->
             <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
 
-            <!-- Transport Management -->
+        
             <!-- Transport Management -->
             <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="transportMenu">
                 <i class="bi bi-truck"></i> Transport
@@ -121,6 +122,18 @@
             <a href="{{ route('teacher.dashboard') }}"><i class="bi bi-speedometer2"></i> Teacher Dashboard</a>
             <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
         @endif
+        <!-- Communication -->
+        <a href="#communicationMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="communicationMenu">
+            <i class="bi bi-chat-dots"></i> Communication
+        </a>
+        <div class="collapse" id="communicationMenu">
+            <a href="{{ route('communication.send.email') }}" class="sublink"><i class="bi bi-envelope"></i> Send Email</a>
+            <a href="{{ route('communication.send.sms') }}" class="sublink"><i class="bi bi-chat-left-dots"></i> Send SMS</a>
+            <a href="{{ route('communication.logs') }}" class="sublink"><i class="bi bi-clock-history"></i> Message Logs</a>
+            <a href="{{ route('communication.logs.scheduled') }}" class="sublink"><i class="bi bi-calendar-event"></i> Scheduled Logs</a>
+            <a href="{{ route('email-templates.index') }}" class="sublink"><i class="bi bi-card-text"></i> Email Templates</a>
+            <a href="{{ route('sms-templates.index') }}" class="sublink"><i class="bi bi-sim"></i> SMS Templates</a>
+        </div>
 
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">

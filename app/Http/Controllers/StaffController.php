@@ -8,18 +8,30 @@ use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use App\Services\SMSService;
-use App\Mail\StaffWelcomeMail;
-use Illuminate\Support\Facades\Mail;
+use App\Services\CommunicationService;
 use Illuminate\Support\Facades\Log;
+use App\Models\SMSTemplate;
+use App\Models\EmailTemplate;
 
 class StaffController extends Controller
 {
-    protected $smsService;
+    protected $CommunicationService;
 
-    public function __construct(SMSService $smsService)
+    public function __construct(CommunicationService $CommunicationService)
     {
-        $this->smsService = $smsService;
+        $this->CommunicationService = $CommunicationService;
+    }
+
+    public function index()
+    {
+        $staff = Staff::all();
+        return view('staff.index', compact('staff'));
+    }
+
+    public function create()
+    {
+        $roles = Role::all();
+        return view('staff.create', compact('roles'));
     }
 
     public function store(Request $request)
@@ -46,37 +58,47 @@ class StaffController extends Controller
             // Assign roles
             $user->roles()->sync($request->roles);
 
-            // Create staff data
+            // Create staff record
             $staffData = $request->only([
                 'first_name', 'middle_name', 'last_name', 'email', 'phone_number',
                 'id_number', 'date_of_birth', 'gender', 'marital_status', 'address',
                 'emergency_contact_name', 'emergency_contact_phone'
             ]);
             $staffData['user_id'] = $user->id;
-            $staffData['role'] = 'staff'; // Or whatever default you want
-            $staffData['password'] = Hash::make($password); // Even if not used directly, required for DB
-            $staffData['status'] = 'active'; // Optional fallback default
-            
+            $staffData['status'] = 'active';
+
             Staff::create($staffData);
+
+            // ✅ Load templates
+            $smsTemplate = SMSTemplate::where('code', 'welcome_staff')->first();
+            $emailTemplate = EmailTemplate::where('code', 'welcome_staff')->first();
+
+            // ✅ Format message
+            $name = $user->name;
+            $login = $user->email;
+            $msg = $smsTemplate ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $smsTemplate->message) : 
+                   "Welcome $name! Your login: $login and password: $password";
+
+            $subject = $emailTemplate ? $emailTemplate->title : "Welcome to Royal Kings School";
+            $body = $emailTemplate ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $emailTemplate->message) : 
+                    "Dear $name,<br><br>Your account has been created.<br>Email: $login<br>Password: $password";
+
+            // ✅ Send both email + SMS
+            $this->CommunicationService->sendEmail(
+                'staff',
+                $user->id,
+                $user->email,
+                $subject,
+                $body
+            );
             
 
-            // Send Email
-            try {
-                Mail::to($user->email)->send(new StaffWelcomeMail($user, $password));
-
-            } catch (\Exception $e) {
-                Log::error('Email send failed: ' . $e->getMessage());
-            }
-
-            // Send SMS
-            if (!empty($request->phone_number)) {
-                $message = "Welcome {$user->name}. Email: {$user->email}, Password: {$password}. Please log in and change it.";
-                try {
-                    $this->smsService->sendSMS($request->phone_number, $message);
-                } catch (\Exception $e) {
-                    Log::error('SMS send failed: ' . $e->getMessage());
-                }
-            }
+            $this->CommunicationService->sendSMS(
+                recipientType: 'staff',
+                recipientId: null,
+                phone: $request->phone_number,
+                message: $msg
+            );
 
             return redirect()->route('staff.index')->with('success', 'Staff created and credentials sent.');
         } catch (\Exception $e) {
@@ -85,16 +107,50 @@ class StaffController extends Controller
         }
     }
 
-    public function create()
+    public function edit($id)
     {
+        $staff = Staff::findOrFail($id);
         $roles = Role::all();
-        return view('staff.create', compact('roles'));
+        $user = $staff->user;
+
+        return view('staff.edit', compact('staff', 'roles', 'user'));
     }
 
-    public function index()
+    public function update(Request $request, $id)
     {
-        $staff = Staff::all();
-        return view('staff.index', compact('staff'));
+        $user = User::findOrFail($id);
+        $staff = $user->staff;
+
+        $request->validate([
+            'email' => 'required|email|unique:users,email,' . $id,
+            'first_name' => 'required',
+            'last_name' => 'required',
+            'roles' => 'required|array',
+        ]);
+
+        // Update user info
+        $user->email = $request->email;
+        $user->save();
+
+        // Update staff bio
+        $staff->update([
+            'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
+            'last_name' => $request->last_name,
+            'phone_number' => $request->phone_number,
+            'id_number' => $request->id_number,
+            'date_of_birth' => $request->date_of_birth,
+            'gender' => $request->gender,
+            'marital_status' => $request->marital_status,
+            'address' => $request->address,
+            'emergency_contact_name' => $request->emergency_contact_name,
+            'emergency_contact_phone' => $request->emergency_contact_phone,
+        ]);
+
+        // Sync roles
+        $user->roles()->sync($request->roles);
+
+        return redirect()->route('staff.index')->with('success', 'Staff updated successfully!');
     }
 
     public function archive($id)

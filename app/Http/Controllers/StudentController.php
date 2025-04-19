@@ -8,27 +8,32 @@ use App\Models\StudentCategory;
 use App\Models\Classroom;
 use App\Models\Stream;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log; // Import this at the top
+use Illuminate\Support\Facades\Log;
+use App\Services\SMSService;
+use Illuminate\Support\Facades\Mail;
+use App\Models\SMSTemplate;
+use App\Models\EmailTemplate;
+use App\Mail\GenericMail;
 
 class StudentController extends Controller
 {
+    protected $smsService;
+
+    public function __construct(SMSService $smsService)
+    {
+        $this->smsService = $smsService;
+    }
+
     public function index(Request $request)
     {
         $students = Student::with(['parent', 'classroom', 'stream', 'category'])
-            ->when($request->name, function ($query, $name) {
-                $query->where('name', 'like', "%$name%");
-            })
-            ->when($request->admission_number, function ($query, $admission_number) {
-                $query->where('admission_number', $admission_number);
-            })
-            ->when($request->classroom_id, function ($query, $classroom_id) {
-                $query->where('classroom_id', $classroom_id);
-            })
+            ->when($request->name, fn ($q, $name) => $q->where('name', 'like', "%$name%"))
+            ->when($request->admission_number, fn ($q, $adNo) => $q->where('admission_number', $adNo))
+            ->when($request->classroom_id, fn ($q, $id) => $q->where('classroom_id', $id))
             ->where('archive', false)
             ->get();
 
         $classes = Classroom::all();
-
         return view('students.index', compact('students', 'classes'));
     }
 
@@ -40,21 +45,13 @@ class StudentController extends Controller
         $streams = Stream::all();
         $students = Student::with('parent')->get();
 
-        // Make sure 'classes' is passed as 'classrooms' to match the view
         return view('students.create', compact('parents', 'categories', 'classes', 'streams', 'students'))->with('classrooms', $classes);
     }
 
-
-    // ✅ Fetch Streams Based on Class
     public function getStreams(Request $request)
     {
         $classroomId = $request->classroom_id;
-
-        // Get streams associated with the class
-        $streams = Stream::whereHas('classrooms', function ($query) use ($classroomId) {
-            $query->where('classrooms.id', $classroomId);
-        })->get();
-
+        $streams = Stream::whereHas('classrooms', fn ($q) => $q->where('classrooms.id', $classroomId))->get();
         return response()->json($streams);
     }
 
@@ -73,28 +70,16 @@ class StudentController extends Controller
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
             ]);
-    
-            // ✅ Create Parent If Needed
-            $parent = ParentInfo::create([
-                'father_name' => $request->father_name,
-                'father_phone' => $request->father_phone,
-                'father_email' => $request->father_email,
-                'father_id_number' => $request->father_id_number,
-                'mother_name' => $request->mother_name,
-                'mother_phone' => $request->mother_phone,
-                'mother_email' => $request->mother_email,
-                'mother_id_number' => $request->mother_id_number,
-                'guardian_name' => $request->guardian_name,
-                'guardian_phone' => $request->guardian_phone,
-                'guardian_email' => $request->guardian_email,
-                // 'guardian_id_number' => $request->guardian_id_number,
-            ]);
-    
-            // Generate Admission Number
+
+            $parent = ParentInfo::create($request->only([
+                'father_name', 'father_phone', 'father_email', 'father_id_number',
+                'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
+                'guardian_name', 'guardian_phone', 'guardian_email'
+            ]));
+
             $admission_number = Student::max('admission_number') + 1;
-    
-            // ✅ Create Student
-            Student::create([
+
+            $student = Student::create([
                 'admission_number' => $admission_number,
                 'first_name' => $request->first_name,
                 'middle_name' => $request->middle_name,
@@ -108,75 +93,93 @@ class StudentController extends Controller
                 'nemis_number' => $request->nemis_number,
                 'knec_assessment_number' => $request->knec_assessment_number,
             ]);
-    
+
+            // ✅ Notify via SMS template
+            $smsTemplate = SMSTemplate::where('code', 'student_admission')->first();
+            $smsMessage = $smsTemplate ? str_replace(
+                ['{name}', '{class}'],
+                [$student->getFullNameAttribute(), $student->classroom->name ?? ''],
+                $smsTemplate->message
+            ) : "Dear Parent, your child {$student->getFullNameAttribute()} has been successfully admitted.";
+
+            foreach ([$parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
+                if ($phone) {
+                    $this->smsService->sendSMS($phone, $smsMessage);
+                }
+            }
+
+            // ✅ Notify via Email template
+            $emailTemplate = EmailTemplate::where('code', 'student_admission')->first();
+            if ($emailTemplate) {
+                $subject = $emailTemplate->title;
+                $body = str_replace(
+                    ['{name}', '{class}'],
+                    [$student->getFullNameAttribute(), $student->classroom->name ?? ''],
+                    $emailTemplate->message
+                );
+
+                foreach ([$parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
+                    if ($email) {
+                        Mail::to($email)->send(new GenericMail($subject, $body));
+                    }
+                }
+            }
+
             return redirect()->route('students.index')->with('success', 'Student created successfully.');
         } catch (\Exception $e) {
             Log::error('Student Creation Failed: ' . $e->getMessage(), [
                 'request' => $request->all(),
                 'trace' => $e->getTraceAsString(),
             ]);
-    
+
             return back()->with('error', 'Failed to create student. Please check logs for details.');
         }
     }
-    
+
     public function update(Request $request, $id)
-{
-    $request->validate([
-        'first_name' => 'required|string|max:255',
-        'middle_name' => 'nullable|string|max:255',
-        'last_name' => 'required|string|max:255',
-        'gender' => 'required|string',
-        'dob' => 'nullable|date',
-        'parent_id' => 'nullable|exists:parent_info,id',
-        'classroom_id' => 'nullable|exists:classrooms,id',
-        'stream_id' => 'nullable|exists:streams,id',
-        'category_id' => 'nullable|exists:student_categories,id',
-        'nemis_number' => 'nullable|string',
-        'knec_assessment_number' => 'nullable|string',
-    ]);
+    {
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'gender' => 'required|string',
+            'dob' => 'nullable|date',
+            'parent_id' => 'nullable|exists:parent_info,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'category_id' => 'nullable|exists:student_categories,id',
+            'nemis_number' => 'nullable|string',
+            'knec_assessment_number' => 'nullable|string',
+        ]);
 
-    $student = Student::findOrFail($id);
+        $student = Student::findOrFail($id);
 
-    // ✅ Update Student Details
-    $student->update($request->only([
-        'first_name', 'middle_name', 'last_name', 'gender', 'dob',
-        'classroom_id', 'stream_id', 'category_id',
-        'nemis_number', 'knec_assessment_number'
-    ]));
+        $student->update($request->only([
+            'first_name', 'middle_name', 'last_name', 'gender', 'dob',
+            'classroom_id', 'stream_id', 'category_id',
+            'nemis_number', 'knec_assessment_number'
+        ]));
 
-    // ✅ Check if Parent Exists or Create One
-    $parent = ParentInfo::updateOrCreate(
-        ['id' => $student->parent_id],
-        [
-            'father_name' => $request->father_name,
-            'father_phone' => $request->father_phone,
-            'father_email' => $request->father_email,
-            'father_id_number' => $request->father_id_number,
-            'mother_name' => $request->mother_name,
-            'mother_phone' => $request->mother_phone,
-            'mother_email' => $request->mother_email,
-            'mother_id_number' => $request->mother_id_number,
-            'guardian_name' => $request->guardian_name,
-            'guardian_phone' => $request->guardian_phone,
-            'guardian_email' => $request->guardian_email,
-            // 'guardian_id_number' => $request->guardian_id_number,
-        ]
-    );
+        $parent = ParentInfo::updateOrCreate(
+            ['id' => $student->parent_id],
+            $request->only([
+                'father_name', 'father_phone', 'father_email', 'father_id_number',
+                'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
+                'guardian_name', 'guardian_phone', 'guardian_email'
+            ])
+        );
 
-    // Ensure parent_id is set
-    if (!$student->parent_id) {
-        $student->update(['parent_id' => $parent->id]);
+        if (!$student->parent_id) {
+            $student->update(['parent_id' => $parent->id]);
+        }
+
+        return redirect()->route('students.index')->with('success', 'Student updated successfully.');
     }
-
-    return redirect()->route('students.index')->with('success', 'Student updated successfully.');
-}
 
     public function archive($id)
     {
         $student = Student::findOrFail($id);
         $student->update(['archive' => true]);
-
         return redirect()->route('students.index')->with('success', 'Student archived.');
     }
 
@@ -184,22 +187,17 @@ class StudentController extends Controller
     {
         $student = Student::findOrFail($id);
         $student->update(['archive' => false]);
-
         return redirect()->route('students.index')->with('success', 'Student restored.');
     }
+
     public function edit($id)
     {
         $student = Student::with('parent')->findOrFail($id);
         $parents = ParentInfo::all();
         $categories = StudentCategory::all();
         $classes = Classroom::all();
-
-        // Fetch streams associated with the student's class
-        $streams = Stream::whereHas('classrooms', function ($query) use ($student) {
-            $query->where('classrooms.id', $student->classroom_id);
-        })->get();
+        $streams = Stream::whereHas('classrooms', fn ($q) => $q->where('classrooms.id', $student->classroom_id))->get();
 
         return view('students.edit', compact('student', 'parents', 'categories', 'classes', 'streams'));
     }
-
 }

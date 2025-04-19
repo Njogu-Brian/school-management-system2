@@ -20,58 +20,63 @@ use App\Http\Controllers\OnlineAdmissionController;
 use App\Http\Controllers\DropOffPointController;
 use App\Http\Controllers\StudentAssignmentController;
 use App\Http\Controllers\TripController;
+use App\Http\Controllers\CommunicationController;
+use App\Http\Controllers\CommunicationTemplateController;
+use App\Http\Controllers\EmailTemplateController;
+use App\Http\Controllers\SMSTemplateController;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', fn () => view('welcome'));
 
 Auth::routes();
 
+// ================== AUTHENTICATED ROUTES ==================
 Route::middleware(['auth'])->group(function () {
 
-    // ✅ Attendance Routes
+    // ✅ Dashboard
+    Route::get('/admin/home', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
+    Route::get('/teacher/dashboard', [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
+    Route::get('/student/dashboard', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
+
+    // ✅ Attendance
     Route::get('/attendance/mark', [AttendanceController::class, 'showForm'])->name('attendance.mark.form');
     Route::post('/attendance/mark', [AttendanceController::class, 'markAttendance'])->name('attendance.mark');
     Route::get('/attendance/edit/{id}', [AttendanceController::class, 'edit'])->name('attendance.edit');
     Route::post('/attendance/update/{id}', [AttendanceController::class, 'updateAttendance'])->name('attendance.update');
 
-    // ✅ Notify Kitchen
+    // ✅ Kitchen
     Route::get('/notify-kitchen', [KitchenController::class, 'showForm'])->name('notify-kitchen');
     Route::post('/notify-kitchen', [KitchenController::class, 'notifyKitchen'])->name('notify-kitchen.submit');
 
-    // ✅ Transport Module
+    // ✅ Transport
     Route::resource('routes', RouteController::class)->except(['show']);
     Route::resource('vehicles', VehicleController::class)->except(['show']);
     Route::resource('trips', TripController::class);
     Route::resource('dropoffpoints', DropOffPointController::class);
     Route::resource('student_assignments', StudentAssignmentController::class);
     Route::get('/get-route-data/{routeId}', [TransportController::class, 'getRouteData'])->name('get.route.data');
-
-
-    // Additional Transport Routes
     Route::get('/transport', [TransportController::class, 'index'])->name('transport.index');
     Route::post('/transport/assign-driver', [TransportController::class, 'assignDriver'])->name('transport.assign.driver');
     Route::post('/transport/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('transport.assign.student');
     Route::post('/routes/{route}/assign-vehicle', [RouteController::class, 'assignVehicle'])->name('routes.assignVehicle');
 
-    // ✅ Staff Management
+    // ✅ Staff
     Route::resource('staff', StaffController::class);
     Route::post('/staff/{id}/archive', [StaffController::class, 'archive'])->name('staff.archive');
     Route::post('/staff/{id}/restore', [StaffController::class, 'restore'])->name('staff.restore');
 
-    // ✅ Student Management
+    // ✅ Students
     Route::resource('students', StudentController::class)->except(['destroy']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])->name('students.archive');
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
     Route::get('/students/{id}/edit', [StudentController::class, 'edit'])->name('students.edit');
 
-    // ✅ Academic Management
+    // ✅ Academics
     Route::resource('classrooms', ClassroomController::class)->except(['show']);
     Route::resource('streams', StreamController::class)->except(['show']);
     Route::resource('student-categories', StudentCategoryController::class)->except(['show']);
     Route::post('/get-streams', [StudentController::class, 'getStreams'])->name('students.getStreams');
 
-    // ✅ Parent Management
+    // ✅ Parents
     Route::resource('parent-info', ParentInfoController::class)->except(['show']);
 
     // ✅ Online Admission
@@ -80,43 +85,56 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/online-admissions/reject/{id}', [OnlineAdmissionController::class, 'reject'])->name('online-admissions.reject');
     Route::get('/admission-form', [OnlineAdmissionController::class, 'showForm'])->name('online-admission.form');
     Route::post('/admission-form', [OnlineAdmissionController::class, 'submitForm'])->name('online-admission.submit');
+
+    // ✅ Communication (Email/SMS Send, Logs, Dashboard)
+    Route::get('/communication/send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
+    Route::post('/communication/send-email', [CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
+
+    Route::get('/communication/send-sms', [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
+    Route::post('/communication/send-sms', [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
+
+    Route::get('/communication/logs', [CommunicationController::class, 'logs'])->name('communication.logs');
+    Route::get('/communication/logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
+
+    // ✅ Email Templates
+    Route::resource('email-templates', EmailTemplateController::class)->except(['show']);
+
+    // ✅ SMS Templates
+    Route::resource('sms-templates', SMSTemplateController::class)->except(['show']);
+    Route::get('/sms-templates/{id}/edit', [SmsTemplateController::class, 'edit'])->name('sms.templates.edit');
+    Route::put('/sms-templates/{id}', [SmsTemplateController::class, 'update'])->name('sms.templates.update');
+
 });
 
-/*------------------------------------------
-| Admin Routes
-------------------------------------------*/
-Route::middleware(['auth', 'user-access:admin'])->group(function () {
-    Route::get('/admin/home', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
-});
-
-/*------------------------------------------
-| Teacher Routes
-------------------------------------------*/
-Route::middleware(['auth', 'user-access:teacher'])->group(function () {
-    Route::get('/teacher/dashboard', [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
-});
-
-/*------------------------------------------
-| Student Routes
-------------------------------------------*/
-Route::middleware(['auth', 'user-access:student'])->group(function () {
-    Route::get('/student/dashboard', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
-});
-
-/*------------------------------------------
-| Fallback Home Redirection
-------------------------------------------*/
+// ================== FALLBACK & UTILITIES ==================
 Route::get('/home', function () {
     $user = auth()->user();
     $user->load('roles');
 
-    if ($user->hasRole('admin')) {
-        return redirect()->route('admin.dashboard');
-    } elseif ($user->hasRole('teacher')) {
-        return redirect()->route('teacher.dashboard');
-    } elseif ($user->hasRole('student')) {
-        return redirect()->route('student.dashboard');
-    }
+    if ($user->hasRole('admin')) return redirect()->route('admin.dashboard');
+    if ($user->hasRole('teacher')) return redirect()->route('teacher.dashboard');
+    if ($user->hasRole('student')) return redirect()->route('student.dashboard');
 
     return abort(403);
 })->middleware('auth')->name('home');
+
+// Route::get('/test-sms', function (\App\Services\SMSService $smsService) {
+//     $response = $smsService->sendSMS('2547XXXXXXX', 'Test SMS from Laravel');
+//     dd($response);
+// });
+
+// Route::get('/test-mail', function () {
+//     \Illuminate\Support\Facades\Mail::raw('This is a raw test email from Laravel.', function ($message) {
+//         $message->to('briannjogu85@gmail.com')
+//                 ->subject('Test Email')
+//                 ->from('info@royalkingsschools.sc.ke', 'Royal Kings');
+//     });
+//     return 'Sent.';
+// });
+Route::get('/check-sms-env', function () {
+    return response()->json([
+        'SMS_API_KEY' => env('SMS_API_KEY'),
+        'SMS_USER_ID' => env('SMS_USER_ID'),
+        'SMS_PASSWORD' => env('SMS_PASSWORD'),
+    ]);
+});

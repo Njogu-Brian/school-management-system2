@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Log;
+
 class SMSService
 {
     protected $apiUrl;
@@ -25,6 +27,29 @@ class SMSService
         // Use the provided sender ID or fallback to the default
         $senderId = $senderId ?? $this->senderId;
 
+        // ✅ Log configuration values to check for issues
+        Log::info('SMS Config Check', [
+            'apiUrl' => $this->apiUrl,
+            'apiKey' => $this->apiKey,
+            'userId' => $this->userId,
+            'password' => $this->password,
+            'senderId' => $senderId,
+        ]);
+
+        // Build the raw POST data string
+        $payload = "userid={$this->userId}"
+            . "&password={$this->password}"
+            . "&mobile={$phoneNumber}"
+            . "&msg=" . urlencode($message)
+            . "&senderid={$senderId}"
+            . "&msgType=text"
+            . "&duplicatecheck=true"
+            . "&output=json"
+            . "&sendMethod=quick";
+
+        Log::info('Sending SMS to URL: ' . $this->apiUrl);
+        Log::info('SMS Payload: ' . $payload);
+
         // Initialize cURL
         $curl = curl_init();
 
@@ -37,17 +62,7 @@ class SMSService
             CURLOPT_TIMEOUT => 30,
             CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
             CURLOPT_CUSTOMREQUEST => "POST",
-            CURLOPT_POSTFIELDS => http_build_query([
-                'userid' => $this->userId,
-                'password' => $this->password,
-                'mobile' => $phoneNumber,
-                'msg' => $message,
-                'senderid' => $senderId,
-                'msgType' => 'text',
-                'duplicatecheck' => 'true',
-                'output' => 'json',
-                'sendMethod' => 'quick',
-            ]),
+            CURLOPT_POSTFIELDS => $payload,
             CURLOPT_HTTPHEADER => [
                 "apikey: {$this->apiKey}",
                 "cache-control: no-cache",
@@ -64,10 +79,12 @@ class SMSService
 
         // Handle errors
         if ($err) {
+            Log::error("SMS Sending Failed: $err");
             return ['status' => 'error', 'message' => "cURL Error #: $err"];
         }
 
-        // Return the API response
+        Log::info("SMS Response: $response");
+
         return json_decode($response, true);
     }
 }

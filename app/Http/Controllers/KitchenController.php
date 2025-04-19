@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Services\SMSService; // Import the SMS service
+use App\Services\SMSService;
+use App\Models\SmsTemplate;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use App\Http\Controllers\Controller;
 
 class KitchenController extends Controller
 {
@@ -14,53 +13,43 @@ class KitchenController extends Controller
 
     public function __construct(SMSService $smsService)
     {
-        $this->smsService = $smsService; // Inject the SMS service
+        $this->smsService = $smsService;
     }
 
     public function showForm()
-{
-    // Fixing the query using the relationship with classrooms
-    $classCounts = \App\Models\Attendance::whereDate('date', today())
-        ->where('is_present', true)
-        ->join('students', 'attendance.student_id', '=', 'students.id')
-        ->join('classrooms', 'students.classroom_id', '=', 'classrooms.id')
-        ->select('classrooms.name as class', DB::raw('COUNT(*) as count'))
-        ->groupBy('classrooms.name')
-        ->get();
+    {
+        $classCounts = \App\Models\Attendance::whereDate('date', today())
+            ->where('is_present', true)
+            ->join('students', 'attendance.student_id', '=', 'students.id')
+            ->join('classrooms', 'students.classroom_id', '=', 'classrooms.id')
+            ->select('classrooms.name as class', DB::raw('COUNT(*) as count'))
+            ->groupBy('classrooms.name')
+            ->get();
 
-    return view('notify-kitchen', compact('classCounts'));
-}
-
-public function notifyKitchen(Request $request)
-{
-    // Fixing the query using the relationship with classrooms
-    $classCounts = \App\Models\Attendance::whereDate('date', today())
-        ->where('is_present', true)
-        ->join('students', 'attendance.student_id', '=', 'students.id')
-        ->join('classrooms', 'students.classroom_id', '=', 'classrooms.id')
-        ->select('classrooms.name as class', DB::raw('COUNT(*) as count'))
-        ->groupBy('classrooms.name')
-        ->get();
-
-    // Prepare the message for the kitchen team
-    $message = "Daily Attendance Summary:\n";
-    foreach ($classCounts as $classCount) {
-        $message .= "Class {$classCount->class}: {$classCount->count} students present\n";
+        return view('notify-kitchen', compact('classCounts'));
     }
 
-    // Phone number of the kitchen team (replace with actual number)
-    $phoneNumber = '254708225397';
+    public function notifyKitchen(Request $request)
+    {
+        $classCounts = \App\Models\Attendance::whereDate('date', today())
+            ->where('is_present', true)
+            ->join('students', 'attendance.student_id', '=', 'students.id')
+            ->join('classrooms', 'students.classroom_id', '=', 'classrooms.id')
+            ->select('classrooms.name as class', DB::raw('COUNT(*) as count'))
+            ->groupBy('classrooms.name')
+            ->get();
 
-    // Send the SMS using the SMS service
-    try {
-        $response = $this->smsService->sendSMS($phoneNumber, $message);
-        Log::info('SMS Response:', ['response' => $response]);
+        $message = "Today's Attendance Summary:\n";
+        foreach ($classCounts as $c) {
+            $message .= "{$c->class}: {$c->count}\n";
+        }
 
-        return redirect()->route('dashboard')->with('success', 'Kitchen notified successfully.');
-    } catch (\Exception $e) {
-        Log::error('SMS Sending Failed:', ['error' => $e->getMessage()]);
-        return redirect()->back()->with('error', 'Failed to notify the kitchen: ' . $e->getMessage());
+        $template = SmsTemplate::where('code', 'kitchen_summary')->first();
+        $text = $template ? str_replace('{summary}', $message, $template->message) : $message;
+
+        $kitchenPhone = '254708225397';
+        $this->smsService->sendSMS($kitchenPhone, $text);
+
+        return back()->with('success', 'Kitchen notified successfully.');
     }
-}
-
 }
