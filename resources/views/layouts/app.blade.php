@@ -135,6 +135,18 @@
             <a href="{{ route('sms-templates.index') }}" class="sublink"><i class="bi bi-sim"></i> SMS Templates</a>
         </div>
 
+        <!-- System Settings -->
+        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="settingsMenu">
+            <i class="bi bi-gear-wide-connected"></i> Settings
+        </a>
+        <div class="collapse" id="settingsMenu">
+            <a href="{{ route('settings.index') }}" class="sublink"><i class="bi bi-building"></i> General Info</a>
+            <a href="{{ route('settings.update.branding') }}" class="sublink"><i class="bi bi-image"></i> Branding</a>
+            <a href="{{ route('settings.update.regional') }}" class="sublink"><i class="bi bi-globe"></i> Regional Settings</a>
+            <a href="{{ route('settings.update.system') }}" class="sublink"><i class="bi bi-sliders"></i> System Options</a>
+            <a href="{{ route('settings.update.modules') }}" class="sublink"><i class="bi bi-toggle-on"></i> Modules & Permissions</a>
+        </div>
+        
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">
             <i class="bi bi-box-arrow-right"></i> Logout

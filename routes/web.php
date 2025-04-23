@@ -24,6 +24,7 @@ use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\SMSTemplateController;
+use App\Http\Controllers\SettingController;
 
 Route::get('/', fn () => view('welcome'));
 
@@ -104,7 +105,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sms-templates/{id}/edit', [SmsTemplateController::class, 'edit'])->name('sms.templates.edit');
     Route::put('/sms-templates/{id}', [SmsTemplateController::class, 'update'])->name('sms.templates.update');
 
-});
+       // ✅ Settings
+       Route::prefix('settings')->group(function () {
+        Route::get('/', [SettingController::class, 'index'])->name('settings.index');
+        Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('settings.update.branding');
+        Route::post('/update-general', [SettingController::class, 'updateSettings'])->name('settings.update.general');
+        Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('settings.update.regional');
+        Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
+        Route::post('/update-modules', [SettingController::class, 'updateModules'])->name('settings.update.modules');
+    });
+
+}); // ✅ <-- Add this to close the MAIN auth middleware group
 
 // ================== FALLBACK & UTILITIES ==================
 Route::get('/home', function () {
@@ -117,24 +128,3 @@ Route::get('/home', function () {
 
     return abort(403);
 })->middleware('auth')->name('home');
-
-// Route::get('/test-sms', function (\App\Services\SMSService $smsService) {
-//     $response = $smsService->sendSMS('2547XXXXXXX', 'Test SMS from Laravel');
-//     dd($response);
-// });
-
-// Route::get('/test-mail', function () {
-//     \Illuminate\Support\Facades\Mail::raw('This is a raw test email from Laravel.', function ($message) {
-//         $message->to('briannjogu85@gmail.com')
-//                 ->subject('Test Email')
-//                 ->from('info@royalkingsschools.sc.ke', 'Royal Kings');
-//     });
-//     return 'Sent.';
-// });
-Route::get('/check-sms-env', function () {
-    return response()->json([
-        'SMS_API_KEY' => env('SMS_API_KEY'),
-        'SMS_USER_ID' => env('SMS_USER_ID'),
-        'SMS_PASSWORD' => env('SMS_PASSWORD'),
-    ]);
-});

@@ -15,10 +15,9 @@ class DatabaseSeeder extends Seeder
     public function run()
 {
     $this->call([
-        CommunicationTemplatesSeeder::class,
+        SettingsSeeder::class,
     ]);
 }
-
 
     
 
