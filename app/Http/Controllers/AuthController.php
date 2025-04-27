@@ -5,13 +5,26 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User; // ✅ Ensure this is included
+use App\Models\Setting;
+use App\Models\Announcement;
 
 class AuthController extends Controller
 {
     public function showLoginForm()
-    {
-        return view('auth.login');
-    }
+{
+    $settings = Setting::all()->keyBy('key');
+
+    $announcements = Announcement::where('active', 1)
+        ->where(function ($query) {
+            $query->whereNull('expires_at')
+                  ->orWhere('expires_at', '>', now());
+        })
+        ->latest()
+        ->take(5)
+        ->pluck('content');
+
+    return view('auth.login', compact('settings', 'announcements'));
+}
 
     public function login(Request $request)
     {

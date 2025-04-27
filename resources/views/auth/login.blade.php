@@ -1,73 +1,78 @@
 @extends('layouts.app')
 
 @section('content')
+@php
+    $schoolName = $settings['school_name']->value ?? 'School Management System';
+    $schoolLogo = $settings['school_logo']->value ?? null;
+    $loginBg = $settings['login_background']->value ?? null;
+@endphp
+
 <style>
     body {
-        background: url('{{ asset('storage/' . ($settings['login_background']->value ?? 'default-bg.jpg')) }}') no-repeat center center fixed;
+        background: url('{{ $loginBg ? asset("storage/" . $loginBg) : asset("default-bg.jpg") }}') no-repeat center center fixed;
         background-size: cover;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
-    .login-wrapper {
-        background-color: rgba(255, 255, 255, 0.95);
-        padding: 2rem;
-        border-radius: 12px;
-        max-width: 500px;
-        margin: auto;
-        margin-top: 5%;
-        box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    .login-box {
+        background: rgba(255,255,255,0.95);
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        max-width: 420px;
+        width: 100%;
     }
-    .school-logo {
-        height: 60px;
+    .login-box img.logo {
+        max-height: 70px;
         margin-bottom: 15px;
     }
-    @media (max-width: 768px) {
-        .login-wrapper {
-            margin-top: 20%;
-        }
+    .announcements {
+        background: #f9f9f9;
+        border-left: 4px solid #007bff;
+        padding: 10px;
+        margin-top: 20px;
+        font-size: 14px;
     }
 </style>
 
-<div class="container">
-    <div class="login-wrapper text-center">
-        @if(isset($settings['school_logo']))
-            <img src="{{ asset('storage/' . $settings['school_logo']->value) }}" class="school-logo" alt="School Logo">
-        @endif
-        <h4 class="mb-4">{{ $settings['school_name']->value ?? 'School Management System' }}</h4>
+<div class="login-box text-center">
+    @if ($schoolLogo)
+        <img src="{{ asset('storage/' . $schoolLogo) }}" alt="Logo" class="logo">
+    @endif
 
-        <form method="POST" action="{{ route('login') }}">
-            @csrf
+    <h5 class="mb-3">{{ $schoolName }}</h5>
 
-            <div class="mb-3 text-start">
-                <label for="email" class="form-label">Email Address</label>
-                <input id="email" type="email" class="form-control" name="email" required autofocus>
-            </div>
-
-            <div class="mb-3 text-start">
-                <label for="password" class="form-label">Password</label>
-                <input id="password" type="password" class="form-control" name="password" required>
-            </div>
-
-            <div class="mb-3 form-check text-start">
-                <input type="checkbox" class="form-check-input" name="remember" id="remember">
-                <label class="form-check-label" for="remember">Remember Me</label>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Login</button>
-
-            <div class="mt-3">
-                <a href="{{ route('password.request') }}">Forgot Your Password?</a>
-            </div>
-        </form>
-
-        <hr class="my-4">
-
-        <div class="text-start">
-            <h6>📢 Announcements</h6>
-            <ul class="list-unstyled small">
-                <li>• Term 2 begins on May 1st 🎓</li>
-                <li>• Transport routes updated 🚍</li>
-                <li>• New kitchen menu available 🍛</li>
-            </ul>
+    <form method="POST" action="{{ route('login') }}" class="text-start">
+        @csrf
+        <div class="mb-3">
+            <label>Email Address</label>
+            <input type="email" class="form-control" name="email" required autofocus>
         </div>
+
+        <div class="mb-3">
+            <label>Password</label>
+            <input type="password" class="form-control" name="password" required>
+        </div>
+
+        <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" name="remember">
+            <label class="form-check-label">Remember Me</label>
+        </div>
+
+        <button class="btn btn-primary w-100">Login</button>
+    </form>
+
+    <div class="announcements mt-4 text-start">
+        <strong>📢 Announcements:</strong>
+        <ul class="mb-0">
+            @forelse ($announcements as $note)
+                <li>{{ $note }}</li>
+            @empty
+                <li>No current announcements</li>
+            @endforelse
+        </ul>
     </div>
 </div>
 @endsection

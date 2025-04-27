@@ -17,9 +17,6 @@
         <li class="nav-item" role="presentation">
             <a class="nav-link" id="system-tab" data-bs-toggle="tab" href="#system" role="tab">System Options</a>
         </li>
-        <li class="nav-item" role="presentation">
-            <a class="nav-link" id="modules-tab" data-bs-toggle="tab" href="#modules" role="tab">Modules & Permissions</a>
-        </li>
     </ul>
 
     <div class="tab-content p-4 border border-top-0 rounded-bottom" id="settingsTabContent">
@@ -27,7 +24,6 @@
         @include('settings.partials.branding')
         @include('settings.partials.regional')
         @include('settings.partials.system')
-        @include('settings.partials.modules')
     </div>
 </div>
 @endsection

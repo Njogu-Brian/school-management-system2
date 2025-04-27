@@ -133,6 +133,7 @@
             <a href="{{ route('communication.logs.scheduled') }}" class="sublink"><i class="bi bi-calendar-event"></i> Scheduled Logs</a>
             <a href="{{ route('email-templates.index') }}" class="sublink"><i class="bi bi-card-text"></i> Email Templates</a>
             <a href="{{ route('sms-templates.index') }}" class="sublink"><i class="bi bi-sim"></i> SMS Templates</a>
+            <a href="{{ route('announcements.index') }}" class="sublink"><i class="bi bi-megaphone"></i> Announcements</a>
         </div>
 
         <!-- System Settings -->
@@ -141,10 +142,7 @@
         </a>
         <div class="collapse" id="settingsMenu">
             <a href="{{ route('settings.index') }}" class="sublink"><i class="bi bi-building"></i> General Info</a>
-            <a href="{{ route('settings.update.branding') }}" class="sublink"><i class="bi bi-image"></i> Branding</a>
-            <a href="{{ route('settings.update.regional') }}" class="sublink"><i class="bi bi-globe"></i> Regional Settings</a>
-            <a href="{{ route('settings.update.system') }}" class="sublink"><i class="bi bi-sliders"></i> System Options</a>
-            <a href="{{ route('settings.update.modules') }}" class="sublink"><i class="bi bi-toggle-on"></i> Modules & Permissions</a>
+            <a href="{{ route('settings.role_permissions') }}" class="sublink"><i class="bi bi-building"></i>Roles</a>
         </div>
         
         <!-- Logout -->

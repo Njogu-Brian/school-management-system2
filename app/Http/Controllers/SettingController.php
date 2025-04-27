@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Storage;
-
+use App\Models\Role;
+use App\Models\User;  
+use App\Models\Permission;
 class SettingController extends Controller
 {
     public function index()
@@ -134,6 +136,42 @@ class SettingController extends Controller
         }
 
         return back()->with('success', 'Branding updated.');
+    }
+
+    public function managePermissions()
+    {
+        $roles = Role::with('permissions')->get();
+        $permissions = Permission::all()->groupBy('module');
+        return view('settings.role_permissions', compact('roles', 'permissions'));
+    }
+
+    public function updateRolePermissions(Request $request)
+    {
+        foreach ($request->permissions as $roleId => $perms) {
+            $role = Role::find($roleId);
+            $syncData = [];
+
+            foreach ($perms as $permissionId => $values) {
+                $syncData[$permissionId] = [
+                    'can_view' => isset($values['view']),
+                    'can_add' => isset($values['add']),
+                    'can_edit' => isset($values['edit']),
+                    'can_delete' => isset($values['delete']),
+                ];
+            }
+
+            $role->permissions()->sync($syncData);
+        }
+
+        return redirect()->back()->with('success', 'Permissions updated successfully.');
+    }
+
+    public function rolePermissions()
+    {
+        $roles = \App\Models\Role::with('permissions')->get();
+        $permissions = \App\Models\Permission::all();
+
+        return view('settings.role_permissions', compact('roles', 'permissions'));
     }
 
 }

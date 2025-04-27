@@ -25,10 +25,12 @@ use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\SMSTemplateController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\CommunicationAnnouncementController;
 
 Route::get('/', fn () => view('welcome'));
 
 Auth::routes();
+Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 
 // ================== AUTHENTICATED ROUTES ==================
 Route::middleware(['auth'])->group(function () {
@@ -97,6 +99,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/communication/logs', [CommunicationController::class, 'logs'])->name('communication.logs');
     Route::get('/communication/logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
 
+    // ✅ Announcements
+    Route::prefix('communication')->middleware('auth')->group(function () {
+        Route::get('announcements', [CommunicationAnnouncementController::class, 'index'])->name('announcements.index');
+        Route::get('announcements/create', [CommunicationAnnouncementController::class, 'create'])->name('announcements.create');
+        Route::post('announcements', [CommunicationAnnouncementController::class, 'store'])->name('announcements.store');
+        Route::get('announcements/{announcement}/edit', [CommunicationAnnouncementController::class, 'edit'])->name('announcements.edit');
+        Route::put('announcements/{announcement}', [CommunicationAnnouncementController::class, 'update'])->name('announcements.update');
+        Route::delete('announcements/{announcement}', [CommunicationAnnouncementController::class, 'destroy'])->name('announcements.destroy');
+    });
+
+
     // ✅ Email Templates
     Route::resource('email-templates', EmailTemplateController::class)->except(['show']);
 
@@ -105,14 +118,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/sms-templates/{id}/edit', [SmsTemplateController::class, 'edit'])->name('sms.templates.edit');
     Route::put('/sms-templates/{id}', [SmsTemplateController::class, 'update'])->name('sms.templates.update');
 
-       // ✅ Settings
-       Route::prefix('settings')->group(function () {
-        Route::get('/', [SettingController::class, 'index'])->name('settings.index');
-        Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('settings.update.branding');
-        Route::post('/update-general', [SettingController::class, 'updateSettings'])->name('settings.update.general');
-        Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('settings.update.regional');
-        Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
-        Route::post('/update-modules', [SettingController::class, 'updateModules'])->name('settings.update.modules');
+    // ✅ Settings
+    Route::prefix('settings')->group(function () {
+    Route::get('/', [SettingController::class, 'index'])->name('settings.index');
+    Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('settings.update.branding');
+    Route::post('/update-general', [SettingController::class, 'updateSettings'])->name('settings.update.general');
+    Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('settings.update.regional');
+    Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
+    Route::get('/role-permissions', [SettingController::class, 'rolePermissions'])->name('settings.role_permissions');
+    Route::post('/role-permissions', [SettingController::class, 'updateRolePermissions'])->name('settings.update_role_permissions');
+
     });
 
 }); // ✅ <-- Add this to close the MAIN auth middleware group
