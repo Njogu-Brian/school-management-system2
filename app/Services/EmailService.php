@@ -4,17 +4,17 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Mail\GenericMail;
 
 class EmailService
 {
-    public function send($to, $subject, $view, $data = [])
+    public function send($to, $subject, $viewOrHtml, $data = [])
     {
         try {
-            Mail::send($view, $data, function ($message) use ($to, $subject) {
-                $message->to($to)
-                        ->subject($subject)
-                        ->from(config('mail.from.address'), config('mail.from.name'));
-            });
+            // If you're using raw HTML content (from template)
+            $content = view($viewOrHtml, $data)->render();
+
+            Mail::to($to)->send(new GenericMail($subject, $content));
 
             Log::info("📧 Email sent to: {$to}");
             return ['status' => 'success', 'message' => 'Email sent'];
@@ -24,3 +24,4 @@ class EmailService
         }
     }
 }
+

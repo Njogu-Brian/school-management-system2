@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CommunicationLog;
 use App\Services\EmailService;
 use App\Services\SMSService;
+use App\Mail\GenericMail;
 use Illuminate\Support\Facades\Log, Mail;
 
 class CommunicationService
@@ -36,12 +37,7 @@ class CommunicationService
     public function sendEmail($recipientType, $recipientId, $email, $subject, $htmlMessage)
 {
     try {
-        \Illuminate\Support\Facades\Mail::send([], [], function ($message) use ($email, $subject, $htmlMessage) {
-            $message->to($email)
-                    ->subject($subject)
-                    ->setBody($htmlMessage, 'text/html')
-                    ->from(config('mail.from.address'), config('mail.from.name'));
-        });
+        Mail::to($email)->send(new GenericMail($subject, $htmlMessage));
 
         CommunicationLog::create([
             'recipient_type' => $recipientType,
