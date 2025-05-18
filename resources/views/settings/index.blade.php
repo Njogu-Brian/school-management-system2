@@ -15,6 +15,9 @@
             <a class="nav-link" id="regional-tab" data-bs-toggle="tab" href="#regional" role="tab">Regional Settings</a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link" id="ids-tab" data-bs-toggle="tab" href="#ids" role="tab">ID Settings</a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link" id="system-tab" data-bs-toggle="tab" href="#system" role="tab">System Options</a>
         </li>
     </ul>
@@ -23,6 +26,7 @@
         @include('settings.partials.general')
         @include('settings.partials.branding')
         @include('settings.partials.regional')
+        @include('settings.partials.ids')
         @include('settings.partials.system')
     </div>
 </div>

@@ -12,6 +12,12 @@ use App\Services\CommunicationService;
 use Illuminate\Support\Facades\Log;
 use App\Models\SMSTemplate;
 use App\Models\EmailTemplate;
+use Illuminate\Support\Facades\Validator;
+use App\Imports\StaffImport;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\DB;
+use App\Models\Setting;
+use App\Models\SystemSetting;
 
 class StaffController extends Controller
 {
@@ -27,13 +33,12 @@ class StaffController extends Controller
         $staff = Staff::all();
         return view('staff.index', compact('staff'));
     }
-
+    
     public function create()
-    {
+    {   
         $roles = Role::all();
         return view('staff.create', compact('roles'));
     }
-
     public function store(Request $request)
     {
         $request->validate([
@@ -42,71 +47,96 @@ class StaffController extends Controller
             'email' => 'required|email|unique:users,email|unique:staff,email',
             'roles' => 'required|array',
             'roles.*' => 'exists:roles,id',
-        ]);
-
+        ]);        
+    
+        DB::beginTransaction();
         try {
             $password = Str::random(10);
-
-            // Create user
+    
+            // ✅ Create user
             $user = User::create([
                 'name' => $request->first_name . ' ' . $request->last_name,
                 'email' => $request->email,
                 'password' => Hash::make($password),
                 'must_change_password' => true,
             ]);
-
-            // Assign roles
+    
+            // ✅ Assign roles
             $user->roles()->sync($request->roles);
-
-            // Create staff record
+    
+            // ✅ Prepare staff data
             $staffData = $request->only([
                 'first_name', 'middle_name', 'last_name', 'email', 'phone_number',
-                'id_number', 'date_of_birth', 'gender', 'marital_status', 'address',
+                'id_number', 'gender', 'marital_status', 'address',
                 'emergency_contact_name', 'emergency_contact_phone'
             ]);
+    
+            // ✅ Parse date of birth
+            if (!empty($request->date_of_birth)) {
+                try {
+                    if (is_numeric($request->date_of_birth)) {
+                        $staffData['date_of_birth'] = \Carbon\Carbon::instance(
+                            \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($request->date_of_birth)
+                        );
+                    } else {
+                        $staffData['date_of_birth'] = \Carbon\Carbon::parse($request->date_of_birth);
+                    }
+                } catch (\Exception $e) {
+                    throw new \Exception("Invalid date format for date_of_birth.");
+                }
+            }
+    
+            // ✅ Generate staff ID BEFORE Staff::create()
             $staffData['user_id'] = $user->id;
-            $staffData['status'] = 'active';
+            $prefix = SystemSetting::getValue('staff_id_prefix', 'STAFF');
+            $start = (int) SystemSetting::getValue('staff_id_start', 1001);
+            $staffId = $prefix . $start;
+            $staffData['staff_id'] = $staffId;
 
+            // ✅ Now create the staff
             Staff::create($staffData);
 
-            // ✅ Load templates
+            // ✅ Increment setting AFTER successful insert
+            SystemSetting::set('staff_id_start', $start + 1);
+
+    
+            // ✅ Notify
             $smsTemplate = SMSTemplate::where('code', 'welcome_staff')->first();
             $emailTemplate = EmailTemplate::where('code', 'welcome_staff')->first();
-
-            // ✅ Format message
+    
             $name = $user->name;
             $login = $user->email;
-            $msg = $smsTemplate ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $smsTemplate->message) : 
-                   "Welcome $name! Your login: $login and password: $password";
-
+            $msg = $smsTemplate
+                ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $smsTemplate->message)
+                : "Welcome $name! Your login: $login and password: $password";
+    
             $subject = $emailTemplate ? $emailTemplate->title : "Welcome to Royal Kings School";
-            $body = $emailTemplate ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $emailTemplate->message) : 
-                    "Dear $name,<br><br>Your account has been created.<br>Email: $login<br>Password: $password";
-
-            // ✅ Send both email + SMS
-            $this->CommunicationService->sendEmail(
-                'staff',
-                $user->id,
-                $user->email,
-                $subject,
-                $body
-            );
-            
-
-            $this->CommunicationService->sendSMS(
-                recipientType: 'staff',
-                recipientId: null,
-                phone: $request->phone_number,
-                message: $msg
-            );
-
+            $body = $emailTemplate
+                ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $emailTemplate->message)
+                : "Dear $name,<br><br>Your account has been created.<br>Email: $login<br>Password: $password";
+    
+            $this->CommunicationService->sendEmail('staff', $user->id, $user->email, $subject, $body);
+            $this->CommunicationService->sendSMS('staff', null, $request->phone_number, $msg);
+    
+            DB::commit();
+    
+            if ($request->is('/fake-staff-upload')) {
+                return 'success';
+            }
+    
             return redirect()->route('staff.index')->with('success', 'Staff created and credentials sent.');
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Error creating staff: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Something went wrong while creating the staff.');
+    
+            if ($request->is('/fake-staff-upload')) {
+                throw $e;
+            }
+    
+            return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
-
+    
     public function edit($id)
     {
         $staff = Staff::findOrFail($id);
@@ -164,4 +194,24 @@ class StaffController extends Controller
         Staff::where('id', $id)->update(['status' => 'active']);
         return redirect()->route('staff.index')->with('success', 'Staff restored.');
     }
+
+    public function showUploadForm()
+    {
+        return view('staff.upload');
+    }
+
+    public function handleUpload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv',
+        ]);
+
+        $import = new \App\Imports\StaffImport;
+        Excel::import($import, $request->file('file'));
+
+        return redirect()->route('staff.index')
+            ->with('success', "{$import->successCount} staff imported.")
+            ->with('errors', $import->errorMessages);
+    }
+
 }

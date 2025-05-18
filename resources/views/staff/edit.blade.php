@@ -8,6 +8,11 @@
     @method('PUT')
 
     <div class="mb-3">
+        <label>Staff ID</label>
+        <input type="text" class="form-control" value="{{ $staff->staff_id }}" readonly>
+    </div>
+
+    <div class="mb-3">
         <label>First Name</label>
         <input type="text" name="first_name" value="{{ old('first_name', $staff->first_name) }}" class="form-control" required>
     </div>

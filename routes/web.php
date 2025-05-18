@@ -24,7 +24,7 @@ use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\SMSTemplateController;
-use App\Http\Controllers\SettingController;
+use App\Http\Controllers\SettingController; 
 use App\Http\Controllers\CommunicationAnnouncementController;
 
 Route::get('/', fn () => view('welcome'));
@@ -63,9 +63,17 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/routes/{route}/assign-vehicle', [RouteController::class, 'assignVehicle'])->name('routes.assignVehicle');
 
     // ✅ Staff
-    Route::resource('staff', StaffController::class);
-    Route::post('/staff/{id}/archive', [StaffController::class, 'archive'])->name('staff.archive');
-    Route::post('/staff/{id}/restore', [StaffController::class, 'restore'])->name('staff.restore');
+    Route::prefix('staff')->group(function () {
+        Route::get('/', [StaffController::class, 'index'])->name('staff.index');
+        Route::get('/create', [StaffController::class, 'create'])->name('staff.create');
+        Route::post('/', [StaffController::class, 'store'])->name('staff.store');
+        Route::get('/{id}/edit', [StaffController::class, 'edit'])->name('staff.edit');
+        Route::post('/{id}/update', [StaffController::class, 'update'])->name('staff.update');
+        Route::post('/{id}/archive', [StaffController::class, 'archive'])->name('staff.archive');
+        Route::post('/{id}/restore', [StaffController::class, 'restore'])->name('staff.restore');
+        Route::get('/upload', [StaffController::class, 'showUploadForm'])->name('staff.upload.form');
+        Route::post('/upload', [StaffController::class, 'handleUpload'])->name('staff.upload.handle');
+    });
 
     // ✅ Students
     Route::resource('students', StudentController::class)->except(['destroy']);
@@ -127,6 +135,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
     Route::get('/role-permissions', [SettingController::class, 'rolePermissions'])->name('settings.role_permissions');
     Route::post('/role-permissions', [SettingController::class, 'updateRolePermissions'])->name('settings.update_role_permissions');
+    Route::post('/settings/id-settings', [SettingController::class, 'updateIdSettings'])->name('settings.ids.save');
+
 
     });
 

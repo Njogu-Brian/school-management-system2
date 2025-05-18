@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\Role;
 use App\Models\User;  
 use App\Models\Permission;
+use App\Models\SystemSetting;
 class SettingController extends Controller
 {
     public function index()
@@ -172,6 +173,31 @@ class SettingController extends Controller
         $permissions = \App\Models\Permission::all();
 
         return view('settings.role_permissions', compact('roles', 'permissions'));
+    }
+    
+    public function updateIdSettings(Request $request)
+    {
+        $request->validate([
+            'staff_id_prefix' => 'required|string|max:10',
+            'staff_id_start' => 'required|integer|min:1',
+            'student_id_prefix' => 'required|string|max:10',
+            'student_id_start' => 'required|integer|min:1',
+        ]);
+
+        $system = SystemSetting::first();
+        if (!$system) {
+            $system = SystemSetting::create($request->only([
+                'staff_id_prefix', 'staff_id_start',
+                'student_id_prefix', 'student_id_start'
+            ]));
+        } else {
+            $system->update($request->only([
+                'staff_id_prefix', 'staff_id_start',
+                'student_id_prefix', 'student_id_start'
+            ]));
+        }
+
+        return redirect()->back()->with('success', 'ID settings updated successfully.');
     }
 
 }

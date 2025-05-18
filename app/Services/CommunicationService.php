@@ -29,9 +29,9 @@ class CommunicationService
             'contact' => $phone,
             'channel' => 'sms',
             'message' => $message,
-            'status' => $result['status'],
-            'response' => $result['message'],
-        ]);
+            'status' => $result['status'] ?? 'unknown',
+            'response' => json_encode($result),
+        ]);        
     }
 
     public function sendEmail($recipientType, $recipientId, $email, $subject, $htmlMessage)

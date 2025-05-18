@@ -12,7 +12,7 @@ class User extends Authenticatable
     protected $with = ['roles'];
 
     protected $fillable = [
-        'name', 'email', 'password', 'role','type'
+        'name', 'email', 'password',
     ];
 
     public function isAdmin()

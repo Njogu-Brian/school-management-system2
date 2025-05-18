@@ -9,9 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 class Setting extends Model
 {
     protected $fillable = [
-        'category',
-        'key',
-        'value',
+        'app_version', 'maintenance_mode', 'show_announcements',
+        'staff_id_prefix', 'staff_id_start',
+        'student_id_prefix', 'student_id_start',
     ];
 
     public $timestamps = false;
