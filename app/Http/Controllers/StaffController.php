@@ -18,6 +18,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
 use App\Models\Setting;
 use App\Models\SystemSetting;
+use App\Models\CommunicationTemplate;
 
 class StaffController extends Controller
 {
@@ -101,13 +102,13 @@ class StaffController extends Controller
 
     
             // ✅ Notify
-            $smsTemplate = SMSTemplate::where('code', 'welcome_staff')->first();
+            $smsTemplate = CommunicationTemplate::where('type', 'sms')->where('code', 'welcome_staff')->first();
             $emailTemplate = EmailTemplate::where('code', 'welcome_staff')->first();
     
             $name = $user->name;
             $login = $user->email;
             $msg = $smsTemplate
-                ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $smsTemplate->message)
+                ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $smsTemplate->content)
                 : "Welcome $name! Your login: $login and password: $password";
     
             $subject = $emailTemplate ? $emailTemplate->title : "Welcome to Royal Kings School";
