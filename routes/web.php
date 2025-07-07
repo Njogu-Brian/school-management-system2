@@ -77,10 +77,20 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // ✅ Students
-    Route::resource('students', StudentController::class)->except(['destroy']);
+    Route::resource('students', StudentController::class)->except(['destroy', 'show']);
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])->name('students.archive');
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
     Route::get('/students/{id}/edit', [StudentController::class, 'edit'])->name('students.edit');
+
+    //archive&restore students
+    Route::post('/students/{id}/archive', [StudentController::class, 'archive'])->name('students.archive');
+    Route::post('/students/{id}/restore', [StudentController::class, 'restore'])->name('students.restore');
+
+    //bulk upload students
+    Route::get('/students/bulk-upload', [StudentController::class, 'bulkForm'])->name('students.bulk');
+    Route::post('/students/bulk-parse', [StudentController::class, 'bulkParse'])->name('students.bulk.parse');
+    Route::post('/students/bulk-import', [StudentController::class, 'bulkImport'])->name('students.bulk.import');
+    Route::get('/students/bulk-template', [StudentController::class, 'bulkTemplate'])->name('students.bulk.template');
 
     // ✅ Academics
     Route::resource('classrooms', ClassroomController::class)->except(['show']);
@@ -98,43 +108,42 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admission-form', [OnlineAdmissionController::class, 'showForm'])->name('online-admission.form');
     Route::post('/admission-form', [OnlineAdmissionController::class, 'submitForm'])->name('online-admission.submit');
 
-    // ✅ Communication (Email/SMS Send, Logs, Dashboard)
-    Route::get('/communication/send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
-    Route::post('/communication/send-email', [CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
+   // ✅ Communication Routes
+    Route::prefix('communication')->group(function () {
+        Route::get('send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
+        Route::post('send-email', [CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
 
-    Route::get('/communication/send-sms', [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
-    Route::post('/communication/send-sms', [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
+        Route::get('send-sms', [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
+        Route::post('send-sms', [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
 
-    Route::get('/communication/logs', [CommunicationController::class, 'logs'])->name('communication.logs');
-    Route::get('/communication/logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
+        Route::get('logs', [CommunicationController::class, 'logs'])->name('communication.logs');
+        Route::get('logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
 
-    // ✅ Announcements
-    Route::prefix('communication')->middleware('auth')->group(function () {
+        // ✅ Announcements
         Route::get('announcements', [CommunicationAnnouncementController::class, 'index'])->name('announcements.index');
         Route::get('announcements/create', [CommunicationAnnouncementController::class, 'create'])->name('announcements.create');
         Route::post('announcements', [CommunicationAnnouncementController::class, 'store'])->name('announcements.store');
         Route::get('announcements/{announcement}/edit', [CommunicationAnnouncementController::class, 'edit'])->name('announcements.edit');
         Route::put('announcements/{announcement}', [CommunicationAnnouncementController::class, 'update'])->name('announcements.update');
         Route::delete('announcements/{announcement}', [CommunicationAnnouncementController::class, 'destroy'])->name('announcements.destroy');
+
+        // ✅ Email Templates
+        Route::resource('email-templates', EmailTemplateController::class)->except(['show']);
+
+        // ✅ SMS Templates
+        Route::resource('sms-templates', SMSTemplateController::class)->except(['show']);
+        Route::get('/sms-templates/{id}/edit', [SmsTemplateController::class, 'edit'])->name('sms.templates.edit');
+        Route::put('/sms-templates/{id}', [SmsTemplateController::class, 'update'])->name('sms.templates.update');
     });
 
-
-    // ✅ Email Templates
-    Route::resource('email-templates', EmailTemplateController::class)->except(['show']);
-
-    // ✅ SMS Templates
-    Route::resource('sms-templates', SMSTemplateController::class)->except(['show']);
-    Route::get('/sms-templates/{id}/edit', [SmsTemplateController::class, 'edit'])->name('sms.templates.edit');
-    Route::put('/sms-templates/{id}', [SmsTemplateController::class, 'update'])->name('sms.templates.update');
-
-    // ✅ Settings
+    // ✅ Settings Routes
     Route::prefix('settings')->group(function () {
         Route::get('/', [SettingController::class, 'index'])->name('settings.index');
         Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('settings.update.branding');
         Route::post('/update-general', [SettingController::class, 'updateSettings'])->name('settings.update.general');
         Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('settings.update.regional');
         Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
-        
+
         // ✅ Roles & Permissions
         Route::get('/role-permissions', [RolePermissionController::class, 'listRoles'])->name('settings.role_permissions');
         Route::get('/role-permissions/edit/{role}', [RolePermissionController::class, 'index'])->name('permissions.edit');
@@ -142,9 +151,9 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/id-settings', [SettingController::class, 'updateIdSettings'])->name('settings.ids.save');
     });
+});
 
-
-}); // ✅ <-- Add this to close the MAIN auth middleware group
+ // ✅ <-- Add this to close the MAIN auth middleware group
 
 // ================== FALLBACK & UTILITIES ==================
 Route::get('/home', function () {

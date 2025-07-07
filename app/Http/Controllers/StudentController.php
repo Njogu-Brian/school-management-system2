@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Mail;
 use App\Models\SMSTemplate;
 use App\Models\EmailTemplate;
 use App\Mail\GenericMail;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\StudentTemplateExport;
+use App\Models\SystemSetting;
 
 class StudentController extends Controller
 {
@@ -27,33 +30,129 @@ class StudentController extends Controller
     public function index(Request $request)
     {
         abort_unless(can_access("students", "manage_students", "view"), 403);
-        $students = Student::with(['parent', 'classroom', 'stream', 'category'])
-            ->when($request->name, fn ($q, $name) => $q->where('name', 'like', "%$name%"))
-            ->when($request->admission_number, fn ($q, $adNo) => $q->where('admission_number', $adNo))
-            ->when($request->classroom_id, fn ($q, $id) => $q->where('classroom_id', $id))
-            ->where('archive', false)
-            ->get();
 
+        $query = Student::with(['parent', 'classroom', 'stream', 'category']);
+
+        if (!$request->has('showArchived')) {
+            $query->where('archive', false);
+        }
+
+        if ($request->filled('name')) {
+            $query->where(function ($q) use ($request) {
+                $q->where('first_name', 'like', '%' . $request->name . '%')
+                ->orWhere('last_name', 'like', '%' . $request->name . '%');
+            });
+        }
+
+        if ($request->filled('admission_number')) {
+            $query->where('admission_number', 'like', '%' . $request->admission_number . '%');
+        }
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+
+        $students = $query->get();
         $classes = Classroom::all();
+
         return view('students.index', compact('students', 'classes'));
     }
 
     public function create()
     {
-        $parents = ParentInfo::all();
-        $categories = StudentCategory::all();
-        $classes = Classroom::all();
-        $streams = Stream::all();
-        $students = Student::with('parent')->get();
+        abort_unless(can_access("students", "manage_students", "add"), 403);
 
-        return view('students.create', compact('parents', 'categories', 'classes', 'streams', 'students'))->with('classrooms', $classes);
+        $students = Student::where('archive', false)->get(); // For sibling dropdown
+        $categories = StudentCategory::all();
+        $classrooms = Classroom::all();
+        $streams = Stream::all();
+
+        return view('students.create', compact('students', 'categories', 'classrooms', 'streams'));
     }
 
-    public function getStreams(Request $request)
+    public function edit($id)
     {
-        $classroomId = $request->classroom_id;
-        $streams = Stream::whereHas('classrooms', fn ($q) => $q->where('classrooms.id', $classroomId))->get();
-        return response()->json($streams);
+        abort_unless(can_access("students", "manage_students", "edit"), 403);
+
+        $student = Student::with(['parent', 'classroom', 'stream', 'category'])->findOrFail($id);
+        $categories = StudentCategory::all();
+        $classrooms = Classroom::all();
+        $streams = Stream::all();
+
+        return view('students.edit', compact('student', 'categories', 'classrooms', 'streams'));
+    }
+    public function update(Request $request, $id)
+    {
+        abort_unless(can_access("students", "manage_students", "edit"), 403);
+
+        $student = Student::findOrFail($id);
+
+        $request->validate([
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'gender' => 'required|string',
+            'dob' => 'nullable|date',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'category_id' => 'nullable|exists:student_categories,id',
+            'nemis_number' => 'nullable|string',
+            'knec_assessment_number' => 'nullable|string',
+        ]);
+
+        $student->update([
+            'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
+            'last_name' => $request->last_name,
+            'gender' => $request->gender,
+            'dob' => $request->dob,
+            'classroom_id' => $request->classroom_id,
+            'stream_id' => $request->stream_id,
+            'category_id' => $request->category_id,
+            'nemis_number' => $request->nemis_number,
+            'knec_assessment_number' => $request->knec_assessment_number,
+        ]);
+
+        // Update parent if present
+        if ($student->parent) {
+            $student->parent->update($request->only([
+                'father_name', 'father_phone', 'father_email', 'father_id_number',
+                'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
+                'guardian_name', 'guardian_phone', 'guardian_email'
+            ]));
+        }
+
+        return redirect()->route('students.index')->with('success', 'Student updated successfully.');
+    }
+
+    public function archive($id)
+    {
+        abort_unless(can_access("students", "manage_students", "delete"), 403);
+
+        $student = Student::findOrFail($id);
+        $student->archive = true;
+        $student->save();
+
+        return redirect()->route('students.index')->with('success', 'Student archived successfully.');
+    }
+
+    public function restore($id)
+    {
+        abort_unless(can_access("students", "manage_students", "edit"), 403);
+
+        $student = Student::findOrFail($id);
+        $student->archive = false;
+        $student->save();
+
+        return redirect()->route('students.index')->with('success', 'Student restored successfully.');
+    }
+
+
+    private function generateNextAdmissionNumber()
+    {
+        $prefix = SystemSetting::getValue('student_id_prefix', 'ADM');
+        $counter = SystemSetting::incrementValue('student_id_counter', SystemSetting::getValue('student_id_start', 1000));
+        return $prefix . str_pad($counter, 4, '0', STR_PAD_LEFT);
     }
 
     public function store(Request $request)
@@ -78,7 +177,7 @@ class StudentController extends Controller
                 'guardian_name', 'guardian_phone', 'guardian_email'
             ]));
 
-            $admission_number = Student::max('admission_number') + 1;
+            $admission_number = $this->generateNextAdmissionNumber();
 
             $student = Student::create([
                 'admission_number' => $admission_number,
@@ -95,36 +194,7 @@ class StudentController extends Controller
                 'knec_assessment_number' => $request->knec_assessment_number,
             ]);
 
-            // ✅ Notify via SMS template
-            $smsTemplate = SMSTemplate::where('code', 'student_admission')->first();
-            $smsMessage = $smsTemplate ? str_replace(
-                ['{name}', '{class}'],
-                [$student->getFullNameAttribute(), $student->classroom->name ?? ''],
-                $smsTemplate->message
-            ) : "Dear Parent, your child {$student->getFullNameAttribute()} has been successfully admitted.";
-
-            foreach ([$parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
-                if ($phone) {
-                    $this->smsService->sendSMS($phone, $smsMessage);
-                }
-            }
-
-            // ✅ Notify via Email template
-            $emailTemplate = EmailTemplate::where('code', 'student_admission')->first();
-            if ($emailTemplate) {
-                $subject = $emailTemplate->title;
-                $body = str_replace(
-                    ['{name}', '{class}'],
-                    [$student->getFullNameAttribute(), $student->classroom->name ?? ''],
-                    $emailTemplate->message
-                );
-
-                foreach ([$parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
-                    if ($email) {
-                        Mail::to($email)->send(new GenericMail($subject, $body));
-                    }
-                }
-            }
+            $this->sendAdmissionCommunication($student, $parent);
 
             return redirect()->route('students.index')->with('success', 'Student created successfully.');
         } catch (\Exception $e) {
@@ -132,76 +202,197 @@ class StudentController extends Controller
                 'request' => $request->all(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
             return back()->with('error', 'Failed to create student. Please check logs for details.');
         }
     }
 
-    public function update(Request $request, $id)
+    public function bulkImport(Request $request)
     {
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'middle_name' => 'nullable|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'gender' => 'required|string',
-            'dob' => 'nullable|date',
-            'parent_id' => 'nullable|exists:parent_info,id',
-            'classroom_id' => 'nullable|exists:classrooms,id',
-            'stream_id' => 'nullable|exists:streams,id',
-            'category_id' => 'nullable|exists:student_categories,id',
-            'nemis_number' => 'nullable|string',
-            'knec_assessment_number' => 'nullable|string',
-        ]);
+        $data = $request->input('students', []);
+        $imported = 0;
+        $duplicates = [];
 
-        $student = Student::findOrFail($id);
+        foreach ($data as $encoded) {
+            $row = json_decode(base64_decode($encoded), true);
+            if (!$row['valid']) continue;
 
-        $student->update($request->only([
-            'first_name', 'middle_name', 'last_name', 'gender', 'dob',
-            'classroom_id', 'stream_id', 'category_id',
-            'nemis_number', 'knec_assessment_number'
-        ]));
+            $existing = Student::where('first_name', $row['first_name'])
+                ->where('last_name', $row['last_name'])
+                ->whereDate('dob', $row['dob'])
+                ->first();
 
-        $parent = ParentInfo::updateOrCreate(
-            ['id' => $student->parent_id],
-            $request->only([
-                'father_name', 'father_phone', 'father_email', 'father_id_number',
-                'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
-                'guardian_name', 'guardian_phone', 'guardian_email'
-            ])
-        );
+            if ($existing) {
+                $duplicates[] = $row['first_name'] . ' ' . $row['last_name'] . ' (DOB: ' . $row['dob'] . ')';
+                continue;
+            }
 
-        if (!$student->parent_id) {
-            $student->update(['parent_id' => $parent->id]);
+            $isNew = empty($row['admission_number']);
+            $admissionNumber = $isNew
+                ? $this->generateNextAdmissionNumber()
+                : $row['admission_number'];
+
+            $parent = ParentInfo::create([
+                'father_name' => $row['father_name'],
+                'father_phone' => $row['father_phone'],
+                'father_email' => $row['father_email'],
+                'father_id_number' => $row['father_id_number'],
+                'mother_name' => $row['mother_name'],
+                'mother_phone' => $row['mother_phone'],
+                'mother_email' => $row['mother_email'],
+                'mother_id_number' => $row['mother_id_number'],
+                'guardian_name' => $row['guardian_name'],
+                'guardian_phone' => $row['guardian_phone'],
+                'guardian_email' => $row['guardian_email'],
+            ]);
+
+            $student = Student::create([
+                'admission_number' => $admissionNumber,
+                'first_name' => $row['first_name'],
+                'middle_name' => $row['middle_name'],
+                'last_name' => $row['last_name'],
+                'gender' => $row['gender'],
+                'dob' => $row['dob'],
+                'classroom_id' => $row['classroom_id'],
+                'stream_id' => $row['stream_id'],
+                'category_id' => $row['category_id'],
+                'parent_id' => $parent->id,
+            ]);
+
+            if ($isNew) {
+                $this->sendAdmissionCommunication($student, $parent);
+            }
+
+            $imported++;
         }
 
-        return redirect()->route('students.index')->with('success', 'Student updated successfully.');
+        $message = "{$imported} students imported successfully.";
+        if (!empty($duplicates)) {
+            $message .= " Skipped duplicates: " . implode(', ', $duplicates);
+            return redirect()->route('students.index')->with('warning', $message);
+        }
+
+        return redirect()->route('students.index')->with('success', $message);
     }
 
-    public function archive($id)
+    protected function sendAdmissionCommunication($student, $parent)
     {
-        abort_unless(can_access("students", "manage_students", "delete"), 403);
-        $student = Student::findOrFail($id);
-        $student->update(['archive' => true]);
-        return redirect()->route('students.index')->with('success', 'Student archived.');
+        $className = optional($student->classroom)->name ?? '';
+        $fullName = $student->getFullNameAttribute();
+
+        // SMS
+        $smsTemplate = SMSTemplate::where('code', 'student_admission')->first();
+        $smsMessage = $smsTemplate
+            ? str_replace(['{name}', '{class}'], [$fullName, $className], $smsTemplate->message)
+            : "Dear Parent, your child {$fullName} has been admitted to class {$className}.";
+
+        foreach ([$parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
+            if ($phone) {
+                $this->smsService->sendSMS($phone, $smsMessage);
+            }
+        }
+
+        // EMAIL
+        $emailTemplate = EmailTemplate::where('code', 'student_admission')->first();
+        if ($emailTemplate) {
+            $subject = $emailTemplate->title;
+            $body = str_replace(
+                ['{name}', '{class}'],
+                [$student->getFullNameAttribute(), $className],
+                $emailTemplate->message
+            );
+
+            foreach ([$parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
+                if ($email) {
+                    try {
+                        Mail::to($email)->send(new \App\Mail\GenericMail($subject, $body));
+                    } catch (\Throwable $e) {
+                        \Log::error("Email sending failed to $email: " . $e->getMessage());
+                    }
+                }
+            }
+        }
+
     }
 
-    public function restore($id)
+    // ============= KEEP EXISTING METHODS AS IS =============
+
+    public function bulkForm()
     {
-        abort_unless(can_access("students", "manage_students", "edit"), 403);
-        $student = Student::findOrFail($id);
-        $student->update(['archive' => false]);
-        return redirect()->route('students.index')->with('success', 'Student restored.');
+        return view('students.bulk');
     }
 
-    public function edit($id)
+    public function bulkTemplate()
     {
-        abort_unless(can_access("students", "manage_students", "edit"), 403);
-        $student = Student::with('parent')->findOrFail($id);
-        $parents = ParentInfo::all();
-        $categories = StudentCategory::all();
-        $classes = Classroom::all();
-        $streams = Stream::whereHas('classrooms', fn ($q) => $q->where('classrooms.id', $student->classroom_id))->get();
+        $classrooms = Classroom::pluck('name')->toArray();
+        $streams = Stream::pluck('name')->toArray();
+        $categories = StudentCategory::pluck('name')->toArray();
 
-        return view('students.edit', compact('student', 'parents', 'categories', 'classes', 'streams'));
+        $sample = [[
+            'admission_number' => '',
+            'first_name' => 'John',
+            'middle_name' => 'Doe',
+            'last_name' => 'Smith',
+            'gender' => 'Male',
+            'dob' => '2010-01-01',
+            'classroom' => $classrooms[0] ?? '',
+            'stream' => $streams[0] ?? '',
+            'category' => $categories[0] ?? '',
+            'father_name' => 'Mr. Smith',
+            'father_phone' => '+2547xxxxxxx',
+            'father_email' => 'father@example.com',
+            'father_id_number' => '12345678',
+            'mother_name' => 'Mrs. Smith',
+            'mother_phone' => '+2547xxxxxxx',
+            'mother_email' => 'mother@example.com',
+            'mother_id_number' => '87654321',
+            'guardian_name' => '',
+            'guardian_phone' => '',
+            'guardian_email' => ''
+        ]];
+
+        return Excel::download(new StudentTemplateExport($sample, $classrooms, $streams, $categories), 'students_upload_template.xlsx');
+    }
+
+    public function bulkParse(Request $request)
+    {
+        $request->validate([
+            'upload_file' => 'required|file|mimes:xlsx,xls',
+        ]);
+
+        $rows = Excel::toArray([], $request->file('upload_file'))[0];
+        $headers = array_map('trim', array_map('strtolower', $rows[0]));
+        unset($rows[0]);
+
+        $students = [];
+        $existingAdNos = Student::pluck('admission_number')->toArray();
+
+        foreach ($rows as $row) {
+            $rowData = array_combine($headers, $row);
+
+            $classroomId = Classroom::where('name', $rowData['classroom'] ?? '')->value('id');
+            $streamId = Stream::where('name', $rowData['stream'] ?? '')->value('id');
+            $categoryId = StudentCategory::where('name', $rowData['category'] ?? '')->value('id');
+
+            $rowData['classroom_id'] = $classroomId;
+            $rowData['stream_id'] = $streamId;
+            $rowData['category_id'] = $categoryId;
+
+            $rowData['classroom_name'] = $rowData['classroom'] ?? '';
+            $rowData['stream_name'] = $rowData['stream'] ?? '';
+            $rowData['category_name'] = $rowData['category'] ?? '';
+
+            $rowData['valid'] =
+                !empty($rowData['first_name']) &&
+                !empty($rowData['last_name']) &&
+                !empty($rowData['gender']) &&
+                !empty($classroomId);
+
+            $rowData['existing'] = in_array($rowData['admission_number'], $existingAdNos);
+
+            $students[] = $rowData;
+        }
+
+        $allValid = collect($students)->every(fn($s) => $s['valid']);
+        return view('students.bulk_preview', compact('students', 'allValid'));
     }
 }

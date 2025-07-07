@@ -15,9 +15,9 @@
                 <tr>
                     <td>{{ ucfirst($role->name) }}</td>
                     <td>
-@if(can_access('settings', 'roles', 'view'))
+<!-- @if(can_access('settings', 'roles', 'view'))
                         <a href="{{ route('permissions.edit', $role->id) }}" class="btn btn-sm btn-primary">Assign Permissions</a>
-@endif
+@endif -->
                     </td>
                 </tr>
             @endforeach

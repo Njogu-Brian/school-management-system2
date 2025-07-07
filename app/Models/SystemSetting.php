@@ -32,4 +32,13 @@ class SystemSetting extends Model
     {
         return optional(self::first())->$key ?? $default;
     }
+    
+    public static function incrementValue($key, $default = 0)
+    {
+        $setting = static::firstOrCreate(['key' => $key], ['value' => $default]);
+        $value = (int) $setting->value + 1;
+        $setting->update(['value' => $value]);
+        return $value;
+    }
+
 }

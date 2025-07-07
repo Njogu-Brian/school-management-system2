@@ -81,8 +81,9 @@
                 <i class="bi bi-person"></i> Student Information
             </a>
             <div class="collapse" id="studentMenu">
-                <a href="{{ route('students.create') }}" class="sublink"><i class="bi bi-person-plus"></i> New Admissions</a>
                 <a href="{{ route('students.index') }}" class="sublink"><i class="bi bi-people"></i> Student Details</a>
+                <a href="{{ route('students.create') }}" class="sublink"><i class="bi bi-person-plus"></i> New Admissions</a>
+                <a href="{{ route( 'students.bulk')}}" class="sublink"><i class="bi bi-file-earmark-arrow-up"></i> Bulk Upload</a>
                 <a href="{{ route('online-admissions.index') }}" class="sublink"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
                 <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
             </div>

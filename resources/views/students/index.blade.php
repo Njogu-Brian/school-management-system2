@@ -43,8 +43,19 @@
         </div>
     </form>
 
-    {{-- Add New Student Button --}}
-    <a href="{{ route('students.create') }}" class="btn btn-success mb-3">Add New Student</a>
+    {{-- Add New Student and Bulk Upload Buttons --}}
+    <div class="mb-3 d-flex gap-2">
+        <a href="{{ route('students.create') }}" class="btn btn-success">Add New Student</a>
+        <a href="{{ route('students.bulk') }}" class="btn btn-info">Bulk Upload</a>
+    </div>
+    {{-- Archive Filter --}}
+    <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" id="showArchived" name="showArchived" 
+               {{ request('showArchived') ? 'checked' : '' }}
+               onchange="location.href='{{ route('students.index', ['showArchived' => request('showArchived') ? null : '1']) }}'">
+        <label class="form-check-label" for="showArchived">Show Archived Students</label>
+    </div>
+
 
     {{-- Student Table --}}
     <div class="table-responsive">
