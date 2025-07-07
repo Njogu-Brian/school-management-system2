@@ -137,14 +137,14 @@
         </div>
 
         <!-- System Settings -->
-        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="settingsMenu">
+`        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="settingsMenu">
             <i class="bi bi-gear-wide-connected"></i> Settings
         </a>
         <div class="collapse" id="settingsMenu">
             <a href="{{ route('settings.index') }}" class="sublink"><i class="bi bi-building"></i> General Info</a>
-            <a href="{{ route('settings.role_permissions') }}" class="sublink"><i class="bi bi-building"></i>Roles</a>
-        </div>
-        
+            <a href="{{ route('settings.role_permissions') }}" class="sublink"><i class="bi bi-shield-lock"></i> Roles & Permissions</a>
+        </div>`
+
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">
             <i class="bi bi-box-arrow-right"></i> Logout

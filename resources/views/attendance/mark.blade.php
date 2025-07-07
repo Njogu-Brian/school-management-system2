@@ -80,7 +80,9 @@
                         <td>
                             @if ($attendance)
                                 <!-- Show Edit Button -->
+@if(can_access('attendance', 'record', 'add'))
                                 <a href="{{ route('attendance.edit', $attendance->id) }}" class="btn btn-warning">Edit</a>
+@endif
                             @endif
                         </td>
                     </tr>

@@ -31,17 +31,20 @@ class StaffController extends Controller
 
     public function index()
     {
+        abort_unless(can_access("staff", "manage_staff", "view"), 403);
         $staff = Staff::all();
         return view('staff.index', compact('staff'));
     }
     
     public function create()
     {   
+        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         $roles = Role::all();
         return view('staff.create', compact('roles'));
     }
     public function store(Request $request)
     {
+        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -140,6 +143,7 @@ class StaffController extends Controller
     
     public function edit($id)
     {
+        abort_unless(can_access("staff", "manage_staff", "edit"), 403);
         $staff = Staff::findOrFail($id);
         $roles = Role::all();
         $user = $staff->user;
@@ -149,14 +153,19 @@ class StaffController extends Controller
 
     public function update(Request $request, $id)
     {
+        abort_unless(can_access("staff", "manage_staff", "edit"), 403);
         $user = User::findOrFail($id);
         $staff = $user->staff;
 
         $request->validate([
-            'email' => 'required|email|unique:users,email,' . $id,
-            'first_name' => 'required',
-            'last_name' => 'required',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email|unique:staff,email',
+            'phone_number' => ['required', 'regex:/^\+254\d{9}$/'],
+            'id_number' => 'required',
+            'date_of_birth' => 'required|date',
             'roles' => 'required|array',
+            'roles.*' => 'exists:roles,id',
         ]);
 
         // Update user info
@@ -186,23 +195,27 @@ class StaffController extends Controller
 
     public function archive($id)
     {
+        abort_unless(can_access("staff", "manage_staff", "delete"), 403);
         Staff::where('id', $id)->update(['status' => 'archived']);
         return redirect()->route('staff.index')->with('success', 'Staff archived.');
     }
 
     public function restore($id)
     {
+        abort_unless(can_access("staff", "manage_staff", "edit"), 403);
         Staff::where('id', $id)->update(['status' => 'active']);
         return redirect()->route('staff.index')->with('success', 'Staff restored.');
     }
 
     public function showUploadForm()
     {
+        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         return view('staff.upload');
     }
 
     public function handleUpload(Request $request)
     {
+        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         $request->validate([
             'file' => 'required|mimes:xlsx,xls,csv',
         ]);

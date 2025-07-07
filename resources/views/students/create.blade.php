@@ -4,7 +4,9 @@
 <div class="container">
     <h1>Student Admission</h1>
 
+@if(can_access('students', 'manage_students', 'add'))
     <form action="{{ route('students.store') }}" method="POST" enctype="multipart/form-data">
+@endif
         @csrf
 
         {{-- Student Information --}}

@@ -34,7 +34,9 @@
             <div class="col-md-3">
                 <label>&nbsp;</label>
                 <div>
+@if(can_access('students', 'manage_students', 'view'))
                     <button type="submit" class="btn btn-primary">Filter</button>
+@endif
                     <a href="{{ route('students.index') }}" class="btn btn-secondary">Reset</a>
                 </div>
             </div>

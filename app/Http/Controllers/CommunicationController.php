@@ -16,12 +16,14 @@ class CommunicationController extends Controller
     // ===== EMAIL =====
     public function createEmail()
     {
+        abort_unless(can_access("communication", "email", "add"), 403);
         $templates = EmailTemplate::all();
         return view('communication.send_email', compact('templates'));
     }
 
     public function sendEmail(Request $request)
     {
+        abort_unless(can_access("communication", "email", "add"), 403);
         $request->validate([
             'target' => 'required',
             'template_id' => 'nullable|exists:email_templates,id',
@@ -137,12 +139,14 @@ class CommunicationController extends Controller
     // ===== SMS =====
     public function createSMS()
     {
+        abort_unless(can_access("communication", "sms", "add"), 403);
         $templates = SMSTemplate::all();
         return view('communication.send_sms', compact('templates'));
     }
 
 public function sendSMS(Request $request, SMSService $smsService)
 {
+        abort_unless(can_access("communication", "sms", "add"), 403);
     $request->validate([
         'template_id' => 'nullable|exists:sms_templates,id',
         'message' => 'nullable|string|max:300',
@@ -236,12 +240,14 @@ public function sendSMS(Request $request, SMSService $smsService)
     // ===== LOGS =====
     public function logs()
     {
+        abort_unless(can_access("communication", "logs", "view"), 403);
         $logs = CommunicationLog::latest()->paginate(20);
         return view('communication.logs', compact('logs'));
     }
 
     public function logsScheduled()
     {
+        abort_unless(can_access("communication", "logs", "view"), 403);
         $logs = ScheduledCommunication::latest()->paginate(20);
         return view('communication.logs_scheduled', compact('logs'));
     }

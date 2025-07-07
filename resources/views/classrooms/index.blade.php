@@ -38,7 +38,11 @@
                 <td>
                     @if($classroom->teachers->count())
                         @foreach($classroom->teachers as $teacher)
-                            {{ $teacher->first_name }} {{ $teacher->last_name }}<br>
+                            @if($teacher->staff)
+                                {{ $teacher->staff->first_name }} {{ $teacher->staff->last_name }}<br>
+                            @else
+                                {{ $teacher->name }} <small class="text-muted">(No staff record)</small><br>
+                            @endif
                         @endforeach
                     @else
                         Not Assigned

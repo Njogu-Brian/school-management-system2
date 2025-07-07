@@ -4,7 +4,9 @@
 <div class="container">
     <h1>Edit Student Information</h1>
 
+@if(can_access('students', 'manage_students', 'edit'))
     <form action="{{ route('students.update', $student->id) }}" method="POST" enctype="multipart/form-data">
+@endif
         @csrf
         @method('PUT')
 

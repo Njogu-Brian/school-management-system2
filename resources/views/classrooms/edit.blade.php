@@ -10,18 +10,30 @@
 
         <div class="mb-3">
             <label>Class Name</label>
-            <input type="text" name="name" class="form-control" value="{{ $classroom->name }}" required>
+            <input type="text" class="form-control" name="name" value="{{ old('name', $classroom->name) }}" required>
         </div>
 
         <div class="mb-3">
             <label>Assign Teachers</label>
-            <select name="teacher_ids[]" class="form-control" multiple>
-                @foreach ($teachers as $teacher)
-                    <option value="{{ $teacher->id }}" @if(in_array($teacher->id, $assignedTeachers)) selected @endif>
-                        {{ $teacher->first_name }} {{ $teacher->last_name }}
-                    </option>
-                @endforeach
-            </select>
+            <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                @forelse ($teachers as $teacher)
+                    <div class="form-check">
+                        <input
+                            type="checkbox"
+                            name="teacher_ids[]"
+                            value="{{ $teacher->id }}"
+                            class="form-check-input"
+                            id="teacher_{{ $teacher->id }}"
+                            {{ in_array($teacher->id, $assignedTeachers) ? 'checked' : '' }}
+                        >
+                        <label class="form-check-label" for="teacher_{{ $teacher->id }}">
+                            {{ $teacher->name }}
+                        </label>
+                    </div>
+                @empty
+                    <p class="text-muted">No teachers found.</p>
+                @endforelse
+            </div>
         </div>
 
         <button type="submit" class="btn btn-primary">Update Classroom</button>

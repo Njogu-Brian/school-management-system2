@@ -26,6 +26,7 @@ use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\SMSTemplateController;
 use App\Http\Controllers\SettingController; 
 use App\Http\Controllers\CommunicationAnnouncementController;
+use App\Http\Controllers\RolePermissionController;
 
 Route::get('/', fn () => view('welcome'));
 
@@ -68,7 +69,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/create', [StaffController::class, 'create'])->name('staff.create');
         Route::post('/', [StaffController::class, 'store'])->name('staff.store');
         Route::get('/{id}/edit', [StaffController::class, 'edit'])->name('staff.edit');
-        Route::post('/{id}/update', [StaffController::class, 'update'])->name('staff.update');
+        Route::put('/{id}', [StaffController::class, 'update'])->name('staff.update');
         Route::post('/{id}/archive', [StaffController::class, 'archive'])->name('staff.archive');
         Route::post('/{id}/restore', [StaffController::class, 'restore'])->name('staff.restore');
         Route::get('/upload', [StaffController::class, 'showUploadForm'])->name('staff.upload.form');
@@ -128,17 +129,20 @@ Route::middleware(['auth'])->group(function () {
 
     // ✅ Settings
     Route::prefix('settings')->group(function () {
-    Route::get('/', [SettingController::class, 'index'])->name('settings.index');
-    Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('settings.update.branding');
-    Route::post('/update-general', [SettingController::class, 'updateSettings'])->name('settings.update.general');
-    Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('settings.update.regional');
-    Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
-    Route::get('/role-permissions', [SettingController::class, 'rolePermissions'])->name('settings.role_permissions');
-    Route::post('/role-permissions', [SettingController::class, 'updateRolePermissions'])->name('settings.update_role_permissions');
-    Route::post('/settings/id-settings', [SettingController::class, 'updateIdSettings'])->name('settings.ids.save');
+        Route::get('/', [SettingController::class, 'index'])->name('settings.index');
+        Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('settings.update.branding');
+        Route::post('/update-general', [SettingController::class, 'updateSettings'])->name('settings.update.general');
+        Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('settings.update.regional');
+        Route::post('/update-system', [SettingController::class, 'updateSystem'])->name('settings.update.system');
+        
+        // ✅ Roles & Permissions
+        Route::get('/role-permissions', [RolePermissionController::class, 'listRoles'])->name('settings.role_permissions');
+        Route::get('/role-permissions/edit/{role}', [RolePermissionController::class, 'index'])->name('permissions.edit');
+        Route::post('/role-permissions/update/{role}', [RolePermissionController::class, 'update'])->name('permissions.update');
 
-
+        Route::post('/id-settings', [SettingController::class, 'updateIdSettings'])->name('settings.ids.save');
     });
+
 
 }); // ✅ <-- Add this to close the MAIN auth middleware group
 

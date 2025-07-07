@@ -16,7 +16,9 @@
         <label for="reason">Reason (if absent):</label>
         <input type="text" name="reason" id="reason" class="form-control" value="{{ old('reason', $attendance->reason) }}" {{ $attendance->is_present ? 'disabled' : '' }}>
 
+@if(can_access('attendance', 'record', 'edit'))
         <button type="submit" class="btn btn-primary mt-3">Update Attendance</button>
+@endif
     </form>
 </div>
 

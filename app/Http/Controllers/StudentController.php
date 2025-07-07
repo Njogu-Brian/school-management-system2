@@ -26,6 +26,7 @@ class StudentController extends Controller
 
     public function index(Request $request)
     {
+        abort_unless(can_access("students", "manage_students", "view"), 403);
         $students = Student::with(['parent', 'classroom', 'stream', 'category'])
             ->when($request->name, fn ($q, $name) => $q->where('name', 'like', "%$name%"))
             ->when($request->admission_number, fn ($q, $adNo) => $q->where('admission_number', $adNo))
@@ -178,6 +179,7 @@ class StudentController extends Controller
 
     public function archive($id)
     {
+        abort_unless(can_access("students", "manage_students", "delete"), 403);
         $student = Student::findOrFail($id);
         $student->update(['archive' => true]);
         return redirect()->route('students.index')->with('success', 'Student archived.');
@@ -185,6 +187,7 @@ class StudentController extends Controller
 
     public function restore($id)
     {
+        abort_unless(can_access("students", "manage_students", "edit"), 403);
         $student = Student::findOrFail($id);
         $student->update(['archive' => false]);
         return redirect()->route('students.index')->with('success', 'Student restored.');
@@ -192,6 +195,7 @@ class StudentController extends Controller
 
     public function edit($id)
     {
+        abort_unless(can_access("students", "manage_students", "edit"), 403);
         $student = Student::with('parent')->findOrFail($id);
         $parents = ParentInfo::all();
         $categories = StudentCategory::all();

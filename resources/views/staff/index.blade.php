@@ -4,7 +4,9 @@
 <h1 class="mb-4">Manage Staff</h1>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
+@if(can_access('staff', 'manage_staff', 'add'))
     <a href="{{ route('staff.create') }}" class="btn btn-success">Add New Staff</a>
+@endif
 
     <div>
         <a href="{{ asset('templates/staff_upload_template_enhanced.xlsx') }}" class="btn btn-outline-secondary me-2">
