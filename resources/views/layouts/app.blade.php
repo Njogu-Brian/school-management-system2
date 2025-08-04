@@ -88,17 +88,12 @@
                 <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
             </div>
 
-            <!-- Fee Management -->
-            <a href="#feeMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="feeMenu">
-                <i class="bi bi-cash-stack"></i> Fee Management
+            <!-- ✅ Finance Management -->
+            <a href="#financeMenu" data-bs-toggle="collapse" aria-expanded="true" aria-controls="financeMenu">
+                <i class="bi bi-currency-dollar"></i> Finance
             </a>
-            <div class="collapse" id="feeMenu">
-                <a href="{{ route('fee-structures.index') }}" class="sublink"><i class="bi bi-gear"></i> Fee Structures</a>
-                <a href="{{ route('fee-collections.index') }}" class="sublink"><i class="bi bi-cash"></i> Fee Collections</a>
-                <a href="{{ route('fee-receipts.index') }}" class="sublink"><i class="bi bi-receipt"></i> Fee Receipts</a>
-                <a href="{{ route('fee-balances.index') }}" class="sublink"><i class="bi bi-balance-scale"></i> Fee Balances</a>
-                <a href="{{ route('fee-reports.index') }}" class="sublink"><i class="bi bi-graph-up"></i> Fee Reports</a>
-                <a href="{{ route('fee-settings.index') }}" class="sublink"><i class="bi bi-gear-wide-connected"></i> Fee Settings</a>
+            <div class="collapse show" id="financeMenu">
+                <a href="{{ route('voteheads.index') }}" class="sublink"><i class="bi bi-list-ul"></i> Voteheads</a>
             </div>
 
             <!-- Academic Management -->
@@ -150,14 +145,14 @@
             <a href="{{ route('announcements.index') }}" class="sublink"><i class="bi bi-megaphone"></i> Announcements</a>
         </div>
 
-        <!-- System Settings -->
-`        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="settingsMenu">
+         <!-- System Settings -->
+        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="settingsMenu">
             <i class="bi bi-gear-wide-connected"></i> Settings
         </a>
         <div class="collapse" id="settingsMenu">
             <a href="{{ route('settings.index') }}" class="sublink"><i class="bi bi-building"></i> General Info</a>
             <a href="{{ route('settings.role_permissions') }}" class="sublink"><i class="bi bi-shield-lock"></i> Roles & Permissions</a>
-        </div>`
+        </div>
 
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">

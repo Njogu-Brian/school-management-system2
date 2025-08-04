@@ -28,6 +28,10 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\VoteheadController;
+use App\Http\Controllers\TermController;
+use App\Http\Controllers\AcademicYearController;
+
+
 
 Route::get('/', fn () => view('welcome'));
 
@@ -151,16 +155,20 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/role-permissions/update/{role}', [RolePermissionController::class, 'update'])->name('permissions.update');
 
         Route::post('/id-settings', [SettingController::class, 'updateIdSettings'])->name('settings.ids.save');
-    });
 
-    // ✅ Voteheads
-    Route::middleware(['auth'])->group(function () {
-    Route::resource('voteheads', VoteheadController::class);
-});
+        Route::middleware(['auth'])->group(function () {
+            Route::resource('academic-years', AcademicYearController::class);
+            Route::resource('terms', TermController::class);
+        });
 
-});
+        // ✅ Voteheads
+        Route::middleware(['auth'])->group(function () {
+            Route::resource('voteheads', VoteheadController::class);
+        });
 
- // ✅ <-- Add this to close the MAIN auth middleware group
+    }); // Close settings prefix group
+
+}); // ✅ <-- Add this to close the MAIN auth middleware group
 
 // ================== FALLBACK & UTILITIES ==================
 Route::get('/home', function () {
