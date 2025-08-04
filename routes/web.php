@@ -27,6 +27,7 @@ use App\Http\Controllers\SMSTemplateController;
 use App\Http\Controllers\SettingController; 
 use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\VoteheadController;
 
 Route::get('/', fn () => view('welcome'));
 
@@ -151,6 +152,12 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/id-settings', [SettingController::class, 'updateIdSettings'])->name('settings.ids.save');
     });
+
+    // ✅ Voteheads
+    Route::middleware(['auth'])->group(function () {
+    Route::resource('voteheads', VoteheadController::class);
+});
+
 });
 
  // ✅ <-- Add this to close the MAIN auth middleware group
