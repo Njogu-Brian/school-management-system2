@@ -23,21 +23,18 @@ class VoteheadController extends Controller
         $request->validate([
             'name' => 'required|unique:voteheads,name',
             'description' => 'nullable|string',
-            'is_mandatory' => 'nullable|boolean',
+            'is_mandatory' => 'boolean',
+            'charge_type' => 'required|in:per_student,once,once_annually,per_family',
         ]);
 
         Votehead::create([
             'name' => $request->name,
             'description' => $request->description,
-            'is_mandatory' => $request->has('is_mandatory'),
+            'is_mandatory' => $request->boolean('is_mandatory'),
+            'charge_type' => $request->charge_type,
         ]);
 
         return redirect()->route('voteheads.index')->with('success', 'Votehead created successfully.');
-    }
-
-    public function edit(Votehead $votehead)
-    {
-        return view('finance.voteheads.edit', compact('votehead'));
     }
 
     public function update(Request $request, Votehead $votehead)
@@ -45,16 +42,24 @@ class VoteheadController extends Controller
         $request->validate([
             'name' => 'required|unique:voteheads,name,' . $votehead->id,
             'description' => 'nullable|string',
-            'is_mandatory' => 'nullable|boolean',
+            'is_mandatory' => 'boolean',
+            'charge_type' => 'required|in:per_student,once,once_annually,per_family',
         ]);
 
         $votehead->update([
             'name' => $request->name,
             'description' => $request->description,
-            'is_mandatory' => $request->has('is_mandatory'),
+            'is_mandatory' => $request->boolean('is_mandatory'),
+            'charge_type' => $request->charge_type,
         ]);
 
         return redirect()->route('voteheads.index')->with('success', 'Votehead updated successfully.');
+    }
+
+        
+    public function edit(Votehead $votehead)
+    {
+        return view('finance.voteheads.edit', compact('votehead'));
     }
 
     public function destroy(Votehead $votehead)

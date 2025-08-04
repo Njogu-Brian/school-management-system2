@@ -9,16 +9,18 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up()
+    public function up(): void
 {
     Schema::create('voteheads', function (Blueprint $table) {
         $table->id();
-        $table->string('name')->unique();
-        $table->string('description')->nullable();
+        $table->string('name');
+        $table->text('description')->nullable();
         $table->boolean('is_mandatory')->default(false);
+        $table->enum('charge_type', ['per_student', 'once', 'once_annually', 'per_family']);
         $table->timestamps();
     });
 }
+
 
     /**
      * Reverse the migrations.

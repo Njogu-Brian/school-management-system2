@@ -2,8 +2,11 @@
 
 @section('content')
 <div class="container">
-    <h4 class="mb-3">Add Votehead</h4>
-    <form action="{{ route('voteheads.store') }}" method="POST">
+    <h3>Create Votehead</h3>
+
+    <form method="POST" action="{{ route('voteheads.store') }}">
+        @csrf
+
         @include('finance.voteheads.form')
     </form>
 </div>

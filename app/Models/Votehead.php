@@ -9,5 +9,11 @@ class Votehead extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description', 'is_mandatory'];
+    protected $fillable = [
+    'name',
+    'description',
+    'is_mandatory',
+    'charge_type',
+];
+
 }

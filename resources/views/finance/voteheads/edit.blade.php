@@ -2,9 +2,12 @@
 
 @section('content')
 <div class="container">
-    <h4 class="mb-3">Edit Votehead</h4>
-    <form action="{{ route('voteheads.update', $votehead) }}" method="POST">
+    <h3>Edit Votehead</h3>
+
+    <form method="POST" action="{{ route('voteheads.update', $votehead->id) }}">
+        @csrf
         @method('PUT')
+
         @include('finance.voteheads.form')
     </form>
 </div>
