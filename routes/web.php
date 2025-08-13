@@ -30,8 +30,7 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\VoteheadController;
 use App\Http\Controllers\TermController;
 use App\Http\Controllers\AcademicYearController;
-
-
+use App\Http\Controllers\FeeStructureController;
 
 Route::get('/', fn () => view('welcome'));
 
@@ -141,6 +140,17 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/sms-templates/{id}', [SmsTemplateController::class, 'update'])->name('sms.templates.update');
     });
 
+    // ✅ finance
+        Route::middleware(['auth'])->group(function () {
+            Route::resource('voteheads', VoteheadController::class);
+        // routes/web.php
+        Route::resource('fee-structures', FeeStructureController::class);
+        Route::resource('fee-structures', App\Http\Controllers\FeeStructureController::class);
+        Route::post('fee-structures/charge', [FeeStructureController::class, 'chargeStudents'])->name('fee-structures.charge');
+
+        });
+
+
     // ✅ Settings Routes
     Route::prefix('settings')->group(function () {
         Route::get('/', [SettingController::class, 'index'])->name('settings.index');
@@ -161,11 +171,7 @@ Route::middleware(['auth'])->group(function () {
             Route::resource('terms', TermController::class);
         });
 
-        // ✅ Voteheads
-        Route::middleware(['auth'])->group(function () {
-            Route::resource('voteheads', VoteheadController::class);
-        });
-
+    
     }); // Close settings prefix group
 
 }); // ✅ <-- Add this to close the MAIN auth middleware group

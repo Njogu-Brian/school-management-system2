@@ -93,7 +93,12 @@
                 <i class="bi bi-currency-dollar"></i> Finance
             </a>
             <div class="collapse show" id="financeMenu">
-                <a href="{{ route('voteheads.index') }}" class="sublink"><i class="bi bi-list-ul"></i> Voteheads</a>
+                <a href="{{ route('voteheads.index') }}" class="sublink">
+                    <i class="bi bi-list-ul"></i> Voteheads
+                </a>
+                <a href="{{ route('fee-structures.index') }}" class="sublink">
+                    <i class="bi bi-diagram-3"></i> Fee Structures
+                </a>
             </div>
 
             <!-- Academic Management -->
