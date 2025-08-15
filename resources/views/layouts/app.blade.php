@@ -68,79 +68,89 @@
 <body>
 
    <!-- Sidebar Navigation -->
-    @if(Auth::check())
+    @php
+        $isStudentActive = Request::is('students*') || Request::is('online-admissions*') || Request::is('student-categories*');
+        $isFinanceActive = Request::is('voteheads*') || Request::is('fee-structures*') || Request::is('invoices*');
+        $isAcademicsActive = Request::is('classrooms*') || Request::is('streams*');
+        $isTransportActive = Request::is('vehicles*') || Request::is('routes*') || Request::is('trips*') || Request::is('dropoffpoints*') || Request::is('student_assignments*');
+        $isCommunicationActive = Request::is('communication/*') || Request::is('email-templates*') || Request::is('sms-templates*') || Request::is('announcements*');
+        $isSettingsActive = Request::is('settings*');
+    @endphp
+
+    @auth
     <div class="sidebar">
         <h3 class="text-center">Navigation</h3>
 
-        @if(Auth::user()->hasRole('admin'))
-            <!-- Dashboard -->
-            <a href="{{ route('admin.dashboard') }}"><i class="bi bi-speedometer2"></i> Admin Dashboard</a>
+        <a href="{{ route('admin.dashboard') }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
 
-            <!-- Student Information -->
-            <a href="#studentMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="studentMenu">
-                <i class="bi bi-person"></i> Student Information
-            </a>
-            <div class="collapse" id="studentMenu">
-                <a href="{{ route('students.index') }}" class="sublink"><i class="bi bi-people"></i> Student Details</a>
-                <a href="{{ route('students.create') }}" class="sublink"><i class="bi bi-person-plus"></i> New Admissions</a>
-                <a href="{{ route( 'students.bulk')}}" class="sublink"><i class="bi bi-file-earmark-arrow-up"></i> Bulk Upload</a>
-                <a href="{{ route('online-admissions.index') }}" class="sublink"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
-                <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
-            </div>
+        <!-- Student Information -->
+        <a href="#studentMenu" data-bs-toggle="collapse" aria-expanded="{{ $isStudentActive ? 'true' : 'false' }}" aria-controls="studentMenu">
+            <i class="bi bi-person"></i> Student Information
+        </a>
+        <div class="collapse {{ $isStudentActive ? 'show' : '' }}" id="studentMenu">
+            <a href="{{ route('students.index') }}" class="sublink"><i class="bi bi-people"></i> Student Details</a>
+            <a href="{{ route('students.create') }}" class="sublink"><i class="bi bi-person-plus"></i> New Admissions</a>
+            <a href="{{ route('students.bulk') }}" class="sublink"><i class="bi bi-file-earmark-arrow-up"></i> Bulk Upload</a>
+            <a href="{{ route('online-admissions.index') }}" class="sublink"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
+            <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
+        </div>
 
-            <!-- ✅ Finance Management -->
-            <a href="#financeMenu" data-bs-toggle="collapse" aria-expanded="true" aria-controls="financeMenu">
-                <i class="bi bi-currency-dollar"></i> Finance
-            </a>
-            <div class="collapse show" id="financeMenu">
-                <a href="{{ route('voteheads.index') }}" class="sublink">
-                    <i class="bi bi-list-ul"></i> Voteheads
-                </a>
-                <a href="{{ route('fee-structures.index') }}" class="sublink">
-                    <i class="bi bi-diagram-3"></i> Fee Structures
-                </a>
-            </div>
-
-            <!-- Academic Management -->
-            <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="academicsMenu">
-                <i class="bi bi-journal-bookmark"></i> Academics
-            </a>
-            <div class="collapse" id="academicsMenu">
-                <a href="{{ route('classrooms.index') }}" class="sublink"><i class="bi bi-house-door"></i> Classrooms</a>
-                <a href="{{ route('streams.index') }}" class="sublink"><i class="bi bi-signpost-split"></i> Streams</a>
-                <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
-            </div>
-
-            <!-- Staff Management -->
-            <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
-
-        
-            <!-- Transport Management -->
-            <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="transportMenu">
-                <i class="bi bi-truck"></i> Transport
-            </a>
-            <div class="collapse" id="transportMenu">
-                <a href="{{ route('vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
-                <a href="{{ route('routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
-                <a href="{{ route('trips.index') }}" class="sublink"><i class="bi bi-geo-alt"></i> Manage Trips</a>
-                <a href="{{ route('dropoffpoints.index') }}" class="sublink"><i class="bi bi-geo"></i> Drop-Off Points</a>
-                <a href="{{ route('student_assignments.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
-            </div>
+        <!-- Finance -->
+        <a href="#financeMenu" data-bs-toggle="collapse" aria-expanded="{{ $isFinanceActive ? 'true' : 'false' }}" aria-controls="financeMenu">
+            <i class="bi bi-currency-dollar"></i> Finance
+        </a>
+        <div class="collapse {{ $isFinanceActive ? 'show' : '' }}" id="financeMenu">
+            <a href="{{ route('finance.voteheads.index') }}" class="sublink"><i class="bi bi-list-ul"></i> Voteheads</a>
+            <a href="{{ route('finance.fee-structures.manage') }}" class="sublink"><i class="bi bi-diagram-3"></i> Fee Structures</a>
             
-            <!-- Kitchen and Attendance -->
-            <a href="{{ route('notify-kitchen') }}"><i class="bi bi-bell"></i> Notify Kitchen</a>
-            <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
-        @endif
+            <a href="{{ route('finance.invoices.create') }}" class="sublink"><i class="bi bi-file-earmark-plus"></i> Generate Invoices</a>
+            <a href="{{ route('finance.invoices.index') }}" class="sublink"><i class="bi bi-receipt"></i> View Invoices</a>
+            <a href="{{ route('finance.invoices.import') }}" class="sublink"><i class="bi bi-upload"></i> Bulk Invoice Upload</a>
+            
+            <a href="{{ route('finance.invoices.adjustments.import.form') }}" class="sublink"><i class="bi bi-calculator"></i> Credit/Debit Note</a>
+            
+            {{-- <a href="{{ route('finance.payments.create') }}" class="sublink"><i class="bi bi-cash-coin"></i> Record Payments</a>
+            <a href="{{ route('finance.payments.receipt.form') }}" class="sublink"><i class="bi bi-printer"></i> Print Receipts</a>
 
-        @if(Auth::user()->hasRole('teacher'))
-            <a href="{{ route('teacher.dashboard') }}"><i class="bi bi-speedometer2"></i> Teacher Dashboard</a>
-            <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
-        @endif
+            <a href="{{ route('finance.statements.index') }}" class="sublink"><i class="bi bi-journals"></i> Fee Statements</a>
+            
+            <a href="{{ route('finance.invoices.reverse.form') }}" class="sublink"><i class="bi bi-arrow-counterclockwise"></i> Reverse Invoice/Payment</a> --}}
+        </div>
+
+        <!-- Academics -->
+        <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="{{ $isAcademicsActive ? 'true' : 'false' }}" aria-controls="academicsMenu">
+            <i class="bi bi-journal-bookmark"></i> Academics
+        </a>
+        <div class="collapse {{ $isAcademicsActive ? 'show' : '' }}" id="academicsMenu">
+            <a href="{{ route('classrooms.index') }}" class="sublink"><i class="bi bi-house-door"></i> Classrooms</a>
+            <a href="{{ route('streams.index') }}" class="sublink"><i class="bi bi-signpost-split"></i> Streams</a>
+            <a href="{{ route('student-categories.index') }}" class="sublink"><i class="bi bi-tags"></i> Student Categories</a>
+        </div>
+
+        <!-- Staff -->
+        <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
+
+        <!-- Transport -->
+        <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}" aria-controls="transportMenu">
+            <i class="bi bi-truck"></i> Transport
+        </a>
+        <div class="collapse {{ $isTransportActive ? 'show' : '' }}" id="transportMenu">
+            <a href="{{ route('vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
+            <a href="{{ route('routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
+            <a href="{{ route('trips.index') }}" class="sublink"><i class="bi bi-geo-alt"></i> Manage Trips</a>
+            <a href="{{ route('dropoffpoints.index') }}" class="sublink"><i class="bi bi-geo"></i> Drop-Off Points</a>
+            <a href="{{ route('student_assignments.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
+        </div>
+
+        <!-- Kitchen & Attendance -->
+        <a href="{{ route('notify-kitchen') }}"><i class="bi bi-bell"></i> Notify Kitchen</a>
+        <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
+
         <!-- Communication -->
-        <a href="#communicationMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="communicationMenu">
+        <a href="#communicationMenu" data-bs-toggle="collapse" aria-expanded="{{ $isCommunicationActive ? 'true' : 'false' }}" aria-controls="communicationMenu">
             <i class="bi bi-chat-dots"></i> Communication
         </a>
-        <div class="collapse" id="communicationMenu">
+        <div class="collapse {{ $isCommunicationActive ? 'show' : '' }}" id="communicationMenu">
             <a href="{{ route('communication.send.email') }}" class="sublink"><i class="bi bi-envelope"></i> Send Email</a>
             <a href="{{ route('communication.send.sms') }}" class="sublink"><i class="bi bi-chat-left-dots"></i> Send SMS</a>
             <a href="{{ route('communication.logs') }}" class="sublink"><i class="bi bi-clock-history"></i> Message Logs</a>
@@ -150,11 +160,11 @@
             <a href="{{ route('announcements.index') }}" class="sublink"><i class="bi bi-megaphone"></i> Announcements</a>
         </div>
 
-         <!-- System Settings -->
-        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="false" aria-controls="settingsMenu">
+        <!-- Settings -->
+        <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="{{ $isSettingsActive ? 'true' : 'false' }}" aria-controls="settingsMenu">
             <i class="bi bi-gear-wide-connected"></i> Settings
         </a>
-        <div class="collapse" id="settingsMenu">
+        <div class="collapse {{ $isSettingsActive ? 'show' : '' }}" id="settingsMenu">
             <a href="{{ route('settings.index') }}" class="sublink"><i class="bi bi-building"></i> General Info</a>
             <a href="{{ route('settings.role_permissions') }}" class="sublink"><i class="bi bi-shield-lock"></i> Roles & Permissions</a>
         </div>
@@ -167,10 +177,9 @@
             @csrf
         </form>
     </div>
-    @endif
+    @endauth
 
-
-
+   
     <!-- Main Content Area -->
     <div class="content">
         <div class="container mt-4">

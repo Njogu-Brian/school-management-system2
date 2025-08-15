@@ -4,7 +4,7 @@
 <div class="container">
     <h3>Edit Votehead</h3>
 
-    <form method="POST" action="{{ route('voteheads.update', $votehead->id) }}">
+    <form method="POST" action="{{ route('finance.voteheads.update', $votehead->id) }}">
         @csrf
         @method('PUT')
 

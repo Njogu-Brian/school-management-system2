@@ -35,4 +35,4 @@
 </div>
 
 <button type="submit" class="btn btn-success">Save</button>
-<a href="{{ route('voteheads.index') }}" class="btn btn-secondary">Cancel</a>
+<a href="{{ route('finance.voteheads.index') }}" class="btn btn-secondary">Cancel</a>

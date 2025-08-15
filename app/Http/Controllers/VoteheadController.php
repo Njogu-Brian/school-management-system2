@@ -34,7 +34,7 @@ class VoteheadController extends Controller
             'charge_type' => $request->charge_type,
         ]);
 
-        return redirect()->route('voteheads.index')->with('success', 'Votehead created successfully.');
+        return redirect()->route('finance.voteheads.index')->with('success', 'Votehead created successfully.');
     }
 
     public function update(Request $request, Votehead $votehead)
@@ -53,7 +53,7 @@ class VoteheadController extends Controller
             'charge_type' => $request->charge_type,
         ]);
 
-        return redirect()->route('voteheads.index')->with('success', 'Votehead updated successfully.');
+        return redirect()->route('finance.voteheads.index')->with('success', 'Votehead updated successfully.');
     }
 
         
@@ -65,6 +65,6 @@ class VoteheadController extends Controller
     public function destroy(Votehead $votehead)
     {
         $votehead->delete();
-        return redirect()->route('voteheads.index')->with('success', 'Votehead deleted successfully.');
+        return redirect()->route('finance.voteheads.index')->with('success', 'Votehead deleted successfully.');
     }
 }

@@ -20,32 +20,49 @@ class FeeStructureController extends Controller
 
         return view('finance.fee_structures.show', compact('feeStructure'));
     }
-    public function create()
+    public function manage(Request $request)
     {
         $classrooms = \App\Models\Classroom::all();
         $voteheads = \App\Models\Votehead::all();
-        return view('finance.fee_structures.create', compact('classrooms', 'voteheads'));
+
+        $selectedClassroom = $request->query('classroom_id');
+
+        $feeStructure = null;
+        $charges = [];
+
+        if ($selectedClassroom) {
+            $feeStructure = FeeStructure::with('charges')->where('classroom_id', $selectedClassroom)->first();
+
+            if ($feeStructure) {
+                $charges = $feeStructure->charges;
+            }
+        }
+
+        return view('finance.fee_structures.manage', compact('classrooms', 'voteheads', 'selectedClassroom', 'feeStructure', 'charges'));
     }
 
-    public function store(Request $request)
+    public function save(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
             'year' => 'required|numeric',
             'charges' => 'required|array',
-            'charges.*.votehead_id' => 'nullable|exists:voteheads,id',
+            'charges.*.votehead_id' => 'required|exists:voteheads,id',
             'charges.*.term_1' => 'nullable|numeric|min:0',
             'charges.*.term_2' => 'nullable|numeric|min:0',
             'charges.*.term_3' => 'nullable|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($request) {
-            $structure = FeeStructure::create([
-                'classroom_id' => $request->classroom_id,
-                'year' => $request->year,
-            ]);
+        DB::transaction(function () use ($validated) {
+            $structure = FeeStructure::updateOrCreate(
+                ['classroom_id' => $validated['classroom_id']],
+                ['year' => $validated['year']]
+            );
 
-            foreach ($request->charges as $charge) {
+            // Remove old charges
+            $structure->charges()->delete();
+
+            foreach ($validated['charges'] as $charge) {
                 foreach ([1 => $charge['term_1'], 2 => $charge['term_2'], 3 => $charge['term_3']] as $term => $amount) {
                     if ($amount > 0) {
                         FeeCharge::create([
@@ -59,20 +76,49 @@ class FeeStructureController extends Controller
             }
         });
 
-        return redirect()->route('fee-structures.index')->with('success', 'Fee structure created.');
+        return redirect()->route('finance.fee-structures.manage', ['classroom_id' => $request->classroom_id])
+                        ->with('success', 'Fee structure saved successfully.');
     }
-    public function edit(FeeStructure $feeStructure)
+   
+    public function replicateTo(Request $request)
     {
-        $feeStructure->load('charges'); // preload related charges
-        $classrooms = \App\Models\Classroom::all();
-        $voteheads = \App\Models\Votehead::all();
+        $request->validate([
+            'source_classroom_id' => 'required|exists:classrooms,id',
+            'target_classroom_ids' => 'required|array|min:1',
+            'target_classroom_ids.*' => 'exists:classrooms,id',
+        ]);
 
-        return view('finance.fee_structures.edit', compact('feeStructure', 'classrooms', 'voteheads'));
+        $source = FeeStructure::with('charges')->where('classroom_id', $request->source_classroom_id)->first();
+
+        if (!$source) {
+            return back()->with('error', 'Source class has no fee structure.');
+        }
+
+        foreach ($request->target_classroom_ids as $targetId) {
+            // Delete old structure if exists
+            $existing = FeeStructure::where('classroom_id', $targetId)->first();
+            if ($existing) {
+                $existing->charges()->delete();
+                $existing->delete();
+            }
+
+            // Clone fee structure
+            $newStructure = FeeStructure::create([
+                'classroom_id' => $targetId,
+                'year' => $source->year,
+            ]);
+
+            foreach ($source->charges as $charge) {
+                FeeCharge::create([
+                    'fee_structure_id' => $newStructure->id,
+                    'votehead_id' => $charge->votehead_id,
+                    'term' => $charge->term,
+                    'amount' => $charge->amount,
+                ]);
+            }
+        }
+
+        return back()->with('success', 'Fee structure replicated successfully.');
     }
-    public function destroy(FeeStructure $feeStructure)
-    {
-        $feeStructure->charges()->delete();
-        $feeStructure->delete();
-        return back()->with('success', 'Deleted successfully.');
-    }
+
 }

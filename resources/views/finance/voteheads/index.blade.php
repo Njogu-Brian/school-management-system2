@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
     <h4 class="mb-3">Voteheads</h4>
-    <a href="{{ route('voteheads.create') }}" class="btn btn-primary mb-3">Add Votehead</a>
+    <a href="{{ route('finance.voteheads.create') }}" class="btn btn-primary mb-3">Add Votehead</a>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -35,8 +35,8 @@
                         @endswitch
                     </td>
                     <td>
-                        <a href="{{ route('voteheads.edit', $votehead) }}" class="btn btn-sm btn-warning">Edit</a>
-                        <form action="{{ route('voteheads.destroy', $votehead) }}" method="POST" style="display:inline-block;">
+                        <a href="{{ route('finance.voteheads.edit', $votehead) }}" class="btn btn-sm btn-warning">Edit</a>
+                        <form action="{{ route('finance.voteheads.destroy', $votehead) }}" method="POST" style="display:inline-block;">
                             @csrf @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-danger"
                                 onclick="return confirm('Are you sure?')">Delete</button>
