@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Management System</title>
+    <title>Royal Kings Education Centre</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
 
@@ -102,11 +102,10 @@
         <div class="collapse {{ $isFinanceActive ? 'show' : '' }}" id="financeMenu">
             <a href="{{ route('finance.voteheads.index') }}" class="sublink"><i class="bi bi-list-ul"></i> Voteheads</a>
             <a href="{{ route('finance.fee-structures.manage') }}" class="sublink"><i class="bi bi-diagram-3"></i> Fee Structures</a>
-            
             <a href="{{ route('finance.invoices.create') }}" class="sublink"><i class="bi bi-file-earmark-plus"></i> Generate Invoices</a>
             <a href="{{ route('finance.invoices.index') }}" class="sublink"><i class="bi bi-receipt"></i> View Invoices</a>
             <a href="{{ route('finance.invoices.import') }}" class="sublink"><i class="bi bi-upload"></i> Bulk Invoice Upload</a>
-            
+            <a href="{{ route('finance.optional_fees.index') }}" class="sublink"><i class="bi bi-toggle-on"></i> Optional Fees</a>
             <a href="{{ route('finance.invoices.adjustments.import.form') }}" class="sublink"><i class="bi bi-calculator"></i> Credit/Debit Note</a>
             
             {{-- <a href="{{ route('finance.payments.create') }}" class="sublink"><i class="bi bi-cash-coin"></i> Record Payments</a>
@@ -188,5 +187,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    @stack('scripts')
 </body>
 </html>

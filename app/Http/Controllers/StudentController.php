@@ -395,4 +395,35 @@ class StudentController extends Controller
         $allValid = collect($students)->every(fn($s) => $s['valid']);
         return view('students.bulk_preview', compact('students', 'allValid'));
     }
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->input('q', ''));
+
+        if ($q === '') {
+            return response()->json([]);
+        }
+
+        $students = Student::query()
+            ->where(function ($s) use ($q) {
+                $s->where('first_name', 'like', "%{$q}%")
+                ->orWhere('middle_name', 'like', "%{$q}%")
+                ->orWhere('last_name', 'like', "%{$q}%")
+                ->orWhere('admission_number', 'like', "%{$q}%");
+            })
+            ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number')
+            ->orderBy('first_name')
+            ->limit(20)
+            ->get();
+
+        return response()->json($students->map(function ($st) {
+            // Build full_name server-side to keep the Blade simple
+            $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
+            return [
+                'id' => $st->id,
+                'full_name' => $full,
+                'admission_number' => $st->admission_number,
+            ];
+        }));
+    }
+
 }

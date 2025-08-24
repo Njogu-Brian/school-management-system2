@@ -43,6 +43,7 @@ use App\Http\Controllers\StatementController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\DebitNoteController;
 use App\Http\Controllers\InvoiceAdjustmentController;
+use App\Http\Controllers\OptionalFeeController;
 
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\RolePermissionController;
@@ -155,6 +156,9 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('sms-templates', SMSTemplateController::class)->except(['show']);
     });
 
+    Route::get('/api/students/search', [StudentController::class, 'search'])
+    ->name('api.students.search');
+
     // ===================== FINANCE MODULE =====================
     Route::prefix('finance')->name('finance.')->group(function () {
 
@@ -185,13 +189,20 @@ Route::middleware(['auth'])->group(function () {
             Route::post('/adjustments/import', [InvoiceAdjustmentController::class, 'import'])->name('adjustments.import');
         });
 
+        // ========== OPTIONAL FEES ==========
+        Route::prefix('optional-fees')->name('optional_fees.')->group(function () {
+            Route::get('/', [OptionalFeeController::class, 'index'])->name('index');
+            Route::get('/class', [OptionalFeeController::class, 'classView'])->name('class_view');
+            Route::post('/class/save', [OptionalFeeController::class, 'saveClassBilling'])->name('save_class');
+
+            Route::get('/student', [OptionalFeeController::class, 'studentView'])->name('student_view');
+            Route::post('/student/save', [OptionalFeeController::class, 'saveStudentBilling'])->name('save_student');
+        });
+
         // ========== PAYMENTS ==========
         Route::get('payments/create', [PaymentController::class, 'create'])->name('payments.create');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
-
-        // ========== FEE STATEMENTS ==========
-        Route::get('statements/{student}', [StatementController::class, 'show'])->name('statements.show');
 
         // ========== CREDIT & DEBIT NOTES ==========
         Route::get('credits/create', [CreditNoteController::class, 'create'])->name('credits.create');
@@ -200,6 +211,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('debits/create', [DebitNoteController::class, 'create'])->name('debits.create');
         Route::post('debits/store', [DebitNoteController::class, 'store'])->name('debits.store');
     });
+
 
 
     // ===================== SETTINGS =====================

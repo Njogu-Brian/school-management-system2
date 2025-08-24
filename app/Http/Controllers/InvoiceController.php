@@ -10,6 +10,7 @@ use App\Models\Votehead;
 use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\OptionalFee;
 
 class InvoiceController extends Controller
 {
@@ -25,7 +26,7 @@ class InvoiceController extends Controller
         return view('finance.invoices.create', compact('classrooms'));
     }
 
-    public function generate(Request $request)
+   public function generate(Request $request)
     {
         $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
@@ -33,7 +34,7 @@ class InvoiceController extends Controller
             'term' => 'required|in:1,2,3',
         ]);
 
-        $structure = FeeStructure::with('charges')
+        $structure = FeeStructure::with('charges.votehead')
             ->where('classroom_id', $request->classroom_id)
             ->where('year', $request->year)
             ->first();
@@ -43,41 +44,73 @@ class InvoiceController extends Controller
         }
 
         $students = Student::where('classroom_id', $request->classroom_id)->get();
+        $invoicesGenerated = 0;
 
-        DB::transaction(function () use ($students, $structure, $request) {
+        DB::transaction(function () use ($students, $structure, $request, &$invoicesGenerated) {
             foreach ($students as $student) {
-                $invoiceNumber = DocumentNumberService::generate('invoice', 'INV');
-                $total = 0;
-
-                $invoice = Invoice::create([
-                    'student_id' => $student->id,
-                    'year' => $request->year,
-                    'term' => $request->term,
-                    'invoice_number' => $invoiceNumber,
-                    'total' => 0,
-                ]);
+                $itemsToInsert = [];
 
                 foreach ($structure->charges->where('term', $request->term) as $charge) {
-                    InvoiceItem::create([
-                        'invoice_id' => $invoice->id,
-                        'votehead_id' => $charge->votehead_id,
-                        'amount' => $charge->amount,
-                    ]);
+                    $votehead = $charge->votehead;
 
-                    $total += $charge->amount;
+                    if (!$votehead->is_mandatory) continue;
+
+                    $shouldSkip = false;
+
+                    if ($votehead->charge_type === 'once') {
+                        $shouldSkip = InvoiceItem::whereHas('invoice', fn($q) => $q->where('student_id', $student->id))
+                            ->where('votehead_id', $votehead->id)
+                            ->exists();
+                    } elseif ($votehead->charge_type === 'once_annually') {
+                        $shouldSkip = InvoiceItem::whereHas('invoice', fn($q) =>
+                            $q->where('student_id', $student->id)->where('year', $request->year)
+                        )->where('votehead_id', $votehead->id)->exists();
+                    } elseif ($votehead->charge_type === 'per_family') {
+                        $shouldSkip = InvoiceItem::whereHas('invoice.student', fn($q) =>
+                            $q->where('family_id', $student->family_id)
+                        )->where('votehead_id', $votehead->id)->exists();
+                    }
+
+                    if ($shouldSkip) continue;
+
+                    $itemsToInsert[] = [
+                        'votehead_id' => $votehead->id,
+                        'amount' => $charge->amount,
+                    ];
                 }
 
-                // Brought forward logic
-                $prevBalance = Invoice::where('student_id', $student->id)
-                    ->where('year', '<', $request->year)
-                    ->where('status', '!=', 'paid')
-                    ->sum(DB::raw('total - (SELECT SUM(amount) FROM payments WHERE payments.invoice_id = invoices.id)'));
+                if (count($itemsToInsert) > 0) {
+                    $invoice = Invoice::firstOrCreate([
+                        'student_id' => $student->id,
+                        'term' => $request->term,
+                        'year' => $request->year,
+                    ], [
+                        'invoice_number' => DocumentNumberService::generate('invoice', 'INV'),
+                        'total' => 0,
+                    ]);
 
-                $invoice->update(['total' => $total + max(0, $prevBalance)]);
+                    foreach ($itemsToInsert as $item) {
+                        InvoiceItem::firstOrCreate([
+                            'invoice_id' => $invoice->id,
+                            'votehead_id' => $item['votehead_id'],
+                        ], [
+                            'amount' => $item['amount'],
+                        ]);
+                    }
+
+                    // Update invoice total
+                    $invoice->update(['total' => $invoice->items()->sum('amount')]);
+                    $invoicesGenerated++;
+                }
             }
         });
 
-        return redirect()->route('finance.invoices.index')->with('success', 'Invoices generated successfully.');
+        return redirect()->route('finance.invoices.index')->with(
+            'success',
+            $invoicesGenerated > 0
+                ? "$invoicesGenerated invoices generated successfully."
+                : "No invoices were generated. All applicable fees already posted."
+        );
     }
 
     public function show(Invoice $invoice)

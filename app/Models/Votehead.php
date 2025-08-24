@@ -14,6 +14,7 @@ class Votehead extends Model
     'description',
     'is_mandatory',
     'charge_type',
+    'default_amount',
 ];
 
 }

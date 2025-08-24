@@ -13,6 +13,8 @@ use App\Models\StudentAssignment;
 use App\Models\DropOffPoint;
 use App\Models\Trip;
 use App\Models\Vehicle;
+use App\Models\Family;
+
 
 class Student extends Model
 {
@@ -79,5 +81,25 @@ class Student extends Model
     {
         return $this->hasMany(StudentAssignment::class);
     }
+    public function family()
+    {
+        return $this->belongsTo(Family::class);
+    }
+    public function transport()
+    {
+        return $this->hasOne(Transport::class);
+    }
+    public function dropOffPoint()
+    {
+        return $this->belongsTo(DropOffPoint::class, 'drop_off_point_id');
+    }
+    public function trip()
+    {
+        return $this->belongsTo(Trip::class, 'trip_id');
+    }
+    public function vehicle()
+    {
+        return $this->belongsTo(Vehicle::class, 'vehicle_id');
+    }   
 
 }
