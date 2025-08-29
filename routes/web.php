@@ -11,6 +11,7 @@ use App\Http\Controllers\DashboardController;
 // Modules
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\KitchenController;
+
 use App\Http\Controllers\TransportController;
 use App\Http\Controllers\RouteController;
 use App\Http\Controllers\VehicleController;
@@ -52,6 +53,9 @@ Route::get('/', fn () => view('welcome'));
 
 Auth::routes();
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
+Route::get('/login', [AuthController::class, 'showLoginForm'])
+    ->middleware('guest')
+    ->name('login');
 
 
 // ===================== AUTHENTICATED ROUTES =====================
@@ -77,18 +81,35 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notify-kitchen', [KitchenController::class, 'notifyKitchen'])->name('notify-kitchen.submit');
 
 
-    // ===================== TRANSPORT =====================
-    Route::resource('routes', RouteController::class)->except(['show']);
-    Route::resource('vehicles', VehicleController::class)->except(['show']);
-    Route::resource('trips', TripController::class);
-    Route::resource('dropoffpoints', DropOffPointController::class);
-    Route::resource('student_assignments', StudentAssignmentController::class);
+    // ===================== TRANSPORT ====================
+    Route::prefix('transport')->name('transport.')->group(function () {
+        // Dashboard
+        Route::get('/', [TransportController::class, 'index'])->name('index');
 
-    Route::get('/transport', [TransportController::class, 'index'])->name('transport.index');
-    Route::get('/get-route-data/{routeId}', [TransportController::class, 'getRouteData'])->name('get.route.data');
-    Route::post('/transport/assign-driver', [TransportController::class, 'assignDriver'])->name('transport.assign.driver');
-    Route::post('/transport/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('transport.assign.student');
-    Route::post('/routes/{route}/assign-vehicle', [RouteController::class, 'assignVehicle'])->name('routes.assignVehicle');
+        // AJAX/data helpers
+        Route::get('/routes/{route}/data', [TransportController::class, 'getRouteData'])->name('routes.data');
+        Route::get('/routes/{route}/dropoff-points', [TransportController::class, 'getDropOffPoints'])->name('routes.dropoffs'); // optional helper
+        Route::get('/routes/{route}/vehicles', [TransportController::class, 'getVehicles'])->name('routes.vehicles');            // optional helper
+
+        // Actions
+        Route::post('/assign-driver', [TransportController::class, 'assignDriver'])->name('assign.driver');
+        Route::post('/assign-student', [TransportController::class, 'assignStudentToRoute'])->name('assign.student');
+        Route::post('/routes/{route}/assign-vehicle', [RouteController::class, 'assignVehicle'])->name('routes.assignVehicle');
+
+        // Resources
+        Route::resource('routes', RouteController::class)->except(['show']);
+        Route::resource('vehicles', VehicleController::class)->except(['show']);
+        Route::resource('trips', TripController::class);
+        Route::resource('dropoffpoints', DropOffPointController::class);
+        Route::resource('student-assignments', StudentAssignmentController::class)
+            ->parameters(['student-assignments' => 'student_assignment']);
+
+        // Drop-Off Points: Import & Template
+        Route::get('dropoffpoints/import', [DropOffPointController::class, 'importForm'])->name('dropoffpoints.import.form');
+        Route::post('dropoffpoints/import', [DropOffPointController::class, 'import'])->name('dropoffpoints.import');
+        Route::get('dropoffpoints/template', [DropOffPointController::class, 'template'])->name('dropoffpoints.template');
+    });
+
 
 
     // ===================== STAFF =====================

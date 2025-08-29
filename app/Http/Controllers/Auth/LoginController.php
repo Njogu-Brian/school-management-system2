@@ -9,31 +9,10 @@ use Illuminate\Http\RedirectResponse;
 
 class LoginController extends Controller
 {
-    /*
-    |--------------------------------------------------------------------------
-    | Login Controller
-    |--------------------------------------------------------------------------
-    |
-    | This controller handles authenticating users for the application and
-    | redirecting them to your home screen. The controller uses a trait
-    | to conveniently provide its functionality to your applications.
-    |
-    */
-
     use AuthenticatesUsers;
 
-    /**
-     * Where to redirect users after login.
-     *
-     * @var string
-     */
     protected $redirectTo = '/home';
 
-    /**
-     * Create a new controller instance.
-     *
-     * @return void
-     */
     public function __construct()
     {
         $this->middleware('guest')->except('logout');
@@ -41,26 +20,33 @@ class LoginController extends Controller
 
     public function login(Request $request): RedirectResponse
     {
-        $input = $request->all();
-
-        $this->validate($request, [
-            'email' => 'required|email',
-            'password' => 'required',
+        $credentials = $request->validate([
+            'email'    => ['required', 'email'],
+            'password' => ['required'],
         ]);
 
-        if(auth()->attempt(array('email' => $input['email'], 'password' => $input['password'])))
-        {
-            if (auth()->user()->type == 'admin') {
-                return redirect()->route('admin.dashboard');
-            }else if (auth()->user()->type == 'teacher') {
-                return redirect()->route('teacher.dashboard');
-            }else{
-                return redirect()->route('home');  //Student
-            }
-        }else{
-            return redirect()->route('login')
-                ->with('error','Email-Address And Password Are Wrong.');
+        if (auth()->attempt($credentials, $request->boolean('remember'))) {
+            $request->session()->regenerate();
+
+            /** @var \App\Models\User $user */
+            $user = auth()->user();
+
+            // If you use Spatie roles:
+            if ($user->hasRole('admin'))   { return redirect()->route('admin.dashboard'); }
+            if ($user->hasRole('teacher')) { return redirect()->route('teacher.dashboard'); }
+            if ($user->hasRole('student')) { return redirect()->route('student.dashboard'); }
+
+            // Fallback to /home (your role-based router)
+            return redirect()->route('home');
         }
 
+        return back()
+            ->withInput($request->only('email'))
+            ->with('error', 'Email address and password are incorrect.');
+    }
+
+    protected function loggedOut(Request $request): RedirectResponse
+    {
+        return redirect()->route('login');
     }
 }

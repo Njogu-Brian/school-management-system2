@@ -3,30 +3,36 @@
 @section('content')
 <div class="container">
     <h1>Trips Management</h1>
-    <a href="{{ route('trips.create') }}" class="btn btn-success mb-3">Create New Trip</a>
+    <a href="{{ route('transport.trips.create') }}" class="btn btn-success mb-3">Create New Trip</a>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+    @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
 
-    <table class="table table-bordered">
+    <table class="table table-bordered align-middle">
         <thead>
             <tr>
                 <th>Trip Name</th>
+                <th>Type</th>
                 <th>Route</th>
                 <th>Vehicle</th>
-                <th>Actions</th>
+                <th style="width:180px;">Actions</th>
             </tr>
         </thead>
         <tbody>
             @forelse ($trips as $trip)
                 <tr>
-                    <td>{{ $trip->trip_name }}</td>
+                    <td>{{ $trip->name }}</td>
+                    <td>{{ $trip->type }}</td>
                     <td>{{ $trip->route->name ?? 'N/A' }}</td>
                     <td>{{ $trip->vehicle->vehicle_number ?? 'N/A' }}</td>
                     <td>
-                        <a href="{{ route('trips.edit', $trip->id) }}" class="btn btn-primary btn-sm">Edit</a>
-                        <form action="{{ route('trips.destroy', $trip->id) }}" method="POST" style="display:inline;">
+                        <a href="{{ route('transport.trips.edit', $trip->id) }}" class="btn btn-primary btn-sm">Edit</a>
+                        <form action="{{ route('transport.trips.destroy', $trip->id) }}" method="POST" class="d-inline"
+                              onsubmit="return confirm('Delete this trip?');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
@@ -35,7 +41,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="4" class="text-center">No trips found.</td>
+                    <td colspan="5" class="text-center text-muted">No trips found.</td>
                 </tr>
             @endforelse
         </tbody>

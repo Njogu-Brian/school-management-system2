@@ -4,20 +4,21 @@
 <div class="container">
     <h1>Edit Trip</h1>
 
-    <form action="{{ route('trips.update', $trip->id) }}" method="POST">
+    <form action="{{ route('transport.trips.update', $trip->id) }}" method="POST">
         @csrf
         @method('PUT')
 
         <!-- Trip Name -->
         <div class="mb-3">
-            <label for="name">Trip Name</label>
-            <input type="text" name="name" class="form-control" value="{{ $trip->name }}" required>
+            <label for="name" class="form-label">Trip Name</label>
+            <input type="text" name="name" id="name" class="form-control"
+                   value="{{ old('name', $trip->name) }}" required>
         </div>
 
         <!-- Trip Type -->
         <div class="mb-3">
-            <label for="type">Trip Type</label>
-            <select name="type" class="form-control" required>
+            <label for="type" class="form-label">Trip Type</label>
+            <select name="type" id="type" class="form-control" required>
                 <option value="Morning" {{ $trip->type == 'Morning' ? 'selected' : '' }}>Morning</option>
                 <option value="Evening" {{ $trip->type == 'Evening' ? 'selected' : '' }}>Evening</option>
             </select>
@@ -25,8 +26,8 @@
 
         <!-- Route Selection -->
         <div class="mb-3">
-            <label for="route_id">Select Route</label>
-            <select name="route_id" class="form-control" required>
+            <label for="route_id" class="form-label">Select Route</label>
+            <select name="route_id" id="route_id" class="form-control" required>
                 @foreach ($routes as $route)
                     <option value="{{ $route->id }}" {{ $trip->route_id == $route->id ? 'selected' : '' }}>
                         {{ $route->name }}
@@ -37,8 +38,8 @@
 
         <!-- Vehicle Selection -->
         <div class="mb-3">
-            <label for="vehicle_id">Select Vehicle</label>
-            <select name="vehicle_id" class="form-control" required>
+            <label for="vehicle_id" class="form-label">Select Vehicle</label>
+            <select name="vehicle_id" id="vehicle_id" class="form-control" required>
                 @foreach ($vehicles as $vehicle)
                     <option value="{{ $vehicle->id }}" {{ $trip->vehicle_id == $vehicle->id ? 'selected' : '' }}>
                         {{ $vehicle->vehicle_number }}
@@ -48,6 +49,7 @@
         </div>
 
         <button type="submit" class="btn btn-primary">Update Trip</button>
+        <a href="{{ route('transport.trips.index') }}" class="btn btn-light">Cancel</a>
     </form>
 </div>
 @endsection

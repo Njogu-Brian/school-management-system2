@@ -6,7 +6,7 @@
     <title>Royal Kings Education Centre</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
-
+    <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
     <style>
             body {
             display: flex;
@@ -130,17 +130,16 @@
         <a href="{{ route('staff.index') }}"><i class="bi bi-person-badge"></i> Manage Staff</a>
 
         <!-- Transport -->
-        <a href="#transportMenu" data-bs-toggle="collapse" aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}" aria-controls="transportMenu">
-            <i class="bi bi-truck"></i> Transport
-        </a>
+        <a href="#transportMenu" data-bs-toggle="collapse"
+        aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}" aria-controls="transportMenu"><i class="bi bi-truck"></i> Transport</a>
         <div class="collapse {{ $isTransportActive ? 'show' : '' }}" id="transportMenu">
-            <a href="{{ route('vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
-            <a href="{{ route('routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
-            <a href="{{ route('trips.index') }}" class="sublink"><i class="bi bi-geo-alt"></i> Manage Trips</a>
-            <a href="{{ route('dropoffpoints.index') }}" class="sublink"><i class="bi bi-geo"></i> Drop-Off Points</a>
-            <a href="{{ route('student_assignments.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
+            <a href="{{ route('transport.vehicles.index') }}" class="sublink"><i class="bi bi-bus-front"></i> Manage Vehicles</a>
+            <a href="{{ route('transport.routes.index') }}" class="sublink"><i class="bi bi-map"></i> Manage Routes</a>
+            <a href="{{ route('transport.trips.index') }}" class="sublink"><i class="bi bi-geo-alt"></i> Manage Trips</a>
+            <a href="{{ route('transport.dropoffpoints.index') }}" class="sublink"><i class="bi bi-geo"></i> Drop-Off Points</a>
+            <a href="{{ route('transport.student-assignments.index') }}" class="sublink"><i class="bi bi-people"></i> Student Assignment</a>
         </div>
-
+        
         <!-- Kitchen & Attendance -->
         <a href="{{ route('notify-kitchen') }}"><i class="bi bi-bell"></i> Notify Kitchen</a>
         <a href="{{ route('attendance.mark.form') }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>

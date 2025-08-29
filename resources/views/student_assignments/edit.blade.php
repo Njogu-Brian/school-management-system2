@@ -4,11 +4,10 @@
 <div class="container">
     <h1>Edit Student Assignment</h1>
 
-    <form action="{{ route('student_assignments.update', $assignment->id) }}" method="POST">
-        @csrf
-        @method('PUT')
+    <form action="{{ route('transport.student-assignments.update', $assignment->id) }}" method="POST">
+        @csrf @method('PUT')
 
-        <!-- Student Selection -->
+        <!-- Student -->
         <div class="mb-3">
             <label for="student_id">Select Student</label>
             <select name="student_id" class="form-control">
@@ -20,7 +19,7 @@
             </select>
         </div>
 
-        <!-- Route Selection -->
+        <!-- Route -->
         <div class="mb-3">
             <label for="route_id">Select Route</label>
             <select name="route_id" class="form-control" id="route-select">
@@ -32,24 +31,26 @@
             </select>
         </div>
 
-        <!-- Trip Selection -->
+        <!-- Trip -->
         <div class="mb-3">
             <label for="trip_id">Select Trip</label>
             <select name="trip_id" class="form-control" id="trip-select">
                 @foreach ($trips as $trip)
-                    <option value="{{ $trip->id }}" data-route="{{ $trip->route_id }}" {{ $assignment->trip_id == $trip->id ? 'selected' : '' }}>
-                        {{ $trip->trip_name }}
+                    <option value="{{ $trip->id }}" data-route="{{ $trip->route_id }}"
+                        {{ $assignment->trip_id == $trip->id ? 'selected' : '' }}>
+                        {{ $trip->name }}
                     </option>
                 @endforeach
             </select>
         </div>
 
-        <!-- Drop-Off Point Selection -->
+        <!-- Drop-Off -->
         <div class="mb-3">
             <label for="drop_off_point_id">Select Drop-Off Point</label>
             <select name="drop_off_point_id" class="form-control" id="drop-off-point-select">
                 @foreach ($dropOffPoints as $point)
-                    <option value="{{ $point->id }}" data-route="{{ $point->route_id }}" {{ $assignment->drop_off_point_id == $point->id ? 'selected' : '' }}>
+                    <option value="{{ $point->id }}" data-route="{{ $point->route_id }}"
+                        {{ $assignment->drop_off_point_id == $point->id ? 'selected' : '' }}>
                         {{ $point->name }}
                     </option>
                 @endforeach
