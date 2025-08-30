@@ -2,54 +2,105 @@
 
 @section('content')
 <div class="container">
-    <h4 class="mb-4">Notify Kitchen</h4>
+    <h3 class="mb-4">🍴 Kitchen Notification</h3>
 
-    <form action="{{ route('attendance.kitchen.notify.send') }}" method="POST">
-        @csrf
+    {{-- Alerts --}}
+    @if(session('success'))
+        <div class="alert alert-success">{{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
 
-        <div class="mb-3">
-            <label class="form-label">Select Date</label>
-            <input type="date" name="date" value="{{ $date }}" class="form-control" required>
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form action="{{ route('attendance.kitchen.notify.send') }}" method="POST">
+                @csrf
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Select Date</label>
+                        <input type="date" name="date" value="{{ $date }}" class="form-control" required>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <div class="form-check">
+                            <input type="checkbox" name="force" value="1" class="form-check-input" id="forceSend">
+                            <label class="form-check-label text-danger fw-bold" for="forceSend">
+                                Force Send (ignore incomplete attendance)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end justify-content-end">
+                        <button type="submit" class="btn btn-purple">
+                            <i class="bi bi-send"></i> Send Notification
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <div class="mb-3">
-            <label class="form-label">Attendance Summary (Preview)</label>
-            <div class="border p-3 bg-light">
-                <p><strong>Total Present: {{ array_sum($summaryByClass) }}</strong></p>
-                <ul>
-                    @foreach($summaryByClass as $class => $count)
-                        <li>{{ $class }}: {{ $count }}</li>
-                    @endforeach
-                </ul>
-            </div>
+    {{-- Status --}}
+    <div class="alert {{ $isComplete ? 'alert-success' : 'alert-warning' }}">
+        <i class="bi bi-info-circle"></i>
+        Attendance is <strong>{{ $isComplete ? 'Complete' : 'NOT Complete' }}</strong> for {{ $date }}.
+    </div>
+
+    {{-- Attendance Summary --}}
+    <div class="card shadow-sm">
+        <div class="card-header fw-bold">Attendance Summary (Present)</div>
+        <div class="card-body table-responsive">
+            <table class="table table-bordered table-striped">
+                <thead class="table-light">
+                    <tr>
+                        <th>Class</th>
+                        <th>Present Count</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($summaryByClass as $class => $count)
+                        <tr>
+                            <td>{{ $class }}</td>
+                            <td><span class="badge bg-success">{{ $count }}</span></td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="2" class="text-center">No attendance data found.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
+    </div>
 
-        <div class="mb-3">
-            <label class="form-label">Recipients</label>
-            <ul>
-                @foreach($recipients as $rec)
-                    <li>
-                        {{ $rec->label }} —
-                        {{ $rec->staff->first_name ?? '' }} {{ $rec->staff->last_name ?? '' }}
-                        ({{ $rec->staff->phone_number ?? 'No phone' }})
-                    </li>
-                @endforeach
-            </ul>
+    {{-- Recipients --}}
+    <div class="card shadow-sm mt-4">
+        <div class="card-header fw-bold">Kitchen Recipients</div>
+        <div class="card-body">
+            @forelse($recipients as $r)
+                <p>
+                    <strong>{{ $r->label }}</strong> → 
+                    {{ $r->staff->first_name ?? '' }} {{ $r->staff->last_name ?? '' }} 
+                    ({{ $r->staff->phone_number ?? 'No phone' }})
+                </p>
+            @empty
+                <p class="text-muted">No recipients defined.</p>
+            @endforelse
         </div>
-
-        @if(!$isComplete)
-            <div class="alert alert-warning">
-                Attendance not complete for all classes.  
-                <label>
-                    <input type="checkbox" name="force" value="1"> Force Send Anyway
-                </label>
-            </div>
-        @endif
-
-        <button type="submit" class="btn btn-success">
-            <i class="bi bi-bell"></i> Send Notification
-        </button>
-        <a href="{{ route('attendance.mark.form') }}" class="btn btn-secondary">Cancel</a>
-    </form>
+    </div>
 </div>
 @endsection
+
+@push('styles')
+<style>
+    .btn-purple {
+        background-color: #5a189a;
+        color: white;
+        border-radius: 6px;
+    }
+    .btn-purple:hover {
+        background-color: #3c096c;
+        color: #fff;
+    }
+</style>
+@endpush
