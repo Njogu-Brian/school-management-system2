@@ -16,7 +16,8 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($smsTemplates as $template)
+            @foreach ($templates as $template)
+                @if($template->type === 'sms')
                 <tr>
                     <td>{{ $template->title }}</td>
                     <td>{{ Str::limit($template->content, 100) }}</td>
@@ -28,6 +29,7 @@
                         </form>
                     </td>
                 </tr>
+                @endif
             @endforeach
         </tbody>
     </table>

@@ -10,7 +10,6 @@ use App\Http\Controllers\DashboardController;
 
 // Modules
 use App\Http\Controllers\AttendanceController;
-use App\Http\Controllers\KitchenController;
 
 use App\Http\Controllers\TransportController;
 use App\Http\Controllers\RouteController;
@@ -31,7 +30,6 @@ use App\Http\Controllers\StudentCategoryController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\EmailTemplateController;
-use App\Http\Controllers\SMSTemplateController;
 use App\Http\Controllers\CommunicationAnnouncementController;
 
 use App\Http\Controllers\VoteheadController;
@@ -40,7 +38,6 @@ use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\StatementController;
 use App\Http\Controllers\CreditNoteController;
 use App\Http\Controllers\DebitNoteController;
 use App\Http\Controllers\InvoiceAdjustmentController;
@@ -69,17 +66,25 @@ Route::middleware(['auth'])->group(function () {
 
     // ===================== ATTENDANCE =====================
     Route::prefix('attendance')->group(function () {
+        // Marking & Records
         Route::get('/mark', [AttendanceController::class, 'showForm'])->name('attendance.mark.form');
         Route::post('/mark', [AttendanceController::class, 'markAttendance'])->name('attendance.mark');
         Route::get('/edit/{id}', [AttendanceController::class, 'edit'])->name('attendance.edit');
         Route::post('/update/{id}', [AttendanceController::class, 'updateAttendance'])->name('attendance.update');
+        Route::get('/records', [AttendanceController::class, 'records'])->name('attendance.records');
+
+        // Kitchen recipients CRUD
+        Route::get('/kitchen-recipients', [AttendanceController::class, 'kitchenRecipientsIndex'])->name('attendance.kitchen.recipients.index');
+        Route::get('/kitchen-recipients/create', [AttendanceController::class, 'kitchenRecipientsCreate'])->name('attendance.kitchen.recipients.create');
+        Route::post('/kitchen-recipients', [AttendanceController::class, 'kitchenRecipientsStore'])->name('attendance.kitchen.recipients.store');
+        Route::get('/kitchen-recipients/{id}/edit', [AttendanceController::class, 'kitchenRecipientsEdit'])->name('attendance.kitchen.recipients.edit');
+        Route::put('/kitchen-recipients/{id}', [AttendanceController::class, 'kitchenRecipientsUpdate'])->name('attendance.kitchen.recipients.update');
+        Route::delete('/kitchen-recipients/{id}', [AttendanceController::class, 'kitchenRecipientsDestroy'])->name('attendance.kitchen.recipients.destroy');
+
+        // Kitchen notify (manual trigger)
+        Route::get('/notify-kitchen', [AttendanceController::class, 'kitchenNotifyForm'])->name('attendance.kitchen.notify.form');
+        Route::post('/notify-kitchen', [AttendanceController::class, 'kitchenNotifySend'])->name('attendance.kitchen.notify.send');
     });
-
-
-    // ===================== KITCHEN =====================
-    Route::get('/notify-kitchen', [KitchenController::class, 'showForm'])->name('notify-kitchen');
-    Route::post('/notify-kitchen', [KitchenController::class, 'notifyKitchen'])->name('notify-kitchen.submit');
-
 
     // ===================== TRANSPORT ====================
     Route::prefix('transport')->name('transport.')->group(function () {
@@ -173,8 +178,10 @@ Route::middleware(['auth'])->group(function () {
         // Email Templates
         Route::resource('email-templates', EmailTemplateController::class)->except(['show']);
 
-        // SMS Templates
-        Route::resource('sms-templates', SMSTemplateController::class)->except(['show']);
+        // ✅ SMS Templates now point to CommunicationTemplateController
+        Route::resource('sms-templates', CommunicationTemplateController::class)->parameters([
+            'sms-templates' => 'template'
+        ])->except(['show']);
     });
 
     Route::get('/api/students/search', [StudentController::class, 'search'])

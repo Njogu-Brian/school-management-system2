@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Services\CommunicationService;
 use Illuminate\Support\Facades\Log;
-use App\Models\SMSTemplate;
 use App\Models\EmailTemplate;
 use Illuminate\Support\Facades\Validator;
 use App\Imports\StaffImport;
@@ -104,16 +103,19 @@ class StaffController extends Controller
             SystemSetting::set('staff_id_start', $start + 1);
 
     
-            // ✅ Notify
-            $smsTemplate = CommunicationTemplate::where('type', 'sms')->where('code', 'welcome_staff')->first();
+           // ✅ Notify
+            $smsTemplate = CommunicationTemplate::where('type','sms')
+                                    ->where('code','welcome_staff')
+                                    ->first();
             $emailTemplate = EmailTemplate::where('code', 'welcome_staff')->first();
-    
+
             $name = $user->name;
             $login = $user->email;
+
             $msg = $smsTemplate
                 ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $smsTemplate->content)
                 : "Welcome $name! Your login: $login and password: $password";
-    
+
             $subject = $emailTemplate ? $emailTemplate->title : "Welcome to Royal Kings School";
             $body = $emailTemplate
                 ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $emailTemplate->message)

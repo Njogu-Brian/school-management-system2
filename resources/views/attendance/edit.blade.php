@@ -2,35 +2,52 @@
 
 @section('content')
 <div class="container">
-    <h1>Edit Attendance for {{ $attendance->student->name }}</h1>
+    <h1>Edit Attendance for {{ $attendance->student->full_name }}</h1>
 
-    <form method="POST" action="{{ route('attendance.update', $attendance->id) }}">
+    <form method="POST" action="{{ route('attendance.update', $attendance->id) }}" class="mt-3">
         @csrf
 
-        <label for="is_present">Attendance Status:</label>
-        <select name="is_present" id="is_present" class="form-control">
-            <option value="1" {{ $attendance->is_present ? 'selected' : '' }}>Present</option>
-            <option value="0" {{ !$attendance->is_present ? 'selected' : '' }}>Absent</option>
-        </select>
+        <div class="mb-3">
+            <label class="form-label d-block">Attendance Status:</label>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="status" id="present" value="present" {{ $attendance->status === 'present' ? 'checked' : '' }}>
+                <label class="form-check-label" for="present">Present</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="status" id="absent" value="absent" {{ $attendance->status === 'absent' ? 'checked' : '' }}>
+                <label class="form-check-label" for="absent">Absent</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="status" id="late" value="late" {{ $attendance->status === 'late' ? 'checked' : '' }}>
+                <label class="form-check-label" for="late">Late</label>
+            </div>
+        </div>
 
-        <label for="reason">Reason (if absent):</label>
-        <input type="text" name="reason" id="reason" class="form-control" value="{{ old('reason', $attendance->reason) }}" {{ $attendance->is_present ? 'disabled' : '' }}>
+        <div class="mb-3">
+            <label for="reason" class="form-label">Reason (if absent/late)</label>
+            <input type="text" name="reason" id="reason" class="form-control" value="{{ old('reason', $attendance->reason) }}" {{ $attendance->status === 'present' ? 'disabled' : '' }}>
+        </div>
 
-@if(can_access('attendance', 'record', 'edit'))
-        <button type="submit" class="btn btn-primary mt-3">Update Attendance</button>
-@endif
+        @if(can_access('attendance', 'record', 'edit'))
+        <button type="submit" class="btn btn-primary">Update Attendance</button>
+        @endif
     </form>
 </div>
 
 <script>
-    document.getElementById('is_present').addEventListener('change', function() {
-        let reasonField = document.getElementById('reason');
-        if (this.value == "1") {
-            reasonField.value = ""; // Clear reason when marking present
-            reasonField.disabled = true;
+document.addEventListener('DOMContentLoaded', function() {
+    function toggleReason() {
+        const status = document.querySelector('input[name="status"]:checked')?.value;
+        const reason = document.getElementById('reason');
+        if (status === 'present') {
+            reason.disabled = true;
+            reason.value = '';
         } else {
-            reasonField.disabled = false;
+            reason.disabled = false;
         }
-    });
+    }
+    document.querySelectorAll('input[name="status"]').forEach(r => r.addEventListener('change', toggleReason));
+    toggleReason();
+});
 </script>
 @endsection

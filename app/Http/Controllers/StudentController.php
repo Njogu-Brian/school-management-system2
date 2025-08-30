@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
 use Illuminate\Support\Facades\Mail;
-use App\Models\SMSTemplate;
+use App\Models\CommunicationTemplate;
 use App\Models\EmailTemplate;
 use App\Mail\GenericMail;
 use Maatwebsite\Excel\Facades\Excel;
@@ -279,10 +279,13 @@ class StudentController extends Controller
         $className = optional($student->classroom)->name ?? '';
         $fullName = $student->getFullNameAttribute();
 
-        // SMS
-        $smsTemplate = SMSTemplate::where('code', 'student_admission')->first();
+        // ✅ SMS via CommunicationTemplate
+        $smsTemplate = CommunicationTemplate::where('type', 'sms')
+            ->where('code', 'student_admission')
+            ->first();
+
         $smsMessage = $smsTemplate
-            ? str_replace(['{name}', '{class}'], [$fullName, $className], $smsTemplate->message)
+            ? str_replace(['{name}', '{class}'], [$fullName, $className], $smsTemplate->content)
             : "Dear Parent, your child {$fullName} has been admitted to class {$className}.";
 
         foreach ([$parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
@@ -291,29 +294,27 @@ class StudentController extends Controller
             }
         }
 
-        // EMAIL
+        // ✅ Email via EmailTemplate
         $emailTemplate = EmailTemplate::where('code', 'student_admission')->first();
         if ($emailTemplate) {
             $subject = $emailTemplate->title;
             $body = str_replace(
                 ['{name}', '{class}'],
-                [$student->getFullNameAttribute(), $className],
+                [$fullName, $className],
                 $emailTemplate->message
             );
 
             foreach ([$parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
                 if ($email) {
                     try {
-                        Mail::to($email)->send(new \App\Mail\GenericMail($subject, $body));
+                        Mail::to($email)->send(new GenericMail($subject, $body));
                     } catch (\Throwable $e) {
-                        \Log::error("Email sending failed to $email: " . $e->getMessage());
+                        Log::error("Email sending failed to $email: " . $e->getMessage());
                     }
                 }
             }
         }
-
     }
-
     // ============= KEEP EXISTING METHODS AS IS =============
 
     public function bulkForm()

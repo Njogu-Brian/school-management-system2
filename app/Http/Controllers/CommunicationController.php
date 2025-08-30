@@ -6,13 +6,39 @@ use Illuminate\Http\Request;
 use App\Models\EmailTemplate;
 use App\Models\CommunicationLog;
 use App\Models\ScheduledCommunication;
-use App\Models\SMSTemplate;
+use App\Models\CommunicationTemplate;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
 use App\Services\SMSService;
 
 class CommunicationController extends Controller
 {
+    public function index()
+    {
+        $templates = CommunicationTemplate::where('type', 'sms')->get();
+        return view('communication.sms_templates.index', compact('templates'));
+    }
+
+    public function create()
+    {
+        return view('communication.sms_templates.create');
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'title' => 'required|string|max:255',
+            'code' => 'required|string|max:100|unique:communication_templates,code',
+            'content' => 'required|string|max:300',
+        ]);
+
+        $data['type'] = 'sms';
+
+        CommunicationTemplate::create($data);
+        return redirect()->route('sms-templates.index')->with('success', 'SMS Template created successfully.');
+    }
+
+    
     // ===== EMAIL =====
     public function createEmail()
     {
@@ -140,7 +166,7 @@ class CommunicationController extends Controller
     public function createSMS()
     {
         // abort_unless(can_access("communication", "sms", "add"), 403);
-        $templates = SMSTemplate::all();
+        $templates = CommunicationTemplate::where('type', 'sms')->get();
         return view('communication.send_sms', compact('templates'));
     }
 
@@ -148,7 +174,7 @@ public function sendSMS(Request $request, SMSService $smsService)
 {
         // abort_unless(can_access("communication", "sms", "add"), 403);
     $request->validate([
-        'template_id' => 'nullable|exists:sms_templates,id',
+        'template_id' => 'nullable|exists:communication_templates,id',
         'message' => 'nullable|string|max:300',
         'target' => 'required',
         'custom_numbers' => 'nullable|string',
@@ -157,8 +183,8 @@ public function sendSMS(Request $request, SMSService $smsService)
     // Get the message
     $message = $request->message;
     if ($request->template_id) {
-        $template = SMSTemplate::find($request->template_id);
-        $message = $template->message;
+        $template = CommunicationTemplate::where('type', 'sms')->find($request->template_id);
+        $message = $template->content;   // use "content" column now
     }
 
     if (!$message) {
