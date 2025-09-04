@@ -5,9 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Storage;
-use App\Models\Role;
-use App\Models\User;  
-use App\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\Models\Permission;
 use App\Models\SystemSetting;
 class SettingController extends Controller
 {
@@ -142,7 +141,9 @@ class SettingController extends Controller
     public function managePermissions()
     {
         $roles = Role::with('permissions')->get();
-        $permissions = Permission::all()->groupBy('module');
+        $permissions = Permission::all()->groupBy(function ($perm) {
+    return explode('.', $perm->name)[0]; // group by module prefix
+});
         return view('settings.role_permissions', compact('roles', 'permissions'));
     }
     

@@ -6,16 +6,16 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up(): void
-    {
-        Schema::table('students', function (Blueprint $table) {
-            // First ensure it's the correct type
+    public function up()
+{
+    Schema::table('students', function (Blueprint $table) {
+        if (!Schema::hasColumn('students', 'family_id')) {
+            $table->unsignedBigInteger('family_id')->nullable()->after('id');
+        } else {
             $table->unsignedBigInteger('family_id')->nullable()->change();
-
-            // Add foreign key constraint
-            $table->foreign('family_id')->references('id')->on('families')->onDelete('set null');
-        });
-    }
+        }
+    });
+}
 
     public function down(): void
     {

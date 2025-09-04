@@ -4,29 +4,6 @@ use App\Models\Setting;
 use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Auth;
 
-// ================= Permission Helper ===================
-
-    if (!function_exists('can_access')) {
-        function can_access($module, $feature, $action)
-        {
-            $user = Auth::user();
-            if (!$user) return false;
-
-            foreach ($user->roles as $role) {
-                $permission = $role->permissions()
-                    ->where('module', $module)
-                    ->where('feature', $feature)
-                    ->first();
-
-                if ($permission && $permission->pivot && $permission->pivot->{'can_' . $action}) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
 /**
  * Fetch value from key-value settings table (settings)
  */

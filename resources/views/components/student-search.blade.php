@@ -15,16 +15,20 @@
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="class-tab" data-bs-toggle="tab" data-bs-target="#classReport" type="button" role="tab">By Class/Stream</button>
+            <button class="nav-link {{ request('mode') !== 'student' ? 'active' : '' }}" 
+                    id="class-tab" data-bs-toggle="tab" data-bs-target="#classReport" 
+                    type="button" role="tab">By Class/Stream</button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link" id="student-tab" data-bs-toggle="tab" data-bs-target="#studentReport" type="button" role="tab">By Student</button>
+            <button class="nav-link {{ request('mode') == 'student' ? 'active' : '' }}" 
+                    id="student-tab" data-bs-toggle="tab" data-bs-target="#studentReport" 
+                    type="button" role="tab">By Student</button>
         </li>
     </ul>
 
     <div class="tab-content">
         <!-- ================= CLASS/STREAM REPORT ================= -->
-        <div class="tab-pane fade show active" id="classReport" role="tabpanel">
+        <div class="tab-pane fade {{ request('mode') !== 'student' ? 'show active' : '' }}" id="classReport" role="tabpanel">
             <form method="GET" action="{{ route('attendance.records') }}" class="row g-3 mb-4">
                 <div class="col-md-3">
                     <label class="form-label">Class</label>
@@ -61,7 +65,7 @@
             @forelse($records as $date => $attendances)
                 <div class="card mb-3 shadow-sm">
                     <div class="card-header fw-bold">
-                        {{ $date }}
+                        {{ \Carbon\Carbon::parse($date)->format('d M Y') }}
                     </div>
                     <div class="card-body table-responsive">
                         <table class="table table-sm table-bordered">
@@ -99,20 +103,21 @@
         </div>
 
         <!-- ================= STUDENT REPORT ================= -->
-        <div class="tab-pane fade" id="studentReport" role="tabpanel">
+        <div class="tab-pane fade {{ request('mode') == 'student' ? 'show active' : '' }}" id="studentReport" role="tabpanel">
             <form method="GET" action="{{ route('attendance.records') }}" class="row g-3 mb-4">
                 <input type="hidden" name="mode" value="student">
+                <input type="hidden" id="student_id" name="student_id" value="{{ request('student_id') }}">
 
                 <div class="col-md-6">
-                    <label class="form-label">Search Student</label>
-                    <select name="student_id" class="form-select" required>
-                        <option value="">-- Select Student --</option>
-                        @foreach(\App\Models\Student::orderBy('first_name')->get() as $stu)
-                            <option value="{{ $stu->id }}" {{ request('student_id') == $stu->id ? 'selected' : '' }}>
-                                {{ $stu->full_name }} ({{ $stu->admission_number }})
-                            </option>
-                        @endforeach
-                    </select>
+                    <label class="form-label">Student</label>
+                    <div class="input-group">
+                        <input type="text" id="student_name_display" class="form-control" 
+                               value="{{ request('student_id') ? \App\Models\Student::find(request('student_id'))->full_name ?? '' : '' }}" 
+                               placeholder="Click search to select a student" readonly>
+                        <button type="button" class="btn btn-purple" data-bs-toggle="modal" data-bs-target="#studentSearchModal">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">Start Date</label>
@@ -154,7 +159,7 @@
                             <tbody>
                                 @forelse($studentRecords as $r)
                                     <tr>
-                                        <td>{{ $r->date }}</td>
+                                        <td>{{ \Carbon\Carbon::parse($r->date)->format('d M Y') }}</td>
                                         <td>
                                             <span class="badge 
                                                 {{ $r->status == 'present' ? 'bg-success' : ($r->status == 'late' ? 'bg-warning' : 'bg-danger') }}">
@@ -178,6 +183,16 @@
 </div>
 @endsection
 
+@push('scripts')
+<script>
+document.addEventListener("studentSelected", function(e) {
+    const { id, name, adm } = e.detail;
+    document.getElementById("student_id").value = id;
+    document.getElementById("student_name_display").value = name + " (" + adm + ")";
+});
+</script>
+@endpush
+
 @push('styles')
 <style>
     .btn-purple {
@@ -189,5 +204,6 @@
         background-color: #3c096c;
         color: #fff;
     }
+    
 </style>
 @endpush

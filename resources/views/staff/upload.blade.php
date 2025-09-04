@@ -18,13 +18,9 @@
         </div>
     @endif
 
-    <p>
-@if(can_access('staff', 'manage_staff', 'add'))
-        <a href="{{ asset('templates/staff_upload_template.xlsx') }}" class="btn btn-outline-secondary mb-3">
-@endif
-            Download Sample Excel Template
-        </a>
-    </p>
+    <a href="{{ asset('templates/staff_upload_template.xlsx') }}" class="btn btn-outline-secondary mb-3">
+        Download Sample Excel Template
+    </a>
 
     <form action="{{ route('staff.upload.handle') }}" method="POST" enctype="multipart/form-data">
         @csrf

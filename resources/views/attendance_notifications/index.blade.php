@@ -2,9 +2,10 @@
 
 @section('content')
 <div class="container">
-    <h4 class="mb-4">Kitchen Recipients</h4>
+    <h4 class="mb-4">Attendance Notification Recipients</h4>
 
-    <a href="{{ route('attendance.kitchen.recipients.create') }}" class="btn btn-success mb-3">
+    {{-- Add Button --}}
+    <a href="{{ route('attendance.notifications.create') }}" class="btn btn-success mb-3">
         <i class="bi bi-plus-circle"></i> Add Recipient
     </a>
 
@@ -24,17 +25,30 @@
             <tbody>
                 @foreach($recipients as $recipient)
                     <tr>
+                        {{-- Label --}}
                         <td>{{ $recipient->label }}</td>
-                        <td>{{ $recipient->staff->first_name ?? '' }} {{ $recipient->staff->last_name ?? '' }}</td>
+
+                        {{-- Staff --}}
+                        <td>
+                            {{ optional($recipient->staff)->first_name }}
+                            {{ optional($recipient->staff)->last_name }}
+                            ({{ optional($recipient->staff)->phone_number }})
+                        </td>
+
+                        {{-- Assigned Classes --}}
                         <td>
                             @if(!empty($recipient->classroom_ids))
                                 @foreach($recipient->classroom_ids as $classId)
-                                    <span class="badge bg-secondary">{{ $classrooms[$classId] ?? 'Unknown' }}</span>
+                                    <span class="badge bg-secondary">
+                                        {{ $classrooms[$classId] ?? 'Unknown' }}
+                                    </span>
                                 @endforeach
                             @else
                                 <em>All Classes</em>
                             @endif
                         </td>
+
+                        {{-- Status --}}
                         <td>
                             @if($recipient->active)
                                 <span class="badge bg-success">Active</span>
@@ -42,11 +56,21 @@
                                 <span class="badge bg-danger">Inactive</span>
                             @endif
                         </td>
+
+                        {{-- Actions --}}
                         <td>
-                            <a href="{{ route('attendance.kitchen.recipients.edit', $recipient->id) }}" class="btn btn-sm btn-warning">Edit</a>
-                            <form action="{{ route('attendance.kitchen.recipients.destroy', $recipient->id) }}" method="POST" class="d-inline">
-                                @csrf @method('DELETE')
-                                <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this recipient?')">Delete</button>
+                            <a href="{{ route('attendance.notifications.edit', $recipient->id) }}" 
+                               class="btn btn-sm btn-warning">
+                                Edit
+                            </a>
+                            <form action="{{ route('attendance.notifications.destroy', $recipient->id) }}" 
+                                  method="POST" class="d-inline">
+                                @csrf 
+                                @method('DELETE')
+                                <button class="btn btn-sm btn-danger" 
+                                        onclick="return confirm('Delete this recipient?')">
+                                    Delete
+                                </button>
                             </form>
                         </td>
                     </tr>

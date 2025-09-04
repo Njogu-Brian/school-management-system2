@@ -4,7 +4,7 @@
 <div class="container">
     <h4 class="mb-4">Edit Kitchen Recipient</h4>
 
-    <form action="{{ route('attendance.kitchen.recipients.update', $recipient->id) }}" method="POST">
+    <form action="{{ route(attendance.notifications.update', $recipient->id) }}" method="POST">
         @csrf @method('PUT')
 
         <div class="mb-3">
@@ -44,7 +44,7 @@
         </div>
 
         <button type="submit" class="btn btn-success">Update Recipient</button>
-        <a href="{{ route('attendance.kitchen.recipients.index') }}" class="btn btn-secondary">Cancel</a>
+        <a href="{{ route(attendance.notifications.index') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 @endsection

@@ -44,11 +44,29 @@
 
     <h5 class="mb-3">{{ $schoolName }}</h5>
 
+    {{-- ✅ Show errors --}}
+    @if ($errors->any())
+        <div class="alert alert-danger text-start">
+            <ul class="mb-0">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    {{-- ✅ Show success/info messages (optional) --}}
+    @if (session('status'))
+        <div class="alert alert-success text-start">
+            {{ session('status') }}
+        </div>
+    @endif
+
     <form method="POST" action="{{ route('login') }}" class="text-start">
         @csrf
         <div class="mb-3">
             <label>Email Address</label>
-            <input type="email" class="form-control" name="email" required autofocus>
+            <input type="email" class="form-control" name="email" value="{{ old('email') }}" required autofocus>
         </div>
 
         <div class="mb-3">
@@ -57,7 +75,7 @@
         </div>
 
         <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" name="remember">
+            <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
             <label class="form-check-label">Remember Me</label>
         </div>
 

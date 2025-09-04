@@ -4,18 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Staff;
 use App\Models\User;
-use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use App\Services\CommunicationService;
 use Illuminate\Support\Facades\Log;
 use App\Models\EmailTemplate;
-use Illuminate\Support\Facades\Validator;
-use App\Imports\StaffImport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
-use App\Models\Setting;
 use App\Models\SystemSetting;
 use App\Models\CommunicationTemplate;
 
@@ -30,32 +26,27 @@ class StaffController extends Controller
 
     public function index()
     {
-        abort_unless(can_access("staff", "manage_staff", "view"), 403);
         $staff = Staff::all();
         return view('staff.index', compact('staff'));
     }
-    
+
     public function create()
-    {   
-        abort_unless(can_access("staff", "manage_staff", "add"), 403);
-        $roles = Role::all();
-        return view('staff.create', compact('roles'));
+    {
+        return view('staff.create');
     }
+
     public function store(Request $request)
     {
-        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email|unique:staff,email',
-            'roles' => 'required|array',
-            'roles.*' => 'exists:roles,id',
-        ]);        
-    
+        ]);
+
         DB::beginTransaction();
         try {
             $password = Str::random(10);
-    
+
             // ✅ Create user
             $user = User::create([
                 'name' => $request->first_name . ' ' . $request->last_name,
@@ -63,50 +54,32 @@ class StaffController extends Controller
                 'password' => Hash::make($password),
                 'must_change_password' => true,
             ]);
-    
-            // ✅ Assign roles
-            $user->roles()->sync($request->roles);
-    
+
             // ✅ Prepare staff data
             $staffData = $request->only([
                 'first_name', 'middle_name', 'last_name', 'email', 'phone_number',
                 'id_number', 'gender', 'marital_status', 'address',
                 'emergency_contact_name', 'emergency_contact_phone'
             ]);
-    
+
             // ✅ Parse date of birth
             if (!empty($request->date_of_birth)) {
-                try {
-                    if (is_numeric($request->date_of_birth)) {
-                        $staffData['date_of_birth'] = \Carbon\Carbon::instance(
-                            \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($request->date_of_birth)
-                        );
-                    } else {
-                        $staffData['date_of_birth'] = \Carbon\Carbon::parse($request->date_of_birth);
-                    }
-                } catch (\Exception $e) {
-                    throw new \Exception("Invalid date format for date_of_birth.");
-                }
+                $staffData['date_of_birth'] = \Carbon\Carbon::parse($request->date_of_birth);
             }
-    
-            // ✅ Generate staff ID BEFORE Staff::create()
+
+            // ✅ Generate staff ID
             $staffData['user_id'] = $user->id;
             $prefix = SystemSetting::getValue('staff_id_prefix', 'STAFF');
             $start = (int) SystemSetting::getValue('staff_id_start', 1001);
-            $staffId = $prefix . $start;
-            $staffData['staff_id'] = $staffId;
+            $staffData['staff_id'] = $prefix . $start;
 
-            // ✅ Now create the staff
             Staff::create($staffData);
 
-            // ✅ Increment setting AFTER successful insert
+            // ✅ Increment counter
             SystemSetting::set('staff_id_start', $start + 1);
 
-    
-           // ✅ Notify
-            $smsTemplate = CommunicationTemplate::where('type','sms')
-                                    ->where('code','welcome_staff')
-                                    ->first();
+            // ✅ Notify staff
+            $smsTemplate = CommunicationTemplate::where('type', 'sms')->where('code', 'welcome_staff')->first();
             $emailTemplate = EmailTemplate::where('code', 'welcome_staff')->first();
 
             $name = $user->name;
@@ -120,104 +93,73 @@ class StaffController extends Controller
             $body = $emailTemplate
                 ? str_replace(['{name}', '{login}', '{password}'], [$name, $login, $password], $emailTemplate->message)
                 : "Dear $name,<br><br>Your account has been created.<br>Email: $login<br>Password: $password";
-    
+
             $this->CommunicationService->sendEmail('staff', $user->id, $user->email, $subject, $body);
             $this->CommunicationService->sendSMS('staff', null, $request->phone_number, $msg);
-    
+
             DB::commit();
-    
-            if ($request->is('/fake-staff-upload')) {
-                return 'success';
-            }
-    
+
             return redirect()->route('staff.index')->with('success', 'Staff created and credentials sent.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error creating staff: ' . $e->getMessage());
-    
-            if ($request->is('/fake-staff-upload')) {
-                throw $e;
-            }
-    
             return redirect()->back()->with('error', 'Error: ' . $e->getMessage());
         }
     }
-    
+
     public function edit($id)
     {
-        abort_unless(can_access("staff", "manage_staff", "edit"), 403);
         $staff = Staff::findOrFail($id);
-        $roles = Role::all();
         $user = $staff->user;
-
-        return view('staff.edit', compact('staff', 'roles', 'user'));
+        return view('staff.edit', compact('staff', 'user'));
     }
 
     public function update(Request $request, $id)
     {
-        abort_unless(can_access("staff", "manage_staff", "edit"), 403);
         $user = User::findOrFail($id);
         $staff = $user->staff;
 
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email|unique:staff,email',
+            'email' => 'required|email|unique:users,email,' . $user->id,
             'phone_number' => ['required', 'regex:/^\+254\d{9}$/'],
             'id_number' => 'required',
             'date_of_birth' => 'required|date',
-            'roles' => 'required|array',
-            'roles.*' => 'exists:roles,id',
         ]);
 
-        // Update user info
         $user->email = $request->email;
         $user->save();
 
-        // Update staff bio
-        $staff->update([
-            'first_name' => $request->first_name,
-            'middle_name' => $request->middle_name,
-            'last_name' => $request->last_name,
-            'phone_number' => $request->phone_number,
-            'id_number' => $request->id_number,
-            'date_of_birth' => $request->date_of_birth,
-            'gender' => $request->gender,
-            'marital_status' => $request->marital_status,
-            'address' => $request->address,
-            'emergency_contact_name' => $request->emergency_contact_name,
-            'emergency_contact_phone' => $request->emergency_contact_phone,
-        ]);
-
-        // Sync roles
-        $user->roles()->sync($request->roles);
+        $staff->update($request->only([
+            'first_name', 'middle_name', 'last_name',
+            'phone_number', 'id_number', 'date_of_birth',
+            'gender', 'marital_status', 'address',
+            'emergency_contact_name', 'emergency_contact_phone'
+        ]));
 
         return redirect()->route('staff.index')->with('success', 'Staff updated successfully!');
     }
 
     public function archive($id)
     {
-        abort_unless(can_access("staff", "manage_staff", "delete"), 403);
         Staff::where('id', $id)->update(['status' => 'archived']);
         return redirect()->route('staff.index')->with('success', 'Staff archived.');
     }
 
     public function restore($id)
     {
-        abort_unless(can_access("staff", "manage_staff", "edit"), 403);
         Staff::where('id', $id)->update(['status' => 'active']);
         return redirect()->route('staff.index')->with('success', 'Staff restored.');
     }
 
     public function showUploadForm()
     {
-        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         return view('staff.upload');
     }
 
     public function handleUpload(Request $request)
     {
-        abort_unless(can_access("staff", "manage_staff", "add"), 403);
         $request->validate([
             'file' => 'required|mimes:xlsx,xls,csv',
         ]);
@@ -229,5 +171,4 @@ class StaffController extends Controller
             ->with('success', "{$import->successCount} staff imported.")
             ->with('errors', $import->errorMessages);
     }
-
 }

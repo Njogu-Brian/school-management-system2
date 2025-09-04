@@ -2,9 +2,8 @@
 
 @section('content')
 <div class="container">
-    <h3 class="mb-4">🍴 Kitchen Notification</h3>
+    <h3 class="mb-4">📢 Attendance Notification</h3>
 
-    {{-- Alerts --}}
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
@@ -14,13 +13,13 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form action="{{ route('attendance.kitchen.notify.send') }}" method="POST">
+            <form action="{{ route('attendance.notifications.notify.send') }}" method="POST">
                 @csrf
 
                 <div class="row mb-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Select Date</label>
-                        <input type="date" name="date" value="{{ $date }}" class="form-control" required>
+                        <input type="date" name="date" value="{{ $date ?? now()->toDateString() }}" class="form-control" required>
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
                         <div class="form-check">
@@ -43,7 +42,7 @@
     {{-- Status --}}
     <div class="alert {{ $isComplete ? 'alert-success' : 'alert-warning' }}">
         <i class="bi bi-info-circle"></i>
-        Attendance is <strong>{{ $isComplete ? 'Complete' : 'NOT Complete' }}</strong> for {{ $date }}.
+        Attendance is <strong>{{ $isComplete ? 'Complete' : 'NOT Complete' }}</strong> for {{ $date ?? now()->toDateString() }}.
     </div>
 
     {{-- Attendance Summary --}}
@@ -75,7 +74,7 @@
 
     {{-- Recipients --}}
     <div class="card shadow-sm mt-4">
-        <div class="card-header fw-bold">Kitchen Recipients</div>
+        <div class="card-header fw-bold">Recipients</div>
         <div class="card-body">
             @forelse($recipients as $r)
                 <p>

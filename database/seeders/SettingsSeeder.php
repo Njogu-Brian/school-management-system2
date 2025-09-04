@@ -3,30 +3,35 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use App\Models\Setting; // ✅ make sure you have Setting model
 
 class SettingsSeeder extends Seeder
 {
     public function run()
     {
         $settings = [
-            ['key' => 'school_name', 'value' => 'Royal Kings School'],
-            ['key' => 'school_motto', 'value' => 'Building a Sure Foundation'],
-            ['key' => 'school_email', 'value' => 'info@royalkingsschools.sc.ke'],
-            ['key' => 'school_phone', 'value' => '+254 708 225 397'],
-            ['key' => 'school_address', 'value' => 'Riverside, Lower Kabete, Nairobi'],
-            ['key' => 'school_logo', 'value' => 'uploads/logo.png'],
-            ['key' => 'term_start_date', 'value' => '2025-05-01'],
-            ['key' => 'term_end_date', 'value' => '2025-08-01'],
-            ['key' => 'timezone', 'value' => 'Africa/Nairobi'],
-            ['key' => 'currency', 'value' => 'KES'],
-            ['key' => 'system_version', 'value' => '1.0.0'],
-            ['key' => 'system_update_url', 'value' => 'https://royalkingsschools.sc.ke/api/version'],
-            ['key' => 'show_finance_module', 'value' => 'true'],
-            ['key' => 'show_transport_module', 'value' => 'true'],
-            ['key' => 'show_kitchen_module', 'value' => 'true'],
+            'school_name'           => 'Royal Kings School',
+            'school_motto'          => 'Building a Sure Foundation',
+            'school_email'          => 'info@royalkingsschools.sc.ke',
+            'school_phone'          => '+254 708 225 397',
+            'school_address'        => 'Riverside, Lower Kabete, Nairobi',
+            'school_logo'           => 'uploads/logo.png',
+            'term_start_date'       => '2025-05-01',
+            'term_end_date'         => '2025-08-01',
+            'timezone'              => 'Africa/Nairobi',
+            'currency'              => 'KES',
+            'system_version'        => '1.0.0',
+            'system_update_url'     => 'https://royalkingsschools.sc.ke/api/version',
+            'show_finance_module'   => 'true',
+            'show_transport_module' => 'true',
+            'show_kitchen_module'   => 'true',
         ];
 
-        DB::table('settings')->insert($settings);
+        foreach ($settings as $key => $value) {
+            Setting::updateOrCreate(
+                ['key' => $key],   // find by key
+                ['value' => $value] // update or insert
+            );
+        }
     }
 }
