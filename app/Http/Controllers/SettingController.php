@@ -70,10 +70,17 @@ class SettingController extends Controller
         }
 
         // Save images
-        foreach (['school_logo', 'login_background'] as $imageKey) {
+       foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
-                $file = $request->file($imageKey)->store('branding', 'public');
-                Setting::updateOrCreate(['key' => $imageKey], ['value' => $file]);
+                // Save directly to /public/images
+                $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
+                $request->file($imageKey)->move(public_path('images'), $filename);
+
+                // Store only filename in DB
+                Setting::updateOrCreate(
+                    ['key' => $imageKey],
+                    ['value' => $filename]
+                );
             }
         }
 
@@ -130,8 +137,14 @@ class SettingController extends Controller
 
         foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
-                $filePath = $request->file($imageKey)->store('branding', 'public');
-                Setting::updateOrCreate(['key' => $imageKey], ['value' => $filePath]);
+                $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
+                $request->file($imageKey)->move(public_path('images'), $filename);
+
+                // ✅ Save only filename
+                Setting::updateOrCreate(
+                    ['key' => $imageKey],
+                    ['value' => $filename]
+                );
             }
         }
 
