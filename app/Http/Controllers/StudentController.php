@@ -266,14 +266,37 @@ class StudentController extends Controller
         foreach ($rows as $row) {
             $rowData = array_combine($headers, $row);
 
+            // Map IDs
             $classroomId = Classroom::where('name', $rowData['classroom'] ?? '')->value('id');
-            $streamId = Stream::where('name', $rowData['stream'] ?? '')->value('id');
-            $categoryId = StudentCategory::where('name', $rowData['category'] ?? '')->value('id');
+            $streamId    = Stream::where('name', $rowData['stream'] ?? '')->value('id');
+            $categoryId  = StudentCategory::where('name', $rowData['category'] ?? '')->value('id');
 
-            $rowData['classroom_id'] = $classroomId;
-            $rowData['stream_id'] = $streamId;
-            $rowData['category_id'] = $categoryId;
+            $rowData['classroom_id']   = $classroomId;
+            $rowData['stream_id']      = $streamId;
+            $rowData['category_id']    = $categoryId;
 
+            // Keep names for preview
+            $rowData['classroom_name'] = $rowData['classroom'] ?? '';
+            $rowData['stream_name']    = $rowData['stream'] ?? '';
+            $rowData['category_name']  = $rowData['category'] ?? '';
+
+            // ✅ Handle DOB conversion
+            if (!empty($rowData['dob'])) {
+                if (is_numeric($rowData['dob'])) {
+                    // Excel serial number to date
+                    $rowData['dob'] = gmdate('Y-m-d', ($rowData['dob'] - 25569) * 86400);
+                } else {
+                    try {
+                        $rowData['dob'] = \Carbon\Carbon::parse($rowData['dob'])->toDateString();
+                    } catch (\Exception $e) {
+                        $rowData['dob'] = null;
+                    }
+                }
+            } else {
+                $rowData['dob'] = null;
+            }
+
+            // Validate required fields
             $rowData['valid'] =
                 !empty($rowData['first_name']) &&
                 !empty($rowData['last_name']) &&

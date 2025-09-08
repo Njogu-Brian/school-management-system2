@@ -241,8 +241,9 @@
         <div class="collapse {{ $isSettingsActive ? 'show' : '' }}" id="settingsMenu">
             <a href="{{ route('settings.index') }}" class="sublink {{ Request::is('settings') ? 'active' : '' }}"><i class="bi bi-building"></i> General Info</a>
             <a href="{{ route('settings.role_permissions') }}" class="sublink {{ Request::is('settings/role_permissions*') ? 'active' : '' }}"><i class="bi bi-shield-lock"></i> Roles & Permissions</a>
+            <li class="nav-item"><a class="nav-link" href="{{ route('lookups.index') }}"><i class="bi bi-gear"></i> Manage Lookups</a></li>
         </div>
-
+    
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault(); document.getElementById('logout-form').submit();" class="text-danger">
             <i class="bi bi-box-arrow-right"></i><span> Logout</span>

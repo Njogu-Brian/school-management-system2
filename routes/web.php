@@ -150,6 +150,26 @@ Route::middleware(['auth'])->group(function () {
     });
 
     /*
+    |---------------------- Lookups (Roles, Departments, Job Titles, Custom Fields) ----------------------
+    */
+
+    Route::prefix('lookups')->group(function () {
+        Route::get('/', [\App\Http\Controllers\LookupController::class, 'index'])->name('lookups.index');
+
+        Route::post('/roles', [\App\Http\Controllers\LookupController::class, 'storeRole'])->name('lookups.roles.store');
+        Route::delete('/roles/{id}', [\App\Http\Controllers\LookupController::class, 'deleteRole'])->name('lookups.roles.delete');
+
+        Route::post('/departments', [\App\Http\Controllers\LookupController::class, 'storeDepartment'])->name('lookups.departments.store');
+        Route::delete('/departments/{id}', [\App\Http\Controllers\LookupController::class, 'deleteDepartment'])->name('lookups.departments.delete');
+
+        Route::post('/job-titles', [\App\Http\Controllers\LookupController::class, 'storeJobTitle'])->name('lookups.jobtitles.store');
+        Route::delete('/job-titles/{id}', [\App\Http\Controllers\LookupController::class, 'deleteJobTitle'])->name('lookups.jobtitles.delete');
+
+        Route::post('/custom-fields', [\App\Http\Controllers\LookupController::class, 'storeCustomField'])->name('lookups.customfields.store');
+        Route::delete('/custom-fields/{id}', [\App\Http\Controllers\LookupController::class, 'deleteCustomField'])->name('lookups.customfields.delete');
+    });
+
+    /*
     |---------------------- Students ----------------------
     */
     Route::resource('students', StudentController::class)->except(['destroy', 'show']);
