@@ -4,7 +4,7 @@
 <div class="container">
     <h4 class="mb-4">Add Kitchen Recipient</h4>
 
-    <form action="{{ route(attendance.notifications.store') }}" method="POST">
+    <form action="{{ route('attendance.notifications.store') }}" method="POST">
         @csrf
 
         <div class="mb-3">
@@ -41,7 +41,7 @@
         </div>
 
         <button type="submit" class="btn btn-success">Save Recipient</button>
-        <a href="{{ route(attendance.notifications.index') }}" class="btn btn-secondary">Cancel</a>
+        <a href="{{ route('attendance.notifications.index') }}" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
 @endsection

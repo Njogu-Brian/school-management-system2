@@ -35,6 +35,7 @@
                     <th>Phone</th>
                     <th>Department</th>
                     <th>Job Title</th>
+                    <th>Role</th>
                     <th>Supervisor</th>
                     <th>Status</th>
                     <th>Photo</th>
@@ -49,8 +50,9 @@
                         <td>{{ $member->first_name }} {{ $member->last_name }}</td>
                         <td>{{ $member->email }}</td>
                         <td>{{ $member->phone_number }}</td>
-                        <td>{{ $member->department ?? '-' }}</td>
-                        <td>{{ $member->job_title ?? '-' }}</td>
+                        <td>{{ $member->department?->title ?? '-' }}</td>
+                        <td>{{ $member->jobTitle?->name ?? '-' }}</td>
+                        <td>{{ $member->role?->name ?? '-' }}</td>
                         <td>{{ $member->supervisor?->first_name }} {{ $member->supervisor?->last_name }}</td>
                         <td>
                             <span class="badge bg-{{ $member->status == 'active' ? 'success' : 'secondary' }}">
@@ -81,7 +83,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="11" class="text-center text-muted">No staff found</td>
+                        <td colspan="12" class="text-center text-muted">No staff found</td>
                     </tr>
                 @endforelse
             </tbody>

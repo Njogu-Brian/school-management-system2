@@ -76,6 +76,7 @@ class StaffController extends Controller
                 'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
                 'department_id','job_title_id','supervisor_id','role_id'
             ]);
+
             $staffData['user_id'] = $user->id;
             $staffData['staff_id'] = $prefix.$start;
 
@@ -132,32 +133,47 @@ class StaffController extends Controller
         return view('staff.edit', compact('staff','supervisors','roles','departments','jobTitles','customFields'));
     }
 
-    public function update(Request $request,$id)
+   public function update(Request $request, $id)
     {
-        $staff = Staff::findOrFail($id);
+        $staff = Staff::with('user')->findOrFail($id);
         $user = $staff->user;
 
         $request->validate([
-            'first_name'=>'required',
-            'last_name'=>'required',
-            'email'=>'required|email|unique:users,email,'.$user->id,
+            'first_name'   => 'required|string|max:255',
+            'last_name'    => 'required|string|max:255',
+            'email'        => 'required|email|unique:users,email,'.$user->id,
+            'phone_number' => 'required|string|max:20',
         ]);
 
-        $user->update(['email'=>$request->email]);
-        $staff->update($request->except(['photo','custom_fields']));
+        // update user email
+        $user->update(['email' => $request->email]);
+
+        // collect staff data (everything except email & custom_fields)
+        $staffData = $request->only([
+            'first_name','middle_name','last_name','email','phone_number','id_number',
+            'date_of_birth','gender','marital_status','address',
+            'emergency_contact_name','emergency_contact_phone',
+            'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
+            'department_id','job_title_id','supervisor_id','role_id'
+        ]);
 
         if ($request->hasFile('photo')) {
-            $staff->photo = $request->file('photo')->store('staff_photos','public');
-            $staff->save();
+            $staffData['photo'] = $request->file('photo')->store('staff_photos','public');
         }
 
+        $staff->update($staffData);
+
+        // handle custom fields
         if ($request->has('custom_fields')) {
             foreach ($request->custom_fields as $key=>$value) {
-                $staff->meta()->updateOrCreate(['field_key'=>$key],['field_value'=>$value]);
+                $staff->meta()->updateOrCreate(
+                    ['field_key'=>$key],
+                    ['field_value'=>$value]
+                );
             }
         }
 
-        return redirect()->route('staff.index')->with('success','Staff updated');
+        return redirect()->route('staff.index')->with('success','Staff updated successfully.');
     }
 
     public function archive($id)
