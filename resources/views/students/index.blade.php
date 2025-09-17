@@ -7,12 +7,29 @@
     @if (session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
     @endif
+    @if (session('warning'))
+        <div class="alert alert-warning">{{ session('warning') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="alert alert-danger">{{ session('error') }}</div>
+    @endif
 
-    <a href="{{ route('students.create') }}" class="btn btn-success mb-3">Add New Student</a>
-    <a href="{{ route('students.bulk') }}" class="btn btn-info mb-3">Bulk Upload</a>
+    <div class="d-flex justify-content-between mb-3">
+        <div>
+            <a href="{{ route('students.create') }}" class="btn btn-success">Add New Student</a>
+            <a href="{{ route('students.bulk') }}" class="btn btn-info">Bulk Upload</a>
+        </div>
+        <div>
+            @if(request()->has('showArchived'))
+                <a href="{{ route('students.index') }}" class="btn btn-secondary">Show Active</a>
+            @else
+                <a href="{{ route('students.index', ['showArchived' => 1]) }}" class="btn btn-secondary">Show Archived</a>
+            @endif
+        </div>
+    </div>
 
-    <table class="table table-bordered">
-        <thead>
+    <table class="table table-bordered table-striped">
+        <thead class="table-dark">
             <tr>
                 <th>Admission</th>
                 <th>Name</th>
@@ -22,7 +39,7 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($students as $student)
+            @forelse ($students as $student)
                 <tr>
                     <td>{{ $student->admission_number }}</td>
                     <td>{{ $student->first_name }} {{ $student->last_name }}</td>
@@ -30,20 +47,25 @@
                     <td>{{ $student->stream->name ?? 'N/A' }}</td>
                     <td>
                         <a href="{{ route('students.edit', $student->id) }}" class="btn btn-sm btn-primary">Edit</a>
+
                         @if ($student->archive)
                             <form action="{{ route('students.restore', $student->id) }}" method="POST" class="d-inline">
                                 @csrf
-                                <button class="btn btn-sm btn-success">Restore</button>
+                                <button type="submit" class="btn btn-sm btn-success">Restore</button>
                             </form>
                         @else
                             <form action="{{ route('students.archive', $student->id) }}" method="POST" class="d-inline">
                                 @csrf
-                                <button class="btn btn-sm btn-warning">Archive</button>
+                                <button type="submit" class="btn btn-sm btn-warning">Archive</button>
                             </form>
                         @endif
                     </td>
                 </tr>
-            @endforeach
+            @empty
+                <tr>
+                    <td colspan="5" class="text-center">No students found.</td>
+                </tr>
+            @endforelse
         </tbody>
     </table>
 </div>

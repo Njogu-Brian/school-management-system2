@@ -42,11 +42,11 @@
     <div class="card mb-4">
         <div class="card-header">Uploaded Documents</div>
         <div class="card-body">
-            @if ($student->passport_photo)
-                <p><strong>Passport Photo:</strong> <a href="{{ asset('storage/' . $student->passport_photo) }}" target="_blank">View Photo</a></p>
+            @if ($student->photo_path)
+                <p><strong>Passport Photo:</strong> <a href="{{ asset('storage/' . $student->photo_path) }}" target="_blank">View Photo</a></p>
             @endif
-            @if ($student->birth_certificate)
-                <p><strong>Birth Certificate:</strong> <a href="{{ asset('storage/' . $student->birth_certificate) }}" target="_blank">View Certificate</a></p>
+            @if ($student->birth_certificate_path)
+                <p><strong>Birth Certificate:</strong> <a href="{{ asset('storage/' . $student->birth_certificate_path) }}" target="_blank">View Certificate</a></p>
             @endif
             @if ($student->parent_id_card)
                 <p><strong>Parent's ID:</strong> <a href="{{ asset('storage/' . $student->parent_id_card) }}" target="_blank">View Parent's ID</a></p>

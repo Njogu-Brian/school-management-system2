@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
 use Illuminate\Support\Facades\Mail;
 use App\Models\CommunicationTemplate;
-use App\Models\EmailTemplate;
 use App\Mail\GenericMail;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StudentTemplateExport;
@@ -32,16 +31,18 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
+        // Global scope ensures only active students by default
         $query = Student::with(['parent', 'classroom', 'stream', 'category']);
 
-        if (!$request->has('showArchived')) {
-            $query->where('archive', false);
+        // If explicitly showing archived
+        if ($request->has('showArchived')) {
+            $query = Student::withArchived()->with(['parent', 'classroom', 'stream', 'category']);
         }
 
         if ($request->filled('name')) {
             $query->where(function ($q) use ($request) {
                 $q->where('first_name', 'like', '%' . $request->name . '%')
-                  ->orWhere('last_name', 'like', '%' . $request->name . '%');
+                ->orWhere('last_name', 'like', '%' . $request->name . '%');
             });
         }
 
@@ -54,7 +55,7 @@ class StudentController extends Controller
         }
 
         $students = $query->get();
-        $classes = Classroom::all();
+        $classes  = Classroom::all();
 
         return view('students.index', compact('students', 'classes'));
     }
@@ -64,14 +65,14 @@ class StudentController extends Controller
      */
     public function create()
     {
-        $students = Student::where('archive', false)->get(); // For sibling dropdown
+        // Siblings dropdown → only active students (global scope applies)
+        $students   = Student::all();
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
-        $streams = Stream::all();
+        $streams    = Stream::all();
 
         return view('students.create', compact('students', 'categories', 'classrooms', 'streams'));
     }
-
     /**
      * Store student
      */
@@ -125,20 +126,20 @@ class StudentController extends Controller
      */
     public function edit($id)
     {
-        $student = Student::with(['parent', 'classroom', 'stream', 'category'])->findOrFail($id);
+        // Must include archived, otherwise findOrFail won’t work if student is archived
+        $student    = Student::withArchived()->with(['parent', 'classroom', 'stream', 'category'])->findOrFail($id);
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
-        $streams = Stream::all();
+        $streams    = Stream::all();
 
         return view('students.edit', compact('student', 'categories', 'classrooms', 'streams'));
     }
-
     /**
      * Update student
      */
-    public function update(Request $request, $id)
+   public function update(Request $request, $id)
     {
-        $student = Student::findOrFail($id);
+        $student = Student::withArchived()->findOrFail($id);
 
         $request->validate([
             'first_name' => 'required|string|max:255',
@@ -169,14 +170,13 @@ class StudentController extends Controller
 
         return redirect()->route('students.index')->with('success', 'Student updated successfully.');
     }
-
     /**
      * Archive student
      */
-    public function archive($id)
+   public function archive($id)
     {
-        $student = Student::findOrFail($id);
-        $student->archive = true;
+        $student = Student::withArchived()->findOrFail($id);
+        $student->archive = 1;
         $student->save();
 
         return redirect()->route('students.index')->with('success', 'Student archived successfully.');
@@ -187,13 +187,12 @@ class StudentController extends Controller
      */
     public function restore($id)
     {
-        $student = Student::findOrFail($id);
-        $student->archive = false;
+        $student = Student::withArchived()->findOrFail($id);
+        $student->archive = 0;
         $student->save();
 
         return redirect()->route('students.index')->with('success', 'Student restored successfully.');
     }
-
     /**
      * Generate admission number
      */
@@ -440,7 +439,7 @@ class StudentController extends Controller
         }
 
         // Email
-        $emailTemplate = EmailTemplate::where('code', 'student_admission')->first();
+        $emailTemplate = CommunicationTemplate::where('code', 'student_admission')->first();
         if ($emailTemplate) {
             $subject = $emailTemplate->title;
             $body = str_replace(

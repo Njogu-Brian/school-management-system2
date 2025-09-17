@@ -14,6 +14,7 @@ use App\Models\DropOffPoint;
 use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\Family;
+use Illuminate\Database\Eloquent\Builder;
 
 
 class Student extends Model
@@ -101,5 +102,15 @@ class Student extends Model
     {
         return $this->belongsTo(Vehicle::class, 'vehicle_id');
     }   
+    protected static function booted()
+    {
+        static::addGlobalScope('active', function (Builder $builder) {
+            $builder->where('archive', 0);
+        });
+    }
+    public static function withArchived()
+    {
+        return (new static)->newQueryWithoutScope('active');
+    }
 
 }
