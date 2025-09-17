@@ -228,10 +228,21 @@
             <i class="bi bi-chat-dots"></i><span> Communication</span>
         </a>
         <div class="collapse {{ $isCommunicationActive ? 'show' : '' }}" id="communicationMenu">
-            <a href="{{ route('communication.send.email') }}" class="sublink {{ Request::is('communication/send/email*') ? 'active' : '' }}"><i class="bi bi-envelope"></i> Send Email</a>
-            <a href="{{ route('communication.send.sms') }}" class="sublink {{ Request::is('communication/send/sms*') ? 'active' : '' }}"><i class="bi bi-chat"></i> Send SMS</a>
-            <a href="{{ route('communication.logs') }}" class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}"><i class="bi bi-clock-history"></i> Logs</a>
-            <a href="{{ route('announcements.index') }}" class="sublink {{ Request::is('announcements*') ? 'active' : '' }}"><i class="bi bi-megaphone"></i> Announcements</a>
+            <a href="{{ route('communication.send.email') }}" class="sublink {{ Request::is('communication/send-email*') ? 'active' : '' }}">
+                <i class="bi bi-envelope"></i> Send Email
+            </a>
+            <a href="{{ route('communication.send.sms') }}" class="sublink {{ Request::is('communication/send-sms*') ? 'active' : '' }}">
+                <i class="bi bi-chat"></i> Send SMS
+            </a>
+            <a href="{{ route('communication-templates.index') }}" class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
+                <i class="bi bi-layer-forward"></i> Templates
+            </a>
+            <a href="{{ route('communication.logs') }}" class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
+                <i class="bi bi-clock-history"></i> Logs
+            </a>
+            <a href="{{ route('announcements.index') }}" class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
+                <i class="bi bi-megaphone"></i> Announcements
+            </a>
         </div>
 
         <!-- Settings -->

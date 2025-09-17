@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\CommunicationTemplate;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class CommunicationTemplateController extends Controller
 {
     public function index()
     {
-        $templates = CommunicationTemplate::all();
+        $templates = CommunicationTemplate::latest()->paginate(20);
         return view('communication.templates.index', compact('templates'));
     }
 
@@ -20,34 +21,59 @@ class CommunicationTemplateController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'title' => 'required',
-            'type' => 'required|in:email,sms',
-            'subject' => 'nullable|string',
-            'content' => 'required',
+        $data = $request->validate([
+            'code'       => ['required','string','max:100','unique:communication_templates,code'],
+            'title'      => ['required','string','max:255'],
+            'type'       => ['required', Rule::in(['email','sms'])],
+            'subject'    => ['nullable','string','max:255'],
+            'content'    => ['required','string'],
+            'attachment' => ['nullable','file','mimes:jpg,jpeg,png,pdf,doc,docx'],
         ]);
 
-        CommunicationTemplate::create($request->all());
-        return redirect()->route('templates.index')->with('success', 'Template created successfully');
+        if ($request->hasFile('attachment')) {
+            $data['attachment'] = $request->file('attachment')->store('communication_attachments', 'public');
+        }
+
+        CommunicationTemplate::create($data);
+
+        return redirect()->route('communication-templates.index')
+            ->with('success', 'Template created successfully.');
     }
 
-    public function edit($id)
+    public function edit(CommunicationTemplate $communication_template)
     {
-        $template = CommunicationTemplate::findOrFail($id);
+        $template = $communication_template;
         return view('communication.templates.edit', compact('template'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, CommunicationTemplate $communication_template)
     {
-        $template = CommunicationTemplate::findOrFail($id);
-        $template->update($request->all());
+        $template = $communication_template;
 
-        return redirect()->route('templates.index')->with('success', 'Template updated successfully');
+        $data = $request->validate([
+            'code'       => ['required','string','max:100', Rule::unique('communication_templates','code')->ignore($template->id)],
+            'title'      => ['required','string','max:255'],
+            'type'       => ['required', Rule::in(['email','sms'])],
+            'subject'    => ['nullable','string','max:255'],
+            'content'    => ['required','string'],
+            'attachment' => ['nullable','file','mimes:jpg,jpeg,png,pdf,doc,docx'],
+        ]);
+
+        if ($request->hasFile('attachment')) {
+            $data['attachment'] = $request->file('attachment')->store('communication_attachments', 'public');
+        }
+
+        $template->update($data);
+
+        return redirect()->route('communication-templates.index')
+            ->with('success', 'Template updated successfully.');
     }
 
-    public function destroy($id)
+    public function destroy(CommunicationTemplate $communication_template)
     {
-        CommunicationTemplate::destroy($id);
-        return redirect()->route('templates.index')->with('success', 'Template deleted');
+        $communication_template->delete();
+
+        return redirect()->route('communication-templates.index')
+            ->with('success', 'Template deleted.');
     }
 }

@@ -23,7 +23,6 @@ use App\Http\Controllers\StreamController;
 use App\Http\Controllers\StudentCategoryController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
-use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\VoteheadController;
 use App\Http\Controllers\TermController;
@@ -86,7 +85,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/records', [AttendanceController::class, 'records'])->name('attendance.records');
         Route::get('/edit/{id}', [AttendanceController::class, 'edit'])->name('attendance.edit');
         Route::post('/update/{id}', [AttendanceController::class, 'update'])->name('attendance.update');
-
+        Route::get('notify', [AttendanceNotificationController::class, 'notifyForm'])->name('attendance.notifications.notify');
+        Route::post('notify/send', [AttendanceNotificationController::class, 'sendNotify'])->name('attendance.notifications.notify.send');
+        Route::resource('/', AttendanceNotificationController::class)->except(['show']);
         
     });
     /*
@@ -204,24 +205,30 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/admission-form', [OnlineAdmissionController::class, 'submitForm'])->name('online-admission.submit');
 
     /*
+    /*
     |---------------------- Communication ----------------------
     */
     Route::prefix('communication')->group(function () {
+        // Senders
         Route::get('send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
         Route::post('send-email', [CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
 
         Route::get('send-sms', [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
         Route::post('send-sms', [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
 
+        // Logs
         Route::get('logs', [CommunicationController::class, 'logs'])->name('communication.logs');
         Route::get('logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
 
+        // Announcements
         Route::resource('announcements', CommunicationAnnouncementController::class)->except(['show']);
-        Route::resource('email-templates', EmailTemplateController::class)->except(['show']);
-        Route::resource('sms-templates', CommunicationTemplateController::class)->parameters([
-            'sms-templates' => 'template'
+
+        // Unified templates (replaces email-templates and sms-templates)
+        Route::resource('communication-templates', CommunicationTemplateController::class)->parameters([
+            'communication-templates' => 'communication_template'
         ])->except(['show']);
     });
+
 
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->name('api.students.search');
@@ -307,7 +314,7 @@ Route::middleware(['auth'])->group(function () {
 */
 
 Route::get('/home', function () {
-    $user = auth()->user();
+    $user = \Illuminate\Support\Facades\Auth::user();
     $user->load('roles');
 
     if ($user->hasRole('admin')) return redirect()->route('admin.dashboard');

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Attendance;
 use App\Models\Student;
 use Illuminate\Support\Collection;
+use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class AttendanceReportService
 {
@@ -96,5 +98,28 @@ class AttendanceReportService
         }
         ksort($out);
         return $out;
+    }
+
+    /**
+     * Generate attendance report for controller.
+     */
+    public function generate(Request $request)
+    {
+        $classId  = $request->input('class_id');
+        $streamId = $request->input('stream_id');
+        $from     = $request->input('from', Carbon::today()->subMonth()->toDateString());
+        $to       = $request->input('to', Carbon::today()->toDateString());
+
+        $recordsGrouped = $this->recordsGroupedByDate($classId, $streamId, $from, $to);
+        $summary        = $this->summary($classId, $streamId, $from, $to);
+
+        return view('attendance.report', [
+            'classId'        => $classId,
+            'streamId'       => $streamId,
+            'from'           => $from,
+            'to'             => $to,
+            'recordsGrouped' => $recordsGrouped,
+            'summary'        => $summary,
+        ]);
     }
 }

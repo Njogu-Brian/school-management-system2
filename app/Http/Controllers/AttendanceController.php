@@ -8,10 +8,10 @@ use App\Models\Classroom;
 use App\Models\Stream;
 use App\Models\Student;
 use App\Models\CommunicationTemplate;
+use App\Models\CommunicationLog;
 use App\Services\AttendanceReportService;
 use App\Services\SMSService;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class AttendanceController extends Controller
 {
@@ -24,8 +24,7 @@ class AttendanceController extends Controller
         $this->reportService = $reportService;
     }
 
-    // -------------------- MARKING --------------------
-
+    // -------------------- MARKING FORM --------------------
     public function markForm(Request $request)
     {
         $selectedClass  = $request->get('class');
@@ -64,171 +63,143 @@ class AttendanceController extends Controller
         ));
     }
 
-    public function mark(Request $request)
-    {
-        $dateIn = $request->input('date', now()->toDateString());
-        $date   = Carbon::parse($dateIn)->toDateString();
+    // -------------------- MARK ATTENDANCE --------------------
+public function mark(Request $request)
+{
+    $dateIn = $request->input('date', now()->toDateString());
+    $date   = Carbon::parse($dateIn)->toDateString();
 
-        // ✋ No future dates
-        if (Carbon::parse($date)->isFuture()) {
-            return back()->with('error', 'You cannot mark attendance for a future date.');
-        }
-
-        foreach ($request->all() as $key => $value) {
-            if (!str_starts_with((string)$key, 'status_')) continue;
-
-            $studentId = (int)str_replace('status_', '', (string)$key);
-            $status    = $value; // 'present'|'absent'|'late'
-            $reason    = $request->input('reason_' . $studentId);
-
-            $attendance = Attendance::firstOrNew([
-                'student_id' => $studentId,
-                'date'       => $date,
-            ]);
-
-            $oldStatus         = $attendance->status; // before change
-            $attendance->status = $status;
-            $attendance->reason = $status === 'present' ? null : $reason;
-            $attendance->save();
-
-            // ---- SMS hooks only if status changed ----
-            try {
-                if ($oldStatus !== $status) {
-                    $student = $attendance->student()->with('parent')->first();
-                    if (!$student || !$student->parent) {
-                        continue;
-                    }
-
-                    $humanDate = Carbon::parse($date)->isToday()
-                        ? 'today'
-                        : Carbon::parse($date)->format('d M Y');
-
-                    if ($status === 'absent') {
-                        $tpl = CommunicationTemplate::where('code', 'attendance_absent')->first();
-                        $msg = $tpl
-                            ? str_replace(['{name}', '{date}'], [$student->full_name, $humanDate], $tpl->content)
-                            : "Your child {$student->full_name} has been marked ABSENT for {$humanDate}.";
-                        $this->notifyParents($student->parent, $msg);
-                    } elseif ($status === 'late') {
-                        $tpl = CommunicationTemplate::where('code', 'attendance_late')->first();
-                        $msg = $tpl
-                            ? str_replace(['{name}', '{date}'], [$student->full_name, $humanDate], $tpl->content)
-                            : "Your child {$student->full_name} was marked LATE on {$humanDate}.";
-                        $this->notifyParents($student->parent, $msg);
-                    } elseif ($oldStatus === 'absent' && $status === 'present') {
-                        $tpl = CommunicationTemplate::where('code', 'attendance_corrected')->first();
-                        $msg = $tpl
-                            ? str_replace(['{name}', '{date}'], [$student->full_name, $humanDate], $tpl->content)
-                            : "Correction: {$student->full_name} has been marked PRESENT for {$humanDate} (was absent).";
-                        $this->notifyParents($student->parent, $msg);
-                    }
-                }
-            } catch (\Throwable $e) {
-                Log::error("Attendance SMS failed: " . $e->getMessage());
-            }
-        }
-
-        return redirect()->back()->with('success', 'Attendance saved successfully.');
+    if (Carbon::parse($date)->isFuture()) {
+        return back()->with('error', 'You cannot mark attendance for a future date.');
     }
 
-    // -------------------- EDIT SINGLE RECORD --------------------
+    foreach ($request->all() as $key => $value) {
+        if (!str_starts_with((string)$key, 'status_')) continue;
 
-    public function edit($id)
-    {
-        $attendance = Attendance::with('student')->findOrFail($id);
-        return view('attendance.edit', compact('attendance'));
-    }
+        $studentId = (int)str_replace('status_', '', (string)$key);
+        $status    = $value; // present|absent|late
+        $reason    = $request->input('reason_' . $studentId);
 
-    public function update(Request $request, $id)
-    {
-        $attendance = Attendance::with('student.parent')->findOrFail($id);
-        $oldStatus  = $attendance->status;
+        $attendance = Attendance::firstOrNew([
+            'student_id' => $studentId,
+            'date'       => $date,
+        ]);
 
-        $attendance->status = $request->status;
-        $attendance->reason = $request->status === 'present' ? null : $request->reason;
+        $oldStatus         = $attendance->status;
+        $attendance->status = $status;
+        $attendance->reason = $status === 'present' ? null : $reason;
         $attendance->save();
 
-        // optional: message when corrected in Edit screen
-        if ($oldStatus !== $attendance->status && $attendance->student && $attendance->student->parent) {
-            try {
-                $humanDate = Carbon::parse($attendance->date)->isToday()
+        // ---- Trigger communications if status changed ----
+        try {
+            if ($oldStatus !== $status) {
+                $student = $attendance->student()->with('parent')->first();
+                if (!$student || !$student->parent) continue;
+
+                $humanDate = Carbon::parse($date)->isToday()
                     ? 'today'
-                    : Carbon::parse($attendance->date)->format('d M Y');
+                    : Carbon::parse($date)->format('d M Y');
 
-                if ($attendance->status === 'present' && $oldStatus === 'absent') {
-                    $tpl = CommunicationTemplate::where('code', 'attendance_corrected')->first();
-                    $msg = $tpl
-                        ? str_replace(['{name}', '{date}'], [$attendance->student->full_name, $humanDate], $tpl->content)
-                        : "Correction: {$attendance->student->full_name} has been marked PRESENT for {$humanDate} (was absent).";
-                    $this->notifyParents($attendance->student->parent, $msg);
+                if ($status === 'absent') {
+                    $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $attendance->reason);
+                } elseif ($status === 'late') {
+                    $this->notifyWithTemplate('attendance_late', $student, $humanDate, $attendance->reason);
+                } elseif ($oldStatus === 'absent' && $status === 'present') {
+                    $this->notifyWithTemplate('attendance_corrected', $student, $humanDate, $attendance->reason);
                 }
-            } catch (\Throwable $e) {
-                Log::error("Attendance edit SMS failed: " . $e->getMessage());
             }
+        } catch (\Exception $e) {
+            report($e);
         }
-
-        return redirect()->route('attendance.records')->with('success', 'Attendance updated.');
     }
 
-    // -------------------- REPORTS (Class/Stream + Student tabs) --------------------
+    return back()->with('success', 'Attendance updated successfully.');
+}
 
-    public function records(Request $request)
+// -------------------- TEMPLATE NOTIFY --------------------
+private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $reason = null)
+{
+    $tpl = CommunicationTemplate::where('code', $code)->first();
+    $message = $tpl
+        ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $reason)
+        : "Your child {$student->full_name} attendance update for {$humanDate}. Reason: {$reason}";
+
+    $phones = array_filter([
+        $student->parent->father_phone ?? null,
+        $student->parent->mother_phone ?? null,
+        $student->parent->guardian_phone ?? null,
+    ]);
+
+    foreach ($phones as $phone) {
+        try {
+            $response = $this->smsService->sendSMS($phone, $message);
+
+            CommunicationLog::create([
+                'recipient_type' => 'parent',
+                'recipient_id'   => $student->parent->id ?? null,
+                'contact'        => $phone,
+                'channel'        => 'sms',
+                'message'        => $message,
+                'status'         => 'sent',
+                'response'       => json_encode($response),
+                'title'          => $tpl->title ?? $code,
+                'target'         => 'attendance',
+                'type'           => 'sms',
+                'sent_at'        => now(),
+            ]);
+        } catch (\Exception $e) {
+            CommunicationLog::create([
+                'recipient_type' => 'parent',
+                'recipient_id'   => $student->parent->id ?? null,
+                'contact'        => $phone,
+                'channel'        => 'sms',
+                'message'        => $message,
+                'status'         => 'failed',
+                'response'       => $e->getMessage(),
+                'title'          => $tpl->title ?? $code,
+                'target'         => 'attendance',
+                'type'           => 'sms',
+                'sent_at'        => now(),
+            ]);
+        }
+    }
+}
+
+private function applyPlaceholders(string $content, Student $student, string $humanDate, ?string $reason = null): string
+{
+    $replacements = [
+        '{student_name}' => $student->full_name,
+        '{class}'        => $student->classroom->name ?? '',
+        '{admission_no}' => $student->admission_number ?? '',
+        '{date}'         => $humanDate,
+        '{parent_name}'  => $student->parent->father_name
+            ?? $student->parent->mother_name
+            ?? $student->parent->guardian_name
+            ?? '',
+        '{reason}'       => $reason ?? '',
+    ];
+
+    return str_replace(array_keys($replacements), array_values($replacements), $content);
+}
+
+
+    // -------------------- REPORTS --------------------
+    public function index()
     {
-        // filters
-        $selectedClass  = $request->get('class');
-        $selectedStream = $request->get('stream');
-        $startDate      = $request->get('start', Carbon::today()->startOfMonth()->toDateString());
-        $endDate        = $request->get('end',   Carbon::today()->toDateString());
+        $records = Attendance::latest()->paginate(50);
+        return view('attendance.index', compact('records'));
+    }
 
+    public function reportForm()
+    {
         $classes = Classroom::pluck('name', 'id');
-        $streams = $selectedClass
-            ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
-            : collect();
-
-        // class/stream report
-        $groupedByDate = $this->reportService->recordsGroupedByDate(
-            $selectedClass,
-            $selectedStream,
-            $startDate,
-            $endDate
-        );
-
-        $summary = $this->reportService->summary(
-            $selectedClass,
-            $selectedStream,
-            $startDate,
-            $endDate
-        ); // totals + gender split
-
-        // student tab (loaded when params present)
-        $studentId       = (int)$request->get('student_id', 0);
-        $student         = $studentId ? Student::with('classroom','stream')->find($studentId) : null;
-        $studentRecords  = $student
-            ? Attendance::where('student_id', $student->id)
-                ->whereBetween('date', [$startDate, $endDate])
-                ->orderBy('date', 'desc')
-                ->get()
-            : collect();
-
-        $studentStats = $this->reportService->studentStats($student, $startDate, $endDate);
-
-        return view('attendance.reports', compact(
-            'classes', 'streams',
-            'selectedClass', 'selectedStream',
-            'startDate', 'endDate',
-            'groupedByDate', 'summary',
-            'student', 'studentRecords', 'studentStats'
-        ));
+        return view('attendance.report_form', compact('classes'));
     }
 
-    // -------------------- helpers --------------------
-
-    private function notifyParents($parent, string $message): void
+    public function generateReport(Request $request)
     {
-        foreach ([$parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
-            if ($phone) {
-                $this->smsService->sendSMS($phone, $message);
-            }
-        }
+        return $this->reportService->generate($request);
     }
+
+   
 }
