@@ -13,6 +13,61 @@ use Carbon\Carbon;
 class AttendanceNotificationController extends Controller
 {
     protected SMSService $smsService;
+    
+     public function index()
+    {
+        $recipients = AttendanceRecipient::with('staff')->get();
+        $classrooms = \App\Models\Classroom::pluck('name', 'id')->toArray();
+        return view('attendance_notifications.index', compact('recipients', 'classrooms'));
+    }
+
+    public function create()
+    {
+        $staff = \App\Models\Staff::all();
+        $classrooms = \App\Models\Classroom::pluck('name', 'id');
+        return view('attendance_notifications.create', compact('staff', 'classrooms'));
+    }
+
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'label' => 'required|string|max:255',
+            'staff_id' => 'required|exists:staff,id',
+            'classroom_ids' => 'nullable|array',
+            'active' => 'boolean',
+        ]);
+        AttendanceRecipient::create($data);
+        return redirect()->route('attendance.notifications.index')
+            ->with('success', 'Recipient added successfully.');
+    }
+
+    public function edit($id)
+    {
+        $recipient = AttendanceRecipient::findOrFail($id);
+        $staff = \App\Models\Staff::all();
+        $classrooms = \App\Models\Classroom::pluck('name', 'id');
+        return view('attendance_notifications.edit', compact('recipient', 'staff', 'classrooms'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $data = $request->validate([
+            'label' => 'required|string|max:255',
+            'staff_id' => 'required|exists:staff,id',
+            'classroom_ids' => 'nullable|array',
+            'active' => 'boolean',
+        ]);
+        AttendanceRecipient::findOrFail($id)->update($data);
+        return redirect()->route('attendance.notifications.index')
+            ->with('success', 'Recipient updated successfully.');
+    }
+
+    public function destroy($id)
+    {
+        AttendanceRecipient::findOrFail($id)->delete();
+        return redirect()->route('attendance.notifications.index')
+            ->with('success', 'Recipient deleted successfully.');
+    }
 
     public function __construct(SMSService $smsService)
     {

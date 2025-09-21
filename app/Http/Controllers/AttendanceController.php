@@ -200,6 +200,100 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     {
         return $this->reportService->generate($request);
     }
+    
+    public function records(Request $request)
+{
+    $selectedClass  = $request->get('class');
+    $selectedStream = $request->get('stream');
+    $startDate      = $request->get('start', Carbon::today()->toDateString());
+    $endDate        = $request->get('end', Carbon::today()->toDateString());
+    $studentId      = $request->get('student_id');
 
-   
+    $classes = Classroom::pluck('name', 'id');
+    $streams = $selectedClass
+        ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
+        : collect();
+
+    $students = Student::query()
+        ->when($selectedClass, fn($q) => $q->where('classroom_id', $selectedClass))
+        ->when($selectedStream, fn($q) => $q->where('stream_id', $selectedStream))
+        ->orderBy('first_name')
+        ->get();
+
+    $attendanceRecords = Attendance::whereBetween('date', [$startDate, $endDate])
+        ->with('student.classroom', 'student.stream')
+        ->get();
+
+    // Build summary counts
+    $summary = [
+        'totals' => [
+            'all'     => $attendanceRecords->count(),
+            'present' => $attendanceRecords->where('status', 'present')->count(),
+            'absent'  => $attendanceRecords->where('status', 'absent')->count(),
+            'late'    => $attendanceRecords->where('status', 'late')->count(),
+        ],
+        'gender' => [
+            'male'   => [
+                'present' => $attendanceRecords->where('status', 'present')->where('student.gender', 'male')->count(),
+                'absent'  => $attendanceRecords->where('status', 'absent')->where('student.gender', 'male')->count(),
+                'late'    => $attendanceRecords->where('status', 'late')->where('student.gender', 'male')->count(),
+            ],
+            'female' => [
+                'present' => $attendanceRecords->where('status', 'present')->where('student.gender', 'female')->count(),
+                'absent'  => $attendanceRecords->where('status', 'absent')->where('student.gender', 'female')->count(),
+                'late'    => $attendanceRecords->where('status', 'late')->where('student.gender', 'female')->count(),
+            ],
+            'other' => [
+                'present' => $attendanceRecords->where('status', 'present')->whereNotIn('student.gender', ['male','female'])->count(),
+                'absent'  => $attendanceRecords->where('status', 'absent')->whereNotIn('student.gender', ['male','female'])->count(),
+                'late'    => $attendanceRecords->where('status', 'late')->whereNotIn('student.gender', ['male','female'])->count(),
+            ],
+        ]
+    ];
+
+    // Group records by date
+    $groupedByDate = $attendanceRecords->groupBy('date');
+
+    // Student-specific tab
+    $student = null;
+    $studentRecords = collect();
+    $studentStats = ['present'=>0,'absent'=>0,'late'=>0,'percent'=>0];
+
+    if ($studentId) {
+        $student = Student::with('classroom','stream')->find($studentId);
+        if ($student) {
+            $studentRecords = Attendance::where('student_id', $student->id)
+                ->whereBetween('date', [$startDate, $endDate])
+                ->get();
+
+            $total = max(1, $studentRecords->count());
+            $present = $studentRecords->where('status', 'present')->count();
+            $absent  = $studentRecords->where('status', 'absent')->count();
+            $late    = $studentRecords->where('status', 'late')->count();
+            $studentStats = [
+                'present' => $present,
+                'absent'  => $absent,
+                'late'    => $late,
+                'percent' => round(($present / $total) * 100, 1),
+            ];
+        }
+    }
+
+    return view('attendance.reports', compact(
+        'classes',
+        'streams',
+        'students',
+        'attendanceRecords',
+        'selectedClass',
+        'selectedStream',
+        'startDate',
+        'endDate',
+        'summary',
+        'groupedByDate',
+        'student',
+        'studentRecords',
+        'studentStats'
+    ));
+}
+
 }

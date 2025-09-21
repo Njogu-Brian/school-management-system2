@@ -62,7 +62,7 @@
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="fw-bold">Present</div>
-                            <div class="fs-4">{{ $summary['totals']['present'] }}</div>
+                            <div class="fs-4">{{ $summary['totals']['present'] ?? 0 }}</div>
                         </div>
                     </div>
                 </div>
@@ -70,7 +70,7 @@
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="fw-bold">Absent</div>
-                            <div class="fs-4">{{ $summary['totals']['absent'] }}</div>
+                            <div class="fs-4">{{ $summary['totals']['absent'] ?? 0 }}</div>
                         </div>
                     </div>
                 </div>
@@ -78,14 +78,14 @@
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="fw-bold">Late</div>
-                            <div class="fs-4">{{ $summary['totals']['late'] }}</div>
+                            <div class="fs-4">{{ $summary['totals']['late'] ?? 0 }}</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     @php
-                        $t = max(1, $summary['totals']['all']);
-                        $pct = round(($summary['totals']['present'] / $t) * 100, 1);
+                        $t = max(1, $summary['totals']['all'] ?? 0);
+                        $pct = round((($summary['totals']['present'] ?? 0) / $t) * 100, 1);
                     @endphp
                     <div class="card shadow-sm">
                         <div class="card-body">
@@ -103,9 +103,9 @@
                     <div class="card shadow-sm">
                         <div class="card-header fw-bold">{{ $gLabel }}</div>
                         <div class="card-body">
-                            <div>Present: <span class="badge bg-success">{{ $summary['gender'][$gKey]['present'] }}</span></div>
-                            <div>Absent: <span class="badge bg-danger">{{ $summary['gender'][$gKey]['absent'] }}</span></div>
-                            <div>Late: <span class="badge bg-warning text-dark">{{ $summary['gender'][$gKey]['late'] }}</span></div>
+                            <div>Present: <span class="badge bg-success">{{ $summary['gender'][$gKey]['present'] ?? 0 }}</span></div>
+                            <div>Absent: <span class="badge bg-danger">{{ $summary['gender'][$gKey]['absent'] ?? 0 }}</span></div>
+                            <div>Late: <span class="badge bg-warning text-dark">{{ $summary['gender'][$gKey]['late'] ?? 0 }}</span></div>
                         </div>
                     </div>
                 </div>
@@ -137,9 +137,9 @@
                             <tbody>
                                 @foreach($items as $a)
                                     <tr>
-                                        <td>{{ $a->student->full_name }}</td>
-                                        <td>{{ $a->student->classroom->name ?? '' }}</td>
-                                        <td>{{ $a->student->stream->name ?? '' }}</td>
+                                        <td>{{ $a->student->full_name ?? 'Unknown' }}</td>
+                                        <td>{{ $a->student->classroom->name ?? '-' }}</td>
+                                        <td>{{ $a->student->stream->name ?? '-' }}</td>
                                         <td>
                                             <span class="badge
                                                 {{ $a->status == 'present' ? 'bg-success' : ($a->status == 'late' ? 'bg-warning text-dark' : 'bg-danger') }}">
@@ -190,15 +190,15 @@
             @if($student)
                 <div class="card mb-3 shadow-sm">
                     <div class="card-body">
-                        <div class="fw-bold">{{ $student->full_name }} ({{ $student->admission_number }})</div>
+                        <div class="fw-bold">{{ $student->full_name ?? 'Unknown' }} ({{ $student->admission_number ?? '-' }})</div>
                         <div class="text-muted">
                             Class: {{ $student->classroom->name ?? 'N/A' }} | Stream: {{ $student->stream->name ?? 'N/A' }}
                         </div>
                         <div class="mt-2">
-                            Attendance %: <span class="badge bg-primary">{{ $studentStats['percent'] }}%</span>
-                            <span class="ms-3">Present: <span class="badge bg-success">{{ $studentStats['present'] }}</span></span>
-                            <span class="ms-2">Absent: <span class="badge bg-danger">{{ $studentStats['absent'] }}</span></span>
-                            <span class="ms-2">Late: <span class="badge bg-warning text-dark">{{ $studentStats['late'] }}</span></span>
+                            Attendance %: <span class="badge bg-primary">{{ $studentStats['percent'] ?? 0 }}%</span>
+                            <span class="ms-3">Present: <span class="badge bg-success">{{ $studentStats['present'] ?? 0 }}</span></span>
+                            <span class="ms-2">Absent: <span class="badge bg-danger">{{ $studentStats['absent'] ?? 0 }}</span></span>
+                            <span class="ms-2">Late: <span class="badge bg-warning text-dark">{{ $studentStats['late'] ?? 0 }}</span></span>
                         </div>
                     </div>
                 </div>
@@ -238,7 +238,7 @@
     </div>
 </div>
 
-{{-- Student Search Modal (reuses your existing students.search endpoint) --}}
+{{-- Student Search Modal --}}
 <div class="modal fade" id="studentSearchModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
@@ -268,9 +268,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 datasets: [{
                     label: 'Totals',
                     data: [
-                        {{ $summary['totals']['present'] }},
-                        {{ $summary['totals']['absent'] }},
-                        {{ $summary['totals']['late'] }}
+                        {{ $summary['totals']['present'] ?? 0 }},
+                        {{ $summary['totals']['absent'] ?? 0 }},
+                        {{ $summary['totals']['late'] ?? 0 }}
                     ]
                 }]
             },
@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- student search (uses GET /students/search?q=...) ---
+    // --- student search ---
     const input = document.getElementById('studentSearchInput');
     const list  = document.getElementById('studentSearchResults');
     if (input) {
