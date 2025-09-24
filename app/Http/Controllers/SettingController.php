@@ -4,102 +4,112 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Setting;
-use Illuminate\Support\Facades\Storage;
+use App\Models\SystemSetting;
+use App\Models\StaffCategory;
+use App\Models\Department;
+use App\Models\JobTitle;
+use App\Models\CustomField;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use App\Models\SystemSetting;
+
 class SettingController extends Controller
 {
+    /**
+     * Show General Settings page
+     */
     public function index()
-{
-    $settings = Setting::all()->keyBy('key');
+    {
+        $settings = Setting::all()->keyBy('key');
 
-    $availableModules = [
-        'attendance',
-        'transport',
-        'kitchen',
-        'communication',
-        'reports',
-        'fees',
-        'admissions',
-        'settings',
-        'users',
-    ];
+        $availableModules = [
+            'attendance',
+            'transport',
+            'kitchen',
+            'communication',
+            'reports',
+            'fees',
+            'admissions',
+            'settings',
+            'users',
+        ];
 
-    $modules = [];
-    if (isset($settings['enabled_modules'])) {
-        $modules = json_decode($settings['enabled_modules']->value, true);
+        $enabledModules = [];
+        if (isset($settings['enabled_modules'])) {
+            $enabledModules = json_decode($settings['enabled_modules']->value, true);
+        }
+
+        return view('settings.index', [
+            'settings'       => $settings,
+            'modules'        => $availableModules,
+            'enabledModules' => $enabledModules ?? [],
+        ]);
     }
 
-    return view('settings.index', [
-        'settings' => $settings,
-        'modules' => $availableModules,
-        'enabledModules' => $modules ?? [],
-    ]);
-}
-
-
+    /**
+     * Update General Settings (school info, branding, etc.)
+     */
     public function updateSettings(Request $request)
     {
         $request->validate([
-
-            'school_name' => 'required|string|max:255',
-            'school_email' => 'nullable|email',
-            'school_phone' => 'nullable|string|max:20',
-            'school_address' => 'nullable|string|max:255',
-
-            // Branding
-            'school_logo' => 'nullable|image|mimes:jpg,jpeg,png',
-            'login_background' => 'nullable|image|mimes:jpg,jpeg,png',
-
-            // Regional
-            'timezone' => 'nullable|string|max:100',
-            'currency' => 'nullable|string|max:10',
-
-            // System
-            'system_version' => 'nullable|string|max:50',
-            'auto_backup' => 'nullable|in:yes,no',
+            'school_name'       => 'required|string|max:255',
+            'school_email'      => 'nullable|email',
+            'school_phone'      => 'nullable|string|max:20',
+            'school_address'    => 'nullable|string|max:255',
+            'school_logo'       => 'nullable|image|mimes:jpg,jpeg,png',
+            'login_background'  => 'nullable|image|mimes:jpg,jpeg,png',
+            'timezone'          => 'nullable|string|max:100',
+            'currency'          => 'nullable|string|max:10',
+            'system_version'    => 'nullable|string|max:50',
+            'auto_backup'       => 'nullable|in:yes,no',
         ]);
 
-        // Save text fields
-        foreach ($request->except(['_token', 'school_logo', 'login_background']) as $key => $value) {
-            Setting::updateOrCreate(
-                ['key' => $key],
-                ['value' => $value]
-            );
-        }
-
-        // Save images
-       foreach (['school_logo', 'login_background'] as $imageKey) {
-            if ($request->hasFile($imageKey)) {
-                // Save directly to /public/images
-                $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
-                $request->file($imageKey)->move(public_path('images'), $filename);
-
-                // Store only filename in DB
-                Setting::updateOrCreate(
-                    ['key' => $imageKey],
-                    ['value' => $filename]
-                );
+        try {
+            // Save text fields
+            foreach ($request->except(['_token', 'school_logo', 'login_background']) as $key => $value) {
+                Setting::updateOrCreate(['key' => $key], ['value' => $value]);
             }
+
+            // Save images to /public/images
+            foreach (['school_logo', 'login_background'] as $imageKey) {
+                if ($request->hasFile($imageKey)) {
+                    $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
+                    $request->file($imageKey)->move(public_path('images'), $filename);
+
+                    Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Settings update failed: " . $e->getMessage());
+            return back()->withErrors('Error saving settings. Please try again.');
         }
 
         return redirect()->back()->with('success', 'Settings updated successfully.');
     }
 
+    /**
+     * Update enabled modules
+     */
     public function updateModules(Request $request)
     {
-        $request->validate([
-            'modules' => 'array',
-        ]);
+        $request->validate(['modules' => 'array']);
 
-        Setting::updateOrCreate(
-            ['key' => 'enabled_modules'],
-            ['value' => json_encode($request->modules ?? [])]
-        );
+        try {
+            Setting::updateOrCreate(
+                ['key' => 'enabled_modules'],
+                ['value' => json_encode($request->modules ?? [])]
+            );
+        } catch (\Exception $e) {
+            Log::error("Failed to update modules: " . $e->getMessage());
+            return back()->withErrors('Error updating modules.');
+        }
 
         return redirect()->back()->with('success', 'Modules updated successfully.');
     }
+
+    /**
+     * Update Regional settings (timezone, currency)
+     */
     public function updateRegional(Request $request)
     {
         $request->validate([
@@ -114,11 +124,14 @@ class SettingController extends Controller
         return back()->with('success', 'Regional settings updated.');
     }
 
+    /**
+     * Update System settings (version, backup toggle)
+     */
     public function updateSystem(Request $request)
     {
         $request->validate([
             'system_version' => 'nullable|string|max:50',
-            'enable_backup' => 'nullable|in:0,1',
+            'enable_backup'  => 'nullable|in:0,1',
         ]);
 
         foreach ($request->except('_token') as $key => $value) {
@@ -128,10 +141,13 @@ class SettingController extends Controller
         return back()->with('success', 'System options updated.');
     }
 
+    /**
+     * Update Branding (school logo & login background)
+     */
     public function updateBranding(Request $request)
     {
         $request->validate([
-            'school_logo' => 'nullable|image|mimes:jpg,jpeg,png',
+            'school_logo'      => 'nullable|image|mimes:jpg,jpeg,png',
             'login_background' => 'nullable|image|mimes:jpg,jpeg,png',
         ]);
 
@@ -140,33 +156,23 @@ class SettingController extends Controller
                 $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
                 $request->file($imageKey)->move(public_path('images'), $filename);
 
-                // ✅ Save only filename
-                Setting::updateOrCreate(
-                    ['key' => $imageKey],
-                    ['value' => $filename]
-                );
+                Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
             }
         }
 
         return back()->with('success', 'Branding updated.');
     }
 
-    public function managePermissions()
-    {
-        $roles = Role::with('permissions')->get();
-        $permissions = Permission::all()->groupBy(function ($perm) {
-    return explode('.', $perm->name)[0]; // group by module prefix
-});
-        return view('settings.role_permissions', compact('roles', 'permissions'));
-    }
-    
+    /**
+     * Update ID prefix & counters
+     */
     public function updateIdSettings(Request $request)
     {
         $request->validate([
-            'staff_id_prefix' => 'required|string|max:10',
-            'staff_id_start' => 'required|integer|min:1',
+            'staff_id_prefix'   => 'required|string|max:10',
+            'staff_id_start'    => 'required|integer|min:1',
             'student_id_prefix' => 'required|string|max:10',
-            'student_id_start' => 'required|integer|min:1',
+            'student_id_start'  => 'required|integer|min:1',
         ]);
 
         $system = SystemSetting::first();
@@ -185,5 +191,25 @@ class SettingController extends Controller
         return redirect()->back()->with('success', 'ID settings updated successfully.');
     }
 
-}
+    /**
+     * Unified Roles & HR Lookups page
+     */
+    public function accessAndLookups()
+    {
+        // Roles and Permissions
+        $roles = Role::with('permissions')->get();
+        $permissions = Permission::all()->groupBy(function ($perm) {
+            return explode('.', $perm->name)[0]; // group by module prefix
+        });
 
+        // HR Lookups
+        $categories   = StaffCategory::all();
+        $departments  = Department::all();
+        $jobTitles    = JobTitle::with('department')->get();
+        $customFields = CustomField::where('module', 'staff')->get();
+
+        return view('settings.access_lookups', compact(
+            'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields'
+        ));
+    }
+}

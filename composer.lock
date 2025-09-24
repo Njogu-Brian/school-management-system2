@@ -1474,16 +1474,16 @@
         },
         {
             "name": "jeroennoten/laravel-adminlte",
-            "version": "v3.15.0",
+            "version": "v3.15.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/jeroennoten/Laravel-AdminLTE.git",
-                "reference": "0269331f55fa8385413895225d6d89b85babe3de"
+                "reference": "8f2fe5f6767b69ec5ef28087a10638b9f50e58e7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/jeroennoten/Laravel-AdminLTE/zipball/0269331f55fa8385413895225d6d89b85babe3de",
-                "reference": "0269331f55fa8385413895225d6d89b85babe3de",
+                "url": "https://api.github.com/repos/jeroennoten/Laravel-AdminLTE/zipball/8f2fe5f6767b69ec5ef28087a10638b9f50e58e7",
+                "reference": "8f2fe5f6767b69ec5ef28087a10638b9f50e58e7",
                 "shasum": ""
             },
             "require": {
@@ -1527,9 +1527,9 @@
             ],
             "support": {
                 "issues": "https://github.com/jeroennoten/Laravel-AdminLTE/issues",
-                "source": "https://github.com/jeroennoten/Laravel-AdminLTE/tree/v3.15.0"
+                "source": "https://github.com/jeroennoten/Laravel-AdminLTE/tree/v3.15.2"
             },
-            "time": "2025-02-24T22:20:15+00:00"
+            "time": "2025-08-12T18:28:10+00:00"
         },
         {
             "name": "laravel/framework",

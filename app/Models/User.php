@@ -9,10 +9,10 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles; // ✅ Spatie roles/permissions
+    use HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
-        'name', 'email', 'password',
+        'name', 'email', 'password', 'must_change_password',
     ];
 
     protected $hidden = [
@@ -24,9 +24,4 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
-
-    public function streams()
-    {
-        return $this->belongsToMany(Stream::class, 'stream_teacher', 'teacher_id', 'stream_id');
-    }
 }

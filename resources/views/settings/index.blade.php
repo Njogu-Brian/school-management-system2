@@ -18,8 +18,15 @@
             <a class="nav-link" id="ids-tab" data-bs-toggle="tab" href="#ids" role="tab">ID Settings</a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link" id="ids-tab" data-bs-toggle="tab" href="#features" role="tab">Features</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="ids-tab" data-bs-toggle="tab" href="#modules" role="tab">Modules</a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link" id="system-tab" data-bs-toggle="tab" href="#system" role="tab">System Options</a>
         </li>
+        
     </ul>
 
     <div class="tab-content p-4 border border-top-0 rounded-bottom" id="settingsTabContent">
@@ -28,6 +35,8 @@
         @include('settings.partials.regional')
         @include('settings.partials.ids')
         @include('settings.partials.system')
+        @include('settings.partials.features')
+        @include('settings.partials.modules')
     </div>
 </div>
 @endsection

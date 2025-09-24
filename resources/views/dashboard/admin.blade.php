@@ -12,7 +12,7 @@
         <div class="alert alert-danger">{{ session('error') }}</div>
     @endif
 
-    @if(Auth::user() && Auth::user()->hasRole('admin'))
+   @if(Auth::user() && Auth::user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary']))
         @include('dashboard.partials.filters')
 
         <div class="row">
@@ -29,5 +29,6 @@
     @else
         <p class="text-danger">Unauthorized Access</p>
     @endif
+
 </div>
 @endsection

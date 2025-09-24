@@ -3,17 +3,18 @@
 @section('content')
 <div class="container">
     <h4>Add Academic Year</h4>
-    <form action="{{ route('academic-years.store') }}" method="POST">
+
+    <form action="{{ route('settings.academic.years.store') }}" method="POST">
         @csrf
         <div class="mb-3">
-            <label>Year</label>
-            <input type="text" name="year" class="form-control" required placeholder="e.g. 2025">
+            <label for="year" class="form-label">Year</label>
+            <input type="text" name="year" id="year" class="form-control" required>
         </div>
         <div class="form-check mb-3">
-            <input type="checkbox" name="is_active" class="form-check-input">
-            <label class="form-check-label">Set as Active</label>
+            <input type="checkbox" name="is_active" id="is_active" class="form-check-input">
+            <label for="is_active" class="form-check-label">Active</label>
         </div>
-        <button class="btn btn-success">Save</button>
+        <button type="submit" class="btn btn-success">Save</button>
     </form>
 </div>
 @endsection

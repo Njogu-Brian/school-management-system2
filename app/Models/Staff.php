@@ -14,19 +14,15 @@ class Staff extends Model
         'email','phone_number','id_number','date_of_birth','gender',
         'marital_status','address','emergency_contact_name','emergency_contact_phone',
         'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
-        'department_id','job_title_id','role_id','supervisor_id',
+        'department_id','job_title_id','staff_category_id','supervisor_id',
         'photo','status'
     ];
 
-    /** 🔗 Relationships */
-
-    // Each staff has a corresponding user account
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // Supervisor ↔ Subordinates
     public function supervisor()
     {
         return $this->belongsTo(Staff::class, 'supervisor_id');
@@ -37,27 +33,29 @@ class Staff extends Model
         return $this->hasMany(Staff::class, 'supervisor_id');
     }
 
-    // Extra profile data via StaffMeta
     public function meta()
     {
         return $this->hasMany(StaffMeta::class);
     }
 
-    // Staff Role (e.g., Teacher, Accountant, Driver)
-    public function role()
+    // HR Category (formerly staff_roles)
+    public function category()
     {
-        return $this->belongsTo(StaffRole::class, 'role_id');
+        return $this->belongsTo(StaffCategory::class, 'staff_category_id');
     }
 
-    // Department (e.g., Academics, Transport, Finance)
     public function department()
     {
         return $this->belongsTo(Department::class, 'department_id');
     }
 
-    // Job title (e.g., Principal, Class Teacher, Chef)
     public function jobTitle()
     {
         return $this->belongsTo(JobTitle::class, 'job_title_id');
     }
+    public function getFullNameAttribute()
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
+
 }

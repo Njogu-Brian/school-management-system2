@@ -3,9 +3,11 @@
 @section('content')
 <div class="container">
     <h4>Academic Years</h4>
-    <a href="{{ route('academic-years.create') }}" class="btn btn-primary mb-3">Add Year</a>
+    <a href="{{ route('settings.academic.years.create') }}" class="btn btn-primary mb-3">Add Year</a>
 
-    @if(session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
+    @if(session('success')) 
+        <div class="alert alert-success">{{ session('success') }}</div> 
+    @endif
 
     <table class="table table-bordered">
         <thead>
@@ -21,9 +23,12 @@
                 <td>{{ $year->year }}</td>
                 <td>{{ $year->is_active ? '✅' : '❌' }}</td>
                 <td>
-                    <form action="{{ route('academic-years.destroy', $year) }}" method="POST">
-                        @csrf @method('DELETE')
-                        <button onclick="return confirm('Are you sure?')" class="btn btn-sm btn-danger">Delete</button>
+                    <form action="{{ route('settings.academic.years.destroy', $year) }}" method="POST">
+                        @csrf 
+                        @method('DELETE')
+                        <button onclick="return confirm('Are you sure?')" class="btn btn-sm btn-danger">
+                            Delete
+                        </button>
                     </form>
                 </td>
             </tr>

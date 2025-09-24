@@ -26,7 +26,7 @@ class AcademicYearController extends Controller
         ]);
 
         if ($request->has('is_active')) {
-            AcademicYear::query()->update(['is_active' => false]); // Only one active year
+            AcademicYear::query()->update(['is_active' => false]); // Only one active
         }
 
         AcademicYear::create([
@@ -34,12 +34,17 @@ class AcademicYearController extends Controller
             'is_active' => $request->has('is_active'),
         ]);
 
-        return redirect()->route('academic-years.index')->with('success', 'Academic year created.');
+        // ✅ Fixed: use settings.academic.years.index
+        return redirect()->route('settings.academic.years.index')
+            ->with('success', 'Academic year created.');
     }
 
     public function destroy(AcademicYear $academicYear)
     {
         $academicYear->delete();
-        return redirect()->back()->with('success', 'Deleted successfully.');
+
+        // ✅ Fixed: use settings.academic.years.index
+        return redirect()->route('settings.academic.years.index')
+            ->with('success', 'Deleted successfully.');
     }
 }

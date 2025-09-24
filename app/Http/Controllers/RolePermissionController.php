@@ -43,8 +43,8 @@ class RolePermissionController extends Controller
         // Sync permissions with the role
         $role->syncPermissions($permissions);
 
-        return redirect()
-            ->route('settings.role_permissions')
-            ->with('success', 'Permissions updated successfully.');
+        return redirect()->route('settings.access_lookups')
+        ->with('success', 'Permissions updated successfully.');
+
     }
 }

@@ -54,8 +54,11 @@
     </div>
     <div class="col-md-4 mb-3">
         <label>Marital Status</label>
-        <input type="text" name="marital_status" class="form-control"
-               value="{{ old('marital_status',$staff->marital_status ?? '') }}">
+        <select name="marital_status" class="form-control">
+            <option value="">-- Select --</option>
+            <option value="single" {{ old('marital_status',$staff->marital_status ?? '')=='single'?'selected':'' }}>Single</option>
+            <option value="married" {{ old('marital_status',$staff->marital_status ?? '')=='married'?'selected':'' }}>Married</option>
+        </select>
     </div>
     <div class="col-md-4 mb-3">
         <label>Address</label>
@@ -67,12 +70,27 @@
 <h5 class="mt-4">Employment Details</h5>
 <div class="row">
     <div class="col-md-4 mb-3">
-        <label>Role</label>
-        <select name="role_id" class="form-control">
+       <label>Access Role (Spatie)</label>
+        <select name="spatie_role_id" class="form-control">
             <option value="">-- Select --</option>
-            @foreach($roles as $role)
-                <option value="{{ $role->id }}" {{ old('role_id',$staff->role_id ?? '')==$role->id?'selected':'' }}>
-                    {{ $role->name }}
+            @foreach($spatieRoles as $role)
+                <option value="{{ $role->id }}"
+                    {{ (old('spatie_role_id') 
+                        ?? ($staff?->user?->roles?->first()?->id ?? null)) == $role->id ? 'selected' : '' }}>
+                    {{ ucfirst($role->name) }}
+                </option>
+            @endforeach
+        </select>
+
+    </div>
+    <div class="col-md-4 mb-3">
+        <label>Staff Category (HR)</label>
+        <select name="staff_category_id" class="form-control">
+            <option value="">-- Select --</option>
+            @foreach($categories as $cat)
+                <option value="{{ $cat->id }}" 
+                    {{ old('staff_category_id',$staff->staff_category_id ?? '')==$cat->id?'selected':'' }}>
+                    {{ $cat->name }}
                 </option>
             @endforeach
         </select>
@@ -88,6 +106,9 @@
             @endforeach
         </select>
     </div>
+</div>
+
+<div class="row">
     <div class="col-md-4 mb-3">
         <label>Job Title</label>
         <select name="job_title_id" class="form-control">
@@ -99,46 +120,7 @@
             @endforeach
         </select>
     </div>
-</div>
-
-<div class="row">
     <div class="col-md-4 mb-3">
-        <label>KRA PIN</label>
-        <input type="text" name="kra_pin" class="form-control"
-               value="{{ old('kra_pin',$staff->kra_pin ?? '') }}">
-    </div>
-    <div class="col-md-4 mb-3">
-        <label>NSSF</label>
-        <input type="text" name="nssf" class="form-control"
-               value="{{ old('nssf',$staff->nssf ?? '') }}">
-    </div>
-    <div class="col-md-4 mb-3">
-        <label>NHIF</label>
-        <input type="text" name="nhif" class="form-control"
-               value="{{ old('nhif',$staff->nhif ?? '') }}">
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-4 mb-3">
-        <label>Bank Name</label>
-        <input type="text" name="bank_name" class="form-control"
-               value="{{ old('bank_name',$staff->bank_name ?? '') }}">
-    </div>
-    <div class="col-md-4 mb-3">
-        <label>Bank Branch</label>
-        <input type="text" name="bank_branch" class="form-control"
-               value="{{ old('bank_branch',$staff->bank_branch ?? '') }}">
-    </div>
-    <div class="col-md-4 mb-3">
-        <label>Bank Account</label>
-        <input type="text" name="bank_account" class="form-control"
-               value="{{ old('bank_account',$staff->bank_account ?? '') }}">
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-6 mb-3">
         <label>Supervisor</label>
         <select name="supervisor_id" class="form-control">
             <option value="">-- None --</option>
@@ -151,19 +133,8 @@
     </div>
 </div>
 
-<h5 class="mt-4">Emergency Contact</h5>
-<div class="row">
-    <div class="col-md-6 mb-3">
-        <label>Contact Name</label>
-        <input type="text" name="emergency_contact_name" class="form-control"
-               value="{{ old('emergency_contact_name',$staff->emergency_contact_name ?? '') }}">
-    </div>
-    <div class="col-md-6 mb-3">
-        <label>Contact Phone</label>
-        <input type="text" name="emergency_contact_phone" class="form-control"
-               value="{{ old('emergency_contact_phone',$staff->emergency_contact_phone ?? '') }}">
-    </div>
-</div>
+{{-- Bank & statutory details --}}
+@include('staff.partials.staff_bank_statutory')
 
 <div class="mb-3">
     <label>Photo</label>
