@@ -46,6 +46,8 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\LookupController;
 
+use App\Http\Controllers\AcademicConfigController;
+
 /*
 |--------------------------------------------------------------------------
 | Public Routes
@@ -222,10 +224,28 @@ Route::middleware('auth')->group(function () {
             Route::post('/roles/{role}/update-permissions', [RolePermissionController::class, 'update'])
                 ->name('roles.update_permissions');
 
-            // Academic Config
-            Route::resource('academic-years', AcademicYearController::class)->names('academic.years');
-            Route::resource('terms', TermController::class)->names('terms');
+
         });
+
+    // Academic Config (Years, Terms)
+    Route::prefix('settings')->name('settings.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
+        Route::get('academic', [AcademicConfigController::class, 'index'])->name('academic.index');
+
+        // Year
+        Route::get('academic/year/create', [AcademicConfigController::class, 'createYear'])->name('academic.year.create');
+        Route::post('academic/year', [AcademicConfigController::class, 'storeYear'])->name('academic.year.store');
+        Route::get('academic/year/{year}/edit', [AcademicConfigController::class, 'editYear'])->name('academic.year.edit');
+        Route::put('academic/year/{year}', [AcademicConfigController::class, 'updateYear'])->name('academic.year.update');
+        Route::delete('academic/year/{year}', [AcademicConfigController::class, 'destroyYear'])->name('academic.year.destroy');
+
+        // Term
+        Route::get('academic/term/create', [AcademicConfigController::class, 'createTerm'])->name('academic.term.create');
+        Route::post('academic/term', [AcademicConfigController::class, 'storeTerm'])->name('academic.term.store');
+        Route::get('academic/term/{term}/edit', [AcademicConfigController::class, 'editTerm'])->name('academic.term.edit');
+        Route::put('academic/term/{term}', [AcademicConfigController::class, 'updateTerm'])->name('academic.term.update');
+        Route::delete('academic/term/{term}', [AcademicConfigController::class, 'destroyTerm'])->name('academic.term.destroy');
+    });
+
 
     /*
     |---------------------- Lookups AJAX Endpoints ----------------------

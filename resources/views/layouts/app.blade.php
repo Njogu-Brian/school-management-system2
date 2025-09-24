@@ -245,7 +245,7 @@
             </a>
         </div>
 
-        <!-- Settings -->
+       <!-- Settings -->
         <a href="#settingsMenu" data-bs-toggle="collapse" aria-expanded="{{ $isSettingsActive ? 'true' : 'false' }}">
             <i class="bi bi-gear"></i><span> Settings</span>
         </a>
@@ -256,11 +256,8 @@
             <a href="{{ route('settings.access_lookups') }}" class="sublink {{ Request::is('settings/access-lookups*') ? 'active' : '' }}">
                 <i class="bi bi-shield-lock"></i> Access & Lookups
             </a>
-            <a href="{{ route('settings.academic.years.index') }}" class="sublink {{ Request::is('settings/academic-years*') ? 'active' : '' }}">
-                <i class="bi bi-calendar"></i> Academic Years
-            </a>
-            <a href="{{ route('settings.terms.index') }}" class="sublink {{ Request::is('settings/terms*') ? 'active' : '' }}">
-                <i class="bi bi-clock"></i> Terms
+            <a href="{{ route('settings.academic.index') }}" class="sublink {{ Request::is('settings/academic*') ? 'active' : '' }}">
+                <i class="bi bi-calendar"></i> Academic Years & Terms
             </a>
         </div>
 
