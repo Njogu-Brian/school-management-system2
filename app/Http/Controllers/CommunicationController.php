@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\EmailTemplate;
 use App\Models\CommunicationLog;
 use App\Models\ScheduledCommunication;
 use App\Models\CommunicationTemplate;
@@ -43,7 +42,7 @@ class CommunicationController extends Controller
     public function createEmail()
     {
         // abort_unless(can_access("communication", "email", "add"), 403);
-        $templates = EmailTemplate::all();
+        $templates = CommunicationTemplate::where('type', 'email')->get();
         return view('communication.send_email', compact('templates'));
     }
 
@@ -66,9 +65,12 @@ class CommunicationController extends Controller
         $messageBody = $request->message;
 
         if ($request->template_id) {
-            $template = EmailTemplate::find($request->template_id);
-            $subject = $template->title ?? $subject;
-            $messageBody = $template->message ?? $messageBody;
+            $template = CommunicationTemplate::find($request->template_id);
+
+            if ($template && $template->type === 'email') {
+                $subject = $template->title ?? $subject;
+                $messageBody = $template->content ?? $messageBody; // use 'content' column, not 'message'
+            }
         }
 
         // Ensure there's something to send
