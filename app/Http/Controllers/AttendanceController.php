@@ -119,7 +119,8 @@ public function mark(Request $request)
 // -------------------- TEMPLATE NOTIFY --------------------
 private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $reason = null)
 {
-    $tpl = CommunicationTemplate::where('code', $code)->first();
+    $tpl = CommunicationTemplate::whereRaw('LOWER(code) = ?', [strtolower($code)])->first();
+
     $message = $tpl
         ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $reason)
         : "Your child {$student->full_name} attendance update for {$humanDate}. Reason: {$reason}";
