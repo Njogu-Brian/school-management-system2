@@ -194,7 +194,7 @@
         <div class="collapse {{ $isAcademicsActive ? 'show' : '' }}" id="academicsMenu">
             <a href="{{ route('academics.classrooms.index') }}" class="sublink {{ Request::is('academics/classrooms*') ? 'active' : '' }}"><i class="bi bi-house"></i> Classrooms</a>
             <a href="{{ route('academics.streams.index') }}" class="sublink {{ Request::is('academics/streams*') ? 'active' : '' }}"><i class="bi bi-signpost-split"></i> Streams</a>
-            <a href="{{ route('academics.subject-groups.index') }}" class="sublink {{ Request::is('academics/subject-groups*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Subject Groups</a>
+            <a href="{{ route('academics.subject_groups.index') }}" class="sublink {{ Request::is('academics/subject_groups*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Subject Groups</a>
             <a href="{{ route('academics.subjects.index') }}" class="sublink {{ Request::is('academics/subjects*') ? 'active' : '' }}"><i class="bi bi-book"></i> Subjects</a>
             <a href="{{ route('academics.exams.index') }}" class="sublink {{ Request::is('academics/exams*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Exams</a>
             <a href="{{ route('academics.exam-marks.index') }}" class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}"><i class="bi bi-pencil-square"></i> Exam Marks</a>

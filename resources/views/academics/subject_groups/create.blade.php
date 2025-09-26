@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Create Subject Group</h1>
 
-    <form method="POST" action="{{ route('subject-groups.store') }}">
+    <form method="POST" action="{{ route('academics.subject_groups.store') }}">
         @csrf
         <div class="mb-3">
             <label>Name</label>

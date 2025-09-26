@@ -161,7 +161,7 @@ Route::middleware('auth')->group(function () {
             Route::resource('streams', StreamController::class)->except(['show']);
 
             // Subject Groups
-            Route::resource('subject-groups', SubjectGroupController::class)->except(['show']);
+            Route::resource('subject_groups', SubjectGroupController::class)->except(['show']);
 
             // Subjects
             Route::resource('subjects', SubjectController::class)->except(['show']);

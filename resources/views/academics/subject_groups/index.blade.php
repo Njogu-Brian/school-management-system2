@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
     <h1>Subject Groups</h1>
-    <a href="{{ route('subject-groups.create') }}" class="btn btn-primary mb-3">Add Group</a>
+    <a href="{{ route('academics.subject_groups.create') }}" class="btn btn-primary mb-3">Add Group</a>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -23,8 +23,8 @@
                 <td>{{ $group->name }}</td>
                 <td>{{ $group->description }}</td>
                 <td>
-                    <a href="{{ route('subject-groups.edit',$group) }}" class="btn btn-sm btn-warning">Edit</a>
-                    <form action="{{ route('subject-groups.destroy',$group) }}" method="POST" style="display:inline;">
+                    <a href="{{ route('academics.subject_groups.edit',$group) }}" class="btn btn-sm btn-warning">Edit</a>
+                    <form action="{{ route('academics.subject_groups.destroy',$group) }}" method="POST" style="display:inline;">
                         @csrf @method('DELETE')
                         <button class="btn btn-sm btn-danger" onclick="return confirm('Delete group?')">Delete</button>
                     </form>

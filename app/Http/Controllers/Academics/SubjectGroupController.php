@@ -28,7 +28,7 @@ class SubjectGroupController extends Controller
 
         SubjectGroup::create($request->only('name','code','display_order','description'));
 
-        return redirect()->route('academics.subject-groups.index')
+        return redirect()->route('academics.subject_groups.index')
             ->with('success','Subject group created successfully.');
     }
 
@@ -46,14 +46,14 @@ class SubjectGroupController extends Controller
 
         $subject_group->update($request->only('name','code','display_order','description'));
 
-        return redirect()->route('academics.subject-groups.index')
+        return redirect()->route('academics.subject_groups.index')
             ->with('success','Subject group updated successfully.');
     }
 
     public function destroy(SubjectGroup $subject_group)
     {
         $subject_group->delete();
-        return redirect()->route('academics.subject-groups.index')
+        return redirect()->route('academics.subject_groups.index')
             ->with('success','Subject group deleted.');
     }
 }
