@@ -313,6 +313,15 @@ Route::middleware('auth')->group(function () {
     Route::resource('student-categories', StudentCategoryController::class)
         ->except(['show'])
         ->middleware('role:Super Admin|Admin|Secretary');
+        
+    Route::resource('subject-groups', \App\Http\Controllers\Academics\SubjectGroupController::class)->except(['show']);
+        Route::resource('subjects', \App\Http\Controllers\Academics\SubjectController::class)->except(['show']);
+        Route::resource('exams', \App\Http\Controllers\Academics\ExamController::class)->except(['show']);
+        Route::resource('exam-marks', \App\Http\Controllers\Academics\ExamMarkController::class)->only(['index','edit','update']);
+        Route::resource('report-cards', \App\Http\Controllers\Academics\ReportCardController::class)->only(['index','show','destroy']);
+        Route::post('report-cards/{report}/publish', [\App\Http\Controllers\Academics\ReportCardController::class,'publish'])->name('report-cards.publish');
+        Route::resource('homework', \App\Http\Controllers\Academics\HomeworkController::class)->except(['show']);
+        Route::resource('diaries', \App\Http\Controllers\Academics\DiaryController::class)->except(['show']);
 
     /*
     |---------------------- Parents ----------------------
