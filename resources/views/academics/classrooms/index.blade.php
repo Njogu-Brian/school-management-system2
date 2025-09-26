@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
     <h1>Classroom Management</h1>
-    <a href="{{ route('classrooms.create') }}" class="btn btn-primary mb-3">Add New Classroom</a>
+    <a href="{{ route('academics.classrooms.create') }}" class="btn btn-primary mb-3">Add New Classroom</a>
 
     @if (session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -34,7 +34,7 @@
                     @endif
                 </td>
 
-                <!-- Display Teacher (If implemented) -->
+                <!-- Display Teacher -->
                 <td>
                     @if($classroom->teachers->count())
                         @foreach($classroom->teachers as $teacher)
@@ -50,8 +50,8 @@
                 </td>
 
                 <td>
-                    <a href="{{ route('classrooms.edit', $classroom->id) }}" class="btn btn-sm btn-primary">Edit</a>
-                    <form action="{{ route('classrooms.destroy', $classroom->id) }}" method="POST" style="display:inline;">
+                    <a href="{{ route('academics.classrooms.edit', $classroom->id) }}" class="btn btn-sm btn-primary">Edit</a>
+                    <form action="{{ route('academics.classrooms.destroy', $classroom->id) }}" method="POST" style="display:inline;">
                         @csrf
                         @method('DELETE')
                         <button class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>

@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
     <h1>Stream Management</h1>
-    <a href="{{ route('streams.create') }}" class="btn btn-primary mb-3">Add New Stream</a>
+    <a href="{{ route('academics.streams.create') }}" class="btn btn-primary mb-3">Add New Stream</a>
 
     @if (session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>
@@ -23,17 +23,17 @@
                 <td>{{ $stream->name }}</td>
                 <td>
                     @if($stream->classrooms->isEmpty())
-                        Not Assigned
+                        <span class="text-muted">Not Assigned</span>
                     @else
                         {{ $stream->classrooms->pluck('name')->implode(', ') }}
                     @endif
                 </td>
                 <td>
-                    <a href="{{ route('streams.edit', $stream->id) }}" class="btn btn-sm btn-primary">Edit</a>
-                    <form action="{{ route('streams.destroy', $stream->id) }}" method="POST" style="display:inline;">
+                    <a href="{{ route('academics.streams.edit', $stream->id) }}" class="btn btn-sm btn-primary">Edit</a>
+                    <form action="{{ route('academics.streams.destroy', $stream->id) }}" method="POST" style="display:inline;">
                         @csrf
                         @method('DELETE')
-                        <button class="btn btn-sm btn-danger">Delete</button>
+                        <button class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
                     </form>
                 </td>
             </tr>

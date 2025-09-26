@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Edit Stream</h1>
 
-    <form action="{{ route('streams.update', $stream->id) }}" method="POST">
+    <form action="{{ route('academics.streams.update', $stream->id) }}" method="POST">
         @csrf
         @method('PUT')
 
@@ -19,7 +19,7 @@
                 @foreach ($classrooms as $classroom)
                     <div class="col-md-4">
                         <input type="checkbox" name="classroom_ids[]" value="{{ $classroom->id }}"
-                        {{ $stream->classrooms->contains($classroom->id) ? 'checked' : '' }}>
+                        {{ in_array($classroom->id, $assignedClassrooms) ? 'checked' : '' }}>
                         <label>{{ $classroom->name }}</label>
                     </div>
                 @endforeach

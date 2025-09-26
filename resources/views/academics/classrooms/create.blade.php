@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Add New Classroom</h1>
 
-    <form action="{{ route('classrooms.store') }}" method="POST">
+    <form action="{{ route('academics.classrooms.store') }}" method="POST">
         @csrf
 
         <div class="mb-3">

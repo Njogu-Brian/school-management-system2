@@ -3,7 +3,7 @@
 @section('content')
 <div class="container">
     <h1>Add New Stream</h1>
-    <form action="{{ route('streams.store') }}" method="POST">
+    <form action="{{ route('academics.streams.store') }}" method="POST">
         @csrf
 
         <div class="mb-3">

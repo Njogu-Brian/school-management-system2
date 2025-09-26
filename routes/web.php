@@ -23,17 +23,13 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ParentInfoController;
 use App\Http\Controllers\OnlineAdmissionController;
 
-use App\Http\Controllers\ClassroomController;
-use App\Http\Controllers\StreamController;
-use App\Http\Controllers\StudentCategoryController;
-
+use App\Http\Controllers\Academics\ClassroomController;
+use App\Http\Controllers\Academics\StreamController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\CommunicationAnnouncementController;
 
 use App\Http\Controllers\VoteheadController;
-use App\Http\Controllers\TermController;
-use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\FeeStructureController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentController;
@@ -46,6 +42,14 @@ use App\Http\Controllers\SettingController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\LookupController;
 
+// Academics
+use App\Http\Controllers\Academics\SubjectGroupController;
+use App\Http\Controllers\Academics\SubjectController;
+use App\Http\Controllers\Academics\ExamController;
+use App\Http\Controllers\Academics\ExamMarkController;
+use App\Http\Controllers\Academics\ReportCardController;
+use App\Http\Controllers\Academics\HomeworkController;
+use App\Http\Controllers\Academics\DiaryController;
 use App\Http\Controllers\AcademicConfigController;
 
 /*
@@ -140,6 +144,44 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/notify', [AttendanceNotificationController::class, 'notifyForm'])->name('attendance.notifications.notify.form');
             Route::post('/notify', [AttendanceNotificationController::class, 'notifySend'])->name('attendance.notifications.notify.send');
+        });
+    
+    /*
+    |---------------------- Academics ----------------------
+    */
+    Route::prefix('academics')
+        ->as('academics.')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher')
+        ->group(function () {
+            
+            // Classrooms
+            Route::resource('classrooms', ClassroomController::class)->except(['show']);
+
+            // Streams
+            Route::resource('streams', StreamController::class)->except(['show']);
+
+            // Subject Groups
+            Route::resource('subject-groups', SubjectGroupController::class)->except(['show']);
+
+            // Subjects
+            Route::resource('subjects', SubjectController::class)->except(['show']);
+
+            // Exams
+            Route::resource('exams', ExamController::class)->except(['show']);
+
+            // Exam Marks
+            Route::resource('exam-marks', ExamMarkController::class)->only(['index', 'edit', 'update']);
+
+            // Report Cards
+            Route::resource('report-cards', ReportCardController::class)->only(['index', 'show', 'destroy']);
+            Route::post('report-cards/{report}/publish', [ReportCardController::class, 'publish'])
+                ->name('report-cards.publish');
+
+            // Homework
+            Route::resource('homework', HomeworkController::class)->except(['show']);
+
+            // Diaries
+            Route::resource('diaries', DiaryController::class)->except(['show']);
         });
 
     /*
@@ -299,30 +341,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.search');
 
-    /*
-    |---------------------- Academics ----------------------
-    */
-    Route::resource('classrooms', ClassroomController::class)
-        ->except(['show'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher');
-
-    Route::resource('streams', StreamController::class)
-        ->except(['show'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher');
-
-    Route::resource('student-categories', StudentCategoryController::class)
-        ->except(['show'])
-        ->middleware('role:Super Admin|Admin|Secretary');
-        
-    Route::resource('subject-groups', \App\Http\Controllers\Academics\SubjectGroupController::class)->except(['show']);
-        Route::resource('subjects', \App\Http\Controllers\Academics\SubjectController::class)->except(['show']);
-        Route::resource('exams', \App\Http\Controllers\Academics\ExamController::class)->except(['show']);
-        Route::resource('exam-marks', \App\Http\Controllers\Academics\ExamMarkController::class)->only(['index','edit','update']);
-        Route::resource('report-cards', \App\Http\Controllers\Academics\ReportCardController::class)->only(['index','show','destroy']);
-        Route::post('report-cards/{report}/publish', [\App\Http\Controllers\Academics\ReportCardController::class,'publish'])->name('report-cards.publish');
-        Route::resource('homework', \App\Http\Controllers\Academics\HomeworkController::class)->except(['show']);
-        Route::resource('diaries', \App\Http\Controllers\Academics\DiaryController::class)->except(['show']);
-
+    
     /*
     |---------------------- Parents ----------------------
     */

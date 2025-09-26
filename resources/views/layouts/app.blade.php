@@ -190,37 +190,17 @@
         </div>
 
         <!-- Academics -->
-        <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="{{ $isAcademicsActive ? 'true' : 'false' }}">
-            <i class="bi bi-journal-bookmark"></i><span> Academics</span>
-        </a>
+        <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="{{ $isAcademicsActive ? 'true' : 'false' }}"><i class="bi bi-journal-bookmark"></i><span> Academics</span></a>
         <div class="collapse {{ $isAcademicsActive ? 'show' : '' }}" id="academicsMenu">
-            <a href="{{ route('classrooms.index') }}" class="sublink {{ Request::is('classrooms*') ? 'active' : '' }}">
-                <i class="bi bi-house"></i> Classrooms
-            </a>
-            <a href="{{ route('streams.index') }}" class="sublink {{ Request::is('streams*') ? 'active' : '' }}">
-                <i class="bi bi-signpost-split"></i> Streams
-            </a>
-            <a href="{{ route('academics.subject-groups.index') }}" class="sublink {{ Request::is('academics/subject-groups*') ? 'active' : '' }}">
-                <i class="bi bi-collection"></i> Subject Groups
-            </a>
-            <a href="{{ route('academics.subjects.index') }}" class="sublink {{ Request::is('academics/subjects*') ? 'active' : '' }}">
-                <i class="bi bi-book"></i> Subjects
-            </a>
-            <a href="{{ route('academics.exams.index') }}" class="sublink {{ Request::is('academics/exams*') ? 'active' : '' }}">
-                <i class="bi bi-file-earmark-text"></i> Exams
-            </a>
-            <a href="{{ route('academics.exam-marks.index') }}" class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
-                <i class="bi bi-pencil-square"></i> Exam Marks
-            </a>
-            <a href="{{ route('academics.report-cards.index') }}" class="sublink {{ Request::is('academics/report-cards*') ? 'active' : '' }}">
-                <i class="bi bi-card-text"></i> Report Cards
-            </a>
-            <a href="{{ route('academics.homework.index') }}" class="sublink {{ Request::is('academics/homework*') ? 'active' : '' }}">
-                <i class="bi bi-journal"></i> Homework
-            </a>
-            <a href="{{ route('academics.diaries.index') }}" class="sublink {{ Request::is('academics/diaries*') ? 'active' : '' }}">
-                <i class="bi bi-calendar-week"></i> Diaries
-            </a>
+            <a href="{{ route('academics.classrooms.index') }}" class="sublink {{ Request::is('academics/classrooms*') ? 'active' : '' }}"><i class="bi bi-house"></i> Classrooms</a>
+            <a href="{{ route('academics.streams.index') }}" class="sublink {{ Request::is('academics/streams*') ? 'active' : '' }}"><i class="bi bi-signpost-split"></i> Streams</a>
+            <a href="{{ route('academics.subject-groups.index') }}" class="sublink {{ Request::is('academics/subject-groups*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Subject Groups</a>
+            <a href="{{ route('academics.subjects.index') }}" class="sublink {{ Request::is('academics/subjects*') ? 'active' : '' }}"><i class="bi bi-book"></i> Subjects</a>
+            <a href="{{ route('academics.exams.index') }}" class="sublink {{ Request::is('academics/exams*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Exams</a>
+            <a href="{{ route('academics.exam-marks.index') }}" class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}"><i class="bi bi-pencil-square"></i> Exam Marks</a>
+            <a href="{{ route('academics.report-cards.index') }}" class="sublink {{ Request::is('academics/report-cards*') ? 'active' : '' }}"><i class="bi bi-card-text"></i> Report Cards</a>
+            <a href="{{ route('academics.homework.index') }}" class="sublink {{ Request::is('academics/homework*') ? 'active' : '' }}"><i class="bi bi-journal"></i> Homework</a>
+            <a href="{{ route('academics.diaries.index') }}" class="sublink {{ Request::is('academics/diaries*') ? 'active' : '' }}"><i class="bi bi-calendar-week"></i> Diaries</a>
         </div>
 
         <!-- Staff -->

@@ -1,12 +1,16 @@
 <?php
 
-namespace App\Models;
+namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Student;   // ✅ import Student from App\Models
+use App\Models\User;      // ✅ import User from App\Models
 
 class Classroom extends Model
 {
+    use HasFactory;
+
     protected $fillable = ['name'];
 
     public function streams()
