@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Edit Exam Marks</h1>
 
-    <form method="POST" action="{{ route('exam-marks.update',$mark) }}">
+    <form method="POST" action="{{ route('academics.exam-marks.update',$mark) }}">
         @csrf @method('PUT')
 
         <div class="mb-3">

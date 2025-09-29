@@ -17,14 +17,14 @@ class AttendanceNotificationController extends Controller
      public function index()
     {
         $recipients = AttendanceRecipient::with('staff')->get();
-        $classrooms = \App\Models\Classroom::pluck('name', 'id')->toArray();
+        $classrooms = \App\Models\Academics\Classroom::pluck('name', 'id')->toArray();
         return view('attendance_notifications.index', compact('recipients', 'classrooms'));
     }
 
     public function create()
     {
         $staff = \App\Models\Staff::all();
-        $classrooms = \App\Models\Classroom::pluck('name', 'id');
+        $classrooms = \App\Models\Academics\Classroom::pluck('name', 'id');
         return view('attendance_notifications.create', compact('staff', 'classrooms'));
     }
 
@@ -45,7 +45,7 @@ class AttendanceNotificationController extends Controller
     {
         $recipient = AttendanceRecipient::findOrFail($id);
         $staff = \App\Models\Staff::all();
-        $classrooms = \App\Models\Classroom::pluck('name', 'id');
+        $classrooms = \App\Models\Academics\Classroom::pluck('name', 'id');
         return view('attendance_notifications.edit', compact('recipient', 'staff', 'classrooms'));
     }
 

@@ -51,6 +51,7 @@ use App\Http\Controllers\Academics\ReportCardController;
 use App\Http\Controllers\Academics\HomeworkController;
 use App\Http\Controllers\Academics\DiaryController;
 use App\Http\Controllers\AcademicConfigController;
+use App\Http\Controllers\Academics\ExamGradeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -153,7 +154,7 @@ Route::middleware('auth')->group(function () {
         ->as('academics.')
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')
         ->group(function () {
-            
+
             // Classrooms
             Route::resource('classrooms', ClassroomController::class)->except(['show']);
 
@@ -170,7 +171,13 @@ Route::middleware('auth')->group(function () {
             Route::resource('exams', ExamController::class)->except(['show']);
 
             // Exam Marks
-            Route::resource('exam-marks', ExamMarkController::class)->only(['index', 'edit', 'update']);
+            Route::resource('exam-marks', ExamMarkController::class)->only(['index', 'edit', 'update', 'create', 'store', 'destroy']);
+
+            // Timetable + Import
+            Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
+            Route::get('exams/import',    [ExamController::class, 'importForm'])->name('exams.import.form');
+            Route::post('exams/import',   [ExamController::class, 'importStore'])->name('exams.import.store');
+            Route::get('exams/template',  [ExamController::class, 'template'])->name('exams.template');
 
             // Report Cards
             Route::resource('report-cards', ReportCardController::class)->only(['index', 'show', 'destroy']);
@@ -182,6 +189,9 @@ Route::middleware('auth')->group(function () {
 
             // Diaries
             Route::resource('diaries', DiaryController::class)->except(['show']);
+
+            // Grades
+            Route::resource('exam-grades', ExamGradeController::class)->except(['show']);
         });
 
     /*

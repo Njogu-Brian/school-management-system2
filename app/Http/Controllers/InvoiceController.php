@@ -22,7 +22,7 @@ class InvoiceController extends Controller
 
     public function create()
     {
-        $classrooms = \App\Models\Classroom::all();
+        $classrooms = \App\Models\Academics\Classroom::all();
         return view('finance.invoices.create', compact('classrooms'));
     }
 

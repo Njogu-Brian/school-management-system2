@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Student;
 use App\Models\Transport;
 use App\Models\Attendance;
-use App\Models\Classroom;
+use App\Models\Academics\Classroom;
 use Carbon\Carbon;
 
 class DashboardController extends Controller

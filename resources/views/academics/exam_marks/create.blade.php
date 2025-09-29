@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Add Exam Marks</h1>
 
-    <form method="POST" action="{{ route('exam-marks.store') }}">
+    <form method="POST" action="{{ route('academics.exam-marks.store') }}">
         @csrf
         <div class="mb-3">
             <label>Exam</label>

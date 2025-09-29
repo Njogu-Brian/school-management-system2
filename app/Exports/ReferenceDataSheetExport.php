@@ -2,8 +2,8 @@
 
 namespace App\Exports;
 
-use App\Models\Classroom;
-use App\Models\Stream;
+use App\Models\Academics\Classroom;
+use App\Models\Academics\Stream;
 use App\Models\StudentCategory;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;

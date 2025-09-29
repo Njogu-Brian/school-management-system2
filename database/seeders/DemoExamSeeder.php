@@ -8,7 +8,7 @@ use App\Models\Academics\ExamMark;
 use App\Models\Academics\Subject;
 use App\Models\Student;
 use App\Models\Staff;
-use App\Models\Classroom;
+use App\Models\Academics\Classroom;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use Carbon\Carbon;

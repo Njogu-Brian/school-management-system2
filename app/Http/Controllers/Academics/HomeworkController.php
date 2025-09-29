@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Homework;
 use App\Models\Academics\Subject;
-use App\Models\Classroom;
+use App\Models\Academics\Classroom;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

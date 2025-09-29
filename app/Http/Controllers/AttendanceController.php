@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Attendance;
-use App\Models\Classroom;
-use App\Models\Stream;
+use App\Models\Academics\Classroom;
+use App\Models\Academics\Stream;
 use App\Models\Student;
 use App\Models\CommunicationTemplate;
 use App\Models\CommunicationLog;

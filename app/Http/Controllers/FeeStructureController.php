@@ -22,7 +22,7 @@ class FeeStructureController extends Controller
     }
     public function manage(Request $request)
     {
-        $classrooms = \App\Models\Classroom::all();
+        $classrooms = \App\Models\Academics\Classroom::all();
         $voteheads = \App\Models\Votehead::all();
 
         $selectedClassroom = $request->query('classroom_id');

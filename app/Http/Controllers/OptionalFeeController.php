@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Classroom;
+use App\Models\Academics\Classroom;
 use App\Models\FeeCharge;
 use App\Models\FeeStructure;
 use App\Models\Invoice;
