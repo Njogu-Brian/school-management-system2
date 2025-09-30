@@ -8,13 +8,18 @@ class ExamMark extends Model
 {
     protected $fillable = [
         'exam_id','student_id','subject_id','teacher_id',
-        'score_raw','score_moderated','grade_label','pl_level',
+        'score_raw','score_moderated',
+        'opener_score','midterm_score','endterm_score','rubrics',
+        'grade_label','pl_level','subject_remark',
         'remark','status','audit'
     ];
 
-    protected $casts = ['audit' => 'array'];
+    protected $casts = [
+        'audit'   => 'array',
+        'rubrics' => 'array',
+    ];
 
-    public function exam() { return $this->belongsTo(Exam::class); }
+    public function exam()    { return $this->belongsTo(Exam::class); }
     public function student() { return $this->belongsTo(\App\Models\Student::class); }
     public function subject() { return $this->belongsTo(Subject::class); }
     public function teacher() { return $this->belongsTo(\App\Models\Staff::class,'teacher_id'); }

@@ -189,39 +189,51 @@
     </button>
 
     @php
-        $isStudentActive = Request::is('students*') || Request::is('online-admissions*') || Request::is('student-categories*');
-        $isFinanceActive = Request::is('voteheads*') || Request::is('fee-structures*') || Request::is('invoices*') || Request::is('optional_fees*');
-        $isAcademicsActive = Request::is('classrooms*') || Request::is('streams*');
-        $isTransportActive = Request::is('vehicles*') || Request::is('routes*') || Request::is('trips*') || Request::is('dropoffpoints*') || Request::is('student_assignments*');
-        $isCommunicationActive = Request::is('communication*') || Request::is('email-templates*') || Request::is('sms-templates*') || Request::is('announcements*');
-        $isSettingsActive = Request::is('settings*');
-        $isAttendanceActive = Request::is('attendance*');
+    $isStudentActive    = Request::is('students*') || Request::is('online-admissions*');
+    $isFinanceActive    = Request::is('finance*') || Request::is('voteheads*') || Request::is('invoices*') || Request::is('fee-structures*') || Request::is('optional_fees*');
+    $isAcademicsActive  = Request::is('academics/*');
+    $isTransportActive  = Request::is('transport/*');
+    $isAttendanceActive = Request::is('attendance/*');
+    $isCommunication    = Request::is('communication/*') || Request::is('announcements*');
+    $isSettingsActive   = Request::is('settings*');
     @endphp
 
     @auth
-   <div class="sidebar">
+    <!-- Sidebar -->
+    <div class="sidebar">
     <div class="brand">
         <img src="{{ asset('images/logo.png') }}" alt="School Logo">
         <h5>Royal Kings School</h5>
     </div>
-        <!-- Dashboard -->
-        <a href="{{ route('admin.dashboard') }}" class="{{ Request::is('admin/dashboard') ? 'active parent-active' : '' }}">
-            <i class="bi bi-speedometer2"></i><span> Dashboard</span>
-        </a>
 
-        <!-- Students -->
-        @php $isStudentActive = Request::is('students*') || Request::is('online-admissions*'); @endphp
-        <a href="#studentMenu" data-bs-toggle="collapse" 
-        aria-expanded="{{ $isStudentActive ? 'true' : 'false' }}"
-        class="{{ $isStudentActive ? 'parent-active' : '' }}">
-            <i class="bi bi-person"></i><span> Students</span>
-        </a>
-        <div class="collapse {{ $isStudentActive ? 'show' : '' }}" id="studentMenu">
-            <a href="{{ route('students.index') }}" class="sublink {{ Request::is('students') ? 'active' : '' }}"><i class="bi bi-people"></i> Student Details</a>
-            <a href="{{ route('students.create') }}" class="sublink {{ Request::is('students/create') ? 'active' : '' }}"><i class="bi bi-person-plus"></i> Admissions</a>
-            <a href="{{ route('students.bulk') }}" class="sublink {{ Request::is('students/bulk') ? 'active' : '' }}"><i class="bi bi-upload"></i> Bulk Upload</a>
-            <a href="{{ route('online-admissions.index') }}" class="sublink {{ Request::is('online-admissions*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
-        </div>
+    <a href="{{ route('admin.dashboard') }}" class="{{ Request::is('admin/dashboard') ? 'active' : '' }}">
+        <i class="bi bi-speedometer2"></i><span> Dashboard</span>
+    </a>
+
+    <a href="#studentMenu" data-bs-toggle="collapse" aria-expanded="{{ $isStudentActive ? 'true' : 'false' }}" class="{{ $isStudentActive ? 'active' : '' }}">
+        <i class="bi bi-person"></i><span> Students</span>
+    </a>
+    <div class="collapse {{ $isStudentActive ? 'show' : '' }}" id="studentMenu">
+        <a href="{{ route('students.index') }}" class="sublink {{ Request::is('students') ? 'active' : '' }}"><i class="bi bi-people"></i> Student Details</a>
+        <a href="{{ route('students.create') }}" class="sublink {{ Request::is('students/create') ? 'active' : '' }}"><i class="bi bi-person-plus"></i> Admissions</a>
+        <a href="{{ route('students.bulk') }}" class="sublink {{ Request::is('students/bulk') ? 'active' : '' }}"><i class="bi bi-upload"></i> Bulk Upload</a>
+        <a href="{{ route('online-admissions.index') }}" class="sublink {{ Request::is('online-admissions*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Online Admission</a>
+    </div>
+
+    <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="{{ $isAcademicsActive ? 'true' : 'false' }}" class="{{ $isAcademicsActive ? 'active' : '' }}">
+        <i class="bi bi-journal-bookmark"></i><span> Academics</span>
+    </a>
+    <div class="collapse {{ $isAcademicsActive ? 'show' : '' }}" id="academicsMenu">
+        <a href="{{ route('academics.classrooms.index') }}" class="sublink {{ Request::is('academics/classrooms*') ? 'active' : '' }}"><i class="bi bi-house"></i> Classrooms</a>
+        <a href="{{ route('academics.streams.index') }}" class="sublink {{ Request::is('academics/streams*') ? 'active' : '' }}"><i class="bi bi-signpost-split"></i> Streams</a>
+        <a href="{{ route('academics.subjects.index') }}" class="sublink {{ Request::is('academics/subjects*') ? 'active' : '' }}"><i class="bi bi-book"></i> Subjects</a>
+        <a href="{{ route('academics.subject_groups.index') }}" class="sublink {{ Request::is('academics/subject_groups*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Subject Groups</a>
+        <a href="{{ route('academics.exams.index') }}" class="sublink {{ Request::is('academics/exams*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Exams</a>
+        <a href="{{ route('academics.exam-grades.index') }}" class="sublink {{ Request::is('academics/exam-grades*') ? 'active' : '' }}"><i class="bi bi-bar-chart"></i> Exam Grades</a>
+        <a href="{{ route('academics.exam-marks.index') }}" class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}"><i class="bi bi-pencil-square"></i> Exam Marks</a>
+        <a href="{{ route('academics.exams.timetable') }}" class="sublink {{ Request::is('academics/exams/timetable') ? 'active' : '' }}"><i class="bi bi-calendar-event"></i> Exam Timetable</a>
+        <a href="{{ route('academics.report-cards.index') }}" class="sublink {{ Request::is('academics/report-cards*') ? 'active' : '' }}"><i class="bi bi-card-text"></i> Report Cards</a>
+    </div>
 
         <!-- Finance -->
         @php $isFinanceActive = Request::is('finance*') || Request::is('voteheads*') || Request::is('fee-structures*') || Request::is('invoices*') || Request::is('optional_fees*'); @endphp

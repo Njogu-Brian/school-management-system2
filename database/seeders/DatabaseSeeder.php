@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Academics\Exam;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -12,11 +13,12 @@ class DatabaseSeeder extends Seeder
 public function run(): void
 {
     $this->call([
-        GradingSchemeSeeder::class,
-        SubjectGroupSeeder::class,
-        SubjectSeeder::class,
-        DemoExamSeeder::class,
-        DemoAcademicsSeeder::class,
+        // GradingSchemeSeeder::class,
+        // SubjectGroupSeeder::class,
+        // SubjectSeeder::class,
+        // DemoExamSeeder::class,
+        // DemoAcademicsSeeder::class,
+        ExamGradeSeeder::class,
     ]);
 }
 

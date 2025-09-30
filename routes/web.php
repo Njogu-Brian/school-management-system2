@@ -150,50 +150,41 @@ Route::middleware('auth')->group(function () {
     /*
     |---------------------- Academics ----------------------
     */
-    Route::prefix('academics')
-        ->as('academics.')
+
+        Route::prefix('academics')->as('academics.')
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')
         ->group(function () {
 
-            // Classrooms
-            Route::resource('classrooms', ClassroomController::class)->except(['show']);
+        Route::resource('classrooms', ClassroomController::class)->except(['show']);
+        Route::resource('streams', StreamController::class)->except(['show']);
+        Route::resource('subject_groups', SubjectGroupController::class)->except(['show']);
+        Route::resource('subjects', SubjectController::class)->except(['show']);
+        Route::resource('exams', ExamController::class)->except(['show']);
+        Route::resource('exam-grades', ExamGradeController::class);
+        Route::resource('homework', HomeworkController::class);
+        Route::resource('diaries', DiaryController::class);
+        Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
 
-            // Streams
-            Route::resource('streams', StreamController::class)->except(['show']);
+        // Marks (bulk entry)
+        Route::get('exam-marks',               [ExamMarkController::class,'index'])->name('exam-marks.index');
+        Route::get('exam-marks/bulk',          [ExamMarkController::class,'bulkForm'])->name('exam-marks.bulk');
 
-            // Subject Groups
-            Route::resource('subject_groups', SubjectGroupController::class)->except(['show']);
+        // allow both GET + POST for edit
+        Route::match(['get','post'], 'exam-marks/bulk/edit', [ExamMarkController::class,'bulkEdit'])
+            ->name('exam-marks.bulk.edit');
 
-            // Subjects
-            Route::resource('subjects', SubjectController::class)->except(['show']);
+        Route::post('exam-marks/bulk/store',   [ExamMarkController::class,'bulkStore'])->name('exam-marks.bulk.store');
+        Route::get('exam-marks/{exam_mark}/edit', [ExamMarkController::class,'edit'])->name('exam-marks.edit');
+        Route::put('exam-marks/{exam_mark}',      [ExamMarkController::class,'update'])->name('exam-marks.update');
 
-            // Exams
-            Route::resource('exams', ExamController::class)->except(['show']);
-
-            // Exam Marks
-            Route::resource('exam-marks', ExamMarkController::class)->only(['index', 'edit', 'update', 'create', 'store', 'destroy']);
-
-            // Timetable + Import
-            Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
-            Route::get('exams/import',    [ExamController::class, 'importForm'])->name('exams.import.form');
-            Route::post('exams/import',   [ExamController::class, 'importStore'])->name('exams.import.store');
-            Route::get('exams/template',  [ExamController::class, 'template'])->name('exams.template');
-
-            // Report Cards
-            Route::resource('report-cards', ReportCardController::class)->only(['index', 'show', 'destroy']);
-            Route::post('report-cards/{report}/publish', [ReportCardController::class, 'publish'])
-                ->name('report-cards.publish');
-
-            // Homework
-            Route::resource('homework', HomeworkController::class)->except(['show']);
-
-            // Diaries
-            Route::resource('diaries', DiaryController::class)->except(['show']);
-
-            // Grades
-            Route::resource('exam-grades', ExamGradeController::class)->except(['show']);
-        });
-
+        // Report cards
+        Route::resource('report-cards', ReportCardController::class)->except(['destroy']);
+        Route::delete('report-cards/{report_card}', [ReportCardController::class,'destroy'])->name('report-cards.destroy');
+        Route::match(['get','post'], 'exam-marks/bulk/edit', [ExamMarkController::class,'bulkEdit'])->name('exam-marks.bulk.edit');
+        Route::post('report-cards/{report}/publish', [ReportCardController::class,'publish'])->name('report-cards.publish');
+        Route::get('r/{token}', [ReportCardController::class,'publicView'])->name('report-cards.public'); // public token
+    });
+    
     /*
     |---------------------- Transport ----------------------
     */

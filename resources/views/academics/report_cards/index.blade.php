@@ -1,48 +1,35 @@
 @extends('layouts.app')
-
 @section('content')
 <div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
     <h1>Report Cards</h1>
-    <a href="{{ route('report-cards.create') }}" class="btn btn-primary mb-3">Generate Report Card</a>
+    <a class="btn btn-primary" href="{{ route('academics.report-cards.create') }}">Build for Class</a>
+  </div>
+  @if(session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
 
-    @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Student</th>
-                <th>Class</th>
-                <th>Term</th>
-                <th>Year</th>
-                <th>Status</th>
-                <th>Published</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($reportCards as $reportCard)
-            <tr>
-                <td>{{ $reportCard->student->full_name }}</td>
-                <td>{{ $reportCard->classroom->name }}</td>
-                <td>{{ $reportCard->term->name }}</td>
-                <td>{{ $reportCard->academicYear->year }}</td>
-                <td>{{ ucfirst($reportCard->status) }}</td>
-                <td>{{ $reportCard->published_at ? $reportCard->published_at->format('d M Y') : '-' }}</td>
-                <td>
-                    <a href="{{ route('report-cards.show',$reportCard) }}" class="btn btn-sm btn-info">View</a>
-                    <a href="{{ route('report-cards.edit',$reportCard) }}" class="btn btn-sm btn-warning">Edit</a>
-                    <form action="{{ route('report-cards.destroy',$reportCard) }}" method="POST" style="display:inline;">
-                        @csrf @method('DELETE')
-                        <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this report card?')">Delete</button>
-                    </form>
-                </td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
-
-    {{ $reportCards->links() }}
+  <table class="table table-sm table-striped">
+    <thead><tr>
+      <th>Student</th><th>Year / Term</th><th>Class</th><th>Avg</th><th>Published</th><th></th>
+    </tr></thead>
+    <tbody>
+      @foreach($reports as $r)
+      <tr>
+        <td>{{ optional($r->student)->full_name }}</td>
+        <td>{{ optional($r->academicYear)->year }} / {{ optional($r->term)->name }}</td>
+        <td>{{ optional($r->classroom)->name }}</td>
+        <td>{{ $r->summary['avg'] ?? '-' }}</td>
+        <td>{{ $r->published_at ? $r->published_at->format('d M Y') : 'No' }}</td>
+        <td class="text-nowrap">
+          <a class="btn btn-outline-secondary btn-sm" href="{{ route('academics.report-cards.show',$r) }}">View</a>
+          <a class="btn btn-outline-primary btn-sm" href="{{ route('academics.report-cards.edit',$r) }}">Edit</a>
+          <form action="{{ route('academics.report-cards.publish',$r) }}" method="POST" class="d-inline">@csrf
+            <button class="btn btn-outline-success btn-sm">Publish</button>
+          </form>
+        </td>
+      </tr>
+      @endforeach
+    </tbody>
+  </table>
+  {{ $reports->links() }}
 </div>
 @endsection

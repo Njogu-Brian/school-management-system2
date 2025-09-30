@@ -1,38 +1,46 @@
 @extends('layouts.app')
-
 @section('content')
 <div class="container">
-    <h1>Report Card - {{ $reportCard->student->full_name }}</h1>
+  <h1>Report Card – {{ $report_card->student->full_name }}</h1>
+  <p><strong>Class:</strong> {{ optional($report_card->classroom)->name }}
+     | <strong>Year / Term:</strong> {{ optional($report_card->academicYear)->year }} / {{ optional($report_card->term)->name }}</p>
 
-    <p><strong>Classroom:</strong> {{ $reportCard->classroom->name }}</p>
-    <p><strong>Term:</strong> {{ $reportCard->term->name }}</p>
-    <p><strong>Year:</strong> {{ $reportCard->academicYear->year }}</p>
-    <p><strong>Status:</strong> {{ ucfirst($reportCard->status) }}</p>
+  <div class="mb-3">
+    <a class="btn btn-outline-primary" href="{{ route('academics.report-cards.edit',$report_card) }}">Edit</a>
+    @if($report_card->pdf_path)
+      <a class="btn btn-outline-secondary" target="_blank" href="{{ Storage::disk('public')->url($report_card->pdf_path) }}">Open PDF</a>
+    @endif
+  </div>
 
-    <hr>
-    <h3>Subjects</h3>
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Subject</th>
-                <th>Score</th>
-                <th>Grade</th>
-                <th>Teacher Comment</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($reportCard->marks as $mark)
-            <tr>
-                <td>{{ $mark->subject->name }}</td>
-                <td>{{ $mark->score_moderated ?? $mark->score_raw }}</td>
-                <td>{{ $mark->grade_label }}</td>
-                <td>{{ $mark->remark }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
+  <h5>Subjects</h5>
+  <table class="table table-sm">
+    <thead><tr><th>Subject</th><th>Opener</th><th>Mid</th><th>End</th><th>Band</th><th>Remark</th></tr></thead>
+    <tbody>
+    @foreach($report_card->marks as $m)
+      <tr>
+        <td>{{ optional($m->subject)->name }}</td>
+        <td>{{ $m->opener_score }}</td>
+        <td>{{ $m->midterm_score }}</td>
+        <td>{{ $m->endterm_score }}</td>
+        <td>{{ $m->grade_label }}</td>
+        <td>{{ $m->subject_remark }}</td>
+      </tr>
+    @endforeach
+    </tbody>
+  </table>
 
-    <a href="{{ route('report-cards.index') }}" class="btn btn-secondary">Back</a>
+  <h5>Personal Growth & Social Skills</h5>
+  <ul class="list-group mb-3">
+    @foreach($report_card->skills as $s)
+      <li class="list-group-item d-flex justify-content-between">
+        <span>{{ $s->skill_name }}</span><strong>{{ $s->rating }}</strong>
+      </li>
+    @endforeach
+  </ul>
+
+  <p><strong>Career of Interest:</strong> {{ $report_card->career_interest }}</p>
+  <p><strong>Gifts / Talent Noticed:</strong> {{ $report_card->talent_noticed }}</p>
+  <p><strong>Teacher Remark:</strong> {{ $report_card->teacher_remark }}</p>
+  <p><strong>Headteacher Remark:</strong> {{ $report_card->headteacher_remark }}</p>
 </div>
 @endsection
-s
