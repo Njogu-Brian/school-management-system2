@@ -45,7 +45,7 @@ class OptionalFeeController extends Controller
         $year = $request?->year;
 
         if ($view === 'class' && $request?->filled(['classroom_id', 'term', 'year', 'votehead_id'])) {
-            $students = Student::where('classroom_id', $request->classroom_id)->get();
+            $students = Student::where('classroom_id', $request->classrooms_id)->get();
             $studentIds = $students->pluck('id');
 
             $billed = OptionalFee::where('votehead_id', $request->votehead_id)
@@ -92,7 +92,7 @@ class OptionalFeeController extends Controller
             $year = $request->year;
 
             $firstStudent = Student::find(array_key_first($request->students));
-            $classroomId = $firstStudent->classroom_id;
+            $classroomId = $firstStudent->classrooms_id;
 
             $structure = \App\Models\FeeStructure::where('classroom_id', $classroomId)
                 ->where('year', $year)
@@ -181,7 +181,7 @@ class OptionalFeeController extends Controller
 
         DB::transaction(function () use ($request) {
             $student = \App\Models\Student::find($request->student_id);
-            $structure = \App\Models\FeeStructure::where('classroom_id', $student->classroom_id)
+            $structure = \App\Models\FeeStructure::where('classroom_id', $student->classrooms_id)
                 ->where('year', $request->year)
                 ->first();
 

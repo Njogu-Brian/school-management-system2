@@ -6,7 +6,7 @@
     @include('finance.invoices.partials.alerts')
 
     <p><strong>Student:</strong> {{ $invoice->student->full_name }}</p>
-    <p><strong>Class:</strong> {{ $invoice->student->classroom->name }}</p>
+    <p><strong>Class:</strong> {{ $invoice->student->classrooms->name }}</p>
     <p><strong>Term:</strong> Term {{ $invoice->term }} - {{ $invoice->year }}</p>
 
     <table class="table table-bordered">

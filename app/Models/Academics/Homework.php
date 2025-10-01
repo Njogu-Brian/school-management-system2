@@ -17,4 +17,6 @@ class Homework extends Model
 
     public function subject() { return $this->belongsTo(Subject::class); }
     public function teacher() { return $this->belongsTo(\App\Models\Staff::class); }
+    public function classroom(){return $this->belongsTo(Classroom::class);}
+    public function stream(){return $this->belongsTo(Stream::class); }
 }

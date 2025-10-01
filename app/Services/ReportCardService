@@ -20,7 +20,7 @@ class ReportCardService
             'academic_year_id' => $yearId,
             'term_id'          => $termId,
         ], [
-            'classroom_id' => optional($exam)->classroom_id,
+            'classroom_id' => optional($exam)->classrooms_id,
             'stream_id'    => optional($exam)->stream_id,
             'public_token' => Str::random(48),
         ]);

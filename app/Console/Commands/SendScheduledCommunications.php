@@ -33,7 +33,7 @@ class SendScheduledCommunications extends Command
             $template = $task->template;
 
             $targets = match ($task->target) {
-                'students' => Student::when($task->classroom_id, fn($q) => $q->where('classroom_id', $task->classroom_id))->get(),
+                'students' => Student::when($task->classrooms_id, fn($q) => $q->where('classroom_id', $task->classrooms_id))->get(),
                 'parents' => ParentInfo::all(),
                 'staff' => Staff::all(),
                 'teachers' => Staff::where('designation', 'like', '%teacher%')->get(),

@@ -93,7 +93,7 @@ class AttendanceReportService
 
         $out = [];
         foreach ($rows as $r) {
-            $className = optional($r->student->classroom)->name ?? 'Unknown';
+            $className = optional($r->student->classrooms)->name ?? 'Unknown';
             $out[$className] = ($out[$className] ?? 0) + 1;
         }
         ksort($out);

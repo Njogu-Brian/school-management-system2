@@ -27,7 +27,7 @@
             <label class="form-label">Assign Classes</label>
             <select name="classroom_ids[]" class="form-select" multiple>
                 @foreach($classrooms as $id => $name)
-                    <option value="{{ $id }}" {{ in_array($id, $recipient->classroom_ids ?? []) ? 'selected' : '' }}>
+                    <option value="{{ $id }}" {{ in_array($id, $recipient->classrooms_ids ?? []) ? 'selected' : '' }}>
                         {{ $name }}
                     </option>
                 @endforeach

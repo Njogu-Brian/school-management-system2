@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Assign Homework</h1>
 
-    <form method="POST" action="{{ route('homework.store') }}" enctype="multipart/form-data">
+    <form method="POST" action="{{ route('academics.homework.store') }}" enctype="multipart/form-data">
         @csrf
         <div class="mb-3">
             <label>Title</label>

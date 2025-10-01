@@ -13,7 +13,7 @@ class HomeworkController extends Controller
 {
     public function index()
     {
-        $homeworks = Homework::with(['subject','teacher'])->latest()->paginate(20);
+        $homeworks = Homework::with(['classroom','subject','teacher'])->latest()->paginate(20);
         return view('academics.homework.index', compact('homeworks'));
     }
 
@@ -67,4 +67,9 @@ class HomeworkController extends Controller
         $homework->delete();
         return redirect()->route('academics.homework.index')->with('success','Homework deleted.');
     }
+    public function show(Homework $homework)
+    {
+        return view('academics.homework.show', compact('homework'));
+    }
+
 }

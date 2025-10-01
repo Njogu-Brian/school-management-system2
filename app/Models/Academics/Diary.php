@@ -13,5 +13,18 @@ class Diary extends Model
         'entries' => 'array',
     ];
 
-    public function teacher() { return $this->belongsTo(\App\Models\Staff::class); }
+    public function teacher()
+    {
+        return $this->belongsTo(\App\Models\Staff::class);
+    }
+
+    public function classroom()
+    {
+        return $this->belongsTo(Classroom::class);
+    }
+    public function stream()
+    {
+        return $this->belongsTo(Stream::class);
+    }
 }
+

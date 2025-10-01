@@ -170,7 +170,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
 {
     $replacements = [
         '{student_name}' => $student->full_name,
-        '{class}'        => $student->classroom->name ?? '',
+        '{class}'        => $student->classrooms->name ?? '',
         '{admission_no}' => $student->admission_number ?? '',
         '{date}'         => $humanDate,
         '{parent_name}'  => $student->parent->father_name

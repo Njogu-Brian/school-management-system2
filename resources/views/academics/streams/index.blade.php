@@ -22,10 +22,10 @@
             <tr>
                 <td>{{ $stream->name }}</td>
                 <td>
-                    @if($stream->classrooms->isEmpty())
+                    @if($stream->classroomss->isEmpty())
                         <span class="text-muted">Not Assigned</span>
                     @else
-                        {{ $stream->classrooms->pluck('name')->implode(', ') }}
+                        {{ $stream->classroomss->pluck('name')->implode(', ') }}
                     @endif
                 </td>
                 <td>

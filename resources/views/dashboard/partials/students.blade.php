@@ -17,7 +17,7 @@
                             <td>{{ $student->full_name ?? "{$student->first_name} {$student->middle_name} {$student->last_name}" }}</td>
                             
                             <!-- Display Class Name -->
-                            <td>{{ $student->classroom->name ?? 'N/A' }}</td>
+                            <td>{{ $student->classrooms->name ?? 'N/A' }}</td>
                             
                             <!-- Display Attendance Status -->
                             <td>

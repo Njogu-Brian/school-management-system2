@@ -2,18 +2,18 @@
 
 @section('content')
 <div class="container">
-    <h1>Diary Entry - {{ $diary->classroom->name }}</h1>
+    <h1>Diary Entry - {{ $diary->classroom?->name ?? 'N/A' }}</h1>
 
-    <p><strong>Week:</strong> {{ $diary->week }}</p>
+    <p><strong>Week Start:</strong> {{ $diary->week_start->format('d M Y') }}</p>
 
     <h4>Activities</h4>
-    <p>{{ $diary->activities }}</p>
+    <p>{{ $diary->entries['activities'] ?? '' }}</p>
 
-    @if($diary->announcements)
+    @if(!empty($diary->entries['announcements']))
         <h4>Announcements</h4>
-        <p>{{ $diary->announcements }}</p>
+        <p>{{ $diary->entries['announcements'] }}</p>
     @endif
 
-    <a href="{{ route('diaries.index') }}" class="btn btn-secondary">Back</a>
+    <a href="{{ route('academics.diaries.index') }}" class="btn btn-secondary">Back</a>
 </div>
 @endsection

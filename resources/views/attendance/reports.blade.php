@@ -138,7 +138,7 @@
                                 @foreach($items as $a)
                                     <tr>
                                         <td>{{ $a->student->full_name ?? 'Unknown' }}</td>
-                                        <td>{{ $a->student->classroom->name ?? '-' }}</td>
+                                        <td>{{ $a->student->classrooms->name ?? '-' }}</td>
                                         <td>{{ $a->student->stream->name ?? '-' }}</td>
                                         <td>
                                             <span class="badge
@@ -192,7 +192,7 @@
                     <div class="card-body">
                         <div class="fw-bold">{{ $student->full_name ?? 'Unknown' }} ({{ $student->admission_number ?? '-' }})</div>
                         <div class="text-muted">
-                            Class: {{ $student->classroom->name ?? 'N/A' }} | Stream: {{ $student->stream->name ?? 'N/A' }}
+                            Class: {{ $student->classrooms->name ?? 'N/A' }} | Stream: {{ $student->stream->name ?? 'N/A' }}
                         </div>
                         <div class="mt-2">
                             Attendance %: <span class="badge bg-primary">{{ $studentStats['percent'] ?? 0 }}%</span>

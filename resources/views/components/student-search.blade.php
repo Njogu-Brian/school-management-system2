@@ -82,7 +82,7 @@
                                 @foreach($attendances as $a)
                                     <tr>
                                         <td>{{ $a->student->full_name }}</td>
-                                        <td>{{ $a->student->classroom->name ?? '' }}</td>
+                                        <td>{{ $a->student->classrooms->name ?? '' }}</td>
                                         <td>{{ $a->student->stream->name ?? '' }}</td>
                                         <td>
                                             <span class="badge 

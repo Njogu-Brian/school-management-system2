@@ -25,7 +25,7 @@
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $invoice->invoice_number }}</td>
                     <td>{{ $invoice->student->full_name ?? '-' }}</td>
-                    <td>{{ $invoice->student->classroom->name ?? '-' }}</td>
+                    <td>{{ $invoice->student->classrooms->name ?? '-' }}</td>
                     <td>{{ $invoice->term }}</td>
                     <td>{{ $invoice->year }}</td>
                     <td>Ksh {{ number_format($invoice->total, 2) }}</td>

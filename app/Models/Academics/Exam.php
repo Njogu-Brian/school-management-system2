@@ -35,21 +35,22 @@ class Exam extends Model
         'ends_on'      => 'datetime',
     ];
 
-    // Many-to-Many with classrooms
-    public function classrooms()
-    {
-        return $this->belongsToMany(Classroom::class, 'exam_class_subject')
-            ->withPivot('subject_id')
-            ->withTimestamps();
-    }
+// Many-to-Many with classrooms
+public function classrooms()
+{
+    return $this->belongsToMany(Classroom::class, 'exam_class_subject')
+        ->withPivot('subject_id')
+        ->withTimestamps();
+}
 
-    // Many-to-Many with subjects
-    public function subjects()
-    {
-        return $this->belongsToMany(Subject::class, 'exam_class_subject')
-            ->withPivot('classroom_id')
-            ->withTimestamps();
-    }
+// Many-to-Many with subjects
+public function subjects()
+{
+    return $this->belongsToMany(Subject::class, 'exam_class_subject')
+        ->withPivot('classroom_id')
+        ->withTimestamps();
+}
+
 
     public function academicYear()
     {
@@ -65,4 +66,10 @@ class Exam extends Model
     {
         return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
+    public function papers()
+    {
+        return $this->hasMany(ExamPaper::class);
+    }
+
+    
 }

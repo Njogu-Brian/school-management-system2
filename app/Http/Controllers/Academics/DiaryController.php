@@ -12,7 +12,7 @@ class DiaryController extends Controller
 {
     public function index()
     {
-        $diaries = Diary::with(['teacher'])->latest()->paginate(20);
+        $diaries = Diary::with(['teacher','classroom'])->latest()->paginate(20);
         return view('academics.diaries.index', compact('diaries'));
     }
 
@@ -27,15 +27,19 @@ class DiaryController extends Controller
         $request->validate([
             'classroom_id'=>'required|exists:classrooms,id',
             'week_start'=>'required|date',
-            'entries'=>'required|array',
+            'activities'=>'required|string',
+            'announcements'=>'nullable|string',
         ]);
 
         Diary::create([
-            'classroom_id'=>$request->classroom_id,
-            'stream_id'=>$request->stream_id,
-            'teacher_id'=>Auth::id(),
-            'week_start'=>$request->week_start,
-            'entries'=>$request->entries,
+            'classroom_id' => $request->classroom_id,
+            'stream_id' => $request->stream_id,
+            'teacher_id' => Auth::id(),
+            'week_start' => $request->week_start,
+            'entries' => [
+                'activities' => $request->activities,
+                'announcements' => $request->announcements,
+            ],
         ]);
 
         return redirect()->route('academics.diaries.index')->with('success','Diary created.');
@@ -51,10 +55,17 @@ class DiaryController extends Controller
     {
         $request->validate([
             'week_start'=>'required|date',
-            'entries'=>'required|array',
+            'activities'=>'required|string',
+            'announcements'=>'nullable|string',
         ]);
 
-        $diary->update($request->all());
+        $diary->update([
+            'week_start' => $request->week_start,
+            'entries' => [
+                'activities' => $request->activities,
+                'announcements' => $request->announcements,
+            ],
+        ]);
 
         return redirect()->route('academics.diaries.index')->with('success','Diary updated.');
     }
@@ -63,5 +74,10 @@ class DiaryController extends Controller
     {
         $diary->delete();
         return redirect()->route('academics.diaries.index')->with('success','Diary deleted.');
+    }
+
+    public function show(Diary $diary)
+    {
+        return view('academics.diaries.show', compact('diary'));
     }
 }

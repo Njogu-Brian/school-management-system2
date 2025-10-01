@@ -17,7 +17,7 @@ class StudentTemplateExport implements FromArray, WithHeadings, WithEvents
     public function __construct($rows, $classrooms, $streams, $categories)
     {
         $this->rows = $rows;
-        $this->classrooms = $classrooms;
+        $this->classroomss = $classrooms;
         $this->streams = $streams;
         $this->categories = $categories;
     }
@@ -48,7 +48,7 @@ class StudentTemplateExport implements FromArray, WithHeadings, WithEvents
                 $refSheet->setTitle('reference_data');
 
                 $i = 1;
-                foreach ($this->classrooms as $index => $value) {
+                foreach ($this->classroomss as $index => $value) {
                     $refSheet->setCellValue("A" . ($index + 1), $value);
                 }
                 foreach ($this->streams as $index => $value) {
@@ -61,7 +61,7 @@ class StudentTemplateExport implements FromArray, WithHeadings, WithEvents
                 // Set dropdowns on main sheet
                for ($row = 2; $row <= 100; $row++) {
                 $sheet->getCell("G$row")->getDataValidation()->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                    ->setFormula1('reference_data!$A$1:$A$' . count($this->classrooms))
+                    ->setFormula1('reference_data!$A$1:$A$' . count($this->classroomss))
                     ->setShowDropDown(true);
 
                 $sheet->getCell("H$row")->getDataValidation()->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)

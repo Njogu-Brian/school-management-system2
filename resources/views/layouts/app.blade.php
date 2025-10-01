@@ -224,15 +224,46 @@
         <i class="bi bi-journal-bookmark"></i><span> Academics</span>
     </a>
     <div class="collapse {{ $isAcademicsActive ? 'show' : '' }}" id="academicsMenu">
-        <a href="{{ route('academics.classrooms.index') }}" class="sublink {{ Request::is('academics/classrooms*') ? 'active' : '' }}"><i class="bi bi-house"></i> Classrooms</a>
-        <a href="{{ route('academics.streams.index') }}" class="sublink {{ Request::is('academics/streams*') ? 'active' : '' }}"><i class="bi bi-signpost-split"></i> Streams</a>
-        <a href="{{ route('academics.subjects.index') }}" class="sublink {{ Request::is('academics/subjects*') ? 'active' : '' }}"><i class="bi bi-book"></i> Subjects</a>
-        <a href="{{ route('academics.subject_groups.index') }}" class="sublink {{ Request::is('academics/subject_groups*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Subject Groups</a>
-        <a href="{{ route('academics.exams.index') }}" class="sublink {{ Request::is('academics/exams*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Exams</a>
-        <a href="{{ route('academics.exam-grades.index') }}" class="sublink {{ Request::is('academics/exam-grades*') ? 'active' : '' }}"><i class="bi bi-bar-chart"></i> Exam Grades</a>
-        <a href="{{ route('academics.exam-marks.index') }}" class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}"><i class="bi bi-pencil-square"></i> Exam Marks</a>
-        <a href="{{ route('academics.exams.timetable') }}" class="sublink {{ Request::is('academics/exams/timetable') ? 'active' : '' }}"><i class="bi bi-calendar-event"></i> Exam Timetable</a>
-        <a href="{{ route('academics.report-cards.index') }}" class="sublink {{ Request::is('academics/report-cards*') ? 'active' : '' }}"><i class="bi bi-card-text"></i> Report Cards</a>
+        <a href="{{ route('academics.classrooms.index') }}" class="sublink {{ Request::is('academics/classrooms*') ? 'active' : '' }}">
+            <i class="bi bi-house"></i> Classrooms
+        </a>
+        <a href="{{ route('academics.streams.index') }}" class="sublink {{ Request::is('academics/streams*') ? 'active' : '' }}">
+            <i class="bi bi-signpost-split"></i> Streams
+        </a>
+        <a href="{{ route('academics.subjects.index') }}" class="sublink {{ Request::is('academics/subjects*') ? 'active' : '' }}">
+            <i class="bi bi-book"></i> Subjects
+        </a>
+        <a href="{{ route('academics.subject_groups.index') }}" class="sublink {{ Request::is('academics/subject_groups*') ? 'active' : '' }}">
+            <i class="bi bi-collection"></i> Subject Groups
+        </a>
+        <a href="{{ route('academics.exams.index') }}" class="sublink {{ Request::is('academics/exams*') ? 'active' : '' }}">
+            <i class="bi bi-file-earmark-text"></i> Exams
+        </a>
+        <a href="{{ route('academics.exam-grades.index') }}" class="sublink {{ Request::is('academics/exam-grades*') ? 'active' : '' }}">
+            <i class="bi bi-bar-chart"></i> Exam Grades
+        </a>
+        <a href="{{ route('academics.exam-marks.index') }}" class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
+            <i class="bi bi-pencil-square"></i> Exam Marks
+        </a>
+        <a href="{{ route('academics.exams.timetable') }}" class="sublink {{ Request::is('academics/exams/timetable') ? 'active' : '' }}">
+            <i class="bi bi-calendar-event"></i> Exam Timetable
+        </a>
+        <a href="{{ route('academics.report-cards.index') }}" class="sublink {{ Request::is('academics/report-cards*') ? 'active' : '' }}">
+            <i class="bi bi-card-text"></i> Report Cards
+        </a>
+        <a href="{{ route('academics.behaviors.index') }}"class="sublink {{ Request::is('academics/behaviors*') ? 'active' : '' }}">
+            <i class="bi bi-emoji-smile"></i> Behaviors
+        </a>
+        <a href="{{ route('academics.student-behaviors.index') }}"class="sublink {{ Request::is('academics/student-behaviors*') ? 'active' : '' }}">
+            <i class="bi bi-person-lines-fill"></i> Student Behaviors
+        </a>
+        </a>
+        <a href="{{ route('academics.homework.index') }}" class="sublink {{ Request::is('academics/homework*') ? 'active' : '' }}">
+            <i class="bi bi-journal"></i> Homework
+        </a>
+        <a href="{{ route('academics.diaries.index') }}" class="sublink {{ Request::is('academics/diaries*') ? 'active' : '' }}">
+            <i class="bi bi-calendar-week"></i> Diaries
+        </a>
     </div>
 
         <!-- Finance -->

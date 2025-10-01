@@ -13,7 +13,7 @@
                 <div class="col-md-6"><strong>Name:</strong> {{ $student->first_name }} {{ $student->middle_name ?? '' }} {{ $student->last_name }}</div>
                 <div class="col-md-6"><strong>Gender:</strong> {{ $student->gender }}</div>
                 <div class="col-md-6"><strong>Date of Birth:</strong> {{ $student->dob }}</div>
-                <div class="col-md-6"><strong>Class:</strong> {{ $student->classroom->name ?? 'N/A' }}</div>
+                <div class="col-md-6"><strong>Class:</strong> {{ $student->classrooms->name ?? 'N/A' }}</div>
                 <div class="col-md-6"><strong>Stream:</strong> {{ $student->stream->name ?? 'N/A' }}</div>
                 <div class="col-md-6"><strong>Category:</strong> {{ $student->category->name ?? 'N/A' }}</div>
                 <div class="col-md-6"><strong>NEMIS Number:</strong> {{ $student->nemis_number ?? 'N/A' }}</div>

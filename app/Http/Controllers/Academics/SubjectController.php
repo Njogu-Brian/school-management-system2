@@ -40,7 +40,7 @@ class SubjectController extends Controller
 
         $subject = Subject::create($request->only('code','name','subject_group_id','learning_area'));
 
-        $subject->classrooms()->sync($request->classroom_ids ?? []);
+        $subject->classroomss()->sync($request->classrooms_ids ?? []);
         $subject->teachers()->sync($request->teacher_ids ?? []);
 
         return redirect()->route('academics.subjects.index')
@@ -53,7 +53,7 @@ class SubjectController extends Controller
         $classrooms = Classroom::all();
         $teachers = User::whereHas('roles', fn($q) => $q->where('name','teacher'))->get();
 
-        $assignedClassrooms = $subject->classrooms->pluck('id')->toArray();
+        $assignedClassrooms = $subject->classroomss->pluck('id')->toArray();
         $assignedTeachers = $subject->teachers->pluck('id')->toArray();
 
         return view('academics.subjects.edit', compact(
@@ -75,7 +75,7 @@ class SubjectController extends Controller
 
         $subject->update($request->only('code','name','subject_group_id','learning_area'));
 
-        $subject->classrooms()->sync($request->classroom_ids ?? []);
+        $subject->classroomss()->sync($request->classrooms_ids ?? []);
         $subject->teachers()->sync($request->teacher_ids ?? []);
 
         return redirect()->route('academics.subjects.index')
@@ -84,7 +84,7 @@ class SubjectController extends Controller
 
     public function destroy(Subject $subject)
     {
-        $subject->classrooms()->detach();
+        $subject->classroomss()->detach();
         $subject->teachers()->detach();
         $subject->delete();
 

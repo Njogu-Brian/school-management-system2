@@ -43,7 +43,7 @@
                 <tr>
                     <td>{{ $student->admission_number }}</td>
                     <td>{{ $student->first_name }} {{ $student->last_name }}</td>
-                    <td>{{ $student->classroom->name ?? 'N/A' }}</td>
+                    <td>{{ $student->classrooms->name ?? 'N/A' }}</td>
                     <td>{{ $student->stream->name ?? 'N/A' }}</td>
                     <td>
                         <a href="{{ route('students.edit', $student->id) }}" class="btn btn-sm btn-primary">Edit</a>

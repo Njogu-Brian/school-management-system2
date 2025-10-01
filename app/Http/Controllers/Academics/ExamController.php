@@ -4,174 +4,101 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
-use App\Models\Academics\Subject;
 use App\Models\Academics\Classroom;
+use App\Models\Academics\Subject;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Imports\ExamsImport;
 
 class ExamController extends Controller
 {
-    private array $types = [
-        'cat'     => 'Continuous Assessment Test (CAT)',
-        'rat'     => 'Random Assessment Test (RAT)',
-        'midterm' => 'Mid Term Exam',
-        'endterm' => 'End Term Exam',
-        'sba'     => 'School Based Assessment',
-        'mock'    => 'Mock Exam',
-        'quiz'    => 'Quiz',
-    ];
-
-    private array $modalities = [
-        'physical' => 'Physical',
-        'online'   => 'Online',
-    ];
-
     public function index()
-    {
-        $exams = Exam::with(['classrooms', 'subjects', 'term', 'academicYear'])
-            ->latest('starts_on')->paginate(20);
+{
+    $exams = Exam::with(['academicYear','term','classrooms','subjects'])
+        ->latest()
+        ->paginate(20);
 
-        return view('academics.exams.index', compact('exams'));
-    }
+    return view('academics.exams.index', compact('exams'));
+}
+
 
     public function create()
     {
-        $subjects   = Subject::all();
-        $classrooms = Classroom::all();
-        $years      = AcademicYear::orderBy('year', 'desc')->get();
-        $terms      = Term::orderBy('id', 'desc')->get();
-
-        $types      = $this->types;
-        $modalities = $this->modalities;
-
-        return view('academics.exams.create', compact(
-            'subjects','classrooms','years','terms','types','modalities'
-        ));
+        return view('academics.exams.create', [
+            'years'      => AcademicYear::orderByDesc('year')->get(),
+            'terms'      => Term::orderBy('name')->get(),
+            'classrooms' => Classroom::orderBy('name')->get(),
+            'subjects'   => Subject::orderBy('name')->get(),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $request->validate([
+        $v = $request->validate([
             'name'             => 'required|string|max:255',
-            'type'             => 'required|in:cat,rat,midterm,endterm,sba,mock,quiz',
+            'type'             => 'required|in:cat,midterm,endterm,sba,mock,quiz',
             'modality'         => 'required|in:physical,online',
             'academic_year_id' => 'required|exists:academic_years,id',
             'term_id'          => 'required|exists:terms,id',
-            'classrooms'       => 'required|array',
-            'subjects'         => 'required|array',
+            'classroom_id'     => 'nullable|exists:classrooms,id',
+            'stream_id'        => 'nullable|exists:streams,id',
+            'subject_id'       => 'nullable|exists:subjects,id',
             'starts_on'        => 'nullable|date',
             'ends_on'          => 'nullable|date|after_or_equal:starts_on',
             'max_marks'        => 'required|numeric|min:1',
             'weight'           => 'required|numeric|min:0|max:100',
         ]);
 
-        $exam = Exam::create(array_merge(
-            $request->only(['name','type','modality','academic_year_id','term_id','starts_on','ends_on','max_marks','weight']),
-            ['created_by' => Auth::id()]
-        ));
+       Exam::create($v + ['created_by' => Auth::id()]);
 
-        foreach ($request->classrooms as $classId) {
-            foreach ($request->subjects as $subId) {
-                $exam->classrooms()->attach($classId, ['subject_id' => $subId]);
-            }
-        }
-
-        return redirect()->route('academics.exams.index')->with('success','Exam created successfully.');
+        return redirect()->route('academics.exams.index')->with('success','Exam created.');
     }
 
     public function edit(Exam $exam)
     {
-        $subjects   = Subject::all();
-        $classrooms = Classroom::all();
-        $years      = AcademicYear::orderBy('year', 'desc')->get();
-        $terms      = Term::orderBy('id', 'desc')->get();
-
-        $types      = $this->types;
-        $modalities = $this->modalities;
-
-        $selectedClassrooms = $exam->classrooms->pluck('id')->toArray();
-        $selectedSubjects   = $exam->classrooms->pluck('pivot.subject_id')->toArray();
-
-        return view('academics.exams.edit', compact(
-            'exam','subjects','classrooms','years','terms','types','modalities',
-            'selectedClassrooms','selectedSubjects'
-        ));
+        return view('academics.exams.edit', [
+            'exam'      => $exam,
+            'years'     => AcademicYear::orderByDesc('year')->get(),
+            'terms'     => Term::orderBy('name')->get(),
+            'classrooms'=> Classroom::orderBy('name')->get(),
+            'subjects'  => Subject::orderBy('name')->get(),
+        ]);
     }
 
     public function update(Request $request, Exam $exam)
     {
-        $request->validate([
-            'name'             => 'required|string|max:255',
-            'type'             => 'required|in:cat,rat,midterm,endterm,sba,mock,quiz',
-            'modality'         => 'required|in:physical,online',
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id'          => 'required|exists:terms,id',
-            'classrooms'       => 'required|array',
-            'subjects'         => 'required|array',
-            'starts_on'        => 'nullable|date',
-            'ends_on'          => 'nullable|date|after_or_equal:starts_on',
-            'max_marks'        => 'required|numeric|min:1',
-            'weight'           => 'required|numeric|min:0|max:100',
+        $v = $request->validate([
+            'name'       => 'required|string|max:255',
+            'type'       => 'required|in:cat,midterm,endterm,sba,mock,quiz',
+            'modality'   => 'required|in:physical,online',
+            'starts_on'  => 'nullable|date',
+            'ends_on'    => 'nullable|date|after_or_equal:starts_on',
+            'max_marks'  => 'required|numeric|min:1',
+            'weight'     => 'required|numeric|min:0|max:100',
+            'status'     => 'required|in:draft,open,marking,moderation,approved,published,locked'
         ]);
 
-        $exam->update($request->only(['name','type','modality','academic_year_id','term_id','starts_on','ends_on','max_marks','weight']));
+        $exam->update($v);
 
-        $exam->classrooms()->detach();
-        foreach ($request->classrooms as $classId) {
-            foreach ($request->subjects as $subId) {
-                $exam->classrooms()->attach($classId, ['subject_id' => $subId]);
-            }
-        }
-
-        return redirect()->route('academics.exams.index')->with('success','Exam updated successfully.');
+        return redirect()->route('academics.exams.index')->with('success','Exam updated.');
     }
 
     public function destroy(Exam $exam)
     {
-        $exam->classrooms()->detach();
         $exam->delete();
-        return redirect()->route('academics.exams.index')->with('success','Exam deleted.');
+        return back()->with('success','Exam deleted.');
     }
 
     public function timetable()
     {
-        $exams = Exam::with(['classrooms','subjects','term'])
-            ->whereNotNull('starts_on')
-            ->orderBy('starts_on')
+        $papers = \App\Models\Academics\ExamPaper::with(['exam','subject','classroom','exam.term','exam.academicYear'])
+            ->orderBy('exam_date')
+            ->orderBy('start_time')
             ->get()
-            ->groupBy(fn($e) => optional($e->starts_on)->format('Y-m-d'));
+            ->groupBy('exam_date');
 
-        return view('academics.exams.timetable', compact('exams'));
+        return view('academics.exams.timetable', compact('papers'));
     }
 
-    public function importForm()
-    {
-        return view('academics.exams.import');
-    }
-
-    public function importStore(Request $request)
-    {
-        $request->validate(['file' => 'required|file|mimes:xlsx,xls,csv']);
-        Excel::import(new ExamsImport, $request->file('file'));
-        return redirect()->route('academics.exams.index')->with('success','Exams imported successfully.');
-    }
-
-    public function template()
-    {
-        $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="exams_template.csv"',
-        ];
-        $csv = implode(",", [
-            'name','type(cat|rat|midterm|endterm|sba|mock|quiz)',
-            'modality(physical|online)','academic_year','term','classrooms','subjects',
-            'starts_on(YYYY-MM-DD HH:MM)','ends_on(YYYY-MM-DD HH:MM)','max_marks','weight'
-        ]);
-
-        return response($csv . "\n", 200, $headers);
-    }
 }

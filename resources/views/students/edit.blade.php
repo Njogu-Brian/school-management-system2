@@ -20,7 +20,7 @@
             <label>Class</label>
             <select name="classroom_id" class="form-control">
                 @foreach ($classrooms as $classroom)
-                    <option value="{{ $classroom->id }}" {{ $student->classroom_id == $classroom->id ? 'selected' : '' }}>
+                    <option value="{{ $classroom->id }}" {{ $student->classrooms_id == $classroom->id ? 'selected' : '' }}>
                         {{ $classroom->name }}
                     </option>
                 @endforeach

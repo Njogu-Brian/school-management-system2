@@ -51,7 +51,7 @@ class StudentController extends Controller
         }
 
         if ($request->filled('classroom_id')) {
-            $query->where('classroom_id', $request->classroom_id);
+            $query->where('classroom_id', $request->classrooms_id);
         }
 
         $students = $query->get();
@@ -420,7 +420,7 @@ class StudentController extends Controller
      */
     protected function sendAdmissionCommunication($student, $parent)
     {
-        $className = optional($student->classroom)->name ?? '';
+        $className = optional($student->classrooms)->name ?? '';
         $fullName = $student->getFullNameAttribute();
 
         // SMS

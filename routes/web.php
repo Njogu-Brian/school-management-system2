@@ -17,14 +17,13 @@ use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\TripController;
 use App\Http\Controllers\DropOffPointController;
 use App\Http\Controllers\StudentAssignmentController;
+use App\Http\Controllers\AcademicConfigController;
 
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ParentInfoController;
 use App\Http\Controllers\OnlineAdmissionController;
 
-use App\Http\Controllers\Academics\ClassroomController;
-use App\Http\Controllers\Academics\StreamController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\CommunicationAnnouncementController;
@@ -43,15 +42,21 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\LookupController;
 
 // Academics
+use App\Http\Controllers\Academics\ClassroomController;
+use App\Http\Controllers\Academics\StreamController;
 use App\Http\Controllers\Academics\SubjectGroupController;
 use App\Http\Controllers\Academics\SubjectController;
 use App\Http\Controllers\Academics\ExamController;
+use App\Http\Controllers\Academics\ExamGradeController;
 use App\Http\Controllers\Academics\ExamMarkController;
 use App\Http\Controllers\Academics\ReportCardController;
+use App\Http\Controllers\Academics\ReportCardSkillController;
+use App\Http\Controllers\Academics\BehaviorController;
 use App\Http\Controllers\Academics\HomeworkController;
 use App\Http\Controllers\Academics\DiaryController;
-use App\Http\Controllers\AcademicConfigController;
-use App\Http\Controllers\Academics\ExamGradeController;
+use App\Http\Controllers\Academics\StudentBehaviorController;
+use App\Http\Controllers\Academics\ExamPaperController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -147,44 +152,77 @@ Route::middleware('auth')->group(function () {
             Route::post('/notify', [AttendanceNotificationController::class, 'notifySend'])->name('attendance.notifications.notify.send');
         });
     
-    /*
-    |---------------------- Academics ----------------------
-    */
-
+            /*
+        |---------------------- Academics ----------------------
+        */
         Route::prefix('academics')->as('academics.')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher')
-        ->group(function () {
+            ->middleware('role:Super Admin|Admin|Secretary|Teacher')
+            ->group(function () {
 
-        Route::resource('classrooms', ClassroomController::class)->except(['show']);
-        Route::resource('streams', StreamController::class)->except(['show']);
-        Route::resource('subject_groups', SubjectGroupController::class)->except(['show']);
-        Route::resource('subjects', SubjectController::class)->except(['show']);
-        Route::resource('exams', ExamController::class)->except(['show']);
-        Route::resource('exam-grades', ExamGradeController::class);
-        Route::resource('homework', HomeworkController::class);
-        Route::resource('diaries', DiaryController::class);
-        Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
+            // Core setup
+            Route::resource('classrooms', ClassroomController::class)->except(['show']);
+            Route::resource('streams', StreamController::class)->except(['show']);
+            Route::resource('subject_groups', SubjectGroupController::class)->except(['show']);
+            Route::resource('subjects', SubjectController::class)->except(['show']);
+            Route::resource('exams', ExamController::class)->except(['show']);
+            Route::resource('exam-grades', ExamGradeController::class);
+            Route::resource('homework', HomeworkController::class);
+            Route::resource('diaries', DiaryController::class);
 
-        // Marks (bulk entry)
-        Route::get('exam-marks',               [ExamMarkController::class,'index'])->name('exam-marks.index');
-        Route::get('exam-marks/bulk',          [ExamMarkController::class,'bulkForm'])->name('exam-marks.bulk');
+            // Exam timetable
+            Route::get('exams/timetable', [ExamController::class, 'timetable'])
+                ->name('exams.timetable');
+            Route::prefix('exams/{exam}/papers')->as('exam-papers.')->group(function () {
+                Route::get('/', [ExamPaperController::class, 'index'])->name('index');
+                Route::get('create', [ExamPaperController::class, 'create'])->name('create');
+                Route::post('/', [ExamPaperController::class, 'store'])->name('store');
+                Route::get('{examPaper}/edit', [ExamPaperController::class, 'edit'])->name('edit');
+                Route::put('{examPaper}', [ExamPaperController::class, 'update'])->name('update');
+                Route::delete('{examPaper}', [ExamPaperController::class, 'destroy'])->name('destroy');
+            });
 
-        // allow both GET + POST for edit
-        Route::match(['get','post'], 'exam-marks/bulk/edit', [ExamMarkController::class,'bulkEdit'])
-            ->name('exam-marks.bulk.edit');
+            /*
+            |---------------------- Exam Marks ----------------------
+            */
+            Route::get('exam-marks', [ExamMarkController::class,'index'])->name('exam-marks.index');
+            Route::get('exam-marks/bulk', [ExamMarkController::class,'bulkForm'])->name('exam-marks.bulk');
+            Route::post('exam-marks/bulk/edit', [ExamMarkController::class,'bulkEdit'])->name('exam-marks.bulk.edit');
+            Route::post('exam-marks/bulk/store', [ExamMarkController::class,'bulkStore'])->name('exam-marks.bulk.store');
+            Route::get('exam-marks/{exam_mark}/edit', [ExamMarkController::class,'edit'])->name('exam-marks.edit');
+            Route::put('exam-marks/{exam_mark}', [ExamMarkController::class,'update'])->name('exam-marks.update');
 
-        Route::post('exam-marks/bulk/store',   [ExamMarkController::class,'bulkStore'])->name('exam-marks.bulk.store');
-        Route::get('exam-marks/{exam_mark}/edit', [ExamMarkController::class,'edit'])->name('exam-marks.edit');
-        Route::put('exam-marks/{exam_mark}',      [ExamMarkController::class,'update'])->name('exam-marks.update');
+            /*
+            |---------------------- Report Cards ----------------------
+            */
+            Route::resource('report-cards', ReportCardController::class)->except(['destroy']);
+            Route::delete('report-cards/{report_card}', [ReportCardController::class,'destroy'])
+                ->name('report-cards.destroy');
+            Route::post('report-cards/{report}/publish', [ReportCardController::class,'publish'])
+                ->name('report-cards.publish');
+            Route::get('r/{token}', [ReportCardController::class,'publicView'])
+                ->name('report-cards.public');
 
-        // Report cards
-        Route::resource('report-cards', ReportCardController::class)->except(['destroy']);
-        Route::delete('report-cards/{report_card}', [ReportCardController::class,'destroy'])->name('report-cards.destroy');
-        Route::match(['get','post'], 'exam-marks/bulk/edit', [ExamMarkController::class,'bulkEdit'])->name('exam-marks.bulk.edit');
-        Route::post('report-cards/{report}/publish', [ReportCardController::class,'publish'])->name('report-cards.publish');
-        Route::get('r/{token}', [ReportCardController::class,'publicView'])->name('report-cards.public'); // public token
-    });
-    
+            /*
+            |---------------------- Behavior ----------------------
+            */
+            Route::resource('behaviors', BehaviorController::class);
+            Route::resource('student-behaviors', StudentBehaviorController::class);
+
+            /*
+            |---------------------- Report Card Skills ----------------------
+            */
+            Route::prefix('report-cards/{report_card}')->as('report-cards.skills.')
+                ->group(function () {
+                    Route::get('skills', [ReportCardSkillController::class,'index'])->name('index');
+                    Route::get('skills/create', [ReportCardSkillController::class,'create'])->name('create');
+                    Route::post('skills', [ReportCardSkillController::class,'store'])->name('store');
+                    Route::get('skills/{skill}/edit', [ReportCardSkillController::class,'edit'])->name('edit');
+                    Route::put('skills/{skill}', [ReportCardSkillController::class,'update'])->name('update');
+                    Route::delete('skills/{skill}', [ReportCardSkillController::class,'destroy'])->name('destroy');
+                });
+        });
+
+
     /*
     |---------------------- Transport ----------------------
     */

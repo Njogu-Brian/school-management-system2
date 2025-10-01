@@ -36,11 +36,6 @@ class ExamMarkController extends Controller
 
     public function bulkEdit(Request $request)
     {
-        if ($request->isMethod('get')) {
-            return redirect()->route('academics.exam-marks.bulk')
-                ->with('error','⚠️ Please select exam, class and subject first.');
-        }
-
         $v = $request->validate([
             'exam_id'     => 'required|exists:exams,id',
             'classroom_id'=> 'required|exists:classrooms,id',
@@ -63,7 +58,7 @@ class ExamMarkController extends Controller
         return view('academics.exam_marks.bulk_edit', compact('exam','class','subject','students','existing'));
     }
 
-   public function bulkStore(Request $request)
+    public function bulkStore(Request $request)
     {
         $data = $request->validate([
             'exam_id'     => 'required|exists:exams,id',
@@ -85,21 +80,20 @@ class ExamMarkController extends Controller
                 'subject_id'=> $data['subject_id'],
             ]);
 
-            // Average final score
+            // calculate final score automatically
             $scores = collect([
                 $row['opener_score'] ?? null,
                 $row['midterm_score'] ?? null,
-                $row['endterm_score'] ?? null,
-            ])->filter(fn($v) => $v !== null);
+                $row['endterm_score'] ?? null
+            ])->filter();
 
-            $avg = $scores->count() ? round($scores->avg(), 2) : null;
+            $finalScore = $scores->avg();
 
-            // Find grade
             $g = null;
-            if ($avg !== null) {
+            if ($finalScore !== null) {
                 $g = ExamGrade::where('exam_type', $exam->type)
-                    ->where('percent_from', '<=', $avg)
-                    ->where('percent_upto', '>=', $avg)
+                    ->where('percent_from','<=',$finalScore)
+                    ->where('percent_upto','>=',$finalScore)
                     ->first();
             }
 
@@ -107,7 +101,7 @@ class ExamMarkController extends Controller
                 'opener_score'  => $row['opener_score'] ?? null,
                 'midterm_score' => $row['midterm_score'] ?? null,
                 'endterm_score' => $row['endterm_score'] ?? null,
-                'score_raw'     => $avg,
+                'score_raw'     => $finalScore,
                 'grade_label'   => $g?->grade_name ?? 'BE',
                 'pl_level'      => $g?->grade_point ?? 1.0,
                 'subject_remark'=> $row['subject_remark'] ?? null,
@@ -116,11 +110,8 @@ class ExamMarkController extends Controller
             ])->save();
         }
 
-        return redirect()
-            ->route('academics.exam-marks.index', ['exam_id' => $exam->id])
-            ->with('success', 'Marks saved successfully.');
+        return back()->with('success','Marks saved successfully.');
     }
-
 
     public function edit(ExamMark $exam_mark) {
         return view('academics.exam_marks.edit', compact('exam_mark'));
@@ -136,33 +127,28 @@ class ExamMarkController extends Controller
             'remark'        => 'nullable|string|max:500',
         ]);
 
-        // Calculate average
+        // calculate final automatically
         $scores = collect([
             $v['opener_score'] ?? null,
             $v['midterm_score'] ?? null,
-            $v['endterm_score'] ?? null,
-        ])->filter(fn($val) => $val !== null);
+            $v['endterm_score'] ?? null
+        ])->filter();
 
-        $avg = $scores->count() ? round($scores->avg(), 2) : null;
+        $finalScore = $scores->avg();
 
-        $g = null;
-        if ($avg !== null) {
-            $g = ExamGrade::where('exam_type', $exam_mark->exam->type)
-                ->where('percent_from', '<=', $avg)
-                ->where('percent_upto', '>=', $avg)
-                ->first();
-        }
+        $g = ExamGrade::where('exam_type',$exam_mark->exam->type)
+            ->where('percent_from','<=',$finalScore)
+            ->where('percent_upto','>=',$finalScore)
+            ->first();
 
         $exam_mark->update(array_merge($v, [
-            'score_raw'   => $avg,
+            'score_raw'   => $finalScore,
             'grade_label' => $g?->grade_name ?? 'BE',
             'pl_level'    => $g?->grade_point ?? 1.0,
             'status'      => 'submitted'
         ]));
 
-        return redirect()
-            ->route('academics.exam-marks.index', ['exam_id' => $exam_mark->exam_id])
+        return redirect()->route('academics.exam-marks.index',['exam_id'=>$exam_mark->exam_id])
             ->with('success','Mark updated.');
     }
-
 }

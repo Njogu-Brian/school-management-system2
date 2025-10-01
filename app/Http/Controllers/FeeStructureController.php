@@ -76,7 +76,7 @@ class FeeStructureController extends Controller
             }
         });
 
-        return redirect()->route('finance.fee-structures.manage', ['classroom_id' => $request->classroom_id])
+        return redirect()->route('finance.fee-structures.manage', ['classroom_id' => $request->classrooms_id])
                         ->with('success', 'Fee structure saved successfully.');
     }
    

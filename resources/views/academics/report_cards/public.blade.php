@@ -1,9 +1,23 @@
 @extends('layouts.app')
+
 @section('content')
 <div class="container">
-  <h1>{{ $report->student->full_name }} – Report Card</h1>
-  <p>Class: {{ optional($report->classroom)->name }} | Term/Year: {{ optional($report->term)->name }} / {{ optional($report->academicYear)->year }}</p>
-  <a class="btn btn-outline-secondary mb-3" target="_blank" href="{{ $report->pdf_path ? Storage::disk('public')->url($report->pdf_path) : '#' }}">Open PDF</a>
-  @include('academics.report_cards.show', ['report_card'=>$report])
+    <h1>Report Card - {{ $report_card->student->full_name }}</h1>
+
+    <h4>Summary</h4>
+    <p>{{ $report_card->summary ?? 'No summary provided.' }}</p>
+
+    <h4>Teacher Remark</h4>
+    <p>{{ $report_card->teacher_remark ?? '-' }}</p>
+
+    <h4>Headteacher Remark</h4>
+    <p>{{ $report_card->headteacher_remark ?? '-' }}</p>
+
+    <h4>Skills & Personal Growth</h4>
+    <ul>
+        @foreach($report_card->skills as $skill)
+            <li>{{ $skill->skill_name }} - <strong>{{ $skill->rating }}</strong></li>
+        @endforeach
+    </ul>
 </div>
 @endsection

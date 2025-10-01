@@ -2,50 +2,37 @@
 
 @section('content')
 <div class="container">
-    <h1>Bulk Marks Entry</h1>
-
-    {{-- Alerts --}}
-    @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
-    @endif
+    <h1>Bulk Entry - Select Exam, Class & Subject</h1>
 
     <form action="{{ route('academics.exam-marks.bulk.edit') }}" method="POST">
         @csrf
-
-        <div class="mb-3">
-            <label for="exam_id" class="form-label">Exam</label>
-            <select name="exam_id" class="form-select" required>
-                <option value="">-- Select Exam --</option>
-                @foreach($exams as $exam)
-                    <option value="{{ $exam->id }}">{{ $exam->name }}</option>
-                @endforeach
-            </select>
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label>Exam</label>
+                <select name="exam_id" class="form-select" required>
+                    @foreach($exams as $exam)
+                        <option value="{{ $exam->id }}">{{ $exam->name }} - {{ $exam->term->name ?? '' }}/{{ $exam->academicYear->year ?? '' }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label>Classroom</label>
+                <select name="classroom_id" class="form-select" required>
+                    @foreach($classrooms as $c)
+                        <option value="{{ $c->id }}">{{ $c->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label>Subject</label>
+                <select name="subject_id" class="form-select" required>
+                    @foreach($subjects as $s)
+                        <option value="{{ $s->id }}">{{ $s->name }}</option>
+                    @endforeach
+                </select>
+            </div>
         </div>
-
-        <div class="mb-3">
-            <label for="classroom_id" class="form-label">Classroom</label>
-            <select name="classroom_id" class="form-select" required>
-                <option value="">-- Select Class --</option>
-                @foreach($classrooms as $class)
-                    <option value="{{ $class->id }}">{{ $class->name }}</option>
-                @endforeach
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label for="subject_id" class="form-label">Subject</label>
-            <select name="subject_id" class="form-select" required>
-                <option value="">-- Select Subject --</option>
-                @foreach($subjects as $subject)
-                    <option value="{{ $subject->id }}">{{ $subject->name }}</option>
-                @endforeach
-            </select>
-        </div>
-
-        <button type="submit" class="btn btn-primary">Proceed to Marks Entry</button>
+        <button class="btn btn-success">Proceed</button>
     </form>
 </div>
 @endsection

@@ -29,7 +29,7 @@
                 <td>{{ optional($subject->group)->name ?? '—' }}</td>
                 <td>{{ $subject->learning_area }}</td>
                 <td>
-                    {{ $subject->classrooms->pluck('name')->implode(', ') ?: '—' }}
+                    {{ $subject->classroomss->pluck('name')->implode(', ') ?: '—' }}
                 </td>
                 <td>
                     {{ $subject->teachers->pluck('name')->implode(', ') ?: '—' }}

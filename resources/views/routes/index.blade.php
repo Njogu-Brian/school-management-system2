@@ -74,7 +74,7 @@
         <select name="student_id" id="student_id" class="form-control" required>
             @foreach ($students as $student)
                 <option value="{{ $student->id }}">
-                    {{ $student->full_name }} (Class: {{ $student->classroom->name ?? 'N/A' }})
+                    {{ $student->full_name }} (Class: {{ $student->classrooms->name ?? 'N/A' }})
                 </option>
             @endforeach
         </select>

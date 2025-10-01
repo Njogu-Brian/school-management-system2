@@ -13,7 +13,7 @@
             <select name="student_id" class="form-control" required>
                 @foreach ($students as $student)
                     <option value="{{ $student->id }}">
-                        {{ $student->first_name }} {{ $student->last_name }} - Class: {{ $student->classroom->name ?? 'N/A' }}
+                        {{ $student->first_name }} {{ $student->last_name }} - Class: {{ $student->classrooms->name ?? 'N/A' }}
                     </option>
                 @endforeach
             </select>
