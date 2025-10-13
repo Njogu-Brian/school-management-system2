@@ -2,33 +2,33 @@
 
 @section('content')
 <div class="container">
-    <h1>Assign Homework</h1>
+    <h1>Edit Homework</h1>
 
-    <form method="POST" action="{{ route('academics.homework.store') }}" enctype="multipart/form-data">
-        @csrf
+    <form method="POST" action="{{ route('academics.homework.update', $homework) }}" enctype="multipart/form-data">
+        @csrf @method('PUT')
 
         <div class="mb-3">
             <label>Title</label>
-            <input type="text" name="title" class="form-control" required>
+            <input type="text" name="title" class="form-control" value="{{ $homework->title }}" required>
         </div>
 
         <div class="mb-3">
             <label>Instructions</label>
-            <textarea name="instructions" class="form-control" rows="3"></textarea>
+            <textarea name="instructions" class="form-control" rows="3">{{ $homework->instructions }}</textarea>
         </div>
 
         <div class="mb-3">
             <label>Due Date</label>
-            <input type="date" name="due_date" class="form-control" required>
+            <input type="date" name="due_date" class="form-control" value="{{ $homework->due_date->format('Y-m-d') }}" required>
         </div>
 
         <div class="mb-3">
             <label>Target Scope</label>
             <select name="target_scope" id="target_scope" class="form-control" required>
-                <option value="class">Class</option>
-                <option value="stream">Stream</option>
-                <option value="students">Specific Students</option>
-                <option value="school">Entire School</option>
+                <option value="class" {{ $homework->target_scope == 'class' ? 'selected' : '' }}>Class</option>
+                <option value="stream" {{ $homework->target_scope == 'stream' ? 'selected' : '' }}>Stream</option>
+                <option value="students" {{ $homework->target_scope == 'students' ? 'selected' : '' }}>Specific Students</option>
+                <option value="school" {{ $homework->target_scope == 'school' ? 'selected' : '' }}>Entire School</option>
             </select>
         </div>
 
@@ -37,7 +37,7 @@
             <select name="classroom_id" class="form-control">
                 <option value="">-- Select Class --</option>
                 @foreach($classrooms as $classroom)
-                    <option value="{{ $classroom->id }}">{{ $classroom->name }}</option>
+                    <option value="{{ $classroom->id }}" {{ $homework->classroom_id == $classroom->id ? 'selected' : '' }}>{{ $classroom->name }}</option>
                 @endforeach
             </select>
         </div>
@@ -48,7 +48,9 @@
                 <option value="">-- Select Stream --</option>
                 @foreach($classrooms as $classroom)
                     @foreach($classroom->streams as $stream)
-                        <option value="{{ $stream->id }}">{{ $classroom->name }} - {{ $stream->name }}</option>
+                        <option value="{{ $stream->id }}" {{ $homework->stream_id == $stream->id ? 'selected' : '' }}>
+                            {{ $classroom->name }} - {{ $stream->name }}
+                        </option>
                     @endforeach
                 @endforeach
             </select>
@@ -59,7 +61,9 @@
             <select name="subject_id" class="form-control">
                 <option value="">-- Select Subject --</option>
                 @foreach($subjects as $subject)
-                    <option value="{{ $subject->id }}">{{ $subject->name }}</option>
+                    <option value="{{ $subject->id }}" {{ $homework->subject_id == $subject->id ? 'selected' : '' }}>
+                        {{ $subject->name }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -68,7 +72,10 @@
             <label>Students</label>
             <select name="student_ids[]" class="form-control" multiple>
                 @foreach($students as $student)
-                    <option value="{{ $student->id }}">{{ $student->admission_no }} - {{ $student->first_name }} {{ $student->last_name }}</option>
+                    <option value="{{ $student->id }}" 
+                        {{ $homework->students->pluck('id')->contains($student->id) ? 'selected' : '' }}>
+                        {{ $student->admission_no }} - {{ $student->first_name }} {{ $student->last_name }}
+                    </option>
                 @endforeach
             </select>
         </div>
@@ -76,9 +83,12 @@
         <div class="mb-3">
             <label>Attachment (optional)</label>
             <input type="file" name="attachment" class="form-control">
+            @if($homework->file_path)
+                <small>Current file: <a href="{{ asset('storage/'.$homework->file_path) }}" target="_blank">View</a></small>
+            @endif
         </div>
 
-        <button class="btn btn-success">Assign</button>
+        <button class="btn btn-success">Update</button>
     </form>
 </div>
 

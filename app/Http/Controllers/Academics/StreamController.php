@@ -30,7 +30,7 @@ class StreamController extends Controller
         ]);
 
         $stream = Stream::create(['name' => $request->name]);
-        $stream->classroomss()->attach($request->classrooms_ids);
+        $stream->classrooms()->attach($request->classroom_ids);
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream added successfully.');
@@ -40,7 +40,7 @@ class StreamController extends Controller
     {
         $stream = Stream::findOrFail($id);
         $classrooms = Classroom::all();
-        $assignedClassrooms = $stream->classroomss->pluck('id')->toArray();
+        $assignedClassrooms = $stream->classrooms->pluck('id')->toArray();
 
         return view('academics.streams.edit', compact('stream', 'classrooms', 'assignedClassrooms'));
     }
@@ -55,7 +55,7 @@ class StreamController extends Controller
 
         $stream = Stream::findOrFail($id);
         $stream->update(['name' => $request->name]);
-        $stream->classroomss()->sync($request->classrooms_ids);
+        $stream->classrooms()->sync($request->classroom_ids);
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream updated successfully.');
@@ -64,7 +64,7 @@ class StreamController extends Controller
     public function destroy($id)
     {
         $stream = Stream::findOrFail($id);
-        $stream->classroomss()->detach();
+        $stream->classrooms()->detach();
         $stream->delete();
 
         return redirect()->route('academics.streams.index')

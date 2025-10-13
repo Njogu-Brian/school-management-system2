@@ -3,71 +3,78 @@
 namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
+use App\Models\Academics\ReportCard;
 use App\Models\Academics\ReportCardSkill;
 use App\Models\Academics\Classroom;
 use Illuminate\Http\Request;
 
 class ReportCardSkillController extends Controller
 {
-    public function index()
+    public function index(ReportCard $reportCard)
     {
-        $skills = ReportCardSkill::with('classroom')->orderBy('name')->paginate(30);
-        return view('academics.report_card_skills.index', compact('skills'));
+        $skills = $reportCard->skills()->with('classroom')->orderBy('skill_name')->paginate(30);
+        return view('academics.report_cards.skills.index', compact('skills', 'reportCard'));
     }
 
-    public function create()
+    public function create(ReportCard $reportCard)
     {
-        return view('academics.report_card_skills.create', [
-            'classrooms' => Classroom::orderBy('name')->get()
+        return view('academics.report_cards.skills.create', [
+            'reportCard' => $reportCard,
+            'classrooms' => Classroom::orderBy('skill_name')->get()
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ReportCard $reportCard)
     {
         $data = $request->validate([
             'name'         => 'required|string|max:255',
             'description'  => 'nullable|string|max:500',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'is_active'    => 'nullable|boolean',
+            'rating'       => 'nullable|in:EE,ME,AE,BE',
         ]);
 
         $data['is_active'] = (bool)($data['is_active'] ?? true);
 
-        ReportCardSkill::create($data);
+        $reportCard->skills()->create($data);
 
-        return redirect()->route('academics.report-card-skills.index')
-            ->with('success', 'Skill created.');
+        return redirect()
+            ->route('academics.report-cards.skills.index', $reportCard)
+            ->with('success', 'Skill added to report card.');
     }
 
-    public function edit(ReportCardSkill $report_card_skill)
+    public function edit(ReportCard $reportCard, ReportCardSkill $skill)
     {
-        return view('academics.report_card_skills.edit', [
-            'skill'      => $report_card_skill,
-            'classrooms' => Classroom::orderBy('name')->get()
+        return view('academics.report_cards.skills.edit', [
+            'reportCard' => $reportCard,
+            'skill' => $skill,
+            'classrooms' => Classroom::orderBy('skill_name')->get()
         ]);
     }
 
-    public function update(Request $request, ReportCardSkill $report_card_skill)
+    public function update(Request $request, ReportCard $reportCard, ReportCardSkill $skill)
     {
         $data = $request->validate([
             'name'         => 'required|string|max:255',
             'description'  => 'nullable|string|max:500',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'is_active'    => 'nullable|boolean',
+            'rating'       => 'nullable|in:EE,ME,AE,BE',
         ]);
 
-        $data['is_active'] = (bool)($data['is_active'] ?? true);
+        $skill->update($data);
 
-        $report_card_skill->update($data);
-
-        return redirect()->route('academics.report-card-skills.index')
-            ->with('success', 'Skill updated.');
+        return redirect()
+            ->route('academics.report-cards.skills.index', $reportCard)
+            ->with('success', 'Skill updated successfully.');
     }
 
-    public function destroy(ReportCardSkill $report_card_skill)
+    public function destroy(ReportCard $reportCard, ReportCardSkill $skill)
     {
-        $report_card_skill->delete();
+        $skill->delete();
 
-        return back()->with('success', 'Skill deleted.');
+        return redirect()
+            ->route('academics.report-cards.skills.index', $reportCard)
+            ->with('success', 'Skill removed.');
     }
 }

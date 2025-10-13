@@ -7,13 +7,19 @@
     <form action="{{ route('academics.student-behaviours.store') }}" method="POST">
         @csrf
         <div class="mb-3">
-            <label>Student</label>
-            <select name="student_id" class="form-select" required>
-                @foreach($students as $student)
-                    <option value="{{ $student->id }}">{{ $student->full_name }} ({{ $student->classrooms->name ?? '' }})</option>
-                @endforeach
-            </select>
+            <label class="form-label">Student</label>
+            <div class="input-group">
+                <input type="hidden" id="selectedStudentId" name="student_id" value="">
+                <input type="text" id="selectedStudentName" class="form-control" placeholder="Search by name or admission number" readonly>
+                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#studentSearchModal">
+                    Search
+                </button>
+            </div>
         </div>
+
+        {{-- include the search modal --}}
+        @include('partials.student_search_modal')
+
         <div class="mb-3">
             <label>Behaviour</label>
             <select name="behaviour_id" class="form-select" required>

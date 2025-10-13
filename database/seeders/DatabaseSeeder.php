@@ -18,7 +18,8 @@ public function run(): void
         // SubjectSeeder::class,
         // DemoExamSeeder::class,
         // DemoAcademicsSeeder::class,
-        ExamGradeSeeder::class,
+        // ExamGradeSeeder::class,
+        BehaviourSeeder::class,
     ]);
 }
 

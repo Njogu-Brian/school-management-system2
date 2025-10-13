@@ -4,8 +4,9 @@ namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
 
-class StudentBehavior extends Model
+class StudentBehaviour extends Model
 {
+    protected $table = 'student_behaviours';
     protected $fillable = [
         'student_id',
         'behaviour_id',
@@ -22,7 +23,7 @@ class StudentBehavior extends Model
 
     public function behaviour()
     {
-        return $this->belongsTo(Behavior::class, 'behaviour_id');
+        return $this->belongsTo(Behaviour::class, 'behaviour_id');
     }
 
     public function academicYear()
@@ -40,4 +41,3 @@ class StudentBehavior extends Model
         return $this->belongsTo(\App\Models\Staff::class, 'recorded_by');
     }
 }
-    

@@ -19,24 +19,27 @@
         </thead>
         <tbody>
             @foreach ($streams as $stream)
-            <tr>
-                <td>{{ $stream->name }}</td>
-                <td>
-                    @if($stream->classroomss->isEmpty())
-                        <span class="text-muted">Not Assigned</span>
-                    @else
-                        {{ $stream->classroomss->pluck('name')->implode(', ') }}
-                    @endif
-                </td>
-                <td>
-                    <a href="{{ route('academics.streams.edit', $stream->id) }}" class="btn btn-sm btn-primary">Edit</a>
-                    <form action="{{ route('academics.streams.destroy', $stream->id) }}" method="POST" style="display:inline;">
-                        @csrf
-                        @method('DELETE')
-                        <button class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</button>
-                    </form>
-                </td>
-            </tr>
+                <tr>
+                    <td>{{ $stream->name }}</td>
+                    <td>
+                        @if(optional($stream->classrooms)->isEmpty())
+                            <span class="text-muted">Not Assigned</span>
+                        @else
+                            {{ $stream->classrooms->pluck('name')->implode(', ') }}
+                        @endif
+                    </td>
+                    <td>
+                        <a href="{{ route('academics.streams.edit', $stream->id) }}" class="btn btn-sm btn-warning">
+                            <i class="bi bi-pencil"></i> Edit
+                        </a>
+                        <form action="{{ route('academics.streams.destroy', $stream->id) }}" method="POST" style="display:inline;">
+                            @csrf @method('DELETE')
+                            <button class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this stream?')">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
             @endforeach
         </tbody>
     </table>

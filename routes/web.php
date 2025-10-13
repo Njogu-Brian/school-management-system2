@@ -51,11 +51,12 @@ use App\Http\Controllers\Academics\ExamGradeController;
 use App\Http\Controllers\Academics\ExamMarkController;
 use App\Http\Controllers\Academics\ReportCardController;
 use App\Http\Controllers\Academics\ReportCardSkillController;
-use App\Http\Controllers\Academics\BehaviorController;
+use App\Http\Controllers\Academics\behaviourController;
 use App\Http\Controllers\Academics\HomeworkController;
 use App\Http\Controllers\Academics\DiaryController;
-use App\Http\Controllers\Academics\StudentBehaviorController;
+use App\Http\Controllers\Academics\StudentBehaviourController;
 use App\Http\Controllers\Academics\ExamPaperController;
+use App\Http\Controllers\Academics\DiaryMessageController;
 
 
 /*
@@ -168,6 +169,9 @@ Route::middleware('auth')->group(function () {
             Route::resource('exam-grades', ExamGradeController::class);
             Route::resource('homework', HomeworkController::class);
             Route::resource('diaries', DiaryController::class);
+            Route::prefix('diaries/{diary}/messages')->as('diary.messages.')->group(function () {
+                Route::post('/', [DiaryMessageController::class, 'store'])->name('store');
+            });
 
             // Exam timetable
             Route::get('exams/timetable', [ExamController::class, 'timetable'])
@@ -203,10 +207,10 @@ Route::middleware('auth')->group(function () {
                 ->name('report-cards.public');
 
             /*
-            |---------------------- Behavior ----------------------
+            |---------------------- behaviour ----------------------
             */
-            Route::resource('behaviors', BehaviorController::class);
-            Route::resource('student-behaviors', StudentBehaviorController::class);
+            Route::resource('behaviours', BehaviourController::class);
+            Route::resource('student-behaviours', StudentBehaviourController::class);
 
             /*
             |---------------------- Report Card Skills ----------------------
