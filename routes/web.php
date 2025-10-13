@@ -27,6 +27,7 @@ use App\Http\Controllers\OnlineAdmissionController;
 use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\CommunicationAnnouncementController;
+use App\Http\Controllers\PlaceholderController;
 
 use App\Http\Controllers\VoteheadController;
 use App\Http\Controllers\FeeStructureController;
@@ -426,6 +427,16 @@ Route::middleware('auth')->group(function () {
         Route::resource('communication-templates', CommunicationTemplateController::class)
             ->parameters(['communication-templates' => 'communication_template'])
             ->except(['show']);
+    });
+
+        //Placeholders  
+        Route::prefix('settings/placeholders')->middleware(['auth'])->group(function () {
+        Route::get('/', [App\Http\Controllers\Settings\PlaceholderController::class, 'index'])->name('settings.placeholders.index');
+        Route::get('/create', [App\Http\Controllers\Settings\PlaceholderController::class, 'create'])->name('settings.placeholders.create');
+        Route::post('/store', [App\Http\Controllers\Settings\PlaceholderController::class, 'store'])->name('settings.placeholders.store');
+        Route::get('/{placeholder}/edit', [App\Http\Controllers\Settings\PlaceholderController::class, 'edit'])->name('settings.placeholders.edit');
+        Route::put('/{placeholder}', [App\Http\Controllers\Settings\PlaceholderController::class, 'update'])->name('settings.placeholders.update');
+        Route::delete('/{placeholder}', [App\Http\Controllers\Settings\PlaceholderController::class, 'destroy'])->name('settings.placeholders.destroy');
     });
 
     /*

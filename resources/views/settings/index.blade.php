@@ -21,6 +21,9 @@
             <a class="nav-link" id="ids-tab" data-bs-toggle="tab" href="#features" role="tab">Features</a>
         </li>
         <li class="nav-item" role="presentation">
+            <a class="nav-link" id="placeholders-tab" data-bs-toggle="tab" href="#placeholders" role="tab">Placeholders</a>
+        </li>
+        <li class="nav-item" role="presentation">
             <a class="nav-link" id="ids-tab" data-bs-toggle="tab" href="#modules" role="tab">Modules</a>
         </li>
         <li class="nav-item" role="presentation">
@@ -37,6 +40,7 @@
         @include('settings.partials.system')
         @include('settings.partials.features')
         @include('settings.partials.modules')
+        @include('settings.partials.placeholders')
     </div>
 </div>
 @endsection
