@@ -212,4 +212,32 @@ class SettingController extends Controller
             'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields'
         ));
     }
+    public function placeholders()
+    {
+        $systemPlaceholders = [
+            ['key' => 'school_name', 'value' => setting('school_name')],
+            ['key' => 'school_phone', 'value' => setting('school_phone')],
+            ['key' => 'date', 'value' => now()->format('d M Y')],
+            ['key' => 'student_name', 'value' => 'Student’s full name'],
+            ['key' => 'class_name', 'value' => 'Classroom name'],
+            ['key' => 'father_name', 'value' => 'Parent’s full name'],
+            ['key' => 'staff_name', 'value' => 'Staff full name'],
+        ];
+
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
+
+        return view('settings.partials.placeholders', compact('systemPlaceholders', 'customPlaceholders'));
+    }
+
+    public function storePlaceholder(Request $request)
+    {
+        $data = $request->validate([
+            'key' => 'required|string|unique:custom_placeholders,key',
+            'value' => 'required|string',
+        ]);
+
+        \App\Models\CustomPlaceholder::create($data);
+        return back()->with('success', 'Placeholder added successfully.');
+    }
+
 }

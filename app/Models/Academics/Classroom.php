@@ -31,4 +31,9 @@ class Classroom extends Model
     {
         return $this->belongsToMany(Subject::class, 'classroom_subject');
     }
+    public function getFullNameAttribute()
+    {
+        return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
+    }
+
 }

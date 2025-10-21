@@ -30,8 +30,8 @@ class HomeworkController extends Controller
 
         // Admins see all, Teachers only their classes/subjects
         if ($user->hasRole(['Super Admin','Admin'])) {
-            $classrooms = Classroom::orderBy('name')->get();
-            $subjects   = Subject::orderBy('name')->get();
+            $classrooms = Classroom::orderBy('first_name')->get();
+            $subjects   = Subject::orderBy('first_name')->get();
         } else {
             $teacherId  = $user->staff?->id;
             $classrooms = Classroom::where('teacher_id',$teacherId)->get();

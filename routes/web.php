@@ -437,6 +437,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/{placeholder}/edit', [App\Http\Controllers\Settings\PlaceholderController::class, 'edit'])->name('settings.placeholders.edit');
         Route::put('/{placeholder}', [App\Http\Controllers\Settings\PlaceholderController::class, 'update'])->name('settings.placeholders.update');
         Route::delete('/{placeholder}', [App\Http\Controllers\Settings\PlaceholderController::class, 'destroy'])->name('settings.placeholders.destroy');
+        Route::post('/settings/placeholders/store', [SettingController::class, 'storePlaceholder'])->name('settings.placeholders.store');
+
     });
 
     /*

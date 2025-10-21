@@ -112,5 +112,10 @@ class Student extends Model
     {
         return (new static)->newQueryWithoutScope('active');
     }
+    public function getNameAttribute()
+    {
+        return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
+    }
+
 
 }

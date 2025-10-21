@@ -178,9 +178,51 @@ if (!function_exists('available_placeholders')) {
 /**
  * Map-based replacer if you ever want to skip entity logic and just pass a map.
  */
-if (!function_exists('replace_placeholders_with_map')) {
-    function replace_placeholders_with_map(string $message, array $map): string
-    {
-        return str_replace(array_keys($map), array_values($map), $message);
+    if (!function_exists('replace_placeholders')) {
+        function replace_placeholders($message, $entity = null)
+        {
+            $replacements = [
+                '{school_name}' => setting('school_name', system_setting('school_name', 'Our School')),
+                '{school_phone}' => setting('school_phone', system_setting('school_phone', '')),
+                '{date}' => now()->format('d M Y'),
+            ];
+
+            // Load custom placeholders from DB
+            if (\Schema::hasTable('custom_placeholders')) {
+                $customs = \App\Models\CustomPlaceholder::all();
+                foreach ($customs as $p) {
+                    $replacements['{' . $p->key . '}'] = $p->value;
+                }
+            }
+
+            // Student entity placeholders
+            if ($entity instanceof \App\Models\Student) {
+                $replacements += [
+                    '{student_name}' => $entity->name ?? '',
+                    '{admission_no}' => $entity->admission_no ?? '',
+                    '{class_name}' => optional($entity->classroom)->name,
+                    '{section}' => optional($entity->classroom)->section,
+                ];
+
+                $p = $entity->parent;
+                if ($p) {
+                    $replacements += [
+                        '{father_name}' => $p->father_name ?? '',
+                        '{mother_name}' => $p->mother_name ?? '',
+                        '{guardian_name}' => $p->guardian_name ?? '',
+                    ];
+                }
+            }
+
+            // Staff entity placeholders
+            if ($entity instanceof \App\Models\Staff) {
+                $replacements += [
+                    '{staff_name}' => trim($entity->first_name . ' ' . $entity->last_name),
+                    '{staff_role}' => $entity->role ?? '',
+                ];
+            }
+
+            return str_replace(array_keys($replacements), array_values($replacements), $message);
+        }
     }
-}
+
