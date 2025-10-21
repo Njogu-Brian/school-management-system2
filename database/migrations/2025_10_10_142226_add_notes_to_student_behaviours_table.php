@@ -13,16 +13,21 @@ return new class extends Migration
     {
         Schema::table('student_behaviours', function (Blueprint $table) {
             if (!Schema::hasColumn('student_behaviours', 'notes')) {
-                $table->text('notes')->nullable()->after('academic_year_id');
+                // Remove the 'after' clause to avoid referencing a non-existent column
+                $table->text('notes')->nullable();
             }
         });
     }
 
+    /**
+     * Reverse the migrations.
+     */
     public function down()
     {
         Schema::table('student_behaviours', function (Blueprint $table) {
-            $table->dropColumn('notes');
+            if (Schema::hasColumn('student_behaviours', 'notes')) {
+                $table->dropColumn('notes');
+            }
         });
     }
-
 };
