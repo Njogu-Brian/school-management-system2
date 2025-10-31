@@ -2,36 +2,21 @@
 
 
 
+// app/Models/Setting.php
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
 class Setting extends Model
 {
-    protected $fillable = [
-        'app_version', 'maintenance_mode', 'show_announcements',
-        'staff_id_prefix', 'staff_id_start',
-        'student_id_prefix', 'student_id_start',
-    ];
+    protected $table = 'settings';
 
-    public $timestamps = false;
+    // EITHER allow everything:
+    protected $guarded = [];      // simplest
 
-    /**
-     * Get setting by key (static accessor)
-     */
-    public static function get($key, $default = null)
-    {
-        return optional(self::where('key', $key)->first())->value ?? $default;
-    }
+    // OR be explicit:
+    // protected $fillable = ['key', 'value']; // add 'category' only if the column exists
 
-    /**
-     * Set or update a setting
-     */
-    public static function set($key, $value, $category = 'general')
-    {
-        return self::updateOrCreate(
-            ['key' => $key],
-            ['value' => $value, 'category' => $category]
-        );
-    }
+    public $timestamps = true;    // your table has created_at/updated_at
 }
+

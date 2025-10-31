@@ -40,7 +40,19 @@
         @include('settings.partials.system')
         @include('settings.partials.features')
         @include('settings.partials.modules')
-        @include('settings.partials.placeholders')
+        @include('settings.partials.placeholders', [
+        'systemPlaceholders' => [
+            ['key' => 'school_name',  'value' => setting('school_name')],
+            ['key' => 'school_phone', 'value' => setting('school_phone')],
+            ['key' => 'date',         'value' => now()->format('d M Y')],
+            ['key' => 'student_name', 'value' => 'Student’s full name'],
+            ['key' => 'class_name',   'value' => 'Classroom name'],
+            ['key' => 'father_name',  'value' => 'Parent’s full name'],
+            ['key' => 'staff_name',   'value' => 'Staff full name'],
+        ],
+        'customPlaceholders' => \App\Models\CustomPlaceholder::all(),
+    ])
+
     </div>
 </div>
 @endsection
