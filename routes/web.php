@@ -104,27 +104,25 @@ Route::get('/home', function () {
     abort(403, 'No dashboard defined for your role.');
 })->middleware('auth')->name('home');
 
+    /*
+    |---------------------- Dashboards ----------------------
+    */
+Route::middleware(['auth'])->group(function () {
+    Route::get('/admin/home', [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
+    Route::get('/teacher/home', [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
+    Route::get('/parent/home', [DashboardController::class, 'parentDashboard'])->name('parent.dashboard');
+    Route::get('/student/home', [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
+    Route::get('/finance/home', [DashboardController::class, 'financeDashboard'])->name('finance.dashboard');
+    Route::get('/transport/home', [DashboardController::class, 'transportDashboard'])->name('transport.dashboard');
+});
+
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated routes
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth')->group(function () {
-
-    /*
-    |---------------------- Dashboards ----------------------
-    */
-    Route::get('/admin/home', [DashboardController::class, 'adminDashboard'])
-        ->middleware('role:Super Admin|Admin|Secretary')
-        ->name('admin.dashboard');
-
-    Route::get('/teacher/dashboard', [DashboardController::class, 'teacherDashboard'])
-        ->middleware('role:Teacher')
-        ->name('teacher.dashboard');
-
-    Route::get('/student/dashboard', [DashboardController::class, 'studentDashboard'])
-        ->middleware('role:Student')
-        ->name('student.dashboard');
 
     /*
     |---------------------- Attendance ----------------------

@@ -101,10 +101,60 @@
             <h5>Royal Kings School</h5>
         </div>
 
-        <!-- Dashboard -->
-        <a href="{{ route('admin.dashboard') }}" class="{{ Request::is('admin/dashboard') ? 'active' : '' }}">
-            <i class="bi bi-speedometer2"></i> Dashboard
-        </a>
+        {{-- TEMPORARY: Dashboard Links (for testing all roles) --}}
+<!-- <li class="nav-item mt-3">
+    <span class="text-muted small fw-bold px-3">Dashboards (Testing)</span>
+</li> -->
+
+<li>
+    <a href="{{ route('admin.dashboard') }}"
+       class="{{ Request::is('admin/home') ? 'active' : '' }}">
+        <i class="bi bi-speedometer2"></i>
+        <span>Admin Dashboard</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('teacher.dashboard') }}"
+       class="{{ Request::is('teacher/home') ? 'active' : '' }}">
+        <i class="bi bi-easel2"></i>
+        <span>Teacher Dashboard</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('student.dashboard') }}"
+       class="{{ Request::is('student/home') ? 'active' : '' }}">
+        <i class="bi bi-person-badge"></i>
+        <span>Student Dashboard</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('parent.dashboard') }}"
+       class="{{ Request::is('parent/home') ? 'active' : '' }}">
+        <i class="bi bi-people"></i>
+        <span>Parent Dashboard</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('finance.dashboard') }}"
+       class="{{ Request::is('finance/home') ? 'active' : '' }}">
+        <i class="bi bi-cash-stack"></i>
+        <span>Finance Dashboard</span>
+    </a>
+</li>
+
+<li>
+    <a href="{{ route('transport.dashboard') }}"
+       class="{{ Request::is('transport/home') ? 'active' : '' }}">
+        <i class="bi bi-truck"></i>
+        <span>Transport Dashboard</span>
+    </a>
+</li>
+
+
 
         <!-- Students -->
         @php $studentsActive = Request::is('students*') || Request::is('online-admissions*'); @endphp

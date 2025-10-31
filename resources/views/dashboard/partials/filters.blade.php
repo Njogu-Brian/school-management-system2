@@ -1,42 +1,47 @@
-<div class="card">
-    <div class="card-header">Filter Students</div>
-    <div class="card-body">
-        <form method="GET" action="{{ route('admin.dashboard') }}" class="mb-3">
-            <div class="row">
-                <!-- Date Filter -->
-                <div class="col-md-4">
-                    <input type="date" name="date" class="form-control" value="{{ request('date', $selectedDate) }}">
-                </div>
-
-                <!-- Class Filter -->
-                <div class="col-md-4">
-                    <select name="class" class="form-control">
-                        <option value="">All Classes</option>
-                        @foreach ($classes as $class)
-                            <option value="{{ $class }}" {{ request('class') == $class ? 'selected' : '' }}>
-                                {{ $class }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <!-- Status Filter -->
-                <div class="col-md-4">
-                    <select name="status" class="form-control">
-                        <option value="">All Status</option>
-                        <option value="present" {{ request('status') == 'present' ? 'selected' : '' }}>Present</option>
-                        <option value="absent" {{ request('status') == 'absent' ? 'selected' : '' }}>Absent</option>
-                    </select>
-                </div>
-
-                <!-- Search Filter -->
-                <div class="col-md-4 mt-2">
-                    <input type="text" name="search" class="form-control" placeholder="Search by Name" value="{{ request('search') }}">
-                </div>
-            </div>
-
-            <button type="submit" class="btn btn-primary mt-2">Apply Filters</button>
-            <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary mt-2">Reset</a>
-        </form>
+<form method="GET" class="card card-body shadow-sm mb-3">
+  <div class="row g-2 align-items-end">
+    <div class="col-6 col-md-3">
+      <label class="form-label">Academic Year</label>
+      <select name="year_id" class="form-select">@foreach($years as $y)
+        <option value="{{ $y->id }}" @selected($filters['year_id']==$y->id)>{{ $y->name }}</option>
+      @endforeach</select>
     </div>
-</div>
+    <div class="col-6 col-md-3">
+      <label class="form-label">Term</label>
+      <select name="term_id" class="form-select">@foreach($terms as $t)
+        <option value="{{ $t->id }}" @selected($filters['term_id']==$t->id)>{{ $t->name }}</option>
+      @endforeach</select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label">From</label>
+      <input type="date" name="from" class="form-control" value="{{ $filters['from'] }}">
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label">To</label>
+      <input type="date" name="to" class="form-control" value="{{ $filters['to'] }}">
+    </div>
+
+    <div class="col-6 col-md-3">
+      <label class="form-label">Classroom</label>
+      <select name="classroom_id" class="form-select">
+        <option value="">All</option>
+        @foreach($classrooms as $c)
+        <option value="{{ $c->id }}" @selected($filters['classroom_id']==$c->id)>{{ $c->name }}</option>
+        @endforeach
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label">Stream</label>
+      <select name="stream_id" class="form-select">
+        <option value="">All</option>
+        @foreach($streams as $s)
+          <option value="{{ $s->id }}" @selected($filters['stream_id']==$s->id)>{{ $s->name }}</option>
+        @endforeach
+      </select>
+    </div>
+
+    <div class="col-12 col-md-3">
+      <button class="btn btn-primary w-100"><i class="bi bi-funnel"></i> Apply Filters</button>
+    </div>
+  </div>
+</form>

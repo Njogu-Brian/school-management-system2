@@ -226,3 +226,34 @@ if (!function_exists('available_placeholders')) {
         }
     }
 
+if (! function_exists('format_number')) {
+    function format_number($value, int $decimals = 0): string
+    {
+        return number_format((float)$value, $decimals);
+    }
+}
+
+if (! function_exists('format_money')) {
+    /**
+     * Format money using Intl NumberFormatter when available, with a safe fallback.
+     * Uses config('app.currency', 'KES') and app()->getLocale() by default.
+     */
+    function format_money($value, ?string $currency = null, ?string $locale = null): string
+    {
+        $currency = $currency ?: config('app.currency', 'KES');
+        $locale   = $locale   ?: app()->getLocale();
+
+        try {
+            if (class_exists(\NumberFormatter::class)) {
+                $fmt = new \NumberFormatter($locale, \NumberFormatter::CURRENCY);
+                return $fmt->formatCurrency((float)$value, $currency);
+            }
+        } catch (\Throwable $e) {
+            // fall through to simple formatting
+        }
+
+        return $currency . ' ' . number_format((float)$value, 2);
+    }
+}
+
+
