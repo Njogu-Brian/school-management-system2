@@ -91,8 +91,9 @@
         }
     </style>
 </head>
-<body>
-    <button class="sidebar-toggle d-lg-none" id="sidebarToggle"><i class="bi bi-list"></i></button>
+<body class="@auth with-sidebar @endauth">
+    @auth
+    <button class="sidebar-toggle d-lg-none" id="sidebarToggle"> <i class="bi bi-list"></i></button>
 
     <div class="sidebar">
         <div class="brand">
@@ -299,6 +300,7 @@
         </a>
         <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">@csrf</form>
     </div>
+     @endauth
 
     <div class="content">
         <div class="page-wrapper">@yield('content')</div>
