@@ -19,9 +19,16 @@ class CommunicationController extends Controller
     public function createEmail()
     {
         abort_unless(can_access("communication", "email", "add"), 403);
+
         $templates = CommunicationTemplate::where('type', 'email')->get();
-        $classes = Classroom::with('streams')->get();
-        return view('communication.send_email', compact('templates', 'classes'));
+        $classes   = Classroom::with('streams')->get();
+
+        // Sort by full name at the DB level
+        $students = Student::query()
+            ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
+            ->get();
+
+        return view('communication.send_email', compact('templates', 'classes', 'students'));
     }
 
     public function sendEmail(Request $request)
@@ -116,9 +123,16 @@ class CommunicationController extends Controller
     public function createSMS()
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
+
         $templates = CommunicationTemplate::where('type', 'sms')->get();
-        $classes = Classroom::with('streams')->get();
-        return view('communication.send_sms', compact('templates', 'classes'));
+        $classes   = Classroom::with('streams')->get();
+
+        // Same here for the SMS page
+        $students = Student::query()
+            ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
+            ->get();
+
+        return view('communication.send_sms', compact('templates', 'classes', 'students'));
     }
 
     public function sendSMS(Request $request, SMSService $smsService)
@@ -160,24 +174,35 @@ class CommunicationController extends Controller
         }
 
         $recipients = $this->collectRecipients($data, 'sms');
-
+        $title = 'SMS';
+        if (!empty($data['template_id'])) {
+            $tpl   = CommunicationTemplate::find($data['template_id']);
+            $title = $tpl?->title ?: $title;
+        }
         foreach ($recipients as $phone => $entity) {
             try {
                 $personalized = replace_placeholders($message, $entity);
-                $response     = $smsService->sendSMS($phone, $personalized);
+                $response = $smsService->sendSMS($phone, $personalized);
 
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
                     'recipient_id'   => $entity->id ?? null,
                     'contact'        => $phone,
                     'channel'        => 'sms',
+                    'title'          => $title,
                     'message'        => $personalized,
                     'type'           => 'sms',
                     'status'         => 'sent',
-                    'response'       => json_encode($response),
+                    'response'       => $response, // will be cast to array
                     'classroom_id'   => $entity->classroom_id ?? null,
                     'scope'          => 'sms',
                     'sent_at'        => now(),
+
+                    // NEW (match to your provider fields):
+                    'provider_id'    => data_get($response,'id') 
+                                        ?? data_get($response,'message_id') 
+                                        ?? data_get($response,'MessageID'),
+                    'provider_status'=> strtolower(data_get($response,'status','sent')),
                 ]);
             } catch (\Throwable $e) {
                 CommunicationLog::create([
@@ -272,5 +297,49 @@ class CommunicationController extends Controller
         }
 
         return $out;
+    }
+
+    public function smsDeliveryReport(Request $request)
+    {
+        // Typical provider fields (rename to yours)
+        $providerId = $request->input('id') 
+            ?? $request->input('message_id') 
+            ?? $request->input('MessageID');
+
+        $status     = strtolower($request->input('status', ''));
+        $delivered  = $request->input('delivered_at') ?? $request->input('done_time');
+        $errorCode  = $request->input('error_code');
+
+        if (!$providerId) {
+            return response()->json(['ok' => false, 'reason' => 'missing provider id'], 422);
+        }
+
+        $log = \App\Models\CommunicationLog::where('provider_id', $providerId)->first();
+        if (!$log) {
+            return response()->json(['ok' => false, 'reason' => 'log not found'], 404);
+        }
+
+        // Map provider statuses to app statuses
+        $map = [
+            'delivered'   => 'sent',
+            'success'     => 'sent',
+            'sent'        => 'sent',
+            'queued'      => 'pending',
+            'pending'     => 'pending',
+            'undelivered' => 'failed',
+            'failed'      => 'failed',
+            'blacklisted' => 'failed',
+            'rejected'    => 'failed',
+        ];
+        $appStatus = $map[$status] ?? $log->status;
+
+        $log->update([
+            'status'          => $appStatus,
+            'provider_status' => $status ?: $log->provider_status,
+            'delivered_at'    => $delivered ? \Illuminate\Support\Carbon::parse($delivered) : $log->delivered_at,
+            'error_code'      => $errorCode,
+        ]);
+
+        return response()->json(['ok' => true]);
     }
 }

@@ -126,8 +126,10 @@ document.getElementById('target').addEventListener('change', function() {
             <div class="mb-3">
                 <label>Select Student</label>
                 <select name="student_id" class="form-select">
-                    @foreach(\App\Models\Student::orderBy('name')->get() as $s)
-                        <option value="{{ $s->id }}">{{ $s->name }} ({{ $s->admission_no }})</option>
+                    @foreach($students as $s)
+                        <option value="{{ $s->id }}">
+                            {{ $s->name }} ({{ $s->admission_number }})
+                        </option>
                     @endforeach
                 </select>
             </div>

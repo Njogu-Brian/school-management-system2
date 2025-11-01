@@ -10,7 +10,15 @@ class ScheduledCommunication extends Model
         'type', 'template_id', 'target', 'classroom_id', 'send_at', 'status'
     ];
 
-    protected $dates = ['send_at'];
+    protected $casts = [
+        'send_at' => 'datetime',   // <-- add this
+    ];
+
+    // Optional: keep old blade name working
+    public function getScheduledAtAttribute()
+    {
+        return $this->send_at;
+    }
 
     public function template()
     {

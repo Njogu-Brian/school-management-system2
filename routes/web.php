@@ -77,6 +77,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Public student search (kept public per your original)
 Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
 
+// SMS Delivery Report Webhook
+Route::post('/webhooks/sms/dlr', [\App\Http\Controllers\CommunicationController::class, 'smsDeliveryReport']) ->name('webhooks.sms.dlr');
 /*
 |--------------------------------------------------------------------------
 | Home redirect by role
