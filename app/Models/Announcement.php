@@ -7,17 +7,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Announcement extends Model
 {
-    use HasFactory;
-
-    protected $fillable = [
-        'title', 'content', 'active', 'expires_at',
-    ];
-
-    // protected $dates = ['expires_at'];
-
+    protected $fillable = ['title','content','active','expires_at'];
     protected $casts = [
         'expires_at' => 'datetime',
-    ];    
+    ];
 
     public function isActive()
     {
