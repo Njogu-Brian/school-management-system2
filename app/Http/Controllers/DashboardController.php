@@ -178,6 +178,22 @@ class DashboardController extends Controller
                 ->map(function ($i) {
                     $paid    = (float)($i->paid_amount ?? 0);
                     $balance = max((float)$i->total - $paid, 0);
+
+                    // Try common due-date columns, fall back to null
+                    $dueDate = $i->due_date
+                        ?? $i->due_at
+                        ?? $i->due_on
+                        ?? null;
+
+                    $isOverdue = false;
+                    if ($dueDate) {
+                        try {
+                            $isOverdue = $balance > 0 && \Carbon\Carbon::parse($dueDate)->isPast();
+                        } catch (\Throwable $e) {
+                            $isOverdue = false;
+                        }
+                    }
+
                     return (object)[
                         'id'           => $i->id,
                         'number'       => $i->invoice_number,
@@ -185,7 +201,8 @@ class DashboardController extends Controller
                         'total'        => (float)$i->total,
                         'paid'         => $paid,
                         'balance'      => $balance,
-                        'status'       => $i->status, // unpaid | partial
+                        'status'       => $i->status,  // unpaid | partial
+                        'is_overdue'   => $isOverdue,  // <-- added for the Blade
                     ];
                 })
             : collect();

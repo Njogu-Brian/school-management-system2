@@ -14,10 +14,23 @@ use App\Models\OptionalFee;
 
 class InvoiceController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $invoices = Invoice::with('student.classroom')->latest()->paginate(20);
-        return view('finance.invoices.index', compact('invoices'));
+        $q = Invoice::with(['student.classroom','student.stream'])
+            ->when($request->filled('year'), fn($qq)=>$qq->where('year',$request->year))
+            ->when($request->filled('term'), fn($qq)=>$qq->where('term',$request->term))
+            ->when($request->filled('class_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('classroom_id',$request->class_id)))
+            ->when($request->filled('stream_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('stream_id',$request->stream_id)))
+            ->when($request->filled('votehead_id'), fn($qq)=>$qq->whereHas('items', fn($ii)=>$ii->where('votehead_id',$request->votehead_id)))
+            ->latest();
+
+        $invoices = $q->paginate(20)->appends($request->all());
+
+        $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
+        $streams    = \App\Models\Academics\Stream::orderBy('name')->get();
+        $voteheads  = \App\Models\Votehead::orderBy('name')->get();
+
+        return view('finance.invoices.index', compact('invoices','classrooms','streams','voteheads'));
     }
 
     public function create()
@@ -115,7 +128,7 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('student.classroom', 'items.votehead');
+        $invoice->load('student.classroom','student.stream','items.votehead');
         return view('finance.invoices.show', compact('invoice'));
     }
 
@@ -128,5 +141,31 @@ class InvoiceController extends Controller
     {
         // Excel import logic goes here (to be implemented separately)
         return back()->with('success', 'Imported successfully.');
+    }
+
+    public function updateItem(Request $request, Invoice $invoice, InvoiceItem $item)
+    {
+        $request->validate(['new_amount'=>'required|numeric|min:0','reason'=>'required|string|max:255']);
+
+        $delta = (float)$request->new_amount - (float)$item->amount;
+        if ($delta == 0) {
+            return back()->with('success', 'No change.');
+        }
+
+        $type = $delta > 0 ? 'debit' : 'credit';
+
+        \App\Services\JournalService::createAndApply([
+            'student_id'   => $invoice->student_id,
+            'votehead_id'  => $item->votehead_id,
+            'year'         => $invoice->year,
+            'term'         => $invoice->term,
+            'type'         => $type,
+            'amount'       => abs($delta),
+            'reason'       => $request->reason ?: 'Manual edit',
+            'effective_date' => now()->toDateString(),
+        ]);
+
+        // Item amount is already updated by service; refresh
+        return back()->with('success', 'Invoice item updated.');
     }
 }

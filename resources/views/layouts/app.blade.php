@@ -248,17 +248,49 @@
             <a href="{{ route('academics.student-behaviours.index') }}" class="{{ Request::is('academics/student-behaviours*') ? 'active' : '' }}">Student Behaviours</a>
         </div>
 
-        <!-- Finance -->
-        @php $financeActive = Request::is('finance*') || Request::is('voteheads*'); @endphp
-        <a href="#financeMenu" data-bs-toggle="collapse" aria-expanded="{{ $financeActive ? 'true' : 'false' }}" class="{{ $financeActive ? 'parent-active' : '' }}">
-            <i class="bi bi-currency-dollar"></i> Finance
-        </a>
-        <div class="collapse {{ $financeActive ? 'show' : '' }}" id="financeMenu">
-            <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}">Voteheads</a>
-            <a href="{{ route('finance.fee-structures.manage') }}" class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}">Fee Structures</a>
-            <a href="{{ route('finance.invoices.index') }}" class="{{ Request::is('finance/invoices*') ? 'active' : '' }}">Invoices</a>
-            <a href="{{ route('finance.optional_fees.index') }}" class="{{ Request::is('finance/optional_fees*') ? 'active' : '' }}">Optional Fees</a>
-        </div>
+{{-- Finance --}}
+@php
+    $financeActive = Request::is('finance*') || Request::is('voteheads*');
+@endphp
+
+<a href="#financeMenu" data-bs-toggle="collapse"
+   aria-expanded="{{ $financeActive ? 'true' : 'false' }}"
+   class="{{ $financeActive ? 'parent-active' : '' }}">
+    <i class="bi bi-currency-dollar"></i> Finance
+</a>
+
+<div class="collapse {{ $financeActive ? 'show' : '' }}" id="financeMenu">
+    <a href="{{ route('finance.voteheads.index') }}"
+       class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}">
+        Voteheads
+    </a>
+
+    <a href="{{ route('finance.fee-structures.manage') }}"
+       class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}">
+        Fee Structures
+    </a>
+
+    <a href="{{ route('finance.invoices.index') }}"
+       class="{{ Request::is('finance/invoices*') ? 'active' : '' }}">
+        Invoices
+    </a>
+
+    <a href="{{ route('finance.optional_fees.index') }}"
+       class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}">
+        Optional Fees
+    </a>
+
+    <a href="{{ route('finance.posting.index') }}"
+       class="{{ Request::is('finance/posting*') ? 'active' : '' }}">
+        Posting (Pending → Active)
+    </a>
+
+    <a href="{{ route('finance.journals.create') }}"
+       class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}">
+        Credit / Debit Adjustments
+    </a>
+</div>
+
 
         <!-- Staff -->
         <a href="{{ route('staff.index') }}" 

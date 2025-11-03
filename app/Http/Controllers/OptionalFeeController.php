@@ -12,7 +12,6 @@ use App\Models\Student;
 use App\Models\Votehead;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Services\DocumentNumberService;
 
 class OptionalFeeController extends Controller
 {
@@ -31,21 +30,23 @@ class OptionalFeeController extends Controller
         return $this->loadIndexData($request, 'student');
     }
 
-    private function loadIndexData(Request $request = null, $view = 'class')
+    private function loadIndexData(Request $request = null, string $view = 'class')
     {
-        $classrooms = Classroom::all();
-        $optionalVoteheads = Votehead::where('is_mandatory', false)->get();
-        $allStudents = Student::select('id', 'first_name', 'last_name', 'admission_number')->get()
-            ->sortBy(fn($s) => $s->full_name);
+        $classrooms        = Classroom::orderBy('name')->get();
+        $optionalVoteheads = Votehead::where('is_mandatory', false)->orderBy('name')->get();
+        // used by your student search modal (if it needs a preload list)
+        $allStudents       = Student::select('id','first_name','last_name','admission_number')
+            ->orderBy('first_name')->get();
 
-        $students = [];
-        $student = null;
-        $statuses = [];
-        $term = $request?->term;
-        $year = $request?->year;
+        $students = collect();   // class view list
+        $student  = null;        // selected student (student view)
+        $statuses = [];          // map for checked radios
+        $term     = $request?->term;
+        $year     = $request?->year;
 
-        if ($view === 'class' && $request?->filled(['classroom_id', 'term', 'year', 'votehead_id'])) {
-            $students = Student::where('classroom_id', $request->classrooms_id)->get();
+        // -------- CLASS VIEW --------
+        if ($view === 'class' && $request?->filled(['classroom_id','term','year','votehead_id'])) {
+            $students   = Student::where('classroom_id', $request->classroom_id)->orderBy('first_name')->get();
             $studentIds = $students->pluck('id');
 
             $billed = OptionalFee::where('votehead_id', $request->votehead_id)
@@ -60,9 +61,11 @@ class OptionalFeeController extends Controller
             }
         }
 
-        if ($view === 'student' && $request?->filled(['student_id', 'term', 'year'])) {
+        // -------- STUDENT VIEW --------
+        if ($view === 'student' && $request?->filled(['student_id','term','year'])) {
             $student = Student::find($request->student_id);
             if ($student) {
+                // key by votehead_id so the blade can do $statuses[$votehead->id]
                 $statuses = OptionalFee::where('student_id', $student->id)
                     ->where('term', $term)
                     ->where('year', $year)
@@ -77,57 +80,73 @@ class OptionalFeeController extends Controller
         ));
     }
 
-   public function saveClassBilling(Request $request)
+    public function saveClassBilling(Request $request)
     {
         $request->validate([
             'votehead_id' => 'required|exists:voteheads,id',
-            'term' => 'required|in:1,2,3',
-            'year' => 'required|integer',
-            'students' => 'array',
+            'term'        => 'required|in:1,2,3',
+            'year'        => 'required|integer',
+            'students'    => 'array', // students[student_id] => billed|exempt
         ]);
 
+        // If nothing was selected, exit gracefully
+        if (!$request->filled('students')) {
+            return back()->with('success', 'No changes to apply.');
+        }
+
         DB::transaction(function () use ($request) {
-            $voteheadId = $request->votehead_id;
-            $term = $request->term;
-            $year = $request->year;
+            $voteheadId = (int) $request->votehead_id;
+            $term       = (int) $request->term;
+            $year       = (int) $request->year;
 
-            $firstStudent = Student::find(array_key_first($request->students));
-            $classroomId = $firstStudent->classrooms_id;
+            $firstStudentId = array_key_first($request->students);
+            $firstStudent   = Student::find($firstStudentId);
+            $classroomId    = $firstStudent?->classroom_id;
 
-            $structure = \App\Models\FeeStructure::where('classroom_id', $classroomId)
+            $structure = FeeStructure::where('classroom_id', $classroomId)
                 ->where('year', $year)
                 ->first();
 
-            $amount = \App\Models\FeeCharge::where('fee_structure_id', $structure->id)
-                ->where('votehead_id', $voteheadId)
-                ->where('term', $term)
-                ->value('amount') ?? 0;
+            $amount = 0;
+            if ($structure) {
+                $amount = (float) (FeeCharge::where('fee_structure_id', $structure->id)
+                    ->where('votehead_id', $voteheadId)
+                    ->where('term', $term)
+                    ->value('amount') ?? 0);
+            }
 
             foreach ($request->students as $studentId => $status) {
+                $status = $status === 'bill' ? 'billed' : $status; // tolerate "bill"
                 if ($status === 'billed') {
-                    OptionalFee::updateOrCreate([
-                        'student_id' => $studentId,
-                        'votehead_id' => $voteheadId,
-                        'term' => $term,
-                        'year' => $year,
-                    ], [
-                        'status' => 'billed',
-                        'amount' => $amount,
-                    ]);
+                    OptionalFee::updateOrCreate(
+                        [
+                            'student_id' => $studentId,
+                            'votehead_id'=> $voteheadId,
+                            'term'       => $term,
+                            'year'       => $year,
+                        ],
+                        [
+                            'status' => 'billed',
+                            'amount' => $amount,
+                        ]
+                    );
 
-                    $invoice = \App\Models\Invoice::firstOrCreate([
-                        'student_id' => $studentId,
-                        'term' => $term,
-                        'year' => $year,
-                    ], [
-                        'invoice_number' => \App\Services\DocumentNumberService::generate('invoice', 'INV'),
-                        'total' => 0,
-                    ]);
+                    $invoice = Invoice::firstOrCreate(
+                        [
+                            'student_id' => $studentId,
+                            'term'       => $term,
+                            'year'       => $year,
+                        ],
+                        [
+                            'invoice_number' => $this->generateInvoiceNumber(),
+                            'total'          => 0,
+                        ]
+                    );
 
-                    \App\Models\InvoiceItem::updateOrCreate(
+                    InvoiceItem::updateOrCreate(
                         [
                             'invoice_id' => $invoice->id,
-                            'votehead_id' => $voteheadId,
+                            'votehead_id'=> $voteheadId,
                         ],
                         [
                             'amount' => $amount,
@@ -138,18 +157,18 @@ class OptionalFeeController extends Controller
                         'total' => $invoice->items()->sum('amount'),
                     ]);
                 } else {
-                    // ❌ Delete optional fee record
+                    // Exempt: remove optional fee + invoice item (and invoice if empty)
                     OptionalFee::where([
                         'student_id' => $studentId,
-                        'votehead_id' => $voteheadId,
-                        'term' => $term,
-                        'year' => $year,
+                        'votehead_id'=> $voteheadId,
+                        'term'       => $term,
+                        'year'       => $year,
                     ])->delete();
 
-                    $invoice = \App\Models\Invoice::where([
+                    $invoice = Invoice::where([
                         'student_id' => $studentId,
-                        'term' => $term,
-                        'year' => $year,
+                        'term'       => $term,
+                        'year'       => $year,
                     ])->first();
 
                     if ($invoice) {
@@ -174,47 +193,63 @@ class OptionalFeeController extends Controller
     {
         $request->validate([
             'student_id' => 'required|exists:students,id',
-            'term' => 'required|in:1,2,3',
-            'year' => 'required|integer',
-            'voteheads' => 'array',
+            'term'       => 'required|in:1,2,3',
+            'year'       => 'required|integer',
+            // expect: statuses[votehead_id] => bill|billed|exempt
+            'statuses'   => 'array',
         ]);
 
         DB::transaction(function () use ($request) {
-            $student = \App\Models\Student::find($request->student_id);
-            $structure = \App\Models\FeeStructure::where('classroom_id', $student->classrooms_id)
-                ->where('year', $request->year)
+            $student   = Student::findOrFail($request->student_id);
+            $term      = (int) $request->term;
+            $year      = (int) $request->year;
+            $statuses  = $request->input('statuses', []);
+
+            $structure = FeeStructure::where('classroom_id', $student->classroom_id)
+                ->where('year', $year)
                 ->first();
 
-            foreach ($request->voteheads as $voteheadId => $status) {
-                $amount = \App\Models\FeeCharge::where('fee_structure_id', $structure->id)
-                    ->where('votehead_id', $voteheadId)
-                    ->where('term', $request->term)
-                    ->value('amount') ?? 0;
+            foreach ($statuses as $voteheadId => $status) {
+                $status = $status === 'bill' ? 'billed' : $status; // tolerate "bill"
+                $amount = 0;
+
+                if ($structure) {
+                    $amount = (float) (FeeCharge::where('fee_structure_id', $structure->id)
+                        ->where('votehead_id', $voteheadId)
+                        ->where('term', $term)
+                        ->value('amount') ?? 0);
+                }
 
                 if ($status === 'billed') {
-                    OptionalFee::updateOrCreate([
-                        'student_id' => $student->id,
-                        'votehead_id' => $voteheadId,
-                        'term' => $request->term,
-                        'year' => $request->year,
-                    ], [
-                        'status' => 'billed',
-                        'amount' => $amount,
-                    ]);
+                    OptionalFee::updateOrCreate(
+                        [
+                            'student_id' => $student->id,
+                            'votehead_id'=> $voteheadId,
+                            'term'       => $term,
+                            'year'       => $year,
+                        ],
+                        [
+                            'status' => 'billed',
+                            'amount' => $amount,
+                        ]
+                    );
 
-                    $invoice = \App\Models\Invoice::firstOrCreate([
-                        'student_id' => $student->id,
-                        'term' => $request->term,
-                        'year' => $request->year,
-                    ], [
-                        'invoice_number' => \App\Services\DocumentNumberService::generate('invoice', 'INV'),
-                        'total' => 0,
-                    ]);
+                    $invoice = Invoice::firstOrCreate(
+                        [
+                            'student_id' => $student->id,
+                            'term'       => $term,
+                            'year'       => $year,
+                        ],
+                        [
+                            'invoice_number' => $this->generateInvoiceNumber(),
+                            'total'          => 0,
+                        ]
+                    );
 
-                    \App\Models\InvoiceItem::updateOrCreate(
+                    InvoiceItem::updateOrCreate(
                         [
                             'invoice_id' => $invoice->id,
-                            'votehead_id' => $voteheadId,
+                            'votehead_id'=> $voteheadId,
                         ],
                         [
                             'amount' => $amount,
@@ -225,18 +260,17 @@ class OptionalFeeController extends Controller
                         'total' => $invoice->items()->sum('amount'),
                     ]);
                 } else {
-                    // ❌ Delete optional fee record
                     OptionalFee::where([
                         'student_id' => $student->id,
-                        'votehead_id' => $voteheadId,
-                        'term' => $request->term,
-                        'year' => $request->year,
+                        'votehead_id'=> $voteheadId,
+                        'term'       => $term,
+                        'year'       => $year,
                     ])->delete();
 
-                    $invoice = \App\Models\Invoice::where([
+                    $invoice = Invoice::where([
                         'student_id' => $student->id,
-                        'term' => $request->term,
-                        'year' => $request->year,
+                        'term'       => $term,
+                        'year'       => $year,
                     ])->first();
 
                     if ($invoice) {
@@ -257,4 +291,26 @@ class OptionalFeeController extends Controller
         return back()->with('success', 'Student optional fees updated.');
     }
 
+    /**
+     * Try the DocumentNumberService; if it fails (e.g. document_counters table missing),
+     * fall back to a simple predictable sequence: INV-YYYY-#####.
+     */
+    private function generateInvoiceNumber(): string
+    {
+        // Attempt the service if it exists and is healthy
+        try {
+            if (class_exists(\App\Services\DocumentNumberService::class)) {
+                $maybe = \App\Services\DocumentNumberService::generate('invoice', 'INV');
+                if (!empty($maybe)) {
+                    return $maybe;
+                }
+            }
+        } catch (\Throwable $e) {
+            // swallow and fall through to fallback
+        }
+
+        // Fallback: use the highest invoice id to build a sequence
+        $next = (int) (Invoice::max('id') ?? 0) + 1;
+        return 'INV-' . date('Y') . '-' . str_pad((string)$next, 5, '0', STR_PAD_LEFT);
+    }
 }

@@ -11,10 +11,10 @@
           <tr>
             <td>{{ $inv->number }}</td>
             <td>{{ $inv->student_name }}</td>
-            <td>{{ money_format($inv->balance) }}</td>
+            <td>{{ number_format($inv->balance, 2) }}</td>
             <td>
-              <span class="badge bg-{{ $inv->is_overdue ? 'danger' : 'warning' }}">
-                {{ $inv->is_overdue ? 'Overdue' : 'Due' }}
+              <span class="badge bg-{{ !empty($inv->is_overdue) ? 'danger' : 'warning' }}">
+                {{ !empty($inv->is_overdue) ? 'Overdue' : 'Due' }}
               </span>
             </td>
             <td><a href="{{ route('finance.invoices.show',$inv->id) }}" class="btn btn-outline-primary btn-sm">Open</a></td>

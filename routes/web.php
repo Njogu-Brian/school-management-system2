@@ -492,6 +492,30 @@ Route::middleware('auth')->group(function () {
         Route::post('credits/store', [CreditNoteController::class, 'store'])->name('credits.store');
         Route::get('debits/create', [DebitNoteController::class, 'create'])->name('debits.create');
         Route::post('debits/store', [DebitNoteController::class, 'store'])->name('debits.store');
+
+        // Posting (Pending → Active)
+        Route::prefix('posting')->name('posting.')->group(function(){
+            Route::get('/', [\App\Http\Controllers\PostingController::class, 'index'])->name('index');
+            Route::post('/preview', [\App\Http\Controllers\PostingController::class, 'preview'])->name('preview');
+            Route::post('/commit', [\App\Http\Controllers\PostingController::class, 'commit'])->name('commit');
+        });
+
+        // Journals (Credit/Debit)
+        Route::prefix('journals')->name('journals.')->group(function(){
+            Route::get('/create', [\App\Http\Controllers\JournalController::class, 'create'])->name('create');
+            Route::post('/store',  [\App\Http\Controllers\JournalController::class, 'store'])->name('store');
+            
+        });
+
+        // Journals (Credit/Debit) — bulk
+        Route::get('journals/bulk',  [\App\Http\Controllers\JournalController::class, 'bulkForm'])->name('journals.bulk.form');
+        Route::post('journals/bulk', [\App\Http\Controllers\JournalController::class, 'bulkImport'])->name('journals.bulk.import');
+        Route::get('journals/template', [\App\Http\Controllers\JournalController::class, 'template'])->name('journals.bulk.template');
+
+        // Invoice line editing
+        Route::post('invoices/{invoice}/items/{item}/update', [\App\Http\Controllers\InvoiceController::class,'updateItem'])
+            ->name('invoices.items.update');
+
     });
 
 });
