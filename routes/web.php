@@ -464,6 +464,10 @@ Route::middleware('auth')->group(function () {
             Route::put('/{invoice}', [InvoiceController::class, 'update'])->name('update');
             Route::post('/reverse/{invoice}', [InvoiceController::class, 'reverse'])->name('reverse');
 
+            // Print PDFs
+            Route::get('/print',              [InvoiceController::class, 'printBulk'])->name('print');
+            Route::get('/{invoice}/print',    [InvoiceController::class, 'printSingle'])->name('print_single');
+
             // Excel Import
             Route::get('/import', [InvoiceController::class, 'importForm'])->name('import.form');
             Route::post('/import', [InvoiceController::class, 'import'])->name('import');

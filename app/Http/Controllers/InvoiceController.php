@@ -11,6 +11,8 @@ use App\Services\DocumentNumberService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Database\Eloquent\Builder;
 
 class InvoiceController extends Controller
 {
@@ -168,4 +170,93 @@ class InvoiceController extends Controller
         // Item amount is already updated by service; refresh
         return back()->with('success', 'Invoice item updated.');
     }
+
+    private function filteredInvoicesQuery(Request $request): Builder
+    {
+        return Invoice::query()
+            ->with(['student.classroom','student.stream','items.votehead'])
+            ->when($request->filled('year'), fn($q) => $q->where('year', $request->year))
+            ->when($request->filled('term'), fn($q) => $q->where('term', $request->term))
+            ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id))
+            ->when($request->filled('votehead_id'), fn($q) =>
+                $q->whereHas('items', fn($i) => $i->where('votehead_id', request('votehead_id')))
+            )
+            ->when($request->filled('class_id'), fn($q) =>
+                $q->whereHas('student', fn($s) => $s->where('classroom_id', request('class_id')))
+            )
+            ->when($request->filled('stream_id'), fn($q) =>
+                $q->whereHas('student', fn($s) => $s->where('stream_id', request('stream_id')))
+            )
+            ->orderByDesc('year')->orderByDesc('term')->orderBy('student_id');
+    }
+
+    private function branding(): array
+    {
+        $kv = \Illuminate\Support\Facades\DB::table('settings')->pluck('value','key')->map(fn($v) => trim((string)$v));
+
+        $name    = $kv['school_name']    ?? config('app.name', 'Your School');
+        $email   = $kv['school_email']   ?? 'info@example.com';
+        $phone   = $kv['school_phone']   ?? '';
+        $website = $kv['school_website'] ?? '';
+        $address = $kv['school_address'] ?? '';
+
+        // Default to your actual file
+        $logoRel = $kv['school_logo_path'] ?? 'images/logo.png';
+
+        $candidates = [ public_path($logoRel), public_path('storage/'.$logoRel), storage_path('app/public/'.$logoRel) ];
+
+        $logoBase64 = null;
+        foreach ($candidates as $path) {
+            if (!is_file($path)) continue;
+
+            $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $mime = $ext === 'svg' ? 'image/svg+xml' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : 'image/png');
+
+            // If it's a PNG but neither GD nor Imagick is available, skip embedding to avoid DomPDF fatal
+            if ($mime === 'image/png' && !extension_loaded('gd') && !extension_loaded('imagick')) {
+                $logoBase64 = null;
+                break;
+            }
+
+            $logoBase64 = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($path));
+            break;
+        }
+
+        return compact('name','email','phone','website','address','logoBase64');
+    }
+
+    public function printBulk(Request $request)
+    {
+        $invoices = $this->filteredInvoicesQuery($request)->get();
+        if ($invoices->isEmpty()) {
+            return back()->with('error', 'No invoices found for the selected criteria.');
+        }
+
+        $filters   = $request->only(['year','term','votehead_id','class_id','stream_id','student_id']);
+        $branding  = $this->branding();
+        $printedBy = optional(auth()->user())->name ?? 'System';
+        $printedAt = now();
+
+        $pdf = Pdf::loadView('finance.invoices.pdf.bulk', compact(
+            'invoices','filters','branding','printedBy','printedAt'
+        ))->setPaper('A4','portrait');
+
+        return $pdf->stream('invoices.pdf');
+    }
+
+    public function printSingle(Invoice $invoice)
+    {
+        $invoice->load(['student.classroom','student.stream','items.votehead']);
+
+        $branding  = $this->branding();
+        $printedBy = optional(auth()->user())->name ?? 'System';
+        $printedAt = now();
+
+        $pdf = Pdf::loadView('finance.invoices.pdf.single', compact(
+            'invoice','branding','printedBy','printedAt'
+        ))->setPaper('A4','portrait');
+
+        return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
+    }
+
 }

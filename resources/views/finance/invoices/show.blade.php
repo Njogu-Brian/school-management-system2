@@ -2,7 +2,16 @@
 
 @section('content')
 <div class="container">
-  <h3 class="mb-3">Invoice: {{ $invoice->invoice_number }}</h3>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Invoice: {{ $invoice->invoice_number }}</h3>
+
+    {{-- 🔹 Print PDF Button --}}
+    <a href="{{ route('finance.invoices.print_single', $invoice) }}" 
+       target="_blank" 
+       class="btn btn-outline-secondary">
+       <i class="bi bi-printer"></i> Print PDF
+    </a>
+  </div>
 
   @includeIf('finance.invoices.partials.alerts')
 
@@ -50,16 +59,16 @@
               <td>
                 @php
                   $ed = $item->effective_date;
-                  // If it's already a Carbon instance (after the cast), ->format works.
-                  // If for some reason it's still a string, just echo the string.
                 @endphp
                 {{ $ed ? (method_exists($ed, 'format') ? $ed->format('Y-m-d') : $ed) : '-' }}
               </td>
               <td>
                 <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="d-flex gap-2">
                   @csrf
-                  <input type="number" step="0.01" name="new_amount" class="form-control form-control-sm" value="{{ $item->amount }}" style="max-width:120px;">
-                  <input type="text" name="reason" class="form-control form-control-sm" placeholder="Reason" style="max-width:200px;" required>
+                  <input type="number" step="0.01" name="new_amount" class="form-control form-control-sm" 
+                         value="{{ $item->amount }}" style="max-width:120px;">
+                  <input type="text" name="reason" class="form-control form-control-sm" 
+                         placeholder="Reason" style="max-width:200px;" required>
                   <button class="btn btn-sm btn-outline-primary">Update</button>
                 </form>
               </td>

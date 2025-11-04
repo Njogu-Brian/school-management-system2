@@ -2,7 +2,15 @@
 
 @section('content')
 <div class="container">
-  <h3 class="mb-3">Invoices</h3>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Invoices</h3>
+    {{-- 🔹 Print PDF Button --}}
+    <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) }}"
+       target="_blank"
+       class="btn btn-outline-secondary">
+       <i class="bi bi-printer"></i> Print PDF
+    </a>
+  </div>
 
   @includeIf('finance.invoices.partials.alerts')
 
@@ -75,10 +83,16 @@
             <td>{{ $inv->student->classroom->name ?? '-' }} / {{ $inv->student->stream->name ?? '-' }}</td>
             <td>{{ $inv->year }} / T{{ $inv->term }}</td>
             <td class="text-end">{{ number_format($inv->total,2) }}</td>
-            <td><a class="btn btn-sm btn-outline-primary" href="{{ route('finance.invoices.show',$inv) }}">View</a></td>
+            <td>
+              <a class="btn btn-sm btn-outline-primary" href="{{ route('finance.invoices.show',$inv) }}">
+                View
+              </a>
+            </td>
           </tr>
         @empty
-          <tr><td colspan="7" class="text-center text-muted">No invoices</td></tr>
+          <tr>
+            <td colspan="7" class="text-center text-muted">No invoices</td>
+          </tr>
         @endforelse
       </tbody>
     </table>
