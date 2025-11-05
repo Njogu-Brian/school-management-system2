@@ -4,7 +4,7 @@
 <div class="container">
     <h1>Edit Report Card - {{ $report_card->student->full_name }}</h1>
 
-    <form action="{{ route('academics.report-cards.update',$report_card) }}" method="POST">
+    <form action="{{ route('academics.report_cards.update',$report_card) }}" method="POST">
         @csrf @method('PUT')
         
         <div class="mb-3">

@@ -25,6 +25,7 @@ class ExamMarkController extends Controller
         return view('academics.exam_marks.index', compact('marks','examId','exams'));
     }
 
+    /** STEP 1: Selector */
     public function bulkForm()
     {
         return view('academics.exam_marks.bulk_form', [
@@ -34,18 +35,38 @@ class ExamMarkController extends Controller
         ]);
     }
 
+    /** STEP 2 (POST): Build editor with validation */
     public function bulkEdit(Request $request)
     {
         $v = $request->validate([
-            'exam_id'     => 'required|exists:exams,id',
-            'classroom_id'=> 'required|exists:classrooms,id',
-            'subject_id'  => 'required|exists:subjects,id',
+            'exam_id'      => 'required|exists:exams,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'subject_id'   => 'required|exists:subjects,id',
         ]);
 
-        $exam   = Exam::findOrFail($v['exam_id']);
-        $class  = Classroom::findOrFail($v['classroom_id']);
-        $subject= Subject::findOrFail($v['subject_id']);
+        return $this->renderBulkEditor($v['exam_id'], $v['classroom_id'], $v['subject_id']);
+    }
 
+    /** STEP 3 (GET): View editor without validation (for redirects / reloads) */
+    public function bulkEditView(Request $request)
+    {
+        $examId  = $request->query('exam_id');
+        $classId = $request->query('classroom_id');
+        $subId   = $request->query('subject_id');
+
+        abort_unless($examId && $classId && $subId, 404);
+
+        return $this->renderBulkEditor($examId, $classId, $subId);
+    }
+
+    /** Shared renderer */
+    private function renderBulkEditor($examId, $classId, $subjectId)
+    {
+        $exam    = Exam::findOrFail($examId);
+        $class   = Classroom::findOrFail($classId);
+        $subject = Subject::findOrFail($subjectId);
+
+        // Enforce single-exam workflow: marks are per (exam, student, subject)
         $students = Student::where('classroom_id',$class->id)
             ->when($exam->stream_id, fn($q)=>$q->where('stream_id',$exam->stream_id))
             ->orderBy('last_name')->get();
@@ -58,12 +79,14 @@ class ExamMarkController extends Controller
         return view('academics.exam_marks.bulk_edit', compact('exam','class','subject','students','existing'));
     }
 
+    /** STEP 4: Save rows */
     public function bulkStore(Request $request)
     {
         $data = $request->validate([
-            'exam_id'     => 'required|exists:exams,id',
-            'subject_id'  => 'required|exists:subjects,id',
-            'rows'        => 'required|array',
+            'exam_id'      => 'required|exists:exams,id',
+            'subject_id'   => 'required|exists:subjects,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'rows'         => 'required|array',
             'rows.*.student_id'    => 'required|exists:students,id',
             'rows.*.opener_score'  => 'nullable|numeric|min:0|max:100',
             'rows.*.midterm_score' => 'nullable|numeric|min:0|max:100',
@@ -75,22 +98,21 @@ class ExamMarkController extends Controller
 
         foreach ($data['rows'] as $row) {
             $mark = ExamMark::firstOrNew([
-                'exam_id'   => $exam->id,
-                'student_id'=> $row['student_id'],
-                'subject_id'=> $data['subject_id'],
+                'exam_id'    => $exam->id,
+                'student_id' => $row['student_id'],
+                'subject_id' => $data['subject_id'],
             ]);
 
-            // calculate final score automatically
             $scores = collect([
-                $row['opener_score'] ?? null,
+                $row['opener_score']  ?? null,
                 $row['midterm_score'] ?? null,
-                $row['endterm_score'] ?? null
-            ])->filter();
+                $row['endterm_score'] ?? null,
+            ])->filter(fn($v) => $v !== null && $v !== '' && is_numeric($v));
 
-            $finalScore = $scores->avg();
+            $finalScore = $scores->count() ? $scores->avg() : null;
 
             $g = null;
-            if ($finalScore !== null) {
+            if (!is_null($finalScore)) {
                 $g = ExamGrade::where('exam_type', $exam->type)
                     ->where('percent_from','<=',$finalScore)
                     ->where('percent_upto','>=',$finalScore)
@@ -98,22 +120,31 @@ class ExamMarkController extends Controller
             }
 
             $mark->fill([
-                'opener_score'  => $row['opener_score'] ?? null,
-                'midterm_score' => $row['midterm_score'] ?? null,
-                'endterm_score' => $row['endterm_score'] ?? null,
-                'score_raw'     => $finalScore,
-                'grade_label'   => $g?->grade_name ?? 'BE',
-                'pl_level'      => $g?->grade_point ?? 1.0,
-                'subject_remark'=> $row['subject_remark'] ?? null,
-                'status'        => 'submitted',
-                'teacher_id'    => optional(Auth::user()->staff)->id,
+                'opener_score'   => $row['opener_score']   ?? null,
+                'midterm_score'  => $row['midterm_score']  ?? null,
+                'endterm_score'  => $row['endterm_score']  ?? null,
+                'score_raw'      => $finalScore,
+                'grade_label'    => $g?->grade_name ?? 'BE',
+                'pl_level'       => $g?->grade_point ?? 1.0,
+                'subject_remark' => $row['subject_remark'] ?? null,
+                'status'         => 'submitted',
+                'teacher_id'     => optional(Auth::user()->staff)->id,
             ])->save();
         }
 
-        return back()->with('success','Marks saved successfully.');
+        // PRG to a GET URL to avoid loop
+        return redirect()
+            ->route('academics.exam-marks.bulk.edit.view', [
+                'exam_id'      => $data['exam_id'],
+                'classroom_id' => $data['classroom_id'],
+                'subject_id'   => $data['subject_id'],
+            ])
+            ->with('success','Marks saved successfully.');
     }
 
-    public function edit(ExamMark $exam_mark) {
+    /** Individual edit/update */
+    public function edit(ExamMark $exam_mark)
+    {
         return view('academics.exam_marks.edit', compact('exam_mark'));
     }
 
@@ -127,19 +158,21 @@ class ExamMarkController extends Controller
             'remark'        => 'nullable|string|max:500',
         ]);
 
-        // calculate final automatically
         $scores = collect([
-            $v['opener_score'] ?? null,
+            $v['opener_score']  ?? null,
             $v['midterm_score'] ?? null,
-            $v['endterm_score'] ?? null
-        ])->filter();
+            $v['endterm_score'] ?? null,
+        ])->filter(fn($val) => $val !== null && $val !== '' && is_numeric($val));
 
-        $finalScore = $scores->avg();
+        $finalScore = $scores->count() ? $scores->avg() : null;
 
-        $g = ExamGrade::where('exam_type',$exam_mark->exam->type)
-            ->where('percent_from','<=',$finalScore)
-            ->where('percent_upto','>=',$finalScore)
-            ->first();
+        $g = null;
+        if (!is_null($finalScore)) {
+            $g = ExamGrade::where('exam_type',$exam_mark->exam->type)
+                ->where('percent_from','<=',$finalScore)
+                ->where('percent_upto','>=',$finalScore)
+                ->first();
+        }
 
         $exam_mark->update(array_merge($v, [
             'score_raw'   => $finalScore,
@@ -148,7 +181,8 @@ class ExamMarkController extends Controller
             'status'      => 'submitted'
         ]));
 
-        return redirect()->route('academics.exam-marks.index',['exam_id'=>$exam_mark->exam_id])
+        return redirect()
+            ->route('academics.exam-marks.index', ['exam_id' => $exam_mark->exam_id])
             ->with('success','Mark updated.');
     }
 }

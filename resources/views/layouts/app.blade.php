@@ -194,8 +194,13 @@
             </a>
         </div>
 
-        <!-- Academics -->
-        @php $academicsActive = Request::is('academics/classrooms*') || Request::is('academics/streams*') || Request::is('academics/subjects*') || Request::is('academics/subject_groups*'); @endphp
+        {{-- Academics --}}
+        @php
+            $academicsActive = Request::is('academics/classrooms*')
+                || Request::is('academics/streams*')
+                || Request::is('academics/subjects*')
+                || Request::is('academics/subject_groups*');
+        @endphp
         <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="{{ $academicsActive ? 'true' : 'false' }}" class="{{ $academicsActive ? 'parent-active' : '' }}">
             <i class="bi bi-journal-bookmark"></i> Academics
         </a>
@@ -206,8 +211,13 @@
             <a href="{{ route('academics.subject_groups.index') }}" class="{{ Request::is('academics/subject_groups*') ? 'active' : '' }}">Subject Groups</a>
         </div>
 
-        <!-- Exams -->
-        @php $examsActive = Request::is('academics/exams*') || Request::is('academics/exam-grades*') || Request::is('academics/exam-marks*'); @endphp
+        {{-- Exams --}}
+        @php
+            $examsActive = Request::is('academics/exams*')
+                || Request::is('academics/exam-grades*')
+                || Request::is('academics/exam-marks*')
+                || Request::is('academics/assessments/term*');
+        @endphp
         <a href="#examsMenu" data-bs-toggle="collapse" aria-expanded="{{ $examsActive ? 'true' : 'false' }}" class="{{ $examsActive ? 'parent-active' : '' }}">
             <i class="bi bi-file-earmark-text"></i> Exams
         </a>
@@ -216,9 +226,10 @@
             <a href="{{ route('academics.exam-grades.index') }}" class="{{ Request::is('academics/exam-grades*') ? 'active' : '' }}">Exam Grades</a>
             <a href="{{ route('academics.exam-marks.index') }}" class="{{ Request::is('academics/exam-marks*') ? 'active' : '' }}">Exam Marks</a>
             <a href="{{ route('academics.exams.timetable') }}" class="{{ Request::is('academics/exams/timetable') ? 'active' : '' }}">Exam Timetable</a>
+            <a href="{{ route('academics.assessments.term') }}" class="{{ Request::is('academics/assessments/term*') ? 'active' : '' }}">Term Assessment</a>
         </div>
 
-        <!-- Homework & Diaries -->
+        {{-- Homework & Diaries --}}
         @php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*'); @endphp
         <a href="#homeworkMenu" data-bs-toggle="collapse" aria-expanded="{{ $homeworkActive ? 'true' : 'false' }}" class="{{ $homeworkActive ? 'parent-active' : '' }}">
             <i class="bi bi-journal"></i> Homework & Diaries
@@ -228,23 +239,51 @@
             <a href="{{ route('academics.diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
         </div>
 
-        <!-- Report Cards -->
-        @php $reportActive = Request::is('academics/report-cards*'); @endphp
-        <a href="#reportMenu" data-bs-toggle="collapse" aria-expanded="{{ $reportActive ? 'true' : 'false' }}" class="{{ $reportActive ? 'parent-active' : '' }}">
+        {{-- Report Cards --}}
+        @php
+            $reportActive = Request::is('academics/report_cards*')
+                || Request::is('academics/skills/grade*');
+        @endphp
+        <a href="#reportMenu" data-bs-toggle="collapse"
+        aria-expanded="{{ $reportActive ? 'true' : 'false' }}"
+        class="{{ $reportActive ? 'parent-active' : '' }}">
             <i class="bi bi-card-text"></i> Report Cards
         </a>
         <div class="collapse {{ $reportActive ? 'show' : '' }}" id="reportMenu">
-            <a href="{{ route('academics.report-cards.index') }}" class="{{ Request::is('academics/report-cards') ? 'active' : '' }}">Report Cards</a>
-            <a href="{{ route('academics.report-cards.skills.index', \App\Models\Academics\ReportCard::first()?->id ?? 1) }}" class="{{ Request::is('academics/report-cards/*/skills*') ? 'active' : '' }}">Report Card Skills</a>
+            <a href="{{ route('academics.report_cards.index') }}"
+            class="{{ Request::is('academics/report_cards') ? 'active' : '' }}">
+                Report Cards
+            </a>
+
+            <a href="{{ route('academics.report_cards.generate.form') }}"
+            class="{{ Request::is('academics/report_cards/generate*') ? 'active' : '' }}">
+                Generate Reports
+            </a>
+
+            <a href="{{ route('academics.skills.grade.index') }}"
+            class="{{ Request::is('academics/skills/grade*') ? 'active' : '' }}">
+                Skills Grading
+            </a>
+
+            {{-- Optional per-report skills editor --}}
+            <a href="{{ route('academics.report_cards.skills.index', \App\Models\Academics\ReportCard::query()->latest()->value('id') ?? 1) }}"
+            class="{{ Request::is('academics/report_cards/*/skills*') ? 'active' : '' }}">
+            Report Card Skills (per report)
+            </a>
         </div>
 
-        <!-- Behaviours -->
+        {{-- Behaviours --}}
         @php $behaviourActive = Request::is('academics/behaviours*') || Request::is('academics/student-behaviours*'); @endphp
-        <a href="#behaviourMenu" data-bs-toggle="collapse" aria-expanded="{{ $behaviourActive ? 'true' : 'false' }}" class="{{ $behaviourActive ? 'parent-active' : '' }}"><i class="bi bi-emoji-smile"></i> Behaviours</a>
+        <a href="#behaviourMenu" data-bs-toggle="collapse" aria-expanded="{{ $behaviourActive ? 'true' : 'false' }}" class="{{ $behaviourActive ? 'parent-active' : '' }}">
+            <i class="bi bi-emoji-smile"></i> Behaviours
+        </a>
         <div class="collapse {{ $behaviourActive ? 'show' : '' }}" id="behaviourMenu">
             <a href="{{ route('academics.behaviours.index') }}" class="{{ Request::is('academics/behaviours*') ? 'active' : '' }}">Behaviours</a>
             <a href="{{ route('academics.student-behaviours.index') }}" class="{{ Request::is('academics/student-behaviours*') ? 'active' : '' }}">Student Behaviours</a>
         </div>
+                
+
+        <!-- Finance -->
         {{-- Finance --}}
         @php
             $financeActive = Request::is('finance*') || Request::is('voteheads*');

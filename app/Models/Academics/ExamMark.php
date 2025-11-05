@@ -23,4 +23,15 @@ class ExamMark extends Model
     public function student() { return $this->belongsTo(\App\Models\Student::class); }
     public function subject() { return $this->belongsTo(Subject::class); }
     public function teacher() { return $this->belongsTo(\App\Models\Staff::class,'teacher_id'); }
+    
+    protected static function booted() {
+        static::creating(function($m){
+            $m->entered_by = auth()->id();
+            $m->updated_by = auth()->id();
+        });
+        static::updating(function($m){
+            $m->updated_by = auth()->id();
+        });
+    }
+
 }

@@ -2,23 +2,26 @@
 
 @section('content')
 <div class="container">
-    <h1>Bulk Entry for {{ $exam->name }} - {{ $class->name }} - {{ $subject->name }}</h1>
+    <h1 class="mb-4">
+        Bulk Entry for {{ $exam->name }} — {{ $class->name }} — {{ $subject->name }}
+    </h1>
 
-    <form action="{{ route('academics.exam-marks.bulk.store') }}" method="POST">
+    <form action="{{ route('academics.exam-marks.bulk.store') }}" method="POST" id="bulkMarksForm">
         @csrf
-        <input type="hidden" name="exam_id" value="{{ $exam->id }}">
-        <input type="hidden" name="subject_id" value="{{ $subject->id }}">
+            <input type="hidden" name="exam_id" value="{{ $exam->id }}">
+            <input type="hidden" name="subject_id" value="{{ $subject->id }}">
+            <input type="hidden" name="classroom_id" value="{{ $class->id }}">
 
         <div class="table-responsive">
-            <table class="table table-bordered align-middle">
-                <thead>
+            <table class="table table-striped table-bordered align-middle">
+                <thead class="table-dark">
                     <tr>
                         <th>Student</th>
                         <th>Opener</th>
                         <th>Midterm</th>
                         <th>Endterm</th>
                         <th>Final (Auto Avg)</th>
-                        <th>Rubric</th>
+                        <th>Grade</th>
                         <th>Remark</th>
                     </tr>
                 </thead>
@@ -30,7 +33,7 @@
                             <td><input type="number" step="0.01" name="rows[{{ $loop->index }}][opener_score]" class="form-control score-input" value="{{ old("rows.$loop->index.opener_score", $m->opener_score ?? '') }}"></td>
                             <td><input type="number" step="0.01" name="rows[{{ $loop->index }}][midterm_score]" class="form-control score-input" value="{{ old("rows.$loop->index.midterm_score", $m->midterm_score ?? '') }}"></td>
                             <td><input type="number" step="0.01" name="rows[{{ $loop->index }}][endterm_score]" class="form-control score-input" value="{{ old("rows.$loop->index.endterm_score", $m->endterm_score ?? '') }}"></td>
-                            <td><input type="number" step="0.01" class="form-control final-score" readonly></td>
+                            <td><input type="number" step="0.01" class="form-control final-score" value="{{ $m->score_raw ?? '' }}" readonly></td>
                             <td>{{ $m->grade_label ?? '-' }}</td>
                             <td>
                                 <input type="hidden" name="rows[{{ $loop->index }}][student_id]" value="{{ $st->id }}">
@@ -41,23 +44,43 @@
                 </tbody>
             </table>
         </div>
-        <button class="btn btn-success mt-3">Save All</button>
+
+        <div class="text-end mt-4">
+            <button type="submit" form="bulkMarksForm" class="btn btn-primary">
+                Save All
+            </button>
+        </div>
     </form>
 </div>
 
 @push('scripts')
 <script>
+function computeRow(row){
+    const opener  = parseFloat(row.querySelector('[name*="opener_score"]')?.value)  || 0;
+    const midterm = parseFloat(row.querySelector('[name*="midterm_score"]')?.value) || 0;
+    const endterm = parseFloat(row.querySelector('[name*="endterm_score"]')?.value) || 0;
+
+    // Count non-empty numbers (allow zero as a valid value)
+    const parts = [row.querySelector('[name*="opener_score"]')?.value,
+                   row.querySelector('[name*="midterm_score"]')?.value,
+                   row.querySelector('[name*="endterm_score"]')?.value]
+                   .filter(v => v !== '' && v !== null);
+
+    const avg = parts.length ? ((opener + midterm + endterm) / parts.length).toFixed(2) : '';
+    const final = row.querySelector('.final-score');
+    if (final) final.value = avg;
+}
+
+// Live recompute on user input
 document.querySelectorAll('.score-input').forEach(inp => {
     inp.addEventListener('input', function(){
-        let row = this.closest('tr');
-        let opener = parseFloat(row.querySelector('[name*="opener_score"]').value) || 0;
-        let midterm = parseFloat(row.querySelector('[name*="midterm_score"]').value) || 0;
-        let endterm = parseFloat(row.querySelector('[name*="endterm_score"]').value) || 0;
-        let count = [opener, midterm, endterm].filter(v => v > 0).length;
-        let avg = count > 0 ? ((opener + midterm + endterm) / count).toFixed(2) : '';
-        row.querySelector('.final-score').value = avg;
+        computeRow(this.closest('tr'));
     });
 });
+
+// Compute once on page load for all rows
+document.querySelectorAll('tbody tr').forEach(tr => computeRow(tr));
 </script>
 @endpush
+
 @endsection

@@ -1,37 +1,27 @@
 @extends('layouts.app')
-
 @section('content')
 <div class="container">
-    <h1>Report Card - {{ $report_card->student->full_name }}</h1>
-
-    <div class="mb-3">
-        @if($report_card->pdf_path)
-            <a href="{{ asset('storage/'.$report_card->pdf_path) }}" target="_blank" class="btn btn-primary">
-                <i class="bi bi-file-earmark-pdf"></i> Download PDF
-            </a>
-        @endif
-        @if(!$report_card->locked_at)
-            <form action="{{ route('academics.report-cards.publish',$report_card) }}" method="POST" class="d-inline">
-                @csrf
-                <button class="btn btn-success"><i class="bi bi-upload"></i> Publish</button>
-            </form>
-        @endif
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Report Card</h1>
+    <div>
+      <a href="{{ route('academics.report_cards.pdf', $report_card) }}" target="_blank" class="btn btn-outline-primary">
+        <i class="bi bi-printer"></i> Build & Download PDF
+      </a>
+      @if(!$report_card->locked_at)
+        <form action="{{ route('academics.report_cards.publish',$report_card) }}" method="POST" class="d-inline">
+          @csrf
+          <button class="btn btn-success"><i class="bi bi-upload"></i> Publish</button>
+        </form>
+      @endif
     </div>
+  </div>
 
-    <h4>Summary</h4>
-    <p>{{ $report_card->summary ?? 'No summary provided.' }}</p>
-
-    <h4>Teacher Remark</h4>
-    <p>{{ $report_card->teacher_remark ?? '-' }}</p>
-
-    <h4>Headteacher Remark</h4>
-    <p>{{ $report_card->headteacher_remark ?? '-' }}</p>
-
-    <h4>Skills & Personal Growth</h4>
-    <ul>
-        @foreach($report_card->skills as $skill)
-            <li>{{ $skill->skill_name }} - <strong>{{ $skill->rating }}</strong></li>
-        @endforeach
-    </ul>
+  {{-- Make the HTML page look like the PDF --}}
+  <div class="card">
+    <div class="card-body">
+      @php($isPdf = false)
+      @include('academics.report_cards.partials.core', ['dto' => $dto, 'isPdf' => $isPdf])
+    </div>
+  </div>
 </div>
 @endsection

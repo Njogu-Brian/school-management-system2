@@ -39,14 +39,14 @@
                         </td>
                         <td>{{ $rc->published_at ? $rc->published_at->format('d M Y') : '-' }}</td>
                         <td>
-                            <a href="{{ route('academics.report-cards.show',$rc) }}" class="btn btn-sm btn-info">
+                            <a href="{{ route('academics.report_cards.show',$rc) }}" class="btn btn-sm btn-info">
                                 <i class="bi bi-eye"></i>
                             </a>
                             @if(!$rc->locked_at)
-                                <a href="{{ route('academics.report-cards.edit',$rc) }}" class="btn btn-sm btn-warning">
+                                <a href="{{ route('academics.report_cards.edit',$rc) }}" class="btn btn-sm btn-warning">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <form action="{{ route('academics.report-cards.destroy',$rc) }}" method="POST" class="d-inline">
+                                <form action="{{ route('academics.report_cards.destroy',$rc) }}" method="POST" class="d-inline">
                                     @csrf @method('DELETE')
                                     <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this report card?')">
                                         <i class="bi bi-trash"></i>
