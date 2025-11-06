@@ -36,13 +36,16 @@ class ExamMarkController extends Controller
     }
 
     /** STEP 2 (POST): Build editor with validation */
-    public function bulkEdit(Request $request)
+   public function bulkEdit(Request $request)
     {
         $v = $request->validate([
             'exam_id'      => 'required|exists:exams,id',
             'classroom_id' => 'required|exists:classrooms,id',
             'subject_id'   => 'required|exists:subjects,id',
         ]);
+
+        $exam = \App\Models\Academics\Exam::findOrFail($v['exam_id']);
+        $this->authorize('enter-marks', [$exam, (int)$v['classroom_id'], (int)$v['subject_id']]);
 
         return $this->renderBulkEditor($v['exam_id'], $v['classroom_id'], $v['subject_id']);
     }
@@ -80,7 +83,7 @@ class ExamMarkController extends Controller
     }
 
     /** STEP 4: Save rows */
-    public function bulkStore(Request $request)
+   public function bulkStore(Request $request)
     {
         $data = $request->validate([
             'exam_id'      => 'required|exists:exams,id',
@@ -88,13 +91,12 @@ class ExamMarkController extends Controller
             'classroom_id' => 'required|exists:classrooms,id',
             'rows'         => 'required|array',
             'rows.*.student_id'    => 'required|exists:students,id',
-            'rows.*.opener_score'  => 'nullable|numeric|min:0|max:100',
-            'rows.*.midterm_score' => 'nullable|numeric|min:0|max:100',
-            'rows.*.endterm_score' => 'nullable|numeric|min:0|max:100',
+            'rows.*.score'         => 'nullable|numeric',
             'rows.*.subject_remark'=> 'nullable|string|max:500',
         ]);
 
-        $exam = Exam::findOrFail($data['exam_id']);
+        $exam = \App\Models\Academics\Exam::findOrFail($data['exam_id']);
+        $this->authorize('enter-marks', [$exam, (int)$data['classroom_id'], (int)$data['subject_id']]);
 
         foreach ($data['rows'] as $row) {
             $mark = ExamMark::firstOrNew([
@@ -109,28 +111,25 @@ class ExamMarkController extends Controller
                 $row['endterm_score'] ?? null,
             ])->filter(fn($v) => $v !== null && $v !== '' && is_numeric($v));
 
-            $finalScore = $scores->count() ? $scores->avg() : null;
+            $score = array_key_exists('score', $row) && is_numeric($row['score']) ? (float)$row['score'] : null;
 
             $g = null;
-            if (!is_null($finalScore)) {
+            if (!is_null($score)) {
                 $g = ExamGrade::where('exam_type', $exam->type)
-                    ->where('percent_from','<=',$finalScore)
-                    ->where('percent_upto','>=',$finalScore)
+                    ->where('percent_from','<=',$score)
+                    ->where('percent_upto','>=',$score)
                     ->first();
             }
 
             $mark->fill([
-                'opener_score'   => $row['opener_score']   ?? null,
-                'midterm_score'  => $row['midterm_score']  ?? null,
-                'endterm_score'  => $row['endterm_score']  ?? null,
-                'score_raw'      => $finalScore,
+                'score_raw'      => $score,
                 'grade_label'    => $g?->grade_name ?? 'BE',
                 'pl_level'       => $g?->grade_point ?? 1.0,
                 'subject_remark' => $row['subject_remark'] ?? null,
                 'status'         => 'submitted',
                 'teacher_id'     => optional(Auth::user()->staff)->id,
             ])->save();
-        }
+                    }
 
         // PRG to a GET URL to avoid loop
         return redirect()

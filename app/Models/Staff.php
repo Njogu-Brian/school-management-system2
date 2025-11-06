@@ -57,5 +57,13 @@ class Staff extends Model
     {
         return "{$this->first_name} {$this->last_name}";
     }
+    public function teachesSubjectInClass(int $subjectId, int $classroomId): bool
+    {
+        return \DB::table('classroom_subjects')
+            ->where('staff_id', $this->id)
+            ->where('subject_id', $subjectId)
+            ->where('classroom_id', $classroomId)
+            ->exists();
+    }
 
 }

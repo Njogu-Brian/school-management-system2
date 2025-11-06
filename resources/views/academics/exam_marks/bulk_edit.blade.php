@@ -1,86 +1,113 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <h1 class="mb-4">
-        Bulk Entry for {{ $exam->name }} — {{ $class->name }} — {{ $subject->name }}
-    </h1>
-
-    <form action="{{ route('academics.exam-marks.bulk.store') }}" method="POST" id="bulkMarksForm">
+<div class="container-fluid">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h3 class="mb-0">Enter Marks</h3>
+      <small class="text-muted">
+        {{ $exam->name }} • {{ $class->name }} • {{ $subject->name }}
+      </small>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ route('academics.exam-marks.bulk.form') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Change Selection
+      </a>
+      {{-- Optional CSV/Excel import (hook up if you added the import route) --}}
+      {{-- 
+      <form class="d-inline" method="post" action="{{ route('exams.results.import') }}" enctype="multipart/form-data">
         @csrf
-            <input type="hidden" name="exam_id" value="{{ $exam->id }}">
-            <input type="hidden" name="subject_id" value="{{ $subject->id }}">
-            <input type="hidden" name="classroom_id" value="{{ $class->id }}">
+        <input type="hidden" name="exam_id" value="{{ $exam->id }}">
+        <input type="hidden" name="classroom_id" value="{{ $class->id }}">
+        <input type="hidden" name="subject_id" value="{{ $subject->id }}">
+        <input type="file" name="file" class="form-control d-inline" style="width:240px" required>
+        <button class="btn btn-outline-primary ms-2"><i class="bi bi-upload"></i> Import</button>
+      </form>
+      --}}
+    </div>
+  </div>
 
-        <div class="table-responsive">
-            <table class="table table-striped table-bordered align-middle">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Student</th>
-                        <th>Opener</th>
-                        <th>Midterm</th>
-                        <th>Endterm</th>
-                        <th>Final (Auto Avg)</th>
-                        <th>Grade</th>
-                        <th>Remark</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($students as $st)
-                        @php $m = $existing[$st->id] ?? null; @endphp
-                        <tr>
-                            <td>{{ $st->full_name }}</td>
-                            <td><input type="number" step="0.01" name="rows[{{ $loop->index }}][opener_score]" class="form-control score-input" value="{{ old("rows.$loop->index.opener_score", $m->opener_score ?? '') }}"></td>
-                            <td><input type="number" step="0.01" name="rows[{{ $loop->index }}][midterm_score]" class="form-control score-input" value="{{ old("rows.$loop->index.midterm_score", $m->midterm_score ?? '') }}"></td>
-                            <td><input type="number" step="0.01" name="rows[{{ $loop->index }}][endterm_score]" class="form-control score-input" value="{{ old("rows.$loop->index.endterm_score", $m->endterm_score ?? '') }}"></td>
-                            <td><input type="number" step="0.01" class="form-control final-score" value="{{ $m->score_raw ?? '' }}" readonly></td>
-                            <td>{{ $m->grade_label ?? '-' }}</td>
-                            <td>
-                                <input type="hidden" name="rows[{{ $loop->index }}][student_id]" value="{{ $st->id }}">
-                                <input type="text" name="rows[{{ $loop->index }}][subject_remark]" class="form-control" value="{{ old("rows.$loop->index.subject_remark", $m->subject_remark ?? '') }}">
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+  @includeIf('partials.alerts')
 
-        <div class="text-end mt-4">
-            <button type="submit" form="bulkMarksForm" class="btn btn-primary">
-                Save All
-            </button>
-        </div>
-    </form>
+  <form method="post" action="{{ route('academics.exam-marks.bulk.store') }}" class="card shadow-sm">
+    @csrf
+    <input type="hidden" name="exam_id" value="{{ $exam->id }}">
+    <input type="hidden" name="classroom_id" value="{{ $class->id }}">
+    <input type="hidden" name="subject_id" value="{{ $subject->id }}">
+
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:60px">#</th>
+              <th>Student</th>
+              <th style="width:160px" class="text-center">Score</th>
+              <th>Remark</th>
+            </tr>
+          </thead>
+          <tbody>
+            @foreach($students as $i => $s)
+              @php
+                $m = $existing[$s->id] ?? null;
+                $score = $m?->score_raw;
+                $remark = $m?->subject_remark;
+              @endphp
+              <tr>
+                <td>{{ $loop->iteration }}</td>
+                <td>
+                  <div class="fw-semibold">
+                    {{ $s->full_name ?? ($s->first_name.' '.$s->last_name) }}
+                  </div>
+                  <div class="small text-muted">Adm: {{ $s->admission_number ?? '—' }}</div>
+                  <input type="hidden" name="rows[{{ $i }}][student_id]" value="{{ $s->id }}">
+                </td>
+                <td>
+                  <input type="number" step="0.01" min="0" class="form-control text-center score-input"
+                         name="rows[{{ $i }}][score]" value="{{ old("rows.$i.score", $score) }}"
+                         placeholder="e.g. 64.5">
+                </td>
+                <td>
+                  <input type="text" class="form-control" name="rows[{{ $i }}][subject_remark]"
+                         value="{{ old("rows.$i.subject_remark", $remark) }}" maxlength="500"
+                         placeholder="Optional remark">
+                </td>
+              </tr>
+            @endforeach
+
+            @if($students->isEmpty())
+              <tr><td colspan="4" class="text-center text-muted py-4">No students in this class.</td></tr>
+            @endif
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card-footer d-flex justify-content-between">
+      <div class="small text-muted">
+        Scores are saved as <strong>score_raw</strong>. Grades auto-derive from the exam type’s bands.
+      </div>
+      <div>
+        <button class="btn btn-primary"><i class="bi bi-save2 me-1"></i>Save All</button>
+      </div>
+    </div>
+  </form>
 </div>
 
 @push('scripts')
 <script>
-function computeRow(row){
-    const opener  = parseFloat(row.querySelector('[name*="opener_score"]')?.value)  || 0;
-    const midterm = parseFloat(row.querySelector('[name*="midterm_score"]')?.value) || 0;
-    const endterm = parseFloat(row.querySelector('[name*="endterm_score"]')?.value) || 0;
-
-    // Count non-empty numbers (allow zero as a valid value)
-    const parts = [row.querySelector('[name*="opener_score"]')?.value,
-                   row.querySelector('[name*="midterm_score"]')?.value,
-                   row.querySelector('[name*="endterm_score"]')?.value]
-                   .filter(v => v !== '' && v !== null);
-
-    const avg = parts.length ? ((opener + midterm + endterm) / parts.length).toFixed(2) : '';
-    const final = row.querySelector('.final-score');
-    if (final) final.value = avg;
-}
-
-// Live recompute on user input
-document.querySelectorAll('.score-input').forEach(inp => {
-    inp.addEventListener('input', function(){
-        computeRow(this.closest('tr'));
+  // Simple numeric clamp (0..100 by default). Adjust if your max differs.
+  document.querySelectorAll('.score-input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const v = inp.value.trim();
+      if (v === '') return;
+      let n = parseFloat(v);
+      if (isNaN(n)) { inp.value = ''; return; }
+      if (n < 0) n = 0;
+      if (n > 100) n = 100;
+      inp.value = n.toFixed(2);
     });
-});
-
-// Compute once on page load for all rows
-document.querySelectorAll('tbody tr').forEach(tr => computeRow(tr));
+  });
 </script>
 @endpush
-
 @endsection

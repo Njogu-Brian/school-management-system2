@@ -214,19 +214,51 @@
         {{-- Exams --}}
         @php
             $examsActive = Request::is('academics/exams*')
+                || Request::is('academics/exam-groups*')
+                || Request::is('academics/exam-types*')
                 || Request::is('academics/exam-grades*')
                 || Request::is('academics/exam-marks*')
-                || Request::is('academics/assessments/term*');
+                || Request::is('exams/results*')
+                || Request::is('academics/exams/timetable');
         @endphp
-        <a href="#examsMenu" data-bs-toggle="collapse" aria-expanded="{{ $examsActive ? 'true' : 'false' }}" class="{{ $examsActive ? 'parent-active' : '' }}">
-            <i class="bi bi-file-earmark-text"></i> Exams
+
+        <a href="#examsMenu" data-bs-toggle="collapse"
+        aria-expanded="{{ $examsActive ? 'true' : 'false' }}"
+        class="{{ $examsActive ? 'parent-active' : '' }}">
+        <i class="bi bi-file-earmark-text"></i> Exams
         </a>
+
         <div class="collapse {{ $examsActive ? 'show' : '' }}" id="examsMenu">
-            <a href="{{ route('academics.exams.index') }}" class="{{ Request::is('academics/exams') ? 'active' : '' }}">Manage Exams</a>
-            <a href="{{ route('academics.exam-grades.index') }}" class="{{ Request::is('academics/exam-grades*') ? 'active' : '' }}">Exam Grades</a>
-            <a href="{{ route('academics.exam-marks.index') }}" class="{{ Request::is('academics/exam-marks*') ? 'active' : '' }}">Exam Marks</a>
-            <a href="{{ route('academics.exams.timetable') }}" class="{{ Request::is('academics/exams/timetable') ? 'active' : '' }}">Exam Timetable</a>
-            <a href="{{ route('academics.assessments.term') }}" class="{{ Request::is('academics/assessments/term*') ? 'active' : '' }}">Term Assessment</a>
+            {{-- New exam structure --}}
+            <a href="{{ route('exams.groups.index') }}"
+            class="sublink {{ Request::is('academics/exam-groups*') ? 'active' : '' }}">
+                <i class="bi bi-collection"></i> Exam Groups
+            </a>
+
+            <a href="{{ route('exams.types.index') }}"
+            class="sublink {{ Request::is('academics/exam-types*') ? 'active' : '' }}">
+                <i class="bi bi-sliders2"></i> Exam Types
+            </a>
+
+            <a href="{{ route('academics.exams.index') }}"
+            class="sublink {{ Request::is('academics/exams') ? 'active' : '' }}">
+                <i class="bi bi-journal-check"></i> Manage Exams
+            </a>
+
+            <a href="{{ route('academics.exam-marks.bulk.form') }}"
+            class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
+                <i class="bi bi-pencil-square"></i> Enter Marks
+            </a>
+
+            <a href="{{ route('exams.results.index') }}"
+            class="sublink {{ Request::is('exams/results*') ? 'active' : '' }}">
+                <i class="bi bi-bar-chart"></i> Exam Results
+            </a>
+
+            <a href="{{ route('academics.exams.timetable') }}"
+            class="sublink {{ Request::is('academics/exams/timetable') ? 'active' : '' }}">
+                <i class="bi bi-printer"></i> Exam Timetable
+            </a>
         </div>
 
         {{-- Homework & Diaries --}}

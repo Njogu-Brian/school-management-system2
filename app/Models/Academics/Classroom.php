@@ -29,11 +29,25 @@ class Classroom extends Model
     }
     public function subjects()
     {
-        return $this->belongsToMany(Subject::class, 'classroom_subject');
+        return $this->belongsToMany(Subject::class, 'classroom_subjects');
     }
     public function getFullNameAttribute()
     {
         return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
+    }
+    public function subjectAssignments() // rows in classroom_subjects
+    {
+        return $this->hasMany(\App\Models\Academics\ClassroomSubject::class, 'classroom_id');
+    }
+
+    public function subjectTeachers() // teachers (staff) through assignments
+    {
+        return $this->belongsToMany(
+            \App\Models\Staff::class,
+            'classroom_subjects',
+            'classroom_id',
+            'staff_id'
+        )->withPivot(['subject_id','stream_id','academic_year_id','term_id','is_compulsory']);
     }
 
 }

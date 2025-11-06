@@ -154,6 +154,52 @@ Route::middleware('auth')->group(function () {
             Route::post('/notify', [AttendanceNotificationController::class, 'notifySend'])->name('attendance.notifications.notify.send');
         });
     
+        // ===== Exams: Core =====
+Route::middleware(['auth'])->group(function () {
+
+    // Exam Groups
+    Route::resource(
+        'academics/exam-groups',
+        \App\Http\Controllers\Academics\ExamGroupController::class
+    )->names('exams.groups')->only(['index','store','edit','update','destroy']);
+
+    // Exam Types
+    Route::resource(
+        'academics/exam-types',
+        \App\Http\Controllers\Academics\ExamTypeController::class
+    )->names('exams.types')->only(['index','store','update','destroy']);
+
+    // Exams CRUD (you already have ExamController)
+    Route::resource(
+        'academics/exams',
+        \App\Http\Controllers\Academics\ExamController::class
+    )->names('academics.exams'); // index/create/store/edit/update/destroy
+
+    // Schedules (per-exam)
+    Route::get('exams/{exam}/schedules',        [\App\Http\Controllers\Academics\ExamScheduleController::class, 'index'])->name('exams.schedules.index');
+    Route::post('exams/{exam}/schedules',       [\App\Http\Controllers\Academics\ExamScheduleController::class, 'store'])->name('exams.schedules.store');
+    Route::patch('exams/{exam}/schedules/{examSchedule}', [\App\Http\Controllers\Academics\ExamScheduleController::class, 'update'])->name('exams.schedules.update');
+    Route::delete('exams/{exam}/schedules/{examSchedule}',[\App\Http\Controllers\Academics\ExamScheduleController::class, 'destroy'])->name('exams.schedules.destroy');
+
+    // Results (admin listing + publish)
+    Route::get('exams/results', [\App\Http\Controllers\Academics\ExamResultController::class,'index'])->name('exams.results.index');
+
+    // Bulk marks entry (reuses your existing ExamMarkController routes if you prefer)
+Route::get('exam-marks',                 [ExamMarkController::class, 'index'])->name('academics.exam-marks.index');
+Route::get('exam-marks/bulk',            [ExamMarkController::class, 'bulkForm'])->name('academics.exam-marks.bulk.form');
+Route::post('exam-marks/bulk',           [ExamMarkController::class, 'bulkEdit'])->name('academics.exam-marks.bulk.edit');
+Route::get('exam-marks/bulk/view',       [ExamMarkController::class, 'bulkEditView'])->name('academics.exam-marks.bulk.edit.view');
+Route::post('exam-marks/bulk/store',     [ExamMarkController::class, 'bulkStore'])->name('academics.exam-marks.bulk.store');
+Route::get('exam-marks/{exam_mark}/edit',[ExamMarkController::class, 'edit'])->name('academics.exam-marks.edit');
+Route::put('exam-marks/{exam_mark}',     [ExamMarkController::class, 'update'])->name('academics.exam-marks.update');
+
+    // Publish results to report cards
+    Route::post('exams/publish/{exam}', [\App\Http\Controllers\Academics\ExamPublishingController::class,'publish'])->name('exams.publish');
+
+    // Print timetable
+    Route::get('academics/exams/timetable', [\App\Http\Controllers\Academics\ExamController::class,'timetable'])->name('academics.exams.timetable');
+});
+
            /*
     |---------------------- Academics ----------------------
     */
@@ -175,28 +221,6 @@ Route::middleware('auth')->group(function () {
         Route::prefix('diaries/{diary}/messages')->as('diary.messages.')->group(function () {
             Route::post('/', [DiaryMessageController::class, 'store'])->name('store');
         });
-
-        // Exam timetable
-        Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
-        Route::prefix('exams/{exam}/papers')->as('exam-papers.')->group(function () {
-            Route::get('/', [ExamPaperController::class, 'index'])->name('index');
-            Route::get('create', [ExamPaperController::class, 'create'])->name('create');
-            Route::post('/', [ExamPaperController::class, 'store'])->name('store');
-            Route::get('{examPaper}/edit', [ExamPaperController::class, 'edit'])->name('edit');
-            Route::put('{examPaper}', [ExamPaperController::class, 'update'])->name('update');
-            Route::delete('{examPaper}', [ExamPaperController::class, 'destroy'])->name('destroy');
-        });
-
-        /*
-        |---------------------- Exam Marks ----------------------
-        */
-        Route::get('exam-marks', [ExamMarkController::class,'index'])->name('exam-marks.index');
-        Route::get('exam-marks/bulk', [ExamMarkController::class,'bulkForm'])->name('exam-marks.bulk');
-        Route::post('exam-marks/bulk/edit', [ExamMarkController::class,'bulkEdit'])->name('exam-marks.bulk.edit');
-        Route::get('exam-marks/bulk/edit',  [ExamMarkController::class,'bulkEditView'])->name('exam-marks.bulk.edit.view');
-        Route::post('exam-marks/bulk/store',[ExamMarkController::class,'bulkStore'])->name('exam-marks.bulk.store');
-        Route::get('exam-marks/{exam_mark}/edit', [ExamMarkController::class,'edit'])->name('exam-marks.edit');
-        Route::put('exam-marks/{exam_mark}',      [ExamMarkController::class,'update'])->name('exam-marks.update');
 
         /*
         |---------------------- Term Assessment (roll-up) ----------------------

@@ -3,63 +3,47 @@
 namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
+use App\Models\Academics\ExamType;
 use Illuminate\Http\Request;
 
 class ExamTypeController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        //
+        return view('academics.exam_types.index', [
+            'types' => ExamType::orderBy('name')->get()
+        ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function store(Request $r)
     {
-        //
+        $data = $r->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:exam_types,code',
+            'calculation_method' => 'required|in:average,sum,weighted,best_of,pass_fail,cbc',
+            'default_min_mark' => 'nullable|numeric|min:0',
+            'default_max_mark' => 'nullable|numeric|min:1',
+        ]);
+        ExamType::create($data);
+        return back()->with('success','Exam type created.');
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function update(Request $r, ExamType $type)
     {
-        //
+        $data = $r->validate([
+            'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:exam_types,code,'.$type->id,
+            'calculation_method' => 'required|in:average,sum,weighted,best_of,pass_fail,cbc',
+            'default_min_mark' => 'nullable|numeric|min:0',
+            'default_max_mark' => 'nullable|numeric|min:1',
+        ]);
+        $type->update($data);
+        return back()->with('success','Exam type updated.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function destroy(ExamType $type)
     {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        $type->delete();
+        return back()->with('success','Exam type deleted.');
     }
 }
