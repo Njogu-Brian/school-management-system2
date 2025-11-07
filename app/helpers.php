@@ -3,9 +3,10 @@
 use App\Models\Setting;
 use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Auth;
-use App\Models\CommunicationPlaceholder; // <-- create model below
+use App\Models\CommunicationPlaceholder;
+
 /**
- * Fetch value from key-value settings table (settings)
+ * settings (key-value)
  */
 if (!function_exists('setting')) {
     function setting($key, $default = null) {
@@ -16,15 +17,12 @@ if (!function_exists('setting')) {
 
 if (!function_exists('setting_set')) {
     function setting_set($key, $value) {
-        return Setting::updateOrCreate(
-            ['key' => $key],
-            ['value' => $value]
-        );
+        return Setting::updateOrCreate(['key' => $key], ['value' => $value]);
     }
 }
 
 /**
- * Fetch value from system_settings table (single row, column-based)
+ * system_settings (single-row)
  */
 if (!function_exists('system_setting')) {
     function system_setting($key, $default = null) {
@@ -36,9 +34,7 @@ if (!function_exists('system_setting')) {
 if (!function_exists('system_setting_set')) {
     function system_setting_set($key, $value) {
         $system = SystemSetting::first();
-        if (!$system) {
-            return SystemSetting::create([$key => $value]);
-        }
+        if (!$system) return SystemSetting::create([$key => $value]);
         $system->$key = $value;
         $system->save();
         return $system;
@@ -46,66 +42,34 @@ if (!function_exists('system_setting_set')) {
 }
 
 /**
- * Check if the current user can access a given module/feature/action
+ * can_access:
+ *  can_access('module.feature.action') OR can_access('module','feature','action')
  */
 if (!function_exists('can_access')) {
-    function can_access($module, $feature, $action)
+    function can_access($module, $feature = null, $action = null): bool
     {
         $user = Auth::user();
         if (!$user) return false;
 
-        // Super Admins always have full access
-        if ($user->hasRole('Super Admin')) {
+        // Super Admin has all access
+        if (method_exists($user, 'hasRole') && $user->hasRole('Super Admin')) {
             return true;
         }
 
-        $permission = "{$module}.{$feature}.{$action}";
+        $permission = $feature === null
+            ? (string)$module
+            : "{$module}.{$feature}" . ($action ? ".{$action}" : '');
+
         return $user->can($permission);
     }
 }
 
 /**
- * Replace placeholders in SMS/Email messages
+ * Replace placeholders in messages (single, canonical version)
  */
 if (!function_exists('replace_placeholders')) {
-    function replace_placeholders($message, $entity = null)
-    {
-        $replacements = [
-            '{school_name}' => setting('school_name', system_setting('school_name', 'Our School')),
-            '{date}' => now()->format('d M Y'),
-        ];
-
-        if ($entity instanceof \App\Models\Student) {
-            $replacements += [
-                '{student_name}' => $entity->name ?? '',
-                '{admission_no}' => $entity->admission_no ?? '',
-                '{class_name}' => optional($entity->classroom)->name,
-                '{grade}' => optional($entity->classroom)->section,
-                '{parent_name}' => optional($entity->parent)->father_name ?? optional($entity->parent)->guardian_name,
-            ];
-        }
-
-        if ($entity instanceof \App\Models\Staff) {
-            $replacements += [
-                '{staff_name}' => trim($entity->first_name . ' ' . $entity->last_name),
-                '{role}' => $entity->role ?? '',
-            ];
-        }
-
-        return str_replace(array_keys($replacements), array_values($replacements), $message);
-    }
-}
-
-
-if (!function_exists('replace_placeholders')) {
-    /**
-     * Replace placeholders in SMS/Email messages.
-     * $entity may be Student, Staff, ParentInfo, etc.
-     * $extra lets you inject ad-hoc values: ['{otp}' => '123456']
-     */
     function replace_placeholders(string $message, $entity = null, array $extra = []): string
     {
-        // Global (brand/system) placeholders
         $replacements = [
             '{school_name}'    => setting('school_name', system_setting('school_name', 'Our School')),
             '{school_phone}'   => system_setting('phone', ''),
@@ -116,7 +80,6 @@ if (!function_exists('replace_placeholders')) {
             '{date}'           => now()->format('d M Y'),
         ];
 
-        // Entity-based placeholders
         if ($entity instanceof \App\Models\Student) {
             $replacements += [
                 '{student_name}' => $entity->name ?? '',
@@ -142,14 +105,13 @@ if (!function_exists('replace_placeholders')) {
             ];
         }
 
-        // Custom placeholders from DB (optional UI later)
+        // Optional custom placeholders (safe for CLI)
         if (class_exists(CommunicationPlaceholder::class)) {
             foreach (CommunicationPlaceholder::all() as $ph) {
                 $replacements['{'.$ph->key.'}'] = (string) $ph->value;
             }
         }
 
-        // Extra ad-hoc values win
         if (!empty($extra)) {
             $replacements = array_merge($replacements, $extra);
         }
@@ -159,72 +121,18 @@ if (!function_exists('replace_placeholders')) {
 }
 
 /**
- * Convenience: list common placeholders for help text in blades.
+ * Common placeholder list for help text
  */
 if (!function_exists('available_placeholders')) {
     function available_placeholders(): array
     {
         return [
-            // Global
             '{school_name}', '{school_phone}', '{school_email}', '{school_address}', '{term}', '{academic_year}', '{date}',
-            // Student/Parent
             '{student_name}', '{admission_no}', '{class_name}', '{grade}', '{parent_name}',
-            // Staff
             '{staff_name}', '{role}', '{experience}',
         ];
     }
 }
-
-/**
- * Map-based replacer if you ever want to skip entity logic and just pass a map.
- */
-    if (!function_exists('replace_placeholders')) {
-        function replace_placeholders($message, $entity = null)
-        {
-            $replacements = [
-                '{school_name}' => setting('school_name', system_setting('school_name', 'Our School')),
-                '{school_phone}' => setting('school_phone', system_setting('school_phone', '')),
-                '{date}' => now()->format('d M Y'),
-            ];
-
-            // Load custom placeholders from DB
-            if (\Schema::hasTable('custom_placeholders')) {
-                $customs = \App\Models\CustomPlaceholder::all();
-                foreach ($customs as $p) {
-                    $replacements['{' . $p->key . '}'] = $p->value;
-                }
-            }
-
-            // Student entity placeholders
-            if ($entity instanceof \App\Models\Student) {
-                $replacements += [
-                    '{student_name}' => $entity->name ?? '',
-                    '{admission_no}' => $entity->admission_no ?? '',
-                    '{class_name}' => optional($entity->classroom)->name,
-                    '{section}' => optional($entity->classroom)->section,
-                ];
-
-                $p = $entity->parent;
-                if ($p) {
-                    $replacements += [
-                        '{father_name}' => $p->father_name ?? '',
-                        '{mother_name}' => $p->mother_name ?? '',
-                        '{guardian_name}' => $p->guardian_name ?? '',
-                    ];
-                }
-            }
-
-            // Staff entity placeholders
-            if ($entity instanceof \App\Models\Staff) {
-                $replacements += [
-                    '{staff_name}' => trim($entity->first_name . ' ' . $entity->last_name),
-                    '{staff_role}' => $entity->role ?? '',
-                ];
-            }
-
-            return str_replace(array_keys($replacements), array_values($replacements), $message);
-        }
-    }
 
 if (! function_exists('format_number')) {
     function format_number($value, int $decimals = 0): string
@@ -234,10 +142,6 @@ if (! function_exists('format_number')) {
 }
 
 if (! function_exists('format_money')) {
-    /**
-     * Format money using Intl NumberFormatter when available, with a safe fallback.
-     * Uses config('app.currency', 'KES') and app()->getLocale() by default.
-     */
     function format_money($value, ?string $currency = null, ?string $locale = null): string
     {
         $currency = $currency ?: config('app.currency', 'KES');
@@ -248,12 +152,8 @@ if (! function_exists('format_money')) {
                 $fmt = new \NumberFormatter($locale, \NumberFormatter::CURRENCY);
                 return $fmt->formatCurrency((float)$value, $currency);
             }
-        } catch (\Throwable $e) {
-            // fall through to simple formatting
-        }
+        } catch (\Throwable $e) { /* ignore */ }
 
         return $currency . ' ' . number_format((float)$value, 2);
     }
 }
-
-

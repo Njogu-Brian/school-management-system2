@@ -22,11 +22,16 @@
         </div>
     @endif
 
-    <form action="{{ route('staff.upload.handle') }}" method="POST" enctype="multipart/form-data">
+    <form action="{{ route('staff.upload.parse') }}" method="POST" enctype="multipart/form-data">
         @csrf
         <div class="mb-3">
             <label class="form-label">Upload Excel File *</label>
             <input type="file" name="file" class="form-control" accept=".xlsx,.xls,.csv" required>
+        </div>
+        <div class="d-flex justify-content-between mb-3">
+            <a href="{{ route('staff.template') }}" class="btn btn-outline-secondary">
+                ⬇ Download Excel Template
+            </a>
         </div>
         <button type="submit" class="btn btn-primary">⬆ Upload</button>
         <a href="{{ route('staff.index') }}" class="btn btn-secondary">Cancel</a>

@@ -65,7 +65,7 @@ class ExamGroupController extends Controller
         ]);
         $group->update($data);
 
-        return redirect()->route('exams.groups.index')->with('success','Exam group updated.');
+        return redirect()->route('academics.exams.groups.index')->with('success','Exam group updated.');
     }
 
     public function destroy(ExamGroup $group)

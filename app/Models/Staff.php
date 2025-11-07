@@ -11,52 +11,33 @@ class Staff extends Model
 
     protected $fillable = [
         'user_id','staff_id','first_name','middle_name','last_name',
-        'email','phone_number','id_number','date_of_birth','gender',
-        'marital_status','address','emergency_contact_name','emergency_contact_phone',
+        'work_email','personal_email','phone_number','id_number',
+        'date_of_birth','gender','marital_status','residential_address',
+        'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
         'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
         'department_id','job_title_id','staff_category_id','supervisor_id',
         'photo','status'
     ];
 
-    public function user()
+    public function getPhotoUrlAttribute(): string
     {
-        return $this->belongsTo(User::class);
+        if ($this->photo) {
+            // photo holds a path like "staff_photos/xxx.jpg" saved on the "public" disk
+            return asset('storage/'.$this->photo);
+        }
+        return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=0D8ABC&color=fff&size=128';
     }
+    public function user(){ return $this->belongsTo(User::class); }
+    public function supervisor(){ return $this->belongsTo(Staff::class, 'supervisor_id'); }
+    public function subordinates(){ return $this->hasMany(Staff::class, 'supervisor_id'); }
+    public function meta(){ return $this->hasMany(StaffMeta::class); }
 
-    public function supervisor()
-    {
-        return $this->belongsTo(Staff::class, 'supervisor_id');
-    }
+    public function category(){ return $this->belongsTo(StaffCategory::class, 'staff_category_id'); }
+    public function department(){ return $this->belongsTo(Department::class, 'department_id'); }
+    public function jobTitle(){ return $this->belongsTo(JobTitle::class, 'job_title_id'); }
 
-    public function subordinates()
-    {
-        return $this->hasMany(Staff::class, 'supervisor_id');
-    }
+    public function getFullNameAttribute(){ return "{$this->first_name} {$this->last_name}"; }
 
-    public function meta()
-    {
-        return $this->hasMany(StaffMeta::class);
-    }
-
-    // HR Category (formerly staff_roles)
-    public function category()
-    {
-        return $this->belongsTo(StaffCategory::class, 'staff_category_id');
-    }
-
-    public function department()
-    {
-        return $this->belongsTo(Department::class, 'department_id');
-    }
-
-    public function jobTitle()
-    {
-        return $this->belongsTo(JobTitle::class, 'job_title_id');
-    }
-    public function getFullNameAttribute()
-    {
-        return "{$this->first_name} {$this->last_name}";
-    }
     public function teachesSubjectInClass(int $subjectId, int $classroomId): bool
     {
         return \DB::table('classroom_subjects')

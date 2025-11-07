@@ -4,7 +4,7 @@
 <div class="container-fluid">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h3 class="mb-0">Results Published</h3>
-    <a href="{{ route('exams.results.index') }}" class="btn btn-outline-secondary">
+    <a href="{{ route('academics.exams.results.index') }}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> Back to Results
     </a>
   </div>

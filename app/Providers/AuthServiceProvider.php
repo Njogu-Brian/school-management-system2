@@ -4,9 +4,9 @@ namespace App\Providers;
 
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\DB; // <— add
-use App\Models\User;               // <— add
-use App\Models\Academics\Exam;     // <— add
+use Illuminate\Support\Facades\DB;
+use App\Models\User;
+use App\Models\Academics\Exam;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -18,14 +18,12 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
-        Gate::before(function (User $user, string $ability) {
-            return method_exists($user,'hasRole') && $user->hasRole('super admin') ? true : null;
+        // Let high-privilege roles bypass checks
+        Gate::before(function (User $user, string $ability = null) {
+            return $user->hasAnyRole(['Super Admin','Admin']) ? true : null;
         });
 
         Gate::define('enter-marks', function (User $user, Exam $exam, int $classroomId, int $subjectId) {
-            if (method_exists($user,'hasRole') && $user->hasRole('admin')) return true;
-            if (method_exists($user,'can') && $user->can('exam.manage')) return true;
-
             $staff = $user->staff ?? null;
             if (!$staff) return false;
 
@@ -36,12 +34,12 @@ class AuthServiceProvider extends ServiceProvider
 
             if ($exam->academic_year_id) {
                 $q->where(function($q2) use ($exam){
-                    $q2->whereNull('academic_year_id')->orWhere('academic_year_id',$exam->academic_year_id);
+                    $q2->whereNull('academic_year_id')->orWhere('academic_year_id', $exam->academic_year_id);
                 });
             }
             if ($exam->term_id) {
                 $q->where(function($q2) use ($exam){
-                    $q2->whereNull('term_id')->orWhere('term_id',$exam->term_id);
+                    $q2->whereNull('term_id')->orWhere('term_id', $exam->term_id);
                 });
             }
 
@@ -49,19 +47,17 @@ class AuthServiceProvider extends ServiceProvider
         });
 
         Gate::define('view-marks', function (User $user, int $classroomId) {
-            if (method_exists($user,'hasRole') && $user->hasRole('admin')) return true;
-
             $staff = $user->staff ?? null;
             if (!$staff) return false;
 
             $teachesInClass = DB::table('classroom_subjects')
-                ->where('staff_id',$staff->id)
-                ->where('classroom_id',$classroomId)
+                ->where('staff_id', $staff->id)
+                ->where('classroom_id', $classroomId)
                 ->exists();
 
             $isClassTeacher = DB::table('classroom_teacher')
-                ->where('teacher_id',$user->id)   // points to users.id
-                ->where('classroom_id',$classroomId)
+                ->where('teacher_id', $user->id) // users.id
+                ->where('classroom_id', $classroomId)
                 ->exists();
 
             return $teachesInClass || $isClassTeacher;

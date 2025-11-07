@@ -46,10 +46,10 @@
                       <span class="badge text-bg-light">{{ $g->exams_count ?? 0 }}</span>
                     </td>
                     <td class="text-end">
-                      <a href="{{ route('exams.groups.edit', $g->id) }}" class="btn btn-sm btn-outline-primary">
+                      <a href="{{ route('academics.exams.groups.edit', $g->id) }}" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-pencil"></i>
                       </a>
-                      <form action="{{ route('exams.groups.destroy', $g->id) }}" method="post" class="d-inline"
+                      <form action="{{ route('academics.exams.groups.destroy', $g->id) }}" method="post" class="d-inline"
                             onsubmit="return confirm('Delete this exam group?');">
                         @csrf @method('DELETE')
                         <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
@@ -73,7 +73,7 @@
       <div class="card shadow-sm">
         <div class="card-header fw-semibold">Create Group</div>
         <div class="card-body">
-          <form method="post" action="{{ route('exams.groups.index') }}">
+          <form method="post" action="{{ route('academics.exams.groups.index') }}">
             @csrf
             <div class="mb-3">
               <label class="form-label">Name</label>

@@ -19,7 +19,8 @@ public function run(): void
         // DemoExamSeeder::class,
         // DemoAcademicsSeeder::class,
         // ExamGradeSeeder::class,
-        BehaviourSeeder::class,
+        // BehaviourSeeder::class,
+        TeacherPermissionsSeeder::class,
     ]);
 }
 

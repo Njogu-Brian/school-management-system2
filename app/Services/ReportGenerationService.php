@@ -6,7 +6,7 @@ use App\Models\Academics\ReportCard;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\ExamGrade;
 
-class ReportCardService
+class ReportGenerationService
 {
     public function generateForClass($academicYearId, $termId, $classroomId, $streamId=null)
     {

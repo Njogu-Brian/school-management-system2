@@ -10,35 +10,42 @@ class SystemSetting extends Model
         'app_version', 'maintenance_mode', 'show_announcements',
         'staff_id_prefix', 'staff_id_start',
         'student_id_prefix', 'student_id_start',
+        // Optional common fields you referenced in helpers:
+        'school_name', 'phone', 'email', 'address',
+        'current_term', 'current_year',
     ];
 
     public $timestamps = true;
 
-    // ✅ Add this static method
-    public static function set($key, $value)
+    // Set a single column on the single-row settings
+    public static function set(string $key, $value)
     {
-        $system = self::first();
-
-        if (!$system) {
-            $system = self::create([$key => $value]);
+        $row = static::first();
+        if (!$row) {
+            $row = static::create([$key => $value]);
         } else {
-            $system->update([$key => $value]);
+            $row->update([$key => $value]);
         }
-
-        return $system;
+        return $row;
     }
 
-    public static function getValue($key, $default = null)
+    public static function getValue(string $key, $default = null)
     {
-        return optional(self::first())->$key ?? $default;
-    }
-    
-    public static function incrementValue($key, $default = 0)
-    {
-        $setting = static::firstOrCreate(['key' => $key], ['value' => $default]);
-        $value = (int) $setting->value + 1;
-        $setting->update(['value' => $value]);
-        return $value;
+        $row = static::first();
+        return $row ? ($row->{$key} ?? $default) : $default;
     }
 
+    // Numeric increment for a single column (single-row schema)
+    public static function incrementColumn(string $key, int $by = 1, $defaultStart = 0): int
+    {
+        $row = static::first();
+        if (!$row) {
+            $row = static::create([$key => $defaultStart]);
+        }
+        $current = (int)($row->{$key} ?? $defaultStart);
+        $new = $current + $by;
+        $row->{$key} = $new;
+        $row->save();
+        return $new;
+    }
 }

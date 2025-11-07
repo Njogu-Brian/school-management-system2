@@ -4,7 +4,7 @@
 <div class="container-fluid">
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h3 class="mb-0">Edit Exam Group</h3>
-    <a href="{{ route('exams.groups.index') }}" class="btn btn-outline-secondary">
+    <a href="{{ route('academics.exams.groups.index') }}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left"></i> Back
     </a>
   </div>
@@ -13,7 +13,7 @@
 
   <div class="card shadow-sm">
     <div class="card-body">
-      <form method="post" action="{{ route('exams.groups.update', $group->id) }}">
+      <form method="post" action="{{ route('academics.exams.groups.update', $group->id) }}">
         @csrf @method('PUT')
 
         <div class="row">
@@ -62,7 +62,7 @@
         </div>
 
         <div class="d-flex justify-content-end gap-2">
-          <a href="{{ route('exams.groups.index') }}" class="btn btn-outline-secondary">Cancel</a>
+          <a href="{{ route('academics.exams.groups.index') }}" class="btn btn-outline-secondary">Cancel</a>
           <button class="btn btn-primary"><i class="bi bi-save2 me-1"></i>Save Changes</button>
         </div>
       </form>

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Blade; // <-- add this import
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -14,6 +15,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Paginator::useBootstrap(); // ✅ ensures Laravel pagination matches Bootstrap styling
+        Paginator::useBootstrap();
+
+        // Register the @canAccess directive here (helpers.php no longer touches Blade)
+        Blade::if('canAccess', function ($a, $b = null, $c = null) {
+            return \can_access($a, $b, $c);
+        });
     }
 }
