@@ -4,10 +4,16 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Exam;
+use App\Services\ReportCardPublisher;
 use Illuminate\Http\Request;
 
 class ExamPublishingController extends Controller
 {
+    public function __construct(
+        protected ReportCardPublisher $publisher
+    ) {
+    }
+
     public function publish(Exam $exam, Request $r)
     {
         // Guard
@@ -18,14 +24,17 @@ class ExamPublishingController extends Controller
             return back()->with('error','Exam must be approved/locked before publishing to report cards.');
         }
 
-        // TODO: Implement your ReportCard push here (create/update items)
-        // e.g. app(ReportCardPublisher::class)->pushExam($exam);
+        $result = $this->publisher->pushExam($exam);
 
         $exam->update([
             'status' => 'published',
             'published_at' => now(),
         ]);
 
-        return back()->with('success','Results published to report cards.');
+        $message = $result['updated'] > 0
+            ? "Results published to report cards ({$result['updated']} cards refreshed across {$result['groups']} class groups)."
+            : 'Exam marked as published, no matching students needed updates.';
+
+        return back()->with('success', $message);
     }
 }

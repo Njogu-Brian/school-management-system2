@@ -27,6 +27,18 @@
             </select>
         </div>
 
+        <div class="mb-3">
+            <label>Family</label>
+            <select name="family_id" class="form-control">
+                <option value="">-- No linked family --</option>
+                @foreach ($families as $family)
+                    <option value="{{ $family->id }}" {{ $student->family_id == $family->id ? 'selected' : '' }}>
+                        {{ $family->guardian_name }} {{ $family->phone ? ' - '.$family->phone : '' }}
+                    </option>
+                @endforeach
+            </select>
+        </div>
+
         <button type="submit" class="btn btn-primary">Update</button>
     </form>
 </div>

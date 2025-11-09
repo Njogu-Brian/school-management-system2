@@ -7,6 +7,7 @@ use App\Models\ParentInfo;
 use App\Models\StudentCategory;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
+use App\Models\Family;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
@@ -70,8 +71,9 @@ class StudentController extends Controller
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
         $streams    = Stream::all();
+        $families   = Family::orderBy('guardian_name')->get();
 
-        return view('students.create', compact('students', 'categories', 'classrooms', 'streams'));
+        return view('students.create', compact('students', 'categories', 'classrooms', 'streams', 'families'));
     }
     /**
      * Store student
@@ -88,6 +90,7 @@ class StudentController extends Controller
                 'classroom_id' => 'nullable|exists:classrooms,id',
                 'stream_id' => 'nullable|exists:streams,id',
                 'category_id' => 'nullable|exists:student_categories,id',
+                'family_id' => 'nullable|exists:families,id',
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
             ]);
@@ -103,7 +106,7 @@ class StudentController extends Controller
             $student = Student::create(array_merge(
                 $request->only([
                     'first_name', 'middle_name', 'last_name', 'gender', 'dob',
-                    'classroom_id', 'stream_id', 'category_id',
+                      'classroom_id', 'stream_id', 'category_id', 'family_id',
                     'nemis_number', 'knec_assessment_number'
                 ]),
                 ['admission_number' => $admission_number, 'parent_id' => $parent->id]
@@ -131,8 +134,9 @@ class StudentController extends Controller
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
         $streams    = Stream::all();
+        $families   = Family::orderBy('guardian_name')->get();
 
-        return view('students.edit', compact('student', 'categories', 'classrooms', 'streams'));
+        return view('students.edit', compact('student', 'categories', 'classrooms', 'streams', 'families'));
     }
     /**
      * Update student
@@ -147,16 +151,17 @@ class StudentController extends Controller
             'last_name' => 'required|string|max:255',
             'gender' => 'required|string',
             'dob' => 'nullable|date',
-            'classroom_id' => 'nullable|exists:classrooms,id',
-            'stream_id' => 'nullable|exists:streams,id',
-            'category_id' => 'nullable|exists:student_categories,id',
+              'classroom_id' => 'nullable|exists:classrooms,id',
+              'stream_id' => 'nullable|exists:streams,id',
+              'category_id' => 'nullable|exists:student_categories,id',
+              'family_id' => 'nullable|exists:families,id',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
         ]);
 
         $student->update($request->only([
             'first_name', 'middle_name', 'last_name', 'gender', 'dob',
-            'classroom_id', 'stream_id', 'category_id',
+              'classroom_id', 'stream_id', 'category_id', 'family_id',
             'nemis_number', 'knec_assessment_number'
         ]));
 

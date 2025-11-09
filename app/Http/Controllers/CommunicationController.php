@@ -7,14 +7,18 @@ use App\Models\CommunicationLog;
 use App\Models\ScheduledCommunication;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
-use App\Models\Staff;
 use App\Models\Academics\Classroom;
-use App\Services\SMSService;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\GenericMail;
+use App\Services\CommunicationRecipientService;
+use App\Services\CommunicationService;
 
 class CommunicationController extends Controller
 {
+    public function __construct(
+        protected CommunicationRecipientService $recipientService,
+        protected CommunicationService $communicationService,
+    ) {
+    }
+
     /* ========== EMAIL ========== */
     public function createEmail()
     {
@@ -78,41 +82,28 @@ class CommunicationController extends Controller
             ? $request->file('attachment')->store('email_attachments', 'public')
             : null;
 
-        $recipients = $this->collectRecipients($data, 'email');
+        $recipients = $this->recipientService->resolveDetailed($data, 'email');
 
-        foreach ($recipients as $email => $entity) {
-            try {
-                $personalized = replace_placeholders($messageBody, $entity);
-                Mail::to($email)->send(new GenericMail($subject, $personalized, $attachmentPath));
+        foreach ($recipients->chunk(100) as $chunk) {
+            foreach ($chunk as $recipient) {
+                $entity = $recipient['entity'] ?? null;
+                $extra  = $recipient['extra'] ?? [];
+                $personalized = replace_placeholders($messageBody, $entity, $extra);
 
-                CommunicationLog::create([
-                    'recipient_type' => $data['target'],
-                    'recipient_id'   => $entity->id ?? null,
-                    'contact'        => $email,
-                    'channel'        => 'email',
-                    'title'          => $subject,
-                    'message'        => $personalized,
-                    'type'           => 'email',
-                    'status'         => 'sent',
-                    'response'       => 'OK',
-                    'classroom_id'   => $entity->classroom_id ?? null,
-                    'scope'          => 'email',
-                    'sent_at'        => now(),
-                ]);
-            } catch (\Throwable $e) {
-                CommunicationLog::create([
-                    'recipient_type' => $data['target'],
-                    'recipient_id'   => $entity->id ?? null,
-                    'contact'        => $email,
-                    'channel'        => 'email',
-                    'title'          => $subject,
-                    'message'        => $messageBody,
-                    'type'           => 'email',
-                    'status'         => 'failed',
-                    'response'       => $e->getMessage(),
-                    'scope'          => 'email',
-                    'sent_at'        => now(),
-                ]);
+                $this->communicationService->sendEmail(
+                    recipientType: $recipient['recipient_type'],
+                    recipientId: $recipient['entity_id'],
+                    email: $recipient['contact'],
+                    subject: $subject,
+                    htmlMessage: $personalized,
+                    attachmentPath: $attachmentPath,
+                    meta: [
+                        'type'         => 'email',
+                        'scope'        => 'email',
+                        'title'        => $subject,
+                        'classroom_id' => $entity->classroom_id ?? null,
+                    ]
+                );
             }
         }
 
@@ -135,7 +126,7 @@ class CommunicationController extends Controller
         return view('communication.send_sms', compact('templates', 'classes', 'students'));
     }
 
-    public function sendSMS(Request $request, SMSService $smsService)
+    public function sendSMS(Request $request)
     {
         abort_unless(can_access("communication", "sms", "add"), 403);
 
@@ -173,50 +164,30 @@ class CommunicationController extends Controller
             return redirect()->route('communication.send.sms')->with('success', 'SMS scheduled for ' . $data['send_at']);
         }
 
-        $recipients = $this->collectRecipients($data, 'sms');
+        $recipients = $this->recipientService->resolveDetailed($data, 'sms');
         $title = 'SMS';
         if (!empty($data['template_id'])) {
             $tpl   = CommunicationTemplate::find($data['template_id']);
             $title = $tpl?->title ?: $title;
         }
-        foreach ($recipients as $phone => $entity) {
-            try {
-                $personalized = replace_placeholders($message, $entity);
-                $response = $smsService->sendSMS($phone, $personalized);
+        foreach ($recipients->chunk(200) as $chunk) {
+            foreach ($chunk as $recipient) {
+                $entity = $recipient['entity'] ?? null;
+                $extra  = $recipient['extra'] ?? [];
+                $personalized = replace_placeholders($message, $entity, $extra);
 
-                CommunicationLog::create([
-                    'recipient_type' => $data['target'],
-                    'recipient_id'   => $entity->id ?? null,
-                    'contact'        => $phone,
-                    'channel'        => 'sms',
-                    'title'          => $title,
-                    'message'        => $personalized,
-                    'type'           => 'sms',
-                    'status'         => 'sent',
-                    'response'       => $response, // will be cast to array
-                    'classroom_id'   => $entity->classroom_id ?? null,
-                    'scope'          => 'sms',
-                    'sent_at'        => now(),
-
-                    // NEW (match to your provider fields):
-                    'provider_id'    => data_get($response,'id') 
-                                        ?? data_get($response,'message_id') 
-                                        ?? data_get($response,'MessageID'),
-                    'provider_status'=> strtolower(data_get($response,'status','sent')),
-                ]);
-            } catch (\Throwable $e) {
-                CommunicationLog::create([
-                    'recipient_type' => $data['target'],
-                    'recipient_id'   => $entity->id ?? null,
-                    'contact'        => $phone,
-                    'channel'        => 'sms',
-                    'message'        => $message,
-                    'type'           => 'sms',
-                    'status'         => 'failed',
-                    'response'       => $e->getMessage(),
-                    'scope'          => 'sms',
-                    'sent_at'        => now(),
-                ]);
+                $this->communicationService->sendSMS(
+                    recipientType: $recipient['recipient_type'],
+                    recipientId: $recipient['entity_id'],
+                    phone: $recipient['contact'],
+                    message: $personalized,
+                    meta: [
+                        'type'         => 'sms',
+                        'scope'        => 'sms',
+                        'title'        => $title,
+                        'classroom_id' => $entity->classroom_id ?? null,
+                    ]
+                );
             }
         }
 
@@ -234,69 +205,6 @@ class CommunicationController extends Controller
     {
         $scheduled = ScheduledCommunication::latest()->paginate(20);
         return view('communication.logs_scheduled', compact('scheduled'));
-    }
-
-    /* ========== RECIPIENT BUILDER ========== */
-    private function collectRecipients(array $data, string $type): array
-    {
-        $out = [];
-        $target = $data['target'];
-        $custom = $data['custom_emails'] ?? $data['custom_numbers'] ?? null;
-
-        if ($custom) {
-            foreach (array_map('trim', explode(',', $custom)) as $item) {
-                if ($item !== '') $out[$item] = null;
-            }
-        }
-
-        if ($target === 'student' && !empty($data['student_id'])) {
-            $student = Student::with('parent', 'classroom')->find($data['student_id']);
-            if ($student && $student->parent) {
-                $contacts = $type === 'email'
-                    ? [$student->parent->father_email, $student->parent->mother_email, $student->parent->guardian_email]
-                    : [$student->parent->father_phone, $student->parent->mother_phone, $student->parent->guardian_phone];
-                foreach ($contacts as $c) if ($c) $out[$c] = $student;
-            }
-        }
-
-        if ($target === 'class' && !empty($data['classroom_id'])) {
-            $students = Student::with('parent')->where('classroom_id', $data['classroom_id'])->get();
-            foreach ($students as $s) {
-                if ($s->parent) {
-                    $contacts = $type === 'email'
-                        ? [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email]
-                        : [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone];
-                    foreach ($contacts as $c) if ($c) $out[$c] = $s;
-                }
-            }
-        }
-
-        if ($target === 'parents') {
-            Student::with('parent')->get()->each(function ($s) use (&$out, $type) {
-                if ($s->parent) {
-                    $contacts = $type === 'email'
-                        ? [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email]
-                        : [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone];
-                    foreach ($contacts as $c) if ($c) $out[$c] = $s;
-                }
-            });
-        }
-
-        if ($target === 'students') {
-            Student::all()->each(function ($s) use (&$out, $type) {
-                $contact = $type === 'email' ? $s->email : $s->phone_number;
-                if ($contact) $out[$contact] = $s;
-            });
-        }
-
-        if ($target === 'staff') {
-            Staff::all()->each(function ($st) use (&$out, $type) {
-                $contact = $type === 'email' ? $st->email : $st->phone_number;
-                if ($contact) $out[$contact] = $st;
-            });
-        }
-
-        return $out;
     }
 
     public function smsDeliveryReport(Request $request)

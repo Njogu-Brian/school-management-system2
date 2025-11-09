@@ -12,14 +12,17 @@ use App\Models\Setting; // if you store branding here; otherwise adjust.
 class ReportCardBatchService
 {
     /**
-     * Generate/update report cards for a whole class & term
-     * by averaging all exams in the term (your existing logic).
+     * Generate/update report cards for a whole class & term.
+     *
+     * @return int number of report cards touched
      */
-    public function generateForClass($academicYearId, $termId, $classroomId, $streamId = null): void
+    public function generateForClass($academicYearId, $termId, $classroomId, $streamId = null): int
     {
         $students = \App\Models\Student::where('classroom_id', $classroomId)
             ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
             ->get();
+
+        $updated = 0;
 
         foreach ($students as $student) {
             $marks = ExamMark::with('exam','subject')
@@ -65,7 +68,11 @@ class ReportCardBatchService
                     'summary'          => $summary,
                 ]
             );
+
+            $updated++;
         }
+
+        return $updated;
     }
 
     /**

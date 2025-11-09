@@ -34,6 +34,7 @@ use App\Http\Controllers\AcademicConfigController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ParentInfoController;
 use App\Http\Controllers\OnlineAdmissionController;
+use App\Http\Controllers\FamilyController;
 
 // Communication
 use App\Http\Controllers\CommunicationController;
@@ -454,6 +455,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('students', StudentController::class)
         ->except(['destroy', 'show'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher');
+
+    Route::resource('families', FamilyController::class)
+        ->except(['show'])
+        ->middleware('role:Super Admin|Admin|Secretary');
 
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.archive');

@@ -62,6 +62,19 @@
             </select>
         </div>
 
+        <div class="mb-3">
+            <label>Family</label>
+            <select name="family_id" class="form-control">
+                <option value="">-- No linked family --</option>
+                @foreach ($families as $family)
+                    <option value="{{ $family->id }}">
+                        {{ $family->guardian_name }} {{ $family->phone ? ' - '.$family->phone : '' }}
+                    </option>
+                @endforeach
+            </select>
+            <small class="text-muted">Select an existing family to automatically link siblings and consolidate finance communications.</small>
+        </div>
+
         {{-- Parent Info --}}
         <h4>Parent/Guardian Info</h4>
         <div class="mb-3">

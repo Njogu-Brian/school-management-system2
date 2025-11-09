@@ -27,6 +27,7 @@ class Student extends Model
         'gender',
         'dob',
         'parent_id',
+        'family_id',
         'classroom_id',
         'stream_id',
         'category_id',
