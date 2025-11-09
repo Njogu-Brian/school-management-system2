@@ -11,20 +11,20 @@ use App\Models\Announcement;
 class AuthController extends Controller
 {
     public function showLoginForm()
-{
-    $settings = Setting::all()->keyBy('key');
+    {
+        $settings = Setting::all()->keyBy('key');
 
-    $announcements = Announcement::where('active', 1)
-        ->where(function ($query) {
-            $query->whereNull('expires_at')
-                  ->orWhere('expires_at', '>', now());
-        })
-        ->latest()
-        ->take(5)
-        ->pluck('content');
+        $announcements = Announcement::where('active', 1)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->latest()
+            ->take(5)
+            ->pluck('content');
 
-    return view('auth.login', compact('settings', 'announcements'));
-}
+        return view('auth.login', compact('settings', 'announcements'));
+    }
 
     public function login(Request $request)
     {
@@ -34,6 +34,8 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials)) {
+            $request->session()->regenerate();
+
             /** @var \App\Models\User $user */
             $user = auth()->user();
             $user->load('roles'); // Ensure roles are loaded
@@ -52,10 +54,12 @@ class AuthController extends Controller
         return back()->withErrors(['email' => 'Invalid credentials']);
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
         Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
         return redirect()->route('login');
     }
-    
 }

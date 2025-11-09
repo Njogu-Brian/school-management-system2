@@ -16,9 +16,9 @@ class StudentTemplateExport implements FromArray, WithHeadings, WithEvents
 
     public function __construct($rows, $classrooms, $streams, $categories)
     {
-        $this->rows = $rows;
-        $this->classroomss = $classrooms;
-        $this->streams = $streams;
+        $this->rows       = $rows;
+        $this->classrooms = $classrooms;
+        $this->streams    = $streams;
         $this->categories = $categories;
     }
 
@@ -42,37 +42,48 @@ class StudentTemplateExport implements FromArray, WithHeadings, WithEvents
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $sheet = $event->sheet->getDelegate();
+                $sheet    = $event->sheet->getDelegate();
+                $workbook = $event->sheet->getParent();
 
-                $refSheet = $event->sheet->getParent()->createSheet();
+                $refSheet = $workbook->getSheetByName('reference_data') ?: $workbook->createSheet();
                 $refSheet->setTitle('reference_data');
 
-                $i = 1;
-                foreach ($this->classroomss as $index => $value) {
-                    $refSheet->setCellValue("A" . ($index + 1), $value);
+                foreach ($this->classrooms as $index => $value) {
+                    $refSheet->setCellValue('A' . ($index + 1), $value);
                 }
+
                 foreach ($this->streams as $index => $value) {
-                    $refSheet->setCellValue("B" . ($index + 1), $value);
+                    $refSheet->setCellValue('B' . ($index + 1), $value);
                 }
+
                 foreach ($this->categories as $index => $value) {
-                    $refSheet->setCellValue("C" . ($index + 1), $value);
+                    $refSheet->setCellValue('C' . ($index + 1), $value);
                 }
 
-                // Set dropdowns on main sheet
-               for ($row = 2; $row <= 100; $row++) {
-                $sheet->getCell("G$row")->getDataValidation()->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                    ->setFormula1('reference_data!$A$1:$A$' . count($this->classroomss))
-                    ->setShowDropDown(true);
+                $classroomRange = 'reference_data!$A$1:$A$' . max(1, count($this->classrooms));
+                $streamRange    = 'reference_data!$B$1:$B$' . max(1, count($this->streams));
+                $categoryRange  = 'reference_data!$C$1:$C$' . max(1, count($this->categories));
 
-                $sheet->getCell("H$row")->getDataValidation()->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                    ->setFormula1('reference_data!$B$1:$B$' . count($this->streams))
-                    ->setShowDropDown(true);
+                for ($row = 2; $row <= 100; $row++) {
+                    $sheet->getCell("G{$row}")
+                        ->getDataValidation()
+                        ->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                        ->setFormula1($classroomRange)
+                        ->setShowDropDown(true);
 
-                $sheet->getCell("I$row")->getDataValidation()->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
-                    ->setFormula1('reference_data!$C$1:$C$' . count($this->categories))
-                    ->setShowDropDown(true);
-            }
-            }
+                    $sheet->getCell("H{$row}")
+                        ->getDataValidation()
+                        ->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                        ->setFormula1($streamRange)
+                        ->setShowDropDown(true);
+
+                    $sheet->getCell("I{$row}")
+                        ->getDataValidation()
+                        ->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST)
+                        ->setFormula1($categoryRange)
+                        ->setShowDropDown(true);
+                }
+            },
         ];
     }
 }

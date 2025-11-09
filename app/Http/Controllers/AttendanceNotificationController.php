@@ -87,7 +87,7 @@ class AttendanceNotificationController extends Controller
             ->where('date', $date)
             ->where('status', 'present')
             ->get()
-            ->groupBy(fn($row) => optional($row->student->classrooms)->name ?? 'Unknown')
+            ->groupBy(fn($row) => optional($row->student->classroom)->name ?? 'Unknown')
             ->map(fn($rows) => $rows->count());
 
         $recipients = AttendanceRecipient::with('staff')->where('active', true)->get();

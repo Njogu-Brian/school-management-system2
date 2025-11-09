@@ -53,10 +53,20 @@ class CommunicationService
         }
     }
 
-    public function sendEmail($recipientType, $recipientId, $email, $subject, $htmlMessage)
+    /**
+     * Send an email and capture audit logs.
+     */
+    public function sendEmail(
+        string $recipientType,
+        ?int $recipientId,
+        string $email,
+        string $subject,
+        string $htmlMessage,
+        ?string $attachmentPath = null
+    ): void
     {
         try {
-            Mail::to($email)->send(new GenericMail($subject, $htmlMessage));
+            Mail::to($email)->send(new GenericMail($subject, $htmlMessage, $attachmentPath));
 
             CommunicationLog::create([
                 'recipient_type' => $recipientType,
@@ -66,8 +76,9 @@ class CommunicationService
                 'message'        => $htmlMessage,
                 'status'         => 'success',
                 'response'       => 'Sent',
+                'title'          => $subject,
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             CommunicationLog::create([
                 'recipient_type' => $recipientType,
                 'recipient_id'   => $recipientId,
@@ -76,6 +87,7 @@ class CommunicationService
                 'message'        => $htmlMessage,
                 'status'         => 'failed',
                 'response'       => $e->getMessage(),
+                'title'          => $subject,
             ]);
         }
     }

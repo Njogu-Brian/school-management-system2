@@ -51,7 +51,7 @@ class StudentController extends Controller
         }
 
         if ($request->filled('classroom_id')) {
-            $query->where('classroom_id', $request->classrooms_id);
+            $query->where('classroom_id', $request->classroom_id);
         }
 
         $students = $query->get();
@@ -199,7 +199,9 @@ class StudentController extends Controller
     private function generateNextAdmissionNumber()
     {
         $prefix = SystemSetting::getValue('student_id_prefix', 'ADM');
-        $counter = SystemSetting::incrementValue('student_id_counter', SystemSetting::getValue('student_id_start', 1000));
+        $start  = (int) SystemSetting::getValue('student_id_start', 1000);
+        $counter = SystemSetting::incrementValue('student_id_counter', $start);
+
         return $prefix . str_pad($counter, 4, '0', STR_PAD_LEFT);
     }
 
@@ -420,8 +422,8 @@ class StudentController extends Controller
      */
     protected function sendAdmissionCommunication($student, $parent)
     {
-        $className = optional($student->classrooms)->name ?? '';
-        $fullName = $student->getFullNameAttribute();
+        $className = optional($student->classroom)->name ?? '';
+        $fullName  = $student->full_name;
 
         // SMS
         $smsTemplate = CommunicationTemplate::where('type', 'sms')

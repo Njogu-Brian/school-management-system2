@@ -30,7 +30,15 @@ class GenericMail extends Mailable
                     ->with(['content' => $this->content]);
 
         if ($this->attachmentPath) {
-            $mail->attach(storage_path('app/public/' . $this->attachmentPath));
+            $path = $this->attachmentPath;
+
+            if (!str_starts_with($path, DIRECTORY_SEPARATOR) && !preg_match('/^[A-Za-z]:\\\\/', $path)) {
+                $path = storage_path('app/public/' . ltrim($path, '/'));
+            }
+
+            if (is_file($path)) {
+                $mail->attach($path);
+            }
         }
 
         return $mail;

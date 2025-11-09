@@ -41,31 +41,31 @@ class InvoiceController extends Controller
         return view('finance.invoices.create', compact('classrooms'));
     }
 
-   public function generate(Request $request)
+    public function generate(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
             'year' => 'required|integer',
             'term' => 'required|in:1,2,3',
         ]);
 
         $structure = FeeStructure::with('charges.votehead')
-            ->where('classroom_id', $request->classrooms_id)
-            ->where('year', $request->year)
+            ->where('classroom_id', $validated['classroom_id'])
+            ->where('year', $validated['year'])
             ->first();
 
         if (!$structure) {
             return back()->with('error', 'Fee structure not found for selected class and year.');
         }
 
-        $students = Student::where('classroom_id', $request->classrooms_id)->get();
+        $students = Student::where('classroom_id', $validated['classroom_id'])->get();
         $invoicesGenerated = 0;
 
-        DB::transaction(function () use ($students, $structure, $request, &$invoicesGenerated) {
+        DB::transaction(function () use ($students, $structure, $validated, &$invoicesGenerated) {
             foreach ($students as $student) {
                 $itemsToInsert = [];
 
-                foreach ($structure->charges->where('term', $request->term) as $charge) {
+                foreach ($structure->charges->where('term', $validated['term']) as $charge) {
                     $votehead = $charge->votehead;
 
                     if (!$votehead->is_mandatory) continue;
@@ -78,7 +78,7 @@ class InvoiceController extends Controller
                             ->exists();
                     } elseif ($votehead->charge_type === 'once_annually') {
                         $shouldSkip = InvoiceItem::whereHas('invoice', fn($q) =>
-                            $q->where('student_id', $student->id)->where('year', $request->year)
+                            $q->where('student_id', $student->id)->where('year', $validated['year'])
                         )->where('votehead_id', $votehead->id)->exists();
                     } elseif ($votehead->charge_type === 'per_family') {
                         $shouldSkip = InvoiceItem::whereHas('invoice.student', fn($q) =>
@@ -97,8 +97,8 @@ class InvoiceController extends Controller
                 if (count($itemsToInsert) > 0) {
                     $invoice = Invoice::firstOrCreate([
                         'student_id' => $student->id,
-                        'term' => $request->term,
-                        'year' => $request->year,
+                        'term' => $validated['term'],
+                        'year' => $validated['year'],
                     ], [
                         'invoice_number' => DocumentNumberService::generate('invoice', 'INV'),
                         'total' => 0,

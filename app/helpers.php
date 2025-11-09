@@ -82,13 +82,16 @@ if (!function_exists('replace_placeholders')) {
 
         if ($entity instanceof \App\Models\Student) {
             $replacements += [
-                '{student_name}' => $entity->name ?? '',
-                '{admission_no}' => $entity->admission_no ?? '',
-                '{class_name}'   => optional($entity->classroom)->name,
-                '{grade}'        => optional($entity->classroom)->section,
+                '{student_name}' => $entity->full_name ?? '',
+                '{admission_no}' => $entity->admission_number ?? '',
+                '{class_name}'   => optional($entity->classroom)->name ?? '',
+                '{grade}'        => optional($entity->stream)->name
+                    ?? optional($entity->classroom)->section
+                    ?? '',
                 '{parent_name}'  => optional($entity->parent)->father_name
                                     ?? optional($entity->parent)->guardian_name
-                                    ?? optional($entity->parent)->mother_name,
+                                    ?? optional($entity->parent)->mother_name
+                                    ?? '',
             ];
         } elseif ($entity instanceof \App\Models\Staff) {
             $replacements += [
