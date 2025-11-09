@@ -65,9 +65,11 @@ class Student extends Model
         return $this->belongsTo(StudentCategory::class, 'category_id');
     }
 
-    public function getFullNameAttribute()
+    public function getFullNameAttribute(): string
     {
-        return "{$this->first_name} {$this->middle_name} {$this->last_name}";
+        return trim(collect([$this->first_name, $this->middle_name, $this->last_name])
+            ->filter(fn ($part) => filled($part))
+            ->implode(' '));
     }
 
     public function classroom()
@@ -112,9 +114,9 @@ class Student extends Model
     {
         return (new static)->newQueryWithoutScope('active');
     }
-    public function getNameAttribute()
+    public function getNameAttribute(): string
     {
-        return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
+        return $this->full_name;
     }
 
 

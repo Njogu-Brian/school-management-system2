@@ -207,9 +207,9 @@ class DashboardController extends Controller
                 })
             : collect();
 
-        // Announcements (is_active / expires_at)
+        // Announcements (active / expires_at)
         $announcements = Announcement::query()
-            ->where('is_active', 1)
+            ->where('active', 1)
             ->where(function ($q) {
                 $q->whereNull('expires_at')->orWhere('expires_at', '>=', now());
             })

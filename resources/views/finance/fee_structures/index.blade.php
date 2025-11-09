@@ -39,7 +39,7 @@
                 <select name="source_classroom_id" class="form-control" required>
                     <option value="">Select</option>
                     @foreach($structures as $s)
-                        <option value="{{ $s->classrooms_id }}">{{ $s->classrooms->name }}</option>
+                        <option value="{{ $s->classroom_id }}">{{ optional($s->classroom)->name }}</option>
                     @endforeach
                 </select>
             </div>

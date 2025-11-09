@@ -92,13 +92,14 @@ public function mark(Request $request)
 
         // ---- Trigger communications if status changed ----
         try {
-            if ($oldStatus !== $status) {
-                $student = $attendance->student()->with('parent')->first();
+             if ($oldStatus !== $status) {
+                 $student = $attendance->student()->with(['parent', 'classroom'])->first();
                 if (!$student || !$student->parent) continue;
 
-                $humanDate = Carbon::parse($date)->isToday()
-                    ? 'today'
-                    : Carbon::parse($date)->format('d M Y');
+                 $dateObject = Carbon::parse($date);
+                 $humanDate = $dateObject->isToday()
+                     ? 'today'
+                     : $dateObject->format('d M Y');
 
                 if ($status === 'absent') {
                     $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $attendance->reason);
@@ -170,7 +171,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
 {
     $replacements = [
         '{student_name}' => $student->full_name,
-        '{class}'        => $student->classrooms->name ?? '',
+        '{class}'        => optional($student->classroom)->name ?? '',
         '{admission_no}' => $student->admission_number ?? '',
         '{date}'         => $humanDate,
         '{parent_name}'  => $student->parent->father_name

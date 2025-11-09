@@ -37,8 +37,8 @@
 
                         {{-- Assigned Classes --}}
                         <td>
-                            @if(!empty($recipient->classrooms_ids))
-                                @foreach($recipient->classrooms_ids as $classId)
+                        @if(!empty($recipient->classroom_ids))
+                                @foreach($recipient->classroom_ids as $classId)
                                     <span class="badge bg-secondary">
                                         {{ $classrooms[$classId] ?? 'Unknown' }}
                                     </span>

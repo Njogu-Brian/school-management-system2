@@ -169,7 +169,7 @@ class StaffController extends Controller
                 $user->email,
                 $subject,
                 $body,
-                $emailTpl->attachment ? storage_path('app/public/'.$emailTpl->attachment) : null
+                $emailTpl->attachment ?: null
             );
         }
 

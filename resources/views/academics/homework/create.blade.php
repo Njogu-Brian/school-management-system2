@@ -68,7 +68,7 @@
             <label>Students</label>
             <select name="student_ids[]" class="form-control" multiple>
                 @foreach($students as $student)
-                    <option value="{{ $student->id }}">{{ $student->admission_no }} - {{ $student->first_name }} {{ $student->last_name }}</option>
+                    <option value="{{ $student->id }}">{{ $student->admission_number }} - {{ $student->first_name }} {{ $student->last_name }}</option>
                 @endforeach
             </select>
         </div>
