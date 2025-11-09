@@ -84,6 +84,10 @@
             border-radius: 4px;
             z-index: 1100;
         }
+
+        .avatar-36 { width:36px; height:36px; border-radius:50%; object-fit:cover; display:inline-block; }
+        .avatar-44 { width:44px; height:44px; border-radius:50%; object-fit:cover; display:inline-block; }
+
         @media(max-width:992px){
             .sidebar{ left:-240px; }
             .sidebar.active{ left:0; }

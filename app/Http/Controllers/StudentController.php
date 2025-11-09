@@ -29,35 +29,46 @@ class StudentController extends Controller
     /**
      * List students
      */
-    public function index(Request $request)
+   public function index(Request $request)
     {
-        // Global scope ensures only active students by default
-        $query = Student::with(['parent', 'classroom', 'stream', 'category']);
+        $perPage = (int) $request->input('per_page', 20);
 
-        // If explicitly showing archived
-        if ($request->has('showArchived')) {
-            $query = Student::withArchived()->with(['parent', 'classroom', 'stream', 'category']);
-        }
+        $query = $request->has('showArchived')
+            ? Student::withArchived()->with(['parent','classroom','stream','category'])
+            : Student::with(['parent','classroom','stream','category'])->where('archive', 0);
 
         if ($request->filled('name')) {
-            $query->where(function ($q) use ($request) {
-                $q->where('first_name', 'like', '%' . $request->name . '%')
-                ->orWhere('last_name', 'like', '%' . $request->name . '%');
-            });
+            $name = $request->name;
+            $query->where(fn($q)=>$q->where('first_name','like',"%$name%")
+                ->orWhere('middle_name','like',"%$name%")
+                ->orWhere('last_name','like',"%$name%"));
         }
 
         if ($request->filled('admission_number')) {
-            $query->where('admission_number', 'like', '%' . $request->admission_number . '%');
+            $query->where('admission_number','like','%'.$request->admission_number.'%');
         }
 
         if ($request->filled('classroom_id')) {
-            $query->where('classroom_id', $request->classrooms_id);
+            $query->where('classroom_id', $request->classroom_id); // fixed key
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
         }
 
-        $students = $query->get();
-        $classes  = Classroom::all();
+        // eager
+        $students = $query->orderBy('first_name')->paginate($perPage)->withQueryString();
 
-        return view('students.index', compact('students', 'classes'));
+        $classrooms = Classroom::orderBy('name')->get();
+        $streams    = Stream::orderBy('name')->get();
+
+        // birthdays this week (for badge)
+        $thisWeekBirthdays = Student::whereNotNull('dob')->get()->filter(function($s){
+            $dob = \Carbon\Carbon::parse($s->dob);
+            $thisYear = $dob->copy()->year(now()->year);
+            return $thisYear->isCurrentWeek();
+        })->pluck('id')->toArray();
+
+        return view('students.index', compact('students','classrooms','streams','thisWeekBirthdays'));
     }
 
     /**
@@ -65,13 +76,19 @@ class StudentController extends Controller
      */
     public function create()
     {
-        // Siblings dropdown → only active students (global scope applies)
-        $students   = Student::all();
+        $students   = Student::all(); // optional, not needed with modal search
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
         $streams    = Stream::all();
+        $routes     = \App\Models\TransportRoute::orderBy('name')->get(); // if you have this model
 
-        return view('students.create', compact('students', 'categories', 'classrooms', 'streams'));
+        return view('students.create', [
+            'students' => $students,
+            'categories' => $categories,
+            'classrooms' => $classrooms,
+            'streams' => $streams,
+            'routes' => $routes,
+        ]);
     }
     /**
      * Store student
@@ -92,6 +109,34 @@ class StudentController extends Controller
                 'knec_assessment_number' => 'nullable|string',
             ]);
 
+            // Handle family linkage
+            $familyId = $request->input('family_id');
+
+            // If chosen a student to copy family from
+            if (!$familyId && $request->filled('copy_family_from_student_id')) {
+                $ref = Student::withArchived()->find($request->copy_family_from_student_id);
+                if ($ref && $ref->family_id) {
+                    $familyId = $ref->family_id;
+                } elseif ($ref && $request->boolean('create_family_from_parent')) {
+                    // Create a family and assign both (if ref lacks family_id)
+                    $fam = \App\Models\Family::create([
+                        'guardian_name' => $ref->parent->guardian_name ?? ($ref->parent->father_name ?? $ref->parent->mother_name ?? 'Family '.$ref->admission_number),
+                        'phone' => $ref->parent->father_phone ?? $ref->parent->mother_phone ?? $ref->parent->guardian_phone,
+                        'email' => $ref->parent->father_email ?? $ref->parent->mother_email ?? $ref->parent->guardian_email,
+                    ]);
+                    $ref->update(['family_id'=>$fam->id]);
+                    $familyId = $fam->id;
+                }
+            } elseif (!$familyId && $request->boolean('create_family_from_parent')) {
+                // Create new family for THIS student using provided parent info
+                $fam = \App\Models\Family::create([
+                    'guardian_name' => $request->guardian_name ?? $request->father_name ?? $request->mother_name ?? 'New Family',
+                    'phone'         => $request->guardian_phone ?? $request->father_phone ?? $request->mother_phone,
+                    'email'         => $request->guardian_email ?? $request->father_email ?? $request->mother_email,
+                ]);
+                $familyId = $fam->id;
+            }
+            // Create ParentInfo
             $parent = ParentInfo::create($request->only([
                 'father_name', 'father_phone', 'father_email', 'father_id_number',
                 'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
@@ -126,13 +171,16 @@ class StudentController extends Controller
      */
     public function edit($id)
     {
-        // Must include archived, otherwise findOrFail won’t work if student is archived
-        $student    = Student::withArchived()->with(['parent', 'classroom', 'stream', 'category'])->findOrFail($id);
-        $categories = StudentCategory::all();
-        $classrooms = Classroom::all();
-        $streams    = Stream::all();
+        $student      = Student::withArchived()->with(['parent','classroom','stream','category'])->findOrFail($id);
+        $categories   = StudentCategory::all();
+        $classrooms   = Classroom::all();
+        $streams      = Stream::all();
+        $routes       = \App\Models\TransportRoute::orderBy('name')->get(); // if exists
+        $familyMembers = $student->family_id
+            ? Student::where('family_id',$student->family_id)->where('id','!=',$student->id)->get()
+            : collect();
 
-        return view('students.edit', compact('student', 'categories', 'classrooms', 'streams'));
+        return view('students.edit', compact('student','categories','classrooms','streams','routes','familyMembers'));
     }
     /**
      * Update student
@@ -159,6 +207,34 @@ class StudentController extends Controller
             'classroom_id', 'stream_id', 'category_id',
             'nemis_number', 'knec_assessment_number'
         ]));
+        // Family mapping on update
+        $familyId = $request->input('family_id');
+
+        if (!$familyId && $request->filled('copy_family_from_student_id')) {
+            $ref = Student::withArchived()->find($request->copy_family_from_student_id);
+            if ($ref && $ref->family_id) {
+                $familyId = $ref->family_id;
+            } elseif ($ref && $request->boolean('create_family_from_parent')) {
+                $fam = \App\Models\Family::create([
+                    'guardian_name' => $ref->parent->guardian_name ?? ($ref->parent->father_name ?? $ref->parent->mother_name ?? 'Family '.$ref->admission_number),
+                    'phone' => $ref->parent->father_phone ?? $ref->parent->mother_phone ?? $ref->parent->guardian_phone,
+                    'email' => $ref->parent->father_email ?? $ref->parent->mother_email ?? $ref->parent->guardian_email,
+                ]);
+                $ref->update(['family_id'=>$fam->id]);
+                $familyId = $fam->id;
+            }
+        } elseif (!$familyId && $request->boolean('create_family_from_parent')) {
+            $fam = \App\Models\Family::create([
+                'guardian_name' => $request->guardian_name ?? $request->father_name ?? $request->mother_name ?? 'New Family',
+                'phone'         => $request->guardian_phone ?? $request->father_phone ?? $request->mother_phone,
+                'email'         => $request->guardian_email ?? $request->father_email ?? $request->mother_email,
+            ]);
+            $familyId = $fam->id;
+        }
+
+        if ($familyId) {
+            $student->update(['family_id' => $familyId]);
+        }
 
         if ($student->parent) {
             $student->parent->update($request->only([
@@ -458,5 +534,87 @@ class StudentController extends Controller
                 }
             }
         }
+    }
+
+    public function show($id)
+    {
+        $student = Student::withArchived()
+            ->with(['parent','classroom','stream','category'])
+            ->findOrFail($id);
+
+        return view('students.show', compact('student'));
+    }
+
+    public function getStreams(Request $request)
+    {
+        $request->validate(['classroom_id'=>'required|exists:classrooms,id']);
+        $streams = Stream::where('classroom_id', $request->classroom_id)->select('id','name')->get();
+        return response()->json($streams);
+    }
+
+    public function export(Request $request)
+    {
+        // Reuse same filters as index()
+        $request->merge(['per_page' => 1000000]); // get "all" that match
+        $students = $this->index(new Request($request->all()))->getData()['students']; // hack-free: duplicate filter logic if you prefer
+
+        $rows = [];
+        $rows[] = ['Admission','First','Middle','Last','Gender','DOB','Class','Stream','Category','Parent Phone'];
+        foreach ($students as $s) {
+            $rows[] = [
+                $s->admission_number,
+                $s->first_name,
+                $s->middle_name,
+                $s->last_name,
+                $s->gender,
+                $s->dob,
+                optional($s->classroom)->name,
+                optional($s->stream)->name,
+                optional($s->category)->name,
+                optional($s->parent)->father_phone ?? optional($s->parent)->mother_phone ?? optional($s->parent)->guardian_phone,
+            ];
+        }
+
+        $fn = 'students_export_'.now()->format('Ymd_His').'.csv';
+        $handle = fopen('php://temp','r+');
+        foreach ($rows as $r) fputcsv($handle, $r);
+        rewind($handle);
+        $contents = stream_get_contents($handle);
+        fclose($handle);
+
+        return response($contents, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"$fn\"",
+        ]);
+    }
+
+    public function bulkAssign(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
+
+        Student::withArchived()->whereIn('id', $request->student_ids)->update(array_filter([
+            'classroom_id' => $request->classroom_id,
+            'stream_id'    => $request->stream_id,
+        ]));
+
+        return back()->with('success','Selected students updated.');
+    }
+
+    public function bulkArchive(Request $request)
+    {
+        $request->validate(['student_ids'=>'required|array']);
+        Student::withArchived()->whereIn('id', $request->student_ids)->update(['archive'=>1]);
+        return back()->with('success','Selected students archived.');
+    }
+
+    public function bulkRestore(Request $request)
+    {
+        $request->validate(['student_ids'=>'required|array']);
+        Student::withArchived()->whereIn('id', $request->student_ids)->update(['archive'=>0]);
+        return back()->with('success','Selected students restored.');
     }
 }

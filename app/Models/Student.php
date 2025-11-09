@@ -117,5 +117,19 @@ class Student extends Model
         return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
     }
 
+    public function getPhotoUrlAttribute(): string
+    {
+        // prefer stored photo (photo_path or photo)
+        $path = $this->photo_path ?? $this->photo ?? null;
+
+        if ($path) {
+            // Use the public disk; make sure "php artisan storage:link" is done
+            return asset('storage/' . ltrim($path, '/'));
+        }
+
+        // Nice initials fallback (no “av” weirdness)
+        $name = trim($this->first_name . ' ' . $this->last_name);
+        return 'https://ui-avatars.com/api/?name=' . urlencode($name) . '&background=6c63ff&color=fff&size=128&rounded=true';
+    }
 
 }

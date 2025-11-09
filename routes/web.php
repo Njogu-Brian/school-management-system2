@@ -34,6 +34,7 @@ use App\Http\Controllers\AcademicConfigController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ParentInfoController;
 use App\Http\Controllers\OnlineAdmissionController;
+use App\Http\Controllers\FamilyController;
 
 // Communication
 use App\Http\Controllers\CommunicationController;
@@ -473,6 +474,24 @@ Route::middleware('auth')->group(function () {
     // API-like search (inside auth)
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.search');
+    // Allow 'show'
+    Route::resource('students', StudentController::class)
+        ->except(['destroy']) // keep show enabled
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher');
+
+    // Export filtered list
+    Route::get('/students/export', [StudentController::class, 'export'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.export');
+
+    // Bulk assign (class/stream) + bulk archive/restore
+    Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign');
+
+    Route::post('/students/bulk-archive', [StudentController::class, 'bulkArchive'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.archive');
+
+    Route::post('/students/bulk-restore', [StudentController::class, 'bulkRestore'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.restore');
 
     /*
     |----------------------------------------------------------------------
@@ -482,6 +501,17 @@ Route::middleware('auth')->group(function () {
     Route::resource('parent-info', ParentInfoController::class)
         ->except(['show'])
         ->middleware('role:Super Admin|Admin|Secretary');
+    
+    //families
+    Route::prefix('families')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
+        Route::get('/',                [FamilyController::class,'index'])->name('families.index');
+        Route::get('/create',          [FamilyController::class,'create'])->name('families.create');          // optional
+        Route::post('/',               [FamilyController::class,'store'])->name('families.store');           // optional
+        Route::get('/{family}',        [FamilyController::class,'manage'])->name('families.manage');         // view + edit page
+        Route::put('/{family}',        [FamilyController::class,'update'])->name('families.update');         // save guardian/phone/email
+        Route::post('/{family}/attach',[FamilyController::class,'attachMember'])->name('families.attach');   // add student to family
+        Route::post('/{family}/detach',[FamilyController::class,'detachMember'])->name('families.detach');   // remove student from family
+    });
 
     /*
     |----------------------------------------------------------------------

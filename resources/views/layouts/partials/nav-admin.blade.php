@@ -58,6 +58,7 @@
         <span>My Profile</span>
     </a>
 </li>
+
 <!-- Students -->
 @php $studentsActive = Request::is('students*') || Request::is('online-admissions*'); @endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
@@ -67,6 +68,7 @@
     <a href="{{ route('students.index') }}" class="{{ Request::is('students') ? 'active' : '' }}">Student Details</a>
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') ? 'active' : '' }}">Bulk Upload</a>
+    <a href="{{ route('families.index') }}" class="{{ Request::is('families*') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
     <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') ? 'active' : '' }}">Online Admissions</a>
 </div>
 

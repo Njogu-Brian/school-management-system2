@@ -2,32 +2,24 @@
 
 @section('content')
 <div class="container">
-    <h1>Edit Student</h1>
+  @include('students.partials.breadcrumbs', ['trail' => ['Edit' => null]])
 
-    <form action="{{ route('students.update', $student->id) }}" method="POST" enctype="multipart/form-data">
-        @csrf
-        @method('PUT')
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h4 mb-0">Edit Student</h1>
+    <a href="{{ url()->previous() ?: route('students.index') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Back
+    </a>
+  </div>
 
-        <div class="mb-3">
-            <label>First Name</label>
-            <input type="text" name="first_name" value="{{ $student->first_name }}" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Last Name</label>
-            <input type="text" name="last_name" value="{{ $student->last_name }}" class="form-control" required>
-        </div>
-        <div class="mb-3">
-            <label>Class</label>
-            <select name="classroom_id" class="form-control">
-                @foreach ($classrooms as $classroom)
-                    <option value="{{ $classroom->id }}" {{ $student->classrooms_id == $classroom->id ? 'selected' : '' }}>
-                        {{ $classroom->name }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
+  @include('students.partials.alerts')
 
-        <button type="submit" class="btn btn-primary">Update</button>
-    </form>
+  <form action="{{ route('students.update', $student->id) }}" method="POST" enctype="multipart/form-data" class="card">
+    @include('students.partials.form', [
+      'mode' => 'edit',
+      'student' => $student,
+      'familyMembers' => $familyMembers ?? [],
+      // + same collections as create
+    ])
+  </form>
 </div>
 @endsection
