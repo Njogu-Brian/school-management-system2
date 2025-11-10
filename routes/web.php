@@ -30,6 +30,8 @@ use App\Http\Controllers\StaffProfileController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
 use App\Http\Controllers\AcademicConfigController;
+use App\Http\Controllers\SchoolDayController;
+use App\Http\Controllers\TermDayController;
 
 // Students & Parents
 use App\Http\Controllers\StudentController;
@@ -439,6 +441,21 @@ Route::middleware('auth')->group(function () {
 
     // Academic Config (Years, Terms)
     Route::prefix('settings')->name('settings.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
+        // School Days Management
+        Route::prefix('school-days')->name('school-days.')->group(function () {
+            Route::get('/', [SchoolDayController::class, 'index'])->name('index');
+            Route::post('/generate-holidays', [SchoolDayController::class, 'generateHolidays'])->name('generate-holidays');
+            Route::post('/', [SchoolDayController::class, 'store'])->name('store');
+            Route::delete('/{schoolDay}', [SchoolDayController::class, 'destroy'])->name('destroy');
+        });
+
+        // Term Days Management
+        Route::prefix('term-days')->name('term-days.')->group(function () {
+            Route::get('/', [TermDayController::class, 'index'])->name('index');
+            Route::post('/', [TermDayController::class, 'store'])->name('store');
+            Route::put('/{termDay}', [TermDayController::class, 'update'])->name('update');
+            Route::delete('/{termDay}', [TermDayController::class, 'destroy'])->name('destroy');
+        });
         Route::get('academic', [AcademicConfigController::class, 'index'])->name('academic.index');
 
         // Year

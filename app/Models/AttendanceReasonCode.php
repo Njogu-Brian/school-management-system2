@@ -28,10 +28,10 @@ class AttendanceReasonCode extends Model
     }
 
     /**
-     * Get active reason codes ordered by sort order
+     * Get active reason codes query builder ordered by sort order
      */
     public static function active()
     {
-        return static::where('is_active', true)->orderBy('sort_order')->get();
+        return static::where('is_active', true)->orderBy('sort_order');
     }
 }

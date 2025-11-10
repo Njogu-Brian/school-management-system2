@@ -273,7 +273,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         ->get();
 
     $attendanceRecords = Attendance::whereBetween('date', [$startDate, $endDate])
-        ->with('student.classroom', 'student.stream')
+        ->with('student.classroom', 'student.stream', 'reasonCode', 'markedBy')
         ->get();
 
     // Build summary counts
@@ -286,19 +286,19 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         ],
         'gender' => [
             'male'   => [
-                'present' => $attendanceRecords->where('status', 'present')->where('student.gender', 'male')->count(),
-                'absent'  => $attendanceRecords->where('status', 'absent')->where('student.gender', 'male')->count(),
-                'late'    => $attendanceRecords->where('status', 'late')->where('student.gender', 'male')->count(),
+                'present' => $attendanceRecords->filter(fn($a) => $a->status === 'present' && $a->student && $a->student->gender === 'Male')->count(),
+                'absent'  => $attendanceRecords->filter(fn($a) => $a->status === 'absent' && $a->student && $a->student->gender === 'Male')->count(),
+                'late'    => $attendanceRecords->filter(fn($a) => $a->status === 'late' && $a->student && $a->student->gender === 'Male')->count(),
             ],
             'female' => [
-                'present' => $attendanceRecords->where('status', 'present')->where('student.gender', 'female')->count(),
-                'absent'  => $attendanceRecords->where('status', 'absent')->where('student.gender', 'female')->count(),
-                'late'    => $attendanceRecords->where('status', 'late')->where('student.gender', 'female')->count(),
+                'present' => $attendanceRecords->filter(fn($a) => $a->status === 'present' && $a->student && $a->student->gender === 'Female')->count(),
+                'absent'  => $attendanceRecords->filter(fn($a) => $a->status === 'absent' && $a->student && $a->student->gender === 'Female')->count(),
+                'late'    => $attendanceRecords->filter(fn($a) => $a->status === 'late' && $a->student && $a->student->gender === 'Female')->count(),
             ],
             'other' => [
-                'present' => $attendanceRecords->where('status', 'present')->whereNotIn('student.gender', ['male','female'])->count(),
-                'absent'  => $attendanceRecords->where('status', 'absent')->whereNotIn('student.gender', ['male','female'])->count(),
-                'late'    => $attendanceRecords->where('status', 'late')->whereNotIn('student.gender', ['male','female'])->count(),
+                'present' => $attendanceRecords->filter(fn($a) => $a->status === 'present' && $a->student && !in_array($a->student->gender, ['Male','Female']))->count(),
+                'absent'  => $attendanceRecords->filter(fn($a) => $a->status === 'absent' && $a->student && !in_array($a->student->gender, ['Male','Female']))->count(),
+                'late'    => $attendanceRecords->filter(fn($a) => $a->status === 'late' && $a->student && !in_array($a->student->gender, ['Male','Female']))->count(),
             ],
         ]
     ];
@@ -316,6 +316,8 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         if ($student) {
             $studentRecords = Attendance::where('student_id', $student->id)
                 ->whereBetween('date', [$startDate, $endDate])
+                ->with('reasonCode', 'markedBy')
+                ->orderBy('date', 'desc')
                 ->get();
 
             $total = max(1, $studentRecords->count());
