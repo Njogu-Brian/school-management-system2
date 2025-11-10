@@ -102,6 +102,14 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('attendance/records*') ? 'active' : '' }}">
     <i class="bi bi-journal-text"></i> Reports
     </a>
+    <a href="{{ route('attendance.at-risk') }}" 
+    class="sublink {{ Request::is('attendance/at-risk*') ? 'active' : '' }}">
+    <i class="bi bi-exclamation-triangle"></i> At-Risk Students
+    </a>
+    <a href="{{ route('attendance.consecutive') }}" 
+    class="sublink {{ Request::is('attendance/consecutive*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-x"></i> Consecutive Absences
+    </a>
     <a href="{{ route('attendance.notifications.notify.form') }}" 
     class="sublink {{ Request::is('attendance/notifications/notify*') ? 'active' : '' }}">
     <i class="bi bi-bell"></i> Notify Recipients
@@ -109,6 +117,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     <a href="{{ route('attendance.notifications.index') }}" 
     class="sublink {{ Request::is('attendance/notifications*') ? 'active' : '' }}">
     <i class="bi bi-people"></i> Recipients
+    </a>
+    <a href="{{ route('attendance.reason-codes.index') }}" 
+    class="sublink {{ Request::is('attendance/reason-codes*') ? 'active' : '' }}">
+    <i class="bi bi-tags"></i> Reason Codes
     </a>
 </div>
 

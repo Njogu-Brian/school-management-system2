@@ -14,6 +14,7 @@ use App\Http\Controllers\DashboardController;
 // Attendance
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AttendanceNotificationController;
+use App\Http\Controllers\AttendanceReasonCodeController;
 
 // Transport
 use App\Http\Controllers\TransportController;
@@ -176,6 +177,11 @@ Route::middleware('auth')->group(function () {
             Route::get('/mark',          [AttendanceController::class, 'markForm'])->name('attendance.mark.form');
             Route::post('/mark',         [AttendanceController::class, 'mark'])->name('attendance.mark');
             Route::get('/records',       [AttendanceController::class, 'records'])->name('attendance.records');
+            Route::get('/at-risk',       [AttendanceController::class, 'atRiskStudents'])->name('attendance.at-risk');
+            Route::get('/consecutive',   [AttendanceController::class, 'consecutiveAbsences'])->name('attendance.consecutive');
+            Route::get('/students/{student}/analytics', [AttendanceController::class, 'studentAnalytics'])->name('attendance.student-analytics');
+            Route::post('/update-consecutive', [AttendanceController::class, 'updateConsecutiveCounts'])->name('attendance.update-consecutive');
+            Route::post('/notify-consecutive', [AttendanceController::class, 'notifyConsecutiveAbsences'])->name('attendance.notify-consecutive');
             Route::get('/edit/{id}',     [AttendanceController::class, 'edit'])->name('attendance.edit');
             Route::post('/update/{id}',  [AttendanceController::class, 'update'])->name('attendance.update');
         });
@@ -193,6 +199,18 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/notify',      [AttendanceNotificationController::class, 'notifyForm'])->name('attendance.notifications.notify.form');
             Route::post('/notify',     [AttendanceNotificationController::class, 'notifySend'])->name('attendance.notifications.notify.send');
+        });
+
+    // Attendance reason codes (admin only)
+    Route::prefix('attendance/reason-codes')
+        ->middleware('role:Super Admin|Admin|Secretary')
+        ->group(function () {
+            Route::get('/',            [AttendanceReasonCodeController::class, 'index'])->name('attendance.reason-codes.index');
+            Route::get('/create',      [AttendanceReasonCodeController::class, 'create'])->name('attendance.reason-codes.create');
+            Route::post('/',           [AttendanceReasonCodeController::class, 'store'])->name('attendance.reason-codes.store');
+            Route::get('/{reasonCode}/edit', [AttendanceReasonCodeController::class, 'edit'])->name('attendance.reason-codes.edit');
+            Route::put('/{reasonCode}', [AttendanceReasonCodeController::class, 'update'])->name('attendance.reason-codes.update');
+            Route::delete('/{reasonCode}', [AttendanceReasonCodeController::class, 'destroy'])->name('attendance.reason-codes.destroy');
         });
 
     /*

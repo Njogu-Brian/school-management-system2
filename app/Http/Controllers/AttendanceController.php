@@ -10,18 +10,27 @@ use App\Models\Student;
 use App\Models\CommunicationTemplate;
 use App\Models\CommunicationLog;
 use App\Services\AttendanceReportService;
+use App\Services\AttendanceAnalyticsService;
 use App\Services\SMSService;
+use App\Models\AttendanceReasonCode;
+use App\Models\Academics\Subject;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class AttendanceController extends Controller
 {
     protected SMSService $smsService;
     protected AttendanceReportService $reportService;
+    protected AttendanceAnalyticsService $analyticsService;
 
-    public function __construct(SMSService $smsService, AttendanceReportService $reportService)
-    {
+    public function __construct(
+        SMSService $smsService, 
+        AttendanceReportService $reportService,
+        AttendanceAnalyticsService $analyticsService
+    ) {
         $this->smsService = $smsService;
         $this->reportService = $reportService;
+        $this->analyticsService = $analyticsService;
     }
 
     // -------------------- MARKING FORM --------------------
@@ -52,14 +61,20 @@ class AttendanceController extends Controller
             ->get();
 
         $attendanceRecords = Attendance::whereDate('date', $selectedDate)
+            ->with('reasonCode', 'markedBy')
             ->get()
             ->keyBy('student_id');
 
         $unmarkedCount = max(0, $students->count() - $attendanceRecords->count());
+        
+        // Get reason codes and subjects for the form
+        $reasonCodes = AttendanceReasonCode::active()->get();
+        $subjects = Subject::orderBy('name')->get();
 
         return view('attendance.mark', compact(
             'classes', 'streams', 'students', 'attendanceRecords',
-            'selectedClass', 'selectedStream', 'selectedDate', 'q', 'unmarkedCount'
+            'selectedClass', 'selectedStream', 'selectedDate', 'q', 'unmarkedCount',
+            'reasonCodes', 'subjects'
         ));
     }
 
@@ -79,16 +94,52 @@ public function mark(Request $request)
         $studentId = (int)str_replace('status_', '', (string)$key);
         $status    = $value; // present|absent|late
         $reason    = $request->input('reason_' . $studentId);
+        $reasonCodeId = $request->input('reason_code_' . $studentId);
+        $arrivalTime = $request->input('arrival_time_' . $studentId);
+        $departureTime = $request->input('departure_time_' . $studentId);
+        $isExcused = $request->has('is_excused_' . $studentId);
+        $isMedicalLeave = $request->has('is_medical_leave_' . $studentId);
+        $excuseNotes = $request->input('excuse_notes_' . $studentId);
+        $subjectId = $request->input('subject_id_' . $studentId);
+        $periodNumber = $request->input('period_number_' . $studentId);
+        $periodName = $request->input('period_name_' . $studentId);
 
         $attendance = Attendance::firstOrNew([
             'student_id' => $studentId,
             'date'       => $date,
         ]);
 
-        $oldStatus         = $attendance->status;
+        $oldStatus = $attendance->status;
+        
+        // Update all fields
         $attendance->status = $status;
         $attendance->reason = $status === 'present' ? null : $reason;
+        $attendance->reason_code_id = $reasonCodeId;
+        $attendance->arrival_time = $arrivalTime ? Carbon::parse($arrivalTime)->toTimeString() : null;
+        $attendance->departure_time = $departureTime ? Carbon::parse($departureTime)->toTimeString() : null;
+        $attendance->is_excused = $isExcused;
+        $attendance->is_medical_leave = $isMedicalLeave;
+        $attendance->excuse_notes = $excuseNotes;
+        $attendance->subject_id = $subjectId;
+        $attendance->period_number = $periodNumber;
+        $attendance->period_name = $periodName;
+        $attendance->marked_by = auth()->id();
+        $attendance->marked_at = now();
+        
+        // Auto-set medical leave if reason code is medical
+        if ($reasonCodeId) {
+            $reasonCode = AttendanceReasonCode::find($reasonCodeId);
+            if ($reasonCode && $reasonCode->is_medical) {
+                $attendance->is_medical_leave = true;
+                $attendance->is_excused = true;
+            }
+        }
+        
         $attendance->save();
+        
+        // Update consecutive absence count
+        $consecutive = $this->analyticsService->getConsecutiveAbsences($attendance->student, $date);
+        $attendance->update(['consecutive_absence_count' => $consecutive]);
 
         // ---- Trigger communications if status changed ----
         try {
@@ -297,4 +348,140 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     ));
 }
 
+    /**
+     * Show at-risk students (low attendance)
+     */
+    public function atRiskStudents(Request $request)
+    {
+        $selectedClass = $request->get('class');
+        $selectedStream = $request->get('stream');
+        $threshold = (float) $request->get('threshold', 75.0);
+        $startDate = $request->get('start', Carbon::now()->startOfMonth()->toDateString());
+        $endDate = $request->get('end', Carbon::now()->endOfMonth()->toDateString());
+
+        $classes = Classroom::pluck('name', 'id');
+        $streams = $selectedClass
+            ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
+            : collect();
+
+        $atRiskStudents = $this->analyticsService->getAtRiskStudents(
+            $selectedClass,
+            $selectedStream,
+            $threshold,
+            $startDate,
+            $endDate
+        );
+
+        return view('attendance.at_risk', compact(
+            'classes', 'streams', 'atRiskStudents',
+            'selectedClass', 'selectedStream', 'threshold', 'startDate', 'endDate'
+        ));
+    }
+
+    /**
+     * Show students with consecutive absences
+     */
+    public function consecutiveAbsences(Request $request)
+    {
+        $selectedClass = $request->get('class');
+        $selectedStream = $request->get('stream');
+        $threshold = (int) $request->get('threshold', 3);
+
+        $classes = Classroom::pluck('name', 'id');
+        $streams = $selectedClass
+            ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
+            : collect();
+
+        $students = $this->analyticsService->getStudentsWithConsecutiveAbsences(
+            $threshold,
+            $selectedClass,
+            $selectedStream
+        );
+
+        return view('attendance.consecutive_absences', compact(
+            'classes', 'streams', 'students',
+            'selectedClass', 'selectedStream', 'threshold'
+        ));
+    }
+
+    /**
+     * Show student attendance analytics
+     */
+    public function studentAnalytics(Request $request, Student $student)
+    {
+        $startDate = $request->get('start', Carbon::now()->startOfMonth()->toDateString());
+        $endDate = $request->get('end', Carbon::now()->endOfMonth()->toDateString());
+        $months = (int) $request->get('months', 6);
+
+        $percentage = $this->analyticsService->calculateAttendancePercentage($student, $startDate, $endDate);
+        $trends = $this->analyticsService->getAttendanceTrends($student, $months);
+        $consecutive = $this->analyticsService->getConsecutiveAbsences($student);
+
+        // Get subject-wise attendance if subjects exist
+        $subjectStats = [];
+        if (Schema::hasTable('subjects')) {
+            $subjects = Subject::all();
+            foreach ($subjects as $subject) {
+                $stats = $this->analyticsService->getSubjectAttendanceStats(
+                    $student->id,
+                    $subject->id,
+                    $startDate,
+                    $endDate
+                );
+                if ($stats['total'] > 0) {
+                    $subjectStats[] = array_merge(['subject' => $subject], $stats);
+                }
+            }
+        }
+
+        return view('attendance.student_analytics', compact(
+            'student', 'percentage', 'trends', 'consecutive', 'subjectStats',
+            'startDate', 'endDate', 'months'
+        ));
+    }
+
+    /**
+     * Update consecutive absence counts (can be run via cron)
+     */
+    public function updateConsecutiveCounts()
+    {
+        $this->analyticsService->updateConsecutiveAbsenceCounts();
+        return back()->with('success', 'Consecutive absence counts updated successfully.');
+    }
+
+    /**
+     * Send notifications for consecutive absences
+     */
+    public function notifyConsecutiveAbsences(Request $request)
+    {
+        $threshold = (int) $request->get('threshold', 3);
+        $students = $this->analyticsService->getStudentsWithConsecutiveAbsences($threshold);
+
+        $notified = 0;
+        foreach ($students as $item) {
+            $student = $item['student'];
+            $consecutive = $item['consecutive_absences'];
+
+            if ($student->parent) {
+                $message = "Alert: {$student->full_name} has been absent for {$consecutive} consecutive day(s). Please contact the school.";
+                
+                $phones = array_filter([
+                    $student->parent->father_phone ?? null,
+                    $student->parent->mother_phone ?? null,
+                    $student->parent->guardian_phone ?? null,
+                ]);
+
+                foreach ($phones as $phone) {
+                    try {
+                        $this->smsService->sendSMS($phone, $message);
+                        $notified++;
+                    } catch (\Exception $e) {
+                        report($e);
+                    }
+                }
+            }
+        }
+
+        return back()->with('success', "Notifications sent to {$notified} parent(s) for consecutive absences.");
+    }
 }
