@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class StudentAcademicHistory extends Model
 {
+    protected $table = 'student_academic_history';
+
     protected $fillable = [
         'student_id',
         'academic_year_id',
