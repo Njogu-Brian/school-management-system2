@@ -119,8 +119,7 @@
                 <th>Admission #</th>
                 <th>Name</th>
                 <th style="width:280px;">Status</th>
-                <th style="width:200px;">Reason Code</th>
-                <th style="width:200px;">Details</th>
+                <th style="width:200px;">Preset Reason</th>
                 <th>Notes</th>
               </tr>
             </thead>
@@ -166,47 +165,15 @@
                   </td>
                   <td>
                     <select name="reason_code_{{ $student->id }}" class="form-select form-select-sm reason-code-select" {{ $status === 'present' ? 'disabled' : '' }}>
-                      <option value="">Select Reason</option>
+                      <option value="">Select Preset Reason</option>
                       @foreach($reasonCodes as $code)
                         <option value="{{ $code->id }}" @selected($reasonCodeId == $code->id)>{{ $code->name }}</option>
                       @endforeach
                     </select>
-                    <input type="text" name="reason_{{ $student->id }}" class="form-control form-control-sm mt-1 reason-input" value="{{ $reasonVal }}" placeholder="Additional reason..." {{ $status === 'present' ? 'disabled' : '' }}>
+                    <input type="hidden" name="reason_{{ $student->id }}" value="{{ $reasonVal }}">
                   </td>
                   <td>
-                    <div class="row g-1">
-                      <div class="col-12">
-                        <div class="form-check form-check-sm">
-                          <input class="form-check-input" type="checkbox" name="is_excused_{{ $student->id }}" value="1" id="excused_{{ $student->id }}" @checked($isExcused) {{ $status === 'present' ? 'disabled' : '' }}>
-                          <label class="form-check-label small" for="excused_{{ $student->id }}">Excused</label>
-                        </div>
-                        <div class="form-check form-check-sm">
-                          <input class="form-check-input" type="checkbox" name="is_medical_leave_{{ $student->id }}" value="1" id="medical_{{ $student->id }}" @checked($isMedicalLeave) {{ $status === 'present' ? 'disabled' : '' }}>
-                          <label class="form-check-label small" for="medical_{{ $student->id }}">Medical</label>
-                        </div>
-                      </div>
-                      <div class="col-12 subject-tracking" style="display:none;">
-                        <select name="subject_id_{{ $student->id }}" class="form-select form-select-sm">
-                          <option value="">Subject</option>
-                          @foreach($subjects as $subject)
-                            <option value="{{ $subject->id }}" @selected($subjectId == $subject->id)>{{ $subject->name }}</option>
-                          @endforeach
-                        </select>
-                      </div>
-                      <div class="col-12 subject-tracking" style="display:none;">
-                        <div class="row g-1">
-                          <div class="col-6">
-                            <input type="number" name="period_number_{{ $student->id }}" class="form-control form-control-sm" value="{{ $periodNumber }}" placeholder="Period #">
-                          </div>
-                          <div class="col-6">
-                            <input type="text" name="period_name_{{ $student->id }}" class="form-control form-control-sm" value="{{ $periodName }}" placeholder="Period name">
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <textarea name="excuse_notes_{{ $student->id }}" class="form-control form-control-sm" rows="2" placeholder="Excuse notes..." {{ $status === 'present' ? 'disabled' : '' }}>{{ $excuseNotes }}</textarea>
+                    <textarea name="excuse_notes_{{ $student->id }}" class="form-control form-control-sm" rows="2" placeholder="Notes..." {{ $status === 'present' ? 'disabled' : '' }}>{{ $excuseNotes }}</textarea>
                   </td>
                 </tr>
               @endforeach

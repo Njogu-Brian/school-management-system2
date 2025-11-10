@@ -11,10 +11,10 @@ class AssignTeachersController extends Controller
 {
     public function index()
     {
-        $classrooms = Classroom::with('teachers')->get();
-        $streams = Stream::with('teachers')->get();
+        // Get classrooms with their streams and teachers
+        $classrooms = Classroom::with(['streams.teachers', 'teachers'])->get();
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
         
-        return view('academics.assign_teachers', compact('classrooms', 'streams', 'teachers'));
+        return view('academics.assign_teachers', compact('classrooms', 'teachers'));
     }
 }

@@ -13,6 +13,8 @@ class Term extends Model
         'is_current',
         'opening_date',
         'closing_date',
+        'midterm_start_date',
+        'midterm_end_date',
         'expected_school_days',
         'notes',
     ];
@@ -20,6 +22,8 @@ class Term extends Model
     protected $casts = [
         'opening_date' => 'date',
         'closing_date' => 'date',
+        'midterm_start_date' => 'date',
+        'midterm_end_date' => 'date',
     ];
 
     public function academicYear()

@@ -136,14 +136,8 @@ public function mark(Request $request)
 
         $studentId = (int)str_replace('status_', '', (string)$key);
         $status    = $value; // present|absent|late
-        $reason    = $request->input('reason_' . $studentId);
         $reasonCodeId = $request->input('reason_code_' . $studentId);
-        $isExcused = $request->has('is_excused_' . $studentId);
-        $isMedicalLeave = $request->has('is_medical_leave_' . $studentId);
         $excuseNotes = $request->input('excuse_notes_' . $studentId);
-        $subjectId = $request->input('subject_id_' . $studentId);
-        $periodNumber = $request->input('period_number_' . $studentId);
-        $periodName = $request->input('period_name_' . $studentId);
 
         $attendance = Attendance::firstOrNew([
             'student_id' => $studentId,
@@ -152,27 +146,29 @@ public function mark(Request $request)
 
         $oldStatus = $attendance->status;
         
+        // Get preset reason name from reason code
+        $presetReason = null;
+        $isMedicalLeave = false;
+        $isExcused = false;
+        
+        if ($reasonCodeId) {
+            $reasonCode = AttendanceReasonCode::find($reasonCodeId);
+            if ($reasonCode) {
+                $presetReason = $reasonCode->name; // Use preset reason name as the main reason
+                $isMedicalLeave = $reasonCode->is_medical;
+                $isExcused = $reasonCode->is_excused || $reasonCode->requires_excuse;
+            }
+        }
+        
         // Update all fields
         $attendance->status = $status;
-        $attendance->reason = $status === 'present' ? null : $reason;
+        $attendance->reason = $status === 'present' ? null : $presetReason; // Use preset reason name
         $attendance->reason_code_id = $reasonCodeId;
         $attendance->is_excused = $isExcused;
         $attendance->is_medical_leave = $isMedicalLeave;
         $attendance->excuse_notes = $excuseNotes;
-        $attendance->subject_id = $subjectId;
-        $attendance->period_number = $periodNumber;
-        $attendance->period_name = $periodName;
         $attendance->marked_by = auth()->id();
         $attendance->marked_at = now();
-        
-        // Auto-set medical leave if reason code is medical
-        if ($reasonCodeId) {
-            $reasonCode = AttendanceReasonCode::find($reasonCodeId);
-            if ($reasonCode && $reasonCode->is_medical) {
-                $attendance->is_medical_leave = true;
-                $attendance->is_excused = true;
-            }
-        }
         
         $attendance->save();
         
@@ -190,12 +186,15 @@ public function mark(Request $request)
                     ? 'today'
                     : Carbon::parse($date)->format('d M Y');
 
+                // Use preset reason for communication
+                $reasonForNotification = $presetReason ?? $attendance->reason ?? 'Not specified';
+                
                 if ($status === 'absent') {
-                    $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $attendance->reason);
+                    $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $reasonForNotification);
                 } elseif ($status === 'late') {
-                    $this->notifyWithTemplate('attendance_late', $student, $humanDate, $attendance->reason);
+                    $this->notifyWithTemplate('attendance_late', $student, $humanDate, $reasonForNotification);
                 } elseif ($oldStatus === 'absent' && $status === 'present') {
-                    $this->notifyWithTemplate('attendance_corrected', $student, $humanDate, $attendance->reason);
+                    $this->notifyWithTemplate('attendance_corrected', $student, $humanDate, $reasonForNotification);
                 }
             }
         } catch (\Exception $e) {

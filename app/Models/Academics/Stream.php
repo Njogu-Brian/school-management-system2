@@ -10,7 +10,12 @@ class Stream extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'classroom_id'];
+
+    public function classroom()
+    {
+        return $this->belongsTo(Classroom::class);
+    }
 
     public function classrooms()
     {

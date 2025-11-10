@@ -116,6 +116,8 @@ class AcademicConfigController extends Controller
             'is_current' => $isCurrent,
             'opening_date' => $request->opening_date,
             'closing_date' => $request->closing_date,
+            'midterm_start_date' => $request->midterm_start_date,
+            'midterm_end_date' => $request->midterm_end_date,
             'expected_school_days' => $request->expected_school_days,
             'notes' => $request->notes,
         ]);
@@ -132,6 +134,8 @@ class AcademicConfigController extends Controller
             'is_current' => 'nullable|boolean',
             'opening_date' => 'nullable|date',
             'closing_date' => 'nullable|date|after:opening_date',
+            'midterm_start_date' => 'nullable|date|after_or_equal:opening_date',
+            'midterm_end_date' => 'nullable|date|after:midterm_start_date|before:closing_date',
             'expected_school_days' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
         ]);
@@ -149,6 +153,8 @@ class AcademicConfigController extends Controller
             'is_current' => $isCurrent,
             'opening_date' => $request->opening_date,
             'closing_date' => $request->closing_date,
+            'midterm_start_date' => $request->midterm_start_date,
+            'midterm_end_date' => $request->midterm_end_date,
             'expected_school_days' => $request->expected_school_days,
             'notes' => $request->notes,
         ]);
