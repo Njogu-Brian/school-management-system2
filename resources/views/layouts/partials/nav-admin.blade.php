@@ -72,7 +72,12 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') ? 'active' : '' }}">Bulk Upload</a>
     <a href="{{ route('families.index') }}" class="{{ Request::is('families*') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
-    <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') ? 'active' : '' }}">Online Admissions</a>
+    <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') && !Request::is('online-admissions/apply*') ? 'active' : '' }}">
+        <i class="bi bi-globe"></i> Online Admissions
+    </a>
+    <a href="{{ route('online-admissions.public-form') }}" target="_blank" class="text-muted small" style="padding-left: 2rem; font-size: 0.85rem;">
+        <i class="bi bi-box-arrow-up-right"></i> View Public Form
+    </a>
     @if($studentRecordsActive)
     <div class="px-3 py-2 mt-2 bg-light rounded">
         <small class="text-muted fw-bold d-block mb-1">Student Records</small>
