@@ -90,6 +90,55 @@
               <label class="form-check-label" for="is_active">Active</label>
             </div>
           </div>
+        </div>
+
+        <hr class="my-4">
+
+        <h6 class="text-muted mb-3">Billing Information</h6>
+        <div class="alert alert-info small mb-3">
+          <i class="bi bi-info-circle"></i> Link this activity to optional fees for automatic billing.
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Fee Category (Votehead)</label>
+            <select name="votehead_id" class="form-select">
+              <option value="">No Fee Category</option>
+              @foreach($voteheads as $votehead)
+                <option value="{{ $votehead->id }}" @selected(old('votehead_id', $activity->votehead_id)==$votehead->id)>{{ $votehead->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Fee Amount</label>
+            <input type="number" name="fee_amount" class="form-control" value="{{ old('fee_amount', $activity->fee_amount) }}" step="0.01" min="0">
+            <small class="text-muted">Override amount from fee structure</small>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Billing Term</label>
+            <select name="billing_term" class="form-select">
+              <option value="">Auto</option>
+              <option value="1" @selected(old('billing_term', $activity->billing_term)==1)>Term 1</option>
+              <option value="2" @selected(old('billing_term', $activity->billing_term)==2)>Term 2</option>
+              <option value="3" @selected(old('billing_term', $activity->billing_term)==3)>Term 3</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Billing Year</label>
+            <input type="number" name="billing_year" class="form-control" value="{{ old('billing_year', $activity->billing_year ?? $currentYear?->year) }}" min="2000" max="2100">
+          </div>
+          <div class="col-md-4">
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" name="auto_bill" value="1" id="auto_bill" @checked(old('auto_bill', $activity->auto_bill ?? true))>
+              <label class="form-check-label" for="auto_bill">Auto-bill Fee</label>
+            </div>
+          </div>
+          @if($activity->votehead_id && $activity->optionalFee)
+          <div class="col-md-12">
+            <div class="alert alert-success small">
+              <i class="bi bi-check-circle"></i> Fee has been billed. View in <a href="{{ route('finance.optional-fees.student-view', ['student_id' => $student->id, 'term' => $activity->billing_term, 'year' => $activity->billing_year]) }}" target="_blank">Optional Fees</a>
+            </div>
+          </div>
+          @endif
           <div class="col-md-12">
             <label class="form-label">Notes</label>
             <textarea name="notes" class="form-control" rows="3">{{ old('notes', $activity->notes) }}</textarea>

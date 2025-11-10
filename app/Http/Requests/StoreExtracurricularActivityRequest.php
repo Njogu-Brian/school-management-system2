@@ -30,6 +30,11 @@ class StoreExtracurricularActivityRequest extends FormRequest
             'notes' => 'nullable|string',
             'is_active' => 'nullable|boolean',
             'supervisor_id' => 'nullable|exists:users,id',
+            'votehead_id' => 'nullable|exists:voteheads,id',
+            'fee_amount' => 'nullable|numeric|min:0',
+            'auto_bill' => 'nullable|boolean',
+            'billing_term' => 'nullable|integer|in:1,2,3',
+            'billing_year' => 'nullable|integer|digits:4',
         ];
     }
 }

@@ -30,11 +30,27 @@ class StudentTemplateExport implements FromArray, WithHeadings, WithEvents
     public function headings(): array
     {
         return [
+            // Basic Info
             'admission_number', 'first_name', 'middle_name', 'last_name',
             'gender', 'dob', 'classroom', 'stream', 'category',
+            // Identifiers
+            'nemis_number', 'knec_assessment_number', 'national_id_number', 'passport_number',
+            // Extended Demographics
+            'religion', 'ethnicity', 'language_preference', 'blood_group',
+            'home_address', 'home_city', 'home_county', 'home_postal_code',
+            // Medical
+            'allergies', 'chronic_conditions', 'medical_insurance_provider', 'medical_insurance_number',
+            'emergency_medical_contact_name', 'emergency_medical_contact_phone',
+            // Special Needs
+            'has_special_needs', 'special_needs_description', 'learning_disabilities',
+            // Previous Schools
+            'previous_schools', 'transfer_reason',
+            // Status
+            'status', 'admission_date',
+            // Parent Info
             'father_name', 'father_phone', 'father_email', 'father_id_number',
             'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
-            'guardian_name', 'guardian_phone', 'guardian_email'
+            'guardian_name', 'guardian_phone', 'guardian_email', 'guardian_relationship'
         ];
     }
 

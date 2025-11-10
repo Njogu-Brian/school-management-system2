@@ -24,6 +24,11 @@ class StudentExtracurricularActivity extends Model
         'notes',
         'is_active',
         'supervisor_id',
+        'votehead_id',
+        'fee_amount',
+        'auto_bill',
+        'billing_term',
+        'billing_year',
     ];
 
     protected $casts = [
@@ -31,7 +36,9 @@ class StudentExtracurricularActivity extends Model
         'end_date' => 'date',
         'achievement_date' => 'date',
         'is_active' => 'boolean',
+        'auto_bill' => 'boolean',
         'community_service_hours' => 'integer',
+        'fee_amount' => 'decimal:2',
     ];
 
     public function student()
@@ -42,5 +49,18 @@ class StudentExtracurricularActivity extends Model
     public function supervisor()
     {
         return $this->belongsTo(\App\Models\User::class, 'supervisor_id');
+    }
+
+    public function votehead()
+    {
+        return $this->belongsTo(\App\Models\Votehead::class);
+    }
+
+    public function optionalFee()
+    {
+        return $this->hasOne(\App\Models\OptionalFee::class, 'student_id', 'student_id')
+            ->where('votehead_id', $this->votehead_id)
+            ->where('term', $this->billing_term)
+            ->where('year', $this->billing_year);
     }
 }

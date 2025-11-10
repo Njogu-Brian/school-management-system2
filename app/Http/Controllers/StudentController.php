@@ -480,6 +480,16 @@ class StudentController extends Controller
                 $rowData['dob'] = null;
             }
 
+            // Handle boolean fields
+            $rowData['has_special_needs'] = isset($rowData['has_special_needs']) ? 
+                (in_array(strtolower($rowData['has_special_needs']), ['yes', '1', 'true', 'y']) ? 1 : 0) : 0;
+            
+            // Handle status field
+            $rowData['status'] = $rowData['status'] ?? 'active';
+            if (!in_array($rowData['status'], ['active', 'inactive', 'graduated', 'transferred', 'expelled', 'suspended'])) {
+                $rowData['status'] = 'active';
+            }
+
             // Validate required fields
             $rowData['valid'] =
                 !empty($rowData['first_name']) &&
@@ -541,14 +551,45 @@ class StudentController extends Controller
             $student = Student::create([
                 'admission_number' => $admissionNumber,
                 'first_name' => $row['first_name'],
-                'middle_name' => $row['middle_name'],
+                'middle_name' => $row['middle_name'] ?? null,
                 'last_name' => $row['last_name'],
                 'gender' => $row['gender'],
                 'dob' => $row['dob'],
                 'classroom_id' => $row['classroom_id'],
-                'stream_id' => $row['stream_id'],
-                'category_id' => $row['category_id'],
+                'stream_id' => $row['stream_id'] ?? null,
+                'category_id' => $row['category_id'] ?? null,
                 'parent_id' => $parent->id,
+                // Identifiers
+                'nemis_number' => $row['nemis_number'] ?? null,
+                'knec_assessment_number' => $row['knec_assessment_number'] ?? null,
+                'national_id_number' => $row['national_id_number'] ?? null,
+                'passport_number' => $row['passport_number'] ?? null,
+                // Extended Demographics
+                'religion' => $row['religion'] ?? null,
+                'ethnicity' => $row['ethnicity'] ?? null,
+                'language_preference' => $row['language_preference'] ?? null,
+                'blood_group' => $row['blood_group'] ?? null,
+                'home_address' => $row['home_address'] ?? null,
+                'home_city' => $row['home_city'] ?? null,
+                'home_county' => $row['home_county'] ?? null,
+                'home_postal_code' => $row['home_postal_code'] ?? null,
+                // Medical
+                'allergies' => $row['allergies'] ?? null,
+                'chronic_conditions' => $row['chronic_conditions'] ?? null,
+                'medical_insurance_provider' => $row['medical_insurance_provider'] ?? null,
+                'medical_insurance_number' => $row['medical_insurance_number'] ?? null,
+                'emergency_medical_contact_name' => $row['emergency_medical_contact_name'] ?? null,
+                'emergency_medical_contact_phone' => $row['emergency_medical_contact_phone'] ?? null,
+                // Special Needs
+                'has_special_needs' => isset($row['has_special_needs']) ? (bool)$row['has_special_needs'] : false,
+                'special_needs_description' => $row['special_needs_description'] ?? null,
+                'learning_disabilities' => $row['learning_disabilities'] ?? null,
+                // Previous Schools
+                'previous_schools' => $row['previous_schools'] ?? null,
+                'transfer_reason' => $row['transfer_reason'] ?? null,
+                // Status
+                'status' => $row['status'] ?? 'active',
+                'admission_date' => $row['admission_date'] ?? now()->toDateString(),
             ]);
 
             if ($isNew) {
