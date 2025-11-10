@@ -452,8 +452,14 @@ Route::middleware('auth')->group(function () {
     | Students
     |----------------------------------------------------------------------
     */
+    // Specific routes must be defined BEFORE resource routes to avoid conflicts
+    Route::get('/students/bulk-upload',   [StudentController::class, 'bulkForm'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk');
+    Route::post('/students/bulk-parse',   [StudentController::class, 'bulkParse'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.parse');
+    Route::post('/students/bulk-import',  [StudentController::class, 'bulkImport'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.import');
+    Route::get('/students/bulk-template', [StudentController::class, 'bulkTemplate'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.template');
+
     Route::resource('students', StudentController::class)
-        ->except(['destroy', 'show'])
+        ->except(['destroy'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher');
 
     Route::post('/students/{id}/archive', [StudentController::class, 'archive'])
@@ -462,11 +468,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/students/{id}/restore', [StudentController::class, 'restore'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.restore');
 
-    Route::get('/students/bulk-upload',   [StudentController::class, 'bulkForm'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk');
-    Route::post('/students/bulk-parse',   [StudentController::class, 'bulkParse'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.parse');
-    Route::post('/students/bulk-import',  [StudentController::class, 'bulkImport'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.import');
-    Route::get('/students/bulk-template', [StudentController::class, 'bulkTemplate'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.template');
-
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.getStreams');
@@ -474,10 +475,6 @@ Route::middleware('auth')->group(function () {
     // API-like search (inside auth)
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.search');
-    // Allow 'show'
-    Route::resource('students', StudentController::class)
-        ->except(['destroy']) // keep show enabled
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher');
 
     // Export filtered list
     Route::get('/students/export', [StudentController::class, 'export'])
@@ -505,12 +502,14 @@ Route::middleware('auth')->group(function () {
     //families
     Route::prefix('families')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
         Route::get('/',                [FamilyController::class,'index'])->name('families.index');
-        Route::get('/create',          [FamilyController::class,'create'])->name('families.create');          // optional
-        Route::post('/',               [FamilyController::class,'store'])->name('families.store');           // optional
+        Route::post('/populate-all',   [FamilyController::class,'populateAllFamilies'])->name('families.populate'); // fix existing families
+        Route::get('/link',            [FamilyController::class,'link'])->name('families.link');              // show link form
+        Route::post('/link-students',   [FamilyController::class,'linkStudents'])->name('families.link.store'); // link two students
         Route::get('/{family}',        [FamilyController::class,'manage'])->name('families.manage');         // view + edit page
-        Route::put('/{family}',        [FamilyController::class,'update'])->name('families.update');         // save guardian/phone/email
+        Route::put('/{family}',        [FamilyController::class,'update'])->name('families.update');         // save guardian/phone/email (optional)
         Route::post('/{family}/attach',[FamilyController::class,'attachMember'])->name('families.attach');   // add student to family
         Route::post('/{family}/detach',[FamilyController::class,'detachMember'])->name('families.detach');   // remove student from family
+        Route::delete('/{family}',     [FamilyController::class,'destroy'])->name('families.destroy');       // delete family
     });
 
     /*

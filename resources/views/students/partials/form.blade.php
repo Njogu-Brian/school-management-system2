@@ -21,31 +21,28 @@
              placeholder="{{ $mode==='create' ? 'Leave blank to auto-generate' : '' }}">
     </div>
 
-    <div class="col-md-3">
-      <label class="form-label">Family ID</label>
+    <div class="col-md-6">
+      <label class="form-label">Link to Sibling Family <span class="badge bg-info">Optional</span></label>
       <div class="input-group">
         <input type="text" name="family_id" id="family_id"
                value="{{ old('family_id', $s->family_id ?? '') }}"
-               class="form-control" placeholder="—">
+               class="form-control" placeholder="Search for existing sibling...">
         <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#familySearchModal">
-          Link via Student
+          <i class="bi bi-search"></i> Search Sibling
         </button>
-        <button class="btn btn-outline-danger" type="button" id="familyClear">Clear</button>
+        <button class="btn btn-outline-danger" type="button" id="familyClear"><i class="bi bi-x"></i></button>
       </div>
-      <div class="form-text">Pick an existing student → we’ll copy their family.</div>
+      <div class="form-text">
+        <i class="bi bi-info-circle"></i> Search for an existing student to link this new student as their sibling. 
+        Family details will be auto-populated from parent records.
+      </div>
+      <input type="hidden" name="copy_family_from_student_id" id="copy_family_from_student_id">
       <div class="form-check mt-2">
-        <input class="form-check-input" type="checkbox" value="1" name="create_family_from_parent" id="create_family_from_parent">
+        <input class="form-check-input" type="checkbox" value="1" name="create_family_from_parent" id="create_family_from_parent" checked>
         <label class="form-check-label" for="create_family_from_parent">
-          Create new family from this student's parent info (if Family ID is empty)
+          Create new family for this student (if no sibling selected)
         </label>
       </div>
-    </div>
-
-    <div class="col-md-3">
-      <label class="form-label">Sibling (optional)</label>
-      <input type="text" class="form-control" placeholder="Use search → pick a student" disabled>
-      <input type="hidden" name="copy_family_from_student_id" id="copy_family_from_student_id">
-      <div class="form-text">Choosing a student in the modal sets Family ID automatically.</div>
     </div>
   </div>
 

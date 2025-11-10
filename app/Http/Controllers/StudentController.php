@@ -27,9 +27,12 @@ class StudentController extends Controller
     }
 
     /**
-     * List students
+     * List students with filtering and pagination
+     *
+     * @param Request $request
+     * @return \Illuminate\View\View
      */
-   public function index(Request $request)
+    public function index(Request $request)
     {
         $perPage = (int) $request->input('per_page', 20);
 
@@ -39,13 +42,15 @@ class StudentController extends Controller
 
         if ($request->filled('name')) {
             $name = $request->name;
-            $query->where(fn($q)=>$q->where('first_name','like',"%$name%")
-                ->orWhere('middle_name','like',"%$name%")
-                ->orWhere('last_name','like',"%$name%"));
+            $searchTerm = '%' . addcslashes($name, '%_\\') . '%';
+            $query->where(fn($q) => $q->where('first_name','like', $searchTerm)
+                ->orWhere('middle_name','like', $searchTerm)
+                ->orWhere('last_name','like', $searchTerm));
         }
 
         if ($request->filled('admission_number')) {
-            $query->where('admission_number','like','%'.$request->admission_number.'%');
+            $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
+            $query->where('admission_number','like', $searchTerm);
         }
 
         if ($request->filled('classroom_id')) {
@@ -61,18 +66,37 @@ class StudentController extends Controller
         $classrooms = Classroom::orderBy('name')->get();
         $streams    = Stream::orderBy('name')->get();
 
-        // birthdays this week (for badge)
-        $thisWeekBirthdays = Student::whereNotNull('dob')->get()->filter(function($s){
-            $dob = \Carbon\Carbon::parse($s->dob);
-            $thisYear = $dob->copy()->year(now()->year);
-            return $thisYear->isCurrentWeek();
-        })->pluck('id')->toArray();
+        // birthdays this week (for badge) - optimized query
+        // Get day of year for start and end of week in current year
+        $startOfWeek = now()->startOfWeek();
+        $endOfWeek = now()->endOfWeek();
+        $startDay = $startOfWeek->dayOfYear;
+        $endDay = $endOfWeek->dayOfYear;
+        
+        // Handle year boundary crossing
+        if ($endDay < $startDay) {
+            // Week crosses year boundary
+            $thisWeekBirthdays = Student::whereNotNull('dob')
+                ->where(function($q) use ($startDay, $endDay) {
+                    $q->whereRaw('DAYOFYEAR(dob) >= ?', [$startDay])
+                      ->orWhereRaw('DAYOFYEAR(dob) <= ?', [$endDay]);
+                })
+                ->pluck('id')
+                ->toArray();
+        } else {
+            $thisWeekBirthdays = Student::whereNotNull('dob')
+                ->whereRaw('DAYOFYEAR(dob) BETWEEN ? AND ?', [$startDay, $endDay])
+                ->pluck('id')
+                ->toArray();
+        }
 
         return view('students.index', compact('students','classrooms','streams','thisWeekBirthdays'));
     }
 
     /**
-     * Show form to create student
+     * Show form to create a new student
+     *
+     * @return \Illuminate\View\View
      */
     public function create()
     {
@@ -80,7 +104,7 @@ class StudentController extends Controller
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
         $streams    = Stream::all();
-        $routes     = \App\Models\TransportRoute::orderBy('name')->get(); // if you have this model
+        $routes     = \App\Models\Route::orderBy('name')->get();
 
         return view('students.create', [
             'students' => $students,
@@ -91,7 +115,10 @@ class StudentController extends Controller
         ]);
     }
     /**
-     * Store student
+     * Store a new student
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
      */
     public function store(Request $request)
     {
@@ -128,11 +155,11 @@ class StudentController extends Controller
                     $familyId = $fam->id;
                 }
             } elseif (!$familyId && $request->boolean('create_family_from_parent')) {
-                // Create new family for THIS student using provided parent info
+                // Create new family for THIS student using parent info (will be populated after parent is created)
                 $fam = \App\Models\Family::create([
-                    'guardian_name' => $request->guardian_name ?? $request->father_name ?? $request->mother_name ?? 'New Family',
-                    'phone'         => $request->guardian_phone ?? $request->father_phone ?? $request->mother_phone,
-                    'email'         => $request->guardian_email ?? $request->father_email ?? $request->mother_email,
+                    'guardian_name' => 'New Family', // Will be auto-populated when first student is linked
+                    'phone'         => null,
+                    'email'         => null,
                 ]);
                 $familyId = $fam->id;
             }
@@ -151,8 +178,20 @@ class StudentController extends Controller
                     'classroom_id', 'stream_id', 'category_id',
                     'nemis_number', 'knec_assessment_number'
                 ]),
-                ['admission_number' => $admission_number, 'parent_id' => $parent->id]
+                ['admission_number' => $admission_number, 'parent_id' => $parent->id, 'family_id' => $familyId]
             ));
+
+            // Auto-populate family details from parent if family was created
+            if ($familyId) {
+                $family = \App\Models\Family::find($familyId);
+                if ($family && (!$family->guardian_name || $family->guardian_name === 'New Family')) {
+                    $family->update([
+                        'guardian_name' => $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name ?? 'Family',
+                        'phone' => $family->phone ?: ($parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone),
+                        'email' => $family->email ?: ($parent->guardian_email ?? $parent->father_email ?? $parent->mother_email),
+                    ]);
+                }
+            }
 
             $this->sendAdmissionCommunication($student, $parent);
 
@@ -469,14 +508,16 @@ class StudentController extends Controller
             return response()->json([]);
         }
 
+        $searchTerm = '%' . addcslashes($q, '%_\\') . '%';
         $students = Student::query()
-            ->where(function ($s) use ($q) {
-                $s->where('first_name', 'like', "%{$q}%")
-                  ->orWhere('middle_name', 'like', "%{$q}%")
-                  ->orWhere('last_name', 'like', "%{$q}%")
-                  ->orWhere('admission_number', 'like', "%{$q}%");
+            ->with('classroom')
+            ->where(function ($s) use ($searchTerm) {
+                $s->where('first_name', 'like', $searchTerm)
+                  ->orWhere('middle_name', 'like', $searchTerm)
+                  ->orWhere('last_name', 'like', $searchTerm)
+                  ->orWhere('admission_number', 'like', $searchTerm);
             })
-            ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number')
+            ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
             ->orderBy('first_name')
             ->limit(20)
             ->get();
@@ -487,6 +528,7 @@ class StudentController extends Controller
                 'id' => $st->id,
                 'full_name' => $full,
                 'admission_number' => $st->admission_number,
+                'classroom_name' => $st->classroom->name ?? null,
             ];
         }));
     }
@@ -552,11 +594,41 @@ class StudentController extends Controller
         return response()->json($streams);
     }
 
+    /**
+     * Export students to CSV
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
     public function export(Request $request)
     {
-        // Reuse same filters as index()
-        $request->merge(['per_page' => 1000000]); // get "all" that match
-        $students = $this->index(new Request($request->all()))->getData()['students']; // hack-free: duplicate filter logic if you prefer
+        // Apply same filters as index() but get all matching records
+        $perPage = 1000000; // Large number to get all records
+        $query = $request->has('showArchived')
+            ? Student::withArchived()->with(['parent','classroom','stream','category'])
+            : Student::with(['parent','classroom','stream','category'])->where('archive', 0);
+
+        if ($request->filled('name')) {
+            $name = $request->name;
+            $searchTerm = '%' . addcslashes($name, '%_\\') . '%';
+            $query->where(fn($q) => $q->where('first_name','like', $searchTerm)
+                ->orWhere('middle_name','like', $searchTerm)
+                ->orWhere('last_name','like', $searchTerm));
+        }
+
+        if ($request->filled('admission_number')) {
+            $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
+            $query->where('admission_number','like', $searchTerm);
+        }
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
+
+        $students = $query->orderBy('first_name')->get();
 
         $rows = [];
         $rows[] = ['Admission','First','Middle','Last','Gender','DOB','Class','Stream','Category','Parent Phone'];
