@@ -557,13 +557,20 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('online-admissions')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
-        Route::get('/',                 [OnlineAdmissionController::class, 'index'])->name('online-admissions.index');
-        Route::post('/approve/{id}',    [OnlineAdmissionController::class, 'approve'])->name('online-admissions.approve');
-        Route::post('/reject/{id}',     [OnlineAdmissionController::class, 'reject'])->name('online-admissions.reject');
+        Route::get('/', [OnlineAdmissionController::class, 'index'])->name('online-admissions.index');
+        Route::get('/{admission}', [OnlineAdmissionController::class, 'show'])->name('online-admissions.show');
+        Route::post('/{admission}/approve', [OnlineAdmissionController::class, 'approve'])->name('online-admissions.approve');
+        Route::post('/{admission}/reject', [OnlineAdmissionController::class, 'reject'])->name('online-admissions.reject');
+        Route::post('/{admission}/waitlist', [OnlineAdmissionController::class, 'addToWaitlist'])->name('online-admissions.waitlist');
+        Route::post('/{admission}/transfer', [OnlineAdmissionController::class, 'transferFromWaitlist'])->name('online-admissions.transfer');
+        Route::put('/{admission}/status', [OnlineAdmissionController::class, 'updateStatus'])->name('online-admissions.update-status');
+        Route::delete('/{admission}', [OnlineAdmissionController::class, 'destroy'])->name('online-admissions.destroy');
+    });
 
-        // Public-facing form endpoints mirrored here to match your blade links
-        Route::get('/admission-form',   [OnlineAdmissionController::class, 'showForm'])->name('online-admission.form');
-        Route::post('/admission-form',  [OnlineAdmissionController::class, 'submitForm'])->name('online-admission.submit');
+    // Public routes (no auth)
+    Route::prefix('online-admissions')->group(function () {
+        Route::get('/apply', [OnlineAdmissionController::class, 'showPublicForm'])->name('online-admissions.public-form');
+        Route::post('/apply', [OnlineAdmissionController::class, 'storePublicApplication'])->name('online-admissions.public-submit');
     });
 
     /*
