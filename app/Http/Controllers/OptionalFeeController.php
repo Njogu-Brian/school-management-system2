@@ -71,12 +71,26 @@ class OptionalFeeController extends Controller
                     ->where('year', $year)
                     ->pluck('status', 'votehead_id')
                     ->toArray();
+                
+                // Load linked activities for this student, term, and year
+                $linkedActivities = \App\Models\StudentExtracurricularActivity::where('student_id', $student->id)
+                    ->where('billing_term', $term)
+                    ->where('billing_year', $year)
+                    ->whereNotNull('votehead_id')
+                    ->where('auto_bill', true)
+                    ->with('votehead')
+                    ->get()
+                    ->groupBy('votehead_id');
+            } else {
+                $linkedActivities = collect();
             }
+        } else {
+            $linkedActivities = collect();
         }
 
         return view('finance.optional_fees.index', compact(
             'view', 'classrooms', 'optionalVoteheads', 'allStudents',
-            'students', 'student', 'statuses', 'term', 'year'
+            'students', 'student', 'statuses', 'term', 'year', 'linkedActivities'
         ));
     }
 
