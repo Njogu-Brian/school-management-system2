@@ -60,16 +60,25 @@
 </li>
 
 <!-- Students -->
-@php $studentsActive = Request::is('students*') || Request::is('online-admissions*'); @endphp
+@php 
+$studentsActive = Request::is('students*') || Request::is('online-admissions*');
+$studentRecordsActive = Request::is('students/*/medical-records*') || Request::is('students/*/disciplinary-records*') || Request::is('students/*/activities*') || Request::is('students/*/academic-history*');
+@endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
     <i class="bi bi-person"></i> Students
 </a>
 <div class="collapse {{ $studentsActive ? 'show' : '' }}" id="studentsMenu">
-    <a href="{{ route('students.index') }}" class="{{ Request::is('students') ? 'active' : '' }}">Student Details</a>
+    <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') ? 'active' : '' }}">Bulk Upload</a>
     <a href="{{ route('families.index') }}" class="{{ Request::is('families*') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
     <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') ? 'active' : '' }}">Online Admissions</a>
+    @if($studentRecordsActive)
+    <div class="px-3 py-2 mt-2 bg-light rounded">
+        <small class="text-muted fw-bold d-block mb-1">Student Records</small>
+        <small class="text-muted d-block">Access from student profile → Records tabs</small>
+    </div>
+    @endif
 </div>
 
 <!-- Attendance -->

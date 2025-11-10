@@ -87,9 +87,122 @@
       <input type="text" name="knec_assessment_number" value="{{ old('knec_assessment_number', $s->knec_assessment_number ?? '') }}" class="form-control">
     </div>
 
+    <div class="col-md-3">
+      <label class="form-label">National ID Number</label>
+      <input type="text" name="national_id_number" value="{{ old('national_id_number', $s->national_id_number ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Passport Number</label>
+      <input type="text" name="passport_number" value="{{ old('passport_number', $s->passport_number ?? '') }}" class="form-control">
+    </div>
+  </div>
+
+  <hr class="my-4">
+
+  {{-- EXTENDED DEMOGRAPHICS --}}
+  <h6 class="text-uppercase text-muted mb-3">Extended Demographics</h6>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Religion</label>
+      <input type="text" name="religion" value="{{ old('religion', $s->religion ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Ethnicity</label>
+      <input type="text" name="ethnicity" value="{{ old('ethnicity', $s->ethnicity ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Language Preference</label>
+      <input type="text" name="language_preference" value="{{ old('language_preference', $s->language_preference ?? '') }}" class="form-control" placeholder="e.g., English, Swahili">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Blood Group</label>
+      <select name="blood_group" class="form-select">
+        <option value="">Select</option>
+        <option value="A+" @selected(old('blood_group', $s->blood_group ?? '')=='A+')>A+</option>
+        <option value="A-" @selected(old('blood_group', $s->blood_group ?? '')=='A-')>A-</option>
+        <option value="B+" @selected(old('blood_group', $s->blood_group ?? '')=='B+')>B+</option>
+        <option value="B-" @selected(old('blood_group', $s->blood_group ?? '')=='B-')>B-</option>
+        <option value="AB+" @selected(old('blood_group', $s->blood_group ?? '')=='AB+')>AB+</option>
+        <option value="AB-" @selected(old('blood_group', $s->blood_group ?? '')=='AB-')>AB-</option>
+        <option value="O+" @selected(old('blood_group', $s->blood_group ?? '')=='O+')>O+</option>
+        <option value="O-" @selected(old('blood_group', $s->blood_group ?? '')=='O-')>O-</option>
+      </select>
+    </div>
     <div class="col-md-6">
-      <label class="form-label">Previous School</label>
-      <input type="text" name="previous_school" value="{{ old('previous_school', $s->previous_school ?? '') }}" class="form-control">
+      <label class="form-label">Home Address</label>
+      <input type="text" name="home_address" value="{{ old('home_address', $s->home_address ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">City</label>
+      <input type="text" name="home_city" value="{{ old('home_city', $s->home_city ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">County</label>
+      <input type="text" name="home_county" value="{{ old('home_county', $s->home_county ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Postal Code</label>
+      <input type="text" name="home_postal_code" value="{{ old('home_postal_code', $s->home_postal_code ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Previous Schools</label>
+      <textarea name="previous_schools" class="form-control" rows="2" placeholder="List previous schools (one per line or JSON format)">{{ old('previous_schools', $s->previous_schools ?? '') }}</textarea>
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Transfer Reason</label>
+      <textarea name="transfer_reason" class="form-control" rows="2">{{ old('transfer_reason', $s->transfer_reason ?? '') }}</textarea>
+    </div>
+  </div>
+
+  <hr class="my-4">
+
+  {{-- MEDICAL INFORMATION --}}
+  <h6 class="text-uppercase text-muted mb-3">Medical Information</h6>
+  <div class="row g-3">
+    <div class="col-md-12">
+      <label class="form-label">Allergies</label>
+      <textarea name="allergies" class="form-control" rows="2" placeholder="List any allergies">{{ old('allergies', $s->allergies ?? '') }}</textarea>
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Chronic Conditions</label>
+      <textarea name="chronic_conditions" class="form-control" rows="2" placeholder="List any chronic medical conditions">{{ old('chronic_conditions', $s->chronic_conditions ?? '') }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Medical Insurance Provider</label>
+      <input type="text" name="medical_insurance_provider" value="{{ old('medical_insurance_provider', $s->medical_insurance_provider ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Medical Insurance Number</label>
+      <input type="text" name="medical_insurance_number" value="{{ old('medical_insurance_number', $s->medical_insurance_number ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Emergency Medical Contact Name</label>
+      <input type="text" name="emergency_medical_contact_name" value="{{ old('emergency_medical_contact_name', $s->emergency_medical_contact_name ?? '') }}" class="form-control">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Emergency Medical Contact Phone</label>
+      <input type="text" name="emergency_medical_contact_phone" value="{{ old('emergency_medical_contact_phone', $s->emergency_medical_contact_phone ?? '') }}" class="form-control">
+    </div>
+  </div>
+
+  <hr class="my-4">
+
+  {{-- SPECIAL NEEDS --}}
+  <h6 class="text-uppercase text-muted mb-3">Special Needs</h6>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="has_special_needs" value="1" id="has_special_needs" @checked(old('has_special_needs', $s->has_special_needs ?? false))>
+        <label class="form-check-label" for="has_special_needs">Has Special Needs</label>
+      </div>
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Special Needs Description</label>
+      <textarea name="special_needs_description" class="form-control" rows="2">{{ old('special_needs_description', $s->special_needs_description ?? '') }}</textarea>
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Learning Disabilities</label>
+      <textarea name="learning_disabilities" class="form-control" rows="2">{{ old('learning_disabilities', $s->learning_disabilities ?? '') }}</textarea>
     </div>
   </div>
 
@@ -230,6 +343,55 @@
     @else
       <div class="text-muted">No siblings mapped yet.</div>
     @endif
+  @endif
+
+  {{-- STATUS & LIFECYCLE --}}
+  @if($mode === 'edit')
+  <hr class="my-4">
+  <h6 class="text-uppercase text-muted mb-3">Status & Lifecycle</h6>
+  <div class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-select">
+        <option value="active" @selected(old('status', $s->status ?? 'active')=='active')>Active</option>
+        <option value="inactive" @selected(old('status', $s->status ?? '')=='inactive')>Inactive</option>
+        <option value="graduated" @selected(old('status', $s->status ?? '')=='graduated')>Graduated</option>
+        <option value="transferred" @selected(old('status', $s->status ?? '')=='transferred')>Transferred</option>
+        <option value="expelled" @selected(old('status', $s->status ?? '')=='expelled')>Expelled</option>
+        <option value="suspended" @selected(old('status', $s->status ?? '')=='suspended')>Suspended</option>
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Admission Date</label>
+      <input type="date" name="admission_date" class="form-control" value="{{ old('admission_date', $s->admission_date?->toDateString() ?? '') }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Graduation Date</label>
+      <input type="date" name="graduation_date" class="form-control" value="{{ old('graduation_date', $s->graduation_date?->toDateString() ?? '') }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Transfer Date</label>
+      <input type="date" name="transfer_date" class="form-control" value="{{ old('transfer_date', $s->transfer_date?->toDateString() ?? '') }}">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Transfer To School</label>
+      <input type="text" name="transfer_to_school" class="form-control" value="{{ old('transfer_to_school', $s->transfer_to_school ?? '') }}">
+    </div>
+    <div class="col-md-12">
+      <label class="form-label">Status Change Reason</label>
+      <textarea name="status_change_reason" class="form-control" rows="2">{{ old('status_change_reason', $s->status_change_reason ?? '') }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="is_readmission" value="1" id="is_readmission" @checked(old('is_readmission', $s->is_readmission ?? false))>
+        <label class="form-check-label" for="is_readmission">Is Re-admission</label>
+      </div>
+    </div>
+  </div>
+  @else
+  {{-- For create mode, just set default status --}}
+  <input type="hidden" name="status" value="active">
+  <input type="hidden" name="admission_date" value="{{ today()->toDateString() }}">
   @endif
 
 </div>

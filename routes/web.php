@@ -35,6 +35,10 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\ParentInfoController;
 use App\Http\Controllers\OnlineAdmissionController;
 use App\Http\Controllers\FamilyController;
+use App\Http\Controllers\Students\MedicalRecordController;
+use App\Http\Controllers\Students\DisciplinaryRecordController;
+use App\Http\Controllers\Students\ExtracurricularActivityController;
+use App\Http\Controllers\Students\AcademicHistoryController;
 
 // Communication
 use App\Http\Controllers\CommunicationController;
@@ -489,6 +493,41 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/students/bulk-restore', [StudentController::class, 'bulkRestore'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.restore');
+
+    // Student Records (Medical, Disciplinary, Activities, Academic History)
+    Route::prefix('students/{student}')->name('students.')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
+        Route::get('medical-records', [MedicalRecordController::class, 'index'])->name('medical-records.index');
+        Route::get('medical-records/create', [MedicalRecordController::class, 'create'])->name('medical-records.create');
+        Route::post('medical-records', [MedicalRecordController::class, 'store'])->name('medical-records.store');
+        Route::get('medical-records/{medicalRecord}', [MedicalRecordController::class, 'show'])->name('medical-records.show');
+        Route::get('medical-records/{medicalRecord}/edit', [MedicalRecordController::class, 'edit'])->name('medical-records.edit');
+        Route::put('medical-records/{medicalRecord}', [MedicalRecordController::class, 'update'])->name('medical-records.update');
+        Route::delete('medical-records/{medicalRecord}', [MedicalRecordController::class, 'destroy'])->name('medical-records.destroy');
+
+        Route::get('disciplinary-records', [DisciplinaryRecordController::class, 'index'])->name('disciplinary-records.index');
+        Route::get('disciplinary-records/create', [DisciplinaryRecordController::class, 'create'])->name('disciplinary-records.create');
+        Route::post('disciplinary-records', [DisciplinaryRecordController::class, 'store'])->name('disciplinary-records.store');
+        Route::get('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'show'])->name('disciplinary-records.show');
+        Route::get('disciplinary-records/{disciplinaryRecord}/edit', [DisciplinaryRecordController::class, 'edit'])->name('disciplinary-records.edit');
+        Route::put('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'update'])->name('disciplinary-records.update');
+        Route::delete('disciplinary-records/{disciplinaryRecord}', [DisciplinaryRecordController::class, 'destroy'])->name('disciplinary-records.destroy');
+
+        Route::get('activities', [ExtracurricularActivityController::class, 'index'])->name('activities.index');
+        Route::get('activities/create', [ExtracurricularActivityController::class, 'create'])->name('activities.create');
+        Route::post('activities', [ExtracurricularActivityController::class, 'store'])->name('activities.store');
+        Route::get('activities/{activity}', [ExtracurricularActivityController::class, 'show'])->name('activities.show');
+        Route::get('activities/{activity}/edit', [ExtracurricularActivityController::class, 'edit'])->name('activities.edit');
+        Route::put('activities/{activity}', [ExtracurricularActivityController::class, 'update'])->name('activities.update');
+        Route::delete('activities/{activity}', [ExtracurricularActivityController::class, 'destroy'])->name('activities.destroy');
+
+        Route::get('academic-history', [AcademicHistoryController::class, 'index'])->name('academic-history.index');
+        Route::get('academic-history/create', [AcademicHistoryController::class, 'create'])->name('academic-history.create');
+        Route::post('academic-history', [AcademicHistoryController::class, 'store'])->name('academic-history.store');
+        Route::get('academic-history/{academicHistory}', [AcademicHistoryController::class, 'show'])->name('academic-history.show');
+        Route::get('academic-history/{academicHistory}/edit', [AcademicHistoryController::class, 'edit'])->name('academic-history.edit');
+        Route::put('academic-history/{academicHistory}', [AcademicHistoryController::class, 'update'])->name('academic-history.update');
+        Route::delete('academic-history/{academicHistory}', [AcademicHistoryController::class, 'destroy'])->name('academic-history.destroy');
+    });
 
     /*
     |----------------------------------------------------------------------

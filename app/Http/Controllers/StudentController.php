@@ -134,6 +134,30 @@ class StudentController extends Controller
                 'category_id' => 'nullable|exists:student_categories,id',
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
+                // Extended demographics
+                'national_id_number' => 'nullable|string|max:255',
+                'passport_number' => 'nullable|string|max:255',
+                'religion' => 'nullable|string|max:255',
+                'ethnicity' => 'nullable|string|max:255',
+                'home_address' => 'nullable|string|max:255',
+                'home_city' => 'nullable|string|max:255',
+                'home_county' => 'nullable|string|max:255',
+                'home_postal_code' => 'nullable|string|max:255',
+                'language_preference' => 'nullable|string|max:255',
+                'blood_group' => 'nullable|string|max:10',
+                'allergies' => 'nullable|string',
+                'chronic_conditions' => 'nullable|string',
+                'medical_insurance_provider' => 'nullable|string|max:255',
+                'medical_insurance_number' => 'nullable|string|max:255',
+                'emergency_medical_contact_name' => 'nullable|string|max:255',
+                'emergency_medical_contact_phone' => 'nullable|string|max:255',
+                'previous_schools' => 'nullable|string',
+                'transfer_reason' => 'nullable|string',
+                'has_special_needs' => 'nullable|boolean',
+                'special_needs_description' => 'nullable|string',
+                'learning_disabilities' => 'nullable|string',
+                'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
+                'admission_date' => 'nullable|date',
             ]);
 
             // Handle family linkage
@@ -176,7 +200,15 @@ class StudentController extends Controller
                 $request->only([
                     'first_name', 'middle_name', 'last_name', 'gender', 'dob',
                     'classroom_id', 'stream_id', 'category_id',
-                    'nemis_number', 'knec_assessment_number'
+                    'nemis_number', 'knec_assessment_number',
+                    'national_id_number', 'passport_number', 'religion', 'ethnicity',
+                    'home_address', 'home_city', 'home_county', 'home_postal_code',
+                    'language_preference', 'blood_group', 'allergies', 'chronic_conditions',
+                    'medical_insurance_provider', 'medical_insurance_number',
+                    'emergency_medical_contact_name', 'emergency_medical_contact_phone',
+                    'previous_schools', 'transfer_reason', 'has_special_needs',
+                    'special_needs_description', 'learning_disabilities',
+                    'status', 'admission_date'
                 ]),
                 ['admission_number' => $admission_number, 'parent_id' => $parent->id, 'family_id' => $familyId]
             ));
@@ -239,12 +271,50 @@ class StudentController extends Controller
             'category_id' => 'nullable|exists:student_categories,id',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
+            // Extended demographics
+            'national_id_number' => 'nullable|string|max:255',
+            'passport_number' => 'nullable|string|max:255',
+            'religion' => 'nullable|string|max:255',
+            'ethnicity' => 'nullable|string|max:255',
+            'home_address' => 'nullable|string|max:255',
+            'home_city' => 'nullable|string|max:255',
+            'home_county' => 'nullable|string|max:255',
+            'home_postal_code' => 'nullable|string|max:255',
+            'language_preference' => 'nullable|string|max:255',
+            'blood_group' => 'nullable|string|max:10',
+            'allergies' => 'nullable|string',
+            'chronic_conditions' => 'nullable|string',
+            'medical_insurance_provider' => 'nullable|string|max:255',
+            'medical_insurance_number' => 'nullable|string|max:255',
+            'emergency_medical_contact_name' => 'nullable|string|max:255',
+            'emergency_medical_contact_phone' => 'nullable|string|max:255',
+            'previous_schools' => 'nullable|string',
+            'transfer_reason' => 'nullable|string',
+            'has_special_needs' => 'nullable|boolean',
+            'special_needs_description' => 'nullable|string',
+            'learning_disabilities' => 'nullable|string',
+            'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
+            'admission_date' => 'nullable|date',
+            'graduation_date' => 'nullable|date',
+            'transfer_date' => 'nullable|date',
+            'transfer_to_school' => 'nullable|string|max:255',
+            'status_change_reason' => 'nullable|string',
+            'is_readmission' => 'nullable|boolean',
         ]);
 
         $student->update($request->only([
             'first_name', 'middle_name', 'last_name', 'gender', 'dob',
             'classroom_id', 'stream_id', 'category_id',
-            'nemis_number', 'knec_assessment_number'
+            'nemis_number', 'knec_assessment_number',
+            'national_id_number', 'passport_number', 'religion', 'ethnicity',
+            'home_address', 'home_city', 'home_county', 'home_postal_code',
+            'language_preference', 'blood_group', 'allergies', 'chronic_conditions',
+            'medical_insurance_provider', 'medical_insurance_number',
+            'emergency_medical_contact_name', 'emergency_medical_contact_phone',
+            'previous_schools', 'transfer_reason', 'has_special_needs',
+            'special_needs_description', 'learning_disabilities',
+            'status', 'admission_date', 'graduation_date', 'transfer_date',
+            'transfer_to_school', 'status_change_reason', 'is_readmission'
         ]));
         // Family mapping on update
         $familyId = $request->input('family_id');
@@ -581,7 +651,7 @@ class StudentController extends Controller
     public function show($id)
     {
         $student = Student::withArchived()
-            ->with(['parent','classroom','stream','category'])
+            ->with(['parent','classroom','stream','category','family'])
             ->findOrFail($id);
 
         return view('students.show', compact('student'));
