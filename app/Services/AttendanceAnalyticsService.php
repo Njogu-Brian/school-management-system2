@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Attendance;
 use App\Models\Student;
+use App\Models\SchoolDay;
 use Illuminate\Support\Collection;
 use Carbon\Carbon;
 
@@ -11,23 +12,26 @@ class AttendanceAnalyticsService
 {
     /**
      * Calculate attendance percentage for a student
+     * Uses actual school days (excluding weekends, holidays, etc.)
      */
     public function calculateAttendancePercentage(Student $student, $startDate = null, $endDate = null): float
     {
         $startDate = $startDate ? Carbon::parse($startDate) : Carbon::now()->startOfMonth();
         $endDate = $endDate ? Carbon::parse($endDate) : Carbon::now()->endOfMonth();
 
-        $totalDays = $startDate->diffInDays($endDate) + 1;
+        // Count actual school days (excluding weekends, holidays, etc.)
+        $totalSchoolDays = SchoolDay::countSchoolDays($startDate->toDateString(), $endDate->toDateString());
+        
         $presentDays = Attendance::where('student_id', $student->id)
             ->whereBetween('date', [$startDate, $endDate])
             ->where('status', 'present')
             ->count();
 
-        if ($totalDays === 0) {
+        if ($totalSchoolDays === 0) {
             return 0;
         }
 
-        return round(($presentDays / $totalDays) * 100, 2);
+        return round(($presentDays / $totalSchoolDays) * 100, 2);
     }
 
     /**
