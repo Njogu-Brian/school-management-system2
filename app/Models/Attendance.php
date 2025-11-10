@@ -57,4 +57,5 @@ class Attendance extends Model
     public function isLate(): bool    { return $this->status === self::STATUS_LATE; }
     public function isExcused(): bool { return $this->is_excused; }
     public function isMedicalLeave(): bool { return $this->is_medical_leave; }
+    
 }

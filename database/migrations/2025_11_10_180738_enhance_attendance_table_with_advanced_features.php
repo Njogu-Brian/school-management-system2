@@ -12,6 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('attendance', function (Blueprint $table) {
+            // Time tracking
+            if (!Schema::hasColumn('attendance', 'arrival_time')) {
+                $table->time('arrival_time')->nullable()->after('date');
+            }
+            if (!Schema::hasColumn('attendance', 'departure_time')) {
+                $table->time('departure_time')->nullable()->after('arrival_time');
+            }
+            
             // Reason code and excuse tracking
             if (!Schema::hasColumn('attendance', 'reason_code_id')) {
                 $table->unsignedBigInteger('reason_code_id')->nullable()->after('reason');

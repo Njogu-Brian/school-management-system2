@@ -139,6 +139,9 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.streams.index') }}" class="{{ Request::is('academics/streams*') ? 'active' : '' }}">Streams</a>
     <a href="{{ route('academics.subjects.index') }}" class="{{ Request::is('academics/subjects*') ? 'active' : '' }}">Subjects</a>
     <a href="{{ route('academics.subject_groups.index') }}" class="{{ Request::is('academics/subject_groups*') ? 'active' : '' }}">Subject Groups</a>
+    <a href="{{ route('academics.assign-teachers') }}" class="{{ Request::is('academics/assign-teachers*') ? 'active' : '' }}">
+        <i class="bi bi-person-check"></i> Assign Teachers
+    </a>
 </div>
 
 {{-- Exams --}}

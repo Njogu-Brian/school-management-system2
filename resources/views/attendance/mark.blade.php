@@ -97,7 +97,13 @@
           <div class="alert alert-info mb-0">
             <h6 class="mb-2"><i class="bi bi-info-circle"></i> Advanced Options</h6>
             <div class="row g-2">
-              <div class="col-md-12">
+              <div class="col-md-6">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="enableTimeTracking">
+                  <label class="form-check-label" for="enableTimeTracking">Enable Time Tracking (Arrival/Departure)</label>
+                </div>
+              </div>
+              <div class="col-md-6">
                 <div class="form-check form-switch">
                   <input class="form-check-input" type="checkbox" id="enableSubjectTracking">
                   <label class="form-check-label" for="enableSubjectTracking">Enable Subject-wise Attendance</label>
@@ -120,6 +126,7 @@
                 <th>Name</th>
                 <th style="width:280px;">Status</th>
                 <th style="width:200px;">Reason Code</th>
+                <th style="width:150px;">Time Tracking</th>
                 <th style="width:200px;">Details</th>
                 <th>Notes</th>
               </tr>
@@ -127,7 +134,7 @@
             <tbody>
               @php $row = 0; @endphp
               @foreach ($students as $student)
-                  @php
+                @php
                   $row++;
                   $att = $attendanceRecords->get($student->id);
                   $status = $att ? $att->status : null;
@@ -290,6 +297,13 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+  // Toggle time tracking
+  document.getElementById('enableTimeTracking')?.addEventListener('change', function() {
+    document.querySelectorAll('.time-tracking').forEach(el => {
+      el.style.display = this.checked ? 'block' : 'none';
+    });
+  });
+
   // Toggle subject tracking
   document.getElementById('enableSubjectTracking')?.addEventListener('change', function() {
     document.querySelectorAll('.subject-tracking').forEach(el => {

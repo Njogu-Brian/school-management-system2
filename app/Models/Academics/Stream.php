@@ -4,6 +4,7 @@ namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\User;
 
 class Stream extends Model
 {
@@ -14,5 +15,10 @@ class Stream extends Model
     public function classrooms()
     {
         return $this->belongsToMany(Classroom::class, 'classroom_stream');
+    }
+
+    public function teachers()
+    {
+        return $this->belongsToMany(User::class, 'stream_teacher', 'stream_id', 'teacher_id');
     }
 }

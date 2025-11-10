@@ -61,6 +61,21 @@ class StreamController extends Controller
             ->with('success', 'Stream updated successfully.');
     }
 
+    public function assignTeachers(Request $request, $id)
+    {
+        $stream = Stream::findOrFail($id);
+        
+        $request->validate([
+            'teacher_ids' => 'nullable|array',
+            'teacher_ids.*' => 'exists:users,id',
+        ]);
+
+        $stream->teachers()->sync($request->teacher_ids ?? []);
+
+        return redirect()->route('academics.assign-teachers')
+            ->with('success', 'Teachers assigned to stream successfully.');
+    }
+
     public function destroy($id)
     {
         $stream = Stream::findOrFail($id);

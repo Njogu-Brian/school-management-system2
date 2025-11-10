@@ -41,10 +41,39 @@ class AttendanceController extends Controller
         $selectedDate   = $request->get('date', Carbon::today()->toDateString());
         $q              = trim((string)$request->get('q'));
 
-        $classes = Classroom::pluck('name', 'id');
-        $streams = $selectedClass
-            ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
-            : collect();
+        $user = auth()->user();
+        
+        // If user is a teacher, restrict to assigned classes/streams
+        if ($user->hasRole('teacher')) {
+            $assignedClassIds = $user->getAssignedClassroomIds();
+            $assignedStreamIds = $user->getAssignedStreamIds();
+            
+            $classes = Classroom::whereIn('id', $assignedClassIds)->pluck('name', 'id');
+            
+            // If a class is selected, check if teacher is assigned to it
+            if ($selectedClass && !$user->isAssignedToClassroom($selectedClass)) {
+                return redirect()->route('attendance.mark.form')
+                    ->with('error', 'You are not assigned to this class.');
+            }
+            
+            $streams = $selectedClass
+                ? Stream::where('classroom_id', $selectedClass)
+                    ->whereIn('id', $assignedStreamIds)
+                    ->pluck('name', 'id')
+                : Stream::whereIn('id', $assignedStreamIds)->pluck('name', 'id');
+            
+            // If a stream is selected, check if teacher is assigned to it
+            if ($selectedStream && !$user->isAssignedToStream($selectedStream)) {
+                return redirect()->route('attendance.mark.form')
+                    ->with('error', 'You are not assigned to this stream.');
+            }
+        } else {
+            // Admin/Secretary can see all
+            $classes = Classroom::pluck('name', 'id');
+            $streams = $selectedClass
+                ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
+                : collect();
+        }
 
         $students = Student::query()
             ->when($selectedClass, fn($q2) => $q2->where('classroom_id', $selectedClass))
@@ -86,6 +115,20 @@ public function mark(Request $request)
 
     if (Carbon::parse($date)->isFuture()) {
         return back()->with('error', 'You cannot mark attendance for a future date.');
+    }
+
+    $user = auth()->user();
+    $selectedClass = $request->input('class');
+    $selectedStream = $request->input('stream');
+    
+    // If user is a teacher, validate they're assigned to the class/stream
+    if ($user->hasRole('teacher')) {
+        if ($selectedClass && !$user->isAssignedToClassroom($selectedClass)) {
+            return back()->with('error', 'You are not assigned to this class.');
+        }
+        if ($selectedStream && !$user->isAssignedToStream($selectedStream)) {
+            return back()->with('error', 'You are not assigned to this stream.');
+        }
     }
 
     foreach ($request->all() as $key => $value) {

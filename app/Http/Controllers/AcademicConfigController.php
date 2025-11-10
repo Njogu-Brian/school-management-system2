@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicYear;
 use App\Models\Term;
-use App\Models\TermDay;
 use Illuminate\Http\Request;
 
 class AcademicConfigController extends Controller
@@ -19,12 +18,7 @@ class AcademicConfigController extends Controller
             ->orderByRaw('CAST(year AS UNSIGNED) DESC')
             ->get();
 
-        // Load term days for all terms
-        $termDays = TermDay::with('academicYear', 'term')
-            ->get()
-            ->groupBy('term_id');
-
-        return view('settings.academic.index', compact('years', 'termDays'));
+        return view('settings.academic.index', compact('years'));
     }
 
     // --------- Academic Year ---------
@@ -102,6 +96,10 @@ class AcademicConfigController extends Controller
             'name' => 'required|string|max:50',
             'academic_year_id' => 'required|exists:academic_years,id',
             'is_current' => 'nullable|boolean',
+            'opening_date' => 'nullable|date',
+            'closing_date' => 'nullable|date|after:opening_date',
+            'expected_school_days' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string',
         ]);
 
         $isCurrent = $request->boolean('is_current');
@@ -116,6 +114,10 @@ class AcademicConfigController extends Controller
             'name' => $request->name,
             'academic_year_id' => $request->academic_year_id,
             'is_current' => $isCurrent,
+            'opening_date' => $request->opening_date,
+            'closing_date' => $request->closing_date,
+            'expected_school_days' => $request->expected_school_days,
+            'notes' => $request->notes,
         ]);
 
         return redirect()->route('settings.academic.index')
@@ -128,6 +130,10 @@ class AcademicConfigController extends Controller
             'name' => 'required|string|max:50',
             'academic_year_id' => 'required|exists:academic_years,id',
             'is_current' => 'nullable|boolean',
+            'opening_date' => 'nullable|date',
+            'closing_date' => 'nullable|date|after:opening_date',
+            'expected_school_days' => 'nullable|integer|min:0',
+            'notes' => 'nullable|string',
         ]);
 
         $isCurrent = $request->boolean('is_current');
@@ -141,6 +147,10 @@ class AcademicConfigController extends Controller
             'name' => $request->name,
             'academic_year_id' => $request->academic_year_id,
             'is_current' => $isCurrent,
+            'opening_date' => $request->opening_date,
+            'closing_date' => $request->closing_date,
+            'expected_school_days' => $request->expected_school_days,
+            'notes' => $request->notes,
         ]);
 
         return redirect()->route('settings.academic.index')
@@ -150,44 +160,5 @@ class AcademicConfigController extends Controller
     {
         $term->delete();
         return redirect()->route('settings.academic.index')->with('success', 'Term deleted.');
-    }
-
-    // --------- Term Days ---------
-    public function storeTermDays(Request $request)
-    {
-        $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'nullable|exists:terms,id',
-            'opening_date' => 'required|date',
-            'closing_date' => 'required|date|after:opening_date',
-            'expected_school_days' => 'nullable|integer|min:0',
-            'notes' => 'nullable|string',
-        ]);
-
-        TermDay::create($request->all());
-
-        return back()->with('success', 'Term days record created successfully.');
-    }
-
-    public function updateTermDays(Request $request, TermDay $termDay)
-    {
-        $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'nullable|exists:terms,id',
-            'opening_date' => 'required|date',
-            'closing_date' => 'required|date|after:opening_date',
-            'expected_school_days' => 'nullable|integer|min:0',
-            'notes' => 'nullable|string',
-        ]);
-
-        $termDay->update($request->all());
-
-        return back()->with('success', 'Term days record updated successfully.');
-    }
-
-    public function destroyTermDays(TermDay $termDay)
-    {
-        $termDay->delete();
-        return back()->with('success', 'Term days record deleted successfully.');
     }
 }

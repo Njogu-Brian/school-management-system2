@@ -26,6 +26,29 @@
             <label for="is_current" class="form-check-label">Set as Current Term</label>
         </div>
 
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="opening_date" class="form-label">Opening Date</label>
+                <input type="date" name="opening_date" id="opening_date" class="form-control" value="{{ old('opening_date') }}">
+            </div>
+            <div class="col-md-6">
+                <label for="closing_date" class="form-label">Closing Date</label>
+                <input type="date" name="closing_date" id="closing_date" class="form-control" value="{{ old('closing_date') }}">
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="expected_school_days" class="form-label">Expected School Days</label>
+                <input type="number" name="expected_school_days" id="expected_school_days" class="form-control" value="{{ old('expected_school_days') }}" min="0" placeholder="Auto-calculated if empty">
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea name="notes" id="notes" class="form-control" rows="2">{{ old('notes') }}</textarea>
+        </div>
+
         <button type="submit" class="btn btn-success">Save</button>
         <a href="{{ route('settings.academic.index') }}" class="btn btn-secondary">Cancel</a>
     </form>
