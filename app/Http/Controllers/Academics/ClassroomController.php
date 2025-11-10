@@ -19,7 +19,14 @@ class ClassroomController extends Controller
     {
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
         $classrooms = Classroom::orderBy('name')->get();
-        return view('academics.classrooms.create', compact('teachers', 'classrooms'));
+        
+        // Get classes that are already selected as next_class_id by another class
+        $usedAsNextClass = Classroom::whereNotNull('next_class_id')
+            ->pluck('next_class_id')
+            ->unique()
+            ->toArray();
+        
+        return view('academics.classrooms.create', compact('teachers', 'classrooms', 'usedAsNextClass'));
     }
 
     public function store(Request $request)
@@ -54,8 +61,16 @@ class ClassroomController extends Controller
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
         $assignedTeachers = $classroom->teachers->pluck('id')->toArray();
         $classrooms = Classroom::where('id', '!=', $id)->orderBy('name')->get();
+        
+        // Get classes that are already selected as next_class_id by another class (excluding current class's next_class_id)
+        $usedAsNextClass = Classroom::whereNotNull('next_class_id')
+            ->where('id', '!=', $id)
+            ->where('next_class_id', '!=', $classroom->next_class_id)
+            ->pluck('next_class_id')
+            ->unique()
+            ->toArray();
 
-        return view('academics.classrooms.edit', compact('classroom', 'teachers', 'assignedTeachers', 'classrooms'));
+        return view('academics.classrooms.edit', compact('classroom', 'teachers', 'assignedTeachers', 'classrooms', 'usedAsNextClass'));
     }
 
     public function update(Request $request, $id)

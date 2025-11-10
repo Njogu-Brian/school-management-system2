@@ -43,7 +43,14 @@
                     @if($classroom->is_alumni)
                         <span class="text-muted">Graduation</span>
                     @elseif($classroom->nextClass)
-                        <span class="text-success">{{ $classroom->nextClass->name }}</span>
+                        <span class="text-success">
+                            <i class="bi bi-arrow-right"></i> {{ $classroom->nextClass->name }}
+                        </span>
+                        @if($classroom->previousClasses->count() > 0)
+                            <br><small class="text-muted">
+                                <i class="bi bi-arrow-left"></i> From: {{ $classroom->previousClasses->pluck('name')->join(', ') }}
+                            </small>
+                        @endif
                     @else
                         <span class="text-danger">Not Mapped</span>
                     @endif

@@ -21,15 +21,26 @@
                     <option value="" selected>Alumni (Last Class)</option>
                 @endif
                 @foreach ($classrooms as $class)
-                    <option value="{{ $class->id }}" @selected(old('next_class_id', $classroom->next_class_id) == $class->id)>
+                    <option value="{{ $class->id }}" 
+                        @selected(old('next_class_id', $classroom->next_class_id) == $class->id)
+                        @if(in_array($class->id, $usedAsNextClass ?? []) && $classroom->next_class_id != $class->id) 
+                            disabled 
+                            style="color: #999; background-color: #f5f5f5;"
+                        @endif>
                         {{ $class->name }}
                         @if($class->is_alumni)
                             (Alumni)
                         @endif
+                        @if(in_array($class->id, $usedAsNextClass ?? []) && $classroom->next_class_id != $class->id)
+                            - Already mapped by another class
+                        @endif
                     </option>
                 @endforeach
             </select>
-            <small class="text-muted">Select the class students will be promoted to. Leave empty or select "Alumni" for the last class.</small>
+            <small class="text-muted">
+                Select the class students will be promoted to. Leave empty or select "Alumni" for the last class.
+                <br><span class="text-warning"><i class="bi bi-info-circle"></i> Classes already mapped by another class are disabled to prevent conflicts.</span>
+            </small>
             @if($classroom->nextClass)
                 <div class="mt-1">
                     <small class="text-info">Current next class: <strong>{{ $classroom->nextClass->name }}</strong></small>

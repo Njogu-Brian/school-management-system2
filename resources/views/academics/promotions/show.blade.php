@@ -116,14 +116,21 @@
 
         <div class="d-flex justify-content-between">
             <a href="{{ route('academics.promotions.index') }}" class="btn btn-secondary">Cancel</a>
-            <button type="submit" class="btn btn-primary" @if(!$classroom->nextClass && !$classroom->is_alumni) disabled @endif>
-                <i class="bi bi-arrow-up-circle"></i> 
-                @if($classroom->is_alumni)
-                    Mark as Alumni
-                @else
-                    Promote Students
+            <div>
+                @if($students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni))
+                    <button type="button" class="btn btn-success me-2" onclick="promoteAll()">
+                        <i class="bi bi-arrow-up-circle-fill"></i> Promote All Students
+                    </button>
                 @endif
-            </button>
+                <button type="submit" class="btn btn-primary" @if(!$classroom->nextClass && !$classroom->is_alumni) disabled @endif>
+                    <i class="bi bi-arrow-up-circle"></i> 
+                    @if($classroom->is_alumni)
+                        Mark as Alumni
+                    @else
+                        Promote Selected
+                    @endif
+                </button>
+            </div>
         </div>
     </form>
 </div>
@@ -144,6 +151,16 @@ function selectAll() {
 function deselectAll() {
     document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false);
     document.getElementById('selectAllCheckbox').checked = false;
+}
+
+function promoteAll() {
+    selectAll();
+    const action = @if($classroom->is_alumni) 'mark as alumni' @else 'promote' @endif;
+    if (confirm(`Are you sure you want to ${action} ALL ${document.querySelectorAll('.student-checkbox').length} student(s)?`)) {
+        document.getElementById('promotionForm').submit();
+    } else {
+        // Keep all selected but don't submit
+    }
 }
 
 document.getElementById('promotionForm').addEventListener('submit', function(e) {

@@ -15,7 +15,7 @@ class StudentPromotionController extends Controller
 {
     public function index()
     {
-        $classrooms = Classroom::with('nextClass', 'streams')
+        $classrooms = Classroom::with(['nextClass', 'streams', 'students'])
             ->orderBy('name')
             ->get();
         

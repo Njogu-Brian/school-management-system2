@@ -56,11 +56,17 @@
                                 </td>
                                 <td>
                                     @if($classroom->is_alumni)
-                                        <span class="text-muted">Graduation → Alumni</span>
+                                        <span class="text-muted">
+                                            <i class="bi bi-trophy"></i> Graduation → Alumni
+                                        </span>
                                     @elseif($classroom->nextClass)
-                                        <span class="text-success">{{ $classroom->nextClass->name }}</span>
+                                        <span class="text-success">
+                                            <i class="bi bi-arrow-right"></i> {{ $classroom->nextClass->name }}
+                                        </span>
                                     @else
-                                        <span class="text-danger">Not Mapped</span>
+                                        <span class="text-danger">
+                                            <i class="bi bi-exclamation-triangle"></i> Not Mapped
+                                        </span>
                                     @endif
                                 </td>
                                 <td>

@@ -18,10 +18,22 @@
                 <option value="">-- Select Next Class --</option>
                 <option value="">Alumni (Last Class)</option>
                 @foreach ($classrooms as $class)
-                    <option value="{{ $class->id }}">{{ $class->name }}</option>
+                    <option value="{{ $class->id }}" 
+                        @if(in_array($class->id, $usedAsNextClass ?? [])) 
+                            disabled 
+                            style="color: #999; background-color: #f5f5f5;"
+                        @endif>
+                        {{ $class->name }}
+                        @if(in_array($class->id, $usedAsNextClass ?? []))
+                            (Already mapped by another class)
+                        @endif
+                    </option>
                 @endforeach
             </select>
-            <small class="text-muted">Select the class students will be promoted to. Leave empty or select "Alumni" for the last class.</small>
+            <small class="text-muted">
+                Select the class students will be promoted to. Leave empty or select "Alumni" for the last class.
+                <br><span class="text-warning"><i class="bi bi-info-circle"></i> Classes already mapped by another class are disabled to prevent conflicts.</span>
+            </small>
         </div>
 
         <div class="row mb-3">
