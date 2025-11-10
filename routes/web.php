@@ -31,7 +31,6 @@ use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
 use App\Http\Controllers\AcademicConfigController;
 use App\Http\Controllers\SchoolDayController;
-use App\Http\Controllers\TermDayController;
 
 // Students & Parents
 use App\Http\Controllers\StudentController;
