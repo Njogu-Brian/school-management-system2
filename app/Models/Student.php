@@ -34,6 +34,8 @@ class Student extends Model
         'nemis_number',
         'knec_assessment_number',
         'archive',
+        'is_alumni',
+        'alumni_date',
         // Extended demographics
         'national_id_number',
         'passport_number',

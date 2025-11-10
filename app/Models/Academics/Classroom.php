@@ -11,7 +11,22 @@ class Classroom extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'next_class_id', 'is_beginner', 'is_alumni'];
+
+    protected $casts = [
+        'is_beginner' => 'boolean',
+        'is_alumni' => 'boolean',
+    ];
+
+    public function nextClass()
+    {
+        return $this->belongsTo(Classroom::class, 'next_class_id');
+    }
+
+    public function previousClasses()
+    {
+        return $this->hasMany(Classroom::class, 'next_class_id');
+    }
 
     public function streams()
     {

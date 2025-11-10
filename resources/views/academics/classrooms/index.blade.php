@@ -13,6 +13,8 @@
         <thead>
             <tr>
                 <th>Class Name</th>
+                <th>Type</th>
+                <th>Next Class</th>
                 <th>Streams</th>
                 <th>Teacher</th>
                 <th>Actions</th>
@@ -22,6 +24,30 @@
             @foreach ($classrooms as $classroom)
             <tr>
                 <td>{{ $classroom->name }}</td>
+                
+                <!-- Type -->
+                <td>
+                    @if($classroom->is_beginner)
+                        <span class="badge bg-info">Beginner</span>
+                    @endif
+                    @if($classroom->is_alumni)
+                        <span class="badge bg-warning">Alumni</span>
+                    @endif
+                    @if(!$classroom->is_beginner && !$classroom->is_alumni)
+                        <span class="text-muted">-</span>
+                    @endif
+                </td>
+                
+                <!-- Next Class -->
+                <td>
+                    @if($classroom->is_alumni)
+                        <span class="text-muted">Graduation</span>
+                    @elseif($classroom->nextClass)
+                        <span class="text-success">{{ $classroom->nextClass->name }}</span>
+                    @else
+                        <span class="text-danger">Not Mapped</span>
+                    @endif
+                </td>
                 
                 <!-- Display Streams -->
                 <td>

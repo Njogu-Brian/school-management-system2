@@ -232,6 +232,11 @@ Route::middleware('auth')->group(function () {
         
         // Teacher Assignments
         Route::get('assign-teachers', [\App\Http\Controllers\Academics\AssignTeachersController::class, 'index'])->name('assign-teachers');
+        
+        // Student Promotions
+        Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
+        Route::get('promotions/{classroom}', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'show'])->name('promotions.show');
+        Route::post('promotions/{classroom}/promote', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promote'])->name('promotions.promote');
 
         // Exams + lookups
         Route::resource('exams', ExamController::class)->except(['show']);

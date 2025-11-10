@@ -11,16 +11,21 @@ class StudentAcademicHistory extends Model
     protected $fillable = [
         'student_id',
         'academic_year_id',
+        'term_id',
         'classroom_id',
         'stream_id',
+        'next_classroom_id',
+        'next_stream_id',
         'enrollment_date',
         'completion_date',
         'promotion_status',
+        'promotion_date',
         'final_grade',
         'class_position',
         'stream_position',
         'remarks',
         'teacher_comments',
+        'notes',
         'is_current',
         'promoted_by',
     ];
@@ -28,6 +33,7 @@ class StudentAcademicHistory extends Model
     protected $casts = [
         'enrollment_date' => 'date',
         'completion_date' => 'date',
+        'promotion_date' => 'date',
         'final_grade' => 'decimal:2',
         'is_current' => 'boolean',
         'class_position' => 'integer',
@@ -47,6 +53,26 @@ class StudentAcademicHistory extends Model
     public function stream()
     {
         return $this->belongsTo(\App\Models\Academics\Stream::class);
+    }
+
+    public function nextClassroom()
+    {
+        return $this->belongsTo(\App\Models\Academics\Classroom::class, 'next_classroom_id');
+    }
+
+    public function nextStream()
+    {
+        return $this->belongsTo(\App\Models\Academics\Stream::class, 'next_stream_id');
+    }
+
+    public function term()
+    {
+        return $this->belongsTo(\App\Models\Term::class);
+    }
+
+    public function academicYear()
+    {
+        return $this->belongsTo(\App\Models\AcademicYear::class);
     }
 
     public function promotedBy()

@@ -13,6 +13,7 @@ use App\Services\AttendanceReportService;
 use App\Services\AttendanceAnalyticsService;
 use App\Services\SMSService;
 use App\Models\AttendanceReasonCode;
+use App\Models\Academics\Subject;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 

@@ -18,18 +18,27 @@ class ClassroomController extends Controller
     public function create()
     {
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
-        return view('academics.classrooms.create', compact('teachers'));
+        $classrooms = Classroom::orderBy('name')->get();
+        return view('academics.classrooms.create', compact('teachers', 'classrooms'));
     }
 
     public function store(Request $request)
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:classrooms,name',
+            'next_class_id' => 'nullable|exists:classrooms,id',
+            'is_beginner' => 'nullable|boolean',
+            'is_alumni' => 'nullable|boolean',
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
         ]);
 
-        $classroom = Classroom::create(['name' => $request->name]);
+        $classroom = Classroom::create([
+            'name' => $request->name,
+            'next_class_id' => $request->next_class_id,
+            'is_beginner' => $request->boolean('is_beginner'),
+            'is_alumni' => $request->boolean('is_alumni'),
+        ]);
 
         if ($request->has('teacher_ids')) {
             $classroom->teachers()->sync($request->teacher_ids);
@@ -44,20 +53,29 @@ class ClassroomController extends Controller
         $classroom = Classroom::findOrFail($id);
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
         $assignedTeachers = $classroom->teachers->pluck('id')->toArray();
+        $classrooms = Classroom::where('id', '!=', $id)->orderBy('name')->get();
 
-        return view('academics.classrooms.edit', compact('classroom', 'teachers', 'assignedTeachers'));
+        return view('academics.classrooms.edit', compact('classroom', 'teachers', 'assignedTeachers', 'classrooms'));
     }
 
     public function update(Request $request, $id)
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:classrooms,name,' . $id,
+            'next_class_id' => 'nullable|exists:classrooms,id|different:id',
+            'is_beginner' => 'nullable|boolean',
+            'is_alumni' => 'nullable|boolean',
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
         ]);
 
         $classroom = Classroom::findOrFail($id);
-        $classroom->update(['name' => $request->name]);
+        $classroom->update([
+            'name' => $request->name,
+            'next_class_id' => $request->next_class_id,
+            'is_beginner' => $request->boolean('is_beginner'),
+            'is_alumni' => $request->boolean('is_alumni'),
+        ]);
 
         $classroom->teachers()->sync($request->teacher_ids ?? []);
 
