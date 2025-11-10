@@ -35,8 +35,8 @@ return new class extends Migration
             
             $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->index(['student_id', 'record_type']);
-            $table->index('record_date');
+            $table->index(['student_id', 'record_type'], 'idx_medical_student_type');
+            $table->index('record_date', 'idx_medical_date');
         });
     }
 

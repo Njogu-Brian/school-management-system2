@@ -33,9 +33,9 @@ return new class extends Migration
             $table->foreign('classroom_id')->references('id')->on('classrooms')->onDelete('set null');
             $table->foreign('stream_id')->references('id')->on('streams')->onDelete('set null');
             $table->foreign('promoted_by')->references('id')->on('users')->onDelete('set null');
-            $table->index(['student_id', 'academic_year_id']);
-            $table->index('is_current');
-            $table->index('enrollment_date');
+            $table->index(['student_id', 'academic_year_id'], 'idx_student_academic_year');
+            $table->index('is_current', 'idx_academic_current');
+            $table->index('enrollment_date', 'idx_academic_enrollment');
         });
     }
 

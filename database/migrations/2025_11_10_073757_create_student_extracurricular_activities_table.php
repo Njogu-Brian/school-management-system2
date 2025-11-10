@@ -34,8 +34,8 @@ return new class extends Migration
             
             $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
             $table->foreign('supervisor_id')->references('id')->on('users')->onDelete('set null');
-            $table->index(['student_id', 'activity_type']);
-            $table->index('is_active');
+            $table->index(['student_id', 'activity_type'], 'idx_student_activities');
+            $table->index('is_active', 'idx_activities_active');
         });
     }
 

@@ -13,31 +13,69 @@ return new class extends Migration
     {
         Schema::table('parent_info', function (Blueprint $table) {
             // Father extended info
-            $table->string('father_occupation')->nullable()->after('father_id_number');
-            $table->string('father_employer')->nullable()->after('father_occupation');
-            $table->string('father_work_address')->nullable()->after('father_employer');
-            $table->string('father_education_level')->nullable()->after('father_work_address');
-            $table->string('father_whatsapp')->nullable()->after('father_email');
+            if (!Schema::hasColumn('parent_info', 'father_occupation')) {
+                $table->string('father_occupation')->nullable()->after('father_id_number');
+            }
+            if (!Schema::hasColumn('parent_info', 'father_employer')) {
+                $table->string('father_employer')->nullable()->after('father_occupation');
+            }
+            if (!Schema::hasColumn('parent_info', 'father_work_address')) {
+                $table->string('father_work_address')->nullable()->after('father_employer');
+            }
+            if (!Schema::hasColumn('parent_info', 'father_education_level')) {
+                $table->string('father_education_level')->nullable()->after('father_work_address');
+            }
+            if (!Schema::hasColumn('parent_info', 'father_whatsapp')) {
+                $table->string('father_whatsapp')->nullable()->after('father_email');
+            }
             
             // Mother extended info
-            $table->string('mother_occupation')->nullable()->after('mother_id_number');
-            $table->string('mother_employer')->nullable()->after('mother_occupation');
-            $table->string('mother_work_address')->nullable()->after('mother_employer');
-            $table->string('mother_education_level')->nullable()->after('mother_work_address');
-            $table->string('mother_whatsapp')->nullable()->after('mother_email');
+            if (!Schema::hasColumn('parent_info', 'mother_occupation')) {
+                $table->string('mother_occupation')->nullable()->after('mother_id_number');
+            }
+            if (!Schema::hasColumn('parent_info', 'mother_employer')) {
+                $table->string('mother_employer')->nullable()->after('mother_occupation');
+            }
+            if (!Schema::hasColumn('parent_info', 'mother_work_address')) {
+                $table->string('mother_work_address')->nullable()->after('mother_employer');
+            }
+            if (!Schema::hasColumn('parent_info', 'mother_education_level')) {
+                $table->string('mother_education_level')->nullable()->after('mother_work_address');
+            }
+            if (!Schema::hasColumn('parent_info', 'mother_whatsapp')) {
+                $table->string('mother_whatsapp')->nullable()->after('mother_email');
+            }
             
             // Guardian extended info
-            $table->string('guardian_occupation')->nullable()->after('guardian_relationship');
-            $table->string('guardian_employer')->nullable()->after('guardian_occupation');
-            $table->string('guardian_work_address')->nullable()->after('guardian_employer');
-            $table->string('guardian_education_level')->nullable()->after('guardian_work_address');
-            $table->string('guardian_whatsapp')->nullable()->after('guardian_email');
+            if (!Schema::hasColumn('parent_info', 'guardian_occupation')) {
+                $table->string('guardian_occupation')->nullable()->after('guardian_relationship');
+            }
+            if (!Schema::hasColumn('parent_info', 'guardian_employer')) {
+                $table->string('guardian_employer')->nullable()->after('guardian_occupation');
+            }
+            if (!Schema::hasColumn('parent_info', 'guardian_work_address')) {
+                $table->string('guardian_work_address')->nullable()->after('guardian_employer');
+            }
+            if (!Schema::hasColumn('parent_info', 'guardian_education_level')) {
+                $table->string('guardian_education_level')->nullable()->after('guardian_work_address');
+            }
+            if (!Schema::hasColumn('parent_info', 'guardian_whatsapp')) {
+                $table->string('guardian_whatsapp')->nullable()->after('guardian_email');
+            }
             
             // Family information
-            $table->string('family_income_bracket')->nullable()->after('guardian_whatsapp'); // for financial aid
-            $table->string('primary_contact_person')->nullable()->after('family_income_bracket'); // father, mother, guardian
-            $table->string('communication_preference')->nullable()->after('primary_contact_person'); // sms, email, phone, whatsapp
-            $table->string('language_preference')->nullable()->after('communication_preference');
+            if (!Schema::hasColumn('parent_info', 'family_income_bracket')) {
+                $table->string('family_income_bracket')->nullable()->after('guardian_whatsapp');
+            }
+            if (!Schema::hasColumn('parent_info', 'primary_contact_person')) {
+                $table->string('primary_contact_person')->nullable()->after('family_income_bracket');
+            }
+            if (!Schema::hasColumn('parent_info', 'communication_preference')) {
+                $table->string('communication_preference')->nullable()->after('primary_contact_person');
+            }
+            if (!Schema::hasColumn('parent_info', 'language_preference')) {
+                $table->string('language_preference')->nullable()->after('communication_preference');
+            }
         });
     }
 

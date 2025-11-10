@@ -37,9 +37,9 @@ return new class extends Migration
             $table->foreign('student_id')->references('id')->on('students')->onDelete('cascade');
             $table->foreign('reported_by')->references('id')->on('users')->onDelete('restrict');
             $table->foreign('action_taken_by')->references('id')->on('users')->onDelete('set null');
-            $table->index(['student_id', 'incident_date']);
-            $table->index('severity');
-            $table->index('resolved');
+            $table->index(['student_id', 'incident_date'], 'idx_disciplinary_student_date');
+            $table->index('severity', 'idx_disciplinary_severity');
+            $table->index('resolved', 'idx_disciplinary_resolved');
         });
     }
 
