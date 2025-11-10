@@ -83,27 +83,9 @@
             <button type="button" id="btnMarkAllPresent" class="btn btn-outline-success btn-sm">
               <i class="bi bi-check-all"></i> Mark All Present
             </button>
-            <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="collapse" data-bs-target="#advancedOptions">
-              <i class="bi bi-gear"></i> Advanced Options
-            </button>
           </div>
           <div class="small text-muted">
             <i class="bi bi-info-circle"></i> Unmarked: <strong>{{ $unmarkedCount }}</strong>
-          </div>
-        </div>
-
-        {{-- Advanced Options Toggle --}}
-        <div class="collapse mt-3" id="advancedOptions">
-          <div class="alert alert-info mb-0">
-            <h6 class="mb-2"><i class="bi bi-info-circle"></i> Advanced Options</h6>
-            <div class="row g-2">
-              <div class="col-md-12">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="enableSubjectTracking">
-                  <label class="form-check-label" for="enableSubjectTracking">Enable Subject-wise Attendance</label>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -130,14 +112,8 @@
                   $row++;
                   $att = $attendanceRecords->get($student->id);
                   $status = $att ? $att->status : null;
-                  $reasonVal = $att ? $att->reason : '';
                   $reasonCodeId = $att ? $att->reason_code_id : null;
-                  $isExcused = $att ? $att->is_excused : false;
-                  $isMedicalLeave = $att ? $att->is_medical_leave : false;
                   $excuseNotes = $att ? $att->excuse_notes : '';
-                  $subjectId = $att ? $att->subject_id : null;
-                  $periodNumber = $att ? $att->period_number : null;
-                  $periodName = $att ? $att->period_name : '';
                   $consecutive = $att ? $att->consecutive_absence_count : 0;
                 @endphp
                 <tr data-student-id="{{ $student->id }}" data-search="{{ strtolower($student->admission_number.' '.$student->first_name.' '.$student->middle_name.' '.$student->last_name) }}">
@@ -170,7 +146,6 @@
                         <option value="{{ $code->id }}" @selected($reasonCodeId == $code->id)>{{ $code->name }}</option>
                       @endforeach
                     </select>
-                    <input type="hidden" name="reason_{{ $student->id }}" value="{{ $reasonVal }}">
                   </td>
                   <td>
                     <textarea name="excuse_notes_{{ $student->id }}" class="form-control form-control-sm" rows="2" placeholder="Notes..." {{ $status === 'present' ? 'disabled' : '' }}>{{ $excuseNotes }}</textarea>
