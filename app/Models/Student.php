@@ -34,6 +34,39 @@ class Student extends Model
         'nemis_number',
         'knec_assessment_number',
         'archive',
+        // Extended demographics
+        'national_id_number',
+        'passport_number',
+        'religion',
+        'ethnicity',
+        'home_address',
+        'home_city',
+        'home_county',
+        'home_postal_code',
+        'language_preference',
+        'blood_group',
+        'allergies',
+        'chronic_conditions',
+        'medical_insurance_provider',
+        'medical_insurance_number',
+        'emergency_medical_contact_name',
+        'emergency_medical_contact_phone',
+        'previous_schools',
+        'transfer_reason',
+        'has_special_needs',
+        'special_needs_description',
+        'learning_disabilities',
+        // Status & lifecycle
+        'status',
+        'admission_date',
+        'graduation_date',
+        'transfer_date',
+        'transfer_to_school',
+        'status_change_reason',
+        'status_changed_by',
+        'status_changed_at',
+        'is_readmission',
+        'previous_student_id',
     ];
 
     public function parent()
@@ -102,7 +135,44 @@ class Student extends Model
     public function vehicle()
     {
         return $this->belongsTo(Vehicle::class, 'vehicle_id');
-    }   
+    }
+
+    // New relationships for enhanced features
+    public function medicalRecords()
+    {
+        return $this->hasMany(StudentMedicalRecord::class);
+    }
+
+    public function disciplinaryRecords()
+    {
+        return $this->hasMany(StudentDisciplinaryRecord::class);
+    }
+
+    public function extracurricularActivities()
+    {
+        return $this->hasMany(StudentExtracurricularActivity::class);
+    }
+
+    public function academicHistory()
+    {
+        return $this->hasMany(StudentAcademicHistory::class);
+    }
+
+    public function currentAcademicHistory()
+    {
+        return $this->hasOne(StudentAcademicHistory::class)->where('is_current', true);
+    }
+
+    public function statusChangedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'status_changed_by');
+    }
+
+    public function previousStudent()
+    {
+        return $this->belongsTo(Student::class, 'previous_student_id');
+    }
+
     protected static function booted()
     {
         static::addGlobalScope('active', function (Builder $builder) {
