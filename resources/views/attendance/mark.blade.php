@@ -257,12 +257,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  // Toggle subject tracking
-  document.getElementById('enableSubjectTracking')?.addEventListener('change', function() {
-    document.querySelectorAll('.subject-tracking').forEach(el => {
-      el.style.display = this.checked ? 'block' : 'none';
-    });
-  });
 
   // Enable/disable fields based on status
   document.querySelectorAll('.mark-radio').forEach(r => {

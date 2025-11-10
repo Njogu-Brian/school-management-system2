@@ -31,12 +31,23 @@
 
         <div class="row g-3 mb-3">
             <div class="col-md-6">
-                <label for="opening_date" class="form-label">Opening Date</label>
-                <input type="date" name="opening_date" id="opening_date" class="form-control" value="{{ old('opening_date', $term->opening_date?->toDateString()) }}">
+                <label for="opening_date" class="form-label">Opening Date <span class="text-danger">*</span></label>
+                <input type="date" name="opening_date" id="opening_date" class="form-control" value="{{ old('opening_date', $term->opening_date?->toDateString()) }}" required>
             </div>
             <div class="col-md-6">
-                <label for="closing_date" class="form-label">Closing Date</label>
-                <input type="date" name="closing_date" id="closing_date" class="form-control" value="{{ old('closing_date', $term->closing_date?->toDateString()) }}">
+                <label for="closing_date" class="form-label">Closing Date <span class="text-danger">*</span></label>
+                <input type="date" name="closing_date" id="closing_date" class="form-control" value="{{ old('closing_date', $term->closing_date?->toDateString()) }}" required>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label for="midterm_start_date" class="form-label">Midterm Start Date</label>
+                <input type="date" name="midterm_start_date" id="midterm_start_date" class="form-control" value="{{ old('midterm_start_date', $term->midterm_start_date?->toDateString()) }}">
+            </div>
+            <div class="col-md-6">
+                <label for="midterm_end_date" class="form-label">Midterm End Date</label>
+                <input type="date" name="midterm_end_date" id="midterm_end_date" class="form-control" value="{{ old('midterm_end_date', $term->midterm_end_date?->toDateString()) }}">
             </div>
         </div>
 
