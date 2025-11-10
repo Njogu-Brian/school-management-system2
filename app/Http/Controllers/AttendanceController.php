@@ -13,7 +13,6 @@ use App\Services\AttendanceReportService;
 use App\Services\AttendanceAnalyticsService;
 use App\Services\SMSService;
 use App\Models\AttendanceReasonCode;
-use App\Models\Academics\Subject;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
@@ -96,14 +95,13 @@ class AttendanceController extends Controller
 
         $unmarkedCount = max(0, $students->count() - $attendanceRecords->count());
         
-        // Get reason codes and subjects for the form
+        // Get preset reasons (reason codes) for the form
         $reasonCodes = AttendanceReasonCode::active()->get();
-        $subjects = Subject::orderBy('name')->get();
 
         return view('attendance.mark', compact(
             'classes', 'streams', 'students', 'attendanceRecords',
             'selectedClass', 'selectedStream', 'selectedDate', 'q', 'unmarkedCount',
-            'reasonCodes', 'subjects'
+            'reasonCodes'
         ));
     }
 
