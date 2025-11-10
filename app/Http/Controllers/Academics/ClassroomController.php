@@ -11,7 +11,7 @@ class ClassroomController extends Controller
 {
     public function index()
     {
-        $classrooms = Classroom::with(['teachers', 'streams'])->get();
+        $classrooms = Classroom::with(['teachers', 'streams', 'nextClass', 'previousClasses'])->get();
         return view('academics.classrooms.index', compact('classrooms'));
     }
 
