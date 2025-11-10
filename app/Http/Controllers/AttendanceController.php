@@ -95,8 +95,6 @@ public function mark(Request $request)
         $status    = $value; // present|absent|late
         $reason    = $request->input('reason_' . $studentId);
         $reasonCodeId = $request->input('reason_code_' . $studentId);
-        $arrivalTime = $request->input('arrival_time_' . $studentId);
-        $departureTime = $request->input('departure_time_' . $studentId);
         $isExcused = $request->has('is_excused_' . $studentId);
         $isMedicalLeave = $request->has('is_medical_leave_' . $studentId);
         $excuseNotes = $request->input('excuse_notes_' . $studentId);
@@ -115,8 +113,6 @@ public function mark(Request $request)
         $attendance->status = $status;
         $attendance->reason = $status === 'present' ? null : $reason;
         $attendance->reason_code_id = $reasonCodeId;
-        $attendance->arrival_time = $arrivalTime ? Carbon::parse($arrivalTime)->toTimeString() : null;
-        $attendance->departure_time = $departureTime ? Carbon::parse($departureTime)->toTimeString() : null;
         $attendance->is_excused = $isExcused;
         $attendance->is_medical_leave = $isMedicalLeave;
         $attendance->excuse_notes = $excuseNotes;

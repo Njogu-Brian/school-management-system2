@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\TermDay;
-use App\Models\Academics\AcademicYear;
-use App\Models\Academics\Term;
+use App\Models\AcademicYear;
+use App\Models\Term;
 use Illuminate\Http\Request;
 
 class TermDayController extends Controller

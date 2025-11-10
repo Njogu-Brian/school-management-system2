@@ -382,10 +382,6 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('settings/academic*') ? 'active' : '' }}">
     <i class="bi bi-calendar"></i> Academic Years & Terms
     </a>
-    <a href="{{ route('settings.term-days.index') }}" 
-    class="sublink {{ Request::is('settings/term-days*') ? 'active' : '' }}">
-    <i class="bi bi-calendar-range"></i> Term Days
-    </a>
     <a href="{{ route('settings.school-days.index') }}" 
     class="sublink {{ Request::is('settings/school-days*') ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> School Days & Holidays

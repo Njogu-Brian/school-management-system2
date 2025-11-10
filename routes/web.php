@@ -439,7 +439,7 @@ Route::middleware('auth')->group(function () {
                 ->name('roles.update_permissions');
         });
 
-    // Academic Config (Years, Terms)
+    // Academic Config (Years, Terms, Term Days)
     Route::prefix('settings')->name('settings.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
         // School Days Management
         Route::prefix('school-days')->name('school-days.')->group(function () {
@@ -449,13 +449,6 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{schoolDay}', [SchoolDayController::class, 'destroy'])->name('destroy');
         });
 
-        // Term Days Management
-        Route::prefix('term-days')->name('term-days.')->group(function () {
-            Route::get('/', [TermDayController::class, 'index'])->name('index');
-            Route::post('/', [TermDayController::class, 'store'])->name('store');
-            Route::put('/{termDay}', [TermDayController::class, 'update'])->name('update');
-            Route::delete('/{termDay}', [TermDayController::class, 'destroy'])->name('destroy');
-        });
         Route::get('academic', [AcademicConfigController::class, 'index'])->name('academic.index');
 
         // Year
@@ -471,6 +464,11 @@ Route::middleware('auth')->group(function () {
         Route::get('academic/term/{term}/edit',   [AcademicConfigController::class, 'editTerm'])->name('academic.term.edit');
         Route::put('academic/term/{term}',        [AcademicConfigController::class, 'updateTerm'])->name('academic.term.update');
         Route::delete('academic/term/{term}',     [AcademicConfigController::class, 'destroyTerm'])->name('academic.term.destroy');
+
+        // Term Days (integrated with academic config)
+        Route::post('academic/term-days',         [AcademicConfigController::class, 'storeTermDays'])->name('academic.term-days.store');
+        Route::put('academic/term-days/{termDay}', [AcademicConfigController::class, 'updateTermDays'])->name('academic.term-days.update');
+        Route::delete('academic/term-days/{termDay}', [AcademicConfigController::class, 'destroyTermDays'])->name('academic.term-days.destroy');
     });
 
     // Settings → Placeholders management

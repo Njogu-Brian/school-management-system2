@@ -328,8 +328,6 @@
                     <th class="text-center">Status</th>
                     <th>Reason Code</th>
                     <th>Reason</th>
-                    <th>Arrival Time</th>
-                    <th>Departure Time</th>
                     <th>Marked By</th>
                   </tr>
                 </thead>
@@ -351,13 +349,11 @@
                       </td>
                       <td>{{ $r->reasonCode->name ?? '—' }}</td>
                       <td class="text-muted small">{{ Str::limit($r->reason ?? '—', 40) }}</td>
-                      <td>{{ $r->arrival_time ? \Carbon\Carbon::parse($r->arrival_time)->format('H:i') : '—' }}</td>
-                      <td>{{ $r->departure_time ? \Carbon\Carbon::parse($r->departure_time)->format('H:i') : '—' }}</td>
                       <td class="small">{{ $r->markedBy->name ?? '—' }}</td>
                     </tr>
                   @empty
                     <tr>
-                      <td colspan="8" class="text-center text-muted py-4">
+                      <td colspan="6" class="text-center text-muted py-4">
                         No attendance records found for this student in the selected period.
                       </td>
                     </tr>

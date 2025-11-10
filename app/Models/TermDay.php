@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Academics\AcademicYear;
-use App\Models\Academics\Term;
+use App\Models\AcademicYear;
+use App\Models\Term;
 
 class TermDay extends Model
 {
