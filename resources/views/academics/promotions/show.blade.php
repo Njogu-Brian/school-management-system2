@@ -27,6 +27,24 @@
         </div>
     @endif
 
+    @php
+        // Check if this class has already been promoted in the current academic year
+        $alreadyPromoted = false;
+        if ($currentYear) {
+            $alreadyPromoted = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
+                ->where('academic_year_id', $currentYear->id)
+                ->where('promotion_status', 'promoted')
+                ->exists();
+        }
+    @endphp
+
+    @if($alreadyPromoted)
+        <div class="alert alert-warning">
+            <i class="bi bi-info-circle"></i> This class has already been promoted in the current academic year ({{ $currentYear->year }}). 
+            Each class can only be promoted once per academic year.
+        </div>
+    @endif
+
     <form action="{{ route('academics.promotions.promote', $classroom) }}" method="POST" id="promotionForm">
         @csrf
         
@@ -117,12 +135,12 @@
         <div class="d-flex justify-content-between">
             <a href="{{ route('academics.promotions.index') }}" class="btn btn-secondary">Cancel</a>
             <div>
-                @if($students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni))
+                @if($students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni) && !$alreadyPromoted)
                     <button type="button" class="btn btn-success me-2" onclick="promoteAll()">
                         <i class="bi bi-arrow-up-circle-fill"></i> Promote All Students
                     </button>
                 @endif
-                <button type="submit" class="btn btn-primary" @if(!$classroom->nextClass && !$classroom->is_alumni) disabled @endif>
+                <button type="submit" class="btn btn-primary" @if(!$classroom->nextClass && !$classroom->is_alumni || $alreadyPromoted) disabled @endif>
                     <i class="bi bi-arrow-up-circle"></i> 
                     @if($classroom->is_alumni)
                         Mark as Alumni

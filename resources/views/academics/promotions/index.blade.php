@@ -33,27 +33,27 @@
                     <thead class="table-light">
                         <tr>
                             <th>Class</th>
-                            <th>Type</th>
                             <th>Next Class</th>
                             <th>Students</th>
+                            <th>Status</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($classrooms as $classroom)
+                            @php
+                                // Check if this class has been promoted in the current academic year
+                                $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
+                                $alreadyPromoted = false;
+                                if ($currentYear) {
+                                    $alreadyPromoted = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
+                                        ->where('academic_year_id', $currentYear->id)
+                                        ->where('promotion_status', 'promoted')
+                                        ->exists();
+                                }
+                            @endphp
                             <tr>
                                 <td class="fw-semibold">{{ $classroom->name }}</td>
-                                <td>
-                                    @if($classroom->is_beginner)
-                                        <span class="badge bg-info">Beginner</span>
-                                    @endif
-                                    @if($classroom->is_alumni)
-                                        <span class="badge bg-warning">Alumni</span>
-                                    @endif
-                                    @if(!$classroom->is_beginner && !$classroom->is_alumni)
-                                        <span class="text-muted">-</span>
-                                    @endif
-                                </td>
                                 <td>
                                     @if($classroom->is_alumni)
                                         <span class="text-muted">
@@ -72,11 +72,41 @@
                                 <td>
                                     <span class="badge bg-primary">{{ $classroom->students->count() }} students</span>
                                 </td>
+                                <td>
+                                    @if($alreadyPromoted)
+                                        <span class="badge bg-warning">
+                                            <i class="bi bi-check-circle"></i> Already Promoted
+                                        </span>
+                                    @elseif($classroom->students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni))
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-circle"></i> Ready
+                                        </span>
+                                    @else
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-dash-circle"></i> Not Ready
+                                        </span>
+                                    @endif
+                                </td>
                                 <td class="text-end">
-                                    @if($classroom->students->count() > 0)
-                                        <a href="{{ route('academics.promotions.show', $classroom) }}" class="btn btn-sm btn-primary">
-                                            <i class="bi bi-arrow-up-circle"></i> Promote Students
-                                        </a>
+                                    @if($classroom->students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni))
+                                        @if($alreadyPromoted)
+                                            <span class="text-muted small">Already promoted this year</span>
+                                        @else
+                                            <div class="btn-group" role="group">
+                                                <a href="{{ route('academics.promotions.show', $classroom) }}" class="btn btn-sm btn-primary" title="Select Students">
+                                                    <i class="bi bi-arrow-up-circle"></i> Promote
+                                                </a>
+                                                <form action="{{ route('academics.promotions.promote-all', $classroom) }}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to promote ALL students from {{ $classroom->name }}?');">
+                                                    @csrf
+                                                    <input type="hidden" name="academic_year_id" value="{{ $currentYear?->id }}">
+                                                    <input type="hidden" name="term_id" value="{{ $currentTerm?->id }}">
+                                                    <input type="hidden" name="promotion_date" value="{{ date('Y-m-d') }}">
+                                                    <button type="submit" class="btn btn-sm btn-success" title="Promote All Students">
+                                                        <i class="bi bi-arrow-up-circle-fill"></i> Promote All
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        @endif
                                     @else
                                         <span class="text-muted">No students</span>
                                     @endif

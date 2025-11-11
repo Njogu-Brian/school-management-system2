@@ -55,6 +55,16 @@ class StudentPromotionController extends Controller
             return back()->with('error', 'This class does not have a next class mapped. Please set the next class in class settings.');
         }
 
+        // Check if this class has already been promoted in this academic year
+        $alreadyPromoted = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
+            ->where('academic_year_id', $request->academic_year_id)
+            ->where('promotion_status', 'promoted')
+            ->exists();
+
+        if ($alreadyPromoted) {
+            return back()->with('error', 'This class has already been promoted in the selected academic year. Each class can only be promoted once per academic year.');
+        }
+
         DB::beginTransaction();
         try {
             $students = Student::whereIn('id', $request->student_ids)
@@ -130,5 +140,44 @@ class StudentPromotionController extends Controller
             ->first();
 
         return $matchingStream ? $matchingStream->id : $oldStreamId;
+    }
+
+    /**
+     * Promote all students from a class
+     */
+    public function promoteAll(Request $request, Classroom $classroom)
+    {
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'promotion_date' => 'required|date',
+        ]);
+
+        if (!$classroom->nextClass && !$classroom->is_alumni) {
+            return back()->with('error', 'This class does not have a next class mapped. Please set the next class in class settings.');
+        }
+
+        // Check if this class has already been promoted in this academic year
+        $alreadyPromoted = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
+            ->where('academic_year_id', $request->academic_year_id)
+            ->where('promotion_status', 'promoted')
+            ->exists();
+
+        if ($alreadyPromoted) {
+            return back()->with('error', 'This class has already been promoted in the selected academic year. Each class can only be promoted once per academic year.');
+        }
+
+        // Get all students in this class
+        $students = Student::where('classroom_id', $classroom->id)->get();
+
+        if ($students->isEmpty()) {
+            return back()->with('error', 'No students found in this class.');
+        }
+
+        // Create request with all student IDs
+        $request->merge(['student_ids' => $students->pluck('id')->toArray()]);
+
+        // Use the existing promote method
+        return $this->promote($request, $classroom);
     }
 }

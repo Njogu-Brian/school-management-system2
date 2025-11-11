@@ -11,7 +11,7 @@ class StreamController extends Controller
 {
     public function index()
     {
-        $streams = Stream::with('classrooms')->get();
+        $streams = Stream::with(['classroom', 'classrooms', 'teachers'])->orderBy('name')->get();
         return view('academics.streams.index', compact('streams'));
     }
 
@@ -39,7 +39,7 @@ class StreamController extends Controller
     public function edit($id)
     {
         $stream = Stream::findOrFail($id);
-        $classrooms = Classroom::all();
+        $classrooms = Classroom::orderBy('name')->get();
         $assignedClassrooms = $stream->classrooms->pluck('id')->toArray();
 
         return view('academics.streams.edit', compact('stream', 'classrooms', 'assignedClassrooms'));
@@ -49,13 +49,19 @@ class StreamController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:streams,name,' . $id,
-            'classroom_ids' => 'required|array',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'classroom_ids' => 'nullable|array',
             'classroom_ids.*' => 'exists:classrooms,id',
         ]);
 
         $stream = Stream::findOrFail($id);
-        $stream->update(['name' => $request->name]);
-        $stream->classrooms()->sync($request->classroom_ids);
+        $stream->update([
+            'name' => $request->name,
+            'classroom_id' => $request->classroom_id,
+        ]);
+        
+        // Sync additional classrooms via pivot
+        $stream->classrooms()->sync($request->classroom_ids ?? []);
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream updated successfully.');

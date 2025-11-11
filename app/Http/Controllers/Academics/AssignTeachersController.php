@@ -11,15 +11,38 @@ class AssignTeachersController extends Controller
 {
     public function index()
     {
-        // Get classrooms
-        $classrooms = Classroom::with('teachers')->get();
+        // Get classrooms ordered by name
+        $classrooms = Classroom::with('teachers')->orderBy('name')->get();
         
-        // Load streams separately grouped by classroom_id (using direct relationship)
-        $streamsByClassroom = Stream::with('teachers', 'classroom')->get()->groupBy('classroom_id');
+        // Load streams - check both direct classroom_id and pivot table relationships
+        $allStreams = Stream::with('teachers', 'classroom', 'classrooms')->get();
+        
+        // Group streams by classroom_id (direct relationship)
+        $streamsByClassroom = $allStreams->groupBy('classroom_id');
+        
+        // Also check streams linked via pivot table
+        foreach ($allStreams as $stream) {
+            foreach ($stream->classrooms as $linkedClassroom) {
+                if (!isset($streamsByClassroom[$linkedClassroom->id])) {
+                    $streamsByClassroom[$linkedClassroom->id] = collect();
+                }
+                // Add stream if not already in collection for this classroom
+                if (!$streamsByClassroom[$linkedClassroom->id]->contains('id', $stream->id)) {
+                    $streamsByClassroom[$linkedClassroom->id]->push($stream);
+                }
+            }
+        }
         
         // Attach streams to classrooms
         foreach ($classrooms as $classroom) {
-            $classroom->streams = $streamsByClassroom->get($classroom->id, collect());
+            // Get streams from direct relationship
+            $directStreams = $streamsByClassroom->get($classroom->id, collect());
+            
+            // Also get streams from pivot table
+            $pivotStreams = $classroom->streams;
+            
+            // Merge both collections, removing duplicates
+            $classroom->streams = $directStreams->merge($pivotStreams)->unique('id');
         }
         
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();

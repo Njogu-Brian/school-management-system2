@@ -237,6 +237,7 @@ Route::middleware('auth')->group(function () {
         Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
         Route::get('promotions/{classroom}', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'show'])->name('promotions.show');
         Route::post('promotions/{classroom}/promote', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promote'])->name('promotions.promote');
+        Route::post('promotions/{classroom}/promote-all', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promoteAll'])->name('promotions.promote-all');
 
         // Exams + lookups
         Route::resource('exams', ExamController::class)->except(['show']);
