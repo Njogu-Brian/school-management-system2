@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('training_records', function (Blueprint $table) {
             $table->id();
             $table->foreignId('staff_id')->constrained()->onDelete('cascade');
-            $table->foreignId('training_course_id')->nullable()->constrained()->onDelete('set null');
+            $table->unsignedBigInteger('training_course_id')->nullable();
             $table->string('training_name');
             $table->string('provider')->nullable();
             $table->string('location')->nullable();
