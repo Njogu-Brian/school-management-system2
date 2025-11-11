@@ -33,7 +33,23 @@ class Staff extends Model
     {
         if ($this->photo) {
             // photo holds a path like "staff_photos/xxx.jpg" saved on the "public" disk
-            return asset('storage/'.$this->photo);
+            $path = str_replace('\\', '/', trim($this->photo)); // Normalize path separators and trim
+            
+            // Remove leading slash if present
+            $path = ltrim($path, '/');
+            
+            // Check if file exists in storage
+            $fullPath = storage_path('app/public/'.$path);
+            if (file_exists($fullPath)) {
+                // Generate URL - asset() will create the correct URL
+                return asset('storage/'.$path);
+            }
+            
+            // Also check public/storage (symlink target)
+            $publicPath = public_path('storage/'.$path);
+            if (file_exists($publicPath)) {
+                return asset('storage/'.$path);
+            }
         }
         return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=0D8ABC&color=fff&size=128';
     }

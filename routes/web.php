@@ -363,26 +363,19 @@ Route::middleware('auth')->group(function () {
     Route::prefix('staff')->name('staff.')
         ->middleware('role:Super Admin|Admin|Secretary')
         ->group(function () {
-            // CRUD
+            // CRUD - Index and Create (must come before {id})
             Route::get('/',          [StaffController::class, 'index'])->name('index');
             Route::get('/create',    [StaffController::class, 'create'])->name('create');
             Route::post('/',         [StaffController::class, 'store'])->name('store');
-            Route::get('/{id}',      [StaffController::class, 'show'])->name('show');
-            Route::get('/{id}/edit', [StaffController::class, 'edit'])->name('edit');
-            Route::put('/{id}',      [StaffController::class, 'update'])->name('update');
 
-            // Archive / Restore
-            Route::patch('/{id}/archive', [StaffController::class, 'archive'])->name('archive');
-            Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
-
-            // Bulk Upload (new two-step + legacy) + Template
+            // Bulk Upload (new two-step + legacy) + Template (must come before {id})
             Route::get('/upload',         [StaffController::class, 'showUploadForm'])->name('upload.form');
             Route::post('/upload/parse',  [StaffController::class, 'uploadParse'])->name('upload.parse');   // preview
             Route::post('/upload/commit', [StaffController::class, 'uploadCommit'])->name('upload.commit'); // finalize
             Route::post('/upload',        [StaffController::class, 'handleUpload'])->name('upload.handle'); // legacy
             Route::get('/template',       [StaffController::class, 'template'])->name('template');
 
-            // Leave Management
+            // Leave Management (must come before {id})
             Route::prefix('leave-types')->name('leave-types.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\HR\LeaveTypeController::class, 'index'])->name('index');
                 Route::get('/create', [\App\Http\Controllers\HR\LeaveTypeController::class, 'create'])->name('create');
@@ -410,14 +403,14 @@ Route::middleware('auth')->group(function () {
                 Route::put('/{balance}', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'update'])->name('update');
             });
 
-            // Staff Attendance
+            // Staff Attendance (must come before {id})
             Route::prefix('attendance')->name('attendance.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'index'])->name('index');
                 Route::post('/bulk-mark', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
                 Route::get('/report', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'report'])->name('report');
             });
 
-            // Document Management
+            // Document Management (must come before {id})
             Route::prefix('documents')->name('documents.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\HR\StaffDocumentController::class, 'index'])->name('index');
                 Route::get('/create', [\App\Http\Controllers\HR\StaffDocumentController::class, 'create'])->name('create');
@@ -426,6 +419,15 @@ Route::middleware('auth')->group(function () {
                 Route::get('/{document}/download', [\App\Http\Controllers\HR\StaffDocumentController::class, 'download'])->name('download');
                 Route::delete('/{document}', [\App\Http\Controllers\HR\StaffDocumentController::class, 'destroy'])->name('destroy');
             });
+
+            // CRUD - Individual staff routes (must come AFTER all specific routes)
+            Route::get('/{id}',      [StaffController::class, 'show'])->name('show');
+            Route::get('/{id}/edit', [StaffController::class, 'edit'])->name('edit');
+            Route::put('/{id}',      [StaffController::class, 'update'])->name('update');
+
+            // Archive / Restore
+            Route::patch('/{id}/archive', [StaffController::class, 'archive'])->name('archive');
+            Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
         });
 
     // Roles & Permissions (Spatie) – central page is under /settings/access-lookups
