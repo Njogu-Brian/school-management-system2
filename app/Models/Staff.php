@@ -57,4 +57,24 @@ class Staff extends Model
             ->exists();
     }
 
+    public function leaveBalances()
+    {
+        return $this->hasMany(StaffLeaveBalance::class);
+    }
+
+    public function leaveRequests()
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    public function attendance()
+    {
+        return $this->hasMany(StaffAttendance::class);
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(StaffDocument::class);
+    }
+
 }
