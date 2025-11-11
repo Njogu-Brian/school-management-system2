@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 
 // Controllers
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\Attendance\AttendanceController;
 use App\Http\Controllers\Academics\ExamMarkController;
 use App\Http\Controllers\Academics\ReportCardController;
 use App\Http\Controllers\Academics\ReportCardSkillController;

@@ -12,9 +12,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 
 // Attendance
-use App\Http\Controllers\AttendanceController;
-use App\Http\Controllers\AttendanceNotificationController;
-use App\Http\Controllers\AttendanceReasonCodeController;
+use App\Http\Controllers\Attendance\AttendanceController;
+use App\Http\Controllers\Attendance\AttendanceNotificationController;
+use App\Http\Controllers\Attendance\AttendanceReasonCodeController;
 
 // Transport
 use App\Http\Controllers\TransportController;
@@ -25,22 +25,24 @@ use App\Http\Controllers\DropOffPointController;
 use App\Http\Controllers\StudentAssignmentController;
 
 // Staff / HR
-use App\Http\Controllers\StaffController;
-use App\Http\Controllers\StaffProfileController;
-use App\Http\Controllers\RolePermissionController;
-use App\Http\Controllers\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
-use App\Http\Controllers\AcademicConfigController;
-use App\Http\Controllers\SchoolDayController;
+use App\Http\Controllers\HR\StaffController;
+use App\Http\Controllers\HR\StaffProfileController;
+use App\Http\Controllers\HR\RolePermissionController;
+use App\Http\Controllers\HR\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
+use App\Http\Controllers\Academics\AcademicConfigController;
+use App\Http\Controllers\Settings\SchoolDayController;
+use App\Http\Controllers\Settings\SettingController;
 
 // Students & Parents
-use App\Http\Controllers\StudentController;
-use App\Http\Controllers\ParentInfoController;
-use App\Http\Controllers\OnlineAdmissionController;
-use App\Http\Controllers\FamilyController;
+use App\Http\Controllers\Students\StudentController;
+use App\Http\Controllers\Students\ParentInfoController;
+use App\Http\Controllers\Students\OnlineAdmissionController;
+use App\Http\Controllers\Students\FamilyController;
 use App\Http\Controllers\Students\MedicalRecordController;
 use App\Http\Controllers\Students\DisciplinaryRecordController;
 use App\Http\Controllers\Students\ExtracurricularActivityController;
 use App\Http\Controllers\Students\AcademicHistoryController;
+use App\Http\Controllers\Students\StudentCategoryController;
 
 // Communication
 use App\Http\Controllers\CommunicationController;
@@ -49,16 +51,18 @@ use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\PlaceholderController;
 
 // Finance
-use App\Http\Controllers\VoteheadController;
-use App\Http\Controllers\FeeStructureController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\CreditNoteController;
-use App\Http\Controllers\DebitNoteController;
-use App\Http\Controllers\InvoiceAdjustmentController;
-use App\Http\Controllers\OptionalFeeController;
-use App\Http\Controllers\PostingController;
-use App\Http\Controllers\JournalController;
+use App\Http\Controllers\Finance\VoteheadController;
+use App\Http\Controllers\Finance\FeeStructureController;
+use App\Http\Controllers\Finance\InvoiceController;
+use App\Http\Controllers\Finance\PaymentController;
+use App\Http\Controllers\Finance\CreditNoteController;
+use App\Http\Controllers\Finance\DebitNoteController;
+use App\Http\Controllers\Finance\InvoiceAdjustmentController;
+use App\Http\Controllers\Finance\OptionalFeeController;
+use App\Http\Controllers\Finance\PostingController;
+use App\Http\Controllers\Finance\JournalController;
+use App\Http\Controllers\Finance\FeeStatementController;
+use App\Http\Controllers\Finance\ReceiptController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -380,47 +384,47 @@ Route::middleware('auth')->group(function () {
 
             // Leave Management
             Route::prefix('leave-types')->name('leave-types.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\LeaveTypeController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\LeaveTypeController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\LeaveTypeController::class, 'store'])->name('store');
-                Route::get('/{leaveType}/edit', [\App\Http\Controllers\LeaveTypeController::class, 'edit'])->name('edit');
-                Route::put('/{leaveType}', [\App\Http\Controllers\LeaveTypeController::class, 'update'])->name('update');
-                Route::delete('/{leaveType}', [\App\Http\Controllers\LeaveTypeController::class, 'destroy'])->name('destroy');
+                Route::get('/', [\App\Http\Controllers\HR\LeaveTypeController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\HR\LeaveTypeController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\HR\LeaveTypeController::class, 'store'])->name('store');
+                Route::get('/{leaveType}/edit', [\App\Http\Controllers\HR\LeaveTypeController::class, 'edit'])->name('edit');
+                Route::put('/{leaveType}', [\App\Http\Controllers\HR\LeaveTypeController::class, 'update'])->name('update');
+                Route::delete('/{leaveType}', [\App\Http\Controllers\HR\LeaveTypeController::class, 'destroy'])->name('destroy');
             });
 
             Route::prefix('leave-requests')->name('leave-requests.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\LeaveRequestController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\LeaveRequestController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\LeaveRequestController::class, 'store'])->name('store');
-                Route::get('/{leaveRequest}', [\App\Http\Controllers\LeaveRequestController::class, 'show'])->name('show');
-                Route::post('/{leaveRequest}/approve', [\App\Http\Controllers\LeaveRequestController::class, 'approve'])->name('approve');
-                Route::post('/{leaveRequest}/reject', [\App\Http\Controllers\LeaveRequestController::class, 'reject'])->name('reject');
-                Route::post('/{leaveRequest}/cancel', [\App\Http\Controllers\LeaveRequestController::class, 'cancel'])->name('cancel');
+                Route::get('/', [\App\Http\Controllers\HR\LeaveRequestController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\HR\LeaveRequestController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\HR\LeaveRequestController::class, 'store'])->name('store');
+                Route::get('/{leaveRequest}', [\App\Http\Controllers\HR\LeaveRequestController::class, 'show'])->name('show');
+                Route::post('/{leaveRequest}/approve', [\App\Http\Controllers\HR\LeaveRequestController::class, 'approve'])->name('approve');
+                Route::post('/{leaveRequest}/reject', [\App\Http\Controllers\HR\LeaveRequestController::class, 'reject'])->name('reject');
+                Route::post('/{leaveRequest}/cancel', [\App\Http\Controllers\HR\LeaveRequestController::class, 'cancel'])->name('cancel');
             });
 
             Route::prefix('leave-balances')->name('leave-balances.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'store'])->name('store');
-                Route::get('/{staff}', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'show'])->name('show');
-                Route::put('/{balance}', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'update'])->name('update');
+                Route::get('/', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'store'])->name('store');
+                Route::get('/{staff}', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'show'])->name('show');
+                Route::put('/{balance}', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'update'])->name('update');
             });
 
             // Staff Attendance
             Route::prefix('attendance')->name('attendance.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\StaffAttendanceController::class, 'index'])->name('index');
-                Route::post('/bulk-mark', [\App\Http\Controllers\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
-                Route::get('/report', [\App\Http\Controllers\StaffAttendanceController::class, 'report'])->name('report');
+                Route::get('/', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'index'])->name('index');
+                Route::post('/bulk-mark', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
+                Route::get('/report', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'report'])->name('report');
             });
 
             // Document Management
             Route::prefix('documents')->name('documents.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\StaffDocumentController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\StaffDocumentController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\StaffDocumentController::class, 'store'])->name('store');
-                Route::get('/{document}', [\App\Http\Controllers\StaffDocumentController::class, 'show'])->name('show');
-                Route::get('/{document}/download', [\App\Http\Controllers\StaffDocumentController::class, 'download'])->name('download');
-                Route::delete('/{document}', [\App\Http\Controllers\StaffDocumentController::class, 'destroy'])->name('destroy');
+                Route::get('/', [\App\Http\Controllers\HR\StaffDocumentController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\HR\StaffDocumentController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\HR\StaffDocumentController::class, 'store'])->name('store');
+                Route::get('/{document}', [\App\Http\Controllers\HR\StaffDocumentController::class, 'show'])->name('show');
+                Route::get('/{document}/download', [\App\Http\Controllers\HR\StaffDocumentController::class, 'download'])->name('download');
+                Route::delete('/{document}', [\App\Http\Controllers\HR\StaffDocumentController::class, 'destroy'])->name('destroy');
             });
         });
 
@@ -474,20 +478,20 @@ Route::middleware('auth')->group(function () {
     Route::prefix('settings')->name('settings.')
         ->middleware('role:Super Admin|Admin|Secretary')
         ->group(function () {
-            Route::get('/', [App\Http\Controllers\SettingController::class, 'index'])->name('index');
+            Route::get('/', [SettingController::class, 'index'])->name('index');
 
             // Branding / General / Regional / System / IDs
-            Route::post('/update-branding', [App\Http\Controllers\SettingController::class, 'updateBranding'])->name('update.branding');
-            Route::post('/update-general',  [App\Http\Controllers\SettingController::class, 'updateSettings'])->name('update.general');
-            Route::post('/update-regional', [App\Http\Controllers\SettingController::class, 'updateRegional'])->name('update.regional');
-            Route::post('/update-system',   [App\Http\Controllers\SettingController::class, 'updateSystem'])->name('update.system');
-            Route::post('/id-settings',     [App\Http\Controllers\SettingController::class, 'updateIdSettings'])->name('ids.save');
+            Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('update.branding');
+            Route::post('/update-general',  [SettingController::class, 'updateSettings'])->name('update.general');
+            Route::post('/update-regional', [SettingController::class, 'updateRegional'])->name('update.regional');
+            Route::post('/update-system',   [SettingController::class, 'updateSystem'])->name('update.system');
+            Route::post('/id-settings',     [SettingController::class, 'updateIdSettings'])->name('ids.save');
 
             // Modules update
-            Route::post('/update-modules',  [App\Http\Controllers\SettingController::class, 'updateModules'])->name('update.modules');
+            Route::post('/update-modules',  [SettingController::class, 'updateModules'])->name('update.modules');
 
             // Combined page for Roles & Lookups
-            Route::get('/access-lookups',   [App\Http\Controllers\SettingController::class, 'accessAndLookups'])->name('access_lookups');
+            Route::get('/access-lookups',   [SettingController::class, 'accessAndLookups'])->name('access_lookups');
 
             // Save role-permission mapping from tab
             Route::post('/roles/{role}/update-permissions', [RolePermissionController::class, 'update'])
