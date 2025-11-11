@@ -7,6 +7,7 @@ use App\Models\StaffLeaveBalance;
 use App\Models\LeaveType;
 use App\Models\AcademicYear;
 use Illuminate\Http\Request;
+use App\Models\User;
 
 class StaffLeaveBalanceController extends Controller
 {

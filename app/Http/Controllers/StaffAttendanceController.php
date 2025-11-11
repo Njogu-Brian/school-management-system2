@@ -21,19 +21,22 @@ class StaffAttendanceController extends Controller
             $query->where('staff_id', $staffId);
         }
 
-        $attendance = $query->orderBy('staff_id')->get();
+        $attendanceRecords = $query->orderBy('staff_id')->get();
         $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        
+        // Get all active staff for marking (even if they don't have attendance record yet)
+        $allStaff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
         // Get attendance summary
         $summary = [
-            'total' => $attendance->count(),
-            'present' => $attendance->where('status', 'present')->count(),
-            'absent' => $attendance->where('status', 'absent')->count(),
-            'late' => $attendance->where('status', 'late')->count(),
-            'half_day' => $attendance->where('status', 'half_day')->count(),
+            'total' => $attendanceRecords->count(),
+            'present' => $attendanceRecords->where('status', 'present')->count(),
+            'absent' => $attendanceRecords->where('status', 'absent')->count(),
+            'late' => $attendanceRecords->where('status', 'late')->count(),
+            'half_day' => $attendanceRecords->where('status', 'half_day')->count(),
         ];
 
-        return view('staff.attendance.index', compact('attendance', 'staff', 'date', 'summary'));
+        return view('staff.attendance.index', compact('attendanceRecords', 'attendance', 'staff', 'allStaff', 'date', 'summary'));
     }
 
     public function mark(Request $request)

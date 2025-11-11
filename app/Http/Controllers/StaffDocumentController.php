@@ -27,13 +27,7 @@ class StaffDocumentController extends Controller
         $documents = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
         $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
-        $documentTypes = [
-            'contract' => 'Employment Contract',
-            'certificate' => 'Certificate',
-            'id_copy' => 'ID Copy',
-            'qualification' => 'Qualification',
-            'other' => 'Other',
-        ];
+        $documentTypes = $this->getDocumentTypes();
 
         return view('staff.documents.index', compact('documents', 'staff', 'documentTypes'));
     }
@@ -43,13 +37,7 @@ class StaffDocumentController extends Controller
         $staffId = $request->get('staff_id');
         $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
-        $documentTypes = [
-            'contract' => 'Employment Contract',
-            'certificate' => 'Certificate',
-            'id_copy' => 'ID Copy',
-            'qualification' => 'Qualification',
-            'other' => 'Other',
-        ];
+        $documentTypes = $this->getDocumentTypes();
 
         return view('staff.documents.create', compact('staff', 'documentTypes', 'staffId'));
     }
@@ -107,5 +95,16 @@ class StaffDocumentController extends Controller
         }
 
         return Storage::disk('public')->download($document->file_path, $document->title . '.' . pathinfo($document->file_path, PATHINFO_EXTENSION));
+    }
+
+    private function getDocumentTypes()
+    {
+        return [
+            'contract' => 'Employment Contract',
+            'certificate' => 'Certificate',
+            'id_copy' => 'ID Copy',
+            'qualification' => 'Qualification',
+            'other' => 'Other',
+        ];
     }
 }

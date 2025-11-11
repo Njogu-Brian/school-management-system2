@@ -280,8 +280,23 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   <i class="bi bi-briefcase"></i> HR
 </a>
 <div class="collapse {{ $hrActive ? 'show' : '' }}" id="hrMenu">
-  <a href="{{ route('staff.index') }}" class="{{ Request::is('staff*') ? 'active' : '' }}">
+  <a href="{{ route('staff.index') }}" class="{{ Request::is('staff') && !Request::is('staff/*') ? 'active' : '' }}">
     <i class="bi bi-people"></i> Staff
+  </a>
+  <a href="{{ route('staff.leave-types.index') }}" class="{{ Request::is('staff/leave-types*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-check"></i> Leave Types
+  </a>
+  <a href="{{ route('staff.leave-requests.index') }}" class="{{ Request::is('staff/leave-requests*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-event"></i> Leave Requests
+  </a>
+  <a href="{{ route('staff.leave-balances.index') }}" class="{{ Request::is('staff/leave-balances*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-minus"></i> Leave Balances
+  </a>
+  <a href="{{ route('staff.attendance.index') }}" class="{{ Request::is('staff/attendance*') ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Staff Attendance
+  </a>
+  <a href="{{ route('staff.documents.index') }}" class="{{ Request::is('staff/documents*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark"></i> Documents
   </a>
 
   <a href="{{ route('settings.access_lookups') }}" class="{{ Request::is('settings/access-lookups*') ? 'active' : '' }}">

@@ -377,6 +377,51 @@ Route::middleware('auth')->group(function () {
             Route::post('/upload/commit', [StaffController::class, 'uploadCommit'])->name('upload.commit'); // finalize
             Route::post('/upload',        [StaffController::class, 'handleUpload'])->name('upload.handle'); // legacy
             Route::get('/template',       [StaffController::class, 'template'])->name('template');
+
+            // Leave Management
+            Route::prefix('leave-types')->name('leave-types.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\LeaveTypeController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\LeaveTypeController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\LeaveTypeController::class, 'store'])->name('store');
+                Route::get('/{leaveType}/edit', [\App\Http\Controllers\LeaveTypeController::class, 'edit'])->name('edit');
+                Route::put('/{leaveType}', [\App\Http\Controllers\LeaveTypeController::class, 'update'])->name('update');
+                Route::delete('/{leaveType}', [\App\Http\Controllers\LeaveTypeController::class, 'destroy'])->name('destroy');
+            });
+
+            Route::prefix('leave-requests')->name('leave-requests.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\LeaveRequestController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\LeaveRequestController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\LeaveRequestController::class, 'store'])->name('store');
+                Route::get('/{leaveRequest}', [\App\Http\Controllers\LeaveRequestController::class, 'show'])->name('show');
+                Route::post('/{leaveRequest}/approve', [\App\Http\Controllers\LeaveRequestController::class, 'approve'])->name('approve');
+                Route::post('/{leaveRequest}/reject', [\App\Http\Controllers\LeaveRequestController::class, 'reject'])->name('reject');
+                Route::post('/{leaveRequest}/cancel', [\App\Http\Controllers\LeaveRequestController::class, 'cancel'])->name('cancel');
+            });
+
+            Route::prefix('leave-balances')->name('leave-balances.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'store'])->name('store');
+                Route::get('/{staff}', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'show'])->name('show');
+                Route::put('/{balance}', [\App\Http\Controllers\StaffLeaveBalanceController::class, 'update'])->name('update');
+            });
+
+            // Staff Attendance
+            Route::prefix('attendance')->name('attendance.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\StaffAttendanceController::class, 'index'])->name('index');
+                Route::post('/bulk-mark', [\App\Http\Controllers\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
+                Route::get('/report', [\App\Http\Controllers\StaffAttendanceController::class, 'report'])->name('report');
+            });
+
+            // Document Management
+            Route::prefix('documents')->name('documents.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\StaffDocumentController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\StaffDocumentController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\StaffDocumentController::class, 'store'])->name('store');
+                Route::get('/{document}', [\App\Http\Controllers\StaffDocumentController::class, 'show'])->name('show');
+                Route::get('/{document}/download', [\App\Http\Controllers\StaffDocumentController::class, 'download'])->name('download');
+                Route::delete('/{document}', [\App\Http\Controllers\StaffDocumentController::class, 'destroy'])->name('destroy');
+            });
         });
 
     // Roles & Permissions (Spatie) – central page is under /settings/access-lookups
