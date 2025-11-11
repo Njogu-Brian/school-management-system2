@@ -233,7 +233,13 @@ class StaffController extends Controller
 }
 
     
-public function edit($id)
+    public function show($id)
+    {
+        $staff = Staff::with(['meta', 'user.roles', 'supervisor', 'category', 'department', 'jobTitle'])->findOrFail($id);
+        return view('staff.show', compact('staff'));
+    }
+
+    public function edit($id)
     {
         $staff        = Staff::with('meta', 'user.roles')->findOrFail($id);
         $supervisors  = Staff::where('id', '!=', $id)->get();
