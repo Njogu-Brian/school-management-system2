@@ -35,9 +35,49 @@ class StaffController extends Controller
 
     public function index()
     {
-        // Include HR category, department, jobTitle, supervisor, meta
-        $staff = Staff::with(['supervisor', 'meta', 'category', 'department', 'jobTitle'])->get();
-        return view('staff.index', compact('staff'));
+        $query = Staff::with(['supervisor', 'meta', 'category', 'department', 'jobTitle']);
+
+        // Search functionality
+        if (request()->filled('q')) {
+            $search = request('q');
+            $query->where(function($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('middle_name', 'like', "%{$search}%")
+                  ->orWhere('work_email', 'like', "%{$search}%")
+                  ->orWhere('personal_email', 'like', "%{$search}%")
+                  ->orWhere('phone_number', 'like', "%{$search}%")
+                  ->orWhere('staff_id', 'like', "%{$search}%")
+                  ->orWhere('id_number', 'like', "%{$search}%");
+            });
+        }
+
+        // Department filter
+        if (request()->filled('department_id')) {
+            $query->where('department_id', request('department_id'));
+        }
+
+        // Status filter (only active and archived exist in model)
+        if (request()->filled('status')) {
+            $status = request('status');
+            if (in_array($status, ['active', 'archived'])) {
+                $query->where('status', $status);
+            }
+        } else {
+            // Default: show only active staff
+            $query->where('status', 'active');
+        }
+
+        // Pagination
+        $staff = $query->orderBy('first_name')->orderBy('last_name')->paginate(20)->withQueryString();
+
+        // Summary statistics
+        $totalStaff = Staff::count();
+        $activeStaff = Staff::where('status', 'active')->count();
+        $archivedStaff = Staff::where('status', 'archived')->count();
+        $departments = Department::withCount('staff')->get();
+
+        return view('staff.index', compact('staff', 'totalStaff', 'activeStaff', 'archivedStaff', 'departments'));
     }
 
     public function create()
@@ -220,7 +260,7 @@ public function edit($id)
             'work_email'   => 'required|email|unique:users,email,'.$user->id.'|unique:staff,work_email,'.$staff->id,
 
             'personal_email' => 'nullable|email',
-            'id_number'    => 'required',
+            'id_number'    => 'required|unique:staff,id_number,'.$staff->id,
             'phone_number' => 'required',
             'department_id'     => 'nullable|exists:departments,id',
             'job_title_id'      => 'nullable|exists:job_titles,id',
@@ -229,7 +269,26 @@ public function edit($id)
             'spatie_role_id'    => 'nullable|exists:roles,id',
             'emergency_contact_relationship' => 'nullable|string|max:100',
             'residential_address' => 'nullable|string|max:255',
+            'hire_date' => 'nullable|date',
+            'termination_date' => 'nullable|date|after_or_equal:hire_date',
+            'employment_status' => 'nullable|in:active,on_leave,terminated,suspended',
+            'employment_type' => 'nullable|in:full_time,part_time,contract,intern',
+            'contract_start_date' => 'nullable|date',
+            'contract_end_date' => 'nullable|date|after_or_equal:contract_start_date',
         ]);
+
+        // Validate supervisor hierarchy (prevent circular references and self-supervision)
+        if ($request->filled('supervisor_id')) {
+            $supervisorId = $request->supervisor_id;
+            if ($supervisorId == $staff->id) {
+                return back()->withInput()->with('error', 'A staff member cannot be their own supervisor.');
+            }
+            // Check for circular reference (if supervisor's supervisor chain includes this staff)
+            $supervisor = Staff::find($supervisorId);
+            if ($supervisor && $supervisor->supervisor_id == $staff->id) {
+                return back()->withInput()->with('error', 'Circular supervisor relationship detected. Please choose a different supervisor.');
+            }
+        }
 
         DB::beginTransaction();
         try {
@@ -252,7 +311,9 @@ public function edit($id)
                 'residential_address',
                 'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
                 'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
-                'department_id','job_title_id','supervisor_id','staff_category_id'
+                'department_id','job_title_id','supervisor_id','staff_category_id',
+                'hire_date','termination_date','employment_status','employment_type',
+                'contract_start_date','contract_end_date'
             ]);
 
             if ($request->hasFile('photo')) {

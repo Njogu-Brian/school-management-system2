@@ -147,9 +147,48 @@
             <select name="supervisor_id" class="form-select">
               <option value="">—</option>
               @foreach(\App\Models\Staff::orderBy('first_name')->get() as $sp)
-                <option value="{{ $sp->id }}" @selected(old('supervisor_id', $staff->supervisor_id ?? '')==$sp->id)>{{ $sp->full_name }}</option>
+                @if(!isset($staff) || $sp->id != $staff->id)
+                  <option value="{{ $sp->id }}" @selected(old('supervisor_id', $staff->supervisor_id ?? '')==$sp->id)>{{ $sp->full_name }}</option>
+                @endif
               @endforeach
             </select>
+          </div>
+
+          {{-- Employment Information --}}
+          <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Employment Information</h6></div>
+          <div class="col-md-3">
+            <label class="form-label">Hire Date</label>
+            <input type="date" name="hire_date" class="form-control" value="{{ old('hire_date', isset($staff) && $staff->hire_date ? $staff->hire_date->format('Y-m-d') : '') }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Employment Status</label>
+            <select name="employment_status" class="form-select">
+              <option value="active" @selected(old('employment_status', $staff->employment_status ?? 'active') === 'active')>Active</option>
+              <option value="on_leave" @selected(old('employment_status', $staff->employment_status ?? '') === 'on_leave')>On Leave</option>
+              <option value="suspended" @selected(old('employment_status', $staff->employment_status ?? '') === 'suspended')>Suspended</option>
+              <option value="terminated" @selected(old('employment_status', $staff->employment_status ?? '') === 'terminated')>Terminated</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Employment Type</label>
+            <select name="employment_type" class="form-select">
+              <option value="full_time" @selected(old('employment_type', $staff->employment_type ?? 'full_time') === 'full_time')>Full Time</option>
+              <option value="part_time" @selected(old('employment_type', $staff->employment_type ?? '') === 'part_time')>Part Time</option>
+              <option value="contract" @selected(old('employment_type', $staff->employment_type ?? '') === 'contract')>Contract</option>
+              <option value="intern" @selected(old('employment_type', $staff->employment_type ?? '') === 'intern')>Intern</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Termination Date</label>
+            <input type="date" name="termination_date" class="form-control" value="{{ old('termination_date', isset($staff) && $staff->termination_date ? $staff->termination_date->format('Y-m-d') : '') }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Contract Start Date</label>
+            <input type="date" name="contract_start_date" class="form-control" value="{{ old('contract_start_date', isset($staff) && $staff->contract_start_date ? $staff->contract_start_date->format('Y-m-d') : '') }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Contract End Date</label>
+            <input type="date" name="contract_end_date" class="form-control" value="{{ old('contract_end_date', isset($staff) && $staff->contract_end_date ? $staff->contract_end_date->format('Y-m-d') : '') }}">
           </div>
 
           {{-- Statutory/Bank --}}

@@ -16,7 +16,17 @@ class Staff extends Model
         'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
         'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
         'department_id','job_title_id','staff_category_id','supervisor_id',
-        'photo','status'
+        'photo','status',
+        'hire_date','termination_date','employment_status','employment_type',
+        'contract_start_date','contract_end_date'
+    ];
+
+    protected $casts = [
+        'hire_date' => 'date',
+        'termination_date' => 'date',
+        'contract_start_date' => 'date',
+        'contract_end_date' => 'date',
+        'date_of_birth' => 'date',
     ];
 
     public function getPhotoUrlAttribute(): string
