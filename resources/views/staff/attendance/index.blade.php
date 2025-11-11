@@ -123,9 +123,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($staff as $s)
+                            @php
+                                $staffList = $allStaff ?? $staff;
+                            @endphp
+                            @foreach($staffList as $s)
                                 @php
-                                    $attendance = $attendance->firstWhere('staff_id', $s->id);
+                                    $attendanceRecord = isset($attendanceRecords) ? $attendanceRecords->firstWhere('staff_id', $s->id) : null;
                                 @endphp
                                 <tr>
                                     <td>
