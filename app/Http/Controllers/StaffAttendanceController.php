@@ -36,7 +36,7 @@ class StaffAttendanceController extends Controller
             'half_day' => $attendanceRecords->where('status', 'half_day')->count(),
         ];
 
-        return view('staff.attendance.index', compact('attendanceRecords', 'attendance', 'staff', 'allStaff', 'date', 'summary'));
+        return view('staff.attendance.index', compact('attendanceRecords', 'staff', 'allStaff', 'date', 'summary'));
     }
 
     public function mark(Request $request)
