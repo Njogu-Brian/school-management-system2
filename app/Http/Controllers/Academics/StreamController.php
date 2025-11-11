@@ -17,7 +17,7 @@ class StreamController extends Controller
 
     public function create()
     {
-        $classrooms = Classroom::all();
+        $classrooms = Classroom::orderBy('name')->get();
         return view('academics.streams.create', compact('classrooms'));
     }
 
