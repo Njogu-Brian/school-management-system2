@@ -78,6 +78,26 @@ class Staff extends Model
         return $this->hasMany(StaffLeaveBalance::class);
     }
 
+    public function salaryStructures()
+    {
+        return $this->hasMany(SalaryStructure::class);
+    }
+
+    public function activeSalaryStructure()
+    {
+        return $this->hasOne(SalaryStructure::class)->active()->latest('effective_from');
+    }
+
+    public function payrollRecords()
+    {
+        return $this->hasMany(PayrollRecord::class);
+    }
+
+    public function salaryHistory()
+    {
+        return $this->hasMany(SalaryHistory::class);
+    }
+
     public function leaveRequests()
     {
         return $this->hasMany(LeaveRequest::class);
