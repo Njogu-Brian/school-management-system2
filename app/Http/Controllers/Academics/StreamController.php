@@ -25,12 +25,20 @@ class StreamController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255|unique:streams,name',
-            'classroom_ids' => 'required|array',
+            'classroom_id' => 'required|exists:classrooms,id',
+            'classroom_ids' => 'nullable|array',
             'classroom_ids.*' => 'exists:classrooms,id',
         ]);
 
-        $stream = Stream::create(['name' => $request->name]);
-        $stream->classrooms()->attach($request->classroom_ids);
+        $stream = Stream::create([
+            'name' => $request->name,
+            'classroom_id' => $request->classroom_id,
+        ]);
+
+        // Attach additional classrooms via pivot if provided
+        if ($request->has('classroom_ids')) {
+            $stream->classrooms()->sync($request->classroom_ids);
+        }
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream added successfully.');
