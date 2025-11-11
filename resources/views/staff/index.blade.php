@@ -146,7 +146,7 @@
               <tr>
                 <td>
                   <div class="d-flex align-items-center">
-                    <img src="{{ $s->photo_url }}" class="rounded-circle me-3" width="44" height="44" alt="avatar">
+                    <img src="{{ $s->photo_url }}" class="rounded-circle me-3" width="44" height="44" alt="avatar" onerror="this.src='https://ui-avatars.com/api/?name={{ urlencode($s->full_name) }}&background=0D8ABC&color=fff&size=44'">
                     <div>
                       <div class="fw-semibold">{{ $s->first_name }} {{ $s->last_name }}</div>
                       <div class="small text-muted">ID: {{ $s->staff_id }}</div>

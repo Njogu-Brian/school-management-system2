@@ -129,7 +129,9 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     $academicsActive = Request::is('academics/classrooms*')
         || Request::is('academics/streams*')
         || Request::is('academics/subjects*')
-        || Request::is('academics/subject_groups*');
+        || Request::is('academics/subject_groups*')
+        || Request::is('academics/assign-teachers*')
+        || Request::is('academics/promotions*');
 @endphp
 <a href="#academicsMenu" data-bs-toggle="collapse" aria-expanded="{{ $academicsActive ? 'true' : 'false' }}" class="{{ $academicsActive ? 'parent-active' : '' }}">
     <i class="bi bi-journal-bookmark"></i> Academics
@@ -270,7 +272,12 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 @php
   $hrActive = Request::is('staff*')
     || Request::is('settings/access-lookups*')
-    || Request::is('hr/profile-requests*');   // <<< add this
+    || Request::is('hr/profile-requests*')
+    || Request::is('staff/leave-types*')
+    || Request::is('staff/leave-requests*')
+    || Request::is('staff/leave-balances*')
+    || Request::is('staff/attendance*')
+    || Request::is('staff/documents*');
 @endphp
 
 
@@ -298,7 +305,6 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   <a href="{{ route('staff.documents.index') }}" class="{{ Request::is('staff/documents*') ? 'active' : '' }}">
     <i class="bi bi-file-earmark"></i> Documents
   </a>
-
   <a href="{{ route('settings.access_lookups') }}" class="{{ Request::is('settings/access-lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups
   </a>

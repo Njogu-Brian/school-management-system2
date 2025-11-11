@@ -22,7 +22,7 @@
         <div class="card-body">
             <div class="row align-items-center">
                 <div class="col-auto">
-                    <img src="{{ $staff->photo_url }}" class="rounded-circle" width="120" height="120" alt="avatar">
+                    <img src="{{ $staff->photo_url }}" class="rounded-circle" width="120" height="120" alt="avatar" onerror="this.src='https://ui-avatars.com/api/?name={{ urlencode($staff->full_name) }}&background=0D8ABC&color=fff&size=128'">
                 </div>
                 <div class="col">
                     <h3 class="mb-1">{{ $staff->first_name }} {{ $staff->middle_name }} {{ $staff->last_name }}</h3>
