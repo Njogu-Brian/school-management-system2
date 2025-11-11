@@ -154,7 +154,8 @@ class StudentPromotionController extends Controller
         ]);
 
         if (!$classroom->nextClass && !$classroom->is_alumni) {
-            return back()->with('error', 'This class does not have a next class mapped. Please set the next class in class settings.');
+            return redirect()->route('academics.promotions.index')
+                ->with('error', 'This class does not have a next class mapped. Please set the next class in class settings.');
         }
 
         // Check if this class has already been promoted in this academic year
@@ -164,14 +165,16 @@ class StudentPromotionController extends Controller
             ->exists();
 
         if ($alreadyPromoted) {
-            return back()->with('error', 'This class has already been promoted in the selected academic year. Each class can only be promoted once per academic year.');
+            return redirect()->route('academics.promotions.index')
+                ->with('error', 'This class has already been promoted in the selected academic year. Each class can only be promoted once per academic year.');
         }
 
         // Get all students in this class
         $students = Student::where('classroom_id', $classroom->id)->get();
 
         if ($students->isEmpty()) {
-            return back()->with('error', 'No students found in this class.');
+            return redirect()->route('academics.promotions.index')
+                ->with('error', 'No students found in this class.');
         }
 
         // Create request with all student IDs
