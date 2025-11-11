@@ -273,6 +273,8 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   $hrActive = Request::is('staff*')
     || Request::is('settings/access-lookups*')
     || Request::is('hr/profile-requests*')
+    || Request::is('hr/reports*')
+    || Request::is('hr/analytics*')
     || Request::is('staff/leave-types*')
     || Request::is('staff/leave-requests*')
     || Request::is('staff/leave-balances*')
@@ -304,6 +306,12 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   </a>
   <a href="{{ route('staff.documents.index') }}" class="{{ Request::is('staff/documents*') ? 'active' : '' }}">
     <i class="bi bi-file-earmark"></i> Documents
+  </a>
+  <a href="{{ route('hr.reports.index') }}" class="{{ Request::is('hr/reports*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> Reports
+  </a>
+  <a href="{{ route('hr.analytics.index') }}" class="{{ Request::is('hr/analytics*') ? 'active' : '' }}">
+    <i class="bi bi-graph-up"></i> Analytics
   </a>
   <a href="{{ route('settings.access_lookups') }}" class="{{ Request::is('settings/access-lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups

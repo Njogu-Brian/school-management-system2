@@ -438,6 +438,20 @@ Route::middleware('auth')->group(function () {
             Route::get('/roles',         [RolePermissionController::class, 'listRoles'])->name('roles.index');
             Route::get('/roles/{role}',  [RolePermissionController::class, 'index'])->name('roles.edit');
             Route::post('/roles/{role}/permissions', [RolePermissionController::class, 'update'])->name('roles.permissions.update');
+
+            // HR Reports
+            Route::prefix('reports')->name('reports.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\HR\StaffReportController::class, 'index'])->name('index');
+                Route::get('/directory', [\App\Http\Controllers\HR\StaffReportController::class, 'exportDirectory'])->name('directory');
+                Route::get('/department', [\App\Http\Controllers\HR\StaffReportController::class, 'departmentReport'])->name('department');
+                Route::get('/category', [\App\Http\Controllers\HR\StaffReportController::class, 'categoryReport'])->name('category');
+                Route::get('/new-hires', [\App\Http\Controllers\HR\StaffReportController::class, 'newHiresReport'])->name('new-hires');
+                Route::get('/terminations', [\App\Http\Controllers\HR\StaffReportController::class, 'terminationsReport'])->name('terminations');
+                Route::get('/turnover', [\App\Http\Controllers\HR\StaffReportController::class, 'turnoverAnalysis'])->name('turnover');
+            });
+
+            // HR Analytics Dashboard
+            Route::get('/analytics', [\App\Http\Controllers\HR\HRAnalyticsController::class, 'index'])->name('analytics.index');
         });
 
     // HR Lookups standalone page (optional UI outside settings tab)
