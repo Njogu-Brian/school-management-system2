@@ -31,7 +31,14 @@ class Exam extends Model
         'publish_result',
         'published_at',
         'locked_at',
-        'settings'
+        'settings',
+        // CBC fields
+        'is_cat',
+        'cat_number',
+        'assessment_method',
+        'competency_focus',
+        'portfolio_required',
+        'sba_weight'
     ];
 
     protected $casts = [
@@ -44,6 +51,12 @@ class Exam extends Model
         'weight'       => 'decimal:2',
         'publish_exam' => 'boolean',
         'publish_result' => 'boolean',
+        // CBC fields
+        'is_cat' => 'boolean',
+        'cat_number' => 'integer',
+        'competency_focus' => 'array',
+        'portfolio_required' => 'boolean',
+        'sba_weight' => 'decimal:2',
     ];
 
     // Relationships

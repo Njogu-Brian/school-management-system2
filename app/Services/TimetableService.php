@@ -63,8 +63,9 @@ class TimetableService
                 $subjectPeriods[$subjectId] = [
                     'subject' => $assignment->subject,
                     'teacher' => $assignment->teacher,
-                    'periods_per_week' => 5, // Default, can be configured
+                    'periods_per_week' => $assignment->lessons_per_week ?? 5,
                     'is_compulsory' => $assignment->is_compulsory,
+                    'assignment_id' => $assignment->id,
                 ];
             }
         }

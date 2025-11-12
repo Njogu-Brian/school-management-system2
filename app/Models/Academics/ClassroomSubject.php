@@ -15,10 +15,12 @@ class ClassroomSubject extends Model
         'staff_id',
         'academic_year_id',
         'term_id',
-        'is_compulsory'
+        'is_compulsory',
+        'lessons_per_week'
     ];
 
     protected $casts = [
+        'lessons_per_week' => 'integer',
         'is_compulsory' => 'boolean',
     ];
 

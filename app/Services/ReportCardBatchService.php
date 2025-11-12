@@ -8,6 +8,7 @@ use App\Models\Academics\ExamGrade;
 use App\Models\Attendance;
 use App\Models\Academics\StudentBehaviour;
 use App\Models\Setting; // if you store branding here; otherwise adjust.
+use App\Services\CBCAssessmentService;
 
 class ReportCardBatchService
 {
@@ -53,6 +54,13 @@ class ReportCardBatchService
                 'grade'   => $gradeData?->grade_name ?? 'N/A',
             ];
 
+            // Generate CBC assessment data
+            $cbcData = CBCAssessmentService::generateReportCardData(
+                $student->id,
+                $academicYearId,
+                $termId
+            );
+
             ReportCard::updateOrCreate(
                 [
                     'student_id'       => $student->id,
@@ -63,6 +71,12 @@ class ReportCardBatchService
                     'classroom_id'     => $classroomId,
                     'stream_id'        => $streamId,
                     'summary'          => $summary,
+                    'overall_performance_level_id' => $cbcData['overall_performance_level_id'],
+                    'performance_summary' => $cbcData['performance_summary'],
+                    'core_competencies' => $cbcData['core_competencies'],
+                    'learning_areas_performance' => $cbcData['learning_areas_performance'],
+                    'cat_breakdown' => $cbcData['cat_breakdown'],
+                    'portfolio_summary' => $cbcData['portfolio_summary'],
                 ]
             );
         }

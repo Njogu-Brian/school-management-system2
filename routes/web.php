@@ -89,6 +89,7 @@ use App\Http\Controllers\Academics\LessonPlanController;
 use App\Http\Controllers\Academics\CBCStrandController;
 use App\Http\Controllers\Academics\PortfolioAssessmentController;
 use App\Http\Controllers\Academics\TimetableController;
+use App\Http\Controllers\Academics\ExtraCurricularActivityController as AcademicsExtraCurricularActivityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -294,9 +295,15 @@ Route::middleware('auth')->group(function () {
         // Timetable
         Route::get('timetable', [TimetableController::class, 'index'])->name('timetable.index');
         Route::get('timetable/classroom/{classroom}', [TimetableController::class, 'classroom'])->name('timetable.classroom');
+        Route::get('timetable/classroom/{classroom}/edit', [TimetableController::class, 'edit'])->name('timetable.edit');
         Route::get('timetable/teacher/{teacher}', [TimetableController::class, 'teacher'])->name('timetable.teacher');
         Route::post('timetable/generate', [TimetableController::class, 'generate'])->name('timetable.generate');
         Route::post('timetable/save', [TimetableController::class, 'save'])->name('timetable.save');
+        Route::post('timetable/duplicate', [TimetableController::class, 'duplicate'])->name('timetable.duplicate');
+        Route::put('timetable/{timetable}/period', [TimetableController::class, 'updatePeriod'])->name('timetable.period.update');
+
+        // Extra-Curricular Activities
+        Route::resource('extra-curricular-activities', AcademicsExtraCurricularActivityController::class)->parameters(['extra-curricular-activities' => 'extra_curricular_activity']);
 
         // Homework & Diaries
         Route::resource('homework', HomeworkController::class);

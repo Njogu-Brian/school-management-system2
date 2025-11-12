@@ -18,8 +18,8 @@ class SubjectController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Subject::with(['group', 'classrooms', 'teachers'])
-            ->withCount(['classrooms', 'teachers']);
+        $query = Subject::with(['group', 'classroomSubjects.classroom', 'teachers'])
+            ->withCount(['classroomSubjects', 'teachers']);
 
         // Search
         if ($request->filled('search')) {

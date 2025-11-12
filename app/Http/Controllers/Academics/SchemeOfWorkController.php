@@ -105,7 +105,7 @@ class SchemeOfWorkController extends Controller
         $scheme = SchemeOfWork::create($validated);
 
         return redirect()
-            ->route('academics.schemes_of_work.show', $scheme)
+            ->route('academics.schemes-of-work.show', $scheme)
             ->with('success', 'Scheme of work created successfully.');
     }
 
@@ -160,7 +160,7 @@ class SchemeOfWorkController extends Controller
         $schemes_of_work->update($validated);
 
         return redirect()
-            ->route('academics.schemes_of_work.show', $schemes_of_work)
+            ->route('academics.schemes-of-work.show', $schemes_of_work)
             ->with('success', 'Scheme of work updated successfully.');
     }
 
@@ -177,7 +177,7 @@ class SchemeOfWorkController extends Controller
         $schemes_of_work->delete();
 
         return redirect()
-            ->route('academics.schemes_of_work.index')
+            ->route('academics.schemes-of-work.index')
             ->with('success', 'Scheme of work deleted successfully.');
     }
 

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Timetable;
 use App\Models\Academics\Classroom;
+use App\Models\Academics\ClassroomSubject;
+use App\Models\Academics\ExtraCurricularActivity;
 use App\Models\Staff;
 use App\Models\AcademicYear;
 use App\Models\Term;
@@ -28,18 +30,42 @@ class TimetableController extends Controller
         $selectedTerm = $request->filled('term_id') ? Term::find($request->term_id) : $terms->first();
 
         $timetable = null;
+        $savedTimetable = null;
+        $conflicts = [];
+        
         if ($selectedClassroom && $selectedYear && $selectedTerm) {
-            $timetable = TimetableService::generateForClassroom(
-                $selectedClassroom->id,
-                $selectedYear->id,
-                $selectedTerm->id
-            );
+            // Check if saved timetable exists
+            $savedTimetable = Timetable::where('classroom_id', $selectedClassroom->id)
+                ->where('academic_year_id', $selectedYear->id)
+                ->where('term_id', $selectedTerm->id)
+                ->get()
+                ->groupBy(['day', 'period']);
+            
+            if ($savedTimetable->isEmpty()) {
+                // Generate new timetable
+                $timetable = TimetableService::generateForClassroom(
+                    $selectedClassroom->id,
+                    $selectedYear->id,
+                    $selectedTerm->id
+                );
+                $conflicts = TimetableService::checkConflicts($timetable);
+            }
+        }
+
+        // Get extra-curricular activities
+        $activities = [];
+        if ($selectedYear && $selectedTerm) {
+            $activities = ExtraCurricularActivity::where('academic_year_id', $selectedYear->id)
+                ->where('term_id', $selectedTerm->id)
+                ->where('is_active', true)
+                ->get()
+                ->groupBy('day');
         }
 
         return view('academics.timetable.index', compact(
             'classrooms', 'teachers', 'years', 'terms',
             'selectedClassroom', 'selectedTeacher', 'selectedYear', 'selectedTerm',
-            'timetable'
+            'timetable', 'savedTimetable', 'conflicts', 'activities'
         ));
     }
 
@@ -52,10 +78,109 @@ class TimetableController extends Controller
             return back()->with('error', 'Please select academic year and term.');
         }
 
-        $timetable = TimetableService::generateForClassroom($classroom->id, $yearId, $termId);
-        $conflicts = TimetableService::checkConflicts($timetable);
+        // Get saved timetable or generate new
+        $savedTimetable = Timetable::where('classroom_id', $classroom->id)
+            ->where('academic_year_id', $yearId)
+            ->where('term_id', $termId)
+            ->with(['subject', 'teacher'])
+            ->get()
+            ->groupBy(['day', 'period']);
 
-        return view('academics.timetable.classroom', compact('timetable', 'conflicts', 'classroom'));
+        $timetable = null;
+        $conflicts = [];
+        
+        if ($savedTimetable->isEmpty()) {
+            $timetable = TimetableService::generateForClassroom($classroom->id, $yearId, $termId);
+            $conflicts = TimetableService::checkConflicts($timetable);
+        }
+
+        // Get subject assignments with lessons_per_week
+        $assignments = ClassroomSubject::where('classroom_id', $classroom->id)
+            ->where(function($q) use ($yearId, $termId) {
+                $q->where(function($q2) use ($yearId, $termId) {
+                    $q2->where('academic_year_id', $yearId)
+                       ->where('term_id', $termId);
+                })
+                ->orWhere(function($q2) {
+                    $q2->whereNull('academic_year_id')
+                       ->whereNull('term_id');
+                });
+            })
+            ->with(['subject', 'teacher'])
+            ->get();
+
+        // Get extra-curricular activities
+        $activities = ExtraCurricularActivity::where('academic_year_id', $yearId)
+            ->where('term_id', $termId)
+            ->where('is_active', true)
+            ->where(function($q) use ($classroom) {
+                $q->whereJsonContains('classroom_ids', $classroom->id)
+                  ->orWhereNull('classroom_ids');
+            })
+            ->get()
+            ->groupBy('day');
+
+        $year = AcademicYear::find($yearId);
+        $term = Term::find($termId);
+
+        return view('academics.timetable.classroom', compact(
+            'classroom', 'year', 'term', 'timetable', 'savedTimetable', 
+            'conflicts', 'assignments', 'activities'
+        ));
+    }
+
+    public function edit(Classroom $classroom, Request $request)
+    {
+        $yearId = $request->get('academic_year_id') ?? AcademicYear::orderByDesc('year')->first()?->id;
+        $termId = $request->get('term_id') ?? Term::orderBy('name')->first()?->id;
+
+        if (!$yearId || !$termId) {
+            return back()->with('error', 'Please select academic year and term.');
+        }
+
+        $savedTimetable = Timetable::where('classroom_id', $classroom->id)
+            ->where('academic_year_id', $yearId)
+            ->where('term_id', $termId)
+            ->with(['subject', 'teacher'])
+            ->get();
+
+        $assignments = ClassroomSubject::where('classroom_id', $classroom->id)
+            ->where(function($q) use ($yearId, $termId) {
+                $q->where(function($q2) use ($yearId, $termId) {
+                    $q2->where('academic_year_id', $yearId)
+                       ->where('term_id', $termId);
+                })
+                ->orWhere(function($q2) {
+                    $q2->whereNull('academic_year_id')
+                       ->whereNull('term_id');
+                });
+            })
+            ->with(['subject', 'teacher'])
+            ->get();
+
+        $year = AcademicYear::find($yearId);
+        $term = Term::find($termId);
+
+        // Default time slots
+        $timeSlots = [
+            ['start' => '08:00', 'end' => '08:40', 'period' => 1],
+            ['start' => '08:40', 'end' => '09:20', 'period' => 2],
+            ['start' => '09:20', 'end' => '10:00', 'period' => 3],
+            ['start' => '10:00', 'end' => '10:20', 'period' => 'Break'],
+            ['start' => '10:20', 'end' => '11:00', 'period' => 4],
+            ['start' => '11:00', 'end' => '11:40', 'period' => 5],
+            ['start' => '11:40', 'end' => '12:20', 'period' => 6],
+            ['start' => '12:20', 'end' => '13:00', 'period' => 'Lunch'],
+            ['start' => '13:00', 'end' => '13:40', 'period' => 7],
+            ['start' => '13:40', 'end' => '14:20', 'period' => 8],
+        ];
+
+        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+        return view('academics.timetable.edit', compact(
+            'classroom', 'year', 'term', 'savedTimetable', 
+            'assignments', 'timeSlots', 'days'
+        ));
     }
 
     public function teacher(Staff $teacher, Request $request)
@@ -104,10 +229,39 @@ class TimetableController extends Controller
             ->where('term_id', $validated['term_id'])
             ->delete();
 
+        // Check for conflicts
+        $conflicts = [];
+        foreach ($validated['timetable'] as $day => $periods) {
+            foreach ($periods as $period => $data) {
+                if (isset($data['subject_id']) && $data['subject_id'] && isset($data['teacher_id']) && $data['teacher_id']) {
+                    // Check if teacher has another class at same time
+                    $existing = Timetable::where('staff_id', $data['teacher_id'])
+                        ->where('academic_year_id', $validated['academic_year_id'])
+                        ->where('term_id', $validated['term_id'])
+                        ->where('day', $day)
+                        ->where('period', $period)
+                        ->where('classroom_id', '!=', $validated['classroom_id'])
+                        ->exists();
+                    
+                    if ($existing) {
+                        $conflicts[] = [
+                            'day' => $day,
+                            'period' => $period,
+                            'teacher_id' => $data['teacher_id'],
+                        ];
+                    }
+                }
+            }
+        }
+
+        if (!empty($conflicts)) {
+            return back()->with('error', 'Teacher conflicts detected. Please resolve before saving.')->with('conflicts', $conflicts);
+        }
+
         // Save new timetable
         foreach ($validated['timetable'] as $day => $periods) {
             foreach ($periods as $period => $data) {
-                if (isset($data['subject_id']) && $data['subject_id']) {
+                if (isset($data['subject_id']) && $data['subject_id'] && !in_array($period, ['Break', 'Lunch'])) {
                     Timetable::create([
                         'classroom_id' => $validated['classroom_id'],
                         'academic_year_id' => $validated['academic_year_id'],
@@ -128,5 +282,82 @@ class TimetableController extends Controller
         return redirect()
             ->route('academics.timetable.classroom', $validated['classroom_id'])
             ->with('success', 'Timetable saved successfully.');
+    }
+
+    public function duplicate(Request $request)
+    {
+        $validated = $request->validate([
+            'source_classroom_id' => 'required|exists:classrooms,id',
+            'target_classroom_ids' => 'required|array',
+            'target_classroom_ids.*' => 'exists:classrooms,id',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+        ]);
+
+        $sourceTimetable = Timetable::where('classroom_id', $validated['source_classroom_id'])
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('term_id', $validated['term_id'])
+            ->get();
+
+        if ($sourceTimetable->isEmpty()) {
+            return back()->with('error', 'Source timetable is empty.');
+        }
+
+        foreach ($validated['target_classroom_ids'] as $targetClassroomId) {
+            // Delete existing timetable for target
+            Timetable::where('classroom_id', $targetClassroomId)
+                ->where('academic_year_id', $validated['academic_year_id'])
+                ->where('term_id', $validated['term_id'])
+                ->delete();
+
+            // Duplicate timetable
+            foreach ($sourceTimetable as $entry) {
+                Timetable::create([
+                    'classroom_id' => $targetClassroomId,
+                    'academic_year_id' => $entry->academic_year_id,
+                    'term_id' => $entry->term_id,
+                    'day' => $entry->day,
+                    'period' => $entry->period,
+                    'start_time' => $entry->start_time,
+                    'end_time' => $entry->end_time,
+                    'subject_id' => $entry->subject_id,
+                    'staff_id' => $entry->staff_id,
+                    'room' => $entry->room,
+                    'is_break' => $entry->is_break,
+                ]);
+            }
+        }
+
+        return back()->with('success', 'Timetable duplicated successfully.');
+    }
+
+    public function updatePeriod(Request $request, Timetable $timetable)
+    {
+        $validated = $request->validate([
+            'subject_id' => 'nullable|exists:subjects,id',
+            'staff_id' => 'nullable|exists:staff,id',
+            'start_time' => 'required|string',
+            'end_time' => 'required|string',
+            'room' => 'nullable|string|max:50',
+        ]);
+
+        // Check for teacher conflict
+        if ($validated['staff_id']) {
+            $conflict = Timetable::where('staff_id', $validated['staff_id'])
+                ->where('academic_year_id', $timetable->academic_year_id)
+                ->where('term_id', $timetable->term_id)
+                ->where('day', $timetable->day)
+                ->where('period', $timetable->period)
+                ->where('id', '!=', $timetable->id)
+                ->exists();
+
+            if ($conflict) {
+                return back()->with('error', 'Teacher has another class at this time.');
+            }
+        }
+
+        $timetable->update($validated);
+
+        return back()->with('success', 'Period updated successfully.');
     }
 }
