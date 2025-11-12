@@ -42,7 +42,7 @@
                     <td class="text-end">
                       <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
                               data-bs-target="#editTypeModal{{ $t->id }}"><i class="bi bi-pencil"></i></button>
-                      <form action="{{ route('exams.types.destroy', $t->id) }}" method="post" class="d-inline"
+                      <form action="{{ route('academics.exams.types.destroy', $t->id) }}" method="post" class="d-inline"
                             onsubmit="return confirm('Delete this exam type?');">
                         @csrf @method('DELETE')
                         <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
@@ -58,7 +58,7 @@
                           <h5 class="modal-title">Edit Type: {{ $t->name }}</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
-                        <form method="post" action="{{ route('exams.types.update', $t->id) }}">
+                        <form method="post" action="{{ route('academics.exams.types.update', $t->id) }}">
                           @csrf @method('PUT')
                           <div class="modal-body">
                             <div class="mb-3">
@@ -109,7 +109,7 @@
       <div class="card shadow-sm">
         <div class="card-header fw-semibold">Create Type</div>
         <div class="card-body">
-          <form method="post" action="{{ route('exams.types.index') }}">
+          <form method="post" action="{{ route('academics.exams.types.store') }}">
             @csrf
             <div class="mb-3">
               <label class="form-label">Name</label>

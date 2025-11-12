@@ -29,8 +29,9 @@ class PayrollRecord extends Model
         'total_deductions',
         'net_salary',
         'bonus',
-        'advance',
-        'loan_deduction',
+        'advance_deduction',
+        'custom_deductions_total',
+        'custom_deductions_breakdown',
         'adjustments_notes',
         'days_worked',
         'days_in_period',
@@ -58,8 +59,9 @@ class PayrollRecord extends Model
         'total_deductions' => 'decimal:2',
         'net_salary' => 'decimal:2',
         'bonus' => 'decimal:2',
-        'advance' => 'decimal:2',
-        'loan_deduction' => 'decimal:2',
+        'advance_deduction' => 'decimal:2',
+        'custom_deductions_total' => 'decimal:2',
+        'custom_deductions_breakdown' => 'array',
         'days_worked' => 'integer',
         'days_in_period' => 'integer',
         'paid_at' => 'datetime',
@@ -124,8 +126,8 @@ class PayrollRecord extends Model
             + $this->nhif_deduction 
             + $this->paye_deduction 
             + $this->other_deductions
-            + $this->advance
-            + $this->loan_deduction;
+            + $this->advance_deduction
+            + $this->custom_deductions_total;
 
         // Add custom deductions
         if ($this->deductions_breakdown && is_array($this->deductions_breakdown)) {

@@ -18,15 +18,19 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
-        // Let high-privilege roles bypass checks
+        // Let high-privilege roles (Super Admin, Admin) bypass all checks
+        // Admins can enter marks for all exams and all students
         Gate::before(function (User $user, string $ability = null) {
             return $user->hasAnyRole(['Super Admin','Admin']) ? true : null;
         });
 
+        // Teachers can only enter marks for classes/subjects assigned to them
         Gate::define('enter-marks', function (User $user, Exam $exam, int $classroomId, int $subjectId) {
+            // Admins are already handled by Gate::before above
             $staff = $user->staff ?? null;
             if (!$staff) return false;
 
+            // Check if teacher is assigned to teach this subject in this classroom
             $q = DB::table('classroom_subjects')
                 ->where('staff_id', $staff->id)
                 ->where('classroom_id', $classroomId)

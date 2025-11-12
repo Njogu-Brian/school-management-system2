@@ -80,11 +80,15 @@ use App\Http\Controllers\Academics\DiaryController;
 use App\Http\Controllers\Academics\DiaryMessageController;
 use App\Http\Controllers\Academics\StudentBehaviourController;
 use App\Http\Controllers\Academics\ExamScheduleController;
-use App\Http\Controllers\Academics\ExamGroupController;
 use App\Http\Controllers\Academics\ExamTypeController;
 use App\Http\Controllers\Academics\ExamResultController;
 use App\Http\Controllers\Academics\ExamPublishingController;
 use App\Http\Controllers\Academics\StudentSkillGradeController;
+use App\Http\Controllers\Academics\SchemeOfWorkController;
+use App\Http\Controllers\Academics\LessonPlanController;
+use App\Http\Controllers\Academics\CBCStrandController;
+use App\Http\Controllers\Academics\PortfolioAssessmentController;
+use App\Http\Controllers\Academics\TimetableController;
 
 /*
 |--------------------------------------------------------------------------
@@ -232,7 +236,9 @@ Route::middleware('auth')->group(function () {
         Route::resource('streams',         StreamController::class)->except(['show']);
         Route::post('streams/{id}/assign-teachers', [StreamController::class, 'assignTeachers'])->name('streams.assign-teachers');
         Route::resource('subject_groups',  SubjectGroupController::class)->except(['show']);
-        Route::resource('subjects',        SubjectController::class)->except(['show']);
+        Route::resource('subjects',        SubjectController::class);
+        Route::post('subjects/generate-cbc', [SubjectController::class, 'generateCBCSubjects'])->name('subjects.generate-cbc');
+        Route::post('subjects/assign-classrooms', [SubjectController::class, 'assignToClassrooms'])->name('subjects.assign-classrooms');
         
         // Teacher Assignments
         Route::get('assign-teachers', [\App\Http\Controllers\Academics\AssignTeachersController::class, 'index'])->name('assign-teachers');
@@ -244,7 +250,7 @@ Route::middleware('auth')->group(function () {
         Route::post('promotions/{classroom}/promote-all', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promoteAll'])->name('promotions.promote-all');
 
         // Exams + lookups
-        Route::resource('exams', ExamController::class)->except(['show']);
+        Route::resource('exams', ExamController::class);
         Route::resource('exam-grades', ExamGradeController::class);
 
         // Exam schedules
@@ -268,6 +274,29 @@ Route::middleware('auth')->group(function () {
         Route::post('exam-marks/bulk/store',      [ExamMarkController::class, 'bulkStore'])->name('exam-marks.bulk.store');
         Route::get('exam-marks/{exam_mark}/edit', [ExamMarkController::class, 'edit'])->name('exam-marks.edit');
         Route::put('exam-marks/{exam_mark}',      [ExamMarkController::class, 'update'])->name('exam-marks.update');
+
+        // Schemes of Work
+        Route::resource('schemes-of-work', SchemeOfWorkController::class)->parameters(['schemes-of-work' => 'schemes_of_work']);
+        Route::post('schemes-of-work/{schemes_of_work}/approve', [SchemeOfWorkController::class, 'approve'])->name('schemes-of-work.approve');
+
+        // Lesson Plans
+        Route::resource('lesson-plans', LessonPlanController::class)->parameters(['lesson-plans' => 'lesson_plan']);
+
+        // CBC Strands (Admin only)
+        Route::middleware('role:Super Admin|Admin')->group(function() {
+            Route::resource('cbc-strands', CBCStrandController::class)->parameters(['cbc-strands' => 'cbc_strand']);
+            Route::get('cbc-strands/{cbc_strand}/substrands', [CBCStrandController::class, 'substrands'])->name('cbc-strands.substrands');
+        });
+
+        // Portfolio Assessments
+        Route::resource('portfolio-assessments', PortfolioAssessmentController::class)->parameters(['portfolio-assessments' => 'portfolio_assessment']);
+
+        // Timetable
+        Route::get('timetable', [TimetableController::class, 'index'])->name('timetable.index');
+        Route::get('timetable/classroom/{classroom}', [TimetableController::class, 'classroom'])->name('timetable.classroom');
+        Route::get('timetable/teacher/{teacher}', [TimetableController::class, 'teacher'])->name('timetable.teacher');
+        Route::post('timetable/generate', [TimetableController::class, 'generate'])->name('timetable.generate');
+        Route::post('timetable/save', [TimetableController::class, 'save'])->name('timetable.save');
 
         // Homework & Diaries
         Route::resource('homework', HomeworkController::class);
@@ -310,12 +339,11 @@ Route::middleware('auth')->group(function () {
         Route::post('skills/grade', [StudentSkillGradeController::class,'store'])->name('skills.grade.store');
     });
 
-    // Exams: groups & types
+    // Exams: types
     Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])
         ->prefix('academics')
         ->as('academics.')
         ->group(function () {
-            Route::resource('exam-groups', ExamGroupController::class)->names('exams.groups');
             Route::resource('exam-types',  ExamTypeController::class)
                 ->names('exams.types')->only(['index','store','update','destroy']);
         });
@@ -452,6 +480,35 @@ Route::middleware('auth')->group(function () {
 
             // HR Analytics Dashboard
             Route::get('/analytics', [\App\Http\Controllers\HR\HRAnalyticsController::class, 'index'])->name('analytics.index');
+
+            // Payroll Management
+            Route::prefix('payroll')->name('payroll.')->group(function () {
+                // Salary Structures
+                Route::resource('salary-structures', \App\Http\Controllers\HR\SalaryStructureController::class);
+                
+                // Payroll Periods
+                Route::resource('periods', \App\Http\Controllers\HR\PayrollPeriodController::class);
+                Route::post('/periods/{id}/process', [\App\Http\Controllers\HR\PayrollPeriodController::class, 'process'])->name('periods.process');
+                Route::post('/periods/{id}/lock', [\App\Http\Controllers\HR\PayrollPeriodController::class, 'lock'])->name('periods.lock');
+                
+                // Payroll Records
+                Route::resource('records', \App\Http\Controllers\HR\PayrollRecordController::class);
+                Route::get('/records/{id}/payslip', [\App\Http\Controllers\HR\PayslipController::class, 'show'])->name('records.payslip');
+                Route::get('/records/{id}/payslip/download', [\App\Http\Controllers\HR\PayslipController::class, 'download'])->name('records.payslip.download');
+                
+                // Staff Advances
+                Route::resource('advances', \App\Http\Controllers\HR\StaffAdvanceController::class);
+                Route::post('/advances/{id}/approve', [\App\Http\Controllers\HR\StaffAdvanceController::class, 'approve'])->name('advances.approve');
+                Route::post('/advances/{id}/repayment', [\App\Http\Controllers\HR\StaffAdvanceController::class, 'recordRepayment'])->name('advances.repayment');
+                
+                // Deduction Types
+                Route::resource('deduction-types', \App\Http\Controllers\HR\DeductionTypeController::class);
+                
+                // Custom Deductions
+                Route::resource('custom-deductions', \App\Http\Controllers\HR\CustomDeductionController::class);
+                Route::post('/custom-deductions/{id}/suspend', [\App\Http\Controllers\HR\CustomDeductionController::class, 'suspend'])->name('custom-deductions.suspend');
+                Route::post('/custom-deductions/{id}/activate', [\App\Http\Controllers\HR\CustomDeductionController::class, 'activate'])->name('custom-deductions.activate');
+            });
         });
 
     // HR Lookups standalone page (optional UI outside settings tab)

@@ -7,6 +7,8 @@ use App\Models\PayrollPeriod;
 use App\Models\PayrollRecord;
 use App\Models\Staff;
 use App\Models\SalaryStructure;
+use App\Models\StaffAdvance;
+use App\Models\CustomDeduction;
 use App\Services\PayrollCalculationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -143,7 +145,61 @@ class PayrollPeriodController extends Controller
                 $record->other_deductions = $salaryStructure->other_deductions;
                 $record->deductions_breakdown = $salaryStructure->deductions_breakdown;
 
-                // Recalculate totals with deductions
+                // Process advance deductions
+                $advanceDeduction = 0;
+                $activeAdvances = $member->activeAdvances()
+                    ->where('repayment_method', 'monthly_deduction')
+                    ->get();
+                
+                foreach ($activeAdvances as $advance) {
+                    if ($advance->monthly_deduction_amount && $advance->balance > 0) {
+                        $deductionAmount = min($advance->monthly_deduction_amount, $advance->balance);
+                        $advanceDeduction += $deductionAmount;
+                        
+                        // Record repayment
+                        $advance->recordRepayment($deductionAmount);
+                    }
+                }
+                $record->advance_deduction = $advanceDeduction;
+
+                // Process custom deductions
+                $customDeductionsTotal = 0;
+                $customDeductionsBreakdown = [];
+                $activeCustomDeductions = $member->activeCustomDeductions()
+                    ->where('effective_from', '<=', $period->end_date)
+                    ->where(function($q) use ($period) {
+                        $q->whereNull('effective_to')
+                          ->orWhere('effective_to', '>=', $period->start_date);
+                    })
+                    ->get();
+
+                foreach ($activeCustomDeductions as $customDeduction) {
+                    if ($customDeduction->shouldDeductThisMonth($period->year, $period->month)) {
+                        $deductionAmount = $customDeduction->amount;
+                        
+                        // Check if installment-based and not completed
+                        if ($customDeduction->total_amount && $customDeduction->amount_deducted >= $customDeduction->total_amount) {
+                            continue; // Skip if already fully deducted
+                        }
+                        
+                        // Don't exceed total amount if specified
+                        if ($customDeduction->total_amount) {
+                            $remaining = $customDeduction->total_amount - $customDeduction->amount_deducted;
+                            $deductionAmount = min($deductionAmount, $remaining);
+                        }
+                        
+                        $customDeductionsTotal += $deductionAmount;
+                        $customDeductionsBreakdown[$customDeduction->deduction_type_id] = 
+                            ($customDeductionsBreakdown[$customDeduction->deduction_type_id] ?? 0) + $deductionAmount;
+                        
+                        // Record deduction
+                        $customDeduction->recordDeduction($deductionAmount);
+                    }
+                }
+                $record->custom_deductions_total = $customDeductionsTotal;
+                $record->custom_deductions_breakdown = $customDeductionsBreakdown;
+
+                // Recalculate totals with all deductions
                 $record->calculateTotals();
 
                 $record->status = 'approved';

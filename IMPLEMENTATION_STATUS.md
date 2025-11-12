@@ -1,182 +1,168 @@
-# Implementation Status - Student Records Module
+# CBC Academic Module - Implementation Status
 
 ## ✅ Completed
 
-### 1. Database & Models
-- ✅ All 8 migrations created and run successfully
-- ✅ Student model updated with all new fillable fields
-- ✅ 4 new models created with relationships:
-  - StudentMedicalRecord
-  - StudentDisciplinaryRecord
-  - StudentExtracurricularActivity
-  - StudentAcademicHistory
-- ✅ ParentInfo model extended with additional fields
+### 1. Database Structure
+- [x] CBC Performance Levels table and seeder
+- [x] CBC Core Competencies table and seeder
+- [x] Portfolio Assessments table
+- [x] CBC Strands table
+- [x] CBC Substrands table
+- [x] Schemes of Work table
+- [x] Lesson Plans table
+- [x] Enhanced Report Cards (CBC fields)
 
-### 2. Controllers (Organized in `app/Http/Controllers/Students/`)
-- ✅ MedicalRecordController (full CRUD)
-- ✅ DisciplinaryRecordController (full CRUD)
-- ✅ ExtracurricularActivityController (full CRUD)
-- ✅ AcademicHistoryController (full CRUD)
+### 2. Models
+- [x] CBCPerformanceLevel model with relationships
+- [x] CBCCoreCompetency model
+- [x] PortfolioAssessment model
+- [x] CBCStrand model with scopes
+- [x] CBCSubstrand model with relationships
+- [x] SchemeOfWork model with progress tracking
+- [x] LessonPlan model with CBC integration
+- [x] Enhanced ReportCard model with CBC fields
 
-### 3. Form Requests (Validation)
-- ✅ StoreMedicalRecordRequest
-- ✅ StoreDisciplinaryRecordRequest
-- ✅ StoreExtracurricularActivityRequest
-- ✅ StoreAcademicHistoryRequest
+### 3. Permissions
+- [x] AcademicPermissionsSeeder created
+- [x] Teacher permissions defined (restricted)
+- [x] Admin/Secretary permissions defined (full access)
 
-### 4. Routes
-- ✅ All routes added to `routes/web.php`
-- ✅ Nested under `students/{student}` prefix
-- ✅ Proper middleware applied
-- ✅ Route cache cleared
+## 🚧 In Progress / Next Steps
 
-### 5. Views Created
-- ✅ Medical Records:
-  - `index.blade.php` ✅
-  - `create.blade.php` ✅
-  - `show.blade.php` ✅
-  - `edit.blade.php` ✅
-- ✅ Disciplinary Records:
-  - `index.blade.php` ✅
-  - `create.blade.php` ⚠️ (needs creation)
-  - `show.blade.php` ⚠️ (needs creation)
-  - `edit.blade.php` ⚠️ (needs creation)
-- ✅ Activities:
-  - `index.blade.php` ✅
-  - `create.blade.php` ⚠️ (needs creation)
-  - `show.blade.php` ⚠️ (needs creation)
-  - `edit.blade.php` ⚠️ (needs creation)
-- ✅ Academic History:
-  - `index.blade.php` ✅
-  - `create.blade.php` ⚠️ (needs creation)
-  - `show.blade.php` ⚠️ (needs creation)
-  - `edit.blade.php` ⚠️ (needs creation)
+### 1. Controllers (Need to be created)
+- [ ] SchemeOfWorkController with authorization
+- [ ] LessonPlanController with authorization
+- [ ] CBCStrandController (admin only)
+- [ ] CBCSubstrandController (admin only)
+- [ ] PortfolioAssessmentController with authorization
+- [ ] Enhanced ReportCardController methods
 
-### 6. Student Show Page
-- ✅ Updated with tabs for all 4 record types
-- ✅ Shows recent records (last 5) in each tab
-- ✅ Links to full index pages
-- ✅ Displays extended demographics (status, blood group, allergies)
+### 2. Authorization Gates/Policies
+- [ ] Gate: `manage-scheme-of-work` - Teachers can only manage their assigned classes
+- [ ] Gate: `manage-lesson-plan` - Teachers can only manage their assigned classes
+- [ ] Gate: `manage-portfolio` - Teachers can only manage their assigned classes
+- [ ] Policy: SchemeOfWorkPolicy
+- [ ] Policy: LessonPlanPolicy
+- [ ] Policy: PortfolioAssessmentPolicy
 
-### 7. StudentController
-- ✅ Updated `show()` method to eager load `family` relationship
+### 3. Views
+- [ ] Schemes of work management interface
+- [ ] Lesson planning interface
+- [ ] CBC strand/substrand management (admin)
+- [ ] Portfolio assessment interface
+- [ ] Enhanced report card views with CBC sections
 
----
+### 4. Services
+- [ ] CBCAssessmentService - Calculate competencies and performance levels
+- [ ] Enhanced ReportCardGenerationService - Generate CBC-compliant reports
+- [ ] SchemeOfWorkService - Generate schemes from strands
+- [ ] LessonPlanService - Auto-populate from schemes
 
-## ⚠️ Partially Complete / Needs Work
+### 5. Seeders
+- [ ] CBCStrandSeeder - Populate with actual Kenyan CBC strands
+- [ ] Sample schemes of work seeder
+- [ ] Sample lesson plans seeder
 
-### 1. Student Create/Edit Forms
-- ⚠️ New fields NOT yet added to `resources/views/students/partials/form.blade.php`
-- Fields to add:
-  - Extended demographics (national_id, passport, religion, ethnicity, address fields)
-  - Medical information (blood_group, allergies, chronic_conditions, insurance)
-  - Status management (status, admission_date, graduation_date, etc.)
-  - Special needs fields
+### 6. Routes
+- [ ] Schemes of work routes with middleware
+- [ ] Lesson plans routes with middleware
+- [ ] CBC strands routes (admin only)
+- [ ] Portfolio assessment routes with middleware
 
-### 2. Missing Views
-- ⚠️ Disciplinary: create, show, edit
-- ⚠️ Activities: create, show, edit
-- ⚠️ Academic History: create, show, edit
+## 📋 Implementation Commands
 
-### 3. Navigation
-- ⚠️ No changes needed (features accessible from student show page tabs)
-
----
-
-## 🧪 What You Can Test Now
-
-### Fully Testable:
-1. **Medical Records** - Full CRUD
-   - Navigate to any student → Medical Records tab → View All
-   - Create, view, edit, delete medical records
-
-2. **View Student Profile**
-   - See tabs for all 4 record types
-   - View recent records in each tab
-
-3. **Database**
-   - All tables exist
-   - Relationships work
-   - Models can be used in tinker
-
-### Partially Testable:
-1. **Disciplinary Records** - Can view index, but create/edit/show views missing
-2. **Activities** - Can view index, but create/edit/show views missing
-3. **Academic History** - Can view index, but create/edit/show views missing
-
-### Not Yet Testable:
-1. **Student Form** - New fields not in form yet (can't input new data)
-2. **Full CRUD for Disciplinary/Activities/Academic** - Missing views
-
----
-
-## 📋 Next Steps (Priority Order)
-
-1. **Create missing views** (Disciplinary, Activities, Academic History - create/show/edit)
-2. **Update student form** to include new fields
-3. **Test end-to-end** for each feature
-4. **Add any missing validations or business logic**
-
----
-
-## 📁 File Organization
-
-### Controllers
-```
-app/Http/Controllers/Students/
-├── MedicalRecordController.php ✅
-├── DisciplinaryRecordController.php ✅
-├── ExtracurricularActivityController.php ✅
-└── AcademicHistoryController.php ✅
+### Run Migrations
+```bash
+php artisan migrate
 ```
 
-### Views
-```
-resources/views/students/records/
-├── medical/
-│   ├── index.blade.php ✅
-│   ├── create.blade.php ✅
-│   ├── show.blade.php ✅
-│   └── edit.blade.php ✅
-├── disciplinary/
-│   ├── index.blade.php ✅
-│   ├── create.blade.php ⚠️
-│   ├── show.blade.php ⚠️
-│   └── edit.blade.php ⚠️
-├── activities/
-│   ├── index.blade.php ✅
-│   ├── create.blade.php ⚠️
-│   ├── show.blade.php ⚠️
-│   └── edit.blade.php ⚠️
-└── academic/
-    ├── index.blade.php ✅
-    ├── create.blade.php ⚠️
-    ├── show.blade.php ⚠️
-    └── edit.blade.php ⚠️
+### Seed Data
+```bash
+php artisan db:seed --class=CBCPerformanceLevelSeeder
+php artisan db:seed --class=CBCCoreCompetencySeeder
+php artisan db:seed --class=CBCStrandSeeder
+php artisan db:seed --class=AcademicPermissionsSeeder
 ```
 
-### Routes
-All routes nested under: `/students/{student}/[feature]`
+## 🔐 Authorization Rules
 
----
+### Teachers Can:
+- View and create schemes of work for their assigned classes/subjects
+- Edit their own schemes of work
+- View and create lesson plans for their assigned classes/subjects
+- Edit their own lesson plans
+- View and create portfolio assessments for their assigned classes/subjects
+- View report cards for their assigned classes
+- Edit skills, remarks, and competencies for their assigned classes
+- View CBC strands/substrands (read-only)
 
-## 🎯 Summary
+### Teachers CANNOT:
+- Delete schemes of work or lesson plans
+- Approve schemes of work
+- Manage CBC strands/substrands
+- Publish report cards
+- Access other teachers' classes/subjects
 
-**Progress: ~75% Complete**
+### Admins/Secretary Can:
+- Full access to all academic modules
+- Approve schemes of work
+- Publish report cards
+- Manage CBC strands/substrands
+- Delete any academic records
 
-- ✅ Database & Models: 100%
-- ✅ Controllers: 100%
-- ✅ Routes: 100%
-- ✅ Form Requests: 100%
-- ✅ Views: ~40% (Medical complete, others need create/show/edit)
-- ✅ Student Show Page: 100%
-- ⚠️ Student Forms: 0% (new fields not added)
+## 📊 Report Card CBC Features
 
-**You can test:**
-- Medical Records (fully functional)
-- View student profile with tabs
-- Index pages for all features
+### New Fields Added:
+1. **performance_summary** - Overall performance breakdown
+2. **core_competencies** - Assessment of 7 core competencies
+3. **learning_areas_performance** - Performance by learning area
+4. **cat_breakdown** - Continuous Assessment Tests breakdown
+5. **portfolio_summary** - Portfolio evidence summary
+6. **co_curricular** - Co-curricular activities participation
+7. **personal_social_dev** - Personal and social development
+8. **attendance_summary** - Attendance statistics
+9. **overall_performance_level_id** - Overall performance level (E, M, A, B)
+10. **student_self_assessment** - Student reflection
+11. **next_term_goals** - Goals for next term
+12. **parent_feedback** - Parent/guardian feedback
+13. **upi** - Unique Personal Identifier
 
-**Still needed:**
-- Create/show/edit views for Disciplinary, Activities, Academic History
-- Update student create/edit forms with new fields
+## 🎯 Key Features
+
+### Schemes of Work
+- Link to CBC strands and substrands
+- Track curriculum coverage
+- Progress tracking (lessons completed/total)
+- Approval workflow
+- Term-based planning
+
+### Lesson Plans
+- Link to substrands
+- Core competencies integration
+- Learning resources tracking
+- Assessment methods
+- Reflection and improvement notes
+- Execution status tracking
+
+### Portfolio Assessments
+- Multiple portfolio types (project, practical, creative, etc.)
+- Evidence file storage
+- Rubric-based scoring
+- Performance level assignment
+- Integration with exam marks
+
+## 📝 Notes
+
+- All teacher actions are restricted to their assigned classes/subjects
+- Authorization is enforced at both route middleware and controller level
+- Gates are used for fine-grained access control
+- All changes are auditable through created_by/updated_by fields
+
+## 🔄 Next Session Tasks
+
+1. Create controllers with proper authorization
+2. Implement authorization gates/policies
+3. Create views for all modules
+4. Create services for calculations
+5. Test permissions thoroughly
+6. Create sample data seeders

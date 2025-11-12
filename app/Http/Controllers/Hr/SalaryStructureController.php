@@ -37,7 +37,7 @@ class SalaryStructureController extends Controller
 
         $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
-        return view('hr.payroll.salary_structures.index', compact('structures', 'staff'));
+        return view('hr.payroll.salary-structures.index', compact('structures', 'staff'));
     }
 
     /**
@@ -48,7 +48,7 @@ class SalaryStructureController extends Controller
         $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
         $selectedStaff = $request->filled('staff_id') ? Staff::find($request->staff_id) : null;
 
-        return view('hr.payroll.salary_structures.create', compact('staff', 'selectedStaff'));
+        return view('hr.payroll.salary-structures.create', compact('staff', 'selectedStaff'));
     }
 
     /**
@@ -115,7 +115,7 @@ class SalaryStructureController extends Controller
     public function show($id)
     {
         $structure = SalaryStructure::with(['staff', 'createdBy'])->findOrFail($id);
-        return view('hr.payroll.salary_structures.show', compact('structure'));
+        return view('hr.payroll.salary-structures.show', compact('structure'));
     }
 
     /**
@@ -126,7 +126,7 @@ class SalaryStructureController extends Controller
         $structure = SalaryStructure::with('staff')->findOrFail($id);
         $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
 
-        return view('hr.payroll.salary_structures.edit', compact('structure', 'staff'));
+        return view('hr.payroll.salary-structures.edit', compact('structure', 'staff'));
     }
 
     /**

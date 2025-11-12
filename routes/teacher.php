@@ -13,7 +13,7 @@ use App\Http\Controllers\Academics\DiaryController;
 use App\Http\Controllers\Academics\DiaryMessageController;
 use App\Http\Controllers\Academics\StudentBehaviourController;
 
-Route::middleware(['auth', 'role:Teacher'])->group(function () {
+Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher'])->group(function () {
 
     // Dashboard
     Route::get('/teacher/home', [DashboardController::class, 'teacherDashboard'])

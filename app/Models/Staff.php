@@ -98,6 +98,26 @@ class Staff extends Model
         return $this->hasMany(SalaryHistory::class);
     }
 
+    public function advances()
+    {
+        return $this->hasMany(StaffAdvance::class);
+    }
+
+    public function activeAdvances()
+    {
+        return $this->hasMany(StaffAdvance::class)->where('status', 'active');
+    }
+
+    public function customDeductions()
+    {
+        return $this->hasMany(CustomDeduction::class);
+    }
+
+    public function activeCustomDeductions()
+    {
+        return $this->hasMany(CustomDeduction::class)->where('status', 'active');
+    }
+
     public function leaveRequests()
     {
         return $this->hasMany(LeaveRequest::class);

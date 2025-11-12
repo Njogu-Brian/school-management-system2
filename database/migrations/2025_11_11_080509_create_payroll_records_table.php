@@ -39,9 +39,10 @@ return new class extends Migration
             
             // Adjustments (bonuses, advances, etc.)
             $table->decimal('bonus', 12, 2)->default(0);
-            $table->decimal('advance', 12, 2)->default(0);
-            $table->decimal('loan_deduction', 12, 2)->default(0);
+            $table->decimal('advance_deduction', 12, 2)->default(0); // Renamed from 'advance'
+            $table->decimal('custom_deductions_total', 12, 2)->default(0); // Total of all custom deductions
             $table->text('adjustments_notes')->nullable();
+            $table->json('custom_deductions_breakdown')->nullable(); // {deduction_type_id: amount}
             
             // Days worked (for prorating)
             $table->integer('days_worked')->nullable();

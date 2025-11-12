@@ -1,10 +1,8 @@
 @php
-  use App\Models\Academics\ExamGroup;
   use App\Models\Academics\ExamType;
   use App\Models\AcademicYear;
   use App\Models\Term;
 
-  $groups = $groups ?? ExamGroup::orderBy('name')->get();
   $types  = $types  ?? ExamType::orderBy('name')->get();
   $years  = $years  ?? AcademicYear::orderByDesc('year')->get();
   $terms  = $terms  ?? Term::orderBy('name')->get();
@@ -12,7 +10,6 @@
   // defaults
   $v = [
     'name' => old('name', $exam->name ?? ''),
-    'exam_group_id' => old('exam_group_id', $exam->exam_group_id ?? request('group_id')),
     'type' => old('type', $exam->type ?? 'cat'),
     'modality' => old('modality', $exam->modality ?? 'physical'),
     'academic_year_id' => old('academic_year_id', $exam->academic_year_id ?? ($years->first()->id ?? null)),
@@ -30,18 +27,9 @@
 <div class="row">
   <div class="col-lg-8">
     <div class="row">
-      <div class="col-md-8 mb-3">
+      <div class="col-md-12 mb-3">
         <label class="form-label">Name <span class="text-danger">*</span></label>
         <input name="name" class="form-control" required value="{{ $v['name'] }}" placeholder="e.g. Monthly Exam (Nov-2025)">
-      </div>
-      <div class="col-md-4 mb-3">
-        <label class="form-label">Exam Group <span class="text-danger">*</span></label>
-        <select name="exam_group_id" class="form-select" required>
-          <option value="">Select</option>
-          @foreach($groups as $g)
-            <option value="{{ $g->id }}" @selected($v['exam_group_id']==$g->id)>{{ $g->name }}</option>
-          @endforeach
-        </select>
       </div>
 
       <div class="col-md-4 mb-3">

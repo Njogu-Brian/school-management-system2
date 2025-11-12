@@ -152,7 +152,6 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
 {{-- Exams --}}
 @php
     $examsActive = Request::is('academics/exams*')
-        || Request::is('academics/exam-groups*')
         || Request::is('academics/exam-types*')
         || Request::is('academics/exam-grades*')
         || Request::is('academics/exam-marks*')
@@ -168,11 +167,6 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
 
 <div class="collapse {{ $examsActive ? 'show' : '' }}" id="examsMenu">
     {{-- New exam structure --}}
-    <a href="{{ route('academics.exams.groups.index') }}"
-    class="sublink {{ Request::is('academics/exam-groups*') ? 'active' : '' }}">
-        <i class="bi bi-collection"></i> Exam Groups
-    </a>
-
     <a href="{{ route('academics.exams.types.index') }}"
     class="sublink {{ Request::is('academics/exam-types*') ? 'active' : '' }}">
         <i class="bi bi-sliders2"></i> Exam Types
@@ -198,6 +192,39 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
         <i class="bi bi-printer"></i> Exam Timetable
     </a>
 </div>
+
+{{-- Schemes of Work & Lesson Plans --}}
+@php 
+    $planningActive = Request::is('academics/schemes-of-work*') 
+        || Request::is('academics/lesson-plans*')
+        || Request::is('academics/portfolio-assessments*');
+@endphp
+<a href="#planningMenu" data-bs-toggle="collapse" aria-expanded="{{ $planningActive ? 'true' : 'false' }}" class="{{ $planningActive ? 'parent-active' : '' }}">
+    <i class="bi bi-calendar-check"></i> Planning & Assessment
+</a>
+<div class="collapse {{ $planningActive ? 'show' : '' }}" id="planningMenu">
+    <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work*') ? 'active' : '' }}">
+        <i class="bi bi-journal-text"></i> Schemes of Work
+    </a>
+    <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans*') ? 'active' : '' }}">
+        <i class="bi bi-calendar-check"></i> Lesson Plans
+    </a>
+    <a href="{{ route('academics.portfolio-assessments.index') }}" class="sublink {{ Request::is('academics/portfolio-assessments*') ? 'active' : '' }}">
+        <i class="bi bi-folder"></i> Portfolio Assessments
+    </a>
+</div>
+
+{{-- Timetable --}}
+<a href="{{ route('academics.timetable.index') }}" class="{{ Request::is('academics/timetable*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-week"></i> Timetable
+</a>
+
+{{-- CBC Strands (Admin only) --}}
+@if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
+<a href="{{ route('academics.cbc-strands.index') }}" class="{{ Request::is('academics/cbc-strands*') ? 'active' : '' }}">
+    <i class="bi bi-diagram-3"></i> CBC Strands
+</a>
+@endif
 
 {{-- Homework & Diaries --}}
 @php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*'); @endphp
@@ -275,6 +302,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     || Request::is('hr/profile-requests*')
     || Request::is('hr/reports*')
     || Request::is('hr/analytics*')
+    || Request::is('hr/payroll*')
     || Request::is('staff/leave-types*')
     || Request::is('staff/leave-requests*')
     || Request::is('staff/leave-balances*')
@@ -313,6 +341,33 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   <a href="{{ route('hr.analytics.index') }}" class="{{ Request::is('hr/analytics*') ? 'active' : '' }}">
     <i class="bi bi-graph-up"></i> Analytics
   </a>
+  
+  {{-- Payroll Submenu --}}
+  @php $payrollActive = Request::is('hr/payroll*'); @endphp
+  <a href="#payrollMenu" data-bs-toggle="collapse" aria-expanded="{{ $payrollActive ? 'true' : 'false' }}" class="{{ $payrollActive ? 'parent-active' : '' }}">
+    <i class="bi bi-cash-stack"></i> Payroll
+  </a>
+  <div class="collapse {{ $payrollActive ? 'show' : '' }}" id="payrollMenu">
+    <a href="{{ route('hr.payroll.salary-structures.index') }}" class="{{ Request::is('hr/payroll/salary-structures*') ? 'active' : '' }}">
+      <i class="bi bi-file-earmark-text"></i> Salary Structures
+    </a>
+    <a href="{{ route('hr.payroll.periods.index') }}" class="{{ Request::is('hr/payroll/periods*') ? 'active' : '' }}">
+      <i class="bi bi-calendar-range"></i> Payroll Periods
+    </a>
+    <a href="{{ route('hr.payroll.records.index') }}" class="{{ Request::is('hr/payroll/records*') ? 'active' : '' }}">
+      <i class="bi bi-receipt"></i> Payroll Records
+    </a>
+    <a href="{{ route('hr.payroll.advances.index') }}" class="{{ Request::is('hr/payroll/advances*') ? 'active' : '' }}">
+      <i class="bi bi-arrow-down-circle"></i> Staff Advances
+    </a>
+    <a href="{{ route('hr.payroll.deduction-types.index') }}" class="{{ Request::is('hr/payroll/deduction-types*') ? 'active' : '' }}">
+      <i class="bi bi-tags"></i> Deduction Types
+    </a>
+    <a href="{{ route('hr.payroll.custom-deductions.index') }}" class="{{ Request::is('hr/payroll/custom-deductions*') ? 'active' : '' }}">
+      <i class="bi bi-list-check"></i> Custom Deductions
+    </a>
+  </div>
+  
   <a href="{{ route('settings.access_lookups') }}" class="{{ Request::is('settings/access-lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups
   </a>

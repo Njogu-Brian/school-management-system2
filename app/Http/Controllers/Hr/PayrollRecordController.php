@@ -56,8 +56,8 @@ class PayrollRecordController extends Controller
 
         $validated = $request->validate([
             'bonus' => 'nullable|numeric|min:0',
-            'advance' => 'nullable|numeric|min:0',
-            'loan_deduction' => 'nullable|numeric|min:0',
+            'advance_deduction' => 'nullable|numeric|min:0',
+            'custom_deductions_total' => 'nullable|numeric|min:0',
             'adjustments_notes' => 'nullable|string',
             'notes' => 'nullable|string',
         ]);
