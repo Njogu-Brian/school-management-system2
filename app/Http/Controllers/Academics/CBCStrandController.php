@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\Academics\CBCStrand;
 use App\Models\Academics\CBCSubstrand;
+use App\Models\Academics\LearningArea;
 use Illuminate\Http\Request;
 
 class CBCStrandController extends Controller
@@ -18,9 +19,12 @@ class CBCStrandController extends Controller
 
     public function index(Request $request)
     {
-        $query = CBCStrand::withCount('substrands');
+        $query = CBCStrand::with(['learningArea'])->withCount('substrands');
 
-        if ($request->filled('learning_area')) {
+        if ($request->filled('learning_area_id')) {
+            $query->where('learning_area_id', $request->learning_area_id);
+        } elseif ($request->filled('learning_area')) {
+            // Backward compatibility - filter by learning_area string
             $query->where('learning_area', $request->learning_area);
         }
         if ($request->filled('level')) {
@@ -30,21 +34,37 @@ class CBCStrandController extends Controller
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('code', 'like', "%{$search}%");
+                  ->orWhere('code', 'like', "%{$search}%")
+                  ->orWhereHas('learningArea', function($subQ) use ($search) {
+                      $subQ->where('name', 'like', "%{$search}%")
+                           ->orWhere('code', 'like', "%{$search}%");
+                  });
             });
         }
 
-        $strands = $query->ordered()->paginate(20)->withQueryString();
+        $strands = $query->where('is_active', true)
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->paginate(20)
+            ->withQueryString();
 
-        $learningAreas = CBCStrand::distinct()->pluck('learning_area')->sort();
-        $levels = CBCStrand::distinct()->pluck('level')->sort();
+        // Get learning areas for filter
+        $learningAreas = \App\Models\Academics\LearningArea::where('is_active', true)
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->get();
+        $levels = CBCStrand::distinct()->pluck('level')->filter()->sort()->values();
 
         return view('academics.cbc_strands.index', compact('strands', 'learningAreas', 'levels'));
     }
 
     public function create()
     {
-        return view('academics.cbc_strands.create');
+        $learningAreas = LearningArea::where('is_active', true)
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->get();
+        return view('academics.cbc_strands.create', compact('learningAreas'));
     }
 
     public function store(Request $request)
@@ -53,10 +73,22 @@ class CBCStrandController extends Controller
             'code' => 'required|string|max:20|unique:cbc_strands,code',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'learning_area' => 'required|string|max:255',
+            'learning_area_id' => 'nullable|exists:learning_areas,id',
+            'learning_area' => 'required_without:learning_area_id|string|max:255',
             'level' => 'required|string|max:50',
             'display_order' => 'nullable|integer|min:0',
+            'is_active' => 'boolean',
         ]);
+
+        // If learning_area_id is provided, get the learning area name for backward compatibility
+        if ($validated['learning_area_id'] ?? null) {
+            $learningArea = LearningArea::find($validated['learning_area_id']);
+            if ($learningArea) {
+                $validated['learning_area'] = $learningArea->name;
+            }
+        }
+
+        $validated['is_active'] = $validated['is_active'] ?? true;
 
         CBCStrand::create($validated);
 
@@ -73,7 +105,12 @@ class CBCStrandController extends Controller
 
     public function edit(CBCStrand $cbc_strand)
     {
-        return view('academics.cbc_strands.edit', compact('cbc_strand'));
+        $cbc_strand->load('learningArea');
+        $learningAreas = LearningArea::where('is_active', true)
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->get();
+        return view('academics.cbc_strands.edit', compact('cbc_strand', 'learningAreas'));
     }
 
     public function update(Request $request, CBCStrand $cbc_strand)
@@ -82,11 +119,20 @@ class CBCStrandController extends Controller
             'code' => 'required|string|max:20|unique:cbc_strands,code,' . $cbc_strand->id,
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'learning_area' => 'required|string|max:255',
+            'learning_area_id' => 'nullable|exists:learning_areas,id',
+            'learning_area' => 'required_without:learning_area_id|string|max:255',
             'level' => 'required|string|max:50',
             'display_order' => 'nullable|integer|min:0',
             'is_active' => 'boolean',
         ]);
+
+        // If learning_area_id is provided, get the learning area name for backward compatibility
+        if ($validated['learning_area_id'] ?? null) {
+            $learningArea = LearningArea::find($validated['learning_area_id']);
+            if ($learningArea) {
+                $validated['learning_area'] = $learningArea->name;
+            }
+        }
 
         $cbc_strand->update($validated);
 

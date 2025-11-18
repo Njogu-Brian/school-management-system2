@@ -109,8 +109,17 @@
 
 <script>
 function saveTimetable() {
-    // Implementation for saving timetable
-    alert('Timetable save functionality will be implemented');
+    // Redirect to edit page to save timetable
+    const url = new URL(window.location.href);
+    const classroomId = url.searchParams.get('classroom_id');
+    const yearId = url.searchParams.get('academic_year_id');
+    const termId = url.searchParams.get('term_id');
+    
+    if (classroomId && yearId && termId) {
+        window.location.href = `/academics/timetable/classroom/${classroomId}/edit?academic_year_id=${yearId}&term_id=${termId}`;
+    } else {
+        alert('Please select classroom, academic year, and term first.');
+    }
 }
 </script>
 @endsection

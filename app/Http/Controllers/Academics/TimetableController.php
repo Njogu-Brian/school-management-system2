@@ -11,6 +11,7 @@ use App\Models\Staff;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Services\TimetableService;
+use App\Services\TimetableOptimizationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -90,8 +91,9 @@ class TimetableController extends Controller
         $conflicts = [];
         
         if ($savedTimetable->isEmpty()) {
-            $timetable = TimetableService::generateForClassroom($classroom->id, $yearId, $termId);
-            $conflicts = TimetableService::checkConflicts($timetable);
+            // Use optimized generation by default
+            $timetable = TimetableOptimizationService::generateOptimized($classroom->id, $yearId, $termId);
+            $conflicts = $timetable['conflicts'] ?? [];
         }
 
         // Get subject assignments with lessons_per_week
@@ -203,13 +205,23 @@ class TimetableController extends Controller
             'classroom_id' => 'required|exists:classrooms,id',
             'academic_year_id' => 'required|exists:academic_years,id',
             'term_id' => 'required|exists:terms,id',
+            'use_optimization' => 'nullable|boolean',
         ]);
 
-        $timetable = TimetableService::generateForClassroom(
-            $validated['classroom_id'],
-            $validated['academic_year_id'],
-            $validated['term_id']
-        );
+        // Use AI optimization if requested
+        if ($request->filled('use_optimization') && $request->use_optimization) {
+            $timetable = TimetableOptimizationService::generateOptimized(
+                $validated['classroom_id'],
+                $validated['academic_year_id'],
+                $validated['term_id']
+            );
+        } else {
+            $timetable = TimetableService::generateForClassroom(
+                $validated['classroom_id'],
+                $validated['academic_year_id'],
+                $validated['term_id']
+            );
+        }
 
         return view('academics.timetable.preview', compact('timetable'));
     }
@@ -229,13 +241,32 @@ class TimetableController extends Controller
             ->where('term_id', $validated['term_id'])
             ->delete();
 
-        // Check for conflicts
+        // Check for conflicts and teacher lesson limits
         $conflicts = [];
+        $teacherCounts = [];
+        $defaultMaxLessons = (int) \App\Models\Setting::where('key', 'max_lessons_per_teacher_per_week')->value('value') ?? 40;
+        
         foreach ($validated['timetable'] as $day => $periods) {
             foreach ($periods as $period => $data) {
                 if (isset($data['subject_id']) && $data['subject_id'] && isset($data['teacher_id']) && $data['teacher_id']) {
+                    $teacherId = $data['teacher_id'];
+                    
+                    // Initialize teacher count
+                    if (!isset($teacherCounts[$teacherId])) {
+                        $teacher = Staff::find($teacherId);
+                        $maxLessons = $teacher->max_lessons_per_week ?? $defaultMaxLessons;
+                        $teacherCounts[$teacherId] = [
+                            'teacher' => $teacher,
+                            'current' => 0,
+                            'max' => $maxLessons,
+                        ];
+                    }
+                    
+                    // Count this lesson
+                    $teacherCounts[$teacherId]['current']++;
+                    
                     // Check if teacher has another class at same time
-                    $existing = Timetable::where('staff_id', $data['teacher_id'])
+                    $existing = Timetable::where('staff_id', $teacherId)
                         ->where('academic_year_id', $validated['academic_year_id'])
                         ->where('term_id', $validated['term_id'])
                         ->where('day', $day)
@@ -245,17 +276,36 @@ class TimetableController extends Controller
                     
                     if ($existing) {
                         $conflicts[] = [
+                            'type' => 'teacher_conflict',
                             'day' => $day,
                             'period' => $period,
-                            'teacher_id' => $data['teacher_id'],
+                            'teacher_id' => $teacherId,
+                            'message' => 'Teacher has another class at this time',
                         ];
                     }
                 }
             }
         }
+        
+        // Check teacher lesson limits
+        foreach ($teacherCounts as $teacherId => $count) {
+            if ($count['current'] > $count['max']) {
+                $conflicts[] = [
+                    'type' => 'teacher_limit_exceeded',
+                    'teacher_id' => $teacherId,
+                    'teacher_name' => $count['teacher']->full_name ?? 'Unknown',
+                    'current' => $count['current'],
+                    'max' => $count['max'],
+                    'message' => "{$count['teacher']->full_name} exceeds maximum lessons ({$count['current']}/{$count['max']})",
+                ];
+            }
+        }
 
         if (!empty($conflicts)) {
-            return back()->with('error', 'Teacher conflicts detected. Please resolve before saving.')->with('conflicts', $conflicts);
+            return back()
+                ->with('error', 'Conflicts detected. Please resolve before saving.')
+                ->with('conflicts', $conflicts)
+                ->with('teacher_counts', $teacherCounts);
         }
 
         // Save new timetable
@@ -354,10 +404,81 @@ class TimetableController extends Controller
             if ($conflict) {
                 return back()->with('error', 'Teacher has another class at this time.');
             }
+            
+            // Check teacher lesson limit
+            $teacher = Staff::find($validated['staff_id']);
+            $defaultMaxLessons = (int) \App\Models\Setting::where('key', 'max_lessons_per_teacher_per_week')->value('value') ?? 40;
+            $maxLessons = $teacher->max_lessons_per_week ?? $defaultMaxLessons;
+            
+            $currentLessons = Timetable::where('staff_id', $validated['staff_id'])
+                ->where('academic_year_id', $timetable->academic_year_id)
+                ->where('term_id', $timetable->term_id)
+                ->where('id', '!=', $timetable->id)
+                ->count();
+            
+            // If this is a new assignment (not just updating existing), check limit
+            if (!$timetable->staff_id || $timetable->staff_id != $validated['staff_id']) {
+                if ($currentLessons >= $maxLessons) {
+                    return back()->with('error', "Teacher {$teacher->full_name} has reached maximum lessons per week ({$maxLessons}).");
+                }
+            }
         }
 
         $timetable->update($validated);
 
         return back()->with('success', 'Period updated successfully.');
+    }
+    
+    /**
+     * Check conflicts in real-time (AJAX)
+     */
+    public function checkConflicts(Request $request)
+    {
+        $validated = $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'timetable' => 'required|array',
+        ]);
+        
+        $conflicts = [];
+        $teacherCounts = [];
+        $defaultMaxLessons = (int) \App\Models\Setting::where('key', 'max_lessons_per_teacher_per_week')->value('value') ?? 40;
+        
+        foreach ($validated['timetable'] as $day => $periods) {
+            foreach ($periods as $period => $data) {
+                if (isset($data['teacher_id']) && $data['teacher_id']) {
+                    $teacherId = $data['teacher_id'];
+                    
+                    if (!isset($teacherCounts[$teacherId])) {
+                        $teacher = Staff::find($teacherId);
+                        $maxLessons = $teacher->max_lessons_per_week ?? $defaultMaxLessons;
+                        $teacherCounts[$teacherId] = [
+                            'teacher_name' => $teacher->full_name ?? 'Unknown',
+                            'current' => 0,
+                            'max' => $maxLessons,
+                        ];
+                    }
+                    
+                    $teacherCounts[$teacherId]['current']++;
+                }
+            }
+        }
+        
+        // Check limits
+        foreach ($teacherCounts as $teacherId => $count) {
+            if ($count['current'] > $count['max']) {
+                $conflicts[] = [
+                    'type' => 'teacher_limit',
+                    'teacher_id' => $teacherId,
+                    'message' => "{$count['teacher_name']} exceeds limit ({$count['current']}/{$count['max']})",
+                ];
+            }
+        }
+        
+        return response()->json([
+            'conflicts' => $conflicts,
+            'teacher_counts' => $teacherCounts,
+        ]);
     }
 }

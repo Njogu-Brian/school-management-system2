@@ -6,12 +6,45 @@ use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class ClassroomController extends Controller
 {
-    public function index()
+    public function __construct()
     {
-        $classrooms = Classroom::with(['teachers', 'streams', 'nextClass', 'previousClasses', 'students'])->get();
+        $this->middleware('permission:classrooms.view')->only(['index', 'show']);
+        $this->middleware('permission:classrooms.create')->only(['create', 'store']);
+        $this->middleware('permission:classrooms.edit')->only(['edit', 'update']);
+        $this->middleware('permission:classrooms.delete')->only(['destroy']);
+    }
+
+    public function index(Request $request)
+    {
+        $query = Classroom::with(['teachers', 'streams', 'nextClass', 'previousClasses'])
+            ->withCount('students');
+
+        // Teachers can only see their assigned classes
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $query->whereIn('id', $assignedClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No access
+            }
+        }
+
+        // Search
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        $classrooms = $query->orderBy('name')->get();
         return view('academics.classrooms.index', compact('classrooms'));
     }
 
@@ -101,6 +134,59 @@ class ClassroomController extends Controller
     public function destroy($id)
     {
         $classroom = Classroom::findOrFail($id);
+
+        // Check if classroom has students
+        if ($classroom->students()->count() > 0) {
+            return back()
+                ->with('error', 'Cannot delete classroom with existing students. Transfer students first.');
+        }
+
+        // Check if classroom has exam marks
+        $hasExamMarks = \Illuminate\Support\Facades\DB::table('exam_marks')
+            ->join('exams', 'exam_marks.exam_id', '=', 'exams.id')
+            ->where('exams.classroom_id', $classroom->id)
+            ->exists();
+        if ($hasExamMarks) {
+            return back()
+                ->with('error', 'Cannot delete classroom with existing exam marks. Archive it instead.');
+        }
+
+        // Check if classroom has schemes of work
+        $hasSchemesOfWork = \Illuminate\Support\Facades\DB::table('schemes_of_work')
+            ->where('classroom_id', $classroom->id)
+            ->exists();
+        if ($hasSchemesOfWork) {
+            return back()
+                ->with('error', 'Cannot delete classroom with existing schemes of work. Remove schemes first.');
+        }
+
+        // Check if classroom has lesson plans
+        $hasLessonPlans = \Illuminate\Support\Facades\DB::table('lesson_plans')
+            ->where('classroom_id', $classroom->id)
+            ->exists();
+        if ($hasLessonPlans) {
+            return back()
+                ->with('error', 'Cannot delete classroom with existing lesson plans. Remove lesson plans first.');
+        }
+
+        // Check if classroom has homework
+        $hasHomework = \Illuminate\Support\Facades\DB::table('homeworks')
+            ->where('classroom_id', $classroom->id)
+            ->exists();
+        if ($hasHomework) {
+            return back()
+                ->with('error', 'Cannot delete classroom with existing homework. Remove homework first.');
+        }
+
+        // Check if classroom has report cards
+        $hasReportCards = \Illuminate\Support\Facades\DB::table('report_cards')
+            ->where('classroom_id', $classroom->id)
+            ->exists();
+        if ($hasReportCards) {
+            return back()
+                ->with('error', 'Cannot delete classroom with existing report cards. Archive them first.');
+        }
+
         $classroom->teachers()->detach();
         $classroom->delete();
 

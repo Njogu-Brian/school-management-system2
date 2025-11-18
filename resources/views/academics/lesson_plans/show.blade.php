@@ -145,18 +145,64 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mb-3">
                 <div class="card-header">
                     <h5 class="mb-0">Information</h5>
                 </div>
                 <div class="card-body">
                     <small class="text-muted">
-                        <strong>Created by:</strong> {{ $lesson_plan->creator->full_name ?? 'N/A' }}<br>
+                        <strong>Created by:</strong> {{ $lesson_plan->creator->first_name ?? 'N/A' }} {{ $lesson_plan->creator->last_name ?? '' }}<br>
                         <strong>Created:</strong> {{ $lesson_plan->created_at->format('d M Y') }}<br>
                         <strong>Duration:</strong> {{ $lesson_plan->duration_minutes }} minutes
                     </small>
                 </div>
             </div>
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    @can('homework.create')
+                    <a href="{{ route('academics.lesson-plans.assign-homework', $lesson_plan) }}" 
+                       class="btn btn-primary w-100 mb-2">
+                        <i class="bi bi-plus-circle"></i> Assign Homework
+                    </a>
+                    @endcan
+                    @can('lesson_plans.export_pdf')
+                    <a href="{{ route('academics.lesson-plans.export-pdf', $lesson_plan) }}" 
+                       class="btn btn-danger w-100 mb-2" target="_blank">
+                        <i class="bi bi-file-pdf"></i> Export PDF
+                    </a>
+                    @endcan
+                    @can('lesson_plans.export_excel')
+                    <a href="{{ route('academics.lesson-plans.export-excel', $lesson_plan) }}" 
+                       class="btn btn-success w-100 mb-2">
+                        <i class="bi bi-file-excel"></i> Export Excel
+                    </a>
+                    @endcan
+                </div>
+            </div>
+
+            @if($homework && $homework->count() > 0)
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0">Linked Homework ({{ $homework->count() }})</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled">
+                        @foreach($homework as $hw)
+                        <li class="mb-2">
+                            <a href="{{ route('academics.homework.show', $hw) }}" class="text-decoration-none">
+                                <strong>{{ $hw->title }}</strong><br>
+                                <small class="text-muted">Due: {{ $hw->due_date->format('d M Y') }}</small>
+                            </a>
+                        </li>
+                        @endforeach
+                    </ul>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>

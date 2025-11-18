@@ -16,13 +16,17 @@ class ExamMark extends Model
         'subject_remark','remark','status','audit',
         // CBC fields
         'assessment_method','cat_number','performance_level_id',
-        'competency_scores','portfolio_assessment_id'
+        'competency_scores','portfolio_assessment_id',
+        // Advanced exam features
+        'component_scores',
+        'descriptor',
     ];
 
     protected $casts = [
         'rubrics' => 'array',
         'audit'   => 'array',
         'competency_scores' => 'array',
+        'component_scores' => 'array',
         'cat_number' => 'integer',
     ];
 

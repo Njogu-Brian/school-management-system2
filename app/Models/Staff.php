@@ -18,7 +18,8 @@ class Staff extends Model
         'department_id','job_title_id','staff_category_id','supervisor_id',
         'photo','status',
         'hire_date','termination_date','employment_status','employment_type',
-        'contract_start_date','contract_end_date'
+        'contract_start_date','contract_end_date',
+        'max_lessons_per_week'
     ];
 
     protected $casts = [

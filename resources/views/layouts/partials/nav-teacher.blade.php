@@ -6,6 +6,7 @@
   $homeworkActive = Request::is('academics/homework*');
   $diariesActive = Request::is('academics/diaries*');
   $behaviourActive = Request::is('academics/student-behaviours*');
+  $curriculumActive = Request::is('academics/curriculum-designs*');
 @endphp
 
 <a href="{{ route('teacher.dashboard') }}"
@@ -17,6 +18,12 @@
   <i class="bi bi-person-circle"></i>
   <span>My Profile</span>
 </a>
+
+@if (can_access('curriculum_designs.view') || can_access('curriculum_designs.view_own'))
+  <a href="{{ route('academics.curriculum-designs.index') }}" class="{{ $curriculumActive ? 'active' : '' }}">
+    <i class="bi bi-layer-forward"></i> Curriculum Designs
+  </a>
+@endif
 
 {{-- Attendance --}}
 @if (can_access('attendance.view') || can_access('attendance.create'))
@@ -109,4 +116,42 @@
      class="{{ $behaviourActive ? 'active' : '' }}">
     <i class="bi bi-emoji-smile"></i> Student Behaviour
   </a>
+@endif
+
+{{-- Timetable --}}
+@php $timetableActive = Request::is('academics/timetable*'); @endphp
+@if (can_access('timetable.view'))
+  <a href="{{ route('academics.timetable.index') }}"
+     class="{{ $timetableActive ? 'active' : '' }}">
+    <i class="bi bi-calendar-week"></i> My Timetable
+  </a>
+@endif
+
+{{-- Schemes of Work & Lesson Plans --}}
+@php 
+  $planningActive = Request::is('academics/schemes-of-work*') 
+    || Request::is('academics/lesson-plans*')
+    || Request::is('academics/portfolio-assessments*');
+@endphp
+@if (can_access('schemes_of_work.view') || can_access('lesson_plans.view') || can_access('portfolio_assessments.view'))
+  <a href="#planningMenu" data-bs-toggle="collapse" aria-expanded="{{ $planningActive ? 'true' : 'false' }}" class="{{ $planningActive ? 'parent-active' : '' }}">
+    <i class="bi bi-calendar-check"></i> Planning & Assessment
+  </a>
+  <div class="collapse {{ $planningActive ? 'show' : '' }}" id="planningMenu">
+    @if (can_access('schemes_of_work.view'))
+      <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work') ? 'active' : '' }}">
+        <i class="bi bi-journal-text"></i> Schemes of Work
+      </a>
+    @endif
+    @if (can_access('lesson_plans.view'))
+      <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans') ? 'active' : '' }}">
+        <i class="bi bi-calendar-check"></i> Lesson Plans
+      </a>
+    @endif
+    @if (can_access('portfolio_assessments.view'))
+      <a href="{{ route('academics.portfolio-assessments.index') }}" class="sublink {{ Request::is('academics/portfolio-assessments*') ? 'active' : '' }}">
+        <i class="bi bi-folder"></i> Portfolio Assessments
+      </a>
+    @endif
+  </div>
 @endif

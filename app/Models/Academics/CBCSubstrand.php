@@ -40,9 +40,61 @@ class CBCSubstrand extends Model
         return $this->belongsTo(CBCStrand::class, 'strand_id');
     }
 
+    /**
+     * Get all lesson plans for this substrand
+     */
     public function lessonPlans()
     {
         return $this->hasMany(LessonPlan::class, 'substrand_id');
+    }
+
+    /**
+     * Get all competencies for this substrand
+     */
+    public function competencies()
+    {
+        return $this->hasMany(Competency::class, 'substrand_id')->orderBy('display_order');
+    }
+
+    /**
+     * Get active competencies only
+     */
+    public function activeCompetencies()
+    {
+        return $this->hasMany(Competency::class, 'substrand_id')
+            ->where('is_active', true)
+            ->orderBy('display_order');
+    }
+
+    /**
+     * Get suggested learning experiences for this substrand
+     */
+    public function suggestedExperiences()
+    {
+        return $this->hasMany(\App\Models\SuggestedExperience::class, 'substrand_id')->orderBy('order');
+    }
+
+    /**
+     * Get assessment rubrics for this substrand
+     */
+    public function assessmentRubrics()
+    {
+        return $this->hasMany(\App\Models\AssessmentRubric::class, 'substrand_id')->orderBy('order');
+    }
+
+    /**
+     * Get the learning area through strand
+     */
+    public function learningArea()
+    {
+        return $this->hasOneThrough(
+            LearningArea::class,
+            CBCStrand::class,
+            'id', // Foreign key on CBCStrand
+            'id', // Foreign key on LearningArea
+            'strand_id', // Local key on CBCSubstrand
+            'learning_area_id' // Local key on CBCStrand
+        );
     }
 
     // Scopes

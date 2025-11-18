@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Setting;
-use App\Models\SystemSetting;
 use App\Models\StaffCategory;
 use App\Models\Department;
 use App\Models\JobTitle;
@@ -176,17 +175,15 @@ class SettingController extends Controller
             'student_id_start'  => 'required|integer|min:1',
         ]);
 
-        $system = SystemSetting::first();
-        if (!$system) {
-            $system = SystemSetting::create($request->only([
-                'staff_id_prefix', 'staff_id_start',
-                'student_id_prefix', 'student_id_start'
-            ]));
-        } else {
-            $system->update($request->only([
-                'staff_id_prefix', 'staff_id_start',
-                'student_id_prefix', 'student_id_start'
-            ]));
+        // Save to settings table
+        Setting::set('staff_id_prefix', $request->staff_id_prefix);
+        Setting::setInt('staff_id_start', $request->staff_id_start);
+        Setting::set('student_id_prefix', $request->student_id_prefix);
+        Setting::setInt('student_id_start', $request->student_id_start);
+
+        // Initialize student_id_counter if it doesn't exist
+        if (!Setting::where('key', 'student_id_counter')->exists()) {
+            Setting::setInt('student_id_counter', $request->student_id_start);
         }
 
         return redirect()->back()->with('success', 'ID settings updated successfully.');

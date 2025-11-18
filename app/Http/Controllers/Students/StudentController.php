@@ -16,7 +16,7 @@ use App\Models\CommunicationTemplate;
 use App\Mail\GenericMail;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StudentTemplateExport;
-use App\Models\SystemSetting;
+use App\Models\Setting;
 
 class StudentController extends Controller
 {
@@ -384,8 +384,9 @@ class StudentController extends Controller
      */
     private function generateNextAdmissionNumber()
     {
-        $prefix = SystemSetting::getValue('student_id_prefix', 'ADM');
-        $counter = SystemSetting::incrementValue('student_id_counter', SystemSetting::getValue('student_id_start', 1000));
+        $prefix = Setting::get('student_id_prefix', 'ADM');
+        $start = Setting::getInt('student_id_start', 1000);
+        $counter = Setting::incrementValue('student_id_counter', 1, $start);
         return $prefix . str_pad($counter, 4, '0', STR_PAD_LEFT);
     }
 

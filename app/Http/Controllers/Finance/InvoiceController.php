@@ -51,7 +51,7 @@ class InvoiceController extends Controller
         ]);
 
         $structure = FeeStructure::with('charges.votehead')
-            ->where('classroom_id', $request->classrooms_id)
+            ->where('classroom_id', $request->classroom_id)
             ->where('year', $request->year)
             ->first();
 
@@ -59,7 +59,7 @@ class InvoiceController extends Controller
             return back()->with('error', 'Fee structure not found for selected class and year.');
         }
 
-        $students = Student::where('classroom_id', $request->classrooms_id)->get();
+        $students = Student::where('classroom_id', $request->classroom_id)->get();
         $invoicesGenerated = 0;
 
         DB::transaction(function () use ($students, $structure, $request, &$invoicesGenerated) {

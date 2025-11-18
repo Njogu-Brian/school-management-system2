@@ -4,9 +4,13 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">Schemes of Work</h1>
-        <a href="{{ route('academics.schemes-of-work.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Create Scheme
-        </a>
+        <div>
+            @can('schemes_of_work.create')
+            <a href="{{ route('academics.schemes-of-work.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Create Scheme
+            </a>
+            @endcan
+        </div>
     </div>
 
     @if(session('success'))
@@ -93,12 +97,24 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('academics.schemes-of-work.show', $scheme) }}" class="btn btn-outline-info">
+                                    <a href="{{ route('academics.schemes-of-work.show', $scheme) }}" class="btn btn-outline-info" title="View">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ route('academics.schemes-of-work.edit', $scheme) }}" class="btn btn-outline-warning">
+                                    @can('schemes_of_work.edit')
+                                    <a href="{{ route('academics.schemes-of-work.edit', $scheme) }}" class="btn btn-outline-warning" title="Edit">
                                         <i class="bi bi-pencil"></i>
                                     </a>
+                                    @endcan
+                                    @can('schemes_of_work.export_pdf')
+                                    <a href="{{ route('academics.schemes-of-work.export-pdf', $scheme) }}" class="btn btn-outline-danger" title="Export PDF" target="_blank">
+                                        <i class="bi bi-file-pdf"></i>
+                                    </a>
+                                    @endcan
+                                    @can('schemes_of_work.export_excel')
+                                    <a href="{{ route('academics.schemes-of-work.export-excel', $scheme) }}" class="btn btn-outline-success" title="Export Excel">
+                                        <i class="bi bi-file-excel"></i>
+                                    </a>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>

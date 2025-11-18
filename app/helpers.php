@@ -1,43 +1,87 @@
 <?php
 
 use App\Models\Setting;
-use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Auth;
 use App\Models\CommunicationPlaceholder;
 
 /**
- * settings (key-value)
+ * settings (key-value) - Unified settings helper
+ * This replaces both setting() and system_setting() functions
  */
 if (!function_exists('setting')) {
     function setting($key, $default = null) {
-        $setting = Setting::where('key', $key)->first();
-        return $setting ? $setting->value : $default;
+        return Setting::get($key, $default);
     }
 }
 
 if (!function_exists('setting_set')) {
     function setting_set($key, $value) {
-        return Setting::updateOrCreate(['key' => $key], ['value' => $value]);
+        return Setting::set($key, $value);
     }
 }
 
 /**
- * system_settings (single-row)
+ * Increment a numeric setting value
  */
-if (!function_exists('system_setting')) {
-    function system_setting($key, $default = null) {
-        $system = SystemSetting::first();
-        return $system ? ($system->$key ?? $default) : $default;
+if (!function_exists('setting_increment')) {
+    function setting_increment($key, $by = 1, $defaultStart = 0) {
+        return Setting::incrementValue($key, $by, $defaultStart);
     }
 }
 
+/**
+ * Get boolean setting value
+ */
+if (!function_exists('setting_bool')) {
+    function setting_bool($key, $default = false) {
+        return Setting::getBool($key, $default);
+    }
+}
+
+/**
+ * Set boolean setting value
+ */
+if (!function_exists('setting_set_bool')) {
+    function setting_set_bool($key, $value) {
+        return Setting::setBool($key, $value);
+    }
+}
+
+/**
+ * Get integer setting value
+ */
+if (!function_exists('setting_int')) {
+    function setting_int($key, $default = 0) {
+        return Setting::getInt($key, $default);
+    }
+}
+
+/**
+ * Set integer setting value
+ */
+if (!function_exists('setting_set_int')) {
+    function setting_set_int($key, $value) {
+        return Setting::setInt($key, $value);
+    }
+}
+
+/**
+ * Legacy system_setting() function - now uses settings table
+ * @deprecated Use setting() instead. This is kept for backward compatibility.
+ */
+if (!function_exists('system_setting')) {
+    function system_setting($key, $default = null) {
+        return setting($key, $default);
+    }
+}
+
+/**
+ * Legacy system_setting_set() function - now uses settings table
+ * @deprecated Use setting_set() instead. This is kept for backward compatibility.
+ */
 if (!function_exists('system_setting_set')) {
     function system_setting_set($key, $value) {
-        $system = SystemSetting::first();
-        if (!$system) return SystemSetting::create([$key => $value]);
-        $system->$key = $value;
-        $system->save();
-        return $system;
+        return setting_set($key, $value);
     }
 }
 
@@ -71,12 +115,12 @@ if (!function_exists('replace_placeholders')) {
     function replace_placeholders(string $message, $entity = null, array $extra = []): string
     {
         $replacements = [
-            '{school_name}'    => setting('school_name', system_setting('school_name', 'Our School')),
-            '{school_phone}'   => system_setting('phone', ''),
-            '{school_email}'   => system_setting('email', ''),
-            '{school_address}' => system_setting('address', ''),
-            '{term}'           => system_setting('current_term', ''),
-            '{academic_year}'  => system_setting('current_year', ''),
+            '{school_name}'    => setting('school_name', 'Our School'),
+            '{school_phone}'   => setting('school_phone', ''),
+            '{school_email}'   => setting('school_email', ''),
+            '{school_address}' => setting('school_address', ''),
+            '{term}'           => setting('current_term', ''),
+            '{academic_year}'  => setting('current_year', ''),
             '{date}'           => now()->format('d M Y'),
         ];
 

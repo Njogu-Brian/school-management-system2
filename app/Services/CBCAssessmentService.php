@@ -156,12 +156,28 @@ class CBCAssessmentService
         })
         ->where('student_id', $studentId)
         ->with('subject')
-        ->get()
-        ->groupBy('subject.learning_area');
+        ->get();
+        
+        // Group by learning area - try to get from subject's learning_area field or learning_area_id
+        $grouped = $marks->groupBy(function($mark) {
+            $subject = $mark->subject;
+            if (!$subject) {
+                return 'Unknown';
+            }
+            // Try learning_area field first (if it's a string)
+            if (!empty($subject->learning_area)) {
+                return is_string($subject->learning_area) ? $subject->learning_area : 'Unknown';
+            }
+            // Try learning_area_id relationship
+            if (method_exists($subject, 'learningArea') && $subject->learningArea) {
+                return $subject->learningArea->name;
+            }
+            return 'Unknown';
+        });
 
         $results = [];
 
-        foreach ($marks as $learningArea => $areaMarks) {
+        foreach ($grouped as $learningArea => $areaMarks) {
             $totalScore = $areaMarks->sum('score_raw');
             $totalMaxMarks = $areaMarks->sum(function($mark) {
                 return $mark->exam->max_marks ?? 100;

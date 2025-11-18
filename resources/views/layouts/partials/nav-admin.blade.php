@@ -203,10 +203,10 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     <i class="bi bi-calendar-check"></i> Planning & Assessment
 </a>
 <div class="collapse {{ $planningActive ? 'show' : '' }}" id="planningMenu">
-    <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work*') ? 'active' : '' }}">
+    <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work') ? 'active' : '' }}">
         <i class="bi bi-journal-text"></i> Schemes of Work
     </a>
-    <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans*') ? 'active' : '' }}">
+    <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans') ? 'active' : '' }}">
         <i class="bi bi-calendar-check"></i> Lesson Plans
     </a>
     <a href="{{ route('academics.portfolio-assessments.index') }}" class="sublink {{ Request::is('academics/portfolio-assessments*') ? 'active' : '' }}">
@@ -215,24 +215,53 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
 </div>
 
 {{-- Timetable --}}
-<a href="{{ route('academics.timetable.index') }}" class="{{ Request::is('academics/timetable*') ? 'active' : '' }}">
+@php $timetableActive = Request::is('academics/timetable*'); @endphp
+<a href="#timetableMenu" data-bs-toggle="collapse" aria-expanded="{{ $timetableActive ? 'true' : 'false' }}" class="{{ $timetableActive ? 'parent-active' : '' }}">
     <i class="bi bi-calendar-week"></i> Timetable
 </a>
+<div class="collapse {{ $timetableActive ? 'show' : '' }}" id="timetableMenu">
+    <a href="{{ route('academics.timetable.index') }}" class="sublink {{ Request::is('academics/timetable') && !Request::is('academics/timetable/*') ? 'active' : '' }}">
+        <i class="bi bi-calendar-week"></i> View Timetable
+    </a>
+    <a href="{{ route('academics.extra-curricular-activities.index') }}" class="sublink {{ Request::is('academics/extra-curricular-activities*') ? 'active' : '' }}">
+        <i class="bi bi-trophy"></i> Extra Curricular
+    </a>
+</div>
 
-{{-- CBC Strands (Admin only) --}}
-@if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
-<a href="{{ route('academics.cbc-strands.index') }}" class="{{ Request::is('academics/cbc-strands*') ? 'active' : '' }}">
-    <i class="bi bi-diagram-3"></i> CBC Strands
+{{-- CBC Curriculum --}}
+@php 
+    $cbcActive = Request::is('academics/learning-areas*') 
+        || Request::is('academics/competencies*')
+        || Request::is('academics/cbc-strands*')
+        || Request::is('academics/cbc-substrands*')
+        || Request::is('academics/curriculum-designs*');
+@endphp
+<a href="#cbcMenu" data-bs-toggle="collapse" aria-expanded="{{ $cbcActive ? 'true' : 'false' }}" class="{{ $cbcActive ? 'parent-active' : '' }}">
+    <i class="bi bi-diagram-3"></i> CBC Curriculum
 </a>
-@endif
+<div class="collapse {{ $cbcActive ? 'show' : '' }}" id="cbcMenu">
+    <a href="{{ route('academics.curriculum-designs.index') }}" class="sublink {{ Request::is('academics/curriculum-designs*') ? 'active' : '' }}">
+        <i class="bi bi-layer-forward"></i> Curriculum Designs
+    </a>
+    <a href="{{ route('academics.learning-areas.index') }}" class="sublink {{ Request::is('academics/learning-areas*') ? 'active' : '' }}">
+        <i class="bi bi-book"></i> Learning Areas
+    </a>
+    <a href="{{ route('academics.cbc-strands.index') }}" class="sublink {{ Request::is('academics/cbc-strands*') ? 'active' : '' }}">
+        <i class="bi bi-diagram-3"></i> CBC Strands
+    </a>
+    <a href="{{ route('academics.competencies.index') }}" class="sublink {{ Request::is('academics/competencies*') ? 'active' : '' }}">
+        <i class="bi bi-star"></i> Competencies
+    </a>
+</div>
 
 {{-- Homework & Diaries --}}
-@php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*'); @endphp
+@php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*') || Request::is('academics/homework-diary*'); @endphp
 <a href="#homeworkMenu" data-bs-toggle="collapse" aria-expanded="{{ $homeworkActive ? 'true' : 'false' }}" class="{{ $homeworkActive ? 'parent-active' : '' }}">
     <i class="bi bi-journal"></i> Homework & Diaries
 </a>
 <div class="collapse {{ $homeworkActive ? 'show' : '' }}" id="homeworkMenu">
-    <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') ? 'active' : '' }}">Homework</a>
+    <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') && !Request::is('academics/homework-diary*') ? 'active' : '' }}">Homework</a>
+    <a href="{{ route('academics.homework-diary.index') }}" class="{{ Request::is('academics/homework-diary*') ? 'active' : '' }}">Homework Diary</a>
     <a href="{{ route('academics.diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
 </div>
 

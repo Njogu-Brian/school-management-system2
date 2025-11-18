@@ -3,7 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Staff;
-use App\Models\SystemSetting;
+use App\Models\Setting;
 use App\Models\Department;
 use App\Models\JobTitle;
 use App\Models\StaffCategory;
@@ -83,10 +83,10 @@ class StaffImport implements ToCollection
                 // Staff ID
                 $staffId = $data['staff_id'];
                 if (!$staffId) {
-                    $prefix = SystemSetting::getValue('staff_id_prefix', 'STAFF');
-                    $start  = (int) SystemSetting::getValue('staff_id_start', 1001);
-                    $staffId = $prefix.$start;
-                    SystemSetting::set('staff_id_start', $start + 1);
+                    $prefix = Setting::get('staff_id_prefix', 'STAFF');
+                    $start  = Setting::getInt('staff_id_start', 1001);
+                    $staffId = $prefix . $start;
+                    Setting::setInt('staff_id_start', $start + 1);
                 }
 
                 // Create user (login via work_email)

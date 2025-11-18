@@ -25,10 +25,10 @@ use App\Http\Controllers\DropOffPointController;
 use App\Http\Controllers\StudentAssignmentController;
 
 // Staff / HR
-use App\Http\Controllers\HR\StaffController;
-use App\Http\Controllers\HR\StaffProfileController;
-use App\Http\Controllers\HR\RolePermissionController;
-use App\Http\Controllers\HR\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
+use App\Http\Controllers\Hr\StaffController;
+use App\Http\Controllers\Hr\StaffProfileController;
+use App\Http\Controllers\Hr\RolePermissionController;
+use App\Http\Controllers\Hr\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
 use App\Http\Controllers\Academics\AcademicConfigController;
 use App\Http\Controllers\Settings\SchoolDayController;
 use App\Http\Controllers\Settings\SettingController;
@@ -76,6 +76,7 @@ use App\Http\Controllers\Academics\ReportCardController;
 use App\Http\Controllers\Academics\ReportCardSkillController;
 use App\Http\Controllers\Academics\BehaviourController;
 use App\Http\Controllers\Academics\HomeworkController;
+use App\Http\Controllers\Academics\HomeworkDiaryController;
 use App\Http\Controllers\Academics\DiaryController;
 use App\Http\Controllers\Academics\DiaryMessageController;
 use App\Http\Controllers\Academics\StudentBehaviourController;
@@ -87,9 +88,14 @@ use App\Http\Controllers\Academics\StudentSkillGradeController;
 use App\Http\Controllers\Academics\SchemeOfWorkController;
 use App\Http\Controllers\Academics\LessonPlanController;
 use App\Http\Controllers\Academics\CBCStrandController;
+use App\Http\Controllers\Academics\CBCSubstrandController;
+use App\Http\Controllers\Academics\LearningAreaController;
+use App\Http\Controllers\Academics\CompetencyController;
 use App\Http\Controllers\Academics\PortfolioAssessmentController;
 use App\Http\Controllers\Academics\TimetableController;
 use App\Http\Controllers\Academics\ExtraCurricularActivityController as AcademicsExtraCurricularActivityController;
+use App\Http\Controllers\Academics\CurriculumDesignController;
+use App\Http\Controllers\Academics\CurriculumAssistantController;
 
 /*
 |--------------------------------------------------------------------------
@@ -279,15 +285,57 @@ Route::middleware('auth')->group(function () {
         // Schemes of Work
         Route::resource('schemes-of-work', SchemeOfWorkController::class)->parameters(['schemes-of-work' => 'schemes_of_work']);
         Route::post('schemes-of-work/{schemes_of_work}/approve', [SchemeOfWorkController::class, 'approve'])->name('schemes-of-work.approve');
+        Route::post('schemes-of-work/generate', [SchemeOfWorkController::class, 'generate'])->name('schemes-of-work.generate');
+        Route::get('schemes-of-work/{schemes_of_work}/export-pdf', [SchemeOfWorkController::class, 'exportPdf'])->name('schemes-of-work.export-pdf');
+        Route::get('schemes-of-work/{schemes_of_work}/export-excel', [SchemeOfWorkController::class, 'exportExcel'])->name('schemes-of-work.export-excel');
+        Route::post('schemes-of-work/bulk-export', [SchemeOfWorkController::class, 'bulkExport'])->name('schemes-of-work.bulk-export');
 
         // Lesson Plans
         Route::resource('lesson-plans', LessonPlanController::class)->parameters(['lesson-plans' => 'lesson_plan']);
+        Route::get('lesson-plans/{lesson_plan}/export-pdf', [LessonPlanController::class, 'exportPdf'])->name('lesson-plans.export-pdf');
+        Route::get('lesson-plans/{lesson_plan}/export-excel', [LessonPlanController::class, 'exportExcel'])->name('lesson-plans.export-excel');
+        Route::get('lesson-plans/{lesson_plan}/assign-homework', [LessonPlanController::class, 'assignHomeworkForm'])->name('lesson-plans.assign-homework');
+        Route::post('lesson-plans/{lesson_plan}/assign-homework', [LessonPlanController::class, 'assignHomework'])->name('lesson-plans.assign-homework.store');
+
+        // Curriculum Designs
+        Route::resource('curriculum-designs', CurriculumDesignController::class)->parameters(['curriculum-designs' => 'curriculum_design']);
+        Route::get('curriculum-designs/{curriculum_design}/review', [CurriculumDesignController::class, 'review'])->name('curriculum-designs.review');
+        Route::post('curriculum-designs/{curriculum_design}/reprocess', [CurriculumDesignController::class, 'reprocess'])->name('curriculum-designs.reprocess');
+        Route::get('curriculum-designs/{curriculum_design}/progress', [CurriculumDesignController::class, 'progress'])->name('curriculum-designs.progress');
+
+        // Curriculum AI Assistant
+        Route::prefix('curriculum-assistant')->name('curriculum-assistant.')->group(function () {
+            Route::post('generate', [CurriculumAssistantController::class, 'generate'])->name('generate');
+            Route::post('chat', [CurriculumAssistantController::class, 'chat'])->name('chat');
+        });
+
+        // Homework Diary
+        Route::resource('homework-diary', HomeworkDiaryController::class)->parameters(['homework-diary' => 'homework_diary']);
+        Route::get('homework-diary/{homework_diary}/submit', [HomeworkDiaryController::class, 'submitForm'])->name('homework-diary.submit');
+        Route::post('homework-diary/{homework_diary}/submit', [HomeworkDiaryController::class, 'submit'])->name('homework-diary.submit.store');
+        Route::get('homework-diary/{homework_diary}/mark', [HomeworkDiaryController::class, 'markForm'])->name('homework-diary.mark');
+        Route::post('homework-diary/{homework_diary}/mark', [HomeworkDiaryController::class, 'mark'])->name('homework-diary.mark.store');
+        Route::put('homework-diary/{homework_diary}/submission', [HomeworkDiaryController::class, 'updateSubmission'])->name('homework-diary.update-submission');
+
+        // Learning Areas (Admin/Teacher can view, Admin only can manage)
+        Route::resource('learning-areas', LearningAreaController::class)->parameters(['learning-areas' => 'learning_area']);
+        Route::get('learning-areas/{learning_area}/strands', [LearningAreaController::class, 'getStrands'])->name('learning-areas.strands');
+
+        // Competencies
+        Route::resource('competencies', CompetencyController::class)->parameters(['competencies' => 'competency']);
+        Route::get('competencies/by-substrand', [CompetencyController::class, 'getBySubstrand'])->name('competencies.by-substrand');
+        Route::get('competencies/by-strand', [CompetencyController::class, 'getByStrand'])->name('competencies.by-strand');
 
         // CBC Strands (Admin only)
         Route::middleware('role:Super Admin|Admin')->group(function() {
             Route::resource('cbc-strands', CBCStrandController::class)->parameters(['cbc-strands' => 'cbc_strand']);
             Route::get('cbc-strands/{cbc_strand}/substrands', [CBCStrandController::class, 'substrands'])->name('cbc-strands.substrands');
+            Route::resource('cbc-substrands', CBCSubstrandController::class)->parameters(['cbc-substrands' => 'cbc_substrand']);
         });
+
+        // AJAX endpoints for dynamic filtering
+        Route::get('schemes-of-work/get-strands', [SchemeOfWorkController::class, 'getStrands'])->name('schemes-of-work.get-strands');
+        Route::get('lesson-plans/get-substrands', [LessonPlanController::class, 'getSubstrands'])->name('lesson-plans.get-substrands');
 
         // Portfolio Assessments
         Route::resource('portfolio-assessments', PortfolioAssessmentController::class)->parameters(['portfolio-assessments' => 'portfolio_assessment']);
@@ -301,9 +349,13 @@ Route::middleware('auth')->group(function () {
         Route::post('timetable/save', [TimetableController::class, 'save'])->name('timetable.save');
         Route::post('timetable/duplicate', [TimetableController::class, 'duplicate'])->name('timetable.duplicate');
         Route::put('timetable/{timetable}/period', [TimetableController::class, 'updatePeriod'])->name('timetable.period.update');
+        Route::post('timetable/check-conflicts', [TimetableController::class, 'checkConflicts'])->name('timetable.check-conflicts');
 
         // Extra-Curricular Activities
         Route::resource('extra-curricular-activities', AcademicsExtraCurricularActivityController::class)->parameters(['extra-curricular-activities' => 'extra_curricular_activity']);
+
+        // Classroom Subject Lessons per Week
+        Route::put('classroom-subjects/{classroomSubject}/update-lessons', [SubjectController::class, 'updateLessonsPerWeek'])->name('classroom-subjects.update-lessons');
 
         // Homework & Diaries
         Route::resource('homework', HomeworkController::class);
@@ -412,47 +464,47 @@ Route::middleware('auth')->group(function () {
 
             // Leave Management (must come before {id})
             Route::prefix('leave-types')->name('leave-types.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\HR\LeaveTypeController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\HR\LeaveTypeController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\HR\LeaveTypeController::class, 'store'])->name('store');
-                Route::get('/{leaveType}/edit', [\App\Http\Controllers\HR\LeaveTypeController::class, 'edit'])->name('edit');
-                Route::put('/{leaveType}', [\App\Http\Controllers\HR\LeaveTypeController::class, 'update'])->name('update');
-                Route::delete('/{leaveType}', [\App\Http\Controllers\HR\LeaveTypeController::class, 'destroy'])->name('destroy');
+                Route::get('/', [\App\Http\Controllers\Hr\LeaveTypeController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\Hr\LeaveTypeController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Hr\LeaveTypeController::class, 'store'])->name('store');
+                Route::get('/{leaveType}/edit', [\App\Http\Controllers\Hr\LeaveTypeController::class, 'edit'])->name('edit');
+                Route::put('/{leaveType}', [\App\Http\Controllers\Hr\LeaveTypeController::class, 'update'])->name('update');
+                Route::delete('/{leaveType}', [\App\Http\Controllers\Hr\LeaveTypeController::class, 'destroy'])->name('destroy');
             });
 
             Route::prefix('leave-requests')->name('leave-requests.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\HR\LeaveRequestController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\HR\LeaveRequestController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\HR\LeaveRequestController::class, 'store'])->name('store');
-                Route::get('/{leaveRequest}', [\App\Http\Controllers\HR\LeaveRequestController::class, 'show'])->name('show');
-                Route::post('/{leaveRequest}/approve', [\App\Http\Controllers\HR\LeaveRequestController::class, 'approve'])->name('approve');
-                Route::post('/{leaveRequest}/reject', [\App\Http\Controllers\HR\LeaveRequestController::class, 'reject'])->name('reject');
-                Route::post('/{leaveRequest}/cancel', [\App\Http\Controllers\HR\LeaveRequestController::class, 'cancel'])->name('cancel');
+                Route::get('/', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'store'])->name('store');
+                Route::get('/{leaveRequest}', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'show'])->name('show');
+                Route::post('/{leaveRequest}/approve', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'approve'])->name('approve');
+                Route::post('/{leaveRequest}/reject', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'reject'])->name('reject');
+                Route::post('/{leaveRequest}/cancel', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'cancel'])->name('cancel');
             });
 
             Route::prefix('leave-balances')->name('leave-balances.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'store'])->name('store');
-                Route::get('/{staff}', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'show'])->name('show');
-                Route::put('/{balance}', [\App\Http\Controllers\HR\StaffLeaveBalanceController::class, 'update'])->name('update');
+                Route::get('/', [\App\Http\Controllers\Hr\StaffLeaveBalanceController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\Hr\StaffLeaveBalanceController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Hr\StaffLeaveBalanceController::class, 'store'])->name('store');
+                Route::get('/{staff}', [\App\Http\Controllers\Hr\StaffLeaveBalanceController::class, 'show'])->name('show');
+                Route::put('/{balance}', [\App\Http\Controllers\Hr\StaffLeaveBalanceController::class, 'update'])->name('update');
             });
 
             // Staff Attendance (must come before {id})
             Route::prefix('attendance')->name('attendance.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'index'])->name('index');
-                Route::post('/bulk-mark', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
-                Route::get('/report', [\App\Http\Controllers\HR\StaffAttendanceController::class, 'report'])->name('report');
+                Route::get('/', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'index'])->name('index');
+                Route::post('/bulk-mark', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'bulkMark'])->name('bulk-mark');
+                Route::get('/report', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'report'])->name('report');
             });
 
             // Document Management (must come before {id})
             Route::prefix('documents')->name('documents.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\HR\StaffDocumentController::class, 'index'])->name('index');
-                Route::get('/create', [\App\Http\Controllers\HR\StaffDocumentController::class, 'create'])->name('create');
-                Route::post('/', [\App\Http\Controllers\HR\StaffDocumentController::class, 'store'])->name('store');
-                Route::get('/{document}', [\App\Http\Controllers\HR\StaffDocumentController::class, 'show'])->name('show');
-                Route::get('/{document}/download', [\App\Http\Controllers\HR\StaffDocumentController::class, 'download'])->name('download');
-                Route::delete('/{document}', [\App\Http\Controllers\HR\StaffDocumentController::class, 'destroy'])->name('destroy');
+                Route::get('/', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'index'])->name('index');
+                Route::get('/create', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'store'])->name('store');
+                Route::get('/{document}', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'show'])->name('show');
+                Route::get('/{document}/download', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'download'])->name('download');
+                Route::delete('/{document}', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'destroy'])->name('destroy');
             });
 
             // CRUD - Individual staff routes (must come AFTER all specific routes)
@@ -476,45 +528,45 @@ Route::middleware('auth')->group(function () {
 
             // HR Reports
             Route::prefix('reports')->name('reports.')->group(function () {
-                Route::get('/', [\App\Http\Controllers\HR\StaffReportController::class, 'index'])->name('index');
-                Route::get('/directory', [\App\Http\Controllers\HR\StaffReportController::class, 'exportDirectory'])->name('directory');
-                Route::get('/department', [\App\Http\Controllers\HR\StaffReportController::class, 'departmentReport'])->name('department');
-                Route::get('/category', [\App\Http\Controllers\HR\StaffReportController::class, 'categoryReport'])->name('category');
-                Route::get('/new-hires', [\App\Http\Controllers\HR\StaffReportController::class, 'newHiresReport'])->name('new-hires');
-                Route::get('/terminations', [\App\Http\Controllers\HR\StaffReportController::class, 'terminationsReport'])->name('terminations');
-                Route::get('/turnover', [\App\Http\Controllers\HR\StaffReportController::class, 'turnoverAnalysis'])->name('turnover');
+                Route::get('/', [\App\Http\Controllers\Hr\StaffReportController::class, 'index'])->name('index');
+                Route::get('/directory', [\App\Http\Controllers\Hr\StaffReportController::class, 'exportDirectory'])->name('directory');
+                Route::get('/department', [\App\Http\Controllers\Hr\StaffReportController::class, 'departmentReport'])->name('department');
+                Route::get('/category', [\App\Http\Controllers\Hr\StaffReportController::class, 'categoryReport'])->name('category');
+                Route::get('/new-hires', [\App\Http\Controllers\Hr\StaffReportController::class, 'newHiresReport'])->name('new-hires');
+                Route::get('/terminations', [\App\Http\Controllers\Hr\StaffReportController::class, 'terminationsReport'])->name('terminations');
+                Route::get('/turnover', [\App\Http\Controllers\Hr\StaffReportController::class, 'turnoverAnalysis'])->name('turnover');
             });
 
             // HR Analytics Dashboard
-            Route::get('/analytics', [\App\Http\Controllers\HR\HRAnalyticsController::class, 'index'])->name('analytics.index');
+            Route::get('/analytics', [\App\Http\Controllers\Hr\HRAnalyticsController::class, 'index'])->name('analytics.index');
 
             // Payroll Management
             Route::prefix('payroll')->name('payroll.')->group(function () {
                 // Salary Structures
-                Route::resource('salary-structures', \App\Http\Controllers\HR\SalaryStructureController::class);
+                Route::resource('salary-structures', \App\Http\Controllers\Hr\SalaryStructureController::class);
                 
                 // Payroll Periods
-                Route::resource('periods', \App\Http\Controllers\HR\PayrollPeriodController::class);
-                Route::post('/periods/{id}/process', [\App\Http\Controllers\HR\PayrollPeriodController::class, 'process'])->name('periods.process');
-                Route::post('/periods/{id}/lock', [\App\Http\Controllers\HR\PayrollPeriodController::class, 'lock'])->name('periods.lock');
+                Route::resource('periods', \App\Http\Controllers\Hr\PayrollPeriodController::class);
+                Route::post('/periods/{id}/process', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'process'])->name('periods.process');
+                Route::post('/periods/{id}/lock', [\App\Http\Controllers\Hr\PayrollPeriodController::class, 'lock'])->name('periods.lock');
                 
                 // Payroll Records
-                Route::resource('records', \App\Http\Controllers\HR\PayrollRecordController::class);
-                Route::get('/records/{id}/payslip', [\App\Http\Controllers\HR\PayslipController::class, 'show'])->name('records.payslip');
-                Route::get('/records/{id}/payslip/download', [\App\Http\Controllers\HR\PayslipController::class, 'download'])->name('records.payslip.download');
+                Route::resource('records', \App\Http\Controllers\Hr\PayrollRecordController::class);
+                Route::get('/records/{id}/payslip', [\App\Http\Controllers\Hr\PayslipController::class, 'show'])->name('records.payslip');
+                Route::get('/records/{id}/payslip/download', [\App\Http\Controllers\Hr\PayslipController::class, 'download'])->name('records.payslip.download');
                 
                 // Staff Advances
-                Route::resource('advances', \App\Http\Controllers\HR\StaffAdvanceController::class);
-                Route::post('/advances/{id}/approve', [\App\Http\Controllers\HR\StaffAdvanceController::class, 'approve'])->name('advances.approve');
-                Route::post('/advances/{id}/repayment', [\App\Http\Controllers\HR\StaffAdvanceController::class, 'recordRepayment'])->name('advances.repayment');
+                Route::resource('advances', \App\Http\Controllers\Hr\StaffAdvanceController::class);
+                Route::post('/advances/{id}/approve', [\App\Http\Controllers\Hr\StaffAdvanceController::class, 'approve'])->name('advances.approve');
+                Route::post('/advances/{id}/repayment', [\App\Http\Controllers\Hr\StaffAdvanceController::class, 'recordRepayment'])->name('advances.repayment');
                 
                 // Deduction Types
-                Route::resource('deduction-types', \App\Http\Controllers\HR\DeductionTypeController::class);
+                Route::resource('deduction-types', \App\Http\Controllers\Hr\DeductionTypeController::class);
                 
                 // Custom Deductions
-                Route::resource('custom-deductions', \App\Http\Controllers\HR\CustomDeductionController::class);
-                Route::post('/custom-deductions/{id}/suspend', [\App\Http\Controllers\HR\CustomDeductionController::class, 'suspend'])->name('custom-deductions.suspend');
-                Route::post('/custom-deductions/{id}/activate', [\App\Http\Controllers\HR\CustomDeductionController::class, 'activate'])->name('custom-deductions.activate');
+                Route::resource('custom-deductions', \App\Http\Controllers\Hr\CustomDeductionController::class);
+                Route::post('/custom-deductions/{id}/suspend', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'suspend'])->name('custom-deductions.suspend');
+                Route::post('/custom-deductions/{id}/activate', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'activate'])->name('custom-deductions.activate');
             });
         });
 

@@ -21,6 +21,13 @@ public function run(): void
         // ExamGradeSeeder::class,
         // BehaviourSeeder::class,
         TeacherPermissionsSeeder::class,
+        // Comprehensive CBC curriculum seeder (includes Learning Areas, Strands, Substrands, Competencies)
+        CBCComprehensiveSeeder::class,
+        // Alternative: Use individual seeders if needed
+        // CBCLearningAreasSeeder::class,
+        // CBCStrandsSeeder::class,
+        // CBCSubstrandSeeder::class,
+        // CompetencySeeder::class,
     ]);
 }
 

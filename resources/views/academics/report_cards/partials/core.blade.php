@@ -126,18 +126,152 @@
   </tr>
 </table>
 
+{{-- CBC Performance Level --}}
+@if(!empty($D['cbc']['overall_performance_level']))
+<table style="width:100%; border-collapse:collapse; border:1px solid #444; margin-top:10px; margin-bottom:10px;">
+  <tr style="background:#f3f3f3;">
+    <th style="padding:6px; border:1px solid #444; text-align:left;">Overall Performance Level</th>
+    <td style="padding:6px; border:1px solid #444;">
+      <strong>{{ $D['cbc']['overall_performance_level'] ?? 'N/A' }}</strong> - 
+      {{ $D['cbc']['overall_performance_level_name'] ?? 'N/A' }}
+    </td>
+  </tr>
+</table>
+@endif
+
+{{-- CBC Core Competencies --}}
+@if(!empty($D['cbc']['core_competencies']) && is_array($D['cbc']['core_competencies']) && count($D['cbc']['core_competencies']) > 0)
+<table style="width:100%; border-collapse:collapse; border:1px solid #444; margin-bottom:10px;">
+  <thead>
+    <tr style="background:#f3f3f3;">
+      <th style="padding:6px; border:1px solid #444; text-align:left;" colspan="3">Core Competencies</th>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <th style="padding:6px; border:1px solid #444; text-align:left;">Competency</th>
+      <th style="padding:6px; border:1px solid #444; text-align:center;">Code</th>
+      <th style="padding:6px; border:1px solid #444; text-align:center;">Average Score</th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach($D['cbc']['core_competencies'] as $code => $competency)
+      <tr>
+        <td style="padding:6px; border:1px solid #444;">{{ $competency['name'] ?? $code }}</td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">{{ $code }}</td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $competency['average'] !== null ? number_format($competency['average'], 2) : 'N/A' }}
+        </td>
+      </tr>
+    @endforeach
+  </tbody>
+</table>
+@endif
+
+{{-- CBC Learning Areas Performance --}}
+@if(!empty($D['cbc']['learning_areas_performance']) && is_array($D['cbc']['learning_areas_performance']) && count($D['cbc']['learning_areas_performance']) > 0)
+<table style="width:100%; border-collapse:collapse; border:1px solid #444; margin-bottom:10px;">
+  <thead>
+    <tr style="background:#f3f3f3;">
+      <th style="padding:6px; border:1px solid #444; text-align:left;" colspan="4">Learning Areas Performance</th>
+    </tr>
+    <tr style="background:#f9f9f9;">
+      <th style="padding:6px; border:1px solid #444; text-align:left;">Learning Area</th>
+      <th style="padding:6px; border:1px solid #444; text-align:center;">Average (%)</th>
+      <th style="padding:6px; border:1px solid #444; text-align:center;">Performance Level</th>
+      <th style="padding:6px; border:1px solid #444; text-align:center;">Subjects</th>
+    </tr>
+  </thead>
+  <tbody>
+    @foreach($D['cbc']['learning_areas_performance'] as $area => $performance)
+      <tr>
+        <td style="padding:6px; border:1px solid #444;">{{ $area }}</td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $performance['average'] !== null ? number_format($performance['average'], 2) : 'N/A' }}%
+        </td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          <strong>{{ $performance['performance_level'] ?? 'N/A' }}</strong>
+        </td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $performance['subjects_count'] ?? 0 }}
+        </td>
+      </tr>
+    @endforeach
+  </tbody>
+</table>
+@endif
+
+{{-- CBC CAT Breakdown --}}
+@if(!empty($D['cbc']['cat_breakdown']) && is_array($D['cbc']['cat_breakdown']))
+  @php
+    $hasCatData = false;
+    foreach($D['cbc']['cat_breakdown'] as $key => $value) {
+      if ($key !== 'average' && $value !== null) {
+        $hasCatData = true;
+        break;
+      }
+    }
+  @endphp
+  @if($hasCatData)
+  <table style="width:100%; border-collapse:collapse; border:1px solid #444; margin-bottom:10px;">
+    <thead>
+      <tr style="background:#f3f3f3;">
+        <th style="padding:6px; border:1px solid #444; text-align:left;" colspan="5">CAT Breakdown</th>
+      </tr>
+      <tr style="background:#f9f9f9;">
+        <th style="padding:6px; border:1px solid #444; text-align:center;">CAT 1</th>
+        <th style="padding:6px; border:1px solid #444; text-align:center;">CAT 2</th>
+        <th style="padding:6px; border:1px solid #444; text-align:center;">CAT 3</th>
+        <th style="padding:6px; border:1px solid #444; text-align:center;">Average</th>
+        <th style="padding:6px; border:1px solid #444; text-align:left;">Performance Level</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $D['cbc']['cat_breakdown']['cat_1']['percentage'] ?? 'N/A' }}%
+        </td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $D['cbc']['cat_breakdown']['cat_2']['percentage'] ?? 'N/A' }}%
+        </td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $D['cbc']['cat_breakdown']['cat_3']['percentage'] ?? 'N/A' }}%
+        </td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          <strong>{{ $D['cbc']['cat_breakdown']['average'] !== null ? number_format($D['cbc']['cat_breakdown']['average'], 2) . '%' : 'N/A' }}</strong>
+        </td>
+        <td style="padding:6px; border:1px solid #444; text-align:center;">
+          {{ $D['cbc']['cat_breakdown']['cat_1']['performance_level'] ?? $D['cbc']['cat_breakdown']['cat_2']['performance_level'] ?? $D['cbc']['cat_breakdown']['cat_3']['performance_level'] ?? 'N/A' }}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  @endif
+@endif
+
+{{-- CBC Portfolio Summary --}}
+@if(!empty($D['cbc']['portfolio_summary']) && is_array($D['cbc']['portfolio_summary']) && !empty($D['cbc']['portfolio_summary']['total']))
+<table style="width:100%; border-collapse:collapse; border:1px solid #444; margin-bottom:10px;">
+  <tr style="background:#f3f3f3;">
+    <th style="padding:6px; border:1px solid #444; text-align:left;">Portfolio Summary</th>
+    <td style="padding:6px; border:1px solid #444;">
+      Total: {{ $D['cbc']['portfolio_summary']['total'] ?? 0 }}, 
+      Average Score: {{ $D['cbc']['portfolio_summary']['average_score'] !== null ? number_format($D['cbc']['portfolio_summary']['average_score'], 2) : 'N/A' }}
+    </td>
+  </tr>
+</table>
+@endif
+
 {{-- Remarks --}}
 <table style="width:100%; border-collapse:separate; border-spacing:10px 0; margin-top:10px;">
   <tr>
     <td style="width:50%; vertical-align:top;">
       <div style="border:1px solid #999; padding:8px;">
-        <strong>Class Teacher’s Remark</strong>
+        <strong>Class Teacher's Remark</strong>
         <div style="padding-top:8px;">{{ $D['comments']['teacher_remark'] ?? '' }}</div>
       </div>
     </td>
     <td style="width:50%; vertical-align:top;">
       <div style="border:1px solid #999; padding:8px;">
-        <strong>Head Teacher’s Remark</strong>
+        <strong>Head Teacher's Remark</strong>
         <div style="padding-top:8px;">{{ $D['comments']['headteacher_remark'] ?? '' }}</div>
       </div>
     </td>

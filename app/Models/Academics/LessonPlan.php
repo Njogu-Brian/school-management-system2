@@ -89,6 +89,16 @@ class LessonPlan extends Model
         return $this->belongsTo(\App\Models\Staff::class, 'created_by');
     }
 
+    public function homework()
+    {
+        return $this->hasMany(Homework::class, 'lesson_plan_id');
+    }
+
+    public function homeworkDiary()
+    {
+        return $this->hasMany(HomeworkDiary::class, 'lesson_plan_id');
+    }
+
     // Scopes
     public function scopePlanned(Builder $query)
     {

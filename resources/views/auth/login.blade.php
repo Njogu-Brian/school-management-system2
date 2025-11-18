@@ -2,16 +2,40 @@
 
 @section('content')
 @php
-    $schoolName = $settings['school_name']->value ?? 'School Management System';
-    $schoolLogo = $settings['school_logo']->value ?? null;
-    $loginBg    = $settings['login_background']->value ?? null;
+    $schoolName = isset($settings['school_name']) && $settings['school_name'] ? $settings['school_name']->value : 'School Management System';
+    $schoolLogo = isset($settings['school_logo']) && $settings['school_logo'] ? $settings['school_logo']->value : null;
+    $loginBg    = isset($settings['login_background']) && $settings['login_background'] ? $settings['login_background']->value : null;
+    
+    // Try to use background image from settings, then fallback to existing images
+    $bgImage = null;
+    if ($loginBg) {
+        $bgPath = public_path('images/' . $loginBg);
+        if (file_exists($bgPath)) {
+            $bgImage = asset('images/' . $loginBg);
+        }
+    }
+    
+    // Fallback to existing background images if setting doesn't exist or file not found
+    if (!$bgImage) {
+        $fallbackImages = ['page background.jpg', '1757052514_page background.jpg'];
+        foreach ($fallbackImages as $fallback) {
+            $fallbackPath = public_path('images/' . $fallback);
+            if (file_exists($fallbackPath)) {
+                $bgImage = asset('images/' . $fallback);
+                break;
+            }
+        }
+    }
 @endphp
 
 <style>
     body {
-        background: url('{{ $loginBg ? asset("images/" . $loginBg) : asset("images/default-bg.jpg") }}')
-        no-repeat center center fixed;
+        @if($bgImage)
+        background: url('{{ $bgImage }}') no-repeat center center fixed;
         background-size: cover;
+        @else
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        @endif
         min-height: 100vh;
         display: flex;
         align-items: center;

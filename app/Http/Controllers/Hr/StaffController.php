@@ -1,13 +1,13 @@
 <?php
 
-namespace App\Http\Controllers\HR;
+namespace App\Http\Controllers\Hr;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Validation\Rule;
 use App\Models\Staff;
 use App\Models\StaffMeta;
 use App\Models\User;
-use App\Models\SystemSetting;
+use App\Models\Setting;
 use App\Models\EmailTemplate;
 use App\Models\CommunicationTemplate;
 use App\Models\Department;
@@ -155,8 +155,9 @@ class StaffController extends Controller
         }
 
         // 3) Generate staff ID
-        $prefix = SystemSetting::getValue('staff_id_prefix', 'STAFF');
-        $start  = (int) SystemSetting::getValue('staff_id_start', 1001);
+        $prefix = Setting::get('staff_id_prefix', 'STAFF');
+        $start  = Setting::getInt('staff_id_start', 1001);
+        $staffId = $prefix . $start;
 
         // 4) Build staff payload (HR + profile)
         $staffData = $request->only([
@@ -169,7 +170,7 @@ class StaffController extends Controller
             'department_id','job_title_id','supervisor_id','staff_category_id'
         ]);
         $staffData['user_id']  = $user->id;
-        $staffData['staff_id'] = $prefix . $start;
+        $staffData['staff_id'] = $staffId;
 
         if ($request->hasFile('photo')) {
             $staffData['photo'] = $request->file('photo')->store('staff_photos', 'public');
@@ -178,7 +179,7 @@ class StaffController extends Controller
         $staff = Staff::create($staffData);
 
         // 5) Increment counter
-        SystemSetting::set('staff_id_start', $start + 1);
+        Setting::setInt('staff_id_start', $start + 1);
 
         // 6) Save custom fields metadata
         if ($request->has('custom_fields')) {

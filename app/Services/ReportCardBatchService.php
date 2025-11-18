@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Models\Academics\ReportCard;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\ExamGrade;
+use App\Models\Academics\CBCPerformanceLevel;
 use App\Models\Attendance;
 use App\Models\Academics\StudentBehaviour;
 use App\Models\Setting; // if you store branding here; otherwise adjust.
 use App\Services\CBCAssessmentService;
+use Illuminate\Support\Facades\Log;
 
 class ReportCardBatchService
 {
@@ -93,6 +95,7 @@ class ReportCardBatchService
             'student.classroom','student.stream',
             'academicYear','term','classroom','stream',
             'skills',
+            'overallPerformanceLevel', // Load CBC performance level
         ])->findOrFail($reportCardId);
 
         $student = $report->student;
@@ -188,14 +191,63 @@ class ReportCardBatchService
         // Branding (pull from your settings table/logic)
         $branding = [
             'school_name' => setting('school_name') ?? 'Your School',
-            'logo_path'   => setting('logo_path') ? public_path(setting('logo_path')) : public_path('images/logo.png'),
+            'logo_path'   => setting('school_logo') ? public_path('images/' . setting('school_logo')) : null,
             'address'     => setting('school_address') ?? '',
             'phone'       => setting('school_phone') ?? '',
+            'email'       => setting('school_email') ?? '',
         ];
+
+        // CBC Data from report card
+        $cbcData = [
+            'overall_performance_level' => $report->overallPerformanceLevel?->code ?? null,
+            'overall_performance_level_name' => $report->overallPerformanceLevel?->name ?? null,
+            'performance_summary' => $report->performance_summary ?? [],
+            'core_competencies' => $report->core_competencies ?? [],
+            'learning_areas_performance' => $report->learning_areas_performance ?? [],
+            'cat_breakdown' => $report->cat_breakdown ?? [],
+            'portfolio_summary' => $report->portfolio_summary ?? [],
+            'co_curricular' => $report->co_curricular ?? [],
+            'personal_social_dev' => $report->personal_social_dev ?? [],
+        ];
+
+        // If CBC data is missing, generate it
+        if (empty($report->core_competencies) || empty($report->learning_areas_performance)) {
+            try {
+                $generatedCBC = CBCAssessmentService::generateReportCardData(
+                    $student->id,
+                    $yearId,
+                    $termId
+                );
+                
+                // Merge generated data if report card doesn't have it
+                if (empty($report->core_competencies) && !empty($generatedCBC['core_competencies'])) {
+                    $cbcData['core_competencies'] = $generatedCBC['core_competencies'];
+                }
+                if (empty($report->learning_areas_performance) && !empty($generatedCBC['learning_areas_performance'])) {
+                    $cbcData['learning_areas_performance'] = $generatedCBC['learning_areas_performance'];
+                }
+                if (empty($report->cat_breakdown) && !empty($generatedCBC['cat_breakdown'])) {
+                    $cbcData['cat_breakdown'] = $generatedCBC['cat_breakdown'];
+                }
+                if (empty($report->portfolio_summary) && !empty($generatedCBC['portfolio_summary'])) {
+                    $cbcData['portfolio_summary'] = $generatedCBC['portfolio_summary'];
+                }
+                if (!$report->overall_performance_level_id && !empty($generatedCBC['overall_performance_level_id'])) {
+                    $performanceLevel = CBCPerformanceLevel::find($generatedCBC['overall_performance_level_id']);
+                    if ($performanceLevel) {
+                        $cbcData['overall_performance_level'] = $performanceLevel->code;
+                        $cbcData['overall_performance_level_name'] = $performanceLevel->name;
+                    }
+                }
+            } catch (\Exception $e) {
+                // Log error but continue without CBC data
+                Log::warning('Failed to generate CBC data for report card: ' . $e->getMessage());
+            }
+        }
 
         return [
             'student' => [
-                'name'              => $student->full_name,
+                'name'              => $student->name ?? trim($student->first_name . ' ' . ($student->middle_name ? $student->middle_name . ' ' : '') . $student->last_name),
                 'admission_number'  => $student->admission_number ?? '',
                 'class'             => $report->classroom?->name ?? '',
                 'stream'            => $report->stream?->name ?? '',
@@ -215,9 +267,10 @@ class ReportCardBatchService
                 'career_interest'  => (string) $report->career_interest,
                 'talent_noticed'   => (string) $report->talent_noticed,
             ],
+            'cbc'        => $cbcData,
             'branding'   => $branding,
             'generated'  => [
-                'by'   => auth()->user()?->name,
+                'by'   => auth()->user()?->name ?? 'System',
                 'at'   => now()->format('d M Y H:i'),
             ],
         ];

@@ -8,20 +8,35 @@ use App\Models\Academics\SchemeOfWork;
 use App\Models\Academics\Subject;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\CBCSubstrand;
+use App\Models\Academics\CBCStrand;
+use App\Models\Academics\LearningArea;
+use App\Models\Academics\Homework;
+use App\Models\Academics\HomeworkDiary;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Services\PDFExportService;
+use App\Services\ExcelExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class LessonPlanController extends Controller
 {
-    public function __construct()
+    protected $pdfService;
+    protected $excelService;
+
+    public function __construct(PDFExportService $pdfService, ExcelExportService $excelService)
     {
+        $this->pdfService = $pdfService;
+        $this->excelService = $excelService;
+
         $this->middleware('permission:lesson_plans.view')->only(['index', 'show']);
         $this->middleware('permission:lesson_plans.create')->only(['create', 'store']);
         $this->middleware('permission:lesson_plans.edit')->only(['edit', 'update']);
         $this->middleware('permission:lesson_plans.delete')->only(['destroy']);
+        $this->middleware('permission:lesson_plans.export_pdf')->only(['exportPdf']);
+        $this->middleware('permission:lesson_plans.export_excel')->only(['exportExcel']);
+        $this->middleware('permission:homework.create')->only(['assignHomeworkForm', 'assignHomework']);
     }
 
     public function index(Request $request)
@@ -76,14 +91,57 @@ class LessonPlanController extends Controller
         return view('academics.lesson_plans.index', compact('lessonPlans', 'classrooms', 'subjects', 'years', 'terms'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $subjects = Subject::active()->orderBy('name')->get();
         $classrooms = $this->getAccessibleClassrooms();
         $schemes = SchemeOfWork::where('status', 'active')->with('subject', 'classroom')->get();
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
-        $substrands = CBCSubstrand::active()->with('strand')->ordered()->get();
+        
+        // Filter substrands based on selected subject and classroom
+        $substrands = collect();
+        if ($request->filled('subject_id') && $request->filled('classroom_id')) {
+            $subject = Subject::find($request->subject_id);
+            $classroom = Classroom::find($request->classroom_id);
+            
+            if ($subject && $classroom) {
+                // Try to find learning area by code or name
+                $learningArea = null;
+                if ($subject->learning_area) {
+                    $learningArea = LearningArea::where('code', $subject->learning_area)
+                        ->orWhere('name', $subject->learning_area)
+                        ->first();
+                }
+
+                $strandQuery = CBCStrand::where('is_active', true);
+
+                if ($learningArea) {
+                    // Use learning_area_id if available
+                    $strandQuery->where('learning_area_id', $learningArea->id);
+                } else {
+                    // Fallback to old method using learning_area string
+                    $strandQuery->where('learning_area', $subject->learning_area ?? $subject->name);
+                }
+
+                // Filter by level
+                $level = $subject->level ?? $classroom->level ?? '';
+                if ($level) {
+                    $strandQuery->where('level', $level);
+                }
+
+                $strandIds = $strandQuery->orderBy('display_order')->orderBy('name')->pluck('id');
+                
+                if (!empty($strandIds)) {
+                    $substrands = CBCSubstrand::where('is_active', true)
+                        ->whereIn('strand_id', $strandIds)
+                        ->with('strand.learningArea')
+                        ->orderBy('display_order')
+                        ->orderBy('name')
+                        ->get();
+                }
+            }
+        }
 
         return view('academics.lesson_plans.create', compact('subjects', 'classrooms', 'schemes', 'years', 'terms', 'substrands'));
     }
@@ -248,5 +306,218 @@ class LessonPlanController extends Controller
             ->where('staff_id', $staff->id)
             ->where('classroom_id', $classroomId)
             ->exists();
+    }
+
+    /**
+     * AJAX endpoint to fetch substrands based on subject and classroom
+     */
+    public function getSubstrands(Request $request)
+    {
+        $subjectId = $request->get('subject_id');
+        $classroomId = $request->get('classroom_id');
+
+        if (!$subjectId || !$classroomId) {
+            return response()->json([]);
+        }
+
+        $subject = Subject::find($subjectId);
+        $classroom = Classroom::find($classroomId);
+
+        if (!$subject || !$classroom) {
+            return response()->json([]);
+        }
+
+        // Try to find learning area by code or name
+        $learningArea = null;
+        if ($subject->learning_area) {
+            $learningArea = LearningArea::where('code', $subject->learning_area)
+                ->orWhere('name', $subject->learning_area)
+                ->first();
+        }
+
+        $strandQuery = CBCStrand::where('is_active', true);
+
+        if ($learningArea) {
+            // Use learning_area_id if available
+            $strandQuery->where('learning_area_id', $learningArea->id);
+        } else {
+            // Fallback to old method using learning_area string
+            $strandQuery->where('learning_area', $subject->learning_area ?? $subject->name);
+        }
+
+        // Filter by level
+        $level = $subject->level ?? $classroom->level ?? '';
+        if ($level) {
+            $strandQuery->where('level', $level);
+        }
+
+        $strandIds = $strandQuery->orderBy('display_order')->orderBy('name')->pluck('id');
+        
+        if (empty($strandIds)) {
+            return response()->json([]);
+        }
+
+        $substrands = CBCSubstrand::where('is_active', true)
+            ->whereIn('strand_id', $strandIds)
+            ->with('strand.learningArea')
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->get()
+            ->map(function($substrand) {
+                return [
+                    'id' => $substrand->id,
+                    'name' => $substrand->name,
+                    'code' => $substrand->code,
+                    'strand_name' => $substrand->strand->name ?? '',
+                    'strand_id' => $substrand->strand_id,
+                    'learning_area' => $substrand->strand->learningArea->name ?? '',
+                ];
+            });
+
+        return response()->json($substrands);
+    }
+
+    /**
+     * Show form to assign homework from lesson plan
+     */
+    public function assignHomeworkForm(LessonPlan $lesson_plan)
+    {
+        if (!$this->canAccessClassroom($lesson_plan->classroom_id)) {
+            abort(403);
+        }
+
+        $lesson_plan->load(['subject', 'classroom']);
+
+        return view('academics.lesson_plans.assign_homework', compact('lesson_plan'));
+    }
+
+    /**
+     * Assign homework from lesson plan
+     */
+    public function assignHomework(Request $request, LessonPlan $lesson_plan)
+    {
+        $validated = $request->validate([
+            'title' => 'required|string|max:255',
+            'instructions' => 'required|string',
+            'due_date' => 'required|date|after:today',
+            'max_score' => 'nullable|integer|min:1',
+            'allow_late_submission' => 'boolean',
+            'target_scope' => 'required|in:class,students',
+            'student_ids' => 'nullable|array|required_if:target_scope,students',
+            'student_ids.*' => 'exists:students,id',
+        ]);
+
+        if (!$this->canAccessClassroom($lesson_plan->classroom_id)) {
+            return back()->with('error', 'You do not have access to this classroom.');
+        }
+
+        DB::beginTransaction();
+        try {
+            // Create homework
+            $homework = Homework::create([
+                'assigned_by' => Auth::user()->id,
+                'teacher_id' => Auth::user()->staff?->id,
+                'classroom_id' => $lesson_plan->classroom_id,
+                'subject_id' => $lesson_plan->subject_id,
+                'lesson_plan_id' => $lesson_plan->id,
+                'scheme_of_work_id' => $lesson_plan->scheme_of_work_id,
+                'title' => $validated['title'],
+                'instructions' => $validated['instructions'],
+                'due_date' => $validated['due_date'],
+                'max_score' => $validated['max_score'] ?? null,
+                'allow_late_submission' => $validated['allow_late_submission'] ?? true,
+                'target_scope' => $validated['target_scope'],
+            ]);
+
+            // Assign to students
+            if ($validated['target_scope'] === 'students' && !empty($validated['student_ids'])) {
+                $homework->students()->sync($validated['student_ids']);
+                
+                // Create homework diary entries for selected students
+                foreach ($validated['student_ids'] as $studentId) {
+                    HomeworkDiary::create([
+                        'homework_id' => $homework->id,
+                        'student_id' => $studentId,
+                        'lesson_plan_id' => $lesson_plan->id,
+                        'max_score' => $homework->max_score,
+                        'status' => 'pending',
+                    ]);
+                }
+            } else {
+                // Assign to all students in classroom
+                $students = \App\Models\Student::where('classroom_id', $lesson_plan->classroom_id)->get();
+                foreach ($students as $student) {
+                    HomeworkDiary::create([
+                        'homework_id' => $homework->id,
+                        'student_id' => $student->id,
+                        'lesson_plan_id' => $lesson_plan->id,
+                        'max_score' => $homework->max_score,
+                        'status' => 'pending',
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return redirect()
+                ->route('academics.homework.show', $homework)
+                ->with('success', 'Homework assigned successfully from lesson plan.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Failed to assign homework: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Export lesson plan as PDF
+     */
+    public function exportPdf(LessonPlan $lesson_plan)
+    {
+        if (!$this->canAccessClassroom($lesson_plan->classroom_id)) {
+            abort(403);
+        }
+
+        $lesson_plan->load([
+            'subject', 'classroom', 'academicYear', 'term',
+            'substrand.strand', 'schemeOfWork', 'creator', 'homework'
+        ]);
+
+        $data = [
+            'lesson_plan' => $lesson_plan,
+        ];
+
+        try {
+            return $this->pdfService->generatePDF(
+                'academics.lesson_plans.pdf',
+                $data,
+                [
+                    'filename' => 'lesson_plan_' . $lesson_plan->id . '_' . date('Y-m-d') . '.pdf',
+                    'paper_size' => 'A4',
+                    'orientation' => 'portrait',
+                ]
+            );
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to generate PDF: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Export lesson plan as Excel
+     */
+    public function exportExcel(LessonPlan $lesson_plan)
+    {
+        if (!$this->canAccessClassroom($lesson_plan->classroom_id)) {
+            abort(403);
+        }
+
+        $lesson_plan->load([
+            'subject', 'classroom', 'academicYear', 'term',
+            'substrand.strand', 'schemeOfWork', 'creator'
+        ]);
+
+        return $this->excelService->exportLessonPlans(
+            collect([$lesson_plan]),
+            'lesson_plan_' . $lesson_plan->id . '_' . date('Y-m-d') . '.xlsx'
+        );
     }
 }

@@ -21,28 +21,110 @@ use App\Models\Academics\Stream;
 
 class ReportCardController extends Controller
 {
-    public function index()
+    public function __construct()
     {
-        $report_cards = ReportCard::with(['student','publisher','academicYear','term','classroom'])
-            ->latest()
-            ->paginate(20);
+        $this->middleware('permission:report_cards.view')->only(['index', 'show', 'publicView']);
+        $this->middleware('permission:report_cards.create')->only(['create', 'store']);
+        $this->middleware('permission:report_cards.edit')->only(['edit', 'update']);
+        $this->middleware('permission:report_cards.delete')->only(['destroy']);
+        $this->middleware('permission:report_cards.publish')->only(['publish']);
+        $this->middleware('permission:report_cards.generate')->only(['generateForm', 'generate']);
+        $this->middleware('permission:report_cards.export_pdf')->only(['exportPdf']);
+    }
 
-        return view('academics.report_cards.index', compact('report_cards'));
+    public function index(Request $request)
+    {
+        $query = ReportCard::with(['student','publisher','academicYear','term','classroom']);
+
+        // Teachers can only see report cards for their assigned classes
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $query->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No access
+            }
+        }
+
+        // Filters
+        if ($request->filled('academic_year_id')) {
+            $query->where('academic_year_id', $request->academic_year_id);
+        }
+        if ($request->filled('term_id')) {
+            $query->where('term_id', $request->term_id);
+        }
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('student', function($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhere('admission_number', 'like', "%{$search}%");
+            });
+        }
+
+        $report_cards = $query->latest()->paginate(20)->withQueryString();
+
+        $years = AcademicYear::orderByDesc('year')->get();
+        $terms = Term::orderBy('name')->get();
+        
+        // Filter classrooms based on user role
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+        }
+
+        return view('academics.report_cards.index', compact('report_cards', 'years', 'terms', 'classrooms'));
     }
 
     public function show(ReportCard $report_card)
     {
+        // Check if teacher has access to this report card's classroom
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff && $report_card->classroom_id) {
+                $hasAccess = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $report_card->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to this report card.');
+                }
+            }
+        }
+
         $report_card->load([
             'student.classroom','student.stream',
             'academicYear','term','classroom','stream',
-            'skills'
+            'skills',
+            'overallPerformanceLevel'
         ]);
 
         $dto = ReportCardBatchService::build($report_card->id);
         $isPdf = false;
 
         return view('academics.report_cards.show', compact('report_card','dto','isPdf'));
-}
+    }
+
     public function create()
     {
         return view('academics.report_cards.create', [
@@ -61,6 +143,23 @@ class ReportCardController extends Controller
             'classroom_id'     => 'required|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
         ]);
+
+        // Check if teacher has access to classroom
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $hasAccess = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $v['classroom_id'])
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'You do not have access to this classroom.');
+                }
+            }
+        }
 
         $report_card = ReportCard::firstOrCreate(
             [
@@ -184,6 +283,23 @@ class ReportCardController extends Controller
             'classroom_id'     => 'required|exists:classrooms,id',
             'stream_id'        => 'nullable|exists:streams,id',
         ]);
+
+        // Check if teacher has access to classroom
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $hasAccess = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $v['classroom_id'])
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'You do not have access to generate report cards for this classroom.');
+                }
+            }
+        }
 
         $service->generateForClass(
             $v['academic_year_id'],

@@ -16,6 +16,14 @@ use Illuminate\Support\Str;
 
 class SubjectController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:subjects.view')->only(['index', 'show']);
+        $this->middleware('permission:subjects.create')->only(['create', 'store', 'generateCBCSubjects', 'assignToClassrooms']);
+        $this->middleware('permission:subjects.edit')->only(['edit', 'update', 'updateLessonsPerWeek']);
+        $this->middleware('permission:subjects.delete')->only(['destroy']);
+    }
+
     public function index(Request $request)
     {
         $query = Subject::with(['group', 'classroomSubjects.classroom', 'teachers'])
@@ -27,7 +35,10 @@ class SubjectController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('code', 'like', "%{$search}%")
-                  ->orWhere('learning_area', 'like', "%{$search}%");
+                  ->orWhere('learning_area', 'like', "%{$search}%")
+                  ->orWhereHas('group', function($subQ) use ($search) {
+                      $subQ->where('name', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -222,12 +233,13 @@ class SubjectController extends Controller
     {
         $validated = $request->validate([
             'level' => 'required|in:PP1,PP2,Grade 1,Grade 2,Grade 3,Grade 4,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9',
-            'assign_to_classrooms' => 'boolean',
+            'assign_to_classrooms' => 'nullable|boolean',
             'classroom_ids' => 'nullable|array',
             'classroom_ids.*' => 'exists:classrooms,id',
         ]);
 
         $level = $validated['level'];
+        $assignToClassrooms = $request->boolean('assign_to_classrooms', false);
         $subjects = $this->getCBCSubjectsForLevel($level);
 
         DB::beginTransaction();
@@ -256,7 +268,7 @@ class SubjectController extends Controller
                 $createdSubjects[] = $subject;
 
                 // Assign to classrooms if requested
-                if ($validated['assign_to_classrooms'] && $request->filled('classroom_ids')) {
+                if ($assignToClassrooms && $request->filled('classroom_ids')) {
                     foreach ($request->classroom_ids as $classroomId) {
                         ClassroomSubject::firstOrCreate(
                             [
@@ -483,5 +495,19 @@ class SubjectController extends Controller
                 ->withInput()
                 ->with('error', 'Failed to assign subjects: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Update lessons per week for a classroom subject
+     */
+    public function updateLessonsPerWeek(Request $request, ClassroomSubject $classroomSubject)
+    {
+        $validated = $request->validate([
+            'lessons_per_week' => 'required|integer|min:1|max:20',
+        ]);
+
+        $classroomSubject->update($validated);
+
+        return back()->with('success', 'Lessons per week updated successfully.');
     }
 }

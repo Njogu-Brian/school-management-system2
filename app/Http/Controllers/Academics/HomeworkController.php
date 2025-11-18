@@ -16,29 +16,105 @@ use Illuminate\Support\Facades\Storage;
 
 class HomeworkController extends Controller
 {
-    public function index()
+    public function __construct()
     {
-        $homeworks = Homework::with(['classroom','stream','subject','teacher'])
-            ->latest()->paginate(20);
+        $this->middleware('permission:homework.view')->only(['index', 'show']);
+        $this->middleware('permission:homework.create')->only(['create', 'store']);
+        $this->middleware('permission:homework.edit')->only(['edit', 'update']);
+        $this->middleware('permission:homework.delete')->only(['destroy']);
+    }
 
-        return view('academics.homework.index', compact('homeworks'));
+    public function index(Request $request)
+    {
+        $query = Homework::with(['classroom','stream','subject','teacher']);
+
+        // Teachers can only see homework for their assigned classes
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $query->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No access
+            }
+        }
+
+        // Filters
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+        if ($request->filled('subject_id')) {
+            $query->where('subject_id', $request->subject_id);
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('instructions', 'like', "%{$search}%");
+            });
+        }
+
+        $homeworks = $query->latest()->paginate(20)->withQueryString();
+
+        // Filter classrooms and subjects based on user role
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+                $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
+                    $q->where('staff_id', $staff->id);
+                })->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+                $subjects = collect();
+            }
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+            $subjects = Subject::active()->orderBy('name')->get();
+        }
+
+        return view('academics.homework.index', compact('homeworks', 'classrooms', 'subjects'));
     }
 
     public function create()
     {
         $user = Auth::user();
 
-        // Admins see all, Teachers only their classes/subjects
-        if ($user->hasRole(['Super Admin','Admin'])) {
-            $classrooms = Classroom::orderBy('first_name')->get();
-            $subjects   = Subject::orderBy('first_name')->get();
+        // Filter classrooms and subjects based on user role
+        if ($user->hasAnyRole(['Super Admin', 'Admin'])) {
+            $classrooms = Classroom::orderBy('name')->get();
+            $subjects = Subject::active()->orderBy('name')->get();
         } else {
-            $teacherId  = $user->staff?->id;
-            $classrooms = Classroom::where('teacher_id',$teacherId)->get();
-            $subjects   = Subject::where('teacher_id',$teacherId)->get();
+            $staff = $user->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+                $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
+                    $q->where('staff_id', $staff->id);
+                })->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+                $subjects = collect();
+            }
         }
 
-        $students = Student::orderBy('first_name')->get();
+        $students = Student::orderBy('last_name')->orderBy('first_name')->get();
 
         return view('academics.homework.create', compact('classrooms','subjects','students'));
     }
@@ -48,19 +124,39 @@ class HomeworkController extends Controller
         $request->validate([
             'title'         => 'required|string|max:255',
             'instructions'  => 'nullable|string',
-            'due_date'      => 'required|date',
+            'due_date'      => 'required|date|after:today',
             'target_scope'  => 'required|in:class,stream,students,school',
-            'classroom_id'  => 'nullable|exists:classrooms,id',
+            'classroom_id'  => 'required_if:target_scope,class,stream|nullable|exists:classrooms,id',
             'stream_id'     => 'nullable|exists:streams,id',
             'subject_id'    => 'nullable|exists:subjects,id',
-            'student_ids'   => 'array',
+            'student_ids'   => 'nullable|array|required_if:target_scope,students',
             'student_ids.*' => 'exists:students,id',
             'attachment'    => 'nullable|file|max:10240',
+            'max_score'     => 'nullable|integer|min:1',
+            'allow_late_submission' => 'boolean',
         ]);
 
         $user = Auth::user();
 
-        DB::transaction(function () use ($request,$user) {
+        // Check if teacher has access to classroom
+        if ($user->hasRole('Teacher') && $request->classroom_id) {
+            $staff = $user->staff;
+            if ($staff) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $request->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'You do not have access to assign homework to this classroom.');
+                }
+            }
+        }
+
+        DB::beginTransaction();
+        try {
             $path = null;
             if ($request->hasFile('attachment')) {
                 $path = $request->file('attachment')->store('homeworks','public');
@@ -75,46 +171,87 @@ class HomeworkController extends Controller
                 'title'         => $request->title,
                 'instructions'  => $request->instructions,
                 'file_path'     => $path,
+                'attachment_paths' => $path ? [$path] : null,
                 'due_date'      => $request->due_date,
                 'target_scope'  => $request->target_scope,
+                'max_score'     => $request->max_score ?? null,
+                'allow_late_submission' => $request->boolean('allow_late_submission', true),
             ]);
 
             if ($request->target_scope === 'students' && $request->filled('student_ids')) {
                 $homework->students()->sync($request->student_ids);
             }
 
-            // Create linked diary entry
-            $diary = Diary::create([
-                'classroom_id' => $homework->classroom_id,
-                'stream_id'    => $homework->stream_id,
-                'teacher_id'   => $homework->teacher_id ?? $user->staff?->id,
-                'week_start'   => now(),
-                'entries'      => ['homework_id'=>$homework->id],
-                'homework_id'  => $homework->id,
-                'is_homework'  => true,
-            ]);
+            DB::commit();
 
-            DiaryMessage::create([
-                'diary_id'       => $diary->id,
-                'user_id'        => $user->id,
-                'message_type'   => $homework->file_path ? 'file' : 'text',
-                'body'           => "**{$homework->title}**\nDue: ".$homework->due_date->format('d M Y')."\n".$homework->instructions,
-                'attachment_path'=> $homework->file_path,
-            ]);
-        });
-
-        return redirect()->route('academics.homework.index')->with('success','Homework assigned successfully.');
+            return redirect()->route('academics.homework.index')->with('success','Homework assigned successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to assign homework: ' . $e->getMessage());
+        }
     }
 
     public function show(Homework $homework)
     {
-        $homework->load(['classroom','stream','subject','students','diary.messages.sender']);
+        // Check if teacher has access
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff && $homework->classroom_id) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $homework->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to this homework.');
+                }
+            }
+        }
+
+        $homework->load([
+            'classroom',
+            'stream',
+            'subject',
+            'students',
+            'teacher',
+            'lessonPlan',
+            'schemeOfWork',
+            'homeworkDiaries.student'
+        ]);
         return view('academics.homework.show', compact('homework'));
     }
 
     public function destroy(Homework $homework)
     {
-        if ($homework->file_path) Storage::disk('public')->delete($homework->file_path);
+        // Check if teacher has access
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff && $homework->classroom_id) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $homework->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to delete this homework.');
+                }
+            }
+        }
+
+        // Delete attachment if exists
+        if ($homework->file_path) {
+            Storage::disk('public')->delete($homework->file_path);
+        }
+
+        // Delete attachment paths if exists
+        if ($homework->attachment_paths && is_array($homework->attachment_paths)) {
+            foreach ($homework->attachment_paths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+        }
+
         $homework->delete();
         return redirect()->route('academics.homework.index')->with('success','Homework deleted.');
     }

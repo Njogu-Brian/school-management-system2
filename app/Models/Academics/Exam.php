@@ -38,7 +38,14 @@ class Exam extends Model
         'assessment_method',
         'competency_focus',
         'portfolio_required',
-        'sba_weight'
+        'sba_weight',
+        // Advanced exam features
+        'exam_type_id',
+        'exam_category',
+        'component_weights',
+        'grade_mapping',
+        'descriptor_mapping',
+        'import_template_id',
     ];
 
     protected $casts = [
@@ -57,6 +64,10 @@ class Exam extends Model
         'competency_focus' => 'array',
         'portfolio_required' => 'boolean',
         'sba_weight' => 'decimal:2',
+        // Advanced exam features
+        'component_weights' => 'array',
+        'grade_mapping' => 'array',
+        'descriptor_mapping' => 'array',
     ];
 
     // Relationships

@@ -5,11 +5,23 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">{{ $schemes_of_work->title }}</h1>
         <div class="btn-group">
-            <a href="{{ route('academics.schemes-of-work.index') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Back
+            @can('schemes_of_work.export_pdf')
+            <a href="{{ route('academics.schemes-of-work.export-pdf', $schemes_of_work) }}" class="btn btn-danger" target="_blank">
+                <i class="bi bi-file-pdf"></i> Export PDF
             </a>
+            @endcan
+            @can('schemes_of_work.export_excel')
+            <a href="{{ route('academics.schemes-of-work.export-excel', $schemes_of_work) }}" class="btn btn-success">
+                <i class="bi bi-file-excel"></i> Export Excel
+            </a>
+            @endcan
+            @can('schemes_of_work.edit')
             <a href="{{ route('academics.schemes-of-work.edit', $schemes_of_work) }}" class="btn btn-warning">
                 <i class="bi bi-pencil"></i> Edit
+            </a>
+            @endcan
+            <a href="{{ route('academics.schemes-of-work.index') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
             </a>
         </div>
     </div>

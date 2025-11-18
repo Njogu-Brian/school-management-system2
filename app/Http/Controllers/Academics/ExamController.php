@@ -15,6 +15,15 @@ use Illuminate\Support\Facades\DB;
 
 class ExamController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:exams.view')->only(['index', 'show', 'timetable']);
+        $this->middleware('permission:exams.create')->only(['create', 'store']);
+        $this->middleware('permission:exams.edit')->only(['edit', 'update']);
+        $this->middleware('permission:exams.delete')->only(['destroy']);
+        $this->middleware('permission:exams.publish')->only(['publish']);
+    }
+
     public function index(Request $request)
     {
         $query = Exam::with([
@@ -26,12 +35,33 @@ class ExamController extends Controller
         ])
         ->withCount(['marks', 'schedules']);
 
+        // Teachers can only see exams for their assigned classes
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $query->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No access
+            }
+        }
+
         // Search
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('type', 'like', "%{$search}%");
+                  ->orWhere('type', 'like', "%{$search}%")
+                  ->orWhereHas('subject', function($subQ) use ($search) {
+                      $subQ->where('name', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('classroom', function($subQ) use ($search) {
+                      $subQ->where('name', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -56,15 +86,34 @@ class ExamController extends Controller
             $query->where('classroom_id', $request->classroom_id);
         }
 
-        // Statistics
+        if ($request->filled('subject_id')) {
+            $query->where('subject_id', $request->subject_id);
+        }
+
+        // Statistics (filtered by teacher if applicable)
+        $statsQuery = Exam::query();
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $statsQuery->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $statsQuery->whereRaw('1 = 0');
+            }
+        }
+
         $stats = [
-            'total' => Exam::count(),
-            'draft' => Exam::where('status', 'draft')->count(),
-            'open' => Exam::where('status', 'open')->count(),
-            'marking' => Exam::where('status', 'marking')->count(),
-            'approved' => Exam::where('status', 'approved')->count(),
-            'published' => Exam::where('status', 'published')->count(),
-            'locked' => Exam::where('status', 'locked')->count(),
+            'total' => $statsQuery->count(),
+            'draft' => (clone $statsQuery)->where('status', 'draft')->count(),
+            'open' => (clone $statsQuery)->where('status', 'open')->count(),
+            'marking' => (clone $statsQuery)->where('status', 'marking')->count(),
+            'approved' => (clone $statsQuery)->where('status', 'approved')->count(),
+            'published' => (clone $statsQuery)->where('status', 'published')->count(),
+            'locked' => (clone $statsQuery)->where('status', 'locked')->count(),
         ];
 
         $exams = $query->latest('created_at')->paginate(20)->withQueryString();
@@ -72,7 +121,25 @@ class ExamController extends Controller
         $types = ExamType::orderBy('name')->get();
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
-        $classrooms = Classroom::orderBy('name')->get();
+        
+        // Filter classrooms based on user role
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+        }
+
+        $subjects = Subject::active()->orderBy('name')->get();
 
         return view('academics.exams.index', compact(
             'exams',
@@ -80,18 +147,36 @@ class ExamController extends Controller
             'types',
             'years',
             'terms',
-            'classrooms'
+            'classrooms',
+            'subjects'
         ));
     }
 
 
     public function create()
     {
+        // Filter classrooms based on user role
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+        }
+
         return view('academics.exams.create', [
             'years'      => AcademicYear::orderByDesc('year')->get(),
             'terms'      => Term::orderBy('name')->get(),
-            'classrooms' => Classroom::orderBy('name')->get(),
-            'subjects'   => Subject::orderBy('name')->get(),
+            'classrooms' => $classrooms,
+            'subjects'   => Subject::active()->orderBy('name')->get(),
             'types'      => ExamType::orderBy('name')->get(),
         ]);
     }
@@ -115,6 +200,23 @@ class ExamController extends Controller
             'publish_result'   => 'boolean',
         ]);
 
+        // Check if teacher has access to classroom
+        if (Auth::user()->hasRole('Teacher') && $v['classroom_id']) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $v['classroom_id'])
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'You do not have access to this classroom.');
+                }
+            }
+        }
+
         $exam = Exam::create($v + [
             'created_by' => Auth::id(),
             'status' => 'draft',
@@ -127,18 +229,74 @@ class ExamController extends Controller
 
     public function edit(Exam $exam)
     {
+        // Check if teacher has access to this exam's classroom
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff && $exam->classroom_id) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $exam->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to this exam.');
+                }
+            }
+        }
+
+        // Filter classrooms based on user role
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+        }
+
         return view('academics.exams.edit', [
             'exam'       => $exam->load(['academicYear', 'term', 'classroom', 'subject']),
             'years'      => AcademicYear::orderByDesc('year')->get(),
             'terms'      => Term::orderBy('name')->get(),
-            'classrooms' => Classroom::orderBy('name')->get(),
-            'subjects'   => Subject::orderBy('name')->get(),
+            'classrooms' => $classrooms,
+            'subjects'   => Subject::active()->orderBy('name')->get(),
             'types'      => ExamType::orderBy('name')->get(),
         ]);
     }
 
     public function update(Request $request, Exam $exam)
     {
+        // Check if teacher has access to this exam's classroom
+        if (Auth::user()->hasRole('Teacher')) {
+            $staff = Auth::user()->staff;
+            if ($staff && $exam->classroom_id) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $exam->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to this exam.');
+                }
+            }
+
+            // Teachers can't change status to published or locked
+            if ($request->has('status') && in_array($request->status, ['published', 'locked'])) {
+                if (!Auth::user()->hasPermissionTo('exams.publish')) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'You do not have permission to publish or lock exams.');
+                }
+            }
+        }
+
         $v = $request->validate([
             'name'             => 'required|string|max:255',
             'type'             => 'required|in:cat,midterm,endterm,sba,mock,quiz',
@@ -153,19 +311,23 @@ class ExamController extends Controller
         ]);
 
         // Validate status transition
-        if ($v['status'] !== $exam->status && !$exam->canTransitionTo($v['status'])) {
-            return back()
-                ->withInput()
-                ->with('error', "Cannot transition from {$exam->status} to {$v['status']}.");
+        if (method_exists($exam, 'canTransitionTo') && $v['status'] !== $exam->status) {
+            if (!$exam->canTransitionTo($v['status'])) {
+                return back()
+                    ->withInput()
+                    ->with('error', "Cannot transition from {$exam->status} to {$v['status']}.");
+            }
         }
 
         // Handle status-specific actions
         if ($v['status'] === 'published' && !$exam->published_at) {
             $v['published_at'] = now();
+            $v['published_by'] = Auth::id();
         }
 
         if ($v['status'] === 'locked' && !$exam->locked_at) {
             $v['locked_at'] = now();
+            $v['locked_by'] = Auth::id();
         }
 
         $exam->update($v);
@@ -196,8 +358,8 @@ class ExamController extends Controller
 
     public function timetable(Request $request)
     {
-        $query = \App\Models\Academics\ExamPaper::with([
-            'exam.examGroup',
+        $query = \App\Models\Academics\ExamSchedule::with([
+            'exam',
             'subject',
             'classroom',
             'exam.term',
@@ -212,7 +374,7 @@ class ExamController extends Controller
             $query->where('classroom_id', $request->classroom_id);
         }
 
-        $papers = $query->orderBy('exam_date')
+        $schedules = $query->orderBy('exam_date')
             ->orderBy('start_time')
             ->get()
             ->groupBy('exam_date');
@@ -220,7 +382,7 @@ class ExamController extends Controller
         $exams = Exam::latest()->get();
         $classrooms = Classroom::orderBy('name')->get();
 
-        return view('academics.exams.timetable', compact('papers', 'exams', 'classrooms'));
+        return view('academics.exams.timetable', compact('schedules', 'exams', 'classrooms'));
     }
 
     public function show(Exam $exam)
