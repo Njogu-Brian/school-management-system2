@@ -28,7 +28,6 @@
                 <option value="class" {{ $homework->target_scope == 'class' ? 'selected' : '' }}>Class</option>
                 <option value="stream" {{ $homework->target_scope == 'stream' ? 'selected' : '' }}>Stream</option>
                 <option value="students" {{ $homework->target_scope == 'students' ? 'selected' : '' }}>Specific Students</option>
-                <option value="school" {{ $homework->target_scope == 'school' ? 'selected' : '' }}>Entire School</option>
             </select>
         </div>
 

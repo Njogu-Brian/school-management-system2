@@ -19,7 +19,7 @@ class Staff extends Model
         'photo','status',
         'hire_date','termination_date','employment_status','employment_type',
         'contract_start_date','contract_end_date',
-        'max_lessons_per_week'
+        'max_lessons_per_week','basic_salary'
     ];
 
     protected $casts = [
@@ -28,6 +28,7 @@ class Staff extends Model
         'contract_start_date' => 'date',
         'contract_end_date' => 'date',
         'date_of_birth' => 'date',
+        'basic_salary' => 'decimal:2',
     ];
 
     public function getPhotoUrlAttribute(): string

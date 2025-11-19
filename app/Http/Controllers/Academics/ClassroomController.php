@@ -20,7 +20,7 @@ class ClassroomController extends Controller
 
     public function index(Request $request)
     {
-        $query = Classroom::with(['teachers', 'streams', 'nextClass', 'previousClasses'])
+        $query = Classroom::with(['teachers.staff', 'streams', 'nextClass', 'previousClasses'])
             ->withCount('students');
 
         // Teachers can only see their assigned classes
@@ -90,8 +90,8 @@ class ClassroomController extends Controller
 
     public function edit($id)
     {
-        $classroom = Classroom::findOrFail($id);
-        $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
+        $classroom = Classroom::with('teachers.staff')->findOrFail($id);
+        $teachers = User::with('staff')->whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
         $assignedTeachers = $classroom->teachers->pluck('id')->toArray();
         $classrooms = Classroom::where('id', '!=', $id)->orderBy('name')->get();
         

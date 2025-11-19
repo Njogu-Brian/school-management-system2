@@ -8,17 +8,18 @@
         @csrf
         <div class="mb-3">
             <label class="form-label">Student</label>
-            <div class="input-group">
-                <input type="hidden" id="selectedStudentId" name="student_id" value="">
-                <input type="text" id="selectedStudentName" class="form-control" placeholder="Search by name or admission number" readonly>
-                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#studentSearchModal">
-                    Search
-                </button>
-            </div>
+            <select name="student_id" class="form-select" required>
+                <option value="">-- Select Student --</option>
+                @foreach($students as $student)
+                    <option value="{{ $student->id }}">
+                        {{ $student->admission_number ?? $student->admission_no }} - {{ $student->first_name }} {{ $student->middle_name ?? '' }} {{ $student->last_name }}
+                        @if($student->classroom)
+                            ({{ $student->classroom->name }})
+                        @endif
+                    </option>
+                @endforeach
+            </select>
         </div>
-
-        {{-- include the search modal --}}
-        @include('partials.student_search_modal')
 
         <div class="mb-3">
             <label>Behaviour</label>

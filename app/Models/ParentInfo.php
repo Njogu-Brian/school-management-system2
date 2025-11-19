@@ -24,4 +24,25 @@ class ParentInfo extends Model
     {
         return $this->hasMany(Student::class, 'parent_id');
     }
+
+    public function getPrimaryContactNameAttribute(): ?string
+    {
+        return $this->father_name
+            ?? $this->mother_name
+            ?? $this->guardian_name;
+    }
+
+    public function getPrimaryContactPhoneAttribute(): ?string
+    {
+        return $this->father_phone
+            ?? $this->mother_phone
+            ?? $this->guardian_phone;
+    }
+
+    public function getPrimaryContactEmailAttribute(): ?string
+    {
+        return $this->father_email
+            ?? $this->mother_email
+            ?? $this->guardian_email;
+    }
 }

@@ -20,8 +20,23 @@ class TimetableController extends Controller
 {
     public function index(Request $request)
     {
-        $classrooms = Classroom::orderBy('name')->get();
-        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+        $user = Auth::user();
+        
+        // Filter classrooms based on user role
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+            // Teachers can only see their own timetable
+            $teachers = collect();
+        } else {
+            $classrooms = Classroom::orderBy('name')->get();
+            $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
+        }
+        
         $years = AcademicYear::orderByDesc('year')->get();
         $terms = Term::orderBy('name')->get();
 

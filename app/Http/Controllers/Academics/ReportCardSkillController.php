@@ -11,6 +11,7 @@ class ReportCardSkillController extends Controller
 {
     public function index(ReportCard $reportCard)
     {
+        $reportCard->load('student');
         $skills = $reportCard->skills()
             ->orderBy('skill_name')   // field used by your blades
             ->paginate(30);

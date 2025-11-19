@@ -89,9 +89,29 @@ class InvoiceController extends Controller
 
                     if ($shouldSkip) continue;
 
+                    // Apply fee concessions
+                    $amount = $charge->amount;
+                    $concession = \App\Models\FeeConcession::where('student_id', $student->id)
+                        ->where(function($q) use ($votehead) {
+                            $q->whereNull('votehead_id')
+                              ->orWhere('votehead_id', $votehead->id);
+                        })
+                        ->where('is_active', true)
+                        ->where('start_date', '<=', now())
+                        ->where(function($q) {
+                            $q->whereNull('end_date')
+                              ->orWhere('end_date', '>=', now());
+                        })
+                        ->first();
+
+                    if ($concession) {
+                        $discount = $concession->calculateDiscount($amount);
+                        $amount = $amount - $discount;
+                    }
+
                     $itemsToInsert[] = [
                         'votehead_id' => $votehead->id,
-                        'amount' => $charge->amount,
+                        'amount' => $amount,
                     ];
                 }
 

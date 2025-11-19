@@ -71,21 +71,30 @@ class ExtraCurricularActivityController extends Controller
             'classroom_ids.*' => 'exists:classrooms,id',
             'staff_ids' => 'nullable|array',
             'staff_ids.*' => 'exists:staff,id',
+            'student_ids' => 'nullable|array',
+            'student_ids.*' => 'exists:students,id',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
             'repeat_weekly' => 'boolean',
+            'fee_amount' => 'nullable|numeric|min:0',
+            'auto_invoice' => 'boolean',
         ]);
 
-        ExtraCurricularActivity::create($validated);
+        $activity = ExtraCurricularActivity::create($validated);
+
+        // Sync finance integration if fee is set
+        if ($request->filled('fee_amount') && $request->fee_amount > 0) {
+            $activity->syncFinanceIntegration();
+        }
 
         return redirect()
             ->route('academics.extra-curricular-activities.index')
-            ->with('success', 'Extra-curricular activity created successfully.');
+            ->with('success', 'Activity created successfully.');
     }
 
     public function show(ExtraCurricularActivity $extra_curricular_activity)
     {
-        $extra_curricular_activity->load(['academicYear', 'term']);
+        $extra_curricular_activity->load(['academicYear', 'term', 'votehead']);
         return view('academics.extra_curricular_activities.show', compact('extra_curricular_activity'));
     }
 
@@ -114,16 +123,54 @@ class ExtraCurricularActivityController extends Controller
             'classroom_ids.*' => 'exists:classrooms,id',
             'staff_ids' => 'nullable|array',
             'staff_ids.*' => 'exists:staff,id',
+            'student_ids' => 'nullable|array',
+            'student_ids.*' => 'exists:students,id',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
             'repeat_weekly' => 'boolean',
+            'fee_amount' => 'nullable|numeric|min:0',
+            'auto_invoice' => 'boolean',
         ]);
 
         $extra_curricular_activity->update($validated);
 
+        // Sync finance integration if fee is set
+        if ($request->filled('fee_amount') && $request->fee_amount > 0) {
+            $extra_curricular_activity->syncFinanceIntegration();
+        }
+
+        // Invoice students if auto_invoice is enabled
+        if ($request->filled('auto_invoice') && $request->auto_invoice && $request->filled('student_ids')) {
+            $extra_curricular_activity->invoiceStudents();
+        }
+
         return redirect()
             ->route('academics.extra-curricular-activities.index')
-            ->with('success', 'Extra-curricular activity updated successfully.');
+            ->with('success', 'Activity updated successfully.');
+    }
+
+    /**
+     * Assign students to activity and invoice them
+     */
+    public function assignStudents(Request $request, ExtraCurricularActivity $extra_curricular_activity)
+    {
+        $validated = $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'invoice' => 'boolean',
+        ]);
+
+        $extra_curricular_activity->update([
+            'student_ids' => array_merge($extra_curricular_activity->student_ids ?? [], $validated['student_ids'])
+        ]);
+
+        if ($request->filled('invoice') && $request->invoice) {
+            $extra_curricular_activity->invoiceStudents();
+        }
+
+        return redirect()
+            ->route('academics.extra-curricular-activities.show', $extra_curricular_activity)
+            ->with('success', 'Students assigned successfully.');
     }
 
     public function destroy(ExtraCurricularActivity $extra_curricular_activity)

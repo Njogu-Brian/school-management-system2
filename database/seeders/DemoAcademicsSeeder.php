@@ -7,13 +7,13 @@ use App\Models\Academics\Exam;
 use App\Models\Academics\ExamMark;
 use App\Models\Academics\ReportCard;
 use App\Models\Academics\Homework;
-use App\Models\Academics\Diary;
 use App\Models\Academics\Subject;
 use App\Models\Student;
 use App\Models\Staff;
 use App\Models\Academics\Classroom;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Models\User;
 use Carbon\Carbon;
 
 class DemoAcademicsSeeder extends Seeder
@@ -103,21 +103,23 @@ class DemoAcademicsSeeder extends Seeder
 
         $this->command->info('Demo homework created.');
 
-        // --- DEMO DIARY ---
-        Diary::create([
-            'classroom_id' => $classroom->id,
-            'stream_id' => null,
-            'teacher_id' => $teacher->id,
-            'week_start' => Carbon::now()->startOfWeek(),
-            'entries' => [
-                'Monday' => ['topic'=>'Fractions', 'activities'=>'Group exercises', 'notes'=>'Revise previous work'],
-                'Tuesday' => ['topic'=>'Decimals', 'activities'=>'Class discussion', 'notes'=>'Homework due'],
-                'Wednesday' => ['topic'=>'Measurement', 'activities'=>'Practical examples', 'notes'=>'Bring ruler'],
-                'Thursday' => ['topic'=>'Geometry', 'activities'=>'Drawing shapes', 'notes'=>'Prepare graph book'],
-                'Friday' => ['topic'=>'Revision', 'activities'=>'Quiz', 'notes'=>'Prepare for CAT'],
-            ],
-        ]);
+        // --- DEMO STUDENT DIARIES ---
+        $authorId = $teacher->user_id ?? optional($teacher->user)->id ?? User::first()?->id;
 
-        $this->command->info('Demo diary created.');
+        if ($authorId) {
+            foreach ($students as $student) {
+                $diary = $student->diary()->firstOrCreate([]);
+                $diary->entries()->create([
+                    'author_id' => $authorId,
+                    'author_type' => 'teacher',
+                    'content' => 'Welcome note for ' . $student->first_name . '. Keep up the great work this week!',
+                    'attachments' => null,
+                ]);
+            }
+
+            $this->command->info('Demo diaries created for students.');
+        } else {
+            $this->command->warn('Skipped diary seeding: no teacher user account found.');
+        }
     }
 }

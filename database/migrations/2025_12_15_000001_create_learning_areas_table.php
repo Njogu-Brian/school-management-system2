@@ -11,6 +11,7 @@ return new class extends Migration
         if (!Schema::hasTable('learning_areas')) {
             Schema::create('learning_areas', function (Blueprint $table) {
                 $table->id();
+                $table->foreignId('curriculum_design_id')->nullable()->constrained('curriculum_designs')->nullOnDelete();
                 $table->string('code', 20)->unique(); // e.g., ENG, MATH, SCI, KIS
                 $table->string('name'); // English, Mathematics, Science, Kiswahili
                 $table->text('description')->nullable();
@@ -21,6 +22,7 @@ return new class extends Migration
                 $table->boolean('is_core')->default(true); // Core or optional learning area
                 $table->timestamps();
 
+                $table->index('curriculum_design_id');
                 $table->index('code');
                 $table->index('level_category');
             });

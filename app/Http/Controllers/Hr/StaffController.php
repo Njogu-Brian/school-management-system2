@@ -120,12 +120,14 @@ class StaffController extends Controller
         'staff_category_id' => 'nullable|exists:staff_categories,id',
         'supervisor_id'     => 'nullable|exists:staff,id',
         'spatie_role_id'    => 'nullable|exists:roles,id',
-        'emergency_contact_relationship' => 'nullable|string|max:100',
-        'residential_address' => 'nullable|string|max:255',
-        'photo' => 'nullable|image|max:2048',
-    ]);
+            'emergency_contact_relationship' => 'nullable|string|max:100',
+            'residential_address' => 'nullable|string|max:255',
+            'photo' => 'nullable|image|max:2048',
+            'basic_salary' => 'nullable|numeric|min:0',
+            'max_lessons_per_week' => 'nullable|integer|min:0',
+        ]);
 
-    DB::beginTransaction();
+        DB::beginTransaction();
     try {
         $passwordPlain = $request->id_number;
 
@@ -167,7 +169,8 @@ class StaffController extends Controller
             'residential_address',
             'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
             'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
-            'department_id','job_title_id','supervisor_id','staff_category_id'
+            'department_id','job_title_id','supervisor_id','staff_category_id',
+            'basic_salary','max_lessons_per_week'
         ]);
         $staffData['user_id']  = $user->id;
         $staffData['staff_id'] = $staffId;
@@ -189,6 +192,26 @@ class StaffController extends Controller
                     ['field_value' => $value]
                 );
             }
+        }
+
+        // 6.5) Create salary structure if basic_salary is provided
+        if ($request->filled('basic_salary')) {
+            \App\Models\SalaryStructure::updateOrCreate(
+                [
+                    'staff_id' => $staff->id,
+                    'is_active' => true,
+                ],
+                [
+                    'basic_salary' => $request->basic_salary,
+                    'housing_allowance' => 0,
+                    'transport_allowance' => 0,
+                    'medical_allowance' => 0,
+                    'other_allowances' => 0,
+                    'effective_from' => now()->startOfMonth(),
+                    'is_active' => true,
+                    'created_by' => auth()->id(),
+                ]
+            )->calculateTotals()->save();
         }
 
         // 7) Notifications via templates
@@ -283,6 +306,8 @@ class StaffController extends Controller
             'employment_type' => 'nullable|in:full_time,part_time,contract,intern',
             'contract_start_date' => 'nullable|date',
             'contract_end_date' => 'nullable|date|after_or_equal:contract_start_date',
+            'basic_salary' => 'nullable|numeric|min:0',
+            'max_lessons_per_week' => 'nullable|integer|min:0',
         ]);
 
         // Validate supervisor hierarchy (prevent circular references and self-supervision)
@@ -316,6 +341,7 @@ class StaffController extends Controller
                 'first_name','middle_name','last_name',
                 'work_email','personal_email','phone_number','id_number',
                 'date_of_birth','gender','marital_status',
+                'basic_salary','max_lessons_per_week',
                 'residential_address',
                 'emergency_contact_name','emergency_contact_relationship','emergency_contact_phone',
                 'kra_pin','nssf','nhif','bank_name','bank_branch','bank_account',
@@ -338,6 +364,26 @@ class StaffController extends Controller
                         ['field_value' => $value]
                     );
                 }
+            }
+
+            // Update salary structure if basic_salary is provided
+            if ($request->filled('basic_salary')) {
+                \App\Models\SalaryStructure::updateOrCreate(
+                    [
+                        'staff_id' => $staff->id,
+                        'is_active' => true,
+                    ],
+                    [
+                        'basic_salary' => $request->basic_salary,
+                        'housing_allowance' => 0,
+                        'transport_allowance' => 0,
+                        'medical_allowance' => 0,
+                        'other_allowances' => 0,
+                        'effective_from' => now()->startOfMonth(),
+                        'is_active' => true,
+                        'created_by' => auth()->id(),
+                    ]
+                )->calculateTotals()->save();
             }
 
             DB::commit();

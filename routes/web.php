@@ -63,6 +63,9 @@ use App\Http\Controllers\Finance\PostingController;
 use App\Http\Controllers\Finance\JournalController;
 use App\Http\Controllers\Finance\FeeStatementController;
 use App\Http\Controllers\Finance\ReceiptController;
+use App\Http\Controllers\Finance\FeeReminderController;
+use App\Http\Controllers\Finance\FeePaymentPlanController;
+use App\Http\Controllers\Finance\FeeConcessionController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -77,8 +80,7 @@ use App\Http\Controllers\Academics\ReportCardSkillController;
 use App\Http\Controllers\Academics\BehaviourController;
 use App\Http\Controllers\Academics\HomeworkController;
 use App\Http\Controllers\Academics\HomeworkDiaryController;
-use App\Http\Controllers\Academics\DiaryController;
-use App\Http\Controllers\Academics\DiaryMessageController;
+use App\Http\Controllers\Academics\StudentDiaryController;
 use App\Http\Controllers\Academics\StudentBehaviourController;
 use App\Http\Controllers\Academics\ExamScheduleController;
 use App\Http\Controllers\Academics\ExamTypeController;
@@ -96,6 +98,16 @@ use App\Http\Controllers\Academics\TimetableController;
 use App\Http\Controllers\Academics\ExtraCurricularActivityController as AcademicsExtraCurricularActivityController;
 use App\Http\Controllers\Academics\CurriculumDesignController;
 use App\Http\Controllers\Academics\CurriculumAssistantController;
+use App\Http\Controllers\Academics\ExamAnalyticsController;
+use App\Http\Controllers\ParentPortal\DiaryController as ParentDiaryController;
+
+// Communication
+use App\Http\Controllers\Communication\BulkCommunicationController;
+
+// Events & Documents
+use App\Http\Controllers\EventCalendarController;
+use App\Http\Controllers\DocumentManagementController;
+use App\Http\Controllers\BackupRestoreController;
 
 /*
 |--------------------------------------------------------------------------
@@ -107,9 +119,17 @@ Route::get('/', fn () => view('welcome'));
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+    
+    // Password Reset
+    Route::get('/password/reset', [AuthController::class, 'showLinkRequestForm'])->name('password.request');
+    Route::post('/password/email', [AuthController::class, 'sendResetLinkEmail'])->name('password.email');
+    Route::get('/password/reset/{token}', [AuthController::class, 'showResetForm'])->name('password.reset');
+    Route::post('/password/reset', [AuthController::class, 'reset'])->name('password.update');
 });
 
-Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::middleware('auth')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+});
 
 // Public student search (kept public per your original)
 Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
@@ -249,6 +269,7 @@ Route::middleware('auth')->group(function () {
         
         // Teacher Assignments
         Route::get('assign-teachers', [\App\Http\Controllers\Academics\AssignTeachersController::class, 'index'])->name('assign-teachers');
+        Route::post('classrooms/{id}/assign-teachers', [\App\Http\Controllers\Academics\AssignTeachersController::class, 'assignToClassroom'])->name('classrooms.assign-teachers');
         
         // Student Promotions
         Route::get('promotions', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'index'])->name('promotions.index');
@@ -273,14 +294,7 @@ Route::middleware('auth')->group(function () {
         // Timetable
         Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
 
-        // Exam marks
-        Route::get('exam-marks',                  [ExamMarkController::class, 'index'])->name('exam-marks.index');
-        Route::get('exam-marks/bulk',             [ExamMarkController::class, 'bulkForm'])->name('exam-marks.bulk.form');
-        Route::post('exam-marks/bulk',            [ExamMarkController::class, 'bulkEdit'])->name('exam-marks.bulk.edit');
-        Route::get('exam-marks/bulk/view',        [ExamMarkController::class, 'bulkEditView'])->name('exam-marks.bulk.edit.view');
-        Route::post('exam-marks/bulk/store',      [ExamMarkController::class, 'bulkStore'])->name('exam-marks.bulk.store');
-        Route::get('exam-marks/{exam_mark}/edit', [ExamMarkController::class, 'edit'])->name('exam-marks.edit');
-        Route::put('exam-marks/{exam_mark}',      [ExamMarkController::class, 'update'])->name('exam-marks.update');
+        // Exam marks routes are defined in routes/teacher.php with proper permissions
 
         // Schemes of Work
         Route::resource('schemes-of-work', SchemeOfWorkController::class)->parameters(['schemes-of-work' => 'schemes_of_work']);
@@ -351,16 +365,36 @@ Route::middleware('auth')->group(function () {
         Route::put('timetable/{timetable}/period', [TimetableController::class, 'updatePeriod'])->name('timetable.period.update');
         Route::post('timetable/check-conflicts', [TimetableController::class, 'checkConflicts'])->name('timetable.check-conflicts');
 
-        // Extra-Curricular Activities
+        // Extra-Curricular Activities / Activities
         Route::resource('extra-curricular-activities', AcademicsExtraCurricularActivityController::class)->parameters(['extra-curricular-activities' => 'extra_curricular_activity']);
+        Route::post('extra-curricular-activities/{extra_curricular_activity}/assign-students', [AcademicsExtraCurricularActivityController::class, 'assignStudents'])->name('extra-curricular-activities.assign-students');
+        
+        // Alias route for "activities"
+        Route::get('activities', [AcademicsExtraCurricularActivityController::class, 'index'])->name('activities.index');
+        Route::get('activities/create', [AcademicsExtraCurricularActivityController::class, 'create'])->name('activities.create');
+        Route::post('activities', [AcademicsExtraCurricularActivityController::class, 'store'])->name('activities.store');
+        Route::get('activities/{extra_curricular_activity}', [AcademicsExtraCurricularActivityController::class, 'show'])->name('activities.show');
+        Route::get('activities/{extra_curricular_activity}/edit', [AcademicsExtraCurricularActivityController::class, 'edit'])->name('activities.edit');
+        Route::put('activities/{extra_curricular_activity}', [AcademicsExtraCurricularActivityController::class, 'update'])->name('activities.update');
+        Route::delete('activities/{extra_curricular_activity}', [AcademicsExtraCurricularActivityController::class, 'destroy'])->name('activities.destroy');
 
         // Classroom Subject Lessons per Week
         Route::put('classroom-subjects/{classroomSubject}/update-lessons', [SubjectController::class, 'updateLessonsPerWeek'])->name('classroom-subjects.update-lessons');
 
         // Homework & Diaries
         Route::resource('homework', HomeworkController::class);
-        Route::resource('diaries',  DiaryController::class);
-        Route::post('diaries/{diary}/messages', [DiaryMessageController::class, 'store'])->name('diary.messages.store');
+        Route::prefix('diaries')->name('diaries.')->group(function () {
+            Route::get('/', [StudentDiaryController::class, 'index'])->name('index');
+            Route::get('/{diary}', [StudentDiaryController::class, 'show'])->name('show');
+            Route::post('/{diary}/entries', [StudentDiaryController::class, 'storeEntry'])->name('entries.store');
+            Route::post('/entries/bulk', [StudentDiaryController::class, 'bulkStore'])->name('entries.bulk-store');
+        });
+
+        Route::middleware('role:Parent|parent')->prefix('parent/diaries')->name('parent.diaries.')->group(function () {
+            Route::get('/', [ParentDiaryController::class, 'index'])->name('index');
+            Route::get('/{student}', [ParentDiaryController::class, 'show'])->name('show');
+            Route::post('/{student}/entries', [ParentDiaryController::class, 'storeEntry'])->name('entries.store');
+        });
 
         // Term Assessment
         Route::get('assessments/term', [ReportCardController::class,'termAssessment'])->name('assessments.term');
@@ -376,7 +410,7 @@ Route::middleware('auth')->group(function () {
         Route::get('r/{token}',                      [ReportCardController::class,'publicView'])->name('report_cards.public');
 
         // Report Card Skills (per report)
-        Route::prefix('report_cards/{report_card}')->as('report_cards.skills.')->group(function () {
+        Route::prefix('report_cards/{report_card}')->name('report_cards.skills.')->group(function () {
             Route::get('skills',              [ReportCardSkillController::class,'index'])->name('index');
             Route::get('skills/create',       [ReportCardSkillController::class,'create'])->name('create');
             Route::post('skills',             [ReportCardSkillController::class,'store'])->name('store');
@@ -497,7 +531,7 @@ Route::middleware('auth')->group(function () {
                 Route::get('/report', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'report'])->name('report');
             });
 
-            // Document Management (must come before {id})
+            // Staff Document Management (must come before {id})
             Route::prefix('documents')->name('documents.')->group(function () {
                 Route::get('/', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'index'])->name('index');
                 Route::get('/create', [\App\Http\Controllers\Hr\StaffDocumentController::class, 'create'])->name('create');
@@ -517,11 +551,16 @@ Route::middleware('auth')->group(function () {
             Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
         });
 
-    // Roles & Permissions (Spatie) – central page is under /settings/access-lookups
+    // HR Management - Roles & Lookups (moved from settings)
     Route::prefix('hr')->name('hr.')
         ->middleware('role:Super Admin|Admin|Secretary')
         ->group(function () {
             Route::get('/', fn() => redirect()->route('staff.index'))->name('index');
+            
+            // Combined Roles & HR Lookups page
+            Route::get('/access-lookups', [RolePermissionController::class, 'accessAndLookups'])->name('access-lookups');
+            
+            // Roles & Permissions
             Route::get('/roles',         [RolePermissionController::class, 'listRoles'])->name('roles.index');
             Route::get('/roles/{role}',  [RolePermissionController::class, 'index'])->name('roles.edit');
             Route::post('/roles/{role}/permissions', [RolePermissionController::class, 'update'])->name('roles.permissions.update');
@@ -621,13 +660,6 @@ Route::middleware('auth')->group(function () {
 
             // Modules update
             Route::post('/update-modules',  [SettingController::class, 'updateModules'])->name('update.modules');
-
-            // Combined page for Roles & Lookups
-            Route::get('/access-lookups',   [SettingController::class, 'accessAndLookups'])->name('access_lookups');
-
-            // Save role-permission mapping from tab
-            Route::post('/roles/{role}/update-permissions', [RolePermissionController::class, 'update'])
-                ->name('roles.update_permissions');
         });
 
     // Academic Config (Years, Terms)
@@ -816,6 +848,11 @@ Route::middleware('auth')->group(function () {
         Route::resource('communication-templates', CommunicationTemplateController::class)
             ->parameters(['communication-templates' => 'communication_template'])
             ->except(['show']);
+
+        // Bulk Communication
+        Route::get('bulk', [BulkCommunicationController::class, 'index'])->name('communication.bulk.index');
+        Route::get('bulk/create', [BulkCommunicationController::class, 'create'])->name('communication.bulk.create');
+        Route::post('bulk', [BulkCommunicationController::class, 'store'])->name('communication.bulk.store');
     });
 
     /*
@@ -876,6 +913,20 @@ Route::middleware('auth')->group(function () {
         Route::get('debits/create',  [DebitNoteController::class, 'create'])->name('debits.create');
         Route::post('debits/store',  [DebitNoteController::class, 'store'])->name('debits.store');
 
+        // Fee Payment Plans
+        Route::resource('fee-payment-plans', FeePaymentPlanController::class)->parameters(['fee-payment-plans' => 'feePaymentPlan']);
+        Route::post('fee-payment-plans/{feePaymentPlan}/update-status', [FeePaymentPlanController::class, 'updateStatus'])->name('fee-payment-plans.update-status');
+
+        // Fee Concessions
+        Route::resource('fee-concessions', FeeConcessionController::class)->parameters(['fee-concessions' => 'feeConcession']);
+        Route::post('fee-concessions/{feeConcession}/approve', [FeeConcessionController::class, 'approve'])->name('fee-concessions.approve');
+        Route::post('fee-concessions/{feeConcession}/deactivate', [FeeConcessionController::class, 'deactivate'])->name('fee-concessions.deactivate');
+
+        // Fee Reminders
+        Route::resource('fee-reminders', FeeReminderController::class)->parameters(['fee-reminders' => 'feeReminder']);
+        Route::post('fee-reminders/{feeReminder}/send', [FeeReminderController::class, 'send'])->name('fee-reminders.send');
+        Route::post('fee-reminders/automated/send', [FeeReminderController::class, 'sendAutomatedReminders'])->name('fee-reminders.automated');
+
         // Posting (Pending → Active)
         Route::prefix('posting')->name('posting.')->group(function(){
             Route::get('/',       [PostingController::class, 'index'])->name('index');
@@ -898,4 +949,105 @@ Route::middleware('auth')->group(function () {
             ->name('invoices.items.update');
     });
 
+    /*
+    |----------------------------------------------------------------------
+    | Exam Analytics
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        Route::get('exam-analytics', [ExamAnalyticsController::class, 'index'])->name('exam-analytics.index');
+        Route::get('exam-analytics/classroom/{classroom}', [ExamAnalyticsController::class, 'classroomPerformance'])->name('exam-analytics.classroom');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Events Calendar
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('events')->name('events.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        Route::get('/', [EventCalendarController::class, 'index'])->name('index');
+        Route::get('/api', [EventCalendarController::class, 'api'])->name('api');
+        Route::get('/create', [EventCalendarController::class, 'create'])->name('create');
+        Route::post('/', [EventCalendarController::class, 'store'])->name('store');
+        Route::get('/{event}', [EventCalendarController::class, 'show'])->name('show');
+        Route::get('/{event}/edit', [EventCalendarController::class, 'edit'])->name('edit');
+        Route::put('/{event}', [EventCalendarController::class, 'update'])->name('update');
+        Route::delete('/{event}', [EventCalendarController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Document Management
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('documents')->name('documents.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        Route::get('/', [DocumentManagementController::class, 'index'])->name('index');
+        Route::get('/create', [DocumentManagementController::class, 'create'])->name('create');
+        Route::post('/', [DocumentManagementController::class, 'store'])->name('store');
+        Route::get('/{document}', [DocumentManagementController::class, 'show'])->name('show');
+        Route::get('/{document}/download', [DocumentManagementController::class, 'download'])->name('download');
+        Route::post('/{document}/version', [DocumentManagementController::class, 'updateVersion'])->name('version');
+        Route::delete('/{document}', [DocumentManagementController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Backup & Restore
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('backup-restore')->name('backup-restore.')->middleware('role:Super Admin|Admin')->group(function () {
+        Route::get('/', [BackupRestoreController::class, 'index'])->name('index');
+        Route::post('/create', [BackupRestoreController::class, 'create'])->name('create');
+        Route::get('/download/{filename}', [BackupRestoreController::class, 'download'])->name('download');
+        Route::post('/restore', [BackupRestoreController::class, 'restore'])->name('restore');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Inventory & Requirements Management
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('inventory')->name('inventory.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        // Inventory Items
+        Route::resource('items', \App\Http\Controllers\Inventory\InventoryItemController::class);
+        Route::post('items/{item}/adjust-stock', [\App\Http\Controllers\Inventory\InventoryItemController::class, 'adjustStock'])->name('items.adjust-stock');
+        
+        // Requirement Types
+        Route::get('requirement-types', [\App\Http\Controllers\Inventory\RequirementTypeController::class, 'index'])->name('requirement-types.index');
+        Route::post('requirement-types', [\App\Http\Controllers\Inventory\RequirementTypeController::class, 'store'])->name('requirement-types.store');
+        Route::put('requirement-types/{type}', [\App\Http\Controllers\Inventory\RequirementTypeController::class, 'update'])->name('requirement-types.update');
+        Route::delete('requirement-types/{type}', [\App\Http\Controllers\Inventory\RequirementTypeController::class, 'destroy'])->name('requirement-types.destroy');
+        
+        // Requirement Templates
+        Route::resource('requirement-templates', \App\Http\Controllers\Inventory\RequirementTemplateController::class);
+        
+        // Student Requirements
+        Route::get('student-requirements', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'index'])->name('student-requirements.index');
+        Route::get('student-requirements/collect', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'collectForm'])->name('student-requirements.collect');
+        Route::post('student-requirements/collect', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'collect'])->name('student-requirements.collect.store');
+        Route::get('student-requirements/{requirement}', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'show'])->name('student-requirements.show');
+        
+        // Requisitions
+        Route::get('requisitions', [\App\Http\Controllers\Inventory\RequisitionController::class, 'index'])->name('requisitions.index');
+        Route::get('requisitions/create', [\App\Http\Controllers\Inventory\RequisitionController::class, 'create'])->name('requisitions.create');
+        Route::post('requisitions', [\App\Http\Controllers\Inventory\RequisitionController::class, 'store'])->name('requisitions.store');
+        Route::get('requisitions/{requisition}', [\App\Http\Controllers\Inventory\RequisitionController::class, 'show'])->name('requisitions.show');
+        Route::post('requisitions/{requisition}/approve', [\App\Http\Controllers\Inventory\RequisitionController::class, 'approve'])->name('requisitions.approve');
+        Route::post('requisitions/{requisition}/fulfill', [\App\Http\Controllers\Inventory\RequisitionController::class, 'fulfill'])->name('requisitions.fulfill');
+        Route::post('requisitions/{requisition}/reject', [\App\Http\Controllers\Inventory\RequisitionController::class, 'reject'])->name('requisitions.reject');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Activity Logs
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('activity-logs')->name('activity-logs.')->middleware('role:Super Admin|Admin')->group(function () {
+        Route::get('/', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('index');
+        Route::get('/{log}', [\App\Http\Controllers\ActivityLogController::class, 'show'])->name('show');
+    });
+
 });
+
+// Include teacher routes
+require __DIR__.'/teacher.php';

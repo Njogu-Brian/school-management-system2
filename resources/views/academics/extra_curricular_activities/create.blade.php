@@ -3,7 +3,7 @@
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Create Extra-Curricular Activity</h1>
+        <h1 class="h3 mb-0">Create Activity</h1>
         <a href="{{ route('academics.extra-curricular-activities.index') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Back
         </a>
@@ -130,6 +130,72 @@
                     <label class="form-label">Description</label>
                     <textarea name="description" class="form-control" rows="3">{{ old('description') }}</textarea>
                 </div>
+
+                <hr class="my-4">
+                <h5 class="mb-3"><i class="bi bi-currency-dollar"></i> Finance Integration</h5>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Fee Amount (KES)</label>
+                        <input type="number" name="fee_amount" class="form-control @error('fee_amount') is-invalid @enderror" 
+                               step="0.01" min="0" value="{{ old('fee_amount') }}" 
+                               placeholder="0.00">
+                        <small class="text-muted">Leave empty if activity is free. Setting a fee will automatically create a votehead and add it to class fee structures.</small>
+                        @error('fee_amount')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" name="auto_invoice" value="1" id="auto_invoice" {{ old('auto_invoice') ? 'checked' : '' }}>
+                            <label class="form-check-label" for="auto_invoice">
+                                <strong>Auto-invoice assigned students</strong>
+                            </label>
+                            <small class="text-muted d-block">Automatically invoice students when they are assigned to this activity</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Assign Students</label>
+                    <div class="mb-2">
+                        <input type="text" id="student-search" class="form-control" placeholder="Search students by name or admission number...">
+                    </div>
+                    <select name="student_ids[]" id="student_ids" class="form-select" multiple style="min-height: 150px;">
+                        @php
+                            $selectedStudents = old('student_ids', []);
+                            $allStudents = \App\Models\Student::with('classroom')->orderBy('first_name')->get();
+                        @endphp
+                        @foreach($allStudents as $student)
+                            <option value="{{ $student->id }}" 
+                                    data-name="{{ strtolower($student->first_name . ' ' . $student->last_name) }}"
+                                    data-admission="{{ strtolower($student->admission_number ?? '') }}"
+                                    data-class="{{ strtolower($student->classroom->name ?? '') }}"
+                                    {{ in_array($student->id, $selectedStudents) ? 'selected' : '' }}>
+                                {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }}) - {{ $student->classroom->name ?? 'No Class' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <small class="text-muted">Hold Ctrl/Cmd to select multiple students. Use search to filter. You can also assign students later.</small>
+                </div>
+                <script>
+                    document.getElementById('student-search').addEventListener('input', function(e) {
+                        const search = e.target.value.toLowerCase();
+                        const options = document.querySelectorAll('#student_ids option');
+                        options.forEach(option => {
+                            const name = option.getAttribute('data-name') || '';
+                            const admission = option.getAttribute('data-admission') || '';
+                            const className = option.getAttribute('data-class') || '';
+                            if (name.includes(search) || admission.includes(search) || className.includes(search)) {
+                                option.style.display = '';
+                            } else {
+                                option.style.display = 'none';
+                            }
+                        });
+                    });
+                </script>
+
+                <hr class="my-4">
 
                 <div class="row mb-3">
                     <div class="col-md-6">

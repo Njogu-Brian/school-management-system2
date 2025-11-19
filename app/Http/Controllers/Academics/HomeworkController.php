@@ -7,8 +7,6 @@ use App\Models\Academics\Homework;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Subject;
 use App\Models\Student;
-use App\Models\Academics\Diary;
-use App\Models\Academics\DiaryMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -114,7 +112,16 @@ class HomeworkController extends Controller
             }
         }
 
-        $students = Student::orderBy('last_name')->orderBy('first_name')->get();
+        // Filter students based on assigned classrooms for teachers
+        $studentsQuery = Student::orderBy('last_name')->orderBy('first_name');
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            if (!empty($assignedClassroomIds)) {
+                $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $studentsQuery->whereRaw('1 = 0'); // No access
+            }
+        }
+        $students = $studentsQuery->get();
 
         return view('academics.homework.create', compact('classrooms','subjects','students'));
     }
@@ -125,7 +132,7 @@ class HomeworkController extends Controller
             'title'         => 'required|string|max:255',
             'instructions'  => 'nullable|string',
             'due_date'      => 'required|date|after:today',
-            'target_scope'  => 'required|in:class,stream,students,school',
+            'target_scope'  => 'required|in:class,stream,students',
             'classroom_id'  => 'required_if:target_scope,class,stream|nullable|exists:classrooms,id',
             'stream_id'     => 'nullable|exists:streams,id',
             'subject_id'    => 'nullable|exists:subjects,id',
@@ -221,6 +228,164 @@ class HomeworkController extends Controller
             'homeworkDiaries.student'
         ]);
         return view('academics.homework.show', compact('homework'));
+    }
+
+    public function edit(Homework $homework)
+    {
+        // Check if teacher has access
+        $user = Auth::user();
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $staff = $user->staff;
+            if ($staff && $homework->classroom_id) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $homework->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to edit this homework.');
+                }
+            }
+        }
+
+        // Filter classrooms and subjects based on user role
+        if ($user->hasAnyRole(['Super Admin', 'Admin'])) {
+            $classrooms = Classroom::orderBy('name')->get();
+            $subjects = Subject::active()->orderBy('name')->get();
+        } else {
+            $staff = $user->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
+                $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
+                    $q->where('staff_id', $staff->id);
+                })->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+                $subjects = collect();
+            }
+        }
+
+        // Filter students based on assigned classrooms for teachers
+        $studentsQuery = Student::orderBy('last_name')->orderBy('first_name');
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $staff = $user->staff;
+            if ($staff) {
+                $assignedClassroomIds = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->distinct()
+                    ->pluck('classroom_id')
+                    ->toArray();
+                if (!empty($assignedClassroomIds)) {
+                    $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
+                } else {
+                    $studentsQuery->whereRaw('1 = 0'); // No access
+                }
+            } else {
+                $studentsQuery->whereRaw('1 = 0'); // No access
+            }
+        }
+        $students = $studentsQuery->get();
+
+        return view('academics.homework.edit', compact('homework', 'classrooms', 'subjects', 'students'));
+    }
+
+    public function update(Request $request, Homework $homework)
+    {
+        // Check if teacher has access
+        $user = Auth::user();
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $staff = $user->staff;
+            if ($staff && $homework->classroom_id) {
+                $hasAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $homework->classroom_id)
+                    ->exists();
+                
+                if (!$hasAccess) {
+                    abort(403, 'You do not have access to update this homework.');
+                }
+            }
+        }
+
+        $request->validate([
+            'title'         => 'required|string|max:255',
+            'instructions'  => 'nullable|string',
+            'due_date'      => 'required|date|after:today',
+            'target_scope'  => 'required|in:class,stream,students',
+            'classroom_id'  => 'required_if:target_scope,class,stream|nullable|exists:classrooms,id',
+            'stream_id'     => 'nullable|exists:streams,id',
+            'subject_id'    => 'nullable|exists:subjects,id',
+            'student_ids'   => 'nullable|array|required_if:target_scope,students',
+            'student_ids.*' => 'exists:students,id',
+            'attachment'    => 'nullable|file|max:10240',
+            'max_score'     => 'nullable|integer|min:1',
+            'allow_late_submission' => 'boolean',
+        ]);
+
+        // Check if teacher has access to new classroom if changed
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            if ($request->classroom_id && $request->classroom_id != $homework->classroom_id) {
+                $staff = $user->staff;
+                if ($staff) {
+                    $hasAccess = DB::table('classroom_subjects')
+                        ->where('staff_id', $staff->id)
+                        ->where('classroom_id', $request->classroom_id)
+                        ->exists();
+                    
+                    if (!$hasAccess) {
+                        return back()
+                            ->withInput()
+                            ->with('error', 'You do not have access to assign homework to this classroom.');
+                    }
+                }
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            $path = $homework->file_path;
+            if ($request->hasFile('attachment')) {
+                // Delete old attachment
+                if ($path) {
+                    Storage::disk('public')->delete($path);
+                }
+                $path = $request->file('attachment')->store('homeworks','public');
+            }
+
+            $homework->update([
+                'classroom_id'  => $request->classroom_id,
+                'stream_id'     => $request->stream_id,
+                'subject_id'    => $request->subject_id,
+                'title'         => $request->title,
+                'instructions'  => $request->instructions,
+                'file_path'     => $path,
+                'attachment_paths' => $path ? [$path] : null,
+                'due_date'      => $request->due_date,
+                'target_scope'  => $request->target_scope,
+                'max_score'     => $request->max_score ?? null,
+                'allow_late_submission' => $request->boolean('allow_late_submission', true),
+            ]);
+
+            if ($request->target_scope === 'students' && $request->filled('student_ids')) {
+                $homework->students()->sync($request->student_ids);
+            } else {
+                $homework->students()->detach();
+            }
+
+            DB::commit();
+
+            return redirect()->route('academics.homework.index')->with('success','Homework updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to update homework: ' . $e->getMessage());
+        }
     }
 
     public function destroy(Homework $homework)

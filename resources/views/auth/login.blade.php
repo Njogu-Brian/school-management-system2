@@ -168,9 +168,12 @@
             <input type="password" class="form-control" name="password" required>
         </div>
 
-        <div class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
-            <label class="form-check-label">Remember Me</label>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="form-check">
+                <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                <label class="form-check-label">Remember Me</label>
+            </div>
+            <a href="{{ route('password.request') }}" class="text-decoration-none small">Forgot Password?</a>
         </div>
 
         <button class="btn btn-primary w-100">Login</button>

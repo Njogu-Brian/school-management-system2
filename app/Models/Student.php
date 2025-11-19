@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\Transport;
 use App\Models\Attendance;
 use App\Models\ParentInfo;
+use App\Models\Academics\StudentDiary;
 use App\Models\StudentCategory;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Classroom;
@@ -74,6 +75,11 @@ class Student extends Model
     public function parent()
     {
         return $this->belongsTo(ParentInfo::class, 'parent_id');
+    }
+
+    public function diary()
+    {
+        return $this->hasOne(StudentDiary::class);
     }
 
     public function attendances()
@@ -179,6 +185,12 @@ class Student extends Model
     {
         static::addGlobalScope('active', function (Builder $builder) {
             $builder->where('archive', 0);
+        });
+
+        static::created(function (self $student) {
+            if (!$student->diary()->exists()) {
+                $student->diary()->create();
+            }
         });
     }
     public static function withArchived()

@@ -9,15 +9,19 @@ use App\Http\Controllers\Academics\ExamMarkController;
 use App\Http\Controllers\Academics\ReportCardController;
 use App\Http\Controllers\Academics\ReportCardSkillController;
 use App\Http\Controllers\Academics\HomeworkController;
-use App\Http\Controllers\Academics\DiaryController;
-use App\Http\Controllers\Academics\DiaryMessageController;
 use App\Http\Controllers\Academics\StudentBehaviourController;
+use App\Http\Controllers\Teacher\TransportController;
+use App\Http\Controllers\Teacher\StudentsController;
+use App\Http\Controllers\Teacher\SalaryController;
+use App\Http\Controllers\Teacher\LeaveController;
+use App\Http\Controllers\Academics\TimetableController;
+use App\Http\Controllers\CommunicationAnnouncementController;
+use App\Http\Controllers\EventCalendarController;
 
-Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher'])->group(function () {
+Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])->group(function () {
 
     // Dashboard
     Route::get('/teacher/home', [DashboardController::class, 'teacherDashboard'])
-        ->middleware('permission:dashboard.teacher.view')
         ->name('teacher.dashboard');
 
     /*
@@ -26,15 +30,12 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher'])->group(f
     */
     Route::prefix('attendance')->group(function () {
         Route::get('/mark',    [AttendanceController::class, 'markForm'])
-            ->middleware('permission:attendance.create')
             ->name('attendance.mark.form');
 
         Route::post('/mark',   [AttendanceController::class, 'mark'])
-            ->middleware('permission:attendance.create')
             ->name('attendance.mark');
 
         Route::get('/records', [AttendanceController::class, 'records'])
-            ->middleware('permission:attendance.view')
             ->name('attendance.records');
     });
 
@@ -44,31 +45,24 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher'])->group(f
     */
     Route::prefix('exam-marks')->group(function () {
         Route::get('/', [ExamMarkController::class, 'index'])
-            ->middleware('permission:exam_marks.view')
             ->name('academics.exam-marks.index');
 
         Route::get('/bulk', [ExamMarkController::class, 'bulkForm'])
-            ->middleware('permission:exam_marks.create')
             ->name('academics.exam-marks.bulk.form');
 
         Route::post('/bulk', [ExamMarkController::class, 'bulkEdit'])
-            ->middleware('permission:exam_marks.create')
             ->name('academics.exam-marks.bulk.edit');
 
         Route::get('/bulk/view', [ExamMarkController::class, 'bulkEditView'])
-            ->middleware('permission:exam_marks.create')
             ->name('academics.exam-marks.bulk.edit.view');
 
         Route::post('/bulk/store', [ExamMarkController::class, 'bulkStore'])
-            ->middleware('permission:exam_marks.create')
             ->name('academics.exam-marks.bulk.store');
 
         Route::get('/{exam_mark}/edit', [ExamMarkController::class, 'edit'])
-            ->middleware('permission:exam_marks.create')
             ->name('academics.exam-marks.edit');
 
         Route::put('/{exam_mark}', [ExamMarkController::class, 'update'])
-            ->middleware('permission:exam_marks.create')
             ->name('academics.exam-marks.update');
     });
 
@@ -80,59 +74,109 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher'])->group(f
 
         // View report cards
         Route::get('report_cards', [ReportCardController::class, 'index'])
-            ->middleware('permission:report_cards.view')
             ->name('academics.report_cards.index');
 
         Route::get('report_cards/{report_card}', [ReportCardController::class, 'show'])
-            ->middleware('permission:report_cards.view')
             ->name('academics.report_cards.show');
 
         // Skills (per report)
         Route::get('report_cards/{report_card}/skills', [ReportCardSkillController::class,'index'])
-            ->middleware('permission:report_card_skills.edit')
             ->name('academics.report_cards.skills.index');
 
         Route::post('report_cards/{report_card}/skills', [ReportCardSkillController::class,'store'])
-            ->middleware('permission:report_card_skills.edit')
             ->name('academics.report_cards.skills.store');
 
         Route::put('report_cards/{report_card}/skills/{skill}', [ReportCardSkillController::class,'update'])
-            ->middleware('permission:report_card_skills.edit')
             ->name('academics.report_cards.skills.update');
 
         Route::delete('report_cards/{report_card}/skills/{skill}', [ReportCardSkillController::class,'destroy'])
-            ->middleware('permission:report_card_skills.edit')
             ->name('academics.report_cards.skills.destroy');
 
         // Remarks (adjust to your method name)
         Route::post('report_cards/{report_card}/remarks', [ReportCardController::class,'update'])
-            ->middleware('permission:report_cards.remarks.edit')
             ->name('academics.report_cards.remarks.save');
 
         /*
         |---------------------- Homework ----------------------
         */
         Route::resource('homework', HomeworkController::class)
-            ->middleware('permission:homework.view|homework.create|homework.edit')
             ->names('academics.homework');
-
-        /*
-        |---------------------- Digital Diaries ----------------------
-        */
-        Route::resource('diaries', DiaryController::class)
-            ->middleware('permission:diaries.view|diaries.create|diaries.edit')
-            ->names('academics.diaries');
-
-        Route::post('diaries/{diary}/messages', [DiaryMessageController::class, 'store'])
-            ->middleware('permission:diaries.edit')
-            ->name('academics.diary.messages.store');
 
         /*
         |---------------------- Student Behaviours ----------------------
         */
         Route::resource('student-behaviours', StudentBehaviourController::class)
             ->only(['index','create','store','destroy'])
-            ->middleware('permission:student_behaviours.view|student_behaviours.create|student_behaviours.edit')
             ->names('academics.student-behaviours');
     });
+
+    /*
+    |---------------------- Students ----------------------
+    | View assigned students details
+    */
+    Route::prefix('my-students')->name('teacher.students.')->group(function () {
+        Route::get('/', [StudentsController::class, 'index'])->name('index');
+        Route::get('/{student}', [StudentsController::class, 'show'])->name('show');
+    });
+
+    /*
+    |---------------------- Transport ----------------------
+    | View transport information for assigned students
+    */
+    Route::prefix('transport')->name('teacher.transport.')->group(function () {
+        Route::get('/', [TransportController::class, 'index'])->name('index');
+        Route::get('/{student}', [TransportController::class, 'show'])->name('show');
+    });
+
+    /*
+    |---------------------- Salary & Payslips ----------------------
+    | View own salary and payslips
+    */
+    Route::prefix('salary')->name('teacher.salary.')->group(function () {
+        Route::get('/', [SalaryController::class, 'index'])->name('index');
+        Route::get('/payslip/{record}', [SalaryController::class, 'payslip'])->name('payslip');
+        Route::get('/payslip/{record}/download', [SalaryController::class, 'downloadPayslip'])->name('payslip.download');
+    });
+
+    /*
+    |---------------------- Leaves ----------------------
+    | Request leaves and view leave history
+    */
+    Route::prefix('leaves')->name('teacher.leave.')->group(function () {
+        Route::get('/', [LeaveController::class, 'index'])->name('index');
+        Route::get('/create', [LeaveController::class, 'create'])->name('create');
+        Route::post('/', [LeaveController::class, 'store'])->name('store');
+        Route::get('/{leaveRequest}', [LeaveController::class, 'show'])->name('show');
+        Route::post('/{leaveRequest}/cancel', [LeaveController::class, 'cancel'])->name('cancel');
+    });
+
+    /*
+    |---------------------- Timetable ----------------------
+    | View class and teacher timetables
+    */
+    Route::prefix('timetable')->name('teacher.timetable.')->group(function () {
+        Route::get('/', [TimetableController::class, 'index'])->name('index');
+        Route::get('/classroom/{classroom}', [TimetableController::class, 'classroom'])->name('classroom');
+        Route::get('/my-timetable', function() {
+            $user = \Illuminate\Support\Facades\Auth::user();
+            $staff = $user->staff;
+            if (!$staff) {
+                abort(403, 'No staff record found.');
+            }
+            return redirect()->route('academics.timetable.teacher', $staff);
+        })->name('my-timetable');
+    });
+
+    /*
+    |---------------------- Announcements ----------------------
+    | View announcements
+    */
+    Route::get('/announcements', [CommunicationAnnouncementController::class, 'index'])
+        ->name('teacher.announcements.index');
+
+    /*
+    |---------------------- Events Calendar ----------------------
+    | View events calendar (using main events routes)
+    */
+    // Events routes are defined in web.php, teachers can access them via role middleware
 });

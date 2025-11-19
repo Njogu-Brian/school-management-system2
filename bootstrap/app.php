@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'user-access' => \App\Http\Middleware\UserAccess::class,
+            'log.activity' => \App\Http\Middleware\LogActivity::class,
 
             // Spatie Laravel-Permission middleware
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,

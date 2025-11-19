@@ -28,7 +28,6 @@
                 <option value="class">Class</option>
                 <option value="stream">Stream</option>
                 <option value="students">Specific Students</option>
-                <option value="school">Entire School</option>
             </select>
         </div>
 

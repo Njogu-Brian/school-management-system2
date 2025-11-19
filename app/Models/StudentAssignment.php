@@ -35,4 +35,5 @@ class StudentAssignment extends Model
     {
         return $this->belongsTo(DropOffPoint::class, 'evening_drop_off_point_id');
     }
+
 }

@@ -3,9 +3,11 @@
 @section('content')
 <div class="container">
     <h4>📢 Announcements</h4>
-    <a href="{{ route('announcements.create') }}" class="btn btn-success mb-3">+ New Announcement</a>
+    @if(!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('teacher'))
+        <a href="{{ route('announcements.create') }}" class="btn btn-success mb-3">+ New Announcement</a>
+    @endif
 
-    @foreach($announcements as $announcement)
+    @forelse($announcements as $announcement)
         <div class="card mb-3">
             <div class="card-body">
                 <h5>{{ $announcement->title }}</h5>
@@ -18,15 +20,28 @@
                     @endif
                     | Status: <strong>{{ $announcement->active ? 'Active' : 'Inactive' }}</strong>
                 </small>
-                <div class="mt-2">
-                    <a href="{{ route('announcements.edit', $announcement) }}" class="btn btn-sm btn-primary">Edit</a>
-                    <form method="POST" action="{{ route('announcements.destroy', $announcement) }}" class="d-inline">
-                        @csrf @method('DELETE')
-                        <button class="btn btn-sm btn-danger">Delete</button>
-                    </form>
-                </div>
+                @if(!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('teacher'))
+                    <div class="mt-2">
+                        <a href="{{ route('announcements.edit', $announcement) }}" class="btn btn-sm btn-primary">Edit</a>
+                        <form method="POST" action="{{ route('announcements.destroy', $announcement) }}" class="d-inline">
+                            @csrf @method('DELETE')
+                            <button class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </div>
+                @endif
             </div>
         </div>
-    @endforeach
+    @empty
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No announcements available.
+        </div>
+    @endforelse
+
+    @if(method_exists($announcements, 'links'))
+        <div class="mt-4">
+            {{ $announcements->links() }}
+        </div>
+    @endif
 </div>
 @endsection
+

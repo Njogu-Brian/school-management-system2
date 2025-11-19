@@ -189,27 +189,6 @@ class SettingController extends Controller
         return redirect()->back()->with('success', 'ID settings updated successfully.');
     }
 
-    /**
-     * Unified Roles & HR Lookups page
-     */
-    public function accessAndLookups()
-    {
-        // Roles and Permissions
-        $roles = Role::with('permissions')->get();
-        $permissions = Permission::all()->groupBy(function ($perm) {
-            return explode('.', $perm->name)[0]; // group by module prefix
-        });
-
-        // HR Lookups
-        $categories   = StaffCategory::all();
-        $departments  = Department::all();
-        $jobTitles    = JobTitle::with('department')->get();
-        $customFields = CustomField::where('module', 'staff')->get();
-
-        return view('settings.access_lookups', compact(
-            'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields'
-        ));
-    }
     public function placeholders()
     {
         $systemPlaceholders = [

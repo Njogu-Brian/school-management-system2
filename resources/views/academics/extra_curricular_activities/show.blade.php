@@ -80,6 +80,12 @@
                             <td>{{ $extra_curricular_activity->description }}</td>
                         </tr>
                         @endif
+                        @if($extra_curricular_activity->fee_amount)
+                        <tr>
+                            <th>Fee Amount:</th>
+                            <td><strong>KES {{ number_format($extra_curricular_activity->fee_amount, 2) }}</strong></td>
+                        </tr>
+                        @endif
                     </table>
                 </div>
             </div>
@@ -100,7 +106,7 @@
             @endif
 
             @if($extra_curricular_activity->staff()->count() > 0)
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mb-4">
                 <div class="card-header">
                     <h5 class="mb-0">Supervising Staff ({{ $extra_curricular_activity->staff()->count() }})</h5>
                 </div>
@@ -109,6 +115,89 @@
                         @foreach($extra_curricular_activity->staff() as $member)
                             <span class="badge bg-success">{{ $member->full_name }}</span>
                         @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            @if($extra_curricular_activity->fee_amount)
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-currency-dollar"></i> Finance Information</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="200">Fee Amount:</th>
+                            <td><strong>KES {{ number_format($extra_curricular_activity->fee_amount, 2) }}</strong></td>
+                        </tr>
+                        @if($extra_curricular_activity->votehead)
+                        <tr>
+                            <th>Votehead:</th>
+                            <td>
+                                <span class="badge bg-info">{{ $extra_curricular_activity->votehead->name }}</span>
+                                @if(Route::has('finance.voteheads.show'))
+                                <a href="{{ route('finance.voteheads.show', $extra_curricular_activity->votehead) }}" class="btn btn-sm btn-outline-primary ms-2">
+                                    <i class="bi bi-box-arrow-up-right"></i> View
+                                </a>
+                                @endif
+                            </td>
+                        </tr>
+                        @endif
+                        <tr>
+                            <th>Auto-invoice:</th>
+                            <td>
+                                <span class="badge bg-{{ $extra_curricular_activity->auto_invoice ? 'success' : 'secondary' }}">
+                                    {{ $extra_curricular_activity->auto_invoice ? 'Enabled' : 'Disabled' }}
+                                </span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            @endif
+
+            @php
+                $assignedStudents = $extra_curricular_activity->students();
+            @endphp
+            @if($assignedStudents->count() > 0)
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Assigned Students ({{ $assignedStudents->count() }})</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Class</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($assignedStudents as $student)
+                                <tr>
+                                    <td>{{ $student->first_name }} {{ $student->last_name }}</td>
+                                    <td>{{ $student->classroom->name ?? 'N/A' }}</td>
+                                    <td>
+                                        @php
+                                            $optionalFee = \App\Models\OptionalFee::where('student_id', $student->id)
+                                                ->where('votehead_id', $extra_curricular_activity->votehead_id)
+                                                ->first();
+                                        @endphp
+                                        @if($optionalFee)
+                                            <span class="badge bg-{{ $optionalFee->status == 'billed' ? 'warning' : 'success' }}">
+                                                {{ ucfirst($optionalFee->status) }}
+                                            </span>
+                                        @else
+                                            <span class="badge bg-secondary">Not Invoiced</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

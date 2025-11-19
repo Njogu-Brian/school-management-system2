@@ -6,16 +6,42 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use App\Models\StaffCategory;
+use App\Models\Department;
+use App\Models\JobTitle;
+use App\Models\CustomField;
 
 class RolePermissionController extends Controller
 {
+    /**
+     * Combined Roles & HR Lookups page
+     */
+    public function accessAndLookups()
+    {
+        // Roles and Permissions
+        $roles = Role::with('permissions')->get();
+        $permissions = Permission::all()->groupBy(function ($perm) {
+            return explode('.', $perm->name)[0]; // group by module prefix
+        });
+
+        // HR Lookups
+        $categories   = StaffCategory::all();
+        $departments  = Department::all();
+        $jobTitles    = JobTitle::with('department')->get();
+        $customFields = CustomField::where('module', 'staff')->get();
+
+        return view('hr.access_lookups', compact(
+            'roles', 'permissions', 'categories', 'departments', 'jobTitles', 'customFields'
+        ));
+    }
+
     /**
      * Show all roles
      */
     public function listRoles()
     {
         $roles = Role::all();
-        return view('settings.roles.index', compact('roles'));
+        return view('hr.roles.index', compact('roles'));
     }
 
     /**
@@ -25,7 +51,7 @@ class RolePermissionController extends Controller
     {
         $role = Role::with('permissions')->findOrFail($roleId);
         $permissions = Permission::all();
-        return view('settings.roles.edit', compact('role', 'permissions'));
+        return view('hr.roles.edit', compact('role', 'permissions'));
     }
 
     /**
@@ -44,8 +70,7 @@ class RolePermissionController extends Controller
         // Sync permissions with the role
         $role->syncPermissions($permissions);
 
-        return redirect()->route('settings.access_lookups')
-        ->with('success', 'Permissions updated successfully.');
-
+        return redirect()->route('hr.access-lookups')
+            ->with('success', 'Permissions updated successfully.');
     }
 }

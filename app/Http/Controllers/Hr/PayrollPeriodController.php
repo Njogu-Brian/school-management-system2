@@ -105,11 +105,12 @@ class PayrollPeriodController extends Controller
             $staff = Staff::where('status', 'active')->get();
 
             foreach ($staff as $member) {
-                // Get active salary structure
+                // Get active salary structure or use staff basic_salary
                 $salaryStructure = $member->activeSalaryStructure;
-
-                if (!$salaryStructure) {
-                    continue; // Skip staff without salary structure
+                
+                // Skip if no salary structure AND no basic_salary on staff
+                if (!$salaryStructure && !$member->basic_salary) {
+                    continue;
                 }
 
                 // Check if record already exists
@@ -125,16 +126,26 @@ class PayrollPeriodController extends Controller
                 $record = new PayrollRecord();
                 $record->payroll_period_id = $period->id;
                 $record->staff_id = $member->id;
-                $record->salary_structure_id = $salaryStructure->id;
+                $record->salary_structure_id = $salaryStructure->id ?? null;
                 $record->created_by = auth()->id();
 
-                // Copy salary components
-                $record->basic_salary = $salaryStructure->basic_salary;
-                $record->housing_allowance = $salaryStructure->housing_allowance;
-                $record->transport_allowance = $salaryStructure->transport_allowance;
-                $record->medical_allowance = $salaryStructure->medical_allowance;
-                $record->other_allowances = $salaryStructure->other_allowances;
-                $record->allowances_breakdown = $salaryStructure->allowances_breakdown;
+                // Copy salary components from structure or use staff basic_salary
+                if ($salaryStructure) {
+                    $record->basic_salary = $salaryStructure->basic_salary;
+                    $record->housing_allowance = $salaryStructure->housing_allowance;
+                    $record->transport_allowance = $salaryStructure->transport_allowance;
+                    $record->medical_allowance = $salaryStructure->medical_allowance;
+                    $record->other_allowances = $salaryStructure->other_allowances;
+                    $record->allowances_breakdown = $salaryStructure->allowances_breakdown;
+                } else {
+                    // Use staff basic_salary if no salary structure
+                    $record->basic_salary = $member->basic_salary ?? 0;
+                    $record->housing_allowance = 0;
+                    $record->transport_allowance = 0;
+                    $record->medical_allowance = 0;
+                    $record->other_allowances = 0;
+                    $record->allowances_breakdown = null;
+                }
 
                 // Calculate deductions
                 $record->calculateTotals(); // Calculate gross first
@@ -142,8 +153,8 @@ class PayrollPeriodController extends Controller
                 $record->nssf_deduction = $deductions['nssf'];
                 $record->nhif_deduction = $deductions['nhif'];
                 $record->paye_deduction = $deductions['paye'];
-                $record->other_deductions = $salaryStructure->other_deductions;
-                $record->deductions_breakdown = $salaryStructure->deductions_breakdown;
+                $record->other_deductions = $salaryStructure->other_deductions ?? 0;
+                $record->deductions_breakdown = $salaryStructure->deductions_breakdown ?? null;
 
                 // Process advance deductions
                 $advanceDeduction = 0;

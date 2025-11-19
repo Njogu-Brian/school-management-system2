@@ -193,51 +193,19 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     </a>
 </div>
 
-{{-- Schemes of Work & Lesson Plans --}}
-@php 
-    $planningActive = Request::is('academics/schemes-of-work*') 
-        || Request::is('academics/lesson-plans*')
-        || Request::is('academics/portfolio-assessments*');
-@endphp
-<a href="#planningMenu" data-bs-toggle="collapse" aria-expanded="{{ $planningActive ? 'true' : 'false' }}" class="{{ $planningActive ? 'parent-active' : '' }}">
-    <i class="bi bi-calendar-check"></i> Planning & Assessment
-</a>
-<div class="collapse {{ $planningActive ? 'show' : '' }}" id="planningMenu">
-    <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work') ? 'active' : '' }}">
-        <i class="bi bi-journal-text"></i> Schemes of Work
-    </a>
-    <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans') ? 'active' : '' }}">
-        <i class="bi bi-calendar-check"></i> Lesson Plans
-    </a>
-    <a href="{{ route('academics.portfolio-assessments.index') }}" class="sublink {{ Request::is('academics/portfolio-assessments*') ? 'active' : '' }}">
-        <i class="bi bi-folder"></i> Portfolio Assessments
-    </a>
-</div>
-
-{{-- Timetable --}}
-@php $timetableActive = Request::is('academics/timetable*'); @endphp
-<a href="#timetableMenu" data-bs-toggle="collapse" aria-expanded="{{ $timetableActive ? 'true' : 'false' }}" class="{{ $timetableActive ? 'parent-active' : '' }}">
-    <i class="bi bi-calendar-week"></i> Timetable
-</a>
-<div class="collapse {{ $timetableActive ? 'show' : '' }}" id="timetableMenu">
-    <a href="{{ route('academics.timetable.index') }}" class="sublink {{ Request::is('academics/timetable') && !Request::is('academics/timetable/*') ? 'active' : '' }}">
-        <i class="bi bi-calendar-week"></i> View Timetable
-    </a>
-    <a href="{{ route('academics.extra-curricular-activities.index') }}" class="sublink {{ Request::is('academics/extra-curricular-activities*') ? 'active' : '' }}">
-        <i class="bi bi-trophy"></i> Extra Curricular
-    </a>
-</div>
-
-{{-- CBC Curriculum --}}
+{{-- CBC Curriculum & Planning --}}
 @php 
     $cbcActive = Request::is('academics/learning-areas*') 
         || Request::is('academics/competencies*')
         || Request::is('academics/cbc-strands*')
         || Request::is('academics/cbc-substrands*')
-        || Request::is('academics/curriculum-designs*');
+        || Request::is('academics/curriculum-designs*')
+        || Request::is('academics/schemes-of-work*') 
+        || Request::is('academics/lesson-plans*')
+        || Request::is('academics/portfolio-assessments*');
 @endphp
 <a href="#cbcMenu" data-bs-toggle="collapse" aria-expanded="{{ $cbcActive ? 'true' : 'false' }}" class="{{ $cbcActive ? 'parent-active' : '' }}">
-    <i class="bi bi-diagram-3"></i> CBC Curriculum
+    <i class="bi bi-diagram-3"></i> CBC Curriculum & Planning
 </a>
 <div class="collapse {{ $cbcActive ? 'show' : '' }}" id="cbcMenu">
     <a href="{{ route('academics.curriculum-designs.index') }}" class="sublink {{ Request::is('academics/curriculum-designs*') ? 'active' : '' }}">
@@ -251,6 +219,41 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     </a>
     <a href="{{ route('academics.competencies.index') }}" class="sublink {{ Request::is('academics/competencies*') ? 'active' : '' }}">
         <i class="bi bi-star"></i> Competencies
+    </a>
+    <a href="{{ route('academics.schemes-of-work.index') }}" class="sublink {{ Request::is('academics/schemes-of-work') ? 'active' : '' }}">
+        <i class="bi bi-journal-text"></i> Schemes of Work
+    </a>
+    <a href="{{ route('academics.lesson-plans.index') }}" class="sublink {{ Request::is('academics/lesson-plans') ? 'active' : '' }}">
+        <i class="bi bi-calendar-check"></i> Lesson Plans
+    </a>
+    <a href="{{ route('academics.portfolio-assessments.index') }}" class="sublink {{ Request::is('academics/portfolio-assessments*') ? 'active' : '' }}">
+        <i class="bi bi-folder"></i> Portfolio Assessments
+    </a>
+    <a href="{{ route('academics.exam-analytics.index') }}" class="sublink {{ Request::is('academics/exam-analytics*') ? 'active' : '' }}">
+        <i class="bi bi-graph-up"></i> Exam Analytics
+    </a>
+</div>
+
+{{-- Timetable --}}
+@php 
+    $timetableActive = Request::is('academics/timetable*') 
+        || Request::is('academics/activities*');
+@endphp
+<a href="#timetableMenu" data-bs-toggle="collapse" aria-expanded="{{ $timetableActive ? 'true' : 'false' }}" class="{{ $timetableActive ? 'parent-active' : '' }}">
+    <i class="bi bi-calendar-week"></i> Timetable
+</a>
+<div class="collapse {{ $timetableActive ? 'show' : '' }}" id="timetableMenu">
+    <a href="{{ route('academics.timetable.index') }}" class="sublink {{ Request::is('academics/timetable') && !Request::is('academics/timetable/*') ? 'active' : '' }}">
+        <i class="bi bi-calendar-week"></i> View Timetable
+    </a>
+    <a href="{{ route('academics.timetable.index') }}" class="sublink {{ Request::is('academics/timetable') && !Request::is('academics/timetable/*') ? 'active' : '' }}">
+        <i class="bi bi-building"></i> Classroom Timetable
+    </a>
+    <a href="{{ route('academics.timetable.index') }}?view=teacher" class="sublink {{ Request::is('academics/timetable/teacher*') ? 'active' : '' }}">
+        <i class="bi bi-person"></i> Teacher Timetable
+    </a>
+    <a href="{{ route('academics.activities.index') }}" class="sublink {{ Request::is('academics/activities*') ? 'active' : '' }}">
+        <i class="bi bi-trophy"></i> Activities
     </a>
 </div>
 
@@ -292,10 +295,20 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     </a>
 
     {{-- Optional per-report skills editor --}}
-    <a href="{{ route('academics.report_cards.skills.index', \App\Models\Academics\ReportCard::query()->latest()->value('id') ?? 1) }}"
-    class="{{ Request::is('academics/report_cards/*/skills*') ? 'active' : '' }}">
-    Report Card Skills (per report)
-    </a>
+    @php
+      $latestReportCard = \App\Models\Academics\ReportCard::query()->latest()->first();
+    @endphp
+    @if($latestReportCard)
+      <a href="{{ route('academics.report_cards.skills.index', $latestReportCard) }}"
+      class="sublink {{ Request::is('academics/report_cards/*/skills*') ? 'active' : '' }}">
+        <i class="bi bi-pencil-square"></i> Skills Editor
+      </a>
+    @else
+      <a href="{{ route('academics.report_cards.index') }}"
+      class="sublink">
+        <i class="bi bi-pencil-square"></i> Skills Editor
+      </a>
+    @endif
 </div>
 
 {{-- Behaviours --}}
@@ -320,6 +333,9 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}">Fee Structures</a>
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}">Invoices</a>
     <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}">Optional Fees</a>
+    <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}">Payment Plans</a>
+    <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}">Fee Concessions</a>
+    <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}">Fee Reminders</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}">Posting (Pending → Active)</a>
     <a href="{{ route('finance.journals.create') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}">Credit / Debit Adjustments</a>
 </div>
@@ -327,7 +343,9 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 <!-- HR -->
 @php
   $hrActive = Request::is('staff*')
-    || Request::is('settings/access-lookups*')
+    || Request::is('hr/access-lookups*')
+    || Request::is('hr/roles*')
+    || Request::is('lookups*')
     || Request::is('hr/profile-requests*')
     || Request::is('hr/reports*')
     || Request::is('hr/analytics*')
@@ -348,6 +366,9 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 <div class="collapse {{ $hrActive ? 'show' : '' }}" id="hrMenu">
   <a href="{{ route('staff.index') }}" class="{{ Request::is('staff') && !Request::is('staff/*') ? 'active' : '' }}">
     <i class="bi bi-people"></i> Staff
+  </a>
+  <a href="{{ route('hr.access-lookups') }}" class="{{ Request::is('hr/access-lookups*') || Request::is('hr/roles*') || Request::is('lookups*') ? 'active' : '' }}">
+    <i class="bi bi-shield-lock"></i> Roles & Lookups
   </a>
   <a href="{{ route('staff.leave-types.index') }}" class="{{ Request::is('staff/leave-types*') ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> Leave Types
@@ -396,10 +417,6 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
       <i class="bi bi-list-check"></i> Custom Deductions
     </a>
   </div>
-  
-  <a href="{{ route('settings.access_lookups') }}" class="{{ Request::is('settings/access-lookups*') ? 'active' : '' }}">
-    <i class="bi bi-shield-lock"></i> Roles & Lookups
-  </a>
 
   {{-- Profile Edit Approvals (Admin only) --}}
   @if(auth()->check() && auth()->user()->hasAnyRole(['Super Admin','Admin']))
@@ -479,7 +496,69 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
     <i class="bi bi-megaphone"></i> Announcements
     </a>
+    <a href="{{ route('communication.bulk.index') }}" 
+    class="sublink {{ Request::is('communication/bulk*') ? 'active' : '' }}">
+    <i class="bi bi-broadcast"></i> Bulk Communication
+    </a>
 </div>
+
+<!-- Events Calendar -->
+@php $eventsActive = Request::is('events*'); @endphp
+<a href="{{ route('events.index') }}" class="{{ $eventsActive ? 'active' : '' }}">
+    <i class="bi bi-calendar-event"></i> Events Calendar
+</a>
+
+<!-- Inventory & Requirements -->
+@php $inventoryActive = Request::is('inventory*'); @endphp
+<a href="#inventoryMenu" data-bs-toggle="collapse" 
+aria-expanded="{{ $inventoryActive ? 'true' : 'false' }}"
+class="{{ $inventoryActive ? 'parent-active' : '' }}">
+    <i class="bi bi-box-seam"></i> Inventory & Requirements
+</a>
+<div class="collapse {{ $inventoryActive ? 'show' : '' }}" id="inventoryMenu">
+    <a href="{{ route('inventory.items.index') }}" 
+    class="sublink {{ Request::is('inventory/items*') ? 'active' : '' }}">
+        <i class="bi bi-box"></i> Inventory Items
+    </a>
+    <a href="{{ route('inventory.requirement-types.index') }}" 
+    class="sublink {{ Request::is('inventory/requirement-types*') ? 'active' : '' }}">
+        <i class="bi bi-list-check"></i> Requirement Types
+    </a>
+    <a href="{{ route('inventory.requirement-templates.index') }}" 
+    class="sublink {{ Request::is('inventory/requirement-templates*') ? 'active' : '' }}">
+        <i class="bi bi-file-earmark-text"></i> Requirement Templates
+    </a>
+    <a href="{{ route('inventory.student-requirements.index') }}" 
+    class="sublink {{ Request::is('inventory/student-requirements*') ? 'active' : '' }}">
+        <i class="bi bi-person-check"></i> Student Requirements
+    </a>
+    <a href="{{ route('inventory.requisitions.index') }}" 
+    class="sublink {{ Request::is('inventory/requisitions*') ? 'active' : '' }}">
+        <i class="bi bi-cart-check"></i> Requisitions
+    </a>
+</div>
+
+<!-- Documents -->
+@php $documentsActive = Request::is('documents*'); @endphp
+<a href="{{ route('documents.index') }}" class="{{ $documentsActive ? 'active' : '' }}">
+    <i class="bi bi-file-earmark"></i> Documents
+</a>
+
+<!-- Activity Logs -->
+@if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
+@php $activityLogsActive = Request::is('activity-logs*'); @endphp
+<a href="{{ route('activity-logs.index') }}" class="{{ $activityLogsActive ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Activity Logs
+</a>
+@endif
+
+<!-- Backup & Restore -->
+@php $backupActive = Request::is('backup-restore*'); @endphp
+@if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
+<a href="{{ route('backup-restore.index') }}" class="{{ $backupActive ? 'active' : '' }}">
+    <i class="bi bi-database"></i> Backup & Restore
+</a>
+@endif
 
 <!-- Settings -->
 @php $isSettingsActive = Request::is('settings*'); @endphp
@@ -492,10 +571,6 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     <a href="{{ route('settings.index') }}" 
     class="sublink {{ Request::is('settings') ? 'active' : '' }}">
     <i class="bi bi-building"></i> General Info
-    </a>
-    <a href="{{ route('settings.access_lookups') }}" 
-    class="sublink {{ Request::is('settings/access-lookups*') ? 'active' : '' }}">
-    <i class="bi bi-shield-lock"></i> Access & Lookups
     </a>
     <a href="{{ route('settings.academic.index') }}" 
     class="sublink {{ Request::is('settings/academic*') ? 'active' : '' }}">

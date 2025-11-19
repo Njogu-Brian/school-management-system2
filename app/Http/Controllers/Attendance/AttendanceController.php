@@ -76,19 +76,39 @@ class AttendanceController extends Controller
                 : collect();
         }
 
-        $students = Student::query()
-            ->when($selectedClass, fn($q2) => $q2->where('classroom_id', $selectedClass))
-            ->when($selectedStream, fn($q2) => $q2->where('stream_id', $selectedStream))
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($qq) use ($q) {
-                    $qq->where('first_name', 'like', "%$q%")
+        $studentsQuery = Student::query();
+        
+        // For teachers, filter by assigned classes if no class selected yet
+        if ($user->hasRole('teacher') && !$selectedClass) {
+            $assignedClassIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassIds)) {
+                $studentsQuery->whereIn('classroom_id', $assignedClassIds);
+            } else {
+                $studentsQuery->whereRaw('1 = 0'); // No access
+            }
+        } else {
+            // When class is selected, filter by that class
+            if ($selectedClass) {
+                $studentsQuery->where('classroom_id', $selectedClass);
+            }
+        }
+        
+        // Apply stream filter if selected
+        if ($selectedStream) {
+            $studentsQuery->where('stream_id', $selectedStream);
+        }
+        
+        // Apply search filter
+        if ($q !== '') {
+            $studentsQuery->where(function ($query) use ($q) {
+                $query->where('first_name', 'like', "%$q%")
                        ->orWhere('middle_name', 'like', "%$q%")
                        ->orWhere('last_name', 'like', "%$q%")
                        ->orWhere('admission_number', 'like', "%$q%");
-                });
-            })
-            ->orderBy('first_name')
-            ->get();
+            });
+        }
+        
+        $students = $studentsQuery->orderBy('first_name')->get();
 
         $attendanceRecords = Attendance::whereDate('date', $selectedDate)
             ->with('reasonCode', 'markedBy')

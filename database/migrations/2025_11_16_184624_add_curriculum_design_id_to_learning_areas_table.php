@@ -11,8 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (
+            !Schema::hasTable('learning_areas')
+            || Schema::hasColumn('learning_areas', 'curriculum_design_id')
+            || !Schema::hasTable('curriculum_designs')
+        ) {
+            return;
+        }
+
         Schema::table('learning_areas', function (Blueprint $table) {
-            $table->foreignId('curriculum_design_id')->nullable()->after('id')->constrained('curriculum_designs')->nullOnDelete();
+            $table->foreignId('curriculum_design_id')
+                ->nullable()
+                ->after('id')
+                ->constrained('curriculum_designs')
+                ->nullOnDelete();
             $table->index('curriculum_design_id');
         });
     }
@@ -22,6 +34,13 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (
+            !Schema::hasTable('learning_areas')
+            || !Schema::hasColumn('learning_areas', 'curriculum_design_id')
+        ) {
+            return;
+        }
+
         Schema::table('learning_areas', function (Blueprint $table) {
             $table->dropForeign(['curriculum_design_id']);
             $table->dropIndex(['curriculum_design_id']);

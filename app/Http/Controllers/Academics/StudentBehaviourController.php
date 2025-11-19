@@ -15,17 +15,44 @@ class StudentBehaviourController extends Controller
 {
     public function index()
     {
-        $records = Studentbehaviour::with(['student','behaviour','teacher','term','academicYear'])
-            ->latest()->paginate(30);
+        $query = StudentBehaviour::with(['student.classroom','behaviour','teacher','term','academicYear']);
+        
+        // Filter by teacher assigned classes
+        if (Auth::user()->hasRole('Teacher')) {
+            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+            
+            if (!empty($assignedClassroomIds)) {
+                $query->whereHas('student', function($q) use ($assignedClassroomIds) {
+                    $q->whereIn('classroom_id', $assignedClassroomIds);
+                });
+            } else {
+                $query->whereRaw('1 = 0'); // No access
+            }
+        }
+        
+        $records = $query->latest()->paginate(30);
 
         return view('academics.student_behaviours.index', compact('records'));
     }
 
     public function create()
     {
+        $studentsQuery = Student::with('classroom')->orderBy('last_name')->orderBy('first_name');
+        
+        // Filter students by teacher assigned classes
+        if (Auth::user()->hasRole('Teacher') || Auth::user()->hasRole('teacher')) {
+            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+            
+            if (!empty($assignedClassroomIds)) {
+                $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $studentsQuery->whereRaw('1 = 0'); // No access
+            }
+        }
+        
         return view('academics.student_behaviours.create', [
-            'students' => Student::orderBy('last_name')->get(),
-            'behaviours' => behaviour::orderBy('name')->get(),
+            'students' => $studentsQuery->get(),
+            'behaviours' => Behaviour::orderBy('name')->get(),
             'years' => AcademicYear::orderByDesc('year')->get(),
             'terms' => Term::orderBy('name')->get(),
         ]);
@@ -41,14 +68,38 @@ class StudentBehaviourController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        Studentbehaviour::create($data + ['recorded_by' => Auth::id()]);
+        // Validate teacher has access to student's class
+        if (Auth::user()->hasRole('Teacher')) {
+            $student = Student::findOrFail($data['student_id']);
+            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+            
+            if (!in_array($student->classroom_id, $assignedClassroomIds)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'You do not have access to record behavior for students in this class.');
+            }
+        }
+        
+        $staff = Auth::user()->staff;
+        StudentBehaviour::create($data + [
+            'recorded_by' => $staff ? $staff->id : null
+        ]);
 
         return redirect()->route('academics.student-behaviours.index')
             ->with('success', 'behaviour record saved.');
     }
 
-    public function destroy(Studentbehaviour $student_behaviour)
+    public function destroy(StudentBehaviour $student_behaviour)
     {
+        // Validate teacher has access to student's class
+        if (Auth::user()->hasRole('Teacher')) {
+            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+            
+            if (!in_array($student_behaviour->student->classroom_id, $assignedClassroomIds)) {
+                abort(403, 'You do not have access to delete behavior records for students in this class.');
+            }
+        }
+        
         $student_behaviour->delete();
         return back()->with('success','behaviour record deleted.');
     }

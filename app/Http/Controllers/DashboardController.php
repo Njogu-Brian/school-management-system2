@@ -38,7 +38,8 @@ class DashboardController extends Controller
     public function teacherDashboard(Request $request)
     {
         $data = $this->buildDashboardData($request, 'teacher');
-        return view('dashboard.teacher', $data + ['role' => 'teacher']);
+        $teacherData = $this->buildTeacherSpecificData($request);
+        return view('dashboard.teacher', $data + $teacherData + ['role' => 'teacher']);
     }
 
     private function buildDashboardData(Request $request, string $role = 'admin'): array
@@ -328,5 +329,147 @@ class DashboardController extends Controller
     {
         $data = $this->buildDashboardData($request, 'transport');
         return view('dashboard.transport', $data + ['role' => 'transport']);
+    }
+
+    /**
+     * Build teacher-specific dashboard data
+     */
+    private function buildTeacherSpecificData(Request $request): array
+    {
+        $user = auth()->user();
+        $staff = \App\Models\Staff::where('user_id', $user->id)->first();
+        
+        if (!$staff) {
+            return [
+                'assignedClasses' => collect(),
+                'assignedSubjects' => collect(),
+                'totalStudents' => 0,
+                'upcomingLessons' => collect(),
+                'pendingAttendance' => collect(),
+                'pendingMarks' => collect(),
+                'pendingHomework' => collect(),
+            ];
+        }
+
+        $currentYear = AcademicYear::latest('id')->first();
+        $currentTerm = Term::latest('id')->first();
+        
+        // Get assigned classes and subjects from classroom_subjects
+        $assignments = \App\Models\Academics\ClassroomSubject::where('staff_id', $staff->id)
+            ->when($currentYear, fn($q) => $q->where('academic_year_id', $currentYear->id))
+            ->when($currentTerm, fn($q) => $q->where('term_id', $currentTerm->id))
+            ->with(['classroom', 'subject', 'stream'])
+            ->get();
+
+        // Also get classes directly assigned via classroom_teacher table
+        $directClassrooms = \App\Models\Academics\Classroom::whereHas('teachers', function($q) use ($user) {
+            $q->where('users.id', $user->id);
+        })->get();
+
+        // Merge classes from both sources
+        $classesFromAssignments = $assignments->pluck('classroom')->unique('id')->filter();
+        $assignedClasses = $classesFromAssignments->merge($directClassrooms)->unique('id');
+        
+        // Get unique subjects
+        $assignedSubjects = $assignments->pluck('subject')->unique('id')->filter();
+        
+        // Get total students in assigned classes
+        $classroomIds = $assignedClasses->pluck('id')->toArray();
+        $totalStudents = Student::whereIn('classroom_id', $classroomIds)->count();
+        
+        // Get upcoming lessons (today's schedule)
+        $upcomingLessons = collect();
+        $today = now();
+        $dayName = strtolower($today->format('l')); // monday, tuesday, etc.
+        
+        // Try to get timetable data for today
+        if ($currentYear && $currentTerm) {
+            try {
+                $teacherTimetable = \App\Services\TimetableService::generateForTeacher(
+                    $staff->id, 
+                    $currentYear->id, 
+                    $currentTerm->id
+                );
+                
+                if (isset($teacherTimetable['schedule'])) {
+                    $upcomingLessons = collect($teacherTimetable['schedule'])
+                        ->filter(function($lesson) use ($dayName) {
+                            return strtolower($lesson['day']) === $dayName;
+                        })
+                        ->sortBy('period')
+                        ->take(5);
+                }
+            } catch (\Exception $e) {
+                // If timetable service fails, continue without it
+            }
+        }
+        
+        // Get pending attendance (classes not marked today)
+        $pendingAttendance = $assignedClasses->filter(function($classroom) use ($today) {
+            $marked = Attendance::whereDate('date', $today)
+                ->whereHas('student', fn($q) => $q->where('classroom_id', $classroom->id))
+                ->exists();
+            return !$marked;
+        });
+        
+        // Get pending marks (exams that need marks entry)
+        // Get exams for assigned classes that are open and need marks
+        $pendingMarks = \App\Models\Academics\Exam::where('status', 'open')
+            ->whereHas('marks', function($q) use ($classroomIds) {
+                $q->whereHas('student', function($q2) use ($classroomIds) {
+                    $q2->whereIn('classroom_id', $classroomIds);
+                })
+                ->where(function($q3) {
+                    $q3->whereNull('score_raw')
+                       ->whereNull('score_moderated')
+                       ->where(function($q4) {
+                           $q4->whereNull('opener_score')
+                              ->whereNull('midterm_score')
+                              ->whereNull('endterm_score');
+                       });
+                });
+            })
+            ->with(['academicYear', 'term'])
+            ->latest()
+            ->take(5)
+            ->get();
+        
+        // Get pending homework (submissions to review)
+        $pendingHomework = \App\Models\Academics\Homework::whereIn('classroom_id', $classroomIds)
+            ->whereHas('homeworkDiary', function($q) {
+                $q->where('status', 'submitted')
+                  ->whereNull('score');
+            })
+            ->with(['subject', 'classroom'])
+            ->latest()
+            ->take(5)
+            ->get();
+        
+        // Get recent homework assignments
+        $recentHomework = \App\Models\Academics\Homework::whereIn('classroom_id', $classroomIds)
+            ->with(['subject', 'classroom'])
+            ->latest()
+            ->take(5)
+            ->get();
+        
+        // Get students by class
+        $studentsByClass = Student::whereIn('classroom_id', $classroomIds)
+            ->with('classroom')
+            ->get()
+            ->groupBy('classroom_id');
+        
+        return [
+            'assignedClasses' => $assignedClasses,
+            'assignedSubjects' => $assignedSubjects,
+            'assignments' => $assignments,
+            'totalStudents' => $totalStudents,
+            'upcomingLessons' => $upcomingLessons,
+            'pendingAttendance' => $pendingAttendance,
+            'pendingMarks' => $pendingMarks,
+            'pendingHomework' => $pendingHomework,
+            'recentHomework' => $recentHomework,
+            'studentsByClass' => $studentsByClass,
+            'staff' => $staff,
+        ];
     }
 }
