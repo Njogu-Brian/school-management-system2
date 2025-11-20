@@ -175,8 +175,23 @@
                                             </small>
                                         </td>
                                         <td>
-                                            @if($assignment->teacher)
-                                                <span class="badge bg-success">{{ $assignment->teacher->full_name }}</span>
+                                            @php
+                                                // Get all teachers assigned to this subject-classroom combination
+                                                $allTeachers = \App\Models\Academics\ClassroomSubject::where('classroom_id', $assignment->classroom_id)
+                                                    ->where('subject_id', $assignment->subject_id)
+                                                    ->where('stream_id', $assignment->stream_id)
+                                                    ->where('academic_year_id', $assignment->academic_year_id)
+                                                    ->where('term_id', $assignment->term_id)
+                                                    ->whereNotNull('staff_id')
+                                                    ->with('teacher')
+                                                    ->get()
+                                                    ->pluck('teacher')
+                                                    ->filter();
+                                            @endphp
+                                            @if($allTeachers->isNotEmpty())
+                                                @foreach($allTeachers as $teacher)
+                                                    <span class="badge bg-success me-1 mb-1">{{ $teacher->full_name }}</span>
+                                                @endforeach
                                             @else
                                                 <span class="text-muted">Unassigned</span>
                                             @endif

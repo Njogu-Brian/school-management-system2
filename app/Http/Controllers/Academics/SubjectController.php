@@ -448,8 +448,38 @@ class SubjectController extends Controller
                 }
 
                 $assignment = $assignmentModels->get($id);
-                $assignment->staff_id = $staffId ?: null;
-                $assignment->save();
+                $staffId = $staffId ? (int) $staffId : null;
+
+                // If assigning a different teacher to the same subject-classroom combination
+                // and there's already a teacher assigned, create a new record instead of updating
+                if ($staffId && $assignment->staff_id && $assignment->staff_id != $staffId) {
+                    // Check if this teacher is already assigned to this subject-classroom combination
+                    $existingAssignment = ClassroomSubject::where('classroom_id', $assignment->classroom_id)
+                        ->where('subject_id', $assignment->subject_id)
+                        ->where('stream_id', $assignment->stream_id)
+                        ->where('staff_id', $staffId)
+                        ->where('academic_year_id', $assignment->academic_year_id)
+                        ->where('term_id', $assignment->term_id)
+                        ->first();
+
+                    if (!$existingAssignment) {
+                        // Create a new assignment for this teacher
+                        ClassroomSubject::create([
+                            'classroom_id' => $assignment->classroom_id,
+                            'subject_id' => $assignment->subject_id,
+                            'stream_id' => $assignment->stream_id,
+                            'staff_id' => $staffId,
+                            'academic_year_id' => $assignment->academic_year_id,
+                            'term_id' => $assignment->term_id,
+                            'is_compulsory' => $assignment->is_compulsory,
+                        ]);
+                    }
+                    // Keep the original assignment unchanged
+                } else {
+                    // Update the existing assignment
+                    $assignment->staff_id = $staffId;
+                    $assignment->save();
+                }
             }
         });
 
