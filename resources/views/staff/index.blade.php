@@ -34,6 +34,51 @@
     </div>
   @endif
 
+  @if(session('errors') && is_array(session('errors')))
+    <div class="alert alert-warning alert-dismissible fade show">
+      <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Import Errors</h5>
+      <p class="mb-2">The following rows failed to import:</p>
+      <ul class="mb-0">
+        @foreach(session('errors') as $error)
+          <li>{{ $error }}</li>
+        @endforeach
+      </ul>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  @endif
+
+  @if(session('error_details') && is_array(session('error_details')))
+    <div class="card border-warning mb-4">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="mb-0"><i class="bi bi-file-earmark-excel"></i> Detailed Import Error Report</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered">
+            <thead>
+              <tr>
+                <th>Row #</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              @foreach(session('error_details') as $detail)
+                <tr>
+                  <td>{{ $detail['row'] }}</td>
+                  <td>{{ $detail['name'] ?: 'N/A' }}</td>
+                  <td>{{ $detail['email'] ?: 'N/A' }}</td>
+                  <td class="text-danger"><small>{{ $detail['error'] }}</small></td>
+                </tr>
+              @endforeach
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  @endif
+
   {{-- Summary Statistics --}}
   <div class="row mb-4">
     <div class="col-md-3">

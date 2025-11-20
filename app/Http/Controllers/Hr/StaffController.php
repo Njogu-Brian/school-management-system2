@@ -500,6 +500,12 @@ class StaffController extends Controller
             return redirect()->route('staff.upload.form')->with('error','Upload session expired. Please upload again.');
         }
 
+        // Bulk assignment options (apply to all rows if set)
+        $bulkDepartmentId = $request->input('bulk_department_id');
+        $bulkJobTitleId = $request->input('bulk_job_title_id');
+        $bulkCategoryId = $request->input('bulk_staff_category_id');
+        $bulkRoleName = $request->input('bulk_spatie_role_name');
+
         $deptIds   = $request->input('department_id', []);
         $jobIds    = $request->input('job_title_id', []);
         $catIds    = $request->input('staff_category_id', []);
@@ -508,46 +514,84 @@ class StaffController extends Controller
 
         $success = 0;
         $errors  = [];
+        $errorDetails = [];
 
         foreach ($rows as $i => $r) {
             try {
+                // Use bulk assignment if provided, otherwise use row-specific
+                $deptId = $bulkDepartmentId ?: ($deptIds[$i] ?? null);
+                $jobId = $bulkJobTitleId ?: ($jobIds[$i] ?? null);
+                $catId = $bulkCategoryId ?: ($catIds[$i] ?? null);
+                $roleName = $bulkRoleName ?: ($roleNames[$i] ?? '');
+
                 // Build a single "sheet row" compatible with your StaffImport
-                $row = collect([
-                    '', // 0 staff_id (let generator create)
-                    $r['first_name'],          // 1
-                    $r['middle_name'],         // 2
-                    $r['last_name'],           // 3
-                    $r['work_email'],          // 4
-                    $r['personal_email'],      // 5
-                    $r['phone_number'],        // 6
-                    $r['id_number'],           // 7
-                    '', '', '', '', '', '', '', '', '', '', '', '', '', // up to 20
-                ]);
+                // Create array with all 26 indices (0-25) to match Excel columns
+                $rowArray = array_fill(0, 26, '');
+                $rowArray[0] = ''; // staff_id (let generator create)
+                $rowArray[1] = $r['first_name'] ?? '';
+                $rowArray[2] = $r['middle_name'] ?? '';
+                $rowArray[3] = $r['last_name'] ?? '';
+                $rowArray[4] = $r['work_email'] ?? '';
+                $rowArray[5] = $r['personal_email'] ?? '';
+                $rowArray[6] = $r['phone_number'] ?? '';
+                $rowArray[7] = $r['id_number'] ?? '';
+                // 8-20 are empty (other fields)
+                $rowArray[21] = $deptId ? optional(Department::find($deptId))->name : '';
+                $rowArray[22] = $jobId ? optional(JobTitle::find($jobId))->name : '';
+                $rowArray[23] = $catId ? optional(StaffCategory::find($catId))->name : '';
+                $rowArray[24] = isset($supIds[$i]) && $supIds[$i] ? optional(\App\Models\Staff::find($supIds[$i]))->staff_id : '';
+                $rowArray[25] = $roleName;
+                
+                $row = collect($rowArray);
 
-                $row[21] = optional(Department::find($deptIds[$i] ?? null))->name;
-                $row[22] = optional(JobTitle::find($jobIds[$i] ?? null))->name;
-                $row[23] = optional(StaffCategory::find($catIds[$i] ?? null))->name;
-                $row[24] = optional(\App\Models\Staff::find($supIds[$i] ?? null))->staff_id;
-                $row[25] = $roleNames[$i] ?? '';
+                // Validate required fields before import
+                if (empty($rowArray[1]) || empty($rowArray[3]) || empty($rowArray[4]) || empty($rowArray[6]) || empty($rowArray[7])) {
+                    throw new \RuntimeException("Missing required fields: first_name, last_name, work_email, phone_number, or id_number");
+                }
 
-                // Call your existing StaffImport on just this row
+                // Call your existing StaffImport on just this row (without header)
                 $import = new \App\Imports\StaffImport;
-                $import->collection(collect([$row]));
+                // Create a collection with a dummy header and the actual row
+                $import->collection(collect([
+                    collect([]), // dummy header
+                    $row
+                ]));
 
                 if (!empty($import->errorMessages)) {
                     throw new \RuntimeException(implode('; ', $import->errorMessages));
                 }
                 $success += $import->successCount;
             } catch (\Throwable $e) {
-                $errors[] = "Row ".($i+2).": ".$e->getMessage();
+                $rowNum = $i + 2; // +2 because Excel rows start at 1 and we skip header
+                $errorMsg = "Row {$rowNum} ({$r['first_name']} {$r['last_name']}): " . $e->getMessage();
+                $errors[] = $errorMsg;
+                $errorDetails[] = [
+                    'row' => $rowNum,
+                    'name' => ($r['first_name'] ?? '') . ' ' . ($r['last_name'] ?? ''),
+                    'email' => $r['work_email'] ?? '',
+                    'error' => $e->getMessage(),
+                    'trace' => config('app.debug') ? $e->getTraceAsString() : null,
+                ];
+                Log::error('Staff import error', [
+                    'row' => $rowNum,
+                    'data' => $r,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
         }
 
         session()->forget(['staff_upload_rows','staff_upload_time']);
 
+        $message = "$success staff imported successfully.";
+        if (!empty($errors)) {
+            $message .= " " . count($errors) . " row(s) failed. Check errors below.";
+        }
+
         return redirect()->route('staff.index')
-            ->with('success', "$success staff imported.")
-            ->with('errors', $errors);
+            ->with('success', $message)
+            ->with('errors', $errors)
+            ->with('error_details', $errorDetails);
     }
     private function syncStatutoryExemptions(Staff $staff, array $requestedCodes = []): void
     {

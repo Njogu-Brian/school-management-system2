@@ -13,6 +13,62 @@
   <form method="POST" action="{{ route('staff.upload.commit') }}">
     @csrf
 
+    {{-- Bulk Assignment Options --}}
+    <div class="card shadow-sm mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-sliders"></i> Bulk Assignment Options</h5>
+        <small class="text-white-50">Apply these settings to all rows below (individual row selections will override)</small>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Bulk Department</label>
+            <select name="bulk_department_id" class="form-select" id="bulkDepartment">
+              <option value="">— None (use individual) —</option>
+              @foreach($departments as $d)
+                <option value="{{ $d->id }}">{{ $d->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Bulk Job Title</label>
+            <select name="bulk_job_title_id" class="form-select" id="bulkJobTitle">
+              <option value="">— None (use individual) —</option>
+              @foreach($jobTitles as $j)
+                <option value="{{ $j->id }}">{{ $j->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Bulk Category</label>
+            <select name="bulk_staff_category_id" class="form-select" id="bulkCategory">
+              <option value="">— None (use individual) —</option>
+              @foreach($categories as $c)
+                <option value="{{ $c->id }}">{{ $c->name }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Bulk Role</label>
+            <select name="bulk_spatie_role_name" class="form-select" id="bulkRole">
+              <option value="">— None (use individual) —</option>
+              @foreach($roles as $role)
+                <option value="{{ $role->name }}">{{ $role->name }}</option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+        <div class="mt-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="applyBulkBtn">
+            <i class="bi bi-arrow-down"></i> Apply to All Rows
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="clearBulkBtn">
+            <i class="bi bi-x-circle"></i> Clear Bulk Selections
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="table-responsive">
       <table class="table table-bordered align-middle">
         <thead class="table-dark">
@@ -101,4 +157,48 @@
     </div>
   </form>
 </div>
+
+@push('scripts')
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const bulkDept = document.getElementById('bulkDepartment');
+    const bulkJob = document.getElementById('bulkJobTitle');
+    const bulkCat = document.getElementById('bulkCategory');
+    const bulkRole = document.getElementById('bulkRole');
+    const applyBtn = document.getElementById('applyBulkBtn');
+    const clearBtn = document.getElementById('clearBulkBtn');
+
+    // Apply bulk selections to all rows
+    applyBtn.addEventListener('click', function() {
+      const deptVal = bulkDept.value;
+      const jobVal = bulkJob.value;
+      const catVal = bulkCat.value;
+      const roleVal = bulkRole.value;
+
+      document.querySelectorAll('select[name^="department_id"]').forEach(sel => {
+        if (deptVal) sel.value = deptVal;
+      });
+      document.querySelectorAll('select[name^="job_title_id"]').forEach(sel => {
+        if (jobVal) sel.value = jobVal;
+      });
+      document.querySelectorAll('select[name^="staff_category_id"]').forEach(sel => {
+        if (catVal) sel.value = catVal;
+      });
+      document.querySelectorAll('select[name^="spatie_role_name"]').forEach(sel => {
+        if (roleVal) sel.value = roleVal;
+      });
+
+      alert('Bulk selections applied to all rows!');
+    });
+
+    // Clear bulk selections
+    clearBtn.addEventListener('click', function() {
+      bulkDept.value = '';
+      bulkJob.value = '';
+      bulkCat.value = '';
+      bulkRole.value = '';
+    });
+  });
+</script>
+@endpush
 @endsection

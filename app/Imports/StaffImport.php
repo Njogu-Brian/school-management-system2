@@ -21,8 +21,13 @@ class StaffImport implements ToCollection
 
     public function collection(Collection $rows)
     {
-        // Remove header
-        $header = $rows->shift();
+        // Remove header if present (first row might be empty or header)
+        $firstRow = $rows->first();
+        // If first row is empty or looks like a header, remove it
+        if ($firstRow && ($firstRow->isEmpty() || 
+            (isset($firstRow[0]) && (empty($firstRow[0]) || strtolower($firstRow[0]) === 'staff_id' || strtolower($firstRow[0]) === 'first_name')))) {
+            $rows->shift();
+        }
 
         // Map column index → key
         // Keep aligned with headings above
