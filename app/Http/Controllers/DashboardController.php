@@ -123,7 +123,7 @@ class DashboardController extends Controller
         } else {
             // Admin view - use filters
             $studentBase->when($filters['classroom_id'], fn($q) => $q->where('classroom_id', $filters['classroom_id']))
-                       ->when($filters['stream_id'], fn($q) => $q->where('stream_id', $filters['stream_id']));
+            ->when($filters['stream_id'], fn($q) => $q->where('stream_id', $filters['stream_id']));
         }
         
         $totalStudents = (clone $studentBase)->count();
@@ -336,9 +336,50 @@ class DashboardController extends Controller
 
         // ---- Tables / Lists
         // Absence alerts (last 7 days)
-        $absenceAlerts = Attendance::selectRaw('student_id, COUNT(*) as days_absent')
+        $absenceAlertsQuery = Attendance::selectRaw('student_id, COUNT(*) as days_absent')
             ->where('status', 'absent')
-            ->whereBetween('date', [now()->subDays(7)->toDateString(), now()->toDateString()])
+            ->whereBetween('date', [now()->subDays(7)->toDateString(), now()->toDateString()]);
+        
+        // For teachers, filter by assigned classrooms/streams
+        if ($role === 'teacher' && $assignedClassroomIds !== null) {
+            if (!empty($streamAssignments)) {
+                $absenceAlertsQuery->whereHas('student', function($q) use ($streamAssignments, $assignedClassroomIds) {
+                    foreach ($streamAssignments as $assignment) {
+                        $q->orWhere(function($subQ) use ($assignment) {
+                            $subQ->where('classroom_id', $assignment->classroom_id)
+                                 ->where('stream_id', $assignment->stream_id);
+                        });
+                    }
+                    
+                    $directClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
+                        ->where('teacher_id', auth()->id())
+                        ->pluck('classroom_id')
+                        ->toArray();
+                    
+                    $subjectClassroomIds = [];
+                    if (auth()->user()->staff) {
+                        $subjectClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                            ->where('staff_id', auth()->user()->staff->id)
+                            ->distinct()
+                            ->pluck('classroom_id')
+                            ->toArray();
+                    }
+                    
+                    $nonStreamClassroomIds = array_diff(
+                        array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                        array_column($streamAssignments, 'classroom_id')
+                    );
+                    
+                    if (!empty($nonStreamClassroomIds)) {
+                        $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                    }
+                });
+            } else {
+                $absenceAlertsQuery->whereHas('student', fn($q) => $q->whereIn('classroom_id', $assignedClassroomIds));
+            }
+        }
+        
+        $absenceAlerts = $absenceAlertsQuery
             ->groupBy('student_id')
             ->orderByDesc('days_absent')
             ->take(6)
@@ -669,9 +710,9 @@ class DashboardController extends Controller
         // Get students from direct classroom assignments and classroom_subjects
         if (!empty($nonStreamClassroomIds)) {
             $directStudents = Student::whereIn('classroom_id', $nonStreamClassroomIds)
-                ->with('classroom')
-                ->get()
-                ->groupBy('classroom_id');
+            ->with('classroom')
+            ->get()
+            ->groupBy('classroom_id');
             $studentsByClass = $studentsByClass->merge($directStudents);
         }
         
