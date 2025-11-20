@@ -52,19 +52,8 @@ class StaffProfileController extends Controller
         ];
         $data = $request->validate($rules);
 
-        // Compute diff (old vs new)
-        $interesting = array_keys($rules);
-        $changes = [];
-        foreach ($interesting as $field) {
-            $old = $staff->{$field};
-            $new = $data[$field] ?? null;
-            // normalize empties
-            if (($old ?? null) != ($new ?? null)) {
-                $changes[$field] = ['old' => $old, 'new' => $new];
-            }
-        }
-
         // Handle photo upload separately (apply immediately, no approval needed)
+        $photoUpdated = false;
         if ($request->hasFile('photo')) {
             // Delete old photo if exists
             if ($staff->photo && Storage::disk('public')->exists($staff->photo)) {
@@ -75,10 +64,23 @@ class StaffProfileController extends Controller
             $photoPath = $request->file('photo')->store('staff_photos', 'public');
             $staff->photo = $photoPath;
             $staff->save();
+            $photoUpdated = true;
+        }
+
+        // Compute diff (old vs new) - exclude 'photo' since it's handled separately
+        $interesting = array_filter(array_keys($rules), fn($key) => $key !== 'photo');
+        $changes = [];
+        foreach ($interesting as $field) {
+            $old = $staff->{$field};
+            $new = $data[$field] ?? null;
+            // normalize empties
+            if (($old ?? null) != ($new ?? null)) {
+                $changes[$field] = ['old' => $old, 'new' => $new];
+            }
         }
 
         if (empty($changes)) {
-            if ($request->hasFile('photo')) {
+            if ($photoUpdated) {
                 return back()->with('success', 'Profile photo updated successfully.');
             }
             return back()->with('success', 'No changes detected.');

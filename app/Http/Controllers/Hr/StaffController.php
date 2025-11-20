@@ -18,6 +18,7 @@ use App\Services\CommunicationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Spatie\Permission\Models\Role;
@@ -340,6 +341,7 @@ class StaffController extends Controller
             'max_lessons_per_week' => 'nullable|integer|min:0',
             'statutory_exemptions' => 'nullable|array',
             'statutory_exemptions.*' => 'in:nssf,nhif,paye',
+            'photo' => 'nullable|image|mimes:jpeg,jpg,png|max:2048',
         ]);
 
         // Validate supervisor hierarchy (prevent circular references and self-supervision)
@@ -383,6 +385,12 @@ class StaffController extends Controller
             ]);
 
             if ($request->hasFile('photo')) {
+                // Delete old photo if exists
+                if ($staff->photo && Storage::disk('public')->exists($staff->photo)) {
+                    Storage::disk('public')->delete($staff->photo);
+                }
+                
+                // Store new photo
                 $staffData['photo'] = $request->file('photo')->store('staff_photos', 'public');
             }
 
