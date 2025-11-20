@@ -181,11 +181,18 @@
 
                 <td>
                     <div class="btn-group" role="group">
+                        @if(Route::has('students.bulk.assign-streams'))
+                            <a href="{{ route('students.bulk.assign-streams', ['classroom_id' => $classroom->id]) }}" 
+                               class="btn btn-sm btn-success" 
+                               title="Assign Students to Streams in {{ $classroom->name }}">
+                                <i class="bi bi-people"></i>
+                            </a>
+                        @endif
                         <a href="{{ route('academics.classrooms.edit', $classroom->id) }}" class="btn btn-sm btn-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
                         @if($classroom->students->count() > 0 && ($classroom->nextClass || $classroom->is_alumni))
-                            <a href="{{ route('academics.promotions.show', $classroom) }}" class="btn btn-sm btn-success" title="Promote Students">
+                            <a href="{{ route('academics.promotions.show', $classroom) }}" class="btn btn-sm btn-info" title="Promote Students">
                                 <i class="bi bi-arrow-up-circle"></i>
                             </a>
                         @endif
