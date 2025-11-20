@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-0">Add New Stream</h2>
-            <small class="text-muted">Create a new stream and assign it to classrooms</small>
+            <small class="text-muted">Create a new stream for a specific classroom (each stream is unique per classroom)</small>
         </div>
         <a href="{{ route('academics.streams.index') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Back
@@ -27,34 +27,16 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label">Primary Classroom <span class="text-danger">*</span></label>
+                    <label class="form-label">Classroom <span class="text-danger">*</span></label>
                     <select name="classroom_id" class="form-select" required>
-                        <option value="">-- Select Primary Classroom --</option>
+                        <option value="">-- Select Classroom --</option>
                         @foreach ($classrooms as $classroom)
-                            <option value="{{ $classroom->id }}">{{ $classroom->name }}</option>
+                            <option value="{{ $classroom->id }}" @selected(old('classroom_id') == $classroom->id)>
+                                {{ $classroom->name }}
+                            </option>
                         @endforeach
                     </select>
-                    <small class="text-muted">Select the primary classroom this stream belongs to</small>
-                </div>
-
-                <div class="mb-3">
-                    <label class="form-label">Assign to Additional Classrooms</label>
-                    <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
-                        <div class="row">
-                            @foreach ($classrooms as $classroom)
-                                <div class="col-md-4 mb-2">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="classroom_ids[]" 
-                                            value="{{ $classroom->id }}" id="classroom_{{ $classroom->id }}">
-                                        <label class="form-check-label" for="classroom_{{ $classroom->id }}">
-                                            {{ $classroom->name }}
-                                        </label>
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    <small class="text-muted">Select additional classrooms this stream should be available in</small>
+                    <small class="text-muted">Select the classroom this stream belongs to. Note: Stream names can be the same across different classrooms (e.g., "A" stream in Grade 1 and "A" stream in Grade 2 are different streams).</small>
                 </div>
 
                 <div class="d-flex justify-content-between">

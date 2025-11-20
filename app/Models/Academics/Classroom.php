@@ -28,9 +28,13 @@ class Classroom extends Model
         return $this->hasMany(Classroom::class, 'next_class_id');
     }
 
+    /**
+     * Each classroom has many streams
+     * Streams are unique per classroom (stream "A" in Classroom 1 is different from stream "A" in Classroom 2)
+     */
     public function streams()
     {
-        return $this->belongsToMany(Stream::class, 'classroom_stream');
+        return $this->hasMany(Stream::class, 'classroom_id');
     }
 
     public function students()

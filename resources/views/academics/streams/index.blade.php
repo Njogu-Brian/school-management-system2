@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-0">Stream Management</h2>
-            <small class="text-muted">Manage streams and assign them to classrooms</small>
+            <small class="text-muted">Manage streams (each stream belongs to one classroom and is unique)</small>
         </div>
         <a href="{{ route('academics.streams.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Add New Stream
@@ -29,8 +29,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>Stream Name</th>
-                            <th>Primary Classroom</th>
-                            <th>Assigned Classrooms</th>
+                            <th>Classroom</th>
                             <th>Teachers</th>
                             <th class="text-end">Actions</th>
                         </tr>
@@ -49,20 +48,18 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if($stream->classrooms->count() > 0)
+                                    @php
+                                        // Get teachers for this stream in its classroom
+                                        $streamTeachers = \DB::table('stream_teacher')
+                                            ->where('stream_id', $stream->id)
+                                            ->where('classroom_id', $stream->classroom_id)
+                                            ->join('users', 'stream_teacher.teacher_id', '=', 'users.id')
+                                            ->select('users.name')
+                                            ->get();
+                                    @endphp
+                                    @if($streamTeachers->count() > 0)
                                         <div class="d-flex flex-wrap gap-1">
-                                            @foreach($stream->classrooms as $classroom)
-                                                <span class="badge bg-secondary">{{ $classroom->name }}</span>
-                                            @endforeach
-                                        </div>
-                                    @else
-                                        <span class="text-muted">No classrooms assigned</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($stream->teachers->count() > 0)
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @foreach($stream->teachers as $teacher)
+                                            @foreach($streamTeachers as $teacher)
                                                 <span class="badge bg-success">{{ $teacher->name }}</span>
                                             @endforeach
                                         </div>
@@ -87,7 +84,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">No streams found.</td>
+                                <td colspan="4" class="text-center text-muted py-4">No streams found.</td>
                             </tr>
                         @endforelse
                     </tbody>

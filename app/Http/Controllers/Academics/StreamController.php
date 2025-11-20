@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Classroom;
 
@@ -12,7 +13,7 @@ class StreamController extends Controller
 {
     public function index()
     {
-        $streams = Stream::with(['classroom', 'classrooms', 'teachers'])->orderBy('name')->get();
+        $streams = Stream::with(['classroom', 'teachers'])->orderBy('classroom_id')->orderBy('name')->get();
         return view('academics.streams.index', compact('streams'));
     }
 
@@ -25,21 +26,22 @@ class StreamController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255|unique:streams,name',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                // Unique per classroom: same name can exist in different classrooms
+                Rule::unique('streams')->where(function ($query) use ($request) {
+                    return $query->where('classroom_id', $request->classroom_id);
+                }),
+            ],
             'classroom_id' => 'required|exists:classrooms,id',
-            'classroom_ids' => 'nullable|array',
-            'classroom_ids.*' => 'exists:classrooms,id',
         ]);
 
         $stream = Stream::create([
             'name' => $request->name,
             'classroom_id' => $request->classroom_id,
         ]);
-
-        // Attach additional classrooms via pivot if provided
-        if ($request->has('classroom_ids')) {
-            $stream->classrooms()->sync($request->classroom_ids);
-        }
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream added successfully.');
@@ -49,28 +51,31 @@ class StreamController extends Controller
     {
         $stream = Stream::findOrFail($id);
         $classrooms = Classroom::orderBy('name')->get();
-        $assignedClassrooms = $stream->classrooms->pluck('id')->toArray();
 
-        return view('academics.streams.edit', compact('stream', 'classrooms', 'assignedClassrooms'));
+        return view('academics.streams.edit', compact('stream', 'classrooms'));
     }
 
     public function update(Request $request, $id)
     {
+        $stream = Stream::findOrFail($id);
+        
         $request->validate([
-            'name' => 'required|string|max:255|unique:streams,name,' . $id,
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                // Unique per classroom: same name can exist in different classrooms
+                Rule::unique('streams')->where(function ($query) use ($request) {
+                    return $query->where('classroom_id', $request->classroom_id);
+                })->ignore($id),
+            ],
             'classroom_id' => 'required|exists:classrooms,id',
-            'classroom_ids' => 'nullable|array',
-            'classroom_ids.*' => 'exists:classrooms,id',
         ]);
 
-        $stream = Stream::findOrFail($id);
         $stream->update([
             'name' => $request->name,
             'classroom_id' => $request->classroom_id,
         ]);
-        
-        // Sync additional classrooms via pivot
-        $stream->classrooms()->sync($request->classroom_ids ?? []);
 
         return redirect()->route('academics.streams.index')
             ->with('success', 'Stream updated successfully.');
@@ -95,11 +100,8 @@ class StreamController extends Controller
 
         $classroomId = $request->classroom_id;
         
-        // Verify the classroom_id matches the stream's primary classroom or is in the stream's classrooms
-        $isValidClassroom = $stream->classroom_id == $classroomId || 
-                          $stream->classrooms->contains('id', $classroomId);
-        
-        if (!$isValidClassroom) {
+        // Verify the classroom_id matches the stream's classroom (each stream belongs to one classroom)
+        if ($stream->classroom_id != $classroomId) {
             return redirect()->route('academics.assign-teachers')
                 ->with('error', 'Invalid classroom for this stream. Assignment cancelled.');
         }
@@ -151,7 +153,12 @@ class StreamController extends Controller
     public function destroy($id)
     {
         $stream = Stream::findOrFail($id);
-        $stream->classrooms()->detach();
+        
+        // Delete teacher assignments first
+        DB::table('stream_teacher')
+            ->where('stream_id', $stream->id)
+            ->delete();
+        
         $stream->delete();
 
         return redirect()->route('academics.streams.index')
