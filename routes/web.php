@@ -737,6 +737,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/students/bulk-parse',   [StudentController::class, 'bulkParse'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.parse');
     Route::post('/students/bulk-import',  [StudentController::class, 'bulkImport'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.import');
     Route::get('/students/bulk-template', [StudentController::class, 'bulkTemplate'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.template');
+    
+    // Bulk stream assignment - MUST be before resource route to avoid conflicts
+    Route::get('/students/bulk-assign-streams', [StudentController::class, 'bulkAssignStreams'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams');
+    Route::post('/students/bulk-assign-streams', [StudentController::class, 'processBulkStreamAssignment'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams.process');
 
     Route::resource('students', StudentController::class)
         ->except(['destroy'])
@@ -763,12 +769,6 @@ Route::middleware('auth')->group(function () {
     // Bulk assign (class/stream) + bulk archive/restore
     Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign');
-    
-    // Bulk stream assignment
-    Route::get('/students/bulk-assign-streams', [StudentController::class, 'bulkAssignStreams'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams');
-    Route::post('/students/bulk-assign-streams', [StudentController::class, 'processBulkStreamAssignment'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams.process');
 
     Route::post('/students/bulk-archive', [StudentController::class, 'bulkArchive'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.archive');
