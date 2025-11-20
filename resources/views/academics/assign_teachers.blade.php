@@ -63,21 +63,21 @@
                           @endif
                         </td>
                         <td class="text-end">
-                          <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignStreamModal{{ $stream->id }}">
+                          <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignStreamModal{{ $stream->id }}_{{ $classroom->id }}">
                             <i class="bi bi-pencil"></i> Assign Teacher
                           </button>
                         </td>
                       </tr>
 
                       {{-- Assign Modal --}}
-                      <div class="modal fade" id="assignStreamModal{{ $stream->id }}" tabindex="-1">
+                      <div class="modal fade" id="assignStreamModal{{ $stream->id }}_{{ $classroom->id }}" tabindex="-1">
                         <div class="modal-dialog">
                           <div class="modal-content">
                             <div class="modal-header">
                               <h5 class="modal-title">Assign Teacher to {{ $classroom->name }} - {{ $stream->name }}</h5>
                               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
-                            <form action="{{ route('academics.streams.assign-teachers', $stream->id) }}" method="POST" id="assignStreamForm{{ $stream->id }}">
+                            <form action="{{ route('academics.streams.assign-teachers', $stream->id) }}" method="POST" id="assignStreamForm{{ $stream->id }}_{{ $classroom->id }}">
                               @csrf
                               <input type="hidden" name="stream_id" value="{{ $stream->id }}">
                               <input type="hidden" name="classroom_id" value="{{ $classroom->id }}">
@@ -92,7 +92,7 @@
                                         ->pluck('teacher_id')
                                         ->toArray();
                                   @endphp
-                                  <select name="teacher_ids[]" class="form-select" multiple size="8" id="teacherSelect{{ $stream->id }}">
+                                  <select name="teacher_ids[]" class="form-select" multiple size="8" id="teacherSelect{{ $stream->id }}_{{ $classroom->id }}">
                                     @foreach($teachers as $teacher)
                                       <option value="{{ $teacher->id }}" @selected(in_array($teacher->id, $assignedTeacherIds))>
                                         {{ $teacher->name }}
@@ -191,10 +191,11 @@
 @push('scripts')
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // Ensure each stream form only submits for its specific stream
+    // Ensure each stream form only submits for its specific stream-classroom combination
     document.querySelectorAll('[id^="assignStreamForm"]').forEach(form => {
       form.addEventListener('submit', function(e) {
         const streamId = this.querySelector('input[name="stream_id"]')?.value;
+        const classroomId = this.querySelector('input[name="classroom_id"]')?.value;
         const formAction = this.getAttribute('action');
         
         // Verify the stream ID in the form matches the route parameter
@@ -207,8 +208,19 @@
           }
         }
         
+        // Verify classroom_id is present
+        if (!classroomId) {
+          e.preventDefault();
+          alert('Error: Classroom ID is missing. Please refresh the page and try again.');
+          return false;
+        }
+        
         // Log for debugging
-        console.log('Submitting teacher assignment for stream:', streamId);
+        console.log('Submitting teacher assignment:', {
+          streamId: streamId,
+          classroomId: classroomId,
+          formId: this.id
+        });
       });
     });
   });
