@@ -384,6 +384,7 @@ class SubjectController extends Controller
         $assignments = $query
             ->orderBy('classroom_id')
             ->orderBy('subject_id')
+            ->orderBy('staff_id') // Order by staff_id to show all teachers for same subject-classroom
             ->paginate($perPage)
             ->withQueryString();
 
