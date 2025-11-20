@@ -550,6 +550,9 @@ Route::middleware('auth')->group(function () {
             
             // Resend Login Credentials
             Route::post('/{id}/resend-credentials', [StaffController::class, 'resendCredentials'])->name('resend-credentials');
+            
+            // Reset Password
+            Route::post('/{id}/reset-password', [StaffController::class, 'resetPassword'])->name('reset-password');
         });
 
     // HR Management - Roles & Lookups (moved from settings)

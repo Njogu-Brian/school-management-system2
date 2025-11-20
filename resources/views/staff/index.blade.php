@@ -247,6 +247,11 @@
                       </li>
                       @if($s->user)
                         <li>
+                          <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ $s->id }}">
+                            <i class="bi bi-key"></i> Reset Password
+                          </button>
+                        </li>
+                        <li>
                           <form action="{{ route('staff.resend-credentials', $s->id) }}" method="POST" onsubmit="return confirm('Resend login credentials to {{ $s->full_name }}? This will send an email and SMS with their login details.');">
                             @csrf
                             <button type="submit" class="dropdown-item">
@@ -279,6 +284,91 @@
                   </div>
                 </td>
               </tr>
+
+              {{-- Password Reset Modal for each staff --}}
+              @if($s->user)
+              <div class="modal fade" id="resetPasswordModal{{ $s->id }}" tabindex="-1">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">
+                        <i class="bi bi-key"></i> Reset Password for {{ $s->full_name }}
+                      </h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form action="{{ route('staff.reset-password', $s->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to reset the password for {{ $s->full_name }}? The new password will be sent via email and SMS.');">
+                      @csrf
+                      <div class="modal-body">
+                        <div class="alert alert-info">
+                          <i class="bi bi-info-circle"></i> The new password will be automatically sent to the staff member via email and SMS.
+                        </div>
+                        
+                        <div class="mb-3">
+                          <label class="form-label">Password Options</label>
+                          <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="password_option" id="useIdNumber{{ $s->id }}" value="id_number" {{ $s->id_number ? 'checked' : '' }}>
+                            <label class="form-check-label" for="useIdNumber{{ $s->id }}">
+                              Use ID Number as Password
+                              @if($s->id_number)
+                                <small class="text-muted">({{ $s->id_number }})</small>
+                              @else
+                                <small class="text-danger">(ID Number not set)</small>
+                              @endif
+                            </label>
+                          </div>
+                          <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="password_option" id="generateRandom{{ $s->id }}" value="random" {{ !$s->id_number ? 'checked' : '' }}>
+                            <label class="form-check-label" for="generateRandom{{ $s->id }}">
+                              Generate Random Password (8 characters)
+                            </label>
+                          </div>
+                          <div class="form-check">
+                            <input class="form-check-input" type="radio" name="password_option" id="customPassword{{ $s->id }}" value="custom">
+                            <label class="form-check-label" for="customPassword{{ $s->id }}">
+                              Set Custom Password
+                            </label>
+                          </div>
+                        </div>
+
+                        <div class="mb-3" id="customPasswordField{{ $s->id }}" style="display: none;">
+                          <label class="form-label">Custom Password</label>
+                          <input type="text" name="new_password" class="form-control" placeholder="Enter custom password (min 6 characters)" minlength="6">
+                          <small class="text-muted">Minimum 6 characters required</small>
+                        </div>
+                      </div>
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                          <i class="bi bi-key"></i> Reset Password
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              @push('scripts')
+              <script>
+              document.addEventListener('DOMContentLoaded', function() {
+                const customField = document.getElementById('customPasswordField{{ $s->id }}');
+                if (customField) {
+                  document.querySelectorAll('#resetPasswordModal{{ $s->id }} input[name="password_option"]').forEach(radio => {
+                    radio.addEventListener('change', function() {
+                      if (this.value === 'custom') {
+                        customField.style.display = 'block';
+                        customField.querySelector('input').required = true;
+                      } else {
+                        customField.style.display = 'none';
+                        customField.querySelector('input').required = false;
+                        customField.querySelector('input').value = '';
+                      }
+                    });
+                  });
+                }
+              });
+              </script>
+              @endpush
+              @endif
             @empty
               <tr>
                 <td colspan="5" class="text-center py-4 text-muted">

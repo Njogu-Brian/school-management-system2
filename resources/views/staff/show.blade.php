@@ -12,10 +12,13 @@
                 <i class="bi bi-arrow-left"></i> Back to List
             </a>
             @if($staff->user)
+                <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#resetPasswordModal{{ $staff->id }}">
+                    <i class="bi bi-key"></i> Reset Password
+                </button>
                 <form action="{{ route('staff.resend-credentials', $staff->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to resend login credentials to {{ $staff->full_name }}? This will send an email and SMS with their login details.');">
                     @csrf
-                    <button type="submit" class="btn btn-info">
-                        <i class="bi bi-envelope-paper"></i> Resend Login Credentials
+                    <button type="submit" class="btn btn-outline-info">
+                        <i class="bi bi-envelope-paper"></i> Resend Credentials
                     </button>
                 </form>
             @endif
@@ -343,5 +346,112 @@
         @endif
     </div>
 </div>
+
+{{-- Password Reset Modal --}}
+@if($staff->user)
+<div class="modal fade" id="resetPasswordModal{{ $staff->id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-key"></i> Reset Password for {{ $staff->full_name }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ route('staff.reset-password', $staff->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to reset the password for {{ $staff->full_name }}? The new password will be sent via email and SMS.');">
+                @csrf
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> The new password will be automatically sent to the staff member via email and SMS.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Password Options</label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="password_option" id="useIdNumber{{ $staff->id }}" value="id_number" checked>
+                            <label class="form-check-label" for="useIdNumber{{ $staff->id }}">
+                                Use ID Number as Password
+                                @if($staff->id_number)
+                                    <small class="text-muted">({{ $staff->id_number }})</small>
+                                @else
+                                    <small class="text-danger">(ID Number not set)</small>
+                                @endif
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="password_option" id="generateRandom{{ $staff->id }}" value="random">
+                            <label class="form-check-label" for="generateRandom{{ $staff->id }}">
+                                Generate Random Password (8 characters)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="password_option" id="customPassword{{ $staff->id }}" value="custom">
+                            <label class="form-check-label" for="customPassword{{ $staff->id }}">
+                                Set Custom Password
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3" id="customPasswordField{{ $staff->id }}" style="display: none;">
+                        <label class="form-label">Custom Password</label>
+                        <input type="text" name="new_password" class="form-control" placeholder="Enter custom password (min 6 characters)" minlength="6">
+                        <small class="text-muted">Minimum 6 characters required</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-key"></i> Reset Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const customField = document.getElementById('customPasswordField{{ $staff->id }}');
+    const customRadio = document.getElementById('customPassword{{ $staff->id }}');
+    const idNumberRadio = document.getElementById('useIdNumber{{ $staff->id }}');
+    const randomRadio = document.getElementById('generateRandom{{ $staff->id }}');
+
+    // Show/hide custom password field
+    document.querySelectorAll('input[name="password_option"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customField.style.display = 'block';
+                customField.querySelector('input').required = true;
+            } else {
+                customField.style.display = 'none';
+                customField.querySelector('input').required = false;
+                customField.querySelector('input').value = '';
+            }
+        });
+    });
+
+    // Handle form submission
+    document.querySelector('#resetPasswordModal{{ $staff->id }} form').addEventListener('submit', function(e) {
+        const selectedOption = document.querySelector('input[name="password_option"]:checked').value;
+        
+        if (selectedOption === 'custom') {
+            const customPassword = document.querySelector('input[name="new_password"]').value;
+            if (!customPassword || customPassword.length < 6) {
+                e.preventDefault();
+                alert('Custom password must be at least 6 characters long.');
+                return false;
+            }
+        } else if (selectedOption === 'id_number' && !{{ $staff->id_number ? 'true' : 'false' }}) {
+            e.preventDefault();
+            alert('ID Number is not set for this staff member. Please use a different option.');
+            return false;
+        }
+    });
+});
+</script>
+@endpush
+@endif
+
 @endsection
 

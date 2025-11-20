@@ -33,15 +33,30 @@ class AuthController extends Controller
             'password' => 'required'
         ]);
 
-        // Check if user exists
-        $user = User::where('email', $credentials['email'])->first();
+        // Check if user exists - case-insensitive email matching
+        $email = strtolower(trim($credentials['email']));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        
+        // If not found in users table, check if staff exists with this work_email
+        if (!$user) {
+            $staff = \App\Models\Staff::whereRaw('LOWER(work_email) = ?', [$email])->first();
+            if ($staff && $staff->user_id) {
+                $user = User::find($staff->user_id);
+            }
+        }
         
         if (!$user) {
             return back()->withErrors(['email' => 'No account found with this email address.']);
         }
 
+        // Use the actual email from the user record for authentication
+        $authCredentials = [
+            'email' => $user->email,
+            'password' => $credentials['password']
+        ];
+
         // Attempt authentication
-        if (Auth::attempt($credentials, $request->filled('remember'))) {
+        if (Auth::attempt($authCredentials, $request->filled('remember'))) {
             /** @var \App\Models\User $user */
             $user = auth()->user();
             $user->load('roles'); // Ensure roles are loaded

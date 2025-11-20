@@ -801,6 +801,153 @@ class StaffController extends Controller
         }
     }
 
+    /**
+     * Reset staff password (admin only)
+     */
+    public function resetPassword(Request $request, $id)
+    {
+        $staff = Staff::with('user')->findOrFail($id);
+        $user = $staff->user;
+
+        if (!$user) {
+            return back()->with('error', 'Staff member does not have a user account. Cannot reset password.');
+        }
+
+        $request->validate([
+            'new_password' => 'nullable|string|min:6',
+            'password_option' => 'required|in:id_number,random,custom',
+        ]);
+
+        try {
+            // Generate new password based on selected option
+            $passwordOption = $request->input('password_option');
+            
+            if ($passwordOption === 'custom' && $request->filled('new_password')) {
+                $newPassword = $request->new_password;
+            } elseif ($passwordOption === 'id_number' && $staff->id_number) {
+                $newPassword = $staff->id_number;
+            } elseif ($passwordOption === 'random') {
+                // Generate a random password
+                $newPassword = \Str::random(8);
+            } else {
+                return back()->with('error', 'Invalid password option or missing required data.');
+            }
+
+            // Update user password
+            $user->update([
+                'password' => \Hash::make($newPassword),
+                'must_change_password' => true, // Force password change on next login
+            ]);
+
+            // Prepare template variables
+            $vars = [
+                'name'     => $user->name,
+                'login'    => $user->email,
+                'password' => $newPassword,
+                'staff_id' => $staff->staff_id,
+            ];
+
+            // Get password reset templates (or use welcome_staff if reset template doesn't exist)
+            $emailTpl = CommunicationTemplate::where('code', 'password_reset_staff')
+                ->where('type', 'email')
+                ->first() ?? CommunicationTemplate::where('code', 'welcome_staff')
+                ->where('type', 'email')
+                ->first();
+
+            $smsTpl = CommunicationTemplate::where('code', 'password_reset_staff')
+                ->where('type', 'sms')
+                ->first() ?? CommunicationTemplate::where('code', 'welcome_staff')
+                ->where('type', 'sms')
+                ->first();
+
+            $sent = false;
+            $errors = [];
+            $warnings = [];
+
+            // Send email notification
+            if ($emailTpl && $user->email) {
+                try {
+                    $subject = $this->fillTemplate($emailTpl->subject ?? 'Password Reset - ' . config('app.name'), $vars);
+                    $body    = $this->fillTemplate($emailTpl->content, $vars);
+                    $attachmentPath = $emailTpl->attachment ?? null;
+
+                    $this->comm->sendEmail(
+                        'staff',
+                        $staff->id,
+                        $user->email,
+                        $subject,
+                        $body,
+                        $attachmentPath
+                    );
+                    $sent = true;
+                } catch (\Exception $e) {
+                    $errors[] = 'Email: ' . $e->getMessage();
+                    Log::warning('Failed to send password reset email to staff', [
+                        'staff_id' => $staff->id,
+                        'email' => $user->email,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            } else {
+                if (!$user->email) {
+                    $warnings[] = 'Email not available for this staff member.';
+                } else {
+                    $warnings[] = 'Email template not found.';
+                }
+            }
+
+            // Send SMS notification
+            if ($smsTpl && $staff->phone_number) {
+                try {
+                    $smsBody = $this->fillTemplate($smsTpl->content, $vars);
+                    $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Password Reset - ' . config('app.name');
+                    $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                    $sent = true;
+                } catch (\Exception $e) {
+                    $errors[] = 'SMS: ' . $e->getMessage();
+                    Log::warning('Failed to send password reset SMS to staff', [
+                        'staff_id' => $staff->id,
+                        'phone' => $staff->phone_number,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            } else {
+                if (!$staff->phone_number) {
+                    $warnings[] = 'Phone number not available for this staff member.';
+                } else {
+                    $warnings[] = 'SMS template not found.';
+                }
+            }
+
+            // Build response message
+            $message = 'Password has been reset successfully.';
+            if ($sent) {
+                $message .= ' The new password has been sent to the staff member.';
+            }
+            if (!empty($warnings)) {
+                $message .= ' Note: ' . implode(' ', $warnings);
+            }
+            if (!empty($errors)) {
+                $message .= ' However, some notifications failed: ' . implode(', ', $errors);
+            }
+
+            Log::info('Admin reset password for staff', [
+                'admin_id' => auth()->id(),
+                'staff_id' => $staff->id,
+                'staff_email' => $user->email,
+            ]);
+
+            return back()->with('success', $message);
+        } catch (\Throwable $e) {
+            Log::error('Failed to reset password for staff', [
+                'staff_id' => $staff->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'Error resetting password: ' . $e->getMessage());
+        }
+    }
+
     private function fillTemplate(string $content, array $vars): string
     {
         // supports {key} placeholders
