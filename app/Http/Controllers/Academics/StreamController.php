@@ -82,12 +82,32 @@ class StreamController extends Controller
         $request->validate([
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
+            'stream_id' => 'nullable|exists:streams,id',
         ]);
 
-        $stream->teachers()->sync($request->teacher_ids ?? []);
+        // Double-check: if stream_id is provided in request, ensure it matches the route parameter
+        if ($request->has('stream_id') && (int)$request->stream_id !== (int)$id) {
+            return redirect()->route('academics.assign-teachers')
+                ->with('error', 'Stream ID mismatch. Assignment cancelled for security.');
+        }
+
+        // Get current teachers for this specific stream before assignment
+        $currentTeachers = $stream->teachers->pluck('id')->toArray();
+        $newTeachers = $request->teacher_ids ?? [];
+
+        // Only sync teachers for THIS specific stream
+        $stream->teachers()->sync($newTeachers);
+
+        \Log::info('Stream teacher assignment', [
+            'stream_id' => $stream->id,
+            'stream_name' => $stream->name,
+            'classroom_id' => $stream->classroom_id,
+            'previous_teachers' => $currentTeachers,
+            'new_teachers' => $newTeachers,
+        ]);
 
         return redirect()->route('academics.assign-teachers')
-            ->with('success', 'Teachers assigned to stream successfully.');
+            ->with('success', "Teachers assigned to '{$stream->name}' stream in '{$stream->classroom->name}' successfully.");
     }
 
     public function destroy($id)

@@ -68,12 +68,13 @@
                               <h5 class="modal-title">Assign Teacher to {{ $classroom->name }} - {{ $stream->name }}</h5>
                               <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                             </div>
-                            <form action="{{ route('academics.streams.assign-teachers', $stream) }}" method="POST">
+                            <form action="{{ route('academics.streams.assign-teachers', $stream->id) }}" method="POST" id="assignStreamForm{{ $stream->id }}">
                               @csrf
+                              <input type="hidden" name="stream_id" value="{{ $stream->id }}">
                               <div class="modal-body">
                                 <div class="mb-3">
-                                  <label class="form-label">Select Teacher</label>
-                                  <select name="teacher_ids[]" class="form-select" multiple size="8">
+                                  <label class="form-label">Select Teacher for <strong>{{ $stream->name }}</strong> stream</label>
+                                  <select name="teacher_ids[]" class="form-select" multiple size="8" id="teacherSelect{{ $stream->id }}">
                                     @foreach($teachers as $teacher)
                                       <option value="{{ $teacher->id }}" @selected($stream->teachers->contains($teacher->id))>
                                         {{ $teacher->name }}
@@ -81,6 +82,11 @@
                                     @endforeach
                                   </select>
                                   <small class="text-muted">Hold Ctrl/Cmd to select multiple teachers (if needed)</small>
+                                  <div class="mt-2">
+                                    <small class="text-info">
+                                      <i class="bi bi-info-circle"></i> Stream ID: {{ $stream->id }} | Classroom: {{ $classroom->name }}
+                                    </small>
+                                  </div>
                                 </div>
                               </div>
                               <div class="modal-footer">
@@ -163,4 +169,31 @@
     </div>
   </div>
 </div>
+
+@push('scripts')
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Ensure each stream form only submits for its specific stream
+    document.querySelectorAll('[id^="assignStreamForm"]').forEach(form => {
+      form.addEventListener('submit', function(e) {
+        const streamId = this.querySelector('input[name="stream_id"]')?.value;
+        const formAction = this.getAttribute('action');
+        
+        // Verify the stream ID in the form matches the route parameter
+        if (streamId && formAction) {
+          const routeStreamId = formAction.match(/streams\/(\d+)\/assign-teachers/)?.[1];
+          if (routeStreamId && routeStreamId !== streamId) {
+            e.preventDefault();
+            alert('Error: Stream ID mismatch. Please refresh the page and try again.');
+            return false;
+          }
+        }
+        
+        // Log for debugging
+        console.log('Submitting teacher assignment for stream:', streamId);
+      });
+    });
+  });
+</script>
+@endpush
 @endsection
