@@ -45,7 +45,7 @@ class StaffImport implements ToCollection
                     'personal_email' => trim((string)($row[5] ?? '')),
                     'phone_number' => trim((string)($row[6] ?? '')),
                     'id_number'    => trim((string)($row[7] ?? '')),
-                    'date_of_birth'=> $row[8] ?? null,
+                    'date_of_birth'=> $this->parseDate($row[8] ?? null),
                     'gender'       => trim((string)($row[9] ?? '')),
                     'marital_status'=> trim((string)($row[10] ?? '')),
                     'residential_address' => trim((string)($row[11] ?? '')),
@@ -172,6 +172,34 @@ class StaffImport implements ToCollection
             } catch (\Throwable $e) {
                 $this->errorMessages[] = $e->getMessage();
             }
+        }
+    }
+
+    /**
+     * Parse date from various formats (Excel serial, string, etc.)
+     */
+    private function parseDate($value)
+    {
+        if (empty($value)) {
+            return null;
+        }
+        
+        // If it's a numeric value, it might be an Excel serial date
+        if (is_numeric($value)) {
+            try {
+                // Excel serial date to date conversion
+                $unixTimestamp = ($value - 25569) * 86400;
+                return gmdate('Y-m-d', $unixTimestamp);
+            } catch (\Exception $e) {
+                return null;
+            }
+        }
+        
+        // Try to parse as a date string
+        try {
+            return \Carbon\Carbon::parse($value)->toDateString();
+        } catch (\Exception $e) {
+            return null;
         }
     }
 

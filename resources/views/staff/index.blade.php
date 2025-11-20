@@ -169,32 +169,60 @@
     </div>
   </div>
 
-  {{-- table --}}
-  <div class="card shadow-sm">
-    <div class="card-header">
-      <h5 class="mb-0"><i class="bi bi-list-ul"></i> All Staff</h5>
-    </div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Staff</th>
-              <th>Contacts</th>
-              <th>HR Details</th>
-              <th>Status</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            @forelse($staff as $s)
+  {{-- Bulk Actions Form --}}
+  <form method="POST" action="{{ route('staff.bulk-assign-supervisor') }}" id="bulkSupervisorForm">
+    @csrf
+    {{-- table --}}
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> All Staff</h5>
+        <div class="d-flex gap-2">
+          <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+              <i class="bi bi-check-square"></i> Bulk Actions
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li>
+                <a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#bulkSupervisorModal">
+                  <i class="bi bi-person-badge"></i> Assign Supervisor
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
               <tr>
+                <th width="50">
+                  <input type="checkbox" id="selectAllStaff" onchange="toggleAllStaff(this)">
+                </th>
+                <th>Staff</th>
+                <th>Contacts</th>
+                <th>HR Details</th>
+                <th>Status</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @forelse($staff as $s)
+              <tr>
+                <td>
+                  <input type="checkbox" name="staff_ids[]" value="{{ $s->id }}" class="staff-checkbox">
+                </td>
                 <td>
                   <div class="d-flex align-items-center">
                     <img src="{{ $s->photo_url }}" class="rounded-circle me-3" width="44" height="44" alt="avatar" onerror="this.src='https://ui-avatars.com/api/?name={{ urlencode($s->full_name) }}&background=0D8ABC&color=fff&size=44'">
                     <div>
                       <div class="fw-semibold">{{ $s->first_name }} {{ $s->last_name }}</div>
                       <div class="small text-muted">ID: {{ $s->staff_id }}</div>
+                      @if($s->supervisor)
+                        <div class="small text-muted">
+                          <i class="bi bi-person-badge"></i> Supervisor: {{ $s->supervisor->first_name }} {{ $s->supervisor->last_name }}
+                        </div>
+                      @endif
                     </div>
                   </div>
                 </td>

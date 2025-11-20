@@ -342,6 +342,7 @@ class StaffController extends Controller
             'statutory_exemptions' => 'nullable|array',
             'statutory_exemptions.*' => 'in:nssf,nhif,paye',
             'photo' => 'nullable|image|mimes:jpeg,jpg,png|max:2048',
+            'date_of_birth' => 'nullable|date',
         ]);
 
         // Validate supervisor hierarchy (prevent circular references and self-supervision)
@@ -966,4 +967,44 @@ class StaffController extends Controller
         return str_replace($search, $replace, $content);
     }
 
+    /**
+     * Bulk assign supervisor to multiple staff members
+     */
+    public function bulkAssignSupervisor(Request $request)
+    {
+        $request->validate([
+            'staff_ids' => 'required|array',
+            'staff_ids.*' => 'exists:staff,id',
+            'supervisor_id' => 'required|exists:staff,id',
+        ]);
+
+        $supervisor = Staff::findOrFail($request->supervisor_id);
+        $staffIds = $request->staff_ids;
+
+        // Prevent self-supervision
+        if (in_array($supervisor->id, $staffIds)) {
+            return back()->with('error', 'A staff member cannot be their own supervisor.');
+        }
+
+        // Prevent circular references
+        foreach ($staffIds as $staffId) {
+            if ($staffId == $supervisor->id) {
+                continue;
+            }
+            $staff = Staff::find($staffId);
+            if ($staff && $staff->supervisor_id == $staffId) {
+                return back()->with('error', "Circular supervisor relationship detected for {$staff->full_name}. Please resolve manually.");
+            }
+        }
+
+        $updated = Staff::whereIn('id', $staffIds)
+            ->where('id', '!=', $supervisor->id) // Prevent self-supervision
+            ->update(['supervisor_id' => $request->supervisor_id]);
+
+        if ($updated > 0) {
+            return back()->with('success', "Successfully assigned {$supervisor->full_name} as supervisor to {$updated} staff member(s).");
+        }
+
+        return back()->with('error', 'No staff members were updated.');
+    }
 }

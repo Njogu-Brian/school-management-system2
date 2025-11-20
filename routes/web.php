@@ -553,6 +553,9 @@ Route::middleware('auth')->group(function () {
             Route::patch('/{id}/archive', [StaffController::class, 'archive'])->name('archive');
             Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
             
+            // Bulk supervisor assignment
+            Route::post('/bulk-assign-supervisor', [StaffController::class, 'bulkAssignSupervisor'])->name('bulk-assign-supervisor');
+            
             // Resend Login Credentials
             Route::post('/{id}/resend-credentials', [StaffController::class, 'resendCredentials'])->name('resend-credentials');
             

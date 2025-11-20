@@ -76,7 +76,7 @@
     </div>
     <div class="col-md-3">
       <label class="form-label">Date of Birth</label>
-      <input type="date" name="dob" value="{{ old('dob', $s->dob ?? '') }}" class="form-control">
+      <input type="date" name="dob" value="{{ old('dob', $s && $s->dob ? (\Carbon\Carbon::parse($s->dob)->format('Y-m-d')) : '') }}" class="form-control">
     </div>
     <div class="col-md-3">
       <label class="form-label">NEMIS Number</label>
