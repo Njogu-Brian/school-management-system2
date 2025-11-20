@@ -474,7 +474,7 @@ class StaffController extends Controller
                 'category_guess'   => trim((string)($r[23] ?? '')),
                 'supervisor_staff_id_guess' => trim((string)($r[24] ?? '')),
                 'spatie_role_guess'         => trim((string)($r[25] ?? '')),
-                'raw' => Arr::toArray($r), // keep if you want to show more later
+                'raw' => (array) $r, // keep if you want to show more later
             ];
         }
 

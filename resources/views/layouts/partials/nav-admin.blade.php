@@ -352,7 +352,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     || Request::is('lookups*')
     || Request::is('hr/profile-requests*')
     || Request::is('hr/reports*')
-  || Request::is('hr/analytics*')
+    || Request::is('hr/analytics*')
     || Request::is('staff/leave-types*')
     || Request::is('staff/leave-requests*')
     || Request::is('staff/leave-balances*')
@@ -394,7 +394,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   <a href="{{ route('hr.analytics.index') }}" class="{{ Request::is('hr/analytics*') ? 'active' : '' }}">
     <i class="bi bi-graph-up"></i> Analytics
   </a>
-  
+
   {{-- Profile Edit Approvals (Admin only) --}}
   @if(auth()->check() && auth()->user()->hasAnyRole(['Super Admin','Admin']))
     @php
