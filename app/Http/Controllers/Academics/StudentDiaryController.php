@@ -31,8 +31,8 @@ class StudentDiaryController extends Controller
             
             if (!empty($streamAssignments)) {
                 // Teacher has stream assignments - filter by those specific streams
-                $query->whereHas('student', function ($q) use ($streamAssignments, $assignedClassrooms) {
-                    $q->where(function($subQ) use ($streamAssignments, $assignedClassrooms) {
+                $query->whereHas('student', function ($q) use ($streamAssignments, $assignedClassrooms, $user) {
+                    $q->where(function($subQ) use ($streamAssignments, $assignedClassrooms, $user) {
                         // Students from assigned streams
                         foreach ($streamAssignments as $assignment) {
                             $subQ->orWhere(function($streamQ) use ($assignment) {

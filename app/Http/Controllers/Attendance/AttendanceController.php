@@ -85,7 +85,7 @@ class AttendanceController extends Controller
             
             // If teacher has stream assignments, filter by those specific streams
             if (!empty($streamAssignments)) {
-                $studentsQuery->where(function($q) use ($streamAssignments, $selectedClass, $selectedStream) {
+                $studentsQuery->where(function($q) use ($streamAssignments, $selectedClass, $selectedStream, $user) {
                     // Students from assigned streams
                     foreach ($streamAssignments as $assignment) {
                         // If a specific class is selected, only include streams for that class
