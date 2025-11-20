@@ -1,6 +1,7 @@
 @php
   $isEdit = isset($staff);
   $photoUrl = $isEdit ? ($staff->photo_url ?? '') : 'https://ui-avatars.com/api/?name='.urlencode(old('first_name','').' '.old('last_name','')).'&background=0D8ABC&color=fff&size=128';
+  $statutoryDefaults = old('statutory_exemptions', $isEdit ? $staff->statutoryExemptionCodes() : []);
 @endphp
 
 <div class="card shadow-sm">
@@ -216,6 +217,36 @@
           <div class="col-md-6">
             <label class="form-label">Bank Account</label>
             <input type="text" name="bank_account" class="form-control" value="{{ old('bank_account', $staff->bank_account ?? '') }}">
+          </div>
+
+          <div class="col-12 pt-2"><h6 class="text-uppercase text-muted">Statutory Exemptions</h6></div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="nssf" id="exempt_nssf"
+                {{ in_array('nssf', $statutoryDefaults ?? []) ? 'checked' : '' }}>
+              <label class="form-check-label" for="exempt_nssf">
+                Exempt from NSSF
+              </label>
+            </div>
+            <div class="form-text">No NSSF will be deducted through payroll.</div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="nhif" id="exempt_nhif"
+                {{ in_array('nhif', $statutoryDefaults ?? []) ? 'checked' : '' }}>
+              <label class="form-check-label" for="exempt_nhif">
+                Exempt from NHIF
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="statutory_exemptions[]" value="paye" id="exempt_paye"
+                {{ in_array('paye', $statutoryDefaults ?? []) ? 'checked' : '' }}>
+              <label class="form-check-label" for="exempt_paye">
+                Exempt from PAYE
+              </label>
+            </div>
           </div>
 
           {{-- Salary & Workload --}}

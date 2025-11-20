@@ -26,8 +26,6 @@ class Event extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i',
         'is_all_day' => 'boolean',
         'is_active' => 'boolean',
         'target_audience' => 'array',

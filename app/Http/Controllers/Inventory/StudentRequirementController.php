@@ -77,7 +77,7 @@ class StudentRequirementController extends Controller
         $assignedClassroomIds = $user->getAssignedClassroomIds();
         
         $currentYear = AcademicYear::where('is_active', true)->first();
-        $currentTerm = Term::where('is_active', true)->first();
+        $currentTerm = Term::where('is_current', true)->first();
 
         $query = Student::whereIn('classroom_id', $assignedClassroomIds)
             ->with(['classroom', 'parent']);
@@ -127,7 +127,7 @@ class StudentRequirementController extends Controller
         DB::beginTransaction();
         try {
             $currentYear = AcademicYear::where('is_active', true)->first();
-            $currentTerm = Term::where('is_active', true)->first();
+            $currentTerm = Term::where('is_current', true)->first();
 
             foreach ($validated['requirements'] as $reqData) {
                 $template = RequirementTemplate::findOrFail($reqData['template_id']);
@@ -204,7 +204,7 @@ class StudentRequirementController extends Controller
         }
 
         $currentYear = AcademicYear::where('is_active', true)->first();
-        $currentTerm = Term::where('is_active', true)->first();
+        $currentTerm = Term::where('is_current', true)->first();
 
         $requirements = StudentRequirement::where('student_id', $student->id)
             ->where('academic_year_id', $currentYear->id)

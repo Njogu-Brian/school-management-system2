@@ -124,11 +124,16 @@ class PayrollCalculationService
     /**
      * Calculate all deductions for a given gross salary
      */
-    public function calculateAllDeductions(float $grossSalary): array
+    public function calculateAllDeductions(float $grossSalary, array $exemptions = []): array
     {
-        $nssf = $this->calculateNSSF($grossSalary);
-        $nhif = $this->calculateNHIF($grossSalary);
-        $paye = $this->calculatePAYE($grossSalary, $nssf, $nhif);
+        $exemptions = collect($exemptions)
+            ->map(fn ($code) => strtolower($code))
+            ->unique()
+            ->values();
+
+        $nssf = $exemptions->contains('nssf') ? 0 : $this->calculateNSSF($grossSalary);
+        $nhif = $exemptions->contains('nhif') ? 0 : $this->calculateNHIF($grossSalary);
+        $paye = $exemptions->contains('paye') ? 0 : $this->calculatePAYE($grossSalary, $nssf, $nhif);
 
         return [
             'nssf' => $nssf,

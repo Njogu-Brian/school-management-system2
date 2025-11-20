@@ -35,4 +35,11 @@ class InventoryItem extends Model
     {
         return $this->quantity <= $this->min_stock_level;
     }
+
+    public function scopeActive($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('is_active', true)->orWhereNull('is_active');
+        });
+    }
 }

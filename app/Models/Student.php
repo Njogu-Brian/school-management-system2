@@ -94,7 +94,7 @@ class Student extends Model
 
     public function route()
     {
-        return $this->belongsTo(Transport::class, 'route_id');
+        return $this->belongsTo(Route::class, 'route_id');
     }
 
     public function stream()

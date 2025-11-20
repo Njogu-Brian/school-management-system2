@@ -14,6 +14,7 @@
   $timetableActive = Request::is('academics/timetable*') || Request::is('teacher/timetable*');
   $announcementsActive = Request::is('teacher/announcements*');
   $eventsActive = Request::is('teacher/events*') || Request::is('events*');
+  $teacherInventoryActive = Request::is('inventory/student-requirements*') || Request::is('inventory/requisitions*');
 @endphp
 
 {{-- Dashboard --}}
@@ -164,6 +165,11 @@
   <i class="bi bi-cash-stack"></i> Salary & Payslips
 </a>
 
+{{-- Advances --}}
+<a href="{{ route('teacher.advances.index') }}" class="{{ Request::is('teacher/advances*') ? 'active' : '' }}">
+  <i class="bi bi-wallet2"></i> Advance Requests
+</a>
+
 {{-- Leaves --}}
 <a href="{{ route('teacher.leave.index') }}" class="{{ $leaveActive ? 'active' : '' }}">
   <i class="bi bi-calendar-event"></i> Leaves
@@ -215,5 +221,32 @@
         <i class="bi bi-folder"></i> Portfolio Assessments
       </a>
     @endif
+  </div>
+@endif
+
+{{-- Inventory & Requirements --}}
+@if (can_access('inventory.view') || can_access('student_requirements.view'))
+  <a href="#teacherInventoryMenu" data-bs-toggle="collapse"
+     aria-expanded="{{ $teacherInventoryActive ? 'true' : 'false' }}"
+     class="{{ $teacherInventoryActive ? 'parent-active' : '' }}">
+    <i class="bi bi-box-seam"></i> Inventory & Requirements
+  </a>
+  <div class="collapse {{ $teacherInventoryActive ? 'show' : '' }}" id="teacherInventoryMenu">
+    <a href="{{ route('inventory.student-requirements.collect') }}"
+       class="sublink {{ Request::is('inventory/student-requirements/collect*') ? 'active' : '' }}">
+      <i class="bi bi-clipboard-check"></i> Collect Requirements
+    </a>
+    <a href="{{ route('inventory.student-requirements.index') }}"
+       class="sublink {{ Request::is('inventory/student-requirements') ? 'active' : '' }}">
+      <i class="bi bi-list-task"></i> My Collections
+    </a>
+    <a href="{{ route('inventory.requisitions.create') }}"
+       class="sublink {{ Request::is('inventory/requisitions/create') ? 'active' : '' }}">
+      <i class="bi bi-plus-circle"></i> New Requisition
+    </a>
+    <a href="{{ route('inventory.requisitions.index') }}"
+       class="sublink {{ Request::is('inventory/requisitions') && !Request::is('inventory/requisitions/create') ? 'active' : '' }}">
+      <i class="bi bi-ui-checks"></i> Track Requisitions
+    </a>
   </div>
 @endif

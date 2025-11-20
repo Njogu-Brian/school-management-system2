@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Vehicle;
-use App\Models\Route as TransportRoute;
+use App\Models\TransportRoute;
 use App\Models\Student;
 use App\Models\Trip;
 use App\Models\StudentAssignment;

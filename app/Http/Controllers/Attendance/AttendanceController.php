@@ -312,27 +312,86 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     }
     
     public function records(Request $request)
-{
-    $selectedClass  = $request->get('class');
-    $selectedStream = $request->get('stream');
-    $startDate      = $request->get('start', Carbon::today()->toDateString());
-    $endDate        = $request->get('end', Carbon::today()->toDateString());
-    $studentId      = $request->get('student_id');
+    {
+        $selectedClass  = $request->get('class');
+        $selectedStream = $request->get('stream');
+        $startDate      = $request->get('start', Carbon::today()->toDateString());
+        $endDate        = $request->get('end', Carbon::today()->toDateString());
+        $studentId      = $request->get('student_id');
 
-    $classes = Classroom::pluck('name', 'id');
-    $streams = $selectedClass
-        ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
-        : collect();
+        $user = auth()->user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher');
+        $assignedClassIds = $isTeacher ? (array) $user->getAssignedClassroomIds() : [];
+        $assignedStreamIds = $isTeacher ? (array) $user->getAssignedStreamIds() : [];
 
-    $students = Student::query()
-        ->when($selectedClass, fn($q) => $q->where('classroom_id', $selectedClass))
-        ->when($selectedStream, fn($q) => $q->where('stream_id', $selectedStream))
-        ->orderBy('first_name')
-        ->get();
+        if ($isTeacher && $selectedClass && !in_array($selectedClass, $assignedClassIds)) {
+            $selectedClass = null;
+        }
+        if ($isTeacher && $selectedStream && !in_array($selectedStream, $assignedStreamIds)) {
+            $selectedStream = null;
+        }
 
-    $attendanceRecords = Attendance::whereBetween('date', [$startDate, $endDate])
-        ->with('student.classroom', 'student.stream', 'reasonCode', 'markedBy')
-        ->get();
+        $studentQuery = null;
+
+        if ($isTeacher) {
+            $classes = !empty($assignedClassIds)
+                ? Classroom::whereIn('id', $assignedClassIds)->pluck('name', 'id')
+                : collect();
+
+            $streams = collect();
+            if (!empty($assignedStreamIds)) {
+                $streamQuery = Stream::whereIn('id', $assignedStreamIds);
+                if ($selectedClass) {
+                    $streamQuery->where('classroom_id', $selectedClass);
+                } elseif (!empty($assignedClassIds)) {
+                    $streamQuery->whereIn('classroom_id', $assignedClassIds);
+                }
+                $streams = $streamQuery->pluck('name', 'id');
+            }
+
+            $studentQuery = Student::with('classroom','stream')
+                ->whereIn('classroom_id', $assignedClassIds ?: [-1]);
+            if ($selectedClass) {
+                $studentQuery->where('classroom_id', $selectedClass);
+            }
+            if ($selectedStream) {
+                $studentQuery->where('stream_id', $selectedStream);
+            }
+
+            $students = $studentQuery->orderBy('first_name')->get();
+        } else {
+            $classes = Classroom::pluck('name', 'id');
+            $streams = $selectedClass
+                ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
+                : collect();
+            $students = collect();
+        }
+
+        $attendanceQuery = Attendance::whereBetween('date', [$startDate, $endDate])
+            ->with('student.classroom', 'student.stream', 'reasonCode', 'markedBy');
+
+        if ($isTeacher) {
+            $attendanceQuery->whereHas('student', function ($q) use ($assignedClassIds, $assignedStreamIds, $selectedClass, $selectedStream) {
+                $q->whereIn('classroom_id', $assignedClassIds ?: [-1]);
+                if ($selectedClass) {
+                    $q->where('classroom_id', $selectedClass);
+                }
+                if ($selectedStream) {
+                    $q->where('stream_id', $selectedStream);
+                } elseif (!empty($assignedStreamIds)) {
+                    $q->whereIn('stream_id', $assignedStreamIds);
+                }
+            });
+        } else {
+            if ($selectedClass) {
+                $attendanceQuery->whereHas('student', fn($q) => $q->where('classroom_id', $selectedClass));
+            }
+            if ($selectedStream) {
+                $attendanceQuery->whereHas('student', fn($q) => $q->where('stream_id', $selectedStream));
+            }
+        }
+
+        $attendanceRecords = $attendanceQuery->get();
 
     // Build summary counts
     $summary = [
@@ -365,48 +424,51 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     $groupedByDate = $attendanceRecords->groupBy('date');
 
     // Student-specific tab
-    $student = null;
-    $studentRecords = collect();
-    $studentStats = ['present'=>0,'absent'=>0,'late'=>0,'percent'=>0];
+        $student = null;
+        $studentRecords = collect();
+        $studentStats = ['present'=>0,'absent'=>0,'late'=>0,'percent'=>0];
 
-    if ($studentId) {
-        $student = Student::with('classroom','stream')->find($studentId);
-        if ($student) {
-            $studentRecords = Attendance::where('student_id', $student->id)
-                ->whereBetween('date', [$startDate, $endDate])
-                ->with('reasonCode', 'markedBy')
-                ->orderBy('date', 'desc')
-                ->get();
+        if ($studentId) {
+            $student = Student::with('classroom','stream')->find($studentId);
+            if ($student && (!$isTeacher || $students->pluck('id')->contains($student->id))) {
+                $studentRecords = Attendance::where('student_id', $student->id)
+                    ->whereBetween('date', [$startDate, $endDate])
+                    ->with('reasonCode', 'markedBy')
+                    ->orderBy('date', 'desc')
+                    ->get();
 
-            $total = max(1, $studentRecords->count());
-            $present = $studentRecords->where('status', 'present')->count();
-            $absent  = $studentRecords->where('status', 'absent')->count();
-            $late    = $studentRecords->where('status', 'late')->count();
-            $studentStats = [
-                'present' => $present,
-                'absent'  => $absent,
-                'late'    => $late,
-                'percent' => round(($present / $total) * 100, 1),
-            ];
+                $total = max(1, $studentRecords->count());
+                $present = $studentRecords->where('status', 'present')->count();
+                $absent  = $studentRecords->where('status', 'absent')->count();
+                $late    = $studentRecords->where('status', 'late')->count();
+                $studentStats = [
+                    'present' => $present,
+                    'absent'  => $absent,
+                    'late'    => $late,
+                    'percent' => round(($present / $total) * 100, 1),
+                ];
+            } else {
+                $student = null;
+            }
         }
-    }
 
-    return view('attendance.reports', compact(
-        'classes',
-        'streams',
-        'students',
-        'attendanceRecords',
-        'selectedClass',
-        'selectedStream',
-        'startDate',
-        'endDate',
-        'summary',
-        'groupedByDate',
-        'student',
-        'studentRecords',
-        'studentStats'
-    ));
-}
+        return view('attendance.reports', compact(
+            'classes',
+            'streams',
+            'students',
+            'attendanceRecords',
+            'selectedClass',
+            'selectedStream',
+            'startDate',
+            'endDate',
+            'summary',
+            'groupedByDate',
+            'student',
+            'studentRecords',
+            'studentStats',
+            'isTeacher'
+        ));
+    }
 
     /**
      * Show at-risk students (low attendance)

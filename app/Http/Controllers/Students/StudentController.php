@@ -8,6 +8,7 @@ use App\Models\ParentInfo;
 use App\Models\StudentCategory;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
+use App\Models\TransportRoute;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
@@ -105,7 +106,7 @@ class StudentController extends Controller
         $categories = StudentCategory::all();
         $classrooms = Classroom::all();
         $streams    = Stream::all();
-        $routes     = \App\Models\Route::orderBy('name')->get();
+        $routes     = TransportRoute::orderBy('name')->get();
 
         return view('students.create', [
             'students' => $students,
@@ -247,7 +248,7 @@ class StudentController extends Controller
         $categories   = StudentCategory::all();
         $classrooms   = Classroom::all();
         $streams      = Stream::all();
-        $routes       = \App\Models\TransportRoute::orderBy('name')->get(); // if exists
+        $routes       = TransportRoute::orderBy('name')->get();
         $familyMembers = $student->family_id
             ? Student::where('family_id',$student->family_id)->where('id','!=',$student->id)->get()
             : collect();

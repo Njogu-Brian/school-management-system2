@@ -28,6 +28,7 @@ use Illuminate\Support\Arr;
 class StaffController extends Controller
 {
     protected $comm;
+    protected array $statutoryDeductionCodes = ['nssf', 'nhif', 'paye'];
 
     public function __construct(CommunicationService $comm)
     {
@@ -125,6 +126,8 @@ class StaffController extends Controller
             'photo' => 'nullable|image|max:2048',
             'basic_salary' => 'nullable|numeric|min:0',
             'max_lessons_per_week' => 'nullable|integer|min:0',
+            'statutory_exemptions' => 'nullable|array',
+            'statutory_exemptions.*' => 'in:nssf,nhif,paye',
         ]);
 
         DB::beginTransaction();
@@ -183,6 +186,9 @@ class StaffController extends Controller
 
         // 5) Increment counter
         Setting::setInt('staff_id_start', $start + 1);
+
+        // 6) Save statutory exemptions
+        $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
 
         // 6) Save custom fields metadata
         if ($request->has('custom_fields')) {
@@ -265,7 +271,7 @@ class StaffController extends Controller
 
     public function edit($id)
     {
-        $staff        = Staff::with('meta', 'user.roles')->findOrFail($id);
+        $staff        = Staff::with('meta', 'user.roles', 'statutoryExemptions')->findOrFail($id);
         $supervisors  = Staff::where('id', '!=', $id)->get();
         $categories   = StaffCategory::all();
         $departments  = Department::all();
@@ -308,6 +314,8 @@ class StaffController extends Controller
             'contract_end_date' => 'nullable|date|after_or_equal:contract_start_date',
             'basic_salary' => 'nullable|numeric|min:0',
             'max_lessons_per_week' => 'nullable|integer|min:0',
+            'statutory_exemptions' => 'nullable|array',
+            'statutory_exemptions.*' => 'in:nssf,nhif,paye',
         ]);
 
         // Validate supervisor hierarchy (prevent circular references and self-supervision)
@@ -355,6 +363,8 @@ class StaffController extends Controller
             }
 
             $staff->update($staffData);
+
+            $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
 
             // handle custom fields
             if ($request->has('custom_fields')) {
@@ -539,6 +549,30 @@ class StaffController extends Controller
             ->with('success', "$success staff imported.")
             ->with('errors', $errors);
     }
+    private function syncStatutoryExemptions(Staff $staff, array $requestedCodes = []): void
+    {
+        $codes = collect($requestedCodes)
+            ->map(fn ($code) => strtolower($code))
+            ->filter(fn ($code) => in_array($code, $this->statutoryDeductionCodes, true))
+            ->unique()
+            ->values();
+
+        if ($codes->isEmpty()) {
+            $staff->statutoryExemptions()->delete();
+            return;
+        }
+
+        $staff->statutoryExemptions()
+            ->whereNotIn('deduction_code', $codes)
+            ->delete();
+
+        foreach ($codes as $code) {
+            $staff->statutoryExemptions()->firstOrCreate([
+                'deduction_code' => $code,
+            ]);
+        }
+    }
+
     private function fillTemplate(string $content, array $vars): string
     {
         // supports {key} placeholders

@@ -135,4 +135,22 @@ class Staff extends Model
         return $this->hasMany(StaffDocument::class);
     }
 
+    public function statutoryExemptions()
+    {
+        return $this->hasMany(StaffStatutoryExemption::class);
+    }
+
+    public function hasStatutoryExemption(string $code): bool
+    {
+        return $this->statutoryExemptions
+            ->contains('deduction_code', strtolower($code));
+    }
+
+    public function statutoryExemptionCodes(): array
+    {
+        return $this->statutoryExemptions
+            ->pluck('deduction_code')
+            ->map(fn ($code) => strtolower($code))
+            ->toArray();
+    }
 }

@@ -61,7 +61,9 @@
 
 <!-- Students -->
 @php 
-$studentsActive = Request::is('students*') || Request::is('online-admissions*');
+$studentsActive = Request::is('students*')
+    || Request::is('online-admissions*')
+    || Request::is('families*');
 $studentRecordsActive = Request::is('students/*/medical-records*') || Request::is('students/*/disciplinary-records*') || Request::is('students/*/activities*') || Request::is('students/*/academic-history*');
 @endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
@@ -139,7 +141,10 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
 <div class="collapse {{ $academicsActive ? 'show' : '' }}" id="academicsMenu">
     <a href="{{ route('academics.classrooms.index') }}" class="{{ Request::is('academics/classrooms*') ? 'active' : '' }}">Classrooms</a>
     <a href="{{ route('academics.streams.index') }}" class="{{ Request::is('academics/streams*') ? 'active' : '' }}">Streams</a>
-    <a href="{{ route('academics.subjects.index') }}" class="{{ Request::is('academics/subjects*') ? 'active' : '' }}">Subjects</a>
+    <a href="{{ route('academics.subjects.index') }}" class="{{ Request::is('academics/subjects*') && !Request::is('academics/subjects/teacher-assignments*') ? 'active' : '' }}">Subjects</a>
+    <a href="{{ route('academics.subjects.teacher-assignments') }}" class="sublink {{ Request::is('academics/subjects/teacher-assignments*') ? 'active' : '' }}">
+        <i class="bi bi-person-lines-fill"></i> Subject Teacher Map
+    </a>
     <a href="{{ route('academics.subject_groups.index') }}" class="{{ Request::is('academics/subject_groups*') ? 'active' : '' }}">Subject Groups</a>
     <a href="{{ route('academics.assign-teachers') }}" class="{{ Request::is('academics/assign-teachers*') ? 'active' : '' }}">
         <i class="bi bi-person-check"></i> Assign Teachers
@@ -156,7 +161,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
         || Request::is('academics/exam-grades*')
         || Request::is('academics/exam-marks*')
         || Request::is('academics/exams/results*')
-        || Request::is('academics/exams/timetable');
+        || Request::is('academics/exams/timetable*');
 @endphp
 
 <a href="#examsMenu" data-bs-toggle="collapse"
@@ -173,7 +178,7 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     </a>
 
     <a href="{{ route('academics.exams.index') }}"
-    class="sublink {{ Request::is('academics/exams') ? 'active' : '' }}">
+    class="sublink {{ Request::is('academics/exams') && !Request::is('academics/exams/*') ? 'active' : '' }}">
         <i class="bi bi-journal-check"></i> Manage Exams
     </a>
 
@@ -183,12 +188,12 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     </a>
 
     <a href="{{ route('academics.exams.results.index') }}"
-    class="sublink {{ Request::is('exams/results*') ? 'active' : '' }}">
+    class="sublink {{ Request::is('academics/exams/results*') ? 'active' : '' }}">
         <i class="bi bi-bar-chart"></i> Exam Results
     </a>
 
     <a href="{{ route('academics.exams.timetable') }}"
-    class="sublink {{ Request::is('academics/exams/timetable') ? 'active' : '' }}">
+    class="sublink {{ Request::is('academics/exams/timetable*') ? 'active' : '' }}">
         <i class="bi bi-printer"></i> Exam Timetable
     </a>
 </div>
@@ -246,10 +251,10 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
     <a href="{{ route('academics.timetable.index') }}" class="sublink {{ Request::is('academics/timetable') && !Request::is('academics/timetable/*') ? 'active' : '' }}">
         <i class="bi bi-calendar-week"></i> View Timetable
     </a>
-    <a href="{{ route('academics.timetable.index') }}" class="sublink {{ Request::is('academics/timetable') && !Request::is('academics/timetable/*') ? 'active' : '' }}">
+    <a href="{{ route('academics.timetable.index', ['view' => 'classrooms']) }}" class="sublink {{ Request::is('academics/timetable/classroom*') ? 'active' : '' }}">
         <i class="bi bi-building"></i> Classroom Timetable
     </a>
-    <a href="{{ route('academics.timetable.index') }}?view=teacher" class="sublink {{ Request::is('academics/timetable/teacher*') ? 'active' : '' }}">
+    <a href="{{ route('academics.timetable.index', ['view' => 'teacher']) }}" class="sublink {{ Request::is('academics/timetable/teacher*') ? 'active' : '' }}">
         <i class="bi bi-person"></i> Teacher Timetable
     </a>
     <a href="{{ route('academics.activities.index') }}" class="sublink {{ Request::is('academics/activities*') ? 'active' : '' }}">
@@ -258,13 +263,12 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
 </div>
 
 {{-- Homework & Diaries --}}
-@php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*') || Request::is('academics/homework-diary*'); @endphp
+@php $homeworkActive = Request::is('academics/homework*') || Request::is('academics/diaries*'); @endphp
 <a href="#homeworkMenu" data-bs-toggle="collapse" aria-expanded="{{ $homeworkActive ? 'true' : 'false' }}" class="{{ $homeworkActive ? 'parent-active' : '' }}">
     <i class="bi bi-journal"></i> Homework & Diaries
 </a>
 <div class="collapse {{ $homeworkActive ? 'show' : '' }}" id="homeworkMenu">
-    <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') && !Request::is('academics/homework-diary*') ? 'active' : '' }}">Homework</a>
-    <a href="{{ route('academics.homework-diary.index') }}" class="{{ Request::is('academics/homework-diary*') ? 'active' : '' }}">Homework Diary</a>
+    <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') ? 'active' : '' }}">Homework</a>
     <a href="{{ route('academics.diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
 </div>
 
@@ -348,8 +352,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     || Request::is('lookups*')
     || Request::is('hr/profile-requests*')
     || Request::is('hr/reports*')
-    || Request::is('hr/analytics*')
-    || Request::is('hr/payroll*')
+  || Request::is('hr/analytics*')
     || Request::is('staff/leave-types*')
     || Request::is('staff/leave-requests*')
     || Request::is('staff/leave-balances*')
@@ -392,32 +395,6 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <i class="bi bi-graph-up"></i> Analytics
   </a>
   
-  {{-- Payroll Submenu --}}
-  @php $payrollActive = Request::is('hr/payroll*'); @endphp
-  <a href="#payrollMenu" data-bs-toggle="collapse" aria-expanded="{{ $payrollActive ? 'true' : 'false' }}" class="{{ $payrollActive ? 'parent-active' : '' }}">
-    <i class="bi bi-cash-stack"></i> Payroll
-  </a>
-  <div class="collapse {{ $payrollActive ? 'show' : '' }}" id="payrollMenu">
-    <a href="{{ route('hr.payroll.salary-structures.index') }}" class="{{ Request::is('hr/payroll/salary-structures*') ? 'active' : '' }}">
-      <i class="bi bi-file-earmark-text"></i> Salary Structures
-    </a>
-    <a href="{{ route('hr.payroll.periods.index') }}" class="{{ Request::is('hr/payroll/periods*') ? 'active' : '' }}">
-      <i class="bi bi-calendar-range"></i> Payroll Periods
-    </a>
-    <a href="{{ route('hr.payroll.records.index') }}" class="{{ Request::is('hr/payroll/records*') ? 'active' : '' }}">
-      <i class="bi bi-receipt"></i> Payroll Records
-    </a>
-    <a href="{{ route('hr.payroll.advances.index') }}" class="{{ Request::is('hr/payroll/advances*') ? 'active' : '' }}">
-      <i class="bi bi-arrow-down-circle"></i> Staff Advances
-    </a>
-    <a href="{{ route('hr.payroll.deduction-types.index') }}" class="{{ Request::is('hr/payroll/deduction-types*') ? 'active' : '' }}">
-      <i class="bi bi-tags"></i> Deduction Types
-    </a>
-    <a href="{{ route('hr.payroll.custom-deductions.index') }}" class="{{ Request::is('hr/payroll/custom-deductions*') ? 'active' : '' }}">
-      <i class="bi bi-list-check"></i> Custom Deductions
-    </a>
-  </div>
-
   {{-- Profile Edit Approvals (Admin only) --}}
   @if(auth()->check() && auth()->user()->hasAnyRole(['Super Admin','Admin']))
     @php
@@ -441,6 +418,38 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 </div>
 
 
+<!-- Payroll -->
+@php
+  $payrollActive = Request::is('hr/payroll*');
+@endphp
+<a href="#payrollMenu" data-bs-toggle="collapse"
+   aria-expanded="{{ $payrollActive ? 'true' : 'false' }}"
+   class="{{ $payrollActive ? 'parent-active' : '' }}">
+  <i class="bi bi-cash-stack"></i> Payroll
+</a>
+<div class="collapse {{ $payrollActive ? 'show' : '' }}" id="payrollMenu">
+  <span class="small text-muted text-uppercase px-3 d-block mt-2">Operations</span>
+  <a href="{{ route('hr.payroll.records.index') }}" class="{{ Request::is('hr/payroll/records*') ? 'active' : '' }}">
+    <i class="bi bi-receipt"></i> Payroll Records
+  </a>
+  <a href="{{ route('hr.payroll.periods.index') }}" class="{{ Request::is('hr/payroll/periods*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-range"></i> Payroll Periods
+  </a>
+  <a href="{{ route('hr.payroll.advances.index') }}" class="{{ Request::is('hr/payroll/advances*') ? 'active' : '' }}">
+    <i class="bi bi-arrow-down-circle"></i> Staff Advances
+  </a>
+
+  <span class="small text-muted text-uppercase px-3 d-block mt-3">Setup</span>
+  <a href="{{ route('hr.payroll.salary-structures.index') }}" class="{{ Request::is('hr/payroll/salary-structures*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> Salary Structures
+  </a>
+  <a href="{{ route('hr.payroll.deduction-types.index') }}" class="{{ Request::is('hr/payroll/deduction-types*') ? 'active' : '' }}">
+    <i class="bi bi-tags"></i> Deduction Types
+  </a>
+  <a href="{{ route('hr.payroll.custom-deductions.index') }}" class="{{ Request::is('hr/payroll/custom-deductions*') ? 'active' : '' }}">
+    <i class="bi bi-list-check"></i> Custom Deductions
+  </a>
+</div>
 
 <!-- Transport -->
 @php $isTransportActive = Request::is('transport*'); @endphp

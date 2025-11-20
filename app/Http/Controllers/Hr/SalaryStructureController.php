@@ -90,7 +90,9 @@ class SalaryStructureController extends Controller
             
             // Auto-calculate deductions if not provided
             if (!$request->filled('nssf_deduction') || !$request->filled('nhif_deduction') || !$request->filled('paye_deduction')) {
-                $deductions = $this->payrollCalc->calculateAllDeductions($structure->gross_salary);
+                $staff = Staff::with('statutoryExemptions')->find($validated['staff_id']);
+                $exemptions = $staff ? $staff->statutoryExemptionCodes() : [];
+                $deductions = $this->payrollCalc->calculateAllDeductions($structure->gross_salary, $exemptions);
                 $structure->nssf_deduction = $deductions['nssf'];
                 $structure->nhif_deduction = $deductions['nhif'];
                 $structure->paye_deduction = $deductions['paye'];

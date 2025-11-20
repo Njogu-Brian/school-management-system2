@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+@php $isTeacherView = $isTeacher ?? false; @endphp
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -46,7 +47,7 @@
             <div class="col-md-3">
               <label class="form-label">Class</label>
               <select name="class" class="form-select" onchange="this.form.submit()">
-                <option value="">All Classes</option>
+                <option value="">{{ $isTeacherView ? 'My Classes' : 'All Classes' }}</option>
                 @foreach($classes as $id => $name)
                   <option value="{{ $id }}" @selected($selectedClass==$id)>{{ $name }}</option>
                 @endforeach
@@ -55,7 +56,7 @@
             <div class="col-md-3">
               <label class="form-label">Stream</label>
               <select name="stream" class="form-select" {{ $streams->isEmpty() ? 'disabled' : '' }} onchange="this.form.submit()">
-                <option value="">All Streams</option>
+                <option value="">{{ $isTeacherView ? 'My Streams' : 'All Streams' }}</option>
                 @foreach($streams as $id => $name)
                   <option value="{{ $id }}" @selected($selectedStream==$id)>{{ $name }}</option>
                 @endforeach
@@ -217,31 +218,59 @@
       <div class="card mb-3">
         <div class="card-body">
           <form method="GET" class="row g-3">
-            <input type="hidden" name="start" value="{{ $startDate }}">
-            <input type="hidden" name="end" value="{{ $endDate }}">
-            <div class="col-md-6">
-              <label class="form-label">Select Student</label>
-              <div class="input-group">
-                <input type="hidden" id="selectedStudentId" name="student_id" value="{{ $student->id ?? '' }}">
-                <input type="text" id="selectedStudentName" class="form-control" 
-                       placeholder="Search by name or admission number" 
-                       value="{{ $student ? ($student->full_name.' ('.$student->admission_number.')') : '' }}" readonly>
-                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#studentSearchModal">
-                  <i class="bi bi-search"></i> Search
-                </button>
+            @if($isTeacherView)
+              <div class="col-md-6">
+                <label class="form-label">Select Student</label>
+                <select name="student_id" class="form-select">
+                  <option value="">Choose a student</option>
+                  @foreach($students as $s)
+                    <option value="{{ $s->id }}" @selected(optional($student)->id === $s->id)>
+                      {{ $s->full_name }} ({{ $s->classroom->name ?? 'No Class' }})
+                    </option>
+                  @endforeach
+                </select>
+                <small class="text-muted">Only learners in your assigned classes are listed.</small>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start" value="{{ $startDate }}" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end" value="{{ $endDate }}" class="form-control">
+              </div>
+              <div class="col-12 text-end">
                 <button class="btn btn-primary" type="submit">
                   <i class="bi bi-arrow-right-circle"></i> Load Report
                 </button>
               </div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Start Date</label>
-              <input type="date" name="start" value="{{ $startDate }}" class="form-control">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">End Date</label>
-              <input type="date" name="end" value="{{ $endDate }}" class="form-control">
-            </div>
+            @else
+              <input type="hidden" name="start" value="{{ $startDate }}">
+              <input type="hidden" name="end" value="{{ $endDate }}">
+              <div class="col-md-6">
+                <label class="form-label">Select Student</label>
+                <div class="input-group">
+                  <input type="hidden" id="selectedStudentId" name="student_id" value="{{ $student->id ?? '' }}">
+                  <input type="text" id="selectedStudentName" class="form-control" 
+                         placeholder="Search by name or admission number" 
+                         value="{{ $student ? ($student->full_name.' ('.$student->admission_number.')') : '' }}" readonly>
+                  <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#studentSearchModal">
+                    <i class="bi bi-search"></i> Search
+                  </button>
+                  <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-arrow-right-circle"></i> Load Report
+                  </button>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Start Date</label>
+                <input type="date" name="start" value="{{ $startDate }}" class="form-control">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">End Date</label>
+                <input type="date" name="end" value="{{ $endDate }}" class="form-control">
+              </div>
+            @endif
           </form>
         </div>
       </div>
@@ -372,6 +401,7 @@
   </div>
 </div>
 
+@unless($isTeacherView)
 {{-- Student Search Modal --}}
 <div class="modal fade" id="studentSearchModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -387,6 +417,7 @@
     </div>
   </div>
 </div>
+@endunless
 
 @push('scripts')
 <script>

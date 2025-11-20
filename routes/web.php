@@ -263,6 +263,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('streams',         StreamController::class)->except(['show']);
         Route::post('streams/{id}/assign-teachers', [StreamController::class, 'assignTeachers'])->name('streams.assign-teachers');
         Route::resource('subject_groups',  SubjectGroupController::class)->except(['show']);
+        Route::get('subjects/teacher-assignments', [SubjectController::class, 'teacherAssignments'])->name('subjects.teacher-assignments');
+        Route::post('subjects/teacher-assignments', [SubjectController::class, 'saveTeacherAssignments'])->name('subjects.teacher-assignments.save');
         Route::resource('subjects',        SubjectController::class);
         Route::post('subjects/generate-cbc', [SubjectController::class, 'generateCBCSubjects'])->name('subjects.generate-cbc');
         Route::post('subjects/assign-classrooms', [SubjectController::class, 'assignToClassrooms'])->name('subjects.assign-classrooms');
@@ -278,21 +280,17 @@ Route::middleware('auth')->group(function () {
         Route::post('promotions/{classroom}/promote-all', [\App\Http\Controllers\Academics\StudentPromotionController::class, 'promoteAll'])->name('promotions.promote-all');
 
         // Exams + lookups
-        Route::resource('exams', ExamController::class);
+        Route::get('exams/results',      [ExamResultController::class, 'index'])->name('exams.results.index');
+        Route::post('exams/publish/{exam}', [ExamPublishingController::class, 'publish'])->name('exams.publish');
+        Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
         Route::resource('exam-grades', ExamGradeController::class);
+        Route::resource('exams', ExamController::class);
 
         // Exam schedules
         Route::get('exams/{exam}/schedules',                   [ExamScheduleController::class, 'index'])->name('exams.schedules.index');
         Route::post('exams/{exam}/schedules',                  [ExamScheduleController::class, 'store'])->name('exams.schedules.store');
         Route::patch('exams/{exam}/schedules/{examSchedule}',  [ExamScheduleController::class, 'update'])->name('exams.schedules.update');
         Route::delete('exams/{exam}/schedules/{examSchedule}', [ExamScheduleController::class, 'destroy'])->name('exams.schedules.destroy');
-
-        // Exam results + publish
-        Route::get('exams/results',      [ExamResultController::class, 'index'])->name('exams.results.index');
-        Route::post('exams/publish/{exam}', [ExamPublishingController::class, 'publish'])->name('exams.publish');
-
-        // Timetable
-        Route::get('exams/timetable', [ExamController::class, 'timetable'])->name('exams.timetable');
 
         // Exam marks routes are defined in routes/teacher.php with proper permissions
 
@@ -818,12 +816,6 @@ Route::middleware('auth')->group(function () {
         Route::delete('/{admission}', [OnlineAdmissionController::class, 'destroy'])->name('online-admissions.destroy');
     });
 
-    // Public routes (no auth)
-    Route::prefix('online-admissions')->group(function () {
-        Route::get('/apply', [OnlineAdmissionController::class, 'showPublicForm'])->name('online-admissions.public-form');
-        Route::post('/apply', [OnlineAdmissionController::class, 'storePublicApplication'])->name('online-admissions.public-submit');
-    });
-
     /*
     |----------------------------------------------------------------------
     | Communication
@@ -1047,6 +1039,16 @@ Route::middleware('auth')->group(function () {
         Route::get('/{log}', [\App\Http\Controllers\ActivityLogController::class, 'show'])->name('show');
     });
 
+});
+
+/*
+|--------------------------------------------------------------------------
+| Public Online Admissions
+|--------------------------------------------------------------------------
+*/
+Route::prefix('online-admissions')->group(function () {
+    Route::get('/apply', [OnlineAdmissionController::class, 'showPublicForm'])->name('online-admissions.public-form');
+    Route::post('/apply', [OnlineAdmissionController::class, 'storePublicApplication'])->name('online-admissions.public-submit');
 });
 
 // Include teacher routes

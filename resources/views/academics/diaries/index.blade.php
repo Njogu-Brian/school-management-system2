@@ -61,10 +61,15 @@
                         @forelse($diaries as $diary)
                             <tr>
                                 <td>
-                                    <div class="fw-semibold">{{ $diary->student->getNameAttribute() }}</div>
-                                    <small class="text-muted">{{ $diary->student->admission_number }}</small>
+                                    @if($diary->student)
+                                        <div class="fw-semibold">{{ $diary->student->getNameAttribute() }}</div>
+                                        <small class="text-muted">{{ $diary->student->admission_number }}</small>
+                                    @else
+                                        <div class="fw-semibold text-muted">Orphaned Diary #{{ $diary->id }}</div>
+                                        <small class="text-muted">Student record unavailable</small>
+                                    @endif
                                 </td>
-                                <td>{{ $diary->student->classroom->name ?? '—' }}</td>
+                                <td>{{ optional($diary->student?->classroom)->name ?? '—' }}</td>
                                 <td>
                                     @if($diary->latestEntry)
                                         <div class="text-truncate" style="max-width: 280px;">

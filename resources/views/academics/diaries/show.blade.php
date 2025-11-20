@@ -10,10 +10,18 @@
         <div class="col-lg-4">
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
-                    <h5 class="card-title mb-2">{{ $diary->student->getNameAttribute() }}</h5>
-                    <p class="text-muted mb-1">Admission: {{ $diary->student->admission_number }}</p>
-                    <p class="text-muted mb-1">Classroom: {{ $diary->student->classroom->name ?? '—' }}</p>
-                    <p class="text-muted mb-0">Guardian: {{ $diary->student->parent?->father_name ?? $diary->student->parent?->guardian_name ?? '—' }}</p>
+                    <h5 class="card-title mb-2">
+                        {{ $diary->student?->getNameAttribute() ?? 'Diary #'.$diary->id }}
+                    </h5>
+                    <p class="text-muted mb-1">
+                        Admission: {{ $diary->student?->admission_number ?? '—' }}
+                    </p>
+                    <p class="text-muted mb-1">
+                        Classroom: {{ optional($diary->student?->classroom)->name ?? '—' }}
+                    </p>
+                    <p class="text-muted mb-0">
+                        Guardian: {{ $diary->student?->parent?->father_name ?? $diary->student?->parent?->guardian_name ?? '—' }}
+                    </p>
                 </div>
             </div>
         </div>

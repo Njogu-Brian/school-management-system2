@@ -10,6 +10,7 @@ use App\Models\AcademicYear;
 use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class StudentSkillGradeController extends Controller
 {
@@ -21,7 +22,13 @@ class StudentSkillGradeController extends Controller
         $classId = $request->query('classroom_id');
 
         $students = collect();
-        $skills = ReportCardSkill::where('is_active', true)->orderBy('name')->get();
+        $skillsQuery = ReportCardSkill::active();
+        if (Schema::hasColumn($skillsQuery->getModel()->getTable(), 'name')) {
+            $skillsQuery->orderBy('name');
+        } else {
+            $skillsQuery->orderBy('skill_name');
+        }
+        $skills = $skillsQuery->get();
 
         if ($yearId && $termId && $classId) {
             $students = Student::with('classroom','stream')

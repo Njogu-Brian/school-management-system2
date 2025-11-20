@@ -17,6 +17,7 @@ use App\Http\Controllers\Teacher\LeaveController;
 use App\Http\Controllers\Academics\TimetableController;
 use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\EventCalendarController;
+use App\Http\Controllers\Teacher\AdvanceRequestController;
 
 Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])->group(function () {
 
@@ -136,6 +137,12 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])-
         Route::get('/', [SalaryController::class, 'index'])->name('index');
         Route::get('/payslip/{record}', [SalaryController::class, 'payslip'])->name('payslip');
         Route::get('/payslip/{record}/download', [SalaryController::class, 'downloadPayslip'])->name('payslip.download');
+    });
+
+    Route::prefix('advances')->name('teacher.advances.')->group(function () {
+        Route::get('/', [AdvanceRequestController::class, 'index'])->name('index');
+        Route::get('/create', [AdvanceRequestController::class, 'create'])->name('create');
+        Route::post('/', [AdvanceRequestController::class, 'store'])->name('store');
     });
 
     /*

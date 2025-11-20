@@ -59,16 +59,19 @@ class InventoryItemController extends Controller
             'location' => 'nullable|string|max:255',
         ]);
 
+        $initialQuantity = $validated['quantity'];
+        $validated['quantity'] = 0;
+
         $item = InventoryItem::create($validated);
 
         // Log initial stock as transaction
-        if ($item->quantity > 0) {
+        if ($initialQuantity > 0) {
             InventoryTransaction::create([
                 'inventory_item_id' => $item->id,
                 'user_id' => auth()->id(),
                 'type' => 'in',
-                'quantity' => $item->quantity,
-                'unit_cost' => $item->unit_cost,
+                'quantity' => $initialQuantity,
+                'unit_cost' => $validated['unit_cost'] ?? null,
                 'notes' => 'Initial stock',
             ]);
         }

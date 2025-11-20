@@ -45,6 +45,8 @@ class InventoryTransaction extends Model
                 $item->quantity += $transaction->quantity;
             } elseif ($transaction->type === 'out') {
                 $item->quantity -= $transaction->quantity;
+            } elseif ($transaction->type === 'adjustment') {
+                $item->quantity = $transaction->quantity;
             }
             $item->save();
         });

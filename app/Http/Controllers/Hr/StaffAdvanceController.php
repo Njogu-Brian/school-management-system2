@@ -24,14 +24,14 @@ class StaffAdvanceController extends Controller
         }
 
         $advances = $query->orderBy('created_at', 'desc')->paginate(20);
-        $staff = Staff::where('status', 'active')->orderBy('name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
 
         return view('hr.payroll.advances.index', compact('advances', 'staff'));
     }
 
     public function create()
     {
-        $staff = Staff::where('status', 'active')->orderBy('name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
         return view('hr.payroll.advances.create', compact('staff'));
     }
 
@@ -81,7 +81,7 @@ class StaffAdvanceController extends Controller
             return back()->with('error', 'Only pending advances can be edited.');
         }
 
-        $staff = Staff::where('status', 'active')->orderBy('name')->get();
+        $staff = Staff::where('status', 'active')->orderBy('first_name')->orderBy('last_name')->get();
         return view('hr.payroll.advances.edit', compact('advance', 'staff'));
     }
 

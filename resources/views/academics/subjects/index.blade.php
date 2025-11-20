@@ -4,7 +4,10 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3 mb-0">Subjects Management</h1>
-        <div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ route('academics.subjects.teacher-assignments') }}" class="btn btn-outline-primary">
+                <i class="bi bi-person-lines-fill"></i> Subject Teacher Assignments
+            </a>
             <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateCBCModal">
                 <i class="bi bi-magic"></i> Generate CBC/CBE Subjects
             </button>
@@ -137,8 +140,26 @@
                                 @endif
                             </td>
                             <td>
-                                @if($subject->classrooms_count > 0)
-                                    <span class="badge bg-primary">{{ $subject->classrooms_count }} Classroom(s)</span>
+                                @php
+                                    $assignedClassrooms = $subject->classroomSubjects
+                                        ->filter(fn($assignment) => $assignment->classroom);
+                                @endphp
+                                @if($assignedClassrooms->isNotEmpty())
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @foreach($assignedClassrooms->take(3) as $assignment)
+                                            <span class="badge bg-primary">
+                                                {{ $assignment->classroom->name }}
+                                                @if($assignment->stream)
+                                                    <span class="fw-normal small text-white-50">• {{ $assignment->stream->name }}</span>
+                                                @endif
+                                            </span>
+                                        @endforeach
+                                    </div>
+                                    @if($assignedClassrooms->count() > 3)
+                                        <small class="text-muted d-block mt-1">
+                                            +{{ $assignedClassrooms->count() - 3 }} more
+                                        </small>
+                                    @endif
                                 @else
                                     <span class="text-muted">Not Assigned</span>
                                 @endif

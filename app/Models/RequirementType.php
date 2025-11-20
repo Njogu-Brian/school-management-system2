@@ -19,4 +19,11 @@ class RequirementType extends Model
     {
         return $this->hasManyThrough(StudentRequirement::class, RequirementTemplate::class);
     }
+
+    public function scopeActive($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('is_active', true)->orWhereNull('is_active');
+        });
+    }
 }

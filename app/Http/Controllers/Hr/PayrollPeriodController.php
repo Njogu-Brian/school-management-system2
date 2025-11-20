@@ -149,7 +149,8 @@ class PayrollPeriodController extends Controller
 
                 // Calculate deductions
                 $record->calculateTotals(); // Calculate gross first
-                $deductions = $this->payrollCalc->calculateAllDeductions($record->gross_salary);
+                $statutoryExemptions = $member->statutoryExemptionCodes();
+                $deductions = $this->payrollCalc->calculateAllDeductions($record->gross_salary, $statutoryExemptions);
                 $record->nssf_deduction = $deductions['nssf'];
                 $record->nhif_deduction = $deductions['nhif'];
                 $record->paye_deduction = $deductions['paye'];

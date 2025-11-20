@@ -13,6 +13,7 @@ use App\Models\Staff;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 
 class SubjectController extends Controller
 {
@@ -20,13 +21,24 @@ class SubjectController extends Controller
     {
         $this->middleware('permission:subjects.view')->only(['index', 'show']);
         $this->middleware('permission:subjects.create')->only(['create', 'store', 'generateCBCSubjects', 'assignToClassrooms']);
-        $this->middleware('permission:subjects.edit')->only(['edit', 'update', 'updateLessonsPerWeek']);
+        $this->middleware('permission:subjects.edit')->only([
+            'edit',
+            'update',
+            'updateLessonsPerWeek',
+            'teacherAssignments',
+            'saveTeacherAssignments',
+        ]);
         $this->middleware('permission:subjects.delete')->only(['destroy']);
     }
 
     public function index(Request $request)
     {
-        $query = Subject::with(['group', 'classroomSubjects.classroom', 'teachers'])
+        $query = Subject::with([
+                'group',
+                'classroomSubjects.classroom',
+                'classroomSubjects.stream',
+                'teachers'
+            ])
             ->withCount(['classroomSubjects', 'teachers']);
 
         // Search
@@ -241,6 +253,16 @@ class SubjectController extends Controller
         $level = $validated['level'];
         $assignToClassrooms = $request->boolean('assign_to_classrooms', false);
         $subjects = $this->getCBCSubjectsForLevel($level);
+        $classroomIds = collect($validated['classroom_ids'] ?? [])
+            ->filter()
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($assignToClassrooms && empty($classroomIds)) {
+            $classroomIds = $this->resolveClassroomIdsForLevel($level);
+        }
 
         DB::beginTransaction();
         try {
@@ -268,8 +290,8 @@ class SubjectController extends Controller
                 $createdSubjects[] = $subject;
 
                 // Assign to classrooms if requested
-                if ($assignToClassrooms && $request->filled('classroom_ids')) {
-                    foreach ($request->classroom_ids as $classroomId) {
+                if ($assignToClassrooms && !empty($classroomIds)) {
+                    foreach ($classroomIds as $classroomId) {
                         ClassroomSubject::firstOrCreate(
                             [
                                 'classroom_id' => $classroomId,
@@ -285,15 +307,152 @@ class SubjectController extends Controller
 
             DB::commit();
 
+            $message = count($createdSubjects) . ' CBC subjects generated successfully for ' . $level . '.';
+            if ($assignToClassrooms) {
+                if (!empty($classroomIds)) {
+                    $message .= ' Assigned to ' . count($classroomIds) . ' classroom(s).';
+                } else {
+                    $message .= ' No classrooms matching this level were found, so subjects remain unassigned.';
+                }
+            }
+
             return redirect()
                 ->route('academics.subjects.index')
-                ->with('success', count($createdSubjects) . ' CBC subjects generated successfully for ' . $level);
+                ->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()
                 ->withInput()
                 ->with('error', 'Failed to generate subjects: ' . $e->getMessage());
         }
+    }
+
+    public function teacherAssignments(Request $request)
+    {
+        $perPage = (int) $request->input('per_page', 25);
+        $perPage = max(10, min(100, $perPage));
+
+        $query = ClassroomSubject::with(['classroom', 'stream', 'subject', 'teacher']);
+
+        if ($request->filled('subject_id')) {
+            $query->where('subject_id', $request->subject_id);
+        }
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+
+        if ($request->filled('level')) {
+            $level = $request->level;
+            $query->whereHas('subject', fn($q) => $q->where('level', $level));
+        }
+
+        if ($request->filled('assigned')) {
+            if ($request->assigned === 'assigned') {
+                $query->whereNotNull('staff_id');
+            } elseif ($request->assigned === 'unassigned') {
+                $query->whereNull('staff_id');
+            }
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('subject', function($sub) use ($search) {
+                    $sub->where('name', 'like', "%{$search}%")
+                        ->orWhere('code', 'like', "%{$search}%")
+                        ->orWhere('learning_area', 'like', "%{$search}%");
+                })->orWhereHas('classroom', function($class) use ($search) {
+                    $class->where('name', 'like', "%{$search}%");
+                })->orWhereHas('stream', function($stream) use ($search) {
+                    $stream->where('name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        $assignments = $query
+            ->orderBy('classroom_id')
+            ->orderBy('subject_id')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        $subjects = Subject::orderBy('name')->get(['id', 'name', 'code', 'level']);
+        $classrooms = Classroom::orderBy('name')->get(['id', 'name']);
+        $levels = Subject::select('level')->whereNotNull('level')->distinct()->orderBy('level')->pluck('level');
+        $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return view('academics.subjects.assign-teachers', compact(
+            'assignments',
+            'subjects',
+            'classrooms',
+            'teachers',
+            'levels',
+            'perPage'
+        ));
+    }
+
+    public function saveTeacherAssignments(Request $request)
+    {
+        $data = $request->validate([
+            'assignments' => 'required|array|min:1',
+            'assignments.*' => 'nullable|exists:staff,id',
+        ]);
+
+        $ids = collect(array_keys($data['assignments']))
+            ->map(fn($id) => (int) $id)
+            ->filter()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'No valid classroom subjects were provided.');
+        }
+
+        $assignmentModels = ClassroomSubject::whereIn('id', $ids)->get()->keyBy('id');
+
+        DB::transaction(function () use ($assignmentModels, $data) {
+            foreach ($data['assignments'] as $id => $staffId) {
+                $id = (int) $id;
+                if (!$assignmentModels->has($id)) {
+                    continue;
+                }
+
+                $assignment = $assignmentModels->get($id);
+                $assignment->staff_id = $staffId ?: null;
+                $assignment->save();
+            }
+        });
+
+        return back()->with('success', 'Subject teacher assignments updated successfully.');
+    }
+
+    protected function resolveClassroomIdsForLevel(string $level): array
+    {
+        $normalized = Str::lower(trim($level));
+        if ($normalized === '') {
+            return [];
+        }
+
+        $query = Classroom::query();
+
+        if (Schema::hasColumn('classrooms', 'level')) {
+            $query->whereRaw('LOWER(level) = ?', [$normalized]);
+        } elseif (Schema::hasColumn('classrooms', 'level_key')) {
+            $query->whereRaw('LOWER(level_key) = ?', [$normalized]);
+        } else {
+            $query->where(function ($q) use ($normalized) {
+                $like = $normalized . '%';
+                $q->whereRaw('LOWER(name) = ?', [$normalized])
+                  ->orWhereRaw('LOWER(name) LIKE ?', [$like])
+                  ->orWhereRaw('LOWER(name) LIKE ?', [$normalized . ' %'])
+                  ->orWhereRaw('LOWER(name) LIKE ?', ['% ' . $normalized])
+                  ->orWhereRaw('LOWER(name) LIKE ?', ['% ' . $normalized . ' %']);
+            });
+        }
+
+        return $query->pluck('id')->unique()->all();
     }
 
     /**
