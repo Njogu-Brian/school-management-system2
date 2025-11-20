@@ -31,13 +31,23 @@ class DashboardController extends Controller
 {
     public function adminDashboard(Request $request)
     {
-        $data = $this->buildDashboardData($request, 'admin');
+        $data = $this->buildDashboardData($request, 'admin', null, null);
         return view('dashboard.admin', $data);
     }
 
     public function teacherDashboard(Request $request)
     {
-        $data = $this->buildDashboardData($request, 'teacher');
+        // For teachers, build dashboard data filtered to their assigned classes/streams
+        $user = auth()->user();
+        $assignedClassroomIds = $user->getAssignedClassroomIds();
+        $streamAssignments = $user->getStreamAssignments();
+        
+        // Set filters to teacher's assigned classrooms
+        $request->merge([
+            'classroom_id' => $request->get('classroom_id') ?: (count($assignedClassroomIds) == 1 ? $assignedClassroomIds[0] : null),
+        ]);
+        
+        $data = $this->buildDashboardData($request, 'teacher', $assignedClassroomIds, $streamAssignments);
         $teacherData = $this->buildTeacherSpecificData($request);
         return view('dashboard.teacher', $data + $teacherData + ['role' => 'teacher']);
     }
@@ -53,7 +63,7 @@ class DashboardController extends Controller
         return view('dashboard.supervisor', $data + $supervisorData + ['role' => 'supervisor']);
     }
 
-    private function buildDashboardData(Request $request, string $role = 'admin'): array
+    private function buildDashboardData(Request $request, string $role = 'admin', array $assignedClassroomIds = null, array $streamAssignments = null): array
     {
         // ---- Filters
         $filters = [
@@ -67,23 +77,106 @@ class DashboardController extends Controller
         $today = now()->toDateString();
 
         // ---- Students base & counts
-        $studentBase = Student::query()
-            ->when($filters['classroom_id'], fn($q) => $q->where('classroom_id', $filters['classroom_id']))
-            ->when($filters['stream_id'], fn($q) => $q->where('stream_id', $filters['stream_id']));
+        // For teachers, filter by assigned classrooms/streams
+        $studentBase = Student::query();
+        
+        if ($role === 'teacher' && $assignedClassroomIds !== null) {
+            // Teacher view - filter by assigned classes/streams
+            if (!empty($streamAssignments)) {
+                // Teacher has stream assignments - only show students from those streams
+                $studentBase->where(function($q) use ($streamAssignments, $assignedClassroomIds) {
+                    foreach ($streamAssignments as $assignment) {
+                        $q->orWhere(function($subQ) use ($assignment) {
+                            $subQ->where('classroom_id', $assignment->classroom_id)
+                                 ->where('stream_id', $assignment->stream_id);
+                        });
+                    }
+                    
+                    // Also include students from direct classroom assignments (not via streams)
+                    $directClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
+                        ->where('teacher_id', auth()->id())
+                        ->pluck('classroom_id')
+                        ->toArray();
+                    
+                    $subjectClassroomIds = [];
+                    if (auth()->user()->staff) {
+                        $subjectClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                            ->where('staff_id', auth()->user()->staff->id)
+                            ->distinct()
+                            ->pluck('classroom_id')
+                            ->toArray();
+                    }
+                    
+                    $nonStreamClassroomIds = array_diff(
+                        array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                        array_column($streamAssignments, 'classroom_id')
+                    );
+                    
+                    if (!empty($nonStreamClassroomIds)) {
+                        $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                    }
+                });
+            } else {
+                // No stream assignments, show all students from assigned classrooms
+                $studentBase->whereIn('classroom_id', $assignedClassroomIds);
+            }
+        } else {
+            // Admin view - use filters
+            $studentBase->when($filters['classroom_id'], fn($q) => $q->where('classroom_id', $filters['classroom_id']))
+                       ->when($filters['stream_id'], fn($q) => $q->where('stream_id', $filters['stream_id']));
+        }
+        
         $totalStudents = (clone $studentBase)->count();
 
         // ---- Attendance KPIs (present/absent today)
-        $presentToday = Attendance::whereDate('date', $today)
-            ->where('status', 'present')
-            ->when($filters['classroom_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('classroom_id', $filters['classroom_id'])))
-            ->when($filters['stream_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('stream_id', $filters['stream_id'])))
-            ->count();
-
-        $absentToday = Attendance::whereDate('date', $today)
-            ->where('status', 'absent')
-            ->when($filters['classroom_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('classroom_id', $filters['classroom_id'])))
-            ->when($filters['stream_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('stream_id', $filters['stream_id'])))
-            ->count();
+        $attendanceQuery = Attendance::whereDate('date', $today);
+        
+        if ($role === 'teacher' && $assignedClassroomIds !== null) {
+            // Teacher view - filter by assigned classes/streams
+            if (!empty($streamAssignments)) {
+                $attendanceQuery->whereHas('student', function($q) use ($streamAssignments, $assignedClassroomIds) {
+                    foreach ($streamAssignments as $assignment) {
+                        $q->orWhere(function($subQ) use ($assignment) {
+                            $subQ->where('classroom_id', $assignment->classroom_id)
+                                 ->where('stream_id', $assignment->stream_id);
+                        });
+                    }
+                    
+                    // Also include students from direct classroom assignments
+                    $directClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
+                        ->where('teacher_id', auth()->id())
+                        ->pluck('classroom_id')
+                        ->toArray();
+                    
+                    $subjectClassroomIds = [];
+                    if (auth()->user()->staff) {
+                        $subjectClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                            ->where('staff_id', auth()->user()->staff->id)
+                            ->distinct()
+                            ->pluck('classroom_id')
+                            ->toArray();
+                    }
+                    
+                    $nonStreamClassroomIds = array_diff(
+                        array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                        array_column($streamAssignments, 'classroom_id')
+                    );
+                    
+                    if (!empty($nonStreamClassroomIds)) {
+                        $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                    }
+                });
+            } else {
+                $attendanceQuery->whereHas('student', fn($q) => $q->whereIn('classroom_id', $assignedClassroomIds));
+            }
+        } else {
+            // Admin view - use filters
+            $attendanceQuery->when($filters['classroom_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('classroom_id', $filters['classroom_id'])))
+                           ->when($filters['stream_id'], fn($q) => $q->whereHas('student', fn($s) => $s->where('stream_id', $filters['stream_id'])));
+        }
+        
+        $presentToday = (clone $attendanceQuery)->where('status', 'present')->count();
+        $absentToday = (clone $attendanceQuery)->where('status', 'absent')->count();
 
         // ---- Finance KPIs
         $feesCollected = Payment::whereBetween('payment_date', [$filters['from'], $filters['to']])->sum('amount');
@@ -114,17 +207,68 @@ class DashboardController extends Controller
         // ---- Charts
         // 30-day attendance trend
         $days = collect(range(0, 29))->map(fn($i) => now()->subDays(29 - $i)->startOfDay());
+        
+        $attendancePresent = [];
+        $attendanceAbsent = [];
+        
+        foreach ($days as $day) {
+            $dayQuery = Attendance::whereDate('date', $day);
+            
+            if ($role === 'teacher' && $assignedClassroomIds !== null) {
+                if (!empty($streamAssignments)) {
+                    $dayQuery->whereHas('student', function($q) use ($streamAssignments, $assignedClassroomIds) {
+                        foreach ($streamAssignments as $assignment) {
+                            $q->orWhere(function($subQ) use ($assignment) {
+                                $subQ->where('classroom_id', $assignment->classroom_id)
+                                     ->where('stream_id', $assignment->stream_id);
+                            });
+                        }
+                        
+                        $directClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
+                            ->where('teacher_id', auth()->id())
+                            ->pluck('classroom_id')
+                            ->toArray();
+                        
+                        $subjectClassroomIds = [];
+                        if (auth()->user()->staff) {
+                            $subjectClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                                ->where('staff_id', auth()->user()->staff->id)
+                                ->distinct()
+                                ->pluck('classroom_id')
+                                ->toArray();
+                        }
+                        
+                        $nonStreamClassroomIds = array_diff(
+                            array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                            array_column($streamAssignments, 'classroom_id')
+                        );
+                        
+                        if (!empty($nonStreamClassroomIds)) {
+                            $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                        }
+                    });
+                } else {
+                    $dayQuery->whereHas('student', fn($q) => $q->whereIn('classroom_id', $assignedClassroomIds));
+                }
+            }
+            
+            $attendancePresent[] = (clone $dayQuery)->where('status', 'present')->count();
+            $attendanceAbsent[] = (clone $dayQuery)->where('status', 'absent')->count();
+        }
+        
         $attendance = [
             'labels'  => $days->map->format('d M')->toArray(),
-            'present' => $days->map(fn($d) => Attendance::whereDate('date', $d)->where('status', 'present')->count())->toArray(),
-            'absent'  => $days->map(fn($d) => Attendance::whereDate('date', $d)->where('status', 'absent')->count())->toArray(),
+            'present' => $attendancePresent,
+            'absent'  => $attendanceAbsent,
         ];
 
-        // 12-month enrolment trend
+        // 12-month enrolment trend (only for admin, teachers don't need this)
         $months = collect(range(0, 11))->map(fn($i) => now()->subMonths(11 - $i)->startOfMonth());
         $enrolment = [
             'labels' => $months->map->format('M Y')->toArray(),
-            'counts' => $months->map(fn($m) => Student::whereDate('created_at', '<=', $m->copy()->endOfMonth())->count())->toArray(),
+            'counts' => $role === 'teacher' 
+                ? array_fill(0, 12, 0) // Teachers don't see enrolment trends
+                : $months->map(fn($m) => Student::whereDate('created_at', '<=', $m->copy()->endOfMonth())->count())->toArray(),
         ];
 
         // Finance donut
@@ -145,10 +289,40 @@ class DashboardController extends Controller
             ->filter(fn($c) => Schema::hasColumn($examMarksTable, $c))
             ->pipe(fn($cols) => $cols->isEmpty() ? '0' : 'COALESCE(' . implode(',', $cols->all()) . ')');
 
-        $examAgg = DB::table($examMarksTable)
+        $examAggQuery = DB::table($examMarksTable)
             ->join($subjectsTable, "$subjectsTable.id", '=', "$examMarksTable.subject_id")
             ->join($examsTable,     "$examsTable.id",     '=', "$examMarksTable.exam_id")
-            ->whereBetween("$examsTable.$examDateCol", [$filters['from'], $filters['to']])
+            ->whereBetween("$examsTable.$examDateCol", [$filters['from'], $filters['to']]);
+        
+        // For teachers, filter by assigned classrooms/streams
+        if ($role === 'teacher' && $assignedClassroomIds !== null) {
+            if (!empty($streamAssignments)) {
+                $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                $streamIds = array_column($streamAssignments, 'stream_id');
+                
+                $examAggQuery->whereIn("$examsTable.classroom_id", $streamClassroomIds)
+                    ->whereIn("$examMarksTable.student_id", function($q) use ($streamAssignments) {
+                        $q->select('id')->from('students')->where(function($subQ) use ($streamAssignments) {
+                            foreach ($streamAssignments as $assignment) {
+                                $subQ->orWhere(function($s) use ($assignment) {
+                                    $s->where('classroom_id', $assignment->classroom_id)
+                                      ->where('stream_id', $assignment->stream_id);
+                                });
+                            }
+                        });
+                    });
+            } else {
+                $examAggQuery->whereIn("$examsTable.classroom_id", $assignedClassroomIds);
+            }
+        } else {
+            $examAggQuery->when($filters['classroom_id'], fn($q) => $q->where("$examsTable.classroom_id", $filters['classroom_id']))
+                         ->when($filters['stream_id'], fn($q) => $q->whereIn("$examMarksTable.student_id", 
+                             function($subQ) use ($filters) {
+                                 $subQ->select('id')->from('students')->where('stream_id', $filters['stream_id']);
+                             }));
+        }
+        
+        $examAgg = $examAggQuery
             ->select("$subjectsTable.name as subject", DB::raw("AVG($scoreExpr) as avg"))
             ->groupBy("$subjectsTable.name")
             ->orderBy('subject')

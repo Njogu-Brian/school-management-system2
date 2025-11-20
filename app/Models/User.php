@@ -100,6 +100,26 @@ class User extends Authenticatable
     }
 
     /**
+     * Get stream assignments with classroom_id and stream_id
+     * Returns array of objects with classroom_id and stream_id
+     */
+    public function getStreamAssignments(): array
+    {
+        return \Illuminate\Support\Facades\DB::table('stream_teacher')
+            ->where('teacher_id', $this->id)
+            ->whereNotNull('classroom_id')
+            ->select('classroom_id', 'stream_id')
+            ->get()
+            ->map(function($item) {
+                return (object)[
+                    'classroom_id' => $item->classroom_id,
+                    'stream_id' => $item->stream_id,
+                ];
+            })
+            ->toArray();
+    }
+
+    /**
      * Get the staff record associated with this user
      */
     public function staff()
