@@ -33,13 +33,32 @@ class AuthController extends Controller
             'password' => 'required'
         ]);
 
-        // Check if user exists - case-insensitive email matching
+        // Normalize email - trim whitespace and convert to lowercase
         $email = strtolower(trim($credentials['email']));
-        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+        
+        // Check if user exists - case-insensitive email matching with trimmed comparison
+        // Use LIKE to find potential matches (handles whitespace), then verify
+        $potentialUsers = User::where('email', 'like', '%' . $email . '%')
+            ->orWhere('email', 'like', '%' . trim($credentials['email']) . '%')
+            ->get();
+        
+        $user = $potentialUsers->first(function($u) use ($email) {
+            return $u->email && strtolower(trim($u->email)) === $email;
+        });
         
         // If not found in users table, check if staff exists with this work_email
         if (!$user) {
-            $staff = \App\Models\Staff::whereRaw('LOWER(work_email) = ?', [$email])->first();
+            $potentialStaff = \App\Models\Staff::whereNotNull('work_email')
+                ->where(function($q) use ($email, $credentials) {
+                    $q->where('work_email', 'like', '%' . $email . '%')
+                      ->orWhere('work_email', 'like', '%' . trim($credentials['email']) . '%');
+                })
+                ->get();
+            
+            $staff = $potentialStaff->first(function($s) use ($email) {
+                return $s->work_email && strtolower(trim($s->work_email)) === $email;
+            });
+            
             if ($staff && $staff->user_id) {
                 $user = User::find($staff->user_id);
             }

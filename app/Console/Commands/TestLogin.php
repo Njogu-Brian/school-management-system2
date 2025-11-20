@@ -41,25 +41,39 @@ class TestLogin extends Command
         $this->line("   Database: " . config('database.connections.mysql.database'));
         $this->newLine();
 
-        // Step 1: Check if user exists (case-insensitive)
+        // Step 1: Check if user exists (case-insensitive and whitespace-tolerant)
         $this->info("Step 1: Checking if user exists in users table...");
-        $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+        $normalizedEmail = strtolower(trim($email));
+        
+        // First try exact match (case-insensitive, trimmed)
+        $user = User::all()->first(function($u) use ($normalizedEmail) {
+            return strtolower(trim($u->email)) === $normalizedEmail;
+        });
         
         if (!$user) {
-            $this->error("❌ User NOT FOUND in users table");
+            $this->error("❌ User NOT FOUND in users table (with trimmed comparison)");
             $this->warn("   Searching with exact case...");
             $exactUser = User::where('email', $email)->first();
             if ($exactUser) {
                 $this->warn("   ⚠️  Found user with different case: {$exactUser->email}");
+                $user = $exactUser;
             } else {
-                // Check for similar emails
-                $similarUsers = User::where('email', 'like', '%' . substr($email, 0, strpos($email, '@')) . '%')
-                    ->limit(5)
+                // Check for similar emails (with whitespace issues)
+                $emailPrefix = substr($normalizedEmail, 0, strpos($normalizedEmail, '@'));
+                $similarUsers = User::where('email', 'like', '%' . $emailPrefix . '%')
+                    ->limit(10)
                     ->get(['id', 'email', 'name']);
                 if ($similarUsers->count() > 0) {
-                    $this->warn("   Found similar emails:");
+                    $this->warn("   Found similar emails (checking for whitespace issues):");
                     foreach ($similarUsers as $su) {
-                        $this->line("      - {$su->email} (ID: {$su->id}, Name: {$su->name})");
+                        $trimmedEmail = trim($su->email);
+                        $matches = strtolower($trimmedEmail) === $normalizedEmail;
+                        $status = $matches ? "✅ MATCHES (has whitespace)" : "";
+                        $this->line("      - '{$su->email}' (ID: {$su->id}, Name: {$su->name}) {$status}");
+                        if ($matches) {
+                            $this->warn("      ⚠️  This email has leading/trailing whitespace!");
+                            $user = $su;
+                        }
                     }
                 }
                 
@@ -84,23 +98,33 @@ class TestLogin extends Command
 
         // Step 2: Check if staff exists with this email
         $this->info("Step 2: Checking if staff exists with this email...");
-        $staff = Staff::whereRaw('LOWER(work_email) = ?', [strtolower($email)])->first();
+        $staff = Staff::all()->first(function($s) use ($normalizedEmail) {
+            return $s->work_email && strtolower(trim($s->work_email)) === $normalizedEmail;
+        });
         
         if (!$staff) {
-            $this->error("❌ Staff NOT FOUND with this work_email");
+            $this->error("❌ Staff NOT FOUND with this work_email (with trimmed comparison)");
             $exactStaff = Staff::where('work_email', $email)->first();
             if ($exactStaff) {
                 $this->warn("   ⚠️  Found staff with different case: {$exactStaff->work_email}");
+                $staff = $exactStaff;
             } else {
-                // Check for similar emails
-                $emailPrefix = substr($email, 0, strpos($email, '@'));
+                // Check for similar emails (with whitespace issues)
+                $emailPrefix = substr($normalizedEmail, 0, strpos($normalizedEmail, '@'));
                 $similarStaff = Staff::where('work_email', 'like', '%' . $emailPrefix . '%')
-                    ->limit(5)
+                    ->limit(10)
                     ->get(['id', 'work_email', 'first_name', 'last_name', 'user_id']);
                 if ($similarStaff->count() > 0) {
-                    $this->warn("   Found similar work_emails:");
+                    $this->warn("   Found similar work_emails (checking for whitespace issues):");
                     foreach ($similarStaff as $ss) {
-                        $this->line("      - {$ss->work_email} (ID: {$ss->id}, Name: {$ss->first_name} {$ss->last_name}, User ID: {$ss->user_id})");
+                        $trimmedEmail = trim($ss->work_email);
+                        $matches = strtolower($trimmedEmail) === $normalizedEmail;
+                        $status = $matches ? "✅ MATCHES (has whitespace)" : "";
+                        $this->line("      - '{$ss->work_email}' (ID: {$ss->id}, Name: {$ss->first_name} {$ss->last_name}, User ID: {$ss->user_id}) {$status}");
+                        if ($matches) {
+                            $this->warn("      ⚠️  This work_email has leading/trailing whitespace!");
+                            $staff = $ss;
+                        }
                     }
                 }
                 
