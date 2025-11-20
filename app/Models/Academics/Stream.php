@@ -13,11 +13,36 @@ class Stream extends Model
     protected $fillable = ['name', 'classroom_id'];
 
     /**
-     * Each stream belongs to exactly one classroom
+     * Primary classroom (the main classroom this stream belongs to)
      */
     public function classroom()
     {
         return $this->belongsTo(Classroom::class);
+    }
+
+    /**
+     * Additional classrooms this stream is assigned to (via pivot table)
+     */
+    public function classrooms()
+    {
+        return $this->belongsToMany(Classroom::class, 'classroom_stream');
+    }
+
+    /**
+     * Get all classrooms this stream is assigned to (primary + additional)
+     */
+    public function allClassrooms()
+    {
+        $primary = $this->classroom;
+        $additional = $this->classrooms;
+        
+        $all = collect();
+        if ($primary) {
+            $all->push($primary);
+        }
+        $all = $all->merge($additional)->unique('id');
+        
+        return $all;
     }
 
     /**

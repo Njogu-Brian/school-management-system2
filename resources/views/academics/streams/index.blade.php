@@ -5,7 +5,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h2 class="mb-0">Stream Management</h2>
-            <small class="text-muted">Manage streams (each stream belongs to one classroom and is unique)</small>
+            <small class="text-muted">Manage streams and assign them to multiple classrooms</small>
         </div>
         <a href="{{ route('academics.streams.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Add New Stream
@@ -29,7 +29,8 @@
                     <thead class="table-light">
                         <tr>
                             <th>Stream Name</th>
-                            <th>Classroom</th>
+                            <th>Primary Classroom</th>
+                            <th>Additional Classrooms</th>
                             <th>Teachers</th>
                             <th class="text-end">Actions</th>
                         </tr>
@@ -48,13 +49,24 @@
                                     @endif
                                 </td>
                                 <td>
+                                    @if($stream->classrooms->count() > 0)
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach($stream->classrooms as $classroom)
+                                                <span class="badge bg-secondary">{{ $classroom->name }}</span>
+                                            @endforeach
+                                        </div>
+                                    @else
+                                        <span class="text-muted">None</span>
+                                    @endif
+                                </td>
+                                <td>
                                     @php
-                                        // Get teachers for this stream in its classroom
+                                        // Get all teachers for this stream across all classrooms
                                         $streamTeachers = \DB::table('stream_teacher')
                                             ->where('stream_id', $stream->id)
-                                            ->where('classroom_id', $stream->classroom_id)
                                             ->join('users', 'stream_teacher.teacher_id', '=', 'users.id')
                                             ->select('users.name')
+                                            ->distinct()
                                             ->get();
                                     @endphp
                                     @if($streamTeachers->count() > 0)
@@ -84,7 +96,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center text-muted py-4">No streams found.</td>
+                                <td colspan="5" class="text-center text-muted py-4">No streams found.</td>
                             </tr>
                         @endforelse
                     </tbody>

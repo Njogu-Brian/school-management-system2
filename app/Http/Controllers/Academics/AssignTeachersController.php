@@ -11,8 +11,14 @@ class AssignTeachersController extends Controller
 {
     public function index()
     {
-        // Get classrooms with their streams (each stream belongs to exactly one classroom)
-        $classrooms = Classroom::with(['teachers', 'streams.teachers'])->orderBy('name')->get();
+        // Get classrooms with their streams (primary + additional via pivot)
+        $classrooms = Classroom::with(['teachers', 'streams.teachers', 'primaryStreams.teachers'])->orderBy('name')->get();
+        
+        // For each classroom, merge primary and additional streams
+        foreach ($classrooms as $classroom) {
+            $allStreams = $classroom->primaryStreams->merge($classroom->streams)->unique('id');
+            $classroom->setRelation('streams', $allStreams);
+        }
         
         $teachers = User::whereHas('roles', fn($q) => $q->where('name', 'teacher'))->get();
         

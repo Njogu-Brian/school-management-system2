@@ -29,12 +29,33 @@ class Classroom extends Model
     }
 
     /**
-     * Each classroom has many streams
-     * Streams are unique per classroom (stream "A" in Classroom 1 is different from stream "A" in Classroom 2)
+     * Primary streams (streams where this is the primary classroom)
+     */
+    public function primaryStreams()
+    {
+        return $this->hasMany(Stream::class, 'classroom_id');
+    }
+
+    /**
+     * All streams assigned to this classroom (primary + via pivot)
      */
     public function streams()
     {
-        return $this->hasMany(Stream::class, 'classroom_id');
+        return $this->belongsToMany(Stream::class, 'classroom_stream')
+            ->withPivot('created_at', 'updated_at');
+    }
+
+    /**
+     * Get all streams (primary + additional) for this classroom
+     */
+    public function allStreams()
+    {
+        $primary = $this->primaryStreams;
+        $additional = $this->streams;
+        
+        $all = $primary->merge($additional)->unique('id');
+        
+        return $all;
     }
 
     public function students()
