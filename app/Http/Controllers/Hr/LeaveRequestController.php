@@ -179,6 +179,13 @@ class LeaveRequestController extends Controller
             return back()->with('error', 'Only pending leave requests can be rejected.');
         }
 
+        // Supervisors can only reject their subordinates' leave requests
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            if (!is_my_subordinate($leaveRequest->staff_id)) {
+                abort(403, 'You can only reject leave requests for your subordinates.');
+            }
+        }
+
         $request->validate([
             'rejection_reason' => 'required|string|max:500',
         ]);
