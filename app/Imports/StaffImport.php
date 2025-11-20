@@ -8,9 +8,12 @@ use App\Models\Department;
 use App\Models\JobTitle;
 use App\Models\StaffCategory;
 use App\Models\User;
+use App\Models\CommunicationTemplate;
+use App\Services\CommunicationService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Spatie\Permission\Models\Role;
 
@@ -102,10 +105,12 @@ class StaffImport implements ToCollection
                     throw new \RuntimeException("Row ".($i+2).": work_email already exists in staff.");
                 }
 
-                DB::transaction(function () use ($data, $departmentId, $jobTitleId, $categoryId, $supervisorId, $staffId, &$i) {
-                    $passwordPlain = $data['id_number'];
+                $createdStaff = null;
+                $createdUser = null;
+                $passwordPlain = $data['id_number'];
 
-                    $user = User::create([
+                DB::transaction(function () use ($data, $departmentId, $jobTitleId, $categoryId, $supervisorId, $staffId, &$i, &$createdStaff, &$createdUser, $passwordPlain) {
+                    $createdUser = User::create([
                         'name'                 => $data['first_name'].' '.$data['last_name'],
                         'email'                => $data['work_email'],
                         'password'             => Hash::make($passwordPlain),
@@ -114,12 +119,21 @@ class StaffImport implements ToCollection
 
                     if ($data['spatie_role_name']) {
                         if ($role = Role::where('name', $data['spatie_role_name'])->first()) {
-                            $user->assignRole($role->name);
+                            $createdUser->assignRole($role->name);
+                        }
+                    } else {
+                        // Auto-role by category if none selected
+                        if ($categoryId == 1) {
+                            $createdUser->assignRole('Teacher');
+                        } elseif ($categoryId == 2) {
+                            $createdUser->assignRole('Administrator');
+                        } else {
+                            $createdUser->assignRole('Staff');
                         }
                     }
 
-                    Staff::create([
-                        'user_id'    => $user->id,
+                    $createdStaff = Staff::create([
+                        'user_id'    => $createdUser->id,
                         'staff_id'   => $staffId,
                         'first_name' => $data['first_name'],
                         'middle_name'=> $data['middle_name'] ?: null,
@@ -149,10 +163,92 @@ class StaffImport implements ToCollection
                     ]);
                 });
 
+                // Send welcome notifications after successful creation
+                if ($createdStaff && $createdUser) {
+                    $this->sendWelcomeNotifications($createdStaff, $createdUser, $passwordPlain);
+                }
+
                 $this->successCount++;
             } catch (\Throwable $e) {
                 $this->errorMessages[] = $e->getMessage();
             }
         }
+    }
+
+    /**
+     * Send welcome email and SMS notifications to newly created staff
+     */
+    private function sendWelcomeNotifications(Staff $staff, User $user, string $passwordPlain): void
+    {
+        try {
+            $comm = app(CommunicationService::class);
+            
+            // Prepare template variables
+            $vars = [
+                'name'     => $user->name,
+                'login'    => $user->email,
+                'password' => $passwordPlain,
+                'staff_id' => $staff->staff_id,
+            ];
+
+            // Get welcome templates
+            $emailTpl = CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'email')->first();
+            $smsTpl   = CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'sms')->first();
+
+            // Send email notification
+            if ($emailTpl && $user->email) {
+                try {
+                    $subject = $this->fillTemplate($emailTpl->subject ?? 'Welcome to ' . config('app.name'), $vars);
+                    $body    = $this->fillTemplate($emailTpl->content, $vars);
+                    $attachmentPath = $emailTpl->attachment ?? null;
+
+                    $comm->sendEmail(
+                        'staff',
+                        $staff->id,
+                        $user->email,
+                        $subject,
+                        $body,
+                        $attachmentPath
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Failed to send welcome email to staff during import', [
+                        'staff_id' => $staff->id,
+                        'email' => $user->email,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            // Send SMS notification
+            if ($smsTpl && $staff->phone_number) {
+                try {
+                    $smsBody = $this->fillTemplate($smsTpl->content, $vars);
+                    $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
+                    $comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                } catch (\Exception $e) {
+                    Log::warning('Failed to send welcome SMS to staff during import', [
+                        'staff_id' => $staff->id,
+                        'phone' => $staff->phone_number,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to send welcome notifications during staff import', [
+                'staff_id' => $staff->id ?? null,
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw - notification failures shouldn't break import
+        }
+    }
+
+    /**
+     * Fill template with variables
+     */
+    private function fillTemplate(string $content, array $vars): string
+    {
+        $search  = array_map(fn($k) => '{' . $k . '}', array_keys($vars));
+        $replace = array_values($vars);
+        return str_replace($search, $replace, $content);
     }
 }
