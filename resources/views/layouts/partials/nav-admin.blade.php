@@ -561,6 +561,14 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
 </a>
 @endif
 
+<!-- System Logs -->
+@if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
+@php $systemLogsActive = Request::is('system-logs*'); @endphp
+<a href="{{ route('system-logs.index') }}" class="{{ $systemLogsActive ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> System Logs
+</a>
+@endif
+
 <!-- Backup & Restore -->
 @php $backupActive = Request::is('backup-restore*'); @endphp
 @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))

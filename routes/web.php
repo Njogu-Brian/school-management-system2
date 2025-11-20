@@ -1039,6 +1039,17 @@ Route::middleware('auth')->group(function () {
         Route::get('/{log}', [\App\Http\Controllers\ActivityLogController::class, 'show'])->name('show');
     });
 
+    /*
+    |----------------------------------------------------------------------
+    | System Logs
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('system-logs')->name('system-logs.')->middleware('role:Super Admin|Admin')->group(function () {
+        Route::get('/', [\App\Http\Controllers\SystemLogController::class, 'index'])->name('index');
+        Route::post('/clear', [\App\Http\Controllers\SystemLogController::class, 'clear'])->name('clear');
+        Route::get('/download', [\App\Http\Controllers\SystemLogController::class, 'download'])->name('download');
+    });
+
 });
 
 /*
