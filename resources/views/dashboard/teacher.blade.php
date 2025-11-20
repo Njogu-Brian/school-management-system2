@@ -119,7 +119,7 @@
                       $classStudents = $studentsByClass->get($classroom->id, collect())->count();
                       
                       // Check if teacher is assigned to specific streams in this classroom
-                      $streamAssignmentsForClass = $streamAssignments->where('classroom_id', $classroom->id);
+                      $streamAssignmentsForClass = isset($streamAssignments) ? $streamAssignments->where('classroom_id', $classroom->id) : collect();
                       $assignedStreamNames = [];
                       if ($streamAssignmentsForClass->isNotEmpty()) {
                           $streamIds = $streamAssignmentsForClass->pluck('stream_id')->toArray();

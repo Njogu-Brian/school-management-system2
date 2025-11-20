@@ -378,11 +378,11 @@ class DashboardController extends Controller
         })->get();
 
         // Get stream assignments with their classroom_id and stream_id
-        $streamAssignments = \Illuminate\Support\Facades\DB::table('stream_teacher')
+        $streamAssignments = collect(\Illuminate\Support\Facades\DB::table('stream_teacher')
             ->where('teacher_id', $user->id)
             ->whereNotNull('classroom_id')
             ->select('classroom_id', 'stream_id')
-            ->get();
+            ->get());
         
         $streamClassroomIds = $streamAssignments->pluck('classroom_id')->unique()->toArray();
         $streamClassrooms = \App\Models\Academics\Classroom::whereIn('id', $streamClassroomIds)->get();
