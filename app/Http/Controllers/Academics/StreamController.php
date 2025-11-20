@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Academics;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Classroom;
 
@@ -83,6 +84,7 @@ class StreamController extends Controller
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
             'stream_id' => 'nullable|exists:streams,id',
+            'classroom_id' => 'required|exists:classrooms,id',
         ]);
 
         // Double-check: if stream_id is provided in request, ensure it matches the route parameter
@@ -91,23 +93,59 @@ class StreamController extends Controller
                 ->with('error', 'Stream ID mismatch. Assignment cancelled for security.');
         }
 
-        // Get current teachers for this specific stream before assignment
-        $currentTeachers = $stream->teachers->pluck('id')->toArray();
+        $classroomId = $request->classroom_id;
+        
+        // Verify the classroom_id matches the stream's primary classroom or is in the stream's classrooms
+        $isValidClassroom = $stream->classroom_id == $classroomId || 
+                          $stream->classrooms->contains('id', $classroomId);
+        
+        if (!$isValidClassroom) {
+            return redirect()->route('academics.assign-teachers')
+                ->with('error', 'Invalid classroom for this stream. Assignment cancelled.');
+        }
+
+        // Get current teachers for this specific stream-classroom combination
+        $currentTeachers = \DB::table('stream_teacher')
+            ->where('stream_id', $stream->id)
+            ->where('classroom_id', $classroomId)
+            ->pluck('teacher_id')
+            ->toArray();
+        
         $newTeachers = $request->teacher_ids ?? [];
 
-        // Only sync teachers for THIS specific stream
-        $stream->teachers()->sync($newTeachers);
+        // Delete existing assignments for this stream-classroom combination
+        \DB::table('stream_teacher')
+            ->where('stream_id', $stream->id)
+            ->where('classroom_id', $classroomId)
+            ->delete();
+
+        // Insert new assignments with classroom_id
+        $insertData = [];
+        foreach ($newTeachers as $teacherId) {
+            $insertData[] = [
+                'stream_id' => $stream->id,
+                'teacher_id' => $teacherId,
+                'classroom_id' => $classroomId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if (!empty($insertData)) {
+            \DB::table('stream_teacher')->insert($insertData);
+        }
 
         \Log::info('Stream teacher assignment', [
             'stream_id' => $stream->id,
             'stream_name' => $stream->name,
-            'classroom_id' => $stream->classroom_id,
+            'classroom_id' => $classroomId,
             'previous_teachers' => $currentTeachers,
             'new_teachers' => $newTeachers,
         ]);
 
+        $classroom = Classroom::find($classroomId);
         return redirect()->route('academics.assign-teachers')
-            ->with('success', "Teachers assigned to '{$stream->name}' stream in '{$stream->classroom->name}' successfully.");
+            ->with('success', "Teachers assigned to '{$stream->name}' stream in '{$classroom->name}' successfully.");
     }
 
     public function destroy($id)

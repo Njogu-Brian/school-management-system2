@@ -24,6 +24,19 @@ class Stream extends Model
 
     public function teachers()
     {
-        return $this->belongsToMany(User::class, 'stream_teacher', 'stream_id', 'teacher_id');
+        return $this->belongsToMany(User::class, 'stream_teacher', 'stream_id', 'teacher_id')
+            ->withPivot('classroom_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get teachers for this stream in a specific classroom
+     */
+    public function teachersForClassroom($classroomId)
+    {
+        return $this->belongsToMany(User::class, 'stream_teacher', 'stream_id', 'teacher_id')
+            ->wherePivot('classroom_id', $classroomId)
+            ->withPivot('classroom_id')
+            ->withTimestamps();
     }
 }

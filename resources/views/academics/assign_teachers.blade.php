@@ -43,9 +43,18 @@
                       <tr>
                         <td class="fw-semibold">{{ $stream->name }}</td>
                         <td>
-                          @if($stream->teachers->count() > 0)
+                          @php
+                            // Get teachers assigned to this stream for this specific classroom
+                            $streamTeachers = \DB::table('stream_teacher')
+                                ->where('stream_id', $stream->id)
+                                ->where('classroom_id', $classroom->id)
+                                ->join('users', 'stream_teacher.teacher_id', '=', 'users.id')
+                                ->select('users.id', 'users.name')
+                                ->get();
+                          @endphp
+                          @if($streamTeachers->count() > 0)
                             <div class="d-flex flex-wrap gap-2">
-                              @foreach($stream->teachers as $teacher)
+                              @foreach($streamTeachers as $teacher)
                                 <span class="badge bg-primary">{{ $teacher->name }}</span>
                               @endforeach
                             </div>
@@ -71,12 +80,21 @@
                             <form action="{{ route('academics.streams.assign-teachers', $stream->id) }}" method="POST" id="assignStreamForm{{ $stream->id }}">
                               @csrf
                               <input type="hidden" name="stream_id" value="{{ $stream->id }}">
+                              <input type="hidden" name="classroom_id" value="{{ $classroom->id }}">
                               <div class="modal-body">
                                 <div class="mb-3">
-                                  <label class="form-label">Select Teacher for <strong>{{ $stream->name }}</strong> stream</label>
+                                  <label class="form-label">Select Teacher for <strong>{{ $stream->name }}</strong> stream in <strong>{{ $classroom->name }}</strong></label>
+                                  @php
+                                    // Get teachers assigned to this stream for this specific classroom
+                                    $assignedTeacherIds = \DB::table('stream_teacher')
+                                        ->where('stream_id', $stream->id)
+                                        ->where('classroom_id', $classroom->id)
+                                        ->pluck('teacher_id')
+                                        ->toArray();
+                                  @endphp
                                   <select name="teacher_ids[]" class="form-select" multiple size="8" id="teacherSelect{{ $stream->id }}">
                                     @foreach($teachers as $teacher)
-                                      <option value="{{ $teacher->id }}" @selected($stream->teachers->contains($teacher->id))>
+                                      <option value="{{ $teacher->id }}" @selected(in_array($teacher->id, $assignedTeacherIds))>
                                         {{ $teacher->name }}
                                       </option>
                                     @endforeach
@@ -84,7 +102,7 @@
                                   <small class="text-muted">Hold Ctrl/Cmd to select multiple teachers (if needed)</small>
                                   <div class="mt-2">
                                     <small class="text-info">
-                                      <i class="bi bi-info-circle"></i> Stream ID: {{ $stream->id }} | Classroom: {{ $classroom->name }}
+                                      <i class="bi bi-info-circle"></i> Stream ID: {{ $stream->id }} | Classroom ID: {{ $classroom->id }} | Classroom: {{ $classroom->name }}
                                     </small>
                                   </div>
                                 </div>
