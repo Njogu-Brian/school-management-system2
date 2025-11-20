@@ -107,16 +107,17 @@ class SubjectController extends Controller
         // Handle classroom assignments with detailed information
         if ($request->filled('classroom_assignments')) {
             foreach ($request->classroom_assignments as $assignment) {
+                // Include staff_id in the unique constraint check to allow multiple teachers
                 ClassroomSubject::updateOrCreate(
                     [
                         'classroom_id' => $assignment['classroom_id'],
                         'subject_id' => $subject->id,
                         'stream_id' => $assignment['stream_id'] ?? null,
+                        'staff_id' => $assignment['staff_id'] ?? null,
                         'academic_year_id' => $assignment['academic_year_id'] ?? null,
                         'term_id' => $assignment['term_id'] ?? null,
                     ],
                     [
-                        'staff_id' => $assignment['staff_id'] ?? null,
                         'is_compulsory' => $assignment['is_compulsory'] ?? !$subject->is_optional,
                     ]
                 );
@@ -344,7 +345,14 @@ class SubjectController extends Controller
 
         if ($request->filled('level')) {
             $level = $request->level;
-            $query->whereHas('subject', fn($q) => $q->where('level', $level));
+            // Check if it's a level type (preschool, lower_primary, etc.)
+            $levelTypes = ['preschool', 'lower_primary', 'upper_primary', 'junior_high'];
+            if (in_array($level, $levelTypes)) {
+                $query->whereHas('classroom', fn($q) => $q->where('level_type', $level));
+            } else {
+                // Fallback to subject level
+                $query->whereHas('subject', fn($q) => $q->where('level', $level));
+            }
         }
 
         if ($request->filled('assigned')) {
@@ -377,8 +385,24 @@ class SubjectController extends Controller
             ->withQueryString();
 
         $subjects = Subject::orderBy('name')->get(['id', 'name', 'code', 'level']);
-        $classrooms = Classroom::orderBy('name')->get(['id', 'name']);
-        $levels = Subject::select('level')->whereNotNull('level')->distinct()->orderBy('level')->pluck('level');
+        $classrooms = Classroom::orderBy('name')->get(['id', 'name', 'level_type']);
+        
+        // Get level types from classrooms
+        $levelTypes = Classroom::whereNotNull('level_type')
+            ->distinct()
+            ->pluck('level_type')
+            ->map(function($type) {
+                return [
+                    'value' => $type,
+                    'label' => ucwords(str_replace('_', ' ', $type))
+                ];
+            })
+            ->sortBy('label')
+            ->values();
+        
+        // Also get subject levels as fallback
+        $subjectLevels = Subject::select('level')->whereNotNull('level')->distinct()->orderBy('level')->pluck('level');
+        
         $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))
             ->orderBy('first_name')
             ->orderBy('last_name')
@@ -388,8 +412,9 @@ class SubjectController extends Controller
             'assignments',
             'subjects',
             'classrooms',
+            'levelTypes',
+            'subjectLevels',
             'teachers',
-            'levels',
             'perPage'
         ));
     }
@@ -437,11 +462,41 @@ class SubjectController extends Controller
 
         $query = Classroom::query();
 
-        if (Schema::hasColumn('classrooms', 'level')) {
+        // Map level values to level_type
+        $levelTypeMap = [
+            'preschool' => 'preschool',
+            'pre-primary' => 'preschool',
+            'pp1' => 'preschool',
+            'pp2' => 'preschool',
+            'lower primary' => 'lower_primary',
+            'lower_primary' => 'lower_primary',
+            'grade 1' => 'lower_primary',
+            'grade 2' => 'lower_primary',
+            'grade 3' => 'lower_primary',
+            'upper primary' => 'upper_primary',
+            'upper_primary' => 'upper_primary',
+            'grade 4' => 'upper_primary',
+            'grade 5' => 'upper_primary',
+            'grade 6' => 'upper_primary',
+            'junior high' => 'junior_high',
+            'junior_high' => 'junior_high',
+            'grade 7' => 'junior_high',
+            'grade 8' => 'junior_high',
+            'grade 9' => 'junior_high',
+        ];
+
+        // Check if it's a level type
+        if (isset($levelTypeMap[$normalized])) {
+            $levelType = $levelTypeMap[$normalized];
+            if (Schema::hasColumn('classrooms', 'level_type')) {
+                $query->where('level_type', $levelType);
+            }
+        } elseif (Schema::hasColumn('classrooms', 'level')) {
             $query->whereRaw('LOWER(level) = ?', [$normalized]);
         } elseif (Schema::hasColumn('classrooms', 'level_key')) {
             $query->whereRaw('LOWER(level_key) = ?', [$normalized]);
         } else {
+            // Fallback to name matching
             $query->where(function ($q) use ($normalized) {
                 $like = $normalized . '%';
                 $q->whereRaw('LOWER(name) = ?', [$normalized])
@@ -628,17 +683,45 @@ class SubjectController extends Controller
             foreach ($validated['subject_ids'] as $subjectId) {
                 $subject = Subject::find($subjectId);
                 foreach ($validated['classroom_ids'] as $classroomId) {
-                    ClassroomSubject::updateOrCreate(
-                        [
-                            'classroom_id' => $classroomId,
-                            'subject_id' => $subjectId,
-                            'academic_year_id' => $validated['academic_year_id'] ?? null,
-                            'term_id' => $validated['term_id'] ?? null,
-                        ],
-                        [
-                            'is_compulsory' => $validated['is_compulsory'] ?? !$subject->is_optional,
-                        ]
-                    );
+                    // Check if staff_id is provided for this assignment
+                    $staffId = $validated['staff_id'] ?? null;
+                    
+                    // If staff_id is provided, create/update with that teacher
+                    // If not, create a record without a teacher (can be assigned later)
+                    if ($staffId) {
+                        ClassroomSubject::updateOrCreate(
+                            [
+                                'classroom_id' => $classroomId,
+                                'subject_id' => $subjectId,
+                                'staff_id' => $staffId,
+                                'academic_year_id' => $validated['academic_year_id'] ?? null,
+                                'term_id' => $validated['term_id'] ?? null,
+                            ],
+                            [
+                                'is_compulsory' => $validated['is_compulsory'] ?? !$subject->is_optional,
+                            ]
+                        );
+                    } else {
+                        // If no staff_id, check if a record already exists without a teacher
+                        // If it exists, don't create duplicate. If not, create one.
+                        $existing = ClassroomSubject::where('classroom_id', $classroomId)
+                            ->where('subject_id', $subjectId)
+                            ->whereNull('staff_id')
+                            ->where('academic_year_id', $validated['academic_year_id'] ?? null)
+                            ->where('term_id', $validated['term_id'] ?? null)
+                            ->first();
+                        
+                        if (!$existing) {
+                            ClassroomSubject::create([
+                                'classroom_id' => $classroomId,
+                                'subject_id' => $subjectId,
+                                'staff_id' => null,
+                                'academic_year_id' => $validated['academic_year_id'] ?? null,
+                                'term_id' => $validated['term_id'] ?? null,
+                                'is_compulsory' => $validated['is_compulsory'] ?? !$subject->is_optional,
+                            ]);
+                        }
+                    }
                     $count++;
                 }
             }

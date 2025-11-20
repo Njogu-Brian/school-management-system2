@@ -11,7 +11,7 @@ class Classroom extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'next_class_id', 'is_beginner', 'is_alumni'];
+    protected $fillable = ['name', 'next_class_id', 'is_beginner', 'is_alumni', 'level_type'];
 
     protected $casts = [
         'is_beginner' => 'boolean',

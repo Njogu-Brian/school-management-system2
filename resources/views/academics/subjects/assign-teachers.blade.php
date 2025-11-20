@@ -61,12 +61,24 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label">Level</label>
+                    <label class="form-label">Level Type</label>
                     <select name="level" class="form-select">
                         <option value="">All Levels</option>
-                        @foreach($levels as $level)
-                            <option value="{{ $level }}" {{ request('level') == $level ? 'selected' : '' }}>{{ $level }}</option>
-                        @endforeach
+                        @if($levelTypes->isNotEmpty())
+                        <optgroup label="Level Types">
+                            <option value="preschool" {{ request('level') == 'preschool' ? 'selected' : '' }}>Preschool</option>
+                            <option value="lower_primary" {{ request('level') == 'lower_primary' ? 'selected' : '' }}>Lower Primary</option>
+                            <option value="upper_primary" {{ request('level') == 'upper_primary' ? 'selected' : '' }}>Upper Primary</option>
+                            <option value="junior_high" {{ request('level') == 'junior_high' ? 'selected' : '' }}>Junior High</option>
+                        </optgroup>
+                        @endif
+                        @if(isset($subjectLevels) && $subjectLevels->isNotEmpty())
+                        <optgroup label="Subject Levels">
+                            @foreach($subjectLevels as $level)
+                                <option value="{{ $level }}" {{ request('level') == $level ? 'selected' : '' }}>{{ $level }}</option>
+                            @endforeach
+                        </optgroup>
+                        @endif
                     </select>
                 </div>
                 <div class="col-md-2">
