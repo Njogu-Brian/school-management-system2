@@ -251,9 +251,11 @@ class SubjectController extends Controller
             'classroom_ids.*' => 'exists:classrooms,id',
         ]);
 
-        $level = $validated['level'];
+        $selectedLevel = $validated['level']; // This is the grade (PP1, Grade 1, etc.)
+        $levelType = $this->mapGradeToLevelType($selectedLevel); // Map to level type (preschool, lower_primary, etc.)
+        
         $assignToClassrooms = $request->boolean('assign_to_classrooms', false);
-        $subjects = $this->getCBCSubjectsForLevel($level);
+        $subjects = $this->getCBCSubjectsForLevel($selectedLevel);
         $classroomIds = collect($validated['classroom_ids'] ?? [])
             ->filter()
             ->map(fn($id) => (int) $id)
@@ -262,7 +264,7 @@ class SubjectController extends Controller
             ->all();
 
         if ($assignToClassrooms && empty($classroomIds)) {
-            $classroomIds = $this->resolveClassroomIdsForLevel($level);
+            $classroomIds = $this->resolveClassroomIdsForLevel($selectedLevel);
         }
 
         DB::beginTransaction();
@@ -282,7 +284,7 @@ class SubjectController extends Controller
                         'name' => $subjectData['name'],
                         'subject_group_id' => $subjectGroup->id,
                         'learning_area' => $subjectData['learning_area'] ?? null,
-                        'level' => $level,
+                        'level' => $levelType, // Store level type instead of grade
                         'is_active' => true,
                         'is_optional' => $subjectData['is_optional'] ?? false,
                     ]
@@ -308,7 +310,8 @@ class SubjectController extends Controller
 
             DB::commit();
 
-            $message = count($createdSubjects) . ' CBC subjects generated successfully for ' . $level . '.';
+            $levelDisplayName = ucwords(str_replace('_', ' ', $levelType));
+            $message = count($createdSubjects) . ' CBC subjects generated successfully for ' . $levelDisplayName . ' (' . $selectedLevel . ').';
             if ($assignToClassrooms) {
                 if (!empty($classroomIds)) {
                     $message .= ' Assigned to ' . count($classroomIds) . ' classroom(s).';
