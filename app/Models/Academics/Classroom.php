@@ -67,6 +67,40 @@ class Classroom extends Model
     {
         return $this->belongsToMany(User::class, 'classroom_teacher', 'classroom_id', 'teacher_id');
     }
+
+    /**
+     * Get all teachers assigned to this classroom (direct + via streams)
+     */
+    public function allTeachers()
+    {
+        // Get direct teachers
+        $directTeachers = $this->teachers;
+        
+        // Get teachers assigned via streams in this classroom
+        $streamTeacherIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
+            ->join('streams', 'stream_teacher.stream_id', '=', 'streams.id')
+            ->where('stream_teacher.classroom_id', $this->id)
+            ->distinct()
+            ->pluck('stream_teacher.teacher_id')
+            ->toArray();
+        
+        // Also check streams that have this classroom as primary and get their teachers
+        $primaryStreamTeacherIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
+            ->join('streams', 'stream_teacher.stream_id', '=', 'streams.id')
+            ->where('streams.classroom_id', $this->id)
+            ->whereNull('stream_teacher.classroom_id') // If classroom_id is null in pivot, use stream's primary classroom
+            ->distinct()
+            ->pluck('stream_teacher.teacher_id')
+            ->toArray();
+        
+        $allTeacherIds = array_unique(array_merge(
+            $directTeachers->pluck('id')->toArray(),
+            $streamTeacherIds,
+            $primaryStreamTeacherIds
+        ));
+        
+        return User::whereIn('id', $allTeacherIds)->get();
+    }
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'classroom_subjects');

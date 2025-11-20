@@ -25,13 +25,10 @@ class ClassroomController extends Controller
 
         // Teachers can only see their assigned classes
         if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = \Illuminate\Support\Facades\DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+            $user = Auth::user();
+            // Use the helper method that includes all assignment types
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $query->whereIn('id', $assignedClassroomIds);
             } else {
                 $query->whereRaw('1 = 0'); // No access

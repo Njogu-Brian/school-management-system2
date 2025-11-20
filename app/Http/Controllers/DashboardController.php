@@ -377,26 +377,14 @@ class DashboardController extends Controller
             $q->where('users.id', $user->id);
         })->get();
 
-        // Get classes from stream_teacher assignments
-        $streamClassroomIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
+        // Get stream assignments with their classroom_id and stream_id
+        $streamAssignments = \Illuminate\Support\Facades\DB::table('stream_teacher')
             ->where('teacher_id', $user->id)
             ->whereNotNull('classroom_id')
-            ->distinct()
-            ->pluck('classroom_id')
-            ->toArray();
+            ->select('classroom_id', 'stream_id')
+            ->get();
         
-        // Also get primary classrooms from assigned streams
-        $streamIds = $user->getAssignedStreamIds();
-        if (!empty($streamIds)) {
-            $primaryStreamClassroomIds = \Illuminate\Support\Facades\DB::table('streams')
-                ->whereIn('id', $streamIds)
-                ->whereNotNull('classroom_id')
-                ->distinct()
-                ->pluck('classroom_id')
-                ->toArray();
-            $streamClassroomIds = array_merge($streamClassroomIds, $primaryStreamClassroomIds);
-        }
-        
+        $streamClassroomIds = $streamAssignments->pluck('classroom_id')->unique()->toArray();
         $streamClassrooms = \App\Models\Academics\Classroom::whereIn('id', $streamClassroomIds)->get();
 
         // Merge classes from all sources
@@ -406,9 +394,25 @@ class DashboardController extends Controller
         // Get unique subjects
         $assignedSubjects = $assignments->pluck('subject')->unique('id')->filter();
         
-        // Get total students in assigned classes
+        // Get total students - for stream assignments, only count students in that specific stream
+        $totalStudents = 0;
         $classroomIds = $assignedClasses->pluck('id')->toArray();
-        $totalStudents = Student::whereIn('classroom_id', $classroomIds)->count();
+        
+        // Count students from direct classroom assignments and classroom_subjects (all students in classroom)
+        $directClassroomIds = $directClassrooms->pluck('id')->toArray();
+        $subjectClassroomIds = $assignments->pluck('classroom_id')->unique()->toArray();
+        $nonStreamClassroomIds = array_unique(array_merge($directClassroomIds, $subjectClassroomIds));
+        
+        if (!empty($nonStreamClassroomIds)) {
+            $totalStudents += Student::whereIn('classroom_id', $nonStreamClassroomIds)->count();
+        }
+        
+        // For stream assignments, only count students in those specific streams
+        foreach ($streamAssignments as $streamAssignment) {
+            $totalStudents += Student::where('classroom_id', $streamAssignment->classroom_id)
+                ->where('stream_id', $streamAssignment->stream_id)
+                ->count();
+        }
         
         // Get upcoming lessons (today's schedule)
         $upcomingLessons = collect();
@@ -485,11 +489,33 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
         
-        // Get students by class
-        $studentsByClass = Student::whereIn('classroom_id', $classroomIds)
-            ->with('classroom')
-            ->get()
-            ->groupBy('classroom_id');
+        // Get students by class - for stream assignments, filter by stream_id
+        $studentsByClass = collect();
+        
+        // Get students from direct classroom assignments and classroom_subjects
+        if (!empty($nonStreamClassroomIds)) {
+            $directStudents = Student::whereIn('classroom_id', $nonStreamClassroomIds)
+                ->with('classroom')
+                ->get()
+                ->groupBy('classroom_id');
+            $studentsByClass = $studentsByClass->merge($directStudents);
+        }
+        
+        // Get students from stream assignments (only students in those specific streams)
+        foreach ($streamAssignments as $streamAssignment) {
+            $streamStudents = Student::where('classroom_id', $streamAssignment->classroom_id)
+                ->where('stream_id', $streamAssignment->stream_id)
+                ->with('classroom')
+                ->get();
+            
+            $classroomId = $streamAssignment->classroom_id;
+            if ($studentsByClass->has($classroomId)) {
+                // Merge with existing students for this classroom
+                $studentsByClass[$classroomId] = $studentsByClass[$classroomId]->merge($streamStudents)->unique('id');
+            } else {
+                $studentsByClass[$classroomId] = $streamStudents;
+            }
+        }
         
         return [
             'assignedClasses' => $assignedClasses,
@@ -502,6 +528,7 @@ class DashboardController extends Controller
             'pendingHomework' => $pendingHomework,
             'recentHomework' => $recentHomework,
             'studentsByClass' => $studentsByClass,
+            'streamAssignments' => $streamAssignments,
             'staff' => $staff,
         ];
     }

@@ -78,24 +78,14 @@ class User extends Authenticatable
         }
         
         // Get from stream_teacher assignments (streams are assigned to specific classrooms)
+        // Only use the classroom_id from stream_teacher pivot, not the stream's primary classroom_id
+        // This ensures we only get the exact classroom where the teacher is assigned to the stream
         $streamClassroomIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
             ->where('teacher_id', $this->id)
             ->whereNotNull('classroom_id')
             ->distinct()
             ->pluck('classroom_id')
             ->toArray();
-        
-        // Also get classrooms from streams that have a primary classroom_id
-        $streamIds = $this->streams()->pluck('streams.id')->toArray();
-        if (!empty($streamIds)) {
-            $primaryStreamClassroomIds = \Illuminate\Support\Facades\DB::table('streams')
-                ->whereIn('id', $streamIds)
-                ->whereNotNull('classroom_id')
-                ->distinct()
-                ->pluck('classroom_id')
-                ->toArray();
-            $streamClassroomIds = array_merge($streamClassroomIds, $primaryStreamClassroomIds);
-        }
         
         // Merge and return unique IDs
         return array_unique(array_merge($directClassroomIds, $subjectClassroomIds, $streamClassroomIds));

@@ -154,8 +154,11 @@
 
                 <!-- Display Teachers -->
                 <td>
-                    @if($classroom->teachers->count())
-                        @foreach($classroom->teachers as $teacher)
+                    @php
+                        $allTeachers = $classroom->allTeachers();
+                    @endphp
+                    @if($allTeachers->count())
+                        @foreach($allTeachers as $teacher)
                             <span class="badge bg-success">
                                 @if($teacher->staff)
                                     {{ $teacher->staff->first_name }} {{ $teacher->staff->last_name }}

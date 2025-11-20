@@ -117,12 +117,22 @@
                       $classAssignments = $assignments->where('classroom_id', $classroom->id);
                       $classSubjects = $classAssignments->pluck('subject.name')->unique()->filter();
                       $classStudents = $studentsByClass->get($classroom->id, collect())->count();
+                      
+                      // Check if teacher is assigned to specific streams in this classroom
+                      $streamAssignmentsForClass = $streamAssignments->where('classroom_id', $classroom->id);
+                      $assignedStreamNames = [];
+                      if ($streamAssignmentsForClass->isNotEmpty()) {
+                          $streamIds = $streamAssignmentsForClass->pluck('stream_id')->toArray();
+                          $assignedStreamNames = \App\Models\Academics\Stream::whereIn('id', $streamIds)->pluck('name')->toArray();
+                      }
                     @endphp
                     <tr>
                       <td>
                         <strong>{{ $classroom->name }}</strong>
                         @if($classAssignments->first()?->stream)
                           <br><small class="text-muted">{{ $classAssignments->first()->stream->name }}</small>
+                        @elseif(!empty($assignedStreamNames))
+                          <br><small class="text-muted">{{ implode(', ', $assignedStreamNames) }}</small>
                         @endif
                       </td>
                       <td>
