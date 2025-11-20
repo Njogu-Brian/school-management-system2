@@ -194,8 +194,10 @@
     // Ensure each stream form only submits for its specific stream-classroom combination
     document.querySelectorAll('[id^="assignStreamForm"]').forEach(form => {
       form.addEventListener('submit', function(e) {
-        const streamId = this.querySelector('input[name="stream_id"]')?.value;
-        const classroomId = this.querySelector('input[name="classroom_id"]')?.value;
+        const streamIdInput = this.querySelector('input[name="stream_id"]');
+        const classroomIdInput = this.querySelector('input[name="classroom_id"]');
+        const streamId = streamIdInput?.value;
+        const classroomId = classroomIdInput?.value;
         const formAction = this.getAttribute('action');
         
         // Verify the stream ID in the form matches the route parameter
@@ -208,19 +210,18 @@
           }
         }
         
-        // Verify classroom_id is present
-        if (!classroomId) {
-          e.preventDefault();
-          alert('Error: Classroom ID is missing. Please refresh the page and try again.');
-          return false;
-        }
-        
-        // Log for debugging
+        // Log for debugging (don't prevent submission - server will validate)
         console.log('Submitting teacher assignment:', {
           streamId: streamId,
           classroomId: classroomId,
-          formId: this.id
+          formId: this.id,
+          hasClassroomIdInput: !!classroomIdInput
         });
+        
+        // Warn if classroom_id is missing but don't prevent (server validation will catch it)
+        if (!classroomId) {
+          console.warn('Warning: Classroom ID appears to be missing. Server-side validation will handle this.');
+        }
       });
     });
   });
