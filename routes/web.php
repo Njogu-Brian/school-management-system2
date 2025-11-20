@@ -763,6 +763,12 @@ Route::middleware('auth')->group(function () {
     // Bulk assign (class/stream) + bulk archive/restore
     Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign');
+    
+    // Bulk stream assignment
+    Route::get('/students/bulk-assign-streams', [StudentController::class, 'bulkAssignStreams'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams');
+    Route::post('/students/bulk-assign-streams', [StudentController::class, 'processBulkStreamAssignment'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams.process');
 
     Route::post('/students/bulk-archive', [StudentController::class, 'bulkArchive'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.archive');

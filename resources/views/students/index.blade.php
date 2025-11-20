@@ -12,6 +12,11 @@
           <i class="bi bi-download"></i> Export CSV
         </a>
       @endif
+      @if(Route::has('students.bulk.assign-streams'))
+        <a href="{{ route('students.bulk.assign-streams') }}" class="btn btn-outline-primary">
+          <i class="bi bi-diagram-3"></i> Bulk Assign Streams
+        </a>
+      @endif
       <a href="{{ route('students.bulk') }}" class="btn btn-outline-info"><i class="bi bi-upload"></i> Bulk Upload</a>
       <a href="{{ route('students.create') }}" class="btn btn-success"><i class="bi bi-person-plus"></i> New Student</a>
     </div>

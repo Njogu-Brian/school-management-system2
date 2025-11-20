@@ -269,7 +269,36 @@ class StudentController extends Controller
             'gender' => 'required|string',
             'dob' => 'nullable|date',
             'classroom_id' => 'nullable|exists:classrooms,id',
-            'stream_id' => 'nullable|exists:streams,id',
+            'stream_id' => [
+                'nullable',
+                'exists:streams,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($value && $request->filled('classroom_id')) {
+                        $stream = Stream::find($value);
+                        if ($stream) {
+                            $classroomId = $request->classroom_id;
+                            $isValidStream = $stream->classroom_id == $classroomId || 
+                                            $stream->classrooms->contains('id', $classroomId);
+                            if (!$isValidStream) {
+                                $fail('The selected stream does not belong to the selected classroom.');
+                            }
+                        }
+                    } elseif ($value && !$request->filled('classroom_id')) {
+                        // If stream is set but classroom is not being changed, validate against current classroom
+                        $student = Student::find($id ?? null);
+                        if ($student && $student->classroom_id) {
+                            $stream = Stream::find($value);
+                            if ($stream) {
+                                $isValidStream = $stream->classroom_id == $student->classroom_id || 
+                                                $stream->classrooms->contains('id', $student->classroom_id);
+                                if (!$isValidStream) {
+                                    $fail('The selected stream does not belong to the student\'s current classroom.');
+                                }
+                            }
+                        }
+                    }
+                },
+            ],
             'category_id' => 'nullable|exists:student_categories,id',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
@@ -788,6 +817,66 @@ class StudentController extends Controller
         ]));
 
         return back()->with('success','Selected students updated.');
+    }
+
+    /**
+     * Show bulk stream assignment page
+     */
+    public function bulkAssignStreams(Request $request)
+    {
+        $classrooms = Classroom::orderBy('name')->get();
+        $streams = Stream::with('classroom')->orderBy('name')->get();
+        
+        $selectedClassroom = null;
+        $students = collect();
+        
+        if ($request->filled('classroom_id')) {
+            $selectedClassroom = Classroom::findOrFail($request->classroom_id);
+            $students = Student::where('classroom_id', $selectedClassroom->id)
+                ->where('archive', 0)
+                ->with(['stream', 'parent'])
+                ->orderBy('first_name')
+                ->get();
+        }
+        
+        return view('students.bulk_assign_streams', compact('classrooms', 'streams', 'selectedClassroom', 'students'));
+    }
+
+    /**
+     * Process bulk stream assignment
+     */
+    public function processBulkStreamAssignment(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'stream_id' => 'required|exists:streams,id',
+            'classroom_id' => 'required|exists:classrooms,id',
+        ]);
+
+        // Verify stream belongs to the classroom
+        $stream = Stream::findOrFail($request->stream_id);
+        $classroom = Classroom::findOrFail($request->classroom_id);
+        
+        // Check if stream is assigned to this classroom (primary or via pivot)
+        $isValidStream = $stream->classroom_id == $classroom->id || 
+                        $stream->classrooms->contains('id', $classroom->id);
+        
+        if (!$isValidStream) {
+            return back()->withInput()->with('error', 'The selected stream is not assigned to this classroom.');
+        }
+
+        // Update students
+        $updated = Student::whereIn('id', $request->student_ids)
+            ->where('classroom_id', $classroom->id) // Ensure students are in the correct classroom
+            ->update(['stream_id' => $request->stream_id]);
+
+        if ($updated > 0) {
+            return redirect()->route('students.bulk.assign-streams', ['classroom_id' => $classroom->id])
+                ->with('success', "Successfully assigned {$updated} student(s) to {$stream->name} stream.");
+        }
+
+        return back()->withInput()->with('error', 'No students were updated. Please ensure selected students belong to the selected classroom.');
     }
 
     public function bulkArchive(Request $request)

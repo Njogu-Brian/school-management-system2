@@ -20,6 +20,26 @@ use Illuminate\Database\Eloquent\Builder;
 
 class Student extends Model
 {
+    protected static function boot()
+    {
+        parent::boot();
+        
+        // Ensure stream belongs to classroom when saving
+        static::saving(function ($student) {
+            if ($student->stream_id && $student->classroom_id) {
+                $stream = Stream::find($student->stream_id);
+                if ($stream) {
+                    $isValidStream = $stream->classroom_id == $student->classroom_id || 
+                                    $stream->classrooms->contains('id', $student->classroom_id);
+                    if (!$isValidStream) {
+                        // Clear stream if it doesn't belong to classroom
+                        $student->stream_id = null;
+                    }
+                }
+            }
+        });
+    }
+    
     protected $fillable = [
         'admission_number',
         'first_name',
