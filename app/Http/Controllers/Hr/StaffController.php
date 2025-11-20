@@ -220,33 +220,57 @@ class StaffController extends Controller
             )->calculateTotals()->save();
         }
 
-        // 7) Notifications via templates
+        // 7) Notifications via templates - Send welcome email and SMS
         $vars = [
             'name'     => $user->name,
             'login'    => $user->email,
             'password' => $passwordPlain,
+            'staff_id' => $staff->staff_id,
         ];
 
         $emailTpl = CommunicationTemplate::where('code','welcome_staff')->where('type','email')->first();
         $smsTpl   = CommunicationTemplate::where('code','welcome_staff')->where('type','sms')->first();
 
-        if ($emailTpl) {
-            $subject = $this->fillTemplate($emailTpl->subject ?? 'Welcome', $vars);
-            $body    = $this->fillTemplate($emailTpl->content, $vars);
+        // Send email notification
+        if ($emailTpl && $user->email) {
+            try {
+                $subject = $this->fillTemplate($emailTpl->subject ?? 'Welcome to ' . config('app.name'), $vars);
+                $body    = $this->fillTemplate($emailTpl->content, $vars);
+                // Pass relative path - GenericMail will handle the full path
+                $attachmentPath = $emailTpl->attachment ?? null;
 
-            $this->comm->sendEmail(
-                'staff',
-                $user->id,
-                $user->email,
-                $subject,
-                $body,
-                $emailTpl->attachment ? storage_path('app/public/'.$emailTpl->attachment) : null
-            );
+                $this->comm->sendEmail(
+                    'staff',
+                    $staff->id, // Use staff->id, not user->id
+                    $user->email,
+                    $subject,
+                    $body,
+                    $attachmentPath
+                );
+            } catch (\Exception $e) {
+                Log::warning('Failed to send welcome email to staff', [
+                    'staff_id' => $staff->id,
+                    'email' => $user->email,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't fail the entire transaction if email fails
+            }
         }
 
+        // Send SMS notification
         if ($smsTpl && $staff->phone_number) {
-            $smsBody = $this->fillTemplate($smsTpl->content, $vars);
-            $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody);
+            try {
+                $smsBody = $this->fillTemplate($smsTpl->content, $vars);
+                $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
+                $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+            } catch (\Exception $e) {
+                Log::warning('Failed to send welcome SMS to staff', [
+                    'staff_id' => $staff->id,
+                    'phone' => $staff->phone_number,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't fail the entire transaction if SMS fails
+            }
         }
 
         DB::commit();

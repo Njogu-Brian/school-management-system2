@@ -8,8 +8,9 @@ class CommunicationLog extends Model
 {
     protected $fillable = [
         'recipient_type', 'recipient_id', 'contact', 'channel',
-        'message', 'status', 'type', 'sent_at',
-        'classroom_id', 'stream_id', 'scope'
+        'title', 'message', 'status', 'type', 'sent_at',
+        'classroom_id', 'stream_id', 'scope', 'response',
+        'provider_id', 'provider_status', 'delivered_at', 'error_code'
     ];
     
     protected $guarded = []; 
