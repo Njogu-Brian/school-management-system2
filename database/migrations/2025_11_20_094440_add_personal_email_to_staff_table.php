@@ -15,6 +15,9 @@ return new class extends Migration
             if (!Schema::hasColumn('staff', 'personal_email')) {
                 $table->string('personal_email')->nullable()->after('work_email');
             }
+            if (!Schema::hasColumn('staff', 'emergency_contact_relationship')) {
+                $table->string('emergency_contact_relationship')->nullable()->after('emergency_contact_name');
+            }
         });
     }
 
@@ -26,6 +29,9 @@ return new class extends Migration
         Schema::table('staff', function (Blueprint $table) {
             if (Schema::hasColumn('staff', 'personal_email')) {
                 $table->dropColumn('personal_email');
+            }
+            if (Schema::hasColumn('staff', 'emergency_contact_relationship')) {
+                $table->dropColumn('emergency_contact_relationship');
             }
         });
     }
