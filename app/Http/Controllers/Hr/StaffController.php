@@ -459,23 +459,61 @@ class StaffController extends Controller
         $rows->shift();
 
         // Prepare compact preview rows
+        // Detect format: Check if first column looks like staff_id (empty or numeric/alphanumeric) vs first_name (text)
+        // New template: 0=staff_id, 1=first_name, 2=middle_name, 3=last_name, 4=work_email, 5=personal_email, 6=phone_number, 7=id_number
+        // Old template: 0=first_name, 1=middle_name, 2=last_name, 3=work_email, 4=personal_email, 5=phone_number, 6=id_number
         $preview = [];
+        $hasStaffIdColumn = false;
+        
+        // Check first row to detect format
+        if (!empty($rows)) {
+            $firstRow = $rows->first();
+            // If index 0 is empty or looks like an ID, and index 1 looks like a name, assume staff_id column exists
+            $col0 = trim((string)($firstRow[0] ?? ''));
+            $col1 = trim((string)($firstRow[1] ?? ''));
+            if (empty($col0) || preg_match('/^(STAFF|RKS|EMP|\d+)$/i', $col0)) {
+                if (!empty($col1) && !filter_var($col1, FILTER_VALIDATE_EMAIL)) {
+                    $hasStaffIdColumn = true;
+                }
+            }
+        }
+        
         foreach ($rows as $r) {
-            $preview[] = [
-                'first_name'  => trim((string)($r[1] ?? '')),
-                'middle_name' => trim((string)($r[2] ?? '')),
-                'last_name'   => trim((string)($r[3] ?? '')),
-                'work_email'  => trim((string)($r[4] ?? '')),
-                'personal_email' => trim((string)($r[5] ?? '')),
-                'phone_number'=> trim((string)($r[6] ?? '')),
-                'id_number'   => trim((string)($r[7] ?? '')),
-                'department_guess' => trim((string)($r[21] ?? '')),
-                'job_title_guess'  => trim((string)($r[22] ?? '')),
-                'category_guess'   => trim((string)($r[23] ?? '')),
-                'supervisor_staff_id_guess' => trim((string)($r[24] ?? '')),
-                'spatie_role_guess'         => trim((string)($r[25] ?? '')),
-                'raw' => (array) $r, // keep if you want to show more later
-            ];
+            if ($hasStaffIdColumn) {
+                // New format with staff_id at index 0
+                $preview[] = [
+                    'first_name'  => trim((string)($r[1] ?? '')),
+                    'middle_name' => trim((string)($r[2] ?? '')),
+                    'last_name'   => trim((string)($r[3] ?? '')),
+                    'work_email'  => trim((string)($r[4] ?? '')),
+                    'personal_email' => trim((string)($r[5] ?? '')),
+                    'phone_number'=> trim((string)($r[6] ?? '')),
+                    'id_number'   => trim((string)($r[7] ?? '')),
+                    'department_guess' => trim((string)($r[21] ?? '')),
+                    'job_title_guess'  => trim((string)($r[22] ?? '')),
+                    'category_guess'   => trim((string)($r[23] ?? '')),
+                    'supervisor_staff_id_guess' => trim((string)($r[24] ?? '')),
+                    'spatie_role_guess'         => trim((string)($r[25] ?? '')),
+                    'raw' => (array) $r,
+                ];
+            } else {
+                // Old format without staff_id (starts with first_name at index 0)
+                $preview[] = [
+                    'first_name'  => trim((string)($r[0] ?? '')),
+                    'middle_name' => trim((string)($r[1] ?? '')),
+                    'last_name'   => trim((string)($r[2] ?? '')),
+                    'work_email'  => trim((string)($r[3] ?? '')),
+                    'personal_email' => trim((string)($r[4] ?? '')),
+                    'phone_number'=> trim((string)($r[5] ?? '')),
+                    'id_number'   => trim((string)($r[6] ?? '')),
+                    'department_guess' => trim((string)($r[20] ?? '')),
+                    'job_title_guess'  => trim((string)($r[21] ?? '')),
+                    'category_guess'   => trim((string)($r[22] ?? '')),
+                    'supervisor_staff_id_guess' => trim((string)($r[23] ?? '')),
+                    'spatie_role_guess'         => trim((string)($r[24] ?? '')),
+                    'raw' => (array) $r,
+                ];
+            }
         }
 
         session([

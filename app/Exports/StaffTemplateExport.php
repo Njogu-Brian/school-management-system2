@@ -11,6 +11,7 @@ class StaffTemplateExport implements FromArray, WithHeadings
     {
         
         return [
+            'staff_id',                // Optional: leave empty to auto-generate
             'first_name',
             'middle_name',
             'last_name',
@@ -42,8 +43,10 @@ class StaffTemplateExport implements FromArray, WithHeadings
     public function array(): array
     {
         // Provide one or two sample rows (optional)
+        // Column order matches headings: staff_id, first_name, middle_name, last_name, work_email, personal_email, phone_number, id_number, ...
         return [
             [
+                '', // staff_id (leave empty to auto-generate)
                 'Jane','A.','Doe','jane.doe@school.ac.ke','jane.personal@mail.com',
                 '+254712345678','12345678','1990-01-01','female','single','Nairobi, Kenya',
                 'John Doe','Brother','+254700000000','A1234567','123456','NHIF123',
