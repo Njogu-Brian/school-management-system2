@@ -61,10 +61,34 @@ class StudentsController extends Controller
     public function show(Student $student)
     {
         $user = Auth::user();
+        $streamAssignments = $user->getStreamAssignments();
         $assignedClassroomIds = $user->getAssignedClassroomIds();
         
-        // Verify teacher has access to this student's class
-        if (!in_array($student->classroom_id, $assignedClassroomIds)) {
+        // Verify teacher has access to this student
+        $hasAccess = false;
+        if (!empty($streamAssignments)) {
+            // Check if student belongs to any assigned stream
+            foreach ($streamAssignments as $assignment) {
+                if ($student->classroom_id == $assignment->classroom_id && 
+                    $student->stream_id == $assignment->stream_id) {
+                    $hasAccess = true;
+                    break;
+                }
+            }
+            // Also check direct classroom assignments (not via streams)
+            if (!$hasAccess && in_array($student->classroom_id, $assignedClassroomIds)) {
+                // Check if this classroom is not part of stream assignments
+                $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                if (!in_array($student->classroom_id, $streamClassroomIds)) {
+                    $hasAccess = true;
+                }
+            }
+        } else {
+            // No stream assignments, check classroom access
+            $hasAccess = in_array($student->classroom_id, $assignedClassroomIds);
+        }
+        
+        if (!$hasAccess) {
             abort(403, 'You do not have access to view this student.');
         }
         
