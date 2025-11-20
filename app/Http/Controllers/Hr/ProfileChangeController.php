@@ -26,13 +26,13 @@ class ProfileChangeController extends Controller
 
         $changes = $query->paginate(20);
 
-        return view('hr.profile_changes.index', compact('changes','status'));
+        return view('hr.Profile_changes.index', compact('changes','status'));
     }
 
     public function show(StaffProfileChange $change)
     {
         $change->load(['staff','submitter','reviewer']);
-        return view('hr.profile_changes.show', compact('change'));
+        return view('hr.Profile_changes.show', compact('change'));
     }
 
     public function approve(Request $request, StaffProfileChange $change)
