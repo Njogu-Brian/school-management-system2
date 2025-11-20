@@ -105,6 +105,98 @@ class ProfileChangeController extends Controller
     }
 
     /**
+     * Approve all pending profile change requests
+     */
+    public function approveAll(Request $request)
+    {
+        $pendingChanges = StaffProfileChange::where('status', 'pending')
+            ->with('staff')
+            ->get();
+
+        if ($pendingChanges->isEmpty()) {
+            return back()->with('info', 'No pending requests to approve.');
+        }
+
+        $approved = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($pendingChanges as $change) {
+            try {
+                $change->load('staff');
+                $staff = $change->staff;
+
+                if (!$staff) {
+                    $failed++;
+                    $errors[] = "Request #{$change->id}: Staff member not found";
+                    continue;
+                }
+
+                // Extract proposed changes
+                $proposed = $change->changes ?? [];
+
+                if (empty($proposed)) {
+                    $failed++;
+                    $errors[] = "Request #{$change->id}: No changes found";
+                    continue;
+                }
+
+                // Build validation rules (only for fields being changed)
+                $rules = $this->rulesForApproval($staff, array_keys($proposed));
+                $validated = validator($this->pluckNewValues($proposed), $rules)->validate();
+
+                DB::transaction(function () use ($change, $staff, $validated) {
+                    // If work_email changed -> sync to users.email too
+                    if (array_key_exists('work_email', $validated)) {
+                        /** @var User $user */
+                        $user = $staff->user;
+                        if ($user) {
+                            $user->email = $validated['work_email'];
+                            $user->save();
+                        }
+                    }
+
+                    // Apply all validated fields to Staff
+                    foreach ($validated as $field => $value) {
+                        $staff->{$field} = $value;
+                    }
+                    $staff->save();
+
+                    // Mark request approved
+                    $change->status = 'approved';
+                    $change->reviewed_by = Auth::id();
+                    $change->reviewed_at = now();
+                    $change->review_notes = 'Bulk approved';
+                    $change->save();
+                });
+
+                $approved++;
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors[] = "Request #{$change->id}: " . $e->getMessage();
+                \Log::error('Bulk approve failed for profile change', [
+                    'change_id' => $change->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+            }
+        }
+
+        $message = "Bulk approval completed: {$approved} approved";
+        if ($failed > 0) {
+            $message .= ", {$failed} failed";
+        }
+
+        if (!empty($errors) && count($errors) <= 10) {
+            return back()->with('success', $message)->with('errors', $errors);
+        } elseif (!empty($errors)) {
+            return back()->with('success', $message)->with('error', 'Some requests failed. Check logs for details.');
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
      * Build rules only for the fields included in the change request.
      */
     protected function rulesForApproval(Staff $staff, array $fields): array

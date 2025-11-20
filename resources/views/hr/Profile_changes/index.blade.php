@@ -2,7 +2,54 @@
 
 @section('content')
 <div class="container">
-    <h1 class="mb-3">Staff Profile Change Requests</h1>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="mb-0">Staff Profile Change Requests</h1>
+            <small class="text-muted">Review and approve staff profile change requests</small>
+        </div>
+        <div>
+            <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+            @php
+                $pendingCount = \App\Models\StaffProfileChange::where('status', 'pending')->count();
+            @endphp
+            @if($pendingCount > 0 && (!$status || $status === 'pending'))
+                <form action="{{ route('hr.profile_requests.approve-all') }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to approve all {{ $pendingCount }} pending request(s)? This action cannot be undone.');">
+                    @csrf
+                    <button type="submit" class="btn btn-success">
+                        <i class="bi bi-check-all"></i> Approve All ({{ $pendingCount }})
+                    </button>
+                </form>
+            @endif
+        </div>
+    </div>
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show">
+            {{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show">
+            {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('errors') && is_array(session('errors')))
+        <div class="alert alert-warning alert-dismissible fade show">
+            <h6 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Some requests failed:</h6>
+            <ul class="mb-0 small">
+                @foreach(session('errors') as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
     <form class="mb-3 d-flex gap-2" method="get">
         <select name="status" class="form-select" style="max-width:240px">

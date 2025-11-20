@@ -640,6 +640,7 @@ Route::middleware('auth')->group(function () {
         ->name('hr.profile_requests.')
         ->group(function () {
             Route::get('/',            [\App\Http\Controllers\Hr\ProfileChangeController::class, 'index'])->name('index');
+            Route::post('/approve-all', [\App\Http\Controllers\Hr\ProfileChangeController::class, 'approveAll'])->name('approve-all');
             Route::get('/{change}',    [\App\Http\Controllers\Hr\ProfileChangeController::class, 'show'])->name('show');
             Route::post('/{change}/approve', [\App\Http\Controllers\Hr\ProfileChangeController::class, 'approve'])->name('approve');
             Route::post('/{change}/reject',  [\App\Http\Controllers\Hr\ProfileChangeController::class, 'reject'])->name('reject');
