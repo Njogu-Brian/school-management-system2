@@ -35,8 +35,8 @@ class ExamController extends Controller
         ])
         ->withCount(['marks', 'schedules']);
 
-        // Teachers can only see exams for their assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
+        // Teachers can only see exams for their assigned classes (unless they're supervisors)
+        if (Auth::user()->hasRole('Teacher') && !is_supervisor()) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $assignedClassroomIds = DB::table('classroom_subjects')
@@ -47,6 +47,23 @@ class ExamController extends Controller
                 $query->whereIn('classroom_id', $assignedClassroomIds);
             } else {
                 $query->whereRaw('1 = 0'); // No access
+            }
+        }
+        
+        // Supervisors can see exams for their subordinates' classes
+        if (is_supervisor() && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateClassroomIds = get_subordinate_classroom_ids();
+            $ownClassroomIds = Auth::user()->staff ? DB::table('classroom_subjects')
+                ->where('staff_id', Auth::user()->staff->id)
+                ->distinct()
+                ->pluck('classroom_id')
+                ->toArray() : [];
+            
+            $allClassroomIds = array_unique(array_merge($ownClassroomIds, $subordinateClassroomIds));
+            if (!empty($allClassroomIds)) {
+                $query->whereIn('classroom_id', $allClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0');
             }
         }
 
@@ -200,16 +217,23 @@ class ExamController extends Controller
             'publish_result'   => 'boolean',
         ]);
 
-        // Check if teacher has access to classroom
+        // Check if teacher/supervisor has access to classroom
         if (Auth::user()->hasRole('Teacher') && $v['classroom_id']) {
             $staff = Auth::user()->staff;
             if ($staff) {
-                $hasAccess = DB::table('classroom_subjects')
+                $hasOwnAccess = DB::table('classroom_subjects')
                     ->where('staff_id', $staff->id)
                     ->where('classroom_id', $v['classroom_id'])
                     ->exists();
                 
-                if (!$hasAccess) {
+                // Supervisors can create exams for their subordinates' classrooms
+                $hasSubordinateAccess = false;
+                if (is_supervisor()) {
+                    $subordinateClassroomIds = get_subordinate_classroom_ids();
+                    $hasSubordinateAccess = in_array($v['classroom_id'], $subordinateClassroomIds);
+                }
+                
+                if (!$hasOwnAccess && !$hasSubordinateAccess) {
                     return back()
                         ->withInput()
                         ->with('error', 'You do not have access to this classroom.');

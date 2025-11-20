@@ -44,7 +44,7 @@ class LessonPlanController extends Controller
         $query = LessonPlan::with(['subject', 'classroom', 'academicYear', 'term', 'substrand', 'creator']);
 
         // Teachers can only see their assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
+        if (Auth::user()->hasRole('Teacher') && !is_supervisor()) {
             $staff = Auth::user()->staff;
             if ($staff) {
                 $assignedClassroomIds = DB::table('classroom_subjects')
@@ -53,6 +53,16 @@ class LessonPlanController extends Controller
                     ->pluck('classroom_id')
                     ->toArray();
                 $query->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+        
+        // Supervisors can see their subordinates' lesson plans
+        if (is_supervisor() && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateClassroomIds = get_subordinate_classroom_ids();
+            if (!empty($subordinateClassroomIds)) {
+                $query->whereIn('classroom_id', $subordinateClassroomIds);
             } else {
                 $query->whereRaw('1 = 0');
             }
@@ -258,6 +268,31 @@ class LessonPlanController extends Controller
             ->with('success', 'Lesson plan updated successfully.');
     }
 
+    public function approve(Request $request, LessonPlan $lesson_plan)
+    {
+        // Check if supervisor can approve this lesson plan
+        if (is_supervisor() && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateClassroomIds = get_subordinate_classroom_ids();
+            if (!in_array($lesson_plan->classroom_id, $subordinateClassroomIds)) {
+                abort(403, 'You can only approve lesson plans for your subordinates\' classes.');
+            }
+        } elseif (!Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            abort(403, 'You do not have permission to approve lesson plans.');
+        }
+
+        $request->validate([
+            'approval_notes' => 'nullable|string|max:1000',
+        ]);
+
+        $lesson_plan->update([
+            'approved_by' => Auth::user()->staff?->id,
+            'approved_at' => now(),
+            'approval_notes' => $request->approval_notes,
+        ]);
+
+        return back()->with('success', 'Lesson plan approved successfully.');
+    }
+
     public function destroy(LessonPlan $lesson_plan)
     {
         if (!$this->canAccessClassroom($lesson_plan->classroom_id) && !Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
@@ -282,6 +317,20 @@ class LessonPlanController extends Controller
             return collect();
         }
 
+        // Supervisors can access their subordinates' classrooms
+        if (is_supervisor()) {
+            $subordinateClassroomIds = get_subordinate_classroom_ids();
+            $ownClassroomIds = DB::table('classroom_subjects')
+                ->where('staff_id', $staff->id)
+                ->distinct()
+                ->pluck('classroom_id')
+                ->toArray();
+            
+            $allClassroomIds = array_unique(array_merge($ownClassroomIds, $subordinateClassroomIds));
+            return Classroom::whereIn('id', $allClassroomIds)->orderBy('name')->get();
+        }
+
+        // Regular teachers see only their own classrooms
         $classroomIds = DB::table('classroom_subjects')
             ->where('staff_id', $staff->id)
             ->distinct()
@@ -300,6 +349,17 @@ class LessonPlanController extends Controller
         $staff = Auth::user()->staff;
         if (!$staff) {
             return false;
+        }
+
+        // Supervisors can access their subordinates' classrooms
+        if (is_supervisor()) {
+            $subordinateClassroomIds = get_subordinate_classroom_ids();
+            $ownAccess = DB::table('classroom_subjects')
+                ->where('staff_id', $staff->id)
+                ->where('classroom_id', $classroomId)
+                ->exists();
+            
+            return $ownAccess || in_array($classroomId, $subordinateClassroomIds);
         }
 
         return DB::table('classroom_subjects')

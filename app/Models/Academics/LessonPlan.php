@@ -15,6 +15,9 @@ class LessonPlan extends Model
         'academic_year_id',
         'term_id',
         'created_by',
+        'approved_by',
+        'approved_at',
+        'approval_notes',
         'title',
         'lesson_number',
         'planned_date',
@@ -89,6 +92,11 @@ class LessonPlan extends Model
         return $this->belongsTo(\App\Models\Staff::class, 'created_by');
     }
 
+    public function approver()
+    {
+        return $this->belongsTo(\App\Models\Staff::class, 'approved_by');
+    }
+
     public function homework()
     {
         return $this->hasMany(Homework::class, 'lesson_plan_id');
@@ -136,5 +144,10 @@ class LessonPlan extends Model
     {
         return $this->status === 'planned' && 
                $this->planned_date < now()->toDateString();
+    }
+
+    public function isApproved()
+    {
+        return !is_null($this->approved_at);
     }
 }

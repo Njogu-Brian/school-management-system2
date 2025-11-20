@@ -163,6 +163,43 @@
                     <h5 class="mb-0">Quick Actions</h5>
                 </div>
                 <div class="card-body">
+                    @if(!$lesson_plan->isApproved() && (is_supervisor() || auth()->user()->hasAnyRole(['Admin', 'Super Admin'])))
+                        @php
+                            $canApprove = false;
+                            if (auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+                                $canApprove = true;
+                            } elseif (is_supervisor()) {
+                                $subordinateClassroomIds = get_subordinate_classroom_ids();
+                                $canApprove = in_array($lesson_plan->classroom_id, $subordinateClassroomIds);
+                            }
+                        @endphp
+                        @if($canApprove)
+                        <form action="{{ route('academics.lesson-plans.approve', $lesson_plan) }}" method="POST" class="mb-3">
+                            @csrf
+                            <div class="mb-2">
+                                <label class="form-label small">Approval Notes (Optional)</label>
+                                <textarea name="approval_notes" class="form-control form-control-sm" rows="2" placeholder="Add any notes about this lesson plan..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-check-circle"></i> Approve Lesson Plan
+                            </button>
+                        </form>
+                        @endif
+                    @endif
+                    
+                    @if($lesson_plan->isApproved())
+                    <div class="alert alert-success mb-3">
+                        <i class="bi bi-check-circle"></i> <strong>Approved</strong><br>
+                        <small>
+                            By: {{ $lesson_plan->approver->full_name ?? 'N/A' }}<br>
+                            On: {{ $lesson_plan->approved_at->format('d M Y, H:i') }}
+                            @if($lesson_plan->approval_notes)
+                                <br>Notes: {{ $lesson_plan->approval_notes }}
+                            @endif
+                        </small>
+                    </div>
+                    @endif
+                    
                     @can('homework.create')
                     <a href="{{ route('academics.lesson-plans.assign-homework', $lesson_plan) }}" 
                        class="btn btn-primary w-100 mb-2">

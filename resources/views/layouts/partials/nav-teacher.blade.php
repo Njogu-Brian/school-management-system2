@@ -15,6 +15,7 @@
   $announcementsActive = Request::is('teacher/announcements*');
   $eventsActive = Request::is('teacher/events*') || Request::is('events*');
   $teacherInventoryActive = Request::is('inventory/student-requirements*') || Request::is('inventory/requisitions*');
+  $supervisorActive = Request::is('supervisor/*') || (is_supervisor() && (Request::is('academics/lesson-plans*') || Request::is('academics/exams*') || Request::is('academics/timetable*') || Request::is('staff/leave-requests*') || Request::is('staff/attendance*')));
 @endphp
 
 {{-- Dashboard --}}
@@ -249,4 +250,41 @@
       <i class="bi bi-ui-checks"></i> Track Requisitions
     </a>
   </div>
+@endif
+
+{{-- Supervisor Section (only for supervisors) --}}
+@if(is_supervisor())
+<div class="mt-3 pt-3 border-top">
+  <div class="text-muted small fw-bold px-3 mb-2">Supervisor</div>
+  
+  {{-- Lesson Plans Approval --}}
+  <a href="{{ route('academics.lesson-plans.index') }}" 
+     class="{{ Request::is('academics/lesson-plans*') ? 'active' : '' }}">
+    <i class="bi bi-journal-text"></i> Review Lesson Plans
+  </a>
+  
+  {{-- Exams --}}
+  <a href="{{ route('academics.exams.index') }}" 
+     class="{{ Request::is('academics/exams*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> Exams
+  </a>
+  
+  {{-- Timetable --}}
+  <a href="{{ route('academics.timetable.index') }}" 
+     class="{{ Request::is('academics/timetable*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-week"></i> Timetable
+  </a>
+  
+  {{-- Leave Requests --}}
+  <a href="{{ route('supervisor.leave-requests.index') }}" 
+     class="{{ Request::is('supervisor/leave-requests*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-event"></i> Leave Requests
+  </a>
+  
+  {{-- Staff Attendance --}}
+  <a href="{{ route('supervisor.attendance.index') }}" 
+     class="{{ Request::is('supervisor/attendance*') ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Staff Attendance
+  </a>
+</div>
 @endif

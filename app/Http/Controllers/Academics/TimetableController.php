@@ -23,7 +23,7 @@ class TimetableController extends Controller
         $user = Auth::user();
         
         // Filter classrooms based on user role
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && !is_supervisor()) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
@@ -32,6 +32,22 @@ class TimetableController extends Controller
             }
             // Teachers can only see their own timetable
             $teachers = collect();
+        } elseif (is_supervisor() && !$user->hasAnyRole(['Admin', 'Super Admin'])) {
+            // Supervisors can see their subordinates' classrooms
+            $subordinateClassroomIds = get_subordinate_classroom_ids();
+            $ownClassroomIds = $user->getAssignedClassroomIds();
+            $allClassroomIds = array_unique(array_merge($ownClassroomIds, $subordinateClassroomIds));
+            
+            if (!empty($allClassroomIds)) {
+                $classrooms = Classroom::whereIn('id', $allClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
+            // Supervisors can see their subordinates as teachers
+            $subordinateIds = get_subordinate_staff_ids();
+            $teachers = Staff::whereIn('id', $subordinateIds)
+                ->whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))
+                ->get();
         } else {
             $classrooms = Classroom::orderBy('name')->get();
             $teachers = Staff::whereHas('user.roles', fn($q) => $q->whereIn('name', ['Teacher', 'teacher']))->get();
@@ -249,6 +265,30 @@ class TimetableController extends Controller
             'term_id' => 'required|exists:terms,id',
             'timetable' => 'required|array',
         ]);
+
+        // Check if user has access to this classroom
+        if (!Auth::user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $staff = Auth::user()->staff;
+            if ($staff) {
+                $hasOwnAccess = DB::table('classroom_subjects')
+                    ->where('staff_id', $staff->id)
+                    ->where('classroom_id', $validated['classroom_id'])
+                    ->exists();
+                
+                // Supervisors can create timetables for their subordinates' classrooms
+                $hasSubordinateAccess = false;
+                if (is_supervisor()) {
+                    $subordinateClassroomIds = get_subordinate_classroom_ids();
+                    $hasSubordinateAccess = in_array($validated['classroom_id'], $subordinateClassroomIds);
+                }
+                
+                if (!$hasOwnAccess && !$hasSubordinateAccess) {
+                    return back()
+                        ->withInput()
+                        ->with('error', 'You do not have access to create timetables for this classroom.');
+                }
+            }
+        }
 
         // Delete existing timetable
         Timetable::where('classroom_id', $validated['classroom_id'])

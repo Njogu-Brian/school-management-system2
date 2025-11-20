@@ -19,6 +19,16 @@ class LeaveRequestController extends Controller
     {
         $query = LeaveRequest::with(['staff', 'leaveType', 'approvedBy', 'rejectedBy']);
 
+        // Supervisors can only see their subordinates' leave requests
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateIds = get_subordinate_staff_ids();
+            if (!empty($subordinateIds)) {
+                $query->whereIn('staff_id', $subordinateIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No subordinates, show nothing
+            }
+        }
+
         // Filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -38,7 +48,17 @@ class LeaveRequestController extends Controller
         }
 
         $leaveRequests = $query->orderBy('created_at', 'desc')->paginate(20)->withQueryString();
-        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        
+        // Supervisors see only their subordinates in the staff dropdown
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateIds = get_subordinate_staff_ids();
+            $staff = Staff::where('status', 'active')
+                ->whereIn('id', $subordinateIds)
+                ->orderBy('first_name')
+                ->get();
+        } else {
+            $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        }
 
         return view('staff.leave_requests.index', compact('leaveRequests', 'staff'));
     }
@@ -105,6 +125,13 @@ class LeaveRequestController extends Controller
     {
         if ($leaveRequest->status !== 'pending') {
             return back()->with('error', 'Only pending leave requests can be approved.');
+        }
+
+        // Supervisors can only approve their subordinates' leave requests
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            if (!is_my_subordinate($leaveRequest->staff_id)) {
+                abort(403, 'You can only approve leave requests for your subordinates.');
+            }
         }
 
         DB::beginTransaction();

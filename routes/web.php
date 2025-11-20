@@ -304,6 +304,7 @@ Route::middleware('auth')->group(function () {
 
         // Lesson Plans
         Route::resource('lesson-plans', LessonPlanController::class)->parameters(['lesson-plans' => 'lesson_plan']);
+        Route::post('lesson-plans/{lesson_plan}/approve', [LessonPlanController::class, 'approve'])->name('lesson-plans.approve');
         Route::get('lesson-plans/{lesson_plan}/export-pdf', [LessonPlanController::class, 'exportPdf'])->name('lesson-plans.export-pdf');
         Route::get('lesson-plans/{lesson_plan}/export-excel', [LessonPlanController::class, 'exportExcel'])->name('lesson-plans.export-excel');
         Route::get('lesson-plans/{lesson_plan}/assign-homework', [LessonPlanController::class, 'assignHomeworkForm'])->name('lesson-plans.assign-homework');
@@ -611,6 +612,21 @@ Route::middleware('auth')->group(function () {
                 Route::post('/custom-deductions/{id}/suspend', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'suspend'])->name('custom-deductions.suspend');
                 Route::post('/custom-deductions/{id}/activate', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'activate'])->name('custom-deductions.activate');
             });
+        });
+
+    // Supervisor routes (for supervisors to access their subordinates' data)
+    Route::prefix('supervisor')->name('supervisor.')
+        ->middleware('auth')
+        ->group(function () {
+            // Leave Requests (supervisors can approve their subordinates' leaves)
+            Route::get('/leave-requests', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'index'])->name('leave-requests.index');
+            Route::get('/leave-requests/{leaveRequest}', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'show'])->name('leave-requests.show');
+            Route::post('/leave-requests/{leaveRequest}/approve', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'approve'])->name('leave-requests.approve');
+            Route::post('/leave-requests/{leaveRequest}/reject', [\App\Http\Controllers\Hr\LeaveRequestController::class, 'reject'])->name('leave-requests.reject');
+            
+            // Staff Attendance (supervisors can view their subordinates' attendance)
+            Route::get('/attendance', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'index'])->name('attendance.index');
+            Route::get('/attendance/report', [\App\Http\Controllers\Hr\StaffAttendanceController::class, 'report'])->name('attendance.report');
         });
 
     // HR Lookups standalone page (optional UI outside settings tab)

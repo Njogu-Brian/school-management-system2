@@ -18,15 +18,34 @@ class StaffAttendanceController extends Controller
         $query = StaffAttendance::with(['staff', 'markedBy'])
             ->where('date', $date);
 
+        // Supervisors can only see their subordinates' attendance
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateIds = get_subordinate_staff_ids();
+            if (!empty($subordinateIds)) {
+                $query->whereIn('staff_id', $subordinateIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No subordinates, show nothing
+            }
+        }
+
         if ($staffId) {
             $query->where('staff_id', $staffId);
         }
 
         $attendanceRecords = $query->orderBy('staff_id')->get();
-        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
         
-        // Get all active staff for marking (even if they don't have attendance record yet)
-        $allStaff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        // Supervisors see only their subordinates
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateIds = get_subordinate_staff_ids();
+            $staff = Staff::where('status', 'active')
+                ->whereIn('id', $subordinateIds)
+                ->orderBy('first_name')
+                ->get();
+            $allStaff = $staff;
+        } else {
+            $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
+            $allStaff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        }
 
         // Get attendance summary
         $summary = [
@@ -105,12 +124,32 @@ class StaffAttendanceController extends Controller
         $query = StaffAttendance::with('staff')
             ->whereBetween('date', [$startDate, $endDate]);
 
+        // Supervisors can only see their subordinates' attendance
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateIds = get_subordinate_staff_ids();
+            if (!empty($subordinateIds)) {
+                $query->whereIn('staff_id', $subordinateIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No subordinates, show nothing
+            }
+        }
+
         if ($staffId) {
             $query->where('staff_id', $staffId);
         }
 
         $attendance = $query->orderBy('date', 'desc')->paginate(50)->withQueryString();
-        $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        
+        // Supervisors see only their subordinates
+        if (is_supervisor() && !auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            $subordinateIds = get_subordinate_staff_ids();
+            $staff = Staff::where('status', 'active')
+                ->whereIn('id', $subordinateIds)
+                ->orderBy('first_name')
+                ->get();
+        } else {
+            $staff = Staff::where('status', 'active')->orderBy('first_name')->get();
+        }
 
         return view('staff.attendance.report', compact('attendance', 'staff', 'startDate', 'endDate'));
     }

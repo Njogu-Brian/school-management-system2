@@ -208,3 +208,79 @@ if (! function_exists('format_money')) {
         return $currency . ' ' . number_format((float)$value, 2);
     }
 }
+
+/**
+ * Check if the current user is a supervisor (has subordinates)
+ */
+if (!function_exists('is_supervisor')) {
+    function is_supervisor(): bool
+    {
+        $user = Auth::user();
+        if (!$user) return false;
+        
+        $staff = $user->staff ?? null;
+        if (!$staff) return false;
+        
+        return $staff->subordinates()->exists();
+    }
+}
+
+/**
+ * Get all subordinate staff IDs for the current supervisor
+ */
+if (!function_exists('get_subordinate_staff_ids')) {
+    function get_subordinate_staff_ids(): array
+    {
+        $user = Auth::user();
+        if (!$user) return [];
+        
+        $staff = $user->staff ?? null;
+        if (!$staff) return [];
+        
+        return $staff->subordinates()->pluck('id')->toArray();
+    }
+}
+
+/**
+ * Get all subordinate staff for the current supervisor
+ */
+if (!function_exists('get_subordinates')) {
+    function get_subordinates()
+    {
+        $user = Auth::user();
+        if (!$user) return collect();
+        
+        $staff = $user->staff ?? null;
+        if (!$staff) return collect();
+        
+        return $staff->subordinates;
+    }
+}
+
+/**
+ * Check if a staff member is supervised by the current user
+ */
+if (!function_exists('is_my_subordinate')) {
+    function is_my_subordinate($staffId): bool
+    {
+        $subordinateIds = get_subordinate_staff_ids();
+        return in_array($staffId, $subordinateIds);
+    }
+}
+
+/**
+ * Get classroom IDs for classes assigned to subordinates
+ */
+if (!function_exists('get_subordinate_classroom_ids')) {
+    function get_subordinate_classroom_ids(): array
+    {
+        $subordinateIds = get_subordinate_staff_ids();
+        if (empty($subordinateIds)) return [];
+        
+        return \DB::table('classroom_subjects')
+            ->whereIn('staff_id', $subordinateIds)
+            ->distinct()
+            ->pluck('classroom_id')
+            ->toArray();
+    }
+}

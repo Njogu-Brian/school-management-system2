@@ -71,6 +71,7 @@
                             <th>Classroom</th>
                             <th>Planned Date</th>
                             <th>Status</th>
+                            <th>Approval</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -87,6 +88,18 @@
                                 </span>
                             </td>
                             <td>
+                                @if($plan->isApproved())
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle"></i> Approved
+                                    </span>
+                                    <br><small class="text-muted">{{ $plan->approved_at->format('d M Y') }}</small>
+                                @else
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="bi bi-clock"></i> Pending
+                                    </span>
+                                @endif
+                            </td>
+                            <td>
                                 <div class="btn-group btn-group-sm">
                                     <a href="{{ route('academics.lesson-plans.show', $plan) }}" class="btn btn-outline-info">
                                         <i class="bi bi-eye"></i>
@@ -99,7 +112,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="6" class="text-center text-muted">No lesson plans found</td>
+                            <td colspan="7" class="text-center text-muted">No lesson plans found</td>
                         </tr>
                         @endforelse
                     </tbody>
