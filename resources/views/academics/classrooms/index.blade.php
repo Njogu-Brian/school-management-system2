@@ -7,9 +7,16 @@
             <h2 class="mb-0">Classroom Management</h2>
             <small class="text-muted">Manage classes, streams, and student assignments</small>
         </div>
-        <a href="{{ route('academics.classrooms.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Add New Classroom
-        </a>
+        <div class="d-flex gap-2">
+            @if(Route::has('students.bulk.assign-streams'))
+                <a href="{{ route('students.bulk.assign-streams') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-people"></i> Bulk Assign Students to Streams
+                </a>
+            @endif
+            <a href="{{ route('academics.classrooms.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Add New Classroom
+            </a>
+        </div>
     </div>
 
     @if (session('success'))

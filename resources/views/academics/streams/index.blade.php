@@ -7,9 +7,16 @@
             <h2 class="mb-0">Stream Management</h2>
             <small class="text-muted">Manage streams and assign them to multiple classrooms</small>
         </div>
-        <a href="{{ route('academics.streams.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Add New Stream
-        </a>
+        <div class="d-flex gap-2">
+            @if(Route::has('students.bulk.assign-streams'))
+                <a href="{{ route('students.bulk.assign-streams') }}" class="btn btn-outline-primary">
+                    <i class="bi bi-people"></i> Bulk Assign Students to Streams
+                </a>
+            @endif
+            <a href="{{ route('academics.streams.create') }}" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Add New Stream
+            </a>
+        </div>
     </div>
 
     @if (session('success'))
@@ -32,6 +39,7 @@
                             <th>Primary Classroom</th>
                             <th>Additional Classrooms</th>
                             <th>Teachers</th>
+                            <th>Students</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -79,8 +87,23 @@
                                         <span class="text-muted">No teachers assigned</span>
                                     @endif
                                 </td>
+                                <td>
+                                    @php
+                                        $streamStudents = \App\Models\Student::where('stream_id', $stream->id)
+                                            ->where('archive', 0)
+                                            ->count();
+                                    @endphp
+                                    <span class="badge bg-info">{{ $streamStudents }} student(s)</span>
+                                </td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">
+                                        @if(Route::has('students.bulk.assign-streams') && $stream->classroom)
+                                            <a href="{{ route('students.bulk.assign-streams', ['classroom_id' => $stream->classroom->id]) }}" 
+                                               class="btn btn-sm btn-success" 
+                                               title="Assign Students to {{ $stream->name }}">
+                                                <i class="bi bi-people"></i>
+                                            </a>
+                                        @endif
                                         <a href="{{ route('academics.streams.edit', $stream->id) }}" class="btn btn-sm btn-primary" title="Edit">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -96,7 +119,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="text-center text-muted py-4">No streams found.</td>
+                                <td colspan="6" class="text-center text-muted py-4">No streams found.</td>
                             </tr>
                         @endforelse
                     </tbody>
