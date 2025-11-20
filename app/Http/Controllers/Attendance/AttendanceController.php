@@ -453,15 +453,63 @@ private function applyPlaceholders(string $content, Student $student, string $hu
             ->with('student.classroom', 'student.stream', 'reasonCode', 'markedBy');
 
         if ($isTeacher) {
-            $attendanceQuery->whereHas('student', function ($q) use ($assignedClassIds, $assignedStreamIds, $selectedClass, $selectedStream) {
-                $q->whereIn('classroom_id', $assignedClassIds ?: [-1]);
-                if ($selectedClass) {
-                    $q->where('classroom_id', $selectedClass);
-                }
-                if ($selectedStream) {
-                    $q->where('stream_id', $selectedStream);
-                } elseif (!empty($assignedStreamIds)) {
-                    $q->whereIn('stream_id', $assignedStreamIds);
+            $streamAssignments = $user->getStreamAssignments();
+            $attendanceQuery->whereHas('student', function ($q) use ($streamAssignments, $assignedClassIds, $selectedClass, $selectedStream, $user) {
+                // If teacher has stream assignments, filter by those specific streams
+                if (!empty($streamAssignments)) {
+                    $q->where(function($subQ) use ($streamAssignments, $selectedClass, $selectedStream, $user) {
+                        foreach ($streamAssignments as $assignment) {
+                            // If a specific class is selected, only include streams for that class
+                            if ($selectedClass && $assignment->classroom_id != $selectedClass) {
+                                continue;
+                            }
+                            // If a specific stream is selected, only include that stream
+                            if ($selectedStream && $assignment->stream_id != $selectedStream) {
+                                continue;
+                            }
+                            $subQ->orWhere(function($streamQ) use ($assignment) {
+                                $streamQ->where('classroom_id', $assignment->classroom_id)
+                                       ->where('stream_id', $assignment->stream_id);
+                            });
+                        }
+                        
+                        // Also include students from direct classroom assignments (not via streams)
+                        // Only if no specific class/stream is selected
+                        if (!$selectedClass && !$selectedStream) {
+                            $directClassroomIds = \DB::table('classroom_teacher')
+                                ->where('teacher_id', $user->id)
+                                ->pluck('classroom_id')
+                                ->toArray();
+                            
+                            $subjectClassroomIds = [];
+                            if ($user->staff) {
+                                $subjectClassroomIds = \DB::table('classroom_subjects')
+                                    ->where('staff_id', $user->staff->id)
+                                    ->distinct()
+                                    ->pluck('classroom_id')
+                                    ->toArray();
+                            }
+                            
+                            $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                            $nonStreamClassroomIds = array_diff(
+                                array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                                $streamClassroomIds
+                            );
+                            
+                            if (!empty($nonStreamClassroomIds)) {
+                                $subQ->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                            }
+                        }
+                    });
+                } else {
+                    // No stream assignments, show all students from assigned classrooms
+                    $q->whereIn('classroom_id', $assignedClassIds ?: [-1]);
+                    if ($selectedClass) {
+                        $q->where('classroom_id', $selectedClass);
+                    }
+                    if ($selectedStream) {
+                        $q->where('stream_id', $selectedStream);
+                    }
                 }
             });
         } else {
