@@ -173,7 +173,10 @@ Route::get('/home', function () {
         }
     }
 
-    // Fallback: if user has roles, send teachers to teacher dashboard
+    // Fallback: if user has roles, send supervisors/teachers to appropriate dashboard
+    if (is_supervisor() && !$user->hasAnyRole(['Admin', 'Super Admin'])) {
+        return redirect()->route('supervisor.dashboard');
+    }
     if ($user->hasAnyRole(['Teacher','teacher'])) {
         return redirect()->route('teacher.dashboard');
     }
@@ -189,6 +192,7 @@ Route::get('/home', function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('/admin/home',    [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
     Route::get('/teacher/home',  [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
+    Route::get('/supervisor/home',  [DashboardController::class, 'supervisorDashboard'])->name('supervisor.dashboard');
     Route::get('/parent/home',   [DashboardController::class, 'parentDashboard'])->name('parent.dashboard');
     Route::get('/student/home',  [DashboardController::class, 'studentDashboard'])->name('student.dashboard');
     Route::get('/finance/home',  [DashboardController::class, 'financeDashboard'])->name('finance.dashboard');

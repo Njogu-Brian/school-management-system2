@@ -575,6 +575,7 @@ class StaffController extends Controller
         $bulkJobTitleId = $request->input('bulk_job_title_id');
         $bulkCategoryId = $request->input('bulk_staff_category_id');
         $bulkRoleName = $request->input('bulk_spatie_role_name');
+        $bulkSupervisorId = $request->input('bulk_supervisor_id');
 
         $deptIds   = $request->input('department_id', []);
         $jobIds    = $request->input('job_title_id', []);
@@ -593,6 +594,7 @@ class StaffController extends Controller
                 $jobId = $bulkJobTitleId ?: ($jobIds[$i] ?? null);
                 $catId = $bulkCategoryId ?: ($catIds[$i] ?? null);
                 $roleName = $bulkRoleName ?: ($roleNames[$i] ?? '');
+                $supId = $bulkSupervisorId ?: ($supIds[$i] ?? null);
 
                 // Build a single "sheet row" compatible with your StaffImport
                 // Create array with all 26 indices (0-25) to match Excel columns
@@ -609,7 +611,7 @@ class StaffController extends Controller
                 $rowArray[21] = $deptId ? optional(Department::find($deptId))->name : '';
                 $rowArray[22] = $jobId ? optional(JobTitle::find($jobId))->name : '';
                 $rowArray[23] = $catId ? optional(StaffCategory::find($catId))->name : '';
-                $rowArray[24] = isset($supIds[$i]) && $supIds[$i] ? optional(\App\Models\Staff::find($supIds[$i]))->staff_id : '';
+                $rowArray[24] = $supId ? optional(\App\Models\Staff::find($supId))->staff_id : '';
                 $rowArray[25] = $roleName;
                 
                 $row = collect($rowArray);

@@ -18,6 +18,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'Admin',
             'Secretary',
             'Teacher',
+            'Supervisor',
             'Driver',
             'Parent',
             'Student',

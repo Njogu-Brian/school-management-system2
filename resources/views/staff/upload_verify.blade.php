@@ -58,6 +58,17 @@
             </select>
           </div>
         </div>
+        <div class="row g-3 mt-2">
+          <div class="col-md-3">
+            <label class="form-label">Bulk Supervisor</label>
+            <select name="bulk_supervisor_id" class="form-select" id="bulkSupervisor">
+              <option value="">— None (use individual) —</option>
+              @foreach($staff as $s)
+                <option value="{{ $s->id }}">{{ $s->full_name }} ({{ $s->staff_id }})</option>
+              @endforeach
+            </select>
+          </div>
+        </div>
         <div class="mt-3">
           <button type="button" class="btn btn-sm btn-outline-secondary" id="applyBulkBtn">
             <i class="bi bi-arrow-down"></i> Apply to All Rows
@@ -165,6 +176,7 @@
     const bulkJob = document.getElementById('bulkJobTitle');
     const bulkCat = document.getElementById('bulkCategory');
     const bulkRole = document.getElementById('bulkRole');
+    const bulkSupervisor = document.getElementById('bulkSupervisor');
     const applyBtn = document.getElementById('applyBulkBtn');
     const clearBtn = document.getElementById('clearBulkBtn');
 
@@ -174,6 +186,7 @@
       const jobVal = bulkJob.value;
       const catVal = bulkCat.value;
       const roleVal = bulkRole.value;
+      const supervisorVal = bulkSupervisor.value;
 
       document.querySelectorAll('select[name^="department_id"]').forEach(sel => {
         if (deptVal) sel.value = deptVal;
@@ -187,6 +200,9 @@
       document.querySelectorAll('select[name^="spatie_role_name"]').forEach(sel => {
         if (roleVal) sel.value = roleVal;
       });
+      document.querySelectorAll('select[name^="supervisor_id"]').forEach(sel => {
+        if (supervisorVal) sel.value = supervisorVal;
+      });
 
       alert('Bulk selections applied to all rows!');
     });
@@ -197,6 +213,7 @@
       bulkJob.value = '';
       bulkCat.value = '';
       bulkRole.value = '';
+      bulkSupervisor.value = '';
     });
   });
 </script>

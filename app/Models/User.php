@@ -60,7 +60,7 @@ class User extends Authenticatable
 
     /**
      * Get all classroom IDs assigned to this teacher
-     * Includes both direct assignments (classroom_teacher) and subject assignments (classroom_subjects)
+     * Includes direct assignments (classroom_teacher), subject assignments (classroom_subjects), and stream assignments (stream_teacher)
      */
     public function getAssignedClassroomIds(): array
     {
@@ -77,8 +77,28 @@ class User extends Authenticatable
                 ->toArray();
         }
         
+        // Get from stream_teacher assignments (streams are assigned to specific classrooms)
+        $streamClassroomIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
+            ->where('teacher_id', $this->id)
+            ->whereNotNull('classroom_id')
+            ->distinct()
+            ->pluck('classroom_id')
+            ->toArray();
+        
+        // Also get classrooms from streams that have a primary classroom_id
+        $streamIds = $this->streams()->pluck('streams.id')->toArray();
+        if (!empty($streamIds)) {
+            $primaryStreamClassroomIds = \Illuminate\Support\Facades\DB::table('streams')
+                ->whereIn('id', $streamIds)
+                ->whereNotNull('classroom_id')
+                ->distinct()
+                ->pluck('classroom_id')
+                ->toArray();
+            $streamClassroomIds = array_merge($streamClassroomIds, $primaryStreamClassroomIds);
+        }
+        
         // Merge and return unique IDs
-        return array_unique(array_merge($directClassroomIds, $subjectClassroomIds));
+        return array_unique(array_merge($directClassroomIds, $subjectClassroomIds, $streamClassroomIds));
     }
 
     /**

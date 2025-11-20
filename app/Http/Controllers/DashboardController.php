@@ -42,6 +42,17 @@ class DashboardController extends Controller
         return view('dashboard.teacher', $data + $teacherData + ['role' => 'teacher']);
     }
 
+    public function supervisorDashboard(Request $request)
+    {
+        if (!is_supervisor() || auth()->user()->hasAnyRole(['Admin', 'Super Admin'])) {
+            abort(403, 'Access denied. This dashboard is for supervisors only.');
+        }
+        
+        $data = $this->buildDashboardData($request, 'supervisor');
+        $supervisorData = $this->buildSupervisorSpecificData($request);
+        return view('dashboard.supervisor', $data + $supervisorData + ['role' => 'supervisor']);
+    }
+
     private function buildDashboardData(Request $request, string $role = 'admin'): array
     {
         // ---- Filters
@@ -366,9 +377,31 @@ class DashboardController extends Controller
             $q->where('users.id', $user->id);
         })->get();
 
-        // Merge classes from both sources
+        // Get classes from stream_teacher assignments
+        $streamClassroomIds = \Illuminate\Support\Facades\DB::table('stream_teacher')
+            ->where('teacher_id', $user->id)
+            ->whereNotNull('classroom_id')
+            ->distinct()
+            ->pluck('classroom_id')
+            ->toArray();
+        
+        // Also get primary classrooms from assigned streams
+        $streamIds = $user->getAssignedStreamIds();
+        if (!empty($streamIds)) {
+            $primaryStreamClassroomIds = \Illuminate\Support\Facades\DB::table('streams')
+                ->whereIn('id', $streamIds)
+                ->whereNotNull('classroom_id')
+                ->distinct()
+                ->pluck('classroom_id')
+                ->toArray();
+            $streamClassroomIds = array_merge($streamClassroomIds, $primaryStreamClassroomIds);
+        }
+        
+        $streamClassrooms = \App\Models\Academics\Classroom::whereIn('id', $streamClassroomIds)->get();
+
+        // Merge classes from all sources
         $classesFromAssignments = $assignments->pluck('classroom')->unique('id')->filter();
-        $assignedClasses = $classesFromAssignments->merge($directClassrooms)->unique('id');
+        $assignedClasses = $classesFromAssignments->merge($directClassrooms)->merge($streamClassrooms)->unique('id');
         
         // Get unique subjects
         $assignedSubjects = $assignments->pluck('subject')->unique('id')->filter();
@@ -469,6 +502,91 @@ class DashboardController extends Controller
             'pendingHomework' => $pendingHomework,
             'recentHomework' => $recentHomework,
             'studentsByClass' => $studentsByClass,
+            'staff' => $staff,
+        ];
+    }
+
+    private function buildSupervisorSpecificData(Request $request): array
+    {
+        $user = auth()->user();
+        $staff = \App\Models\Staff::where('user_id', $user->id)->first();
+        
+        if (!$staff) {
+            return [
+                'subordinates' => collect(),
+                'subordinateClassrooms' => collect(),
+                'pendingLessonPlans' => collect(),
+                'pendingLeaveRequests' => collect(),
+                'recentAttendance' => collect(),
+                'subordinateStats' => [],
+            ];
+        }
+
+        // Get subordinates
+        $subordinates = $staff->subordinates()->with('user')->get();
+        $subordinateIds = $subordinates->pluck('id')->toArray();
+        
+        // Get classrooms assigned to subordinates
+        $subordinateClassroomIds = get_subordinate_classroom_ids();
+        $subordinateClassrooms = \App\Models\Academics\Classroom::whereIn('id', $subordinateClassroomIds)->get();
+        
+        // Get pending lesson plans from subordinates
+        $pendingLessonPlans = \App\Models\Academics\LessonPlan::whereIn('classroom_id', $subordinateClassroomIds)
+            ->whereNull('approved_at')
+            ->with(['classroom', 'subject', 'creator'])
+            ->latest('planned_date')
+            ->take(10)
+            ->get();
+        
+        // Get pending leave requests from subordinates
+        $pendingLeaveRequests = \App\Models\LeaveRequest::whereIn('staff_id', $subordinateIds)
+            ->where('status', 'pending')
+            ->with(['staff', 'leaveType'])
+            ->latest()
+            ->take(10)
+            ->get();
+        
+        // Get recent attendance records for subordinates' classes
+        $recentAttendance = \App\Models\Attendance::whereHas('student', function($q) use ($subordinateClassroomIds) {
+                $q->whereIn('classroom_id', $subordinateClassroomIds);
+            })
+            ->whereDate('date', '>=', now()->subDays(7))
+            ->with(['student.classroom'])
+            ->latest('date')
+            ->take(20)
+            ->get();
+        
+        // Calculate stats for subordinates
+        $subordinateStats = [
+            'total' => $subordinates->count(),
+            'active' => $subordinates->where('status', 'active')->count(),
+            'totalClasses' => $subordinateClassrooms->count(),
+            'pendingApprovals' => $pendingLessonPlans->count(),
+            'pendingLeaves' => $pendingLeaveRequests->count(),
+        ];
+        
+        // Get recent activity (lesson plans, exams, etc.)
+        $recentLessonPlans = \App\Models\Academics\LessonPlan::whereIn('classroom_id', $subordinateClassroomIds)
+            ->with(['classroom', 'subject', 'creator'])
+            ->latest('created_at')
+            ->take(5)
+            ->get();
+        
+        $recentExams = \App\Models\Academics\Exam::whereIn('classroom_id', $subordinateClassroomIds)
+            ->with(['classroom', 'subject', 'creator'])
+            ->latest('created_at')
+            ->take(5)
+            ->get();
+
+        return [
+            'subordinates' => $subordinates,
+            'subordinateClassrooms' => $subordinateClassrooms,
+            'pendingLessonPlans' => $pendingLessonPlans,
+            'pendingLeaveRequests' => $pendingLeaveRequests,
+            'recentAttendance' => $recentAttendance,
+            'subordinateStats' => $subordinateStats,
+            'recentLessonPlans' => $recentLessonPlans,
+            'recentExams' => $recentExams,
             'staff' => $staff,
         ];
     }
