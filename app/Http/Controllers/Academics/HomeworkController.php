@@ -112,14 +112,11 @@ class HomeworkController extends Controller
             }
         }
 
-        // Filter students based on assigned classrooms for teachers
+        // Filter students based on assigned classrooms/streams for teachers
         $studentsQuery = Student::orderBy('last_name')->orderBy('first_name');
         if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
-            if (!empty($assignedClassroomIds)) {
-                $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
-            } else {
-                $studentsQuery->whereRaw('1 = 0'); // No access
-            }
+            $streamAssignments = $user->getStreamAssignments();
+            $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassroomIds);
         }
         $students = $studentsQuery->get();
 
@@ -270,24 +267,12 @@ class HomeworkController extends Controller
             }
         }
 
-        // Filter students based on assigned classrooms for teachers
+        // Filter students based on assigned classrooms/streams for teachers
         $studentsQuery = Student::orderBy('last_name')->orderBy('first_name');
         if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
-            $staff = $user->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
-                if (!empty($assignedClassroomIds)) {
-                    $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
-                } else {
-                    $studentsQuery->whereRaw('1 = 0'); // No access
-                }
-            } else {
-                $studentsQuery->whereRaw('1 = 0'); // No access
-            }
+            $streamAssignments = $user->getStreamAssignments();
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassroomIds);
         }
         $students = $studentsQuery->get();
 

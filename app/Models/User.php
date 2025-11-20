@@ -120,6 +120,65 @@ class User extends Authenticatable
     }
 
     /**
+     * Apply teacher-specific student filtering to a query
+     * This ensures teachers only see students from their assigned streams/classrooms
+     */
+    public function applyTeacherStudentFilter($query, $streamAssignments = null, $assignedClassroomIds = null)
+    {
+        if ($streamAssignments === null) {
+            $streamAssignments = $this->getStreamAssignments();
+        }
+        if ($assignedClassroomIds === null) {
+            $assignedClassroomIds = $this->getAssignedClassroomIds();
+        }
+
+        // If teacher has stream assignments, filter by those specific streams
+        if (!empty($streamAssignments)) {
+            $query->where(function($q) use ($streamAssignments, $assignedClassroomIds) {
+                // Students from assigned streams
+                foreach ($streamAssignments as $assignment) {
+                    $q->orWhere(function($subQ) use ($assignment) {
+                        $subQ->where('classroom_id', $assignment->classroom_id)
+                             ->where('stream_id', $assignment->stream_id);
+                    });
+                }
+                
+                // Also include students from direct classroom assignments (not via streams)
+                $directClassroomIds = \DB::table('classroom_teacher')
+                    ->where('teacher_id', $this->id)
+                    ->pluck('classroom_id')
+                    ->toArray();
+                
+                $subjectClassroomIds = [];
+                if ($this->staff) {
+                    $subjectClassroomIds = \DB::table('classroom_subjects')
+                        ->where('staff_id', $this->staff->id)
+                        ->distinct()
+                        ->pluck('classroom_id')
+                        ->toArray();
+                }
+                
+                $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                $nonStreamClassroomIds = array_diff(
+                    array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                    $streamClassroomIds
+                );
+                
+                if (!empty($nonStreamClassroomIds)) {
+                    $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                }
+            });
+        } else {
+            // No stream assignments, show all students from assigned classrooms
+            if (!empty($assignedClassroomIds)) {
+                $query->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $query->whereRaw('1 = 0'); // No access
+            }
+        }
+    }
+
+    /**
      * Get the staff record associated with this user
      */
     public function staff()

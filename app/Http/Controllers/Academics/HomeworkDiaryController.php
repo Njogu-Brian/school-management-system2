@@ -104,22 +104,14 @@ class HomeworkDiaryController extends Controller
         $homeworkDiary = $query->latest()->paginate(20)->withQueryString();
 
         // Get students based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $classroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
-                $students = Student::whereIn('classroom_id', $classroomIds)
-                    ->orderBy('first_name')
-                    ->orderBy('last_name')
-                    ->get();
-            } else {
-                $students = collect();
-            }
-        } elseif (Auth::user()->hasRole('Parent')) {
+        $user = Auth::user();
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $studentsQuery = Student::orderBy('first_name')->orderBy('last_name');
+            $streamAssignments = $user->getStreamAssignments();
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassroomIds);
+            $students = $studentsQuery->get();
+        } elseif ($user->hasRole('Parent')) {
             $user = Auth::user();
             $parentId = $user->parent_id ?? null;
             if (!$parentId && method_exists($user, 'parentInfo')) {

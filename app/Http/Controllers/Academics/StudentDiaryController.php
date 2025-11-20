@@ -26,13 +26,56 @@ class StudentDiaryController extends Controller
         $query = StudentDiary::with(['student.classroom', 'latestEntry.author']);
 
         if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $streamAssignments = $user->getStreamAssignments();
             $assignedClassrooms = $user->getAssignedClassroomIds();
-            if (!empty($assignedClassrooms)) {
-                $query->whereHas('student', function ($q) use ($assignedClassrooms) {
-                    $q->whereIn('classroom_id', $assignedClassrooms);
+            
+            if (!empty($streamAssignments)) {
+                // Teacher has stream assignments - filter by those specific streams
+                $query->whereHas('student', function ($q) use ($streamAssignments, $assignedClassrooms) {
+                    $q->where(function($subQ) use ($streamAssignments, $assignedClassrooms) {
+                        // Students from assigned streams
+                        foreach ($streamAssignments as $assignment) {
+                            $subQ->orWhere(function($streamQ) use ($assignment) {
+                                $streamQ->where('classroom_id', $assignment->classroom_id)
+                                       ->where('stream_id', $assignment->stream_id);
+                            });
+                        }
+                        
+                        // Also include students from direct classroom assignments (not via streams)
+                        $directClassroomIds = DB::table('classroom_teacher')
+                            ->where('teacher_id', $user->id)
+                            ->pluck('classroom_id')
+                            ->toArray();
+                        
+                        $subjectClassroomIds = [];
+                        if ($user->staff) {
+                            $subjectClassroomIds = DB::table('classroom_subjects')
+                                ->where('staff_id', $user->staff->id)
+                                ->distinct()
+                                ->pluck('classroom_id')
+                                ->toArray();
+                        }
+                        
+                        $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                        $nonStreamClassroomIds = array_diff(
+                            array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                            $streamClassroomIds
+                        );
+                        
+                        if (!empty($nonStreamClassroomIds)) {
+                            $subQ->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                        }
+                    });
                 });
             } else {
-                $query->whereRaw('1 = 0');
+                // No stream assignments, show all students from assigned classrooms
+                if (!empty($assignedClassrooms)) {
+                    $query->whereHas('student', function ($q) use ($assignedClassrooms) {
+                        $q->whereIn('classroom_id', $assignedClassrooms);
+                    });
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
             }
         }
 
