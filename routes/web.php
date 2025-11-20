@@ -547,6 +547,9 @@ Route::middleware('auth')->group(function () {
             // Archive / Restore
             Route::patch('/{id}/archive', [StaffController::class, 'archive'])->name('archive');
             Route::patch('/{id}/restore', [StaffController::class, 'restore'])->name('restore');
+            
+            // Resend Login Credentials
+            Route::post('/{id}/resend-credentials', [StaffController::class, 'resendCredentials'])->name('resend-credentials');
         });
 
     // HR Management - Roles & Lookups (moved from settings)

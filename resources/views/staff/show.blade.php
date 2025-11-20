@@ -11,6 +11,14 @@
             <a href="{{ route('staff.index') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to List
             </a>
+            @if($staff->user)
+                <form action="{{ route('staff.resend-credentials', $staff->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to resend login credentials to {{ $staff->full_name }}? This will send an email and SMS with their login details.');">
+                    @csrf
+                    <button type="submit" class="btn btn-info">
+                        <i class="bi bi-envelope-paper"></i> Resend Login Credentials
+                    </button>
+                </form>
+            @endif
             <a href="{{ route('staff.edit', $staff->id) }}" class="btn btn-primary">
                 <i class="bi bi-pencil"></i> Edit
             </a>

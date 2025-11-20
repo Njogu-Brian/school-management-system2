@@ -245,6 +245,17 @@
                           <i class="bi bi-eye"></i> View Details
                         </a>
                       </li>
+                      @if($s->user)
+                        <li>
+                          <form action="{{ route('staff.resend-credentials', $s->id) }}" method="POST" onsubmit="return confirm('Resend login credentials to {{ $s->full_name }}? This will send an email and SMS with their login details.');">
+                            @csrf
+                            <button type="submit" class="dropdown-item">
+                              <i class="bi bi-envelope-paper"></i> Resend Login Credentials
+                            </button>
+                          </form>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                      @endif
                       @if($s->status === 'active')
                         <li>
                           <form action="{{ route('staff.archive', $s->id) }}" method="POST" onsubmit="return confirm('Archive this staff member?')">
