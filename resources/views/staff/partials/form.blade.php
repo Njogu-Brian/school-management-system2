@@ -10,7 +10,8 @@
       <div class="col-md-3">
         <label class="form-label d-block">Passport Photo</label>
         <div class="border rounded-3 p-3 text-center">
-          <img id="photoPreview" src="{{ $photoUrl }}" class="rounded-circle mb-3" width="120" height="120" alt="photo">
+          <img id="photoPreview" src="{{ $photoUrl }}" class="rounded-circle mb-3" width="120" height="120" alt="photo" 
+               onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ urlencode($isEdit ? $staff->full_name : (old('first_name','').' '.old('last_name',''))) }}&background=0D8ABC&color=fff&size=120'">
           <input type="file" name="photo" accept="image/*" class="form-control" onchange="previewPhoto(this)">
           <div class="form-text">JPG/PNG, ≤ 2MB</div>
         </div>

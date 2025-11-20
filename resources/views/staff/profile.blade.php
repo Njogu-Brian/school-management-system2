@@ -22,7 +22,8 @@
     <div class="card-body d-flex align-items-center">
         <img
         src="{{ $staff->photo_url }}"
-        class="rounded-circle me-3" width="72" height="72" alt="avatar" id="profilePhotoPreview">
+        class="rounded-circle me-3" width="72" height="72" alt="avatar" id="profilePhotoPreview"
+        onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name={{ urlencode($staff->full_name) }}&background=0D8ABC&color=fff&size=72'">
 
         <div class="flex-fill">
         <div class="fs-5 fw-bold">{{ $staff->first_name }} {{ $staff->last_name }}</div>

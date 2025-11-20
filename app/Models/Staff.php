@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class Staff extends Model
 {
@@ -40,19 +41,33 @@ class Staff extends Model
             // Remove leading slash if present
             $path = ltrim($path, '/');
             
-            // Check if file exists in storage
-            $fullPath = storage_path('app/public/'.$path);
-            if (file_exists($fullPath)) {
-                // Generate URL - asset() will create the correct URL
-                return asset('storage/'.$path);
+            // Use Storage facade to generate URL (handles symlink automatically)
+            try {
+                if (Storage::disk('public')->exists($path)) {
+                    return Storage::disk('public')->url($path);
+                }
+            } catch (\Exception $e) {
+                // Fall through to fallback
             }
             
-            // Also check public/storage (symlink target)
-            $publicPath = public_path('storage/'.$path);
-            if (file_exists($publicPath)) {
-                return asset('storage/'.$path);
+            // Fallback: try direct asset() approach
+            try {
+                $fullPath = storage_path('app/public/'.$path);
+                if (file_exists($fullPath)) {
+                    return asset('storage/'.$path);
+                }
+                
+                // Also check public/storage (symlink target)
+                $publicPath = public_path('storage/'.$path);
+                if (file_exists($publicPath)) {
+                    return asset('storage/'.$path);
+                }
+            } catch (\Exception $e) {
+                // Fall through to fallback
             }
         }
+        
+        // Fallback to initials avatar
         return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name).'&background=0D8ABC&color=fff&size=128';
     }
     public function user(){ return $this->belongsTo(User::class); }
