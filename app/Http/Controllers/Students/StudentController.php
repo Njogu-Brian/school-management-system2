@@ -333,7 +333,7 @@ class StudentController extends Controller
             'is_readmission' => 'nullable|boolean',
         ]);
 
-        $student->update($request->only([
+        $updateData = $request->only([
             'first_name', 'middle_name', 'last_name', 'gender', 'dob',
             'classroom_id', 'stream_id', 'category_id',
             'nemis_number', 'knec_assessment_number',
@@ -346,7 +346,41 @@ class StudentController extends Controller
             'special_needs_description', 'learning_disabilities',
             'status', 'admission_date', 'graduation_date', 'transfer_date',
             'transfer_to_school', 'status_change_reason', 'is_readmission'
-        ]));
+        ]);
+        
+        // If classroom is being changed, validate/clear stream
+        if ($request->filled('classroom_id') && $request->classroom_id != $student->classroom_id) {
+            $newClassroomId = $request->classroom_id;
+            // If stream is set, ensure it belongs to the new classroom
+            if ($request->filled('stream_id')) {
+                $stream = Stream::find($request->stream_id);
+                if ($stream) {
+                    $isValidStream = $stream->classroom_id == $newClassroomId || 
+                                    $stream->classrooms->contains('id', $newClassroomId);
+                    if (!$isValidStream) {
+                        // Clear stream if it doesn't belong to new classroom
+                        $updateData['stream_id'] = null;
+                    }
+                }
+            } else {
+                // If classroom changes but no stream specified, clear existing stream
+                $updateData['stream_id'] = null;
+            }
+        } elseif (!$request->filled('classroom_id') && $request->filled('stream_id')) {
+            // If only stream is being changed, validate it belongs to current classroom
+            if ($student->classroom_id) {
+                $stream = Stream::find($request->stream_id);
+                if ($stream) {
+                    $isValidStream = $stream->classroom_id == $student->classroom_id || 
+                                    $stream->classrooms->contains('id', $student->classroom_id);
+                    if (!$isValidStream) {
+                        return back()->withInput()->with('error', 'The selected stream does not belong to the student\'s current classroom.');
+                    }
+                }
+            }
+        }
+        
+        $student->update($updateData);
         // Family mapping on update
         $familyId = $request->input('family_id');
 
