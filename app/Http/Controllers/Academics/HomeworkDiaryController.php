@@ -40,18 +40,57 @@ class HomeworkDiaryController extends Controller
         }
 
         // Teachers can see homework for their classes
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $classroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
-                
-                $query->whereHas('homework', function($q) use ($classroomIds) {
-                    $q->whereIn('classroom_id', $classroomIds);
+        $user = Auth::user();
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $streamAssignments = $user->getStreamAssignments();
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            
+            if (!empty($streamAssignments)) {
+                // Teacher has stream assignments - filter by those specific streams
+                $query->whereHas('homework', function($q) use ($streamAssignments, $assignedClassroomIds, $user) {
+                    $q->where(function($subQ) use ($streamAssignments, $assignedClassroomIds, $user) {
+                        // Homework from assigned streams
+                        foreach ($streamAssignments as $assignment) {
+                            $subQ->orWhere(function($streamQ) use ($assignment) {
+                                $streamQ->where('classroom_id', $assignment->classroom_id);
+                            });
+                        }
+                        
+                        // Also include homework from direct classroom assignments (not via streams)
+                        $directClassroomIds = DB::table('classroom_teacher')
+                            ->where('teacher_id', $user->id)
+                            ->pluck('classroom_id')
+                            ->toArray();
+                        
+                        $subjectClassroomIds = [];
+                        if ($user->staff) {
+                            $subjectClassroomIds = DB::table('classroom_subjects')
+                                ->where('staff_id', $user->staff->id)
+                                ->distinct()
+                                ->pluck('classroom_id')
+                                ->toArray();
+                        }
+                        
+                        $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
+                        $nonStreamClassroomIds = array_diff(
+                            array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
+                            $streamClassroomIds
+                        );
+                        
+                        if (!empty($nonStreamClassroomIds)) {
+                            $subQ->orWhereIn('classroom_id', $nonStreamClassroomIds);
+                        }
+                    });
                 });
+            } else {
+                // No stream assignments, show homework from assigned classrooms
+                if (!empty($assignedClassroomIds)) {
+                    $query->whereHas('homework', function($q) use ($assignedClassroomIds) {
+                        $q->whereIn('classroom_id', $assignedClassroomIds);
+                    });
+                } else {
+                    $query->whereRaw('1 = 0'); // No access
+                }
             }
         }
 
