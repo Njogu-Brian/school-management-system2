@@ -23,6 +23,24 @@ class CommunicationService
         try {
             $result = $this->smsService->sendSMS($phone, $message);
 
+            // Check if the provider returned an error status
+            $providerStatus = strtolower(data_get($result, 'status', 'sent'));
+            $statusCode = data_get($result, 'statusCode');
+            $reason = data_get($result, 'reason');
+            
+            // Determine final status based on provider response
+            $finalStatus = 'sent';
+            if ($providerStatus === 'error' || $statusCode || $reason) {
+                $finalStatus = 'failed';
+                Log::warning('SMS provider returned error', [
+                    'phone' => $phone,
+                    'status' => $providerStatus,
+                    'statusCode' => $statusCode,
+                    'reason' => $reason,
+                    'result' => $result
+                ]);
+            }
+
             CommunicationLog::create([
                 'recipient_type' => $recipientType,
                 'recipient_id'   => $recipientId,
@@ -31,21 +49,27 @@ class CommunicationService
                 'title'          => $title ?? 'SMS Notification',
                 'message'        => $message,
                 'type'           => 'sms',
-                'status'         => $result['status'] ?? 'sent',
+                'status'         => $finalStatus,
                 'response'       => is_array($result) ? $result : ['response' => (string) $result],
                 'scope'          => 'sms',
                 'sent_at'        => now(),
                 'provider_id'    => data_get($result, 'id') ?? data_get($result, 'message_id') ?? data_get($result, 'MessageID'),
-                'provider_status' => strtolower(data_get($result, 'status', 'sent')),
+                'provider_status' => $providerStatus,
+                'error_code'     => $statusCode,
             ]);
 
             Log::info("SMS attempt finished", [
                 'phone'   => $phone,
-                'status'  => $result['status'] ?? 'sent',
+                'status'  => $finalStatus,
+                'provider_status' => $providerStatus,
+                'statusCode' => $statusCode,
                 'result'  => $result,
             ]);
         } catch (\Throwable $e) {
-            Log::error("SMS sending threw exception: " . $e->getMessage());
+            Log::error("SMS sending threw exception: " . $e->getMessage(), [
+                'phone' => $phone,
+                'trace' => $e->getTraceAsString()
+            ]);
 
             CommunicationLog::create([
                 'recipient_type' => $recipientType,

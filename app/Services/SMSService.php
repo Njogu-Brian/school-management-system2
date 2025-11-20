@@ -28,6 +28,11 @@ class SMSService
 
         $senderId = $senderId ?? $this->senderId;
 
+        // Detect if message contains Unicode characters
+        // GSM 7-bit charset includes: A-Z, a-z, 0-9, and some special chars
+        // If message contains characters outside this set, use Unicode
+        $msgType = $this->detectMessageType($message);
+
         // Build payload
         $payload = http_build_query([
             'userid'        => $this->userId,
@@ -35,7 +40,7 @@ class SMSService
             'mobile'        => $phoneNumber,
             'msg'           => $message,
             'senderid'      => $senderId,
-            'msgType'       => 'text',
+            'msgType'       => $msgType,
             'duplicatecheck'=> 'true',
             'output'        => 'json',
             'sendMethod'    => 'quick',
@@ -81,5 +86,41 @@ class SMSService
         }
 
         return $decoded;
+    }
+
+    /**
+     * Detect if message requires Unicode encoding
+     * Returns 'unicode' if message contains non-ASCII characters, 'text' otherwise
+     * 
+     * Some SMS providers (like HostPinnacle) are strict about message types.
+     * If the message contains any character outside the ASCII range (0-127), 
+     * we must use Unicode encoding to avoid "Msg Text and MsgType Mismatch" errors.
+     */
+    protected function detectMessageType($message): string
+    {
+        // Simple check: if string length in bytes differs from character count,
+        // it contains multi-byte UTF-8 characters (requires Unicode)
+        if (mb_strlen($message, 'UTF-8') !== strlen($message)) {
+            Log::info('SMS message contains multi-byte UTF-8 characters, using unicode msgType');
+            return 'unicode';
+        }
+
+        // Check each byte to ensure all are within ASCII range (0-127)
+        $length = strlen($message);
+        for ($i = 0; $i < $length; $i++) {
+            $byte = ord($message[$i]);
+            // If any byte is outside ASCII range (0-127), message requires Unicode
+            if ($byte > 127) {
+                Log::info('SMS message contains non-ASCII byte, using unicode msgType', [
+                    'byte' => $byte,
+                    'position' => $i,
+                    'char' => $message[$i] ?? 'N/A'
+                ]);
+                return 'unicode';
+            }
+        }
+
+        // All characters are within ASCII range (0-127), safe to use text
+        return 'text';
     }
 }

@@ -709,58 +709,87 @@ class StaffController extends Controller
 
             $sent = false;
             $errors = [];
+            $warnings = [];
+
+            // Check if templates exist
+            if (!$emailTpl && !$smsTpl) {
+                return back()->with('error', 'Welcome staff templates not found. Please create "welcome_staff" email and/or SMS templates first.');
+            }
 
             // Send email notification
-            if ($emailTpl && $user->email) {
-                try {
-                    $subject = $this->fillTemplate($emailTpl->subject ?? 'Welcome to ' . config('app.name'), $vars);
-                    $body    = $this->fillTemplate($emailTpl->content, $vars);
-                    $attachmentPath = $emailTpl->attachment ?? null;
+            if ($emailTpl) {
+                if (!$user->email) {
+                    $warnings[] = 'Email not available for this staff member.';
+                } else {
+                    try {
+                        $subject = $this->fillTemplate($emailTpl->subject ?? 'Welcome to ' . config('app.name'), $vars);
+                        $body    = $this->fillTemplate($emailTpl->content, $vars);
+                        $attachmentPath = $emailTpl->attachment ?? null;
 
-                    $this->comm->sendEmail(
-                        'staff',
-                        $staff->id,
-                        $user->email,
-                        $subject,
-                        $body,
-                        $attachmentPath
-                    );
-                    $sent = true;
-                } catch (\Exception $e) {
-                    $errors[] = 'Email: ' . $e->getMessage();
-                    Log::warning('Failed to resend welcome email to staff', [
-                        'staff_id' => $staff->id,
-                        'email' => $user->email,
-                        'error' => $e->getMessage()
-                    ]);
+                        $this->comm->sendEmail(
+                            'staff',
+                            $staff->id,
+                            $user->email,
+                            $subject,
+                            $body,
+                            $attachmentPath
+                        );
+                        $sent = true;
+                    } catch (\Exception $e) {
+                        $errors[] = 'Email: ' . $e->getMessage();
+                        Log::warning('Failed to resend welcome email to staff', [
+                            'staff_id' => $staff->id,
+                            'email' => $user->email,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 }
+            } else {
+                $warnings[] = 'Email template not found.';
             }
 
             // Send SMS notification
-            if ($smsTpl && $staff->phone_number) {
-                try {
-                    $smsBody = $this->fillTemplate($smsTpl->content, $vars);
-                    $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
-                    $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
-                    $sent = true;
-                } catch (\Exception $e) {
-                    $errors[] = 'SMS: ' . $e->getMessage();
-                    Log::warning('Failed to resend welcome SMS to staff', [
-                        'staff_id' => $staff->id,
-                        'phone' => $staff->phone_number,
-                        'error' => $e->getMessage()
-                    ]);
+            if ($smsTpl) {
+                if (!$staff->phone_number) {
+                    $warnings[] = 'Phone number not available for this staff member.';
+                } else {
+                    try {
+                        $smsBody = $this->fillTemplate($smsTpl->content, $vars);
+                        $smsTitle = $smsTpl->title ? $this->fillTemplate($smsTpl->title, $vars) : 'Welcome to ' . config('app.name');
+                        $this->comm->sendSMS('staff', $staff->id, $staff->phone_number, $smsBody, $smsTitle);
+                        $sent = true;
+                    } catch (\Exception $e) {
+                        $errors[] = 'SMS: ' . $e->getMessage();
+                        Log::warning('Failed to resend welcome SMS to staff', [
+                            'staff_id' => $staff->id,
+                            'phone' => $staff->phone_number,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 }
+            } else {
+                $warnings[] = 'SMS template not found.';
             }
 
+            // Build response message
             if ($sent) {
                 $message = 'Login credentials have been resent successfully.';
+                if (!empty($warnings)) {
+                    $message .= ' Note: ' . implode(' ', $warnings);
+                }
                 if (!empty($errors)) {
                     $message .= ' However, some notifications failed: ' . implode(', ', $errors);
                 }
                 return back()->with('success', $message);
             } else {
-                return back()->with('error', 'Failed to resend credentials. ' . implode(', ', $errors));
+                $errorMsg = 'Failed to resend credentials.';
+                if (!empty($errors)) {
+                    $errorMsg .= ' ' . implode(', ', $errors);
+                }
+                if (!empty($warnings)) {
+                    $errorMsg .= ' ' . implode(' ', $warnings);
+                }
+                return back()->with('error', $errorMsg);
             }
         } catch (\Throwable $e) {
             Log::error('Failed to resend credentials to staff', [
