@@ -408,13 +408,36 @@ private function applyPlaceholders(string $content, Student $student, string $hu
                 $streams = $streamQuery->pluck('name', 'id');
             }
 
-            $studentQuery = Student::with('classroom','stream')
-                ->whereIn('classroom_id', $assignedClassIds ?: [-1]);
-            if ($selectedClass) {
-                $studentQuery->where('classroom_id', $selectedClass);
-            }
-            if ($selectedStream) {
-                $studentQuery->where('stream_id', $selectedStream);
+            $studentQuery = Student::with('classroom','stream');
+            $streamAssignments = $user->getStreamAssignments();
+            
+            // Apply stream-aware filtering
+            if (!empty($streamAssignments)) {
+                $studentQuery->where(function($q) use ($streamAssignments, $selectedClass, $selectedStream) {
+                    foreach ($streamAssignments as $assignment) {
+                        // If a specific class is selected, only include streams for that class
+                        if ($selectedClass && $assignment->classroom_id != $selectedClass) {
+                            continue;
+                        }
+                        // If a specific stream is selected, only include that stream
+                        if ($selectedStream && $assignment->stream_id != $selectedStream) {
+                            continue;
+                        }
+                        $q->orWhere(function($subQ) use ($assignment) {
+                            $subQ->where('classroom_id', $assignment->classroom_id)
+                                 ->where('stream_id', $assignment->stream_id);
+                        });
+                    }
+                });
+            } else {
+                // No stream assignments, show all students from assigned classrooms
+                $studentQuery->whereIn('classroom_id', $assignedClassIds ?: [-1]);
+                if ($selectedClass) {
+                    $studentQuery->where('classroom_id', $selectedClass);
+                }
+                if ($selectedStream) {
+                    $studentQuery->where('stream_id', $selectedStream);
+                }
             }
 
             $students = $studentQuery->orderBy('first_name')->get();
