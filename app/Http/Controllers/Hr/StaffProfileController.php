@@ -7,6 +7,7 @@ use App\Models\Staff;
 use App\Models\StaffProfileChange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class StaffProfileController extends Controller
 {
@@ -28,7 +29,7 @@ class StaffProfileController extends Controller
         $user  = Auth::user();
         $staff = Staff::where('user_id', $user->id)->firstOrFail();
 
-        // Accept all editable profile fields (keep this list in sync with your Staff $fillable)
+        // Accept only editable profile fields (HR lookups are admin-only)
         $rules = [
             'work_email'   => 'required|email|unique:staff,work_email,' . $staff->id,
             'personal_email' => 'nullable|email',
@@ -47,11 +48,7 @@ class StaffProfileController extends Controller
             'bank_name'   => 'nullable|string|max:255',
             'bank_branch' => 'nullable|string|max:255',
             'bank_account'=> 'nullable|string|max:255',
-            // Optional HR lookups (user can request these too; admin will approve)
-            'department_id'      => 'nullable|exists:departments,id',
-            'job_title_id'       => 'nullable|exists:job_titles,id',
-            'staff_category_id'  => 'nullable|exists:staff_categories,id',
-            'supervisor_id'      => 'nullable|exists:staff,id',
+            'photo' => 'nullable|image|mimes:jpeg,jpg,png|max:2048',
         ];
         $data = $request->validate($rules);
 
@@ -67,7 +64,23 @@ class StaffProfileController extends Controller
             }
         }
 
+        // Handle photo upload separately (apply immediately, no approval needed)
+        if ($request->hasFile('photo')) {
+            // Delete old photo if exists
+            if ($staff->photo && Storage::disk('public')->exists($staff->photo)) {
+                Storage::disk('public')->delete($staff->photo);
+            }
+            
+            // Store new photo
+            $photoPath = $request->file('photo')->store('staff_photos', 'public');
+            $staff->photo = $photoPath;
+            $staff->save();
+        }
+
         if (empty($changes)) {
+            if ($request->hasFile('photo')) {
+                return back()->with('success', 'Profile photo updated successfully.');
+            }
             return back()->with('success', 'No changes detected.');
         }
 
@@ -78,6 +91,11 @@ class StaffProfileController extends Controller
             'status'       => 'pending',
         ]);
 
-        return back()->with('success', 'Your changes were submitted and are pending admin approval.');
+        $message = 'Your changes were submitted and are pending admin approval.';
+        if ($request->hasFile('photo')) {
+            $message .= ' Profile photo has been updated.';
+        }
+
+        return back()->with('success', $message);
     }
 }

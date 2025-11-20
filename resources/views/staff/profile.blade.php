@@ -21,8 +21,8 @@
     <div class="card shadow-sm mb-4">
     <div class="card-body d-flex align-items-center">
         <img
-        src="{{ $staff->photo_path ? asset('storage/'.$staff->photo_path) : 'https://ui-avatars.com/api/?name='.urlencode($staff->first_name.' '.$staff->last_name).'&background=0D8ABC&color=fff&size=96' }}"
-        class="rounded-circle me-3" width="72" height="72" alt="avatar">
+        src="{{ $staff->photo_url }}"
+        class="rounded-circle me-3" width="72" height="72" alt="avatar" id="profilePhotoPreview">
 
         <div class="flex-fill">
         <div class="fs-5 fw-bold">{{ $staff->first_name }} {{ $staff->last_name }}</div>
@@ -136,51 +136,12 @@
                 </div>
             </div>
 
-            <h5 class="mt-4 mb-3">HR (Proposed)</h5>
-            <p class="text-muted small">You can request changes here; an administrator must approve them.</p>
-            <div class="row">
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Department</label>
-                    <select name="department_id" class="form-select">
-                        <option value="">—</option>
-                        @foreach(\App\Models\Department::orderBy('name')->get() as $d)
-                            <option value="{{ $d->id }}" @selected(old('department_id', $staff->department_id) == $d->id)>{{ $d->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Job Title</label>
-                    <select name="job_title_id" class="form-select">
-                        <option value="">—</option>
-                        @foreach(\App\Models\JobTitle::orderBy('name')->get() as $j)
-                            <option value="{{ $j->id }}" @selected(old('job_title_id', $staff->job_title_id) == $j->id)>{{ $j->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Category</label>
-                    <select name="staff_category_id" class="form-select">
-                        <option value="">—</option>
-                        @foreach(\App\Models\StaffCategory::orderBy('name')->get() as $c)
-                            <option value="{{ $c->id }}" @selected(old('staff_category_id', $staff->staff_category_id) == $c->id)>{{ $c->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3 mb-3">
-                    <label class="form-label">Supervisor</label>
-                    <select name="supervisor_id" class="form-select">
-                        <option value="">—</option>
-                        @foreach(\App\Models\Staff::orderBy('first_name')->get() as $s)
-                            <option value="{{ $s->id }}" @selected(old('supervisor_id', $staff->supervisor_id) == $s->id)>{{ $s->full_name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
         </div>
 
         <div class="card-footer d-flex justify-content-between">
             <div class="text-muted small">
-                Submitting will create a <strong>pending</strong> change request. Admin will review and approve/reject.
+                <i class="bi bi-info-circle"></i> Submitting will create a <strong>pending</strong> change request. Admin will review and approve/reject.<br>
+                <small>Note: HR lookups (Department, Job Title, Category, Supervisor) can only be changed by administrators.</small>
             </div>
             <button class="btn btn-primary">Submit Changes for Approval</button>
         </div>
@@ -225,10 +186,10 @@
     if(!['image/jpeg','image/png','image/jpg'].includes(file.type)) { alert('Only JPG/PNG allowed'); input.value=''; return; }
     if(file.size > 2*1024*1024){ alert('Image must be 2MB or smaller.'); input.value=''; return; }
 
-    // update the header avatar instantly
+    // update the profile photo preview instantly
     const reader = new FileReader();
     reader.onload = e => {
-      const img = document.querySelector('.card-body img.rounded-circle');
+      const img = document.getElementById('profilePhotoPreview');
       if(img) img.src = e.target.result;
     };
     reader.readAsDataURL(file);
