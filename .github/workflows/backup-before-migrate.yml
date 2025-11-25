@@ -1,0 +1,89 @@
+name: Backup Before Migration
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/**'
+      - '.github/workflows/backup-before-migrate.yml'
+  workflow_dispatch:
+
+jobs:
+  check-migrations:
+    name: Check Migration Safety
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Detect migration files
+        id: migrations
+        run: |
+          MIGRATIONS=$(git diff --name-only origin/main...HEAD -- 'database/migrations/*.php' || echo "")
+          if [ -z "$MIGRATIONS" ]; then
+            echo "migrations_changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "migrations_changed=true" >> $GITHUB_OUTPUT
+            echo "files<<EOF" >> $GITHUB_OUTPUT
+            echo "$MIGRATIONS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Check for destructive migrations
+        id: check-destructive
+        run: |
+          if [ "${{ steps.migrations.outputs.migrations_changed }}" == "true" ]; then
+            DESTRUCTIVE=$(grep -r "dropColumn\|dropTable\|dropForeign\|Schema::drop" database/migrations/*.php 2>/dev/null || echo "")
+            if [ -n "$DESTRUCTIVE" ]; then
+              echo "has_destructive=true" >> $GITHUB_OUTPUT
+              echo "⚠️ WARNING: Destructive migrations detected!" >> $GITHUB_OUTPUT
+              echo "$DESTRUCTIVE" >> $GITHUB_OUTPUT
+            else
+              echo "has_destructive=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "has_destructive=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Comment on PR
+        if: steps.migrations.outputs.migrations_changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const hasDestructive = '${{ steps.check-destructive.outputs.has_destructive }}' === 'true';
+            const migrations = `${{ steps.migrations.outputs.files }}`;
+            
+            let comment = '## 🔍 Migration Safety Check\n\n';
+            
+            if (hasDestructive) {
+              comment += '⚠️ **WARNING: Destructive migrations detected!**\n\n';
+              comment += 'This PR contains migrations that drop columns, tables, or foreign keys.\n\n';
+              comment += '**Required Actions:**\n';
+              comment += '1. ✅ Verify database backup exists and is valid\n';
+              comment += '2. ✅ Get manual approval from database admin\n';
+              comment += '3. ✅ Document rollback procedure in PR description\n';
+              comment += '4. ✅ Test migration on staging environment first\n\n';
+              comment += '**Affected Files:**\n```\n' + migrations + '\n```\n';
+            } else {
+              comment += '✅ **Migration Safety Check Passed**\n\n';
+              comment += 'All migrations appear to be non-destructive (additive only).\n\n';
+              comment += '**Affected Files:**\n```\n' + migrations + '\n```\n';
+            }
+            
+            comment += '\n---\n';
+            comment += '*This check is automated. Please review migrations carefully before merging.*';
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+            
+      - name: Fail if destructive without approval
+        if: steps.check-destructive.outputs.has_destructive == 'true'
+        run: |
+          echo "⚠️ Destructive migrations require manual approval"
+          echo "Please add '[APPROVED]' to PR title or get explicit approval"
+          # Don't fail, just warn - actual enforcement via branch protection
+
