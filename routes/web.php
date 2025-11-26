@@ -1132,6 +1132,23 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------------------------------------------------------------------
+    | Hostel Management
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('hostel')->name('hostel.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
+        // Hostels
+        Route::resource('hostels', \App\Http\Controllers\Hostel\HostelController::class);
+        
+        // Allocations
+        Route::get('allocations', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'index'])->name('allocations.index');
+        Route::get('allocations/create', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'create'])->name('allocations.create');
+        Route::post('allocations', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'store'])->name('allocations.store');
+        Route::get('allocations/{allocation}', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'show'])->name('allocations.show');
+        Route::post('allocations/{allocation}/deallocate', [\App\Http\Controllers\Hostel\HostelAllocationController::class, 'deallocate'])->name('allocations.deallocate');
+    });
+
+    /*
+    |----------------------------------------------------------------------
     | Activity Logs
     |----------------------------------------------------------------------
     */
