@@ -55,6 +55,7 @@ use App\Http\Controllers\Finance\VoteheadController;
 use App\Http\Controllers\Finance\FeeStructureController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\PaymentController;
+use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\Finance\CreditNoteController;
 use App\Http\Controllers\Finance\DebitNoteController;
 use App\Http\Controllers\Finance\InvoiceAdjustmentController;
@@ -138,6 +139,11 @@ Route::get('/students/search', [StudentController::class, 'search'])->name('stud
 
 // SMS Delivery Report Webhook
 Route::post('/webhooks/sms/dlr', [CommunicationController::class, 'smsDeliveryReport'])->name('webhooks.sms.dlr');
+
+// Payment Webhooks (public, no auth required)
+Route::post('/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
+Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookController::class, 'handleStripe'])->name('payment.webhook.stripe');
+Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
 
 /*
 |--------------------------------------------------------------------------
@@ -933,9 +939,16 @@ Route::middleware('auth')->group(function () {
         });
 
         // Payments
+        Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');
         Route::get('payments/create', [PaymentController::class, 'create'])->name('payments.create');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
+        Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
+        
+        // Online Payments
+        Route::post('payments/initiate-online', [PaymentController::class, 'initiateOnline'])->name('payments.initiate-online');
+        Route::get('payment-transactions/{transaction}', [PaymentController::class, 'showTransaction'])->name('payment-transactions.show');
+        Route::post('payment-transactions/{transaction}/verify', [PaymentController::class, 'verifyTransaction'])->name('payment-transactions.verify');
 
         // Credit & Debit Notes (manual)
         Route::get('credits/create', [CreditNoteController::class, 'create'])->name('credits.create');
