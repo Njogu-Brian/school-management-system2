@@ -107,6 +107,8 @@ use App\Http\Controllers\Communication\BulkCommunicationController;
 // Events & Documents
 use App\Http\Controllers\EventCalendarController;
 use App\Http\Controllers\DocumentManagementController;
+use App\Http\Controllers\DocumentTemplateController;
+use App\Http\Controllers\GeneratedDocumentController;
 use App\Http\Controllers\BackupRestoreController;
 
 /*
@@ -1016,6 +1018,31 @@ Route::middleware('auth')->group(function () {
         Route::get('/{document}/download', [DocumentManagementController::class, 'download'])->name('download');
         Route::post('/{document}/version', [DocumentManagementController::class, 'updateVersion'])->name('version');
         Route::delete('/{document}', [DocumentManagementController::class, 'destroy'])->name('destroy');
+    });
+
+    /*
+    |----------------------------------------------------------------------
+    | Document Templates & Generation
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('document-templates')->name('document-templates.')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
+        Route::get('/', [\App\Http\Controllers\DocumentTemplateController::class, 'index'])->name('index');
+        Route::get('/create', [\App\Http\Controllers\DocumentTemplateController::class, 'create'])->name('create');
+        Route::post('/', [\App\Http\Controllers\DocumentTemplateController::class, 'store'])->name('store');
+        Route::get('/{template}', [\App\Http\Controllers\DocumentTemplateController::class, 'show'])->name('show');
+        Route::get('/{template}/edit', [\App\Http\Controllers\DocumentTemplateController::class, 'edit'])->name('edit');
+        Route::put('/{template}', [\App\Http\Controllers\DocumentTemplateController::class, 'update'])->name('update');
+        Route::delete('/{template}', [\App\Http\Controllers\DocumentTemplateController::class, 'destroy'])->name('destroy');
+        Route::post('/{template}/preview', [\App\Http\Controllers\DocumentTemplateController::class, 'preview'])->name('preview');
+        Route::post('/{template}/generate/student/{student}', [\App\Http\Controllers\DocumentTemplateController::class, 'generateForStudent'])->name('generate.student');
+        Route::post('/{template}/generate/staff/{staff}', [\App\Http\Controllers\DocumentTemplateController::class, 'generateForStaff'])->name('generate.staff');
+    });
+
+    Route::prefix('generated-documents')->name('generated-documents.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        Route::get('/', [\App\Http\Controllers\GeneratedDocumentController::class, 'index'])->name('index');
+        Route::get('/{generatedDocument}', [\App\Http\Controllers\GeneratedDocumentController::class, 'show'])->name('show');
+        Route::get('/{generatedDocument}/download', [\App\Http\Controllers\GeneratedDocumentController::class, 'download'])->name('download');
+        Route::delete('/{generatedDocument}', [\App\Http\Controllers\GeneratedDocumentController::class, 'destroy'])->name('destroy');
     });
 
     /*
