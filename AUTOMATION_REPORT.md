@@ -220,10 +220,12 @@ Step 2 is complete. CI workflows are ready to use once pushed to repository.
 ## Next Steps
 
 1. ✅ Complete Step 0 (Initial Reconnaissance) - DONE
-2. ⏳ Complete Step 1 (Safety & Environment Prep) - IN PROGRESS
-3. ⏳ Complete Step 2 (Code Hygiene & CI) - PENDING
-4. ⏳ Complete Step 3 (Prioritization) - PENDING
-5. ⏳ Start Step 4 (Feature Implementation) - PENDING
+2. ✅ Complete Step 1 (Safety & Environment Prep) - DONE
+3. ✅ Complete Step 2 (Code Hygiene & CI) - DONE
+4. ⏳ Complete Step 3 (Prioritization) - IN PROGRESS
+5. ⏳ Step 4 (Feature Implementation) - IN PROGRESS
+   - Certificate Generation: Models, Migrations, Service, Controllers created
+   - Remaining: Views, Routes, Tests
 
 ---
 
