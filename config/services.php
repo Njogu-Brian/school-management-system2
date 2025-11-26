@@ -43,4 +43,26 @@ return [
     'sender_id' => env('SMS_SENDER_ID'),
     ],
 
+    'mpesa' => [
+        'consumer_key' => env('MPESA_CONSUMER_KEY'),
+        'consumer_secret' => env('MPESA_CONSUMER_SECRET'),
+        'shortcode' => env('MPESA_SHORTCODE'),
+        'passkey' => env('MPESA_PASSKEY'),
+        'environment' => env('MPESA_ENVIRONMENT', 'sandbox'),
+        'webhook_secret' => env('MPESA_WEBHOOK_SECRET'),
+    ],
+
+    'stripe' => [
+        'key' => env('PAYMENT_STRIPE_KEY'),
+        'secret' => env('PAYMENT_STRIPE_SECRET'),
+        'webhook_secret' => env('PAYMENT_STRIPE_WEBHOOK_SECRET'),
+    ],
+
+    'paypal' => [
+        'client_id' => env('PAYPAL_CLIENT_ID'),
+        'client_secret' => env('PAYPAL_CLIENT_SECRET'),
+        'mode' => env('PAYPAL_MODE', 'sandbox'),
+        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+    ],
+
 ];
