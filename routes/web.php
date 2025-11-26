@@ -1107,6 +1107,31 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------------------------------------------------------------------
+    | Library Management
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('library')->name('library.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        // Books
+        Route::resource('books', \App\Http\Controllers\Library\BookController::class);
+        
+        // Library Cards
+        Route::get('cards', [\App\Http\Controllers\Library\LibraryCardController::class, 'index'])->name('cards.index');
+        Route::get('cards/create', [\App\Http\Controllers\Library\LibraryCardController::class, 'create'])->name('cards.create');
+        Route::post('cards', [\App\Http\Controllers\Library\LibraryCardController::class, 'store'])->name('cards.store');
+        Route::get('cards/{card}', [\App\Http\Controllers\Library\LibraryCardController::class, 'show'])->name('cards.show');
+        Route::post('cards/{card}/renew', [\App\Http\Controllers\Library\LibraryCardController::class, 'renew'])->name('cards.renew');
+        
+        // Borrowings
+        Route::get('borrowings', [\App\Http\Controllers\Library\BookBorrowingController::class, 'index'])->name('borrowings.index');
+        Route::get('borrowings/create', [\App\Http\Controllers\Library\BookBorrowingController::class, 'create'])->name('borrowings.create');
+        Route::post('borrowings', [\App\Http\Controllers\Library\BookBorrowingController::class, 'store'])->name('borrowings.store');
+        Route::get('borrowings/{borrowing}', [\App\Http\Controllers\Library\BookBorrowingController::class, 'show'])->name('borrowings.show');
+        Route::post('borrowings/{borrowing}/return', [\App\Http\Controllers\Library\BookBorrowingController::class, 'return'])->name('borrowings.return');
+        Route::post('borrowings/{borrowing}/renew', [\App\Http\Controllers\Library\BookBorrowingController::class, 'renew'])->name('borrowings.renew');
+    });
+
+    /*
+    |----------------------------------------------------------------------
     | Activity Logs
     |----------------------------------------------------------------------
     */
