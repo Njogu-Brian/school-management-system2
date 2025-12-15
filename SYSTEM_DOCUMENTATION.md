@@ -27,10 +27,12 @@
 The School Management System is a comprehensive Laravel-based application designed to manage all aspects of school operations including student admissions, academics, finance, transport, library, hostel management, and more. This document consolidates all implementation details, features, and technical documentation.
 
 **Current Status:**
-- ✅ Core fees management module complete (Phases 1-5)
+- ✅ All core modules implemented and functional
+- ✅ Fees management module complete (Phases 1-5)
 - ✅ Frontend views implemented with Bootstrap 5
 - ✅ Backend services fully functional
 - ✅ Testing infrastructure in place
+- ✅ Database migrations complete
 - 🔄 Ongoing enhancements and refinements
 
 ---
@@ -397,6 +399,420 @@ FeeStructure::replicateTo($classroomIds, $academicYearId, $termId, $studentCateg
 
 ---
 
+---
+
+## POS (Point of Sale) Module
+
+### Overview
+
+The POS module manages the school shop, allowing students and parents to purchase uniforms, books, supplies, and other items online or in-store.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Product management with variants (sizes, colors)
+- ✅ Product categories and types
+- ✅ Inventory tracking with stock levels
+- ✅ Order management (pending, processing, completed, cancelled)
+- ✅ Public shop links for students/parents
+- ✅ Discount codes and promotions
+- ✅ Payment integration
+- ✅ Requirement templates integration (link products to class requirements)
+- ✅ Bulk product import
+- ✅ Product variants (e.g., uniform sizes)
+- ✅ Backorder management
+
+**Database Tables:**
+- `pos_products` - Product catalog
+- `pos_product_variants` - Product variants (sizes, colors)
+- `pos_orders` - Customer orders
+- `pos_order_items` - Order line items
+- `pos_discounts` - Discount codes
+- `pos_public_shop_links` - Shareable shop links
+
+**Files:**
+- `app/Models/Pos/Product.php`
+- `app/Models/Pos/Order.php`
+- `app/Models/Pos/ProductVariant.php`
+- `app/Models/Pos/Discount.php`
+- `app/Models/Pos/PublicShopLink.php`
+- `app/Services/PosService.php`
+- `app/Http/Controllers/Pos/ProductController.php`
+- `app/Http/Controllers/Pos/OrderController.php`
+- `app/Http/Controllers/Pos/PublicShopController.php`
+
+---
+
+## Library Management Module
+
+### Overview
+
+The Library module manages books, borrowing, library cards, and fines.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Book catalog management
+- ✅ Book copies tracking
+- ✅ Library card management
+- ✅ Book borrowing and returns
+- ✅ Fine calculation for overdue books
+- ✅ Book reservations
+- ✅ Borrowing history
+- ✅ Overdue tracking
+
+**Database Tables:**
+- `books` - Book catalog
+- `book_copies` - Individual book copies
+- `library_cards` - Student library cards
+- `book_borrowings` - Borrowing records
+- `book_reservations` - Reservation records
+- `library_fines` - Fine records
+
+**Files:**
+- `app/Models/Book.php`
+- `app/Models/BookCopy.php`
+- `app/Models/LibraryCard.php`
+- `app/Models/BookBorrowing.php`
+- `app/Services/LibraryService.php`
+- `app/Http/Controllers/Library/BookController.php`
+- `app/Http/Controllers/Library/BookBorrowingController.php`
+- `app/Http/Controllers/Library/LibraryCardController.php`
+
+---
+
+## Hostel Management Module
+
+### Overview
+
+The Hostel module manages boarding facilities, room allocations, and hostel attendance.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Hostel management (boys, girls, mixed)
+- ✅ Room management with capacity tracking
+- ✅ Student allocation to rooms
+- ✅ Bed number assignment
+- ✅ Hostel attendance tracking
+- ✅ Hostel fees management
+- ✅ Warden assignment
+- ✅ Occupancy tracking
+
+**Database Tables:**
+- `hostels` - Hostel facilities
+- `hostel_rooms` - Rooms within hostels
+- `hostel_allocations` - Student room assignments
+- `hostel_attendance` - Attendance records
+- `hostel_fees` - Hostel fee structures
+
+**Files:**
+- `app/Models/Hostel.php`
+- `app/Models/HostelRoom.php`
+- `app/Models/HostelAllocation.php`
+- `app/Models/HostelAttendance.php`
+- `app/Services/HostelService.php`
+- `app/Http/Controllers/Hostel/HostelController.php`
+- `app/Http/Controllers/Hostel/HostelAllocationController.php`
+
+---
+
+## Transport Management Module
+
+### Overview
+
+The Transport module manages school transport routes, vehicles, trips, and student assignments.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Route management
+- ✅ Vehicle management
+- ✅ Trip scheduling
+- ✅ Student assignment to routes
+- ✅ Drop-off point management
+- ✅ Driver assignment
+- ✅ Bulk import of drop-off points
+
+**Database Tables:**
+- `routes` - Transport routes
+- `vehicles` - School vehicles
+- `trips` - Trip schedules
+- `student_assignments` - Student route assignments
+- `drop_off_points` - Pickup/drop-off locations
+
+**Files:**
+- `app/Models/Route.php`
+- `app/Models/Vehicle.php`
+- `app/Models/Trip.php`
+- `app/Models/StudentAssignment.php`
+- `app/Models/DropOffPoint.php`
+- `app/Http/Controllers/TransportController.php`
+- `app/Http/Controllers/VehicleController.php`
+- `app/Http/Controllers/RouteController.php`
+- `app/Http/Controllers/TripController.php`
+
+---
+
+## Academics Module
+
+### Overview
+
+The Academics module manages classes, subjects, timetables, exams, homework, report cards, and CBC curriculum.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Classroom and stream management
+- ✅ Subject management
+- ✅ Timetable creation and management
+- ✅ Exam management (CAT, Midterm, Endterm, SBA, Mock, Quiz)
+- ✅ Exam scheduling
+- ✅ Mark entry and grading
+- ✅ Report card generation
+- ✅ Homework and diaries
+- ✅ CBC curriculum (Learning Areas, Strands, Substrands, Competencies)
+- ✅ Portfolio assessments
+- ✅ Student promotion
+- ✅ Scheme of work
+- ✅ Lesson plans
+- ✅ Extra-curricular activities
+- ✅ Behavior management
+- ✅ Student skills grading
+
+**Database Tables:**
+- `classrooms` - Class levels
+- `streams` - Streams within classes
+- `subjects` - Subject catalog
+- `timetables` - Class schedules
+- `exams` - Exam definitions
+- `exam_schedules` - Exam timetables
+- `exam_marks` - Student marks
+- `report_cards` - Generated report cards
+- `homework` - Homework assignments
+- `learning_areas` - CBC learning areas
+- `competencies` - CBC competencies
+- And many more...
+
+**Files:**
+- `app/Models/Academics/Classroom.php`
+- `app/Models/Academics/Subject.php`
+- `app/Models/Academics/Exam.php`
+- `app/Models/Academics/Timetable.php`
+- `app/Http/Controllers/Academics/ExamController.php`
+- `app/Http/Controllers/Academics/TimetableController.php`
+- `app/Http/Controllers/Academics/ReportCardController.php`
+- And many more...
+
+---
+
+## HR & Payroll Module
+
+### Overview
+
+The HR module manages staff, payroll, leave, attendance, and staff records.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Staff management (profiles, documents, qualifications)
+- ✅ Staff categories and departments
+- ✅ Job titles and positions
+- ✅ Salary structure management
+- ✅ Payroll period processing
+- ✅ Payroll record generation
+- ✅ Payslip generation
+- ✅ Leave management (requests, balances, types)
+- ✅ Staff attendance tracking
+- ✅ Staff advances
+- ✅ Custom deductions
+- ✅ Statutory deductions (NSSF, NHIF, PAYE)
+- ✅ HR analytics dashboard
+- ✅ Staff performance reviews
+- ✅ Training records
+
+**Database Tables:**
+- `staff` - Staff members
+- `salary_structures` - Salary configurations
+- `payroll_periods` - Payroll periods
+- `payroll_records` - Payroll calculations
+- `leave_requests` - Leave applications
+- `leave_types` - Leave categories
+- `staff_leave_balances` - Leave balances
+- `staff_attendance` - Attendance records
+- `staff_advances` - Salary advances
+- `custom_deductions` - Custom deductions
+- And more...
+
+**Files:**
+- `app/Models/Staff.php`
+- `app/Models/SalaryStructure.php`
+- `app/Models/PayrollRecord.php`
+- `app/Models/LeaveRequest.php`
+- `app/Http/Controllers/Hr/StaffController.php`
+- `app/Http/Controllers/Hr/PayrollPeriodController.php`
+- `app/Http/Controllers/Hr/LeaveRequestController.php`
+- And more...
+
+---
+
+## Attendance Module
+
+### Overview
+
+The Attendance module tracks student and staff attendance with reason codes and notifications.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Student attendance tracking (present, absent, late)
+- ✅ Subject/period-specific attendance
+- ✅ Attendance reason codes
+- ✅ Excused absences and medical leave
+- ✅ Consecutive absence tracking
+- ✅ Staff attendance tracking
+- ✅ Attendance notifications (SMS/Email)
+- ✅ Attendance reports
+
+**Database Tables:**
+- `attendance` - Student attendance records
+- `staff_attendance` - Staff attendance records
+- `attendance_reason_codes` - Absence reason codes
+- `attendance_recipients` - Notification recipients
+
+**Files:**
+- `app/Models/Attendance.php`
+- `app/Models/StaffAttendance.php`
+- `app/Models/AttendanceReasonCode.php`
+- `app/Http/Controllers/Attendance/AttendanceController.php`
+- `app/Http/Controllers/Hr/StaffAttendanceController.php`
+
+---
+
+## Communication Module
+
+### Overview
+
+The Communication module handles SMS, email, announcements, and bulk messaging.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ SMS sending and scheduling
+- ✅ Email sending
+- ✅ Communication templates (SMS and Email)
+- ✅ Bulk communication (to classes, all students, selected)
+- ✅ Announcements management
+- ✅ Communication logs
+- ✅ Scheduled communications
+- ✅ Placeholder replacement in templates
+
+**Database Tables:**
+- `communication_templates` - SMS/Email templates
+- `communication_logs` - Communication history
+- `announcements` - School announcements
+- `scheduled_communications` - Scheduled messages
+- `sms_logs` - SMS delivery logs
+
+**Files:**
+- `app/Models/CommunicationTemplate.php`
+- `app/Models/CommunicationLog.php`
+- `app/Models/Announcement.php`
+- `app/Services/CommunicationService.php`
+- `app/Http/Controllers/CommunicationController.php`
+- `app/Http/Controllers/Communication/BulkCommunicationController.php`
+
+---
+
+## Inventory Module
+
+### Overview
+
+The Inventory module manages school inventory items, requirements, and requisitions.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Inventory item management
+- ✅ Requirement types (uniforms, books, supplies)
+- ✅ Requirement templates (by class)
+- ✅ Student requirements tracking
+- ✅ Requisition management (request, approve, fulfill)
+- ✅ Inventory transactions
+- ✅ Stock tracking
+
+**Database Tables:**
+- `inventory_items` - Inventory catalog
+- `requirement_types` - Requirement categories
+- `requirement_templates` - Class requirements
+- `student_requirements` - Student requirement fulfillment
+- `requisitions` - Requisition requests
+- `requisition_items` - Requisition line items
+- `inventory_transactions` - Stock movements
+
+**Files:**
+- `app/Models/InventoryItem.php`
+- `app/Models/RequirementType.php`
+- `app/Models/RequirementTemplate.php`
+- `app/Models/Requisition.php`
+- `app/Http/Controllers/Inventory/InventoryItemController.php`
+- `app/Http/Controllers/Inventory/RequisitionController.php`
+
+---
+
+## Student Management Module
+
+### Overview
+
+The Student Management module handles admissions, student records, families, and student lifecycle.
+
+### Module Status: ✅ **IMPLEMENTED**
+
+### Features Implemented
+
+- ✅ Online admissions
+- ✅ Student registration and enrollment
+- ✅ Student categories
+- ✅ Family management
+- ✅ Sibling relationships
+- ✅ Student medical records
+- ✅ Academic history
+- ✅ Disciplinary records
+- ✅ Extracurricular activities
+- ✅ Student promotion
+- ✅ Alumni management
+- ✅ Student documents
+
+**Database Tables:**
+- `students` - Student records
+- `student_categories` - Student categories
+- `families` - Family groups
+- `student_siblings` - Sibling relationships
+- `online_admissions` - Admission applications
+- `student_medical_records` - Medical information
+- `student_academic_history` - Academic records
+- `student_disciplinary_records` - Disciplinary actions
+- And more...
+
+**Files:**
+- `app/Models/Student.php`
+- `app/Models/StudentCategory.php`
+- `app/Models/Family.php`
+- `app/Models/OnlineAdmission.php`
+- `app/Http/Controllers/Students/StudentController.php`
+- `app/Http/Controllers/Students/OnlineAdmissionController.php`
+
+---
+
 ## Features Pending
 
 ### High Priority
@@ -529,7 +945,7 @@ resources/
 - `amount` (decimal), `allocated_at`
 - `timestamps`
 
-### Supporting Tables
+### Finance Module Supporting Tables
 
 - `student_categories` - Student category definitions
 - `votehead_categories` - Votehead category groupings
@@ -540,6 +956,105 @@ resources/
 - `credit_notes`, `debit_notes` - Adjustment tracking
 - `payment_methods`, `bank_accounts` - Payment configuration
 - `document_counters` - Numbering sequences
+
+### POS Module Tables
+
+- `pos_products` - Product catalog
+- `pos_product_variants` - Product variants
+- `pos_orders` - Customer orders
+- `pos_order_items` - Order line items
+- `pos_discounts` - Discount codes
+- `pos_public_shop_links` - Shareable shop links
+
+### Library Module Tables
+
+- `books` - Book catalog
+- `book_copies` - Individual copies
+- `library_cards` - Student library cards
+- `book_borrowings` - Borrowing records
+- `book_reservations` - Reservations
+- `library_fines` - Fine records
+
+### Hostel Module Tables
+
+- `hostels` - Hostel facilities
+- `hostel_rooms` - Rooms
+- `hostel_allocations` - Student assignments
+- `hostel_attendance` - Attendance records
+- `hostel_fees` - Fee structures
+
+### Transport Module Tables
+
+- `routes` - Transport routes
+- `vehicles` - School vehicles
+- `trips` - Trip schedules
+- `student_assignments` - Route assignments
+- `drop_off_points` - Pickup/drop-off locations
+
+### Academics Module Tables
+
+- `classrooms` - Class levels
+- `streams` - Streams within classes
+- `subjects` - Subject catalog
+- `timetables` - Class schedules
+- `exams` - Exam definitions
+- `exam_schedules` - Exam timetables
+- `exam_marks` - Student marks
+- `report_cards` - Generated report cards
+- `homework` - Homework assignments
+- `learning_areas` - CBC learning areas
+- `competencies` - CBC competencies
+- And many more...
+
+### HR Module Tables
+
+- `staff` - Staff members
+- `salary_structures` - Salary configurations
+- `payroll_periods` - Payroll periods
+- `payroll_records` - Payroll calculations
+- `leave_requests` - Leave applications
+- `leave_types` - Leave categories
+- `staff_leave_balances` - Leave balances
+- `staff_attendance` - Attendance records
+- `staff_advances` - Salary advances
+- `custom_deductions` - Custom deductions
+- And more...
+
+### Attendance Module Tables
+
+- `attendance` - Student attendance
+- `staff_attendance` - Staff attendance
+- `attendance_reason_codes` - Absence reasons
+- `attendance_recipients` - Notification recipients
+
+### Communication Module Tables
+
+- `communication_templates` - SMS/Email templates
+- `communication_logs` - Communication history
+- `announcements` - School announcements
+- `scheduled_communications` - Scheduled messages
+- `sms_logs` - SMS delivery logs
+
+### Inventory Module Tables
+
+- `inventory_items` - Inventory catalog
+- `requirement_types` - Requirement categories
+- `requirement_templates` - Class requirements
+- `student_requirements` - Student fulfillment
+- `requisitions` - Requisition requests
+- `requisition_items` - Requisition line items
+- `inventory_transactions` - Stock movements
+
+### Student Management Tables
+
+- `students` - Student records
+- `student_categories` - Student categories
+- `families` - Family groups
+- `student_siblings` - Sibling relationships
+- `online_admissions` - Admission applications
+- `student_medical_records` - Medical information
+- `student_academic_history` - Academic records
+- `student_disciplinary_records` - Disciplinary actions
 
 ---
 
@@ -578,6 +1093,32 @@ resources/
 #### FeeStructureImportService
 - `generateTemplate()` - Generate CSV template
 - `processImport()` - Process imported fee structures
+
+### Other Module Services
+
+#### PosService
+- `getCart()` - Get shopping cart
+- `addToCart()` - Add item to cart
+- `removeFromCart()` - Remove item from cart
+- `applyDiscount()` - Apply discount code
+- `checkout()` - Process order
+
+#### LibraryService
+- `borrowBook()` - Issue book to student
+- `returnBook()` - Return borrowed book
+- `renewBook()` - Renew borrowing period
+- `calculateFine()` - Calculate overdue fines
+
+#### HostelService
+- `allocateStudent()` - Allocate student to room
+- `deallocateStudent()` - Remove student from room
+- `getAvailableRooms()` - Get available rooms
+
+#### CommunicationService
+- `sendSMS()` - Send SMS message
+- `sendEmail()` - Send email
+- `sendBulk()` - Send bulk messages
+- `scheduleCommunication()` - Schedule future message
 
 ---
 
