@@ -9,6 +9,7 @@ use App\Models\FeeStructure;
 use App\Models\Student;
 use App\Models\Votehead;
 use App\Services\DocumentNumberService;
+use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
@@ -19,7 +20,12 @@ class InvoiceController extends Controller
 {
     public function index(Request $request)
     {
-        $q = Invoice::with(['student.classroom','student.stream'])
+        // Clean up any empty invoices (invoices with no items, payments, or allocations)
+        // This ensures invoices deleted during reversal are removed from the system
+        $this->cleanupEmptyInvoices();
+        
+        $q = Invoice::with(['student.classroom','student.stream', 'items'])
+            ->whereHas('items') // Only show invoices that have at least one item
             ->when($request->filled('year'), fn($qq)=>$qq->where('year',$request->year))
             ->when($request->filled('term'), fn($qq)=>$qq->where('term',$request->term))
             ->when($request->filled('class_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('classroom_id',$request->class_id)))
@@ -28,6 +34,11 @@ class InvoiceController extends Controller
             ->latest();
 
         $invoices = $q->paginate(20)->appends($request->all());
+
+        // Recalculate totals for all invoices to ensure they only include active items
+        foreach ($invoices as $invoice) {
+            $invoice->recalculate();
+        }
 
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         $streams    = \App\Models\Academics\Stream::orderBy('name')->get();
@@ -71,23 +82,20 @@ class InvoiceController extends Controller
 
                     if (!$votehead->is_mandatory) continue;
 
-                    $shouldSkip = false;
-
-                    if ($votehead->charge_type === 'once') {
-                        $shouldSkip = InvoiceItem::whereHas('invoice', fn($q) => $q->where('student_id', $student->id))
-                            ->where('votehead_id', $votehead->id)
-                            ->exists();
-                    } elseif ($votehead->charge_type === 'once_annually') {
-                        $shouldSkip = InvoiceItem::whereHas('invoice', fn($q) =>
-                            $q->where('student_id', $student->id)->where('year', $request->year)
-                        )->where('votehead_id', $votehead->id)->exists();
-                    } elseif ($votehead->charge_type === 'per_family') {
-                        $shouldSkip = InvoiceItem::whereHas('invoice.student', fn($q) =>
-                            $q->where('family_id', $student->family_id)
-                        )->where('votehead_id', $votehead->id)->exists();
+                    // Use Votehead model's canChargeForStudent method which handles:
+                    // - preferred_term for once_annually fees
+                    // - once-only fees for new students only
+                    if (!$votehead->canChargeForStudent($student, $request->year, $request->term)) {
+                        continue;
                     }
-
-                    if ($shouldSkip) continue;
+                    
+                    // Also check preferred_term for once_annually fees
+                    if ($votehead->charge_type === 'once_annually' && 
+                        $votehead->preferred_term !== null && 
+                        $votehead->preferred_term != $request->term) {
+                        // Skip if not the preferred term (unless already handled by canChargeForStudent)
+                        continue;
+                    }
 
                     // Apply fee concessions
                     $amount = $charge->amount;
@@ -151,8 +159,8 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        $invoice->load('student.classroom','student.stream','items.votehead');
-        return view('finance.invoices.show', compact('invoice'));
+        // Show PDF inline in a new tab/window
+        return $this->printSingle($invoice);
     }
 
     public function importForm()
@@ -168,28 +176,66 @@ class InvoiceController extends Controller
 
     public function updateItem(Request $request, Invoice $invoice, InvoiceItem $item)
     {
-        $request->validate(['new_amount'=>'required|numeric|min:0','reason'=>'required|string|max:255']);
+        $request->validate([
+            'new_amount' => 'required|numeric|min:0',
+            'reason' => 'required|string|max:255',
+            'notes' => 'nullable|string',
+        ]);
 
-        $delta = (float)$request->new_amount - (float)$item->amount;
+        $newAmount = (float)$request->new_amount;
+        $delta = $newAmount - (float)$item->amount;
+        
         if ($delta == 0) {
             return back()->with('success', 'No change.');
         }
 
-        $type = $delta > 0 ? 'debit' : 'credit';
+        try {
+            // Use enhanced InvoiceService with automatic credit/debit note creation
+            $result = InvoiceService::updateItemAmount(
+                $item,
+                $newAmount,
+                $request->reason,
+                $request->notes
+            );
 
-        \App\Services\JournalService::createAndApply([
-            'student_id'   => $invoice->student_id,
-            'votehead_id'  => $item->votehead_id,
-            'year'         => $invoice->year,
-            'term'         => $invoice->term,
-            'type'         => $type,
-            'amount'       => abs($delta),
-            'reason'       => $request->reason ?: 'Manual edit',
-            'effective_date' => now()->toDateString(),
+            $message = 'Invoice item updated.';
+            if ($result['credit_note']) {
+                $message .= ' Credit note #' . $result['credit_note']->credit_note_number . ' created.';
+            }
+            if ($result['debit_note']) {
+                $message .= ' Debit note #' . $result['debit_note']->debit_note_number . ' created.';
+            }
+
+            return back()->with('success', $message);
+        } catch (\Exception $e) {
+            return back()->with('error', 'Update failed: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Show invoice edit history (credit/debit notes, audit log)
+     */
+    public function history(Invoice $invoice)
+    {
+        $invoice->load([
+            'items.creditNotes.issuedBy',
+            'items.debitNotes.issuedBy',
+            'creditNotes.issuedBy',
+            'debitNotes.issuedBy',
+            'items.allocations.payment',
         ]);
-
-        // Item amount is already updated by service; refresh
-        return back()->with('success', 'Invoice item updated.');
+        
+        // Get audit logs for invoice
+        $auditLogs = \App\Models\AuditLog::where('auditable_type', Invoice::class)
+            ->where('auditable_id', $invoice->id)
+            ->orWhere(function ($q) use ($invoice) {
+                $q->where('auditable_type', InvoiceItem::class)
+                  ->whereIn('auditable_id', $invoice->items->pluck('id'));
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        return view('finance.invoices.history', compact('invoice', 'auditLogs'));
     }
 
     private function filteredInvoicesQuery(Request $request): Builder
@@ -209,6 +255,40 @@ class InvoiceController extends Controller
                 $q->whereHas('student', fn($s) => $s->where('stream_id', request('stream_id')))
             )
             ->orderByDesc('year')->orderByDesc('term')->orderBy('student_id');
+    }
+
+    /**
+     * Clean up empty invoices (invoices with no items, payments, or allocations)
+     * This is called when viewing the invoice list to ensure reversed invoices are removed
+     */
+    private function cleanupEmptyInvoices(): void
+    {
+        // Find invoices with no items
+        $emptyInvoices = Invoice::doesntHave('items')->get();
+        
+        foreach ($emptyInvoices as $invoice) {
+            // Check if invoice has any payments
+            $hasPayments = $invoice->payments()->count() > 0;
+            
+            // Check if invoice has any payment allocations
+            $hasAllocations = \App\Models\PaymentAllocation::whereHas('invoiceItem', function($q) use ($invoice) {
+                $q->where('invoice_id', $invoice->id);
+            })->count() > 0;
+            
+            // Check if invoice has any credit notes or debit notes
+            $hasCreditNotes = $invoice->creditNotes()->count() > 0;
+            $hasDebitNotes = $invoice->debitNotes()->count() > 0;
+            
+            // If invoice has no items, no payments, no allocations, and no notes, delete it
+            if (!$hasPayments && !$hasAllocations && !$hasCreditNotes && !$hasDebitNotes) {
+                \Log::info('Cleaning up empty invoice from list view', [
+                    'invoice_id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'student_id' => $invoice->student_id,
+                ]);
+                $invoice->delete();
+            }
+        }
     }
 
     private function branding(): array
@@ -253,6 +333,15 @@ class InvoiceController extends Controller
             return back()->with('error', 'No invoices found for the selected criteria.');
         }
 
+        // Filter to show only active items in PDF for each invoice (exclude pending items)
+        foreach ($invoices as $invoice) {
+            $invoice->load('items.votehead');
+            $activeItems = $invoice->items->filter(function($item) {
+                return ($item->status ?? 'active') === 'active';
+            });
+            $invoice->setRelation('items', $activeItems);
+        }
+
         $filters   = $request->only(['year','term','votehead_id','class_id','stream_id','student_id']);
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
@@ -268,6 +357,12 @@ class InvoiceController extends Controller
     public function printSingle(Invoice $invoice)
     {
         $invoice->load(['student.classroom','student.stream','items.votehead']);
+        
+        // Filter to show only active items in PDF (exclude pending items)
+        $activeItems = $invoice->items->filter(function($item) {
+            return ($item->status ?? 'active') === 'active';
+        });
+        $invoice->setRelation('items', $activeItems);
 
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
@@ -277,6 +372,7 @@ class InvoiceController extends Controller
             'invoice','branding','printedBy','printedAt'
         ))->setPaper('A4','portrait');
 
+        // Return inline PDF that opens in browser (user can print/download from browser)
         return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
     }
 

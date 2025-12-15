@@ -1,103 +1,205 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3 class="mb-0">Invoices</h3>
-    {{-- 🔹 Print PDF Button --}}
-    <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) }}"
-       target="_blank"
-       class="btn btn-outline-secondary">
-       <i class="bi bi-printer"></i> Print PDF
-    </a>
-  </div>
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h3 class="mb-0">
+                    <i class="bi bi-file-text"></i> Invoices
+                </h3>
+                <div>
+                    <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) }}"
+                       target="_blank"
+                       class="btn btn-outline-secondary">
+                       <i class="bi bi-printer"></i> Print Bulk PDF
+                    </a>
+                    <a href="{{ route('finance.posting.index') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Post Pending Fees
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 
-  @includeIf('finance.invoices.partials.alerts')
+    @includeIf('finance.invoices.partials.alerts')
 
-  <form method="GET" action="{{ route('finance.invoices.index') }}" class="row g-3 mb-3">
-    <div class="col-md-2">
-      <label class="form-label">Year</label>
-      <input type="number" class="form-control" name="year" value="{{ request('year', now()->year) }}">
+    <!-- Filters -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ route('finance.invoices.index') }}" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Year</label>
+                    <input type="number" 
+                           class="form-control" 
+                           name="year" 
+                           value="{{ request('year', $currentYear ?? now()->year) }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Term</label>
+                    <select name="term" class="form-select">
+                        <option value="">All Terms</option>
+                        @for($i=1;$i<=3;$i++)
+                            <option value="{{ $i }}" {{ (request('term', $currentTermNumber ?? null) == $i) ? 'selected':'' }}>Term {{ $i }}</option>
+                        @endfor
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Votehead</label>
+                    <select name="votehead_id" class="form-select">
+                        <option value="">All Voteheads</option>
+                        @foreach($voteheads ?? [] as $vh)
+                            <option value="{{ $vh->id }}" {{ request('votehead_id')==$vh->id ? 'selected':'' }}>{{ $vh->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Class</label>
+                    <select name="class_id" class="form-select">
+                        <option value="">All Classes</option>
+                        @foreach($classrooms ?? [] as $c)
+                            <option value="{{ $c->id }}" {{ request('class_id')==$c->id ? 'selected':'' }}>{{ $c->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Stream</label>
+                    <select name="stream_id" class="form-select">
+                        <option value="">All Streams</option>
+                        @foreach($streams ?? [] as $s)
+                            <option value="{{ $s->id }}" {{ request('stream_id')==$s->id ? 'selected':'' }}>{{ $s->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
+                        <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
+                        <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Filter
+                    </button>
+                    <a href="{{ route('finance.invoices.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
-    <div class="col-md-2">
-      <label class="form-label">Term</label>
-      <select name="term" class="form-select">
-        <option value="">All</option>
-        @for($i=1;$i<=3;$i++)
-          <option value="{{ $i }}" {{ request('term') == $i ? 'selected':'' }}>Term {{ $i }}</option>
-        @endfor
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Votehead</label>
-      <select name="votehead_id" class="form-select">
-        <option value="">All</option>
-        @foreach($voteheads as $vh)
-          <option value="{{ $vh->id }}" {{ request('votehead_id')==$vh->id ? 'selected':'' }}>{{ $vh->name }}</option>
-        @endforeach
-      </select>
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Class</label>
-      <select name="class_id" class="form-select">
-        <option value="">All</option>
-        @foreach($classrooms as $c)
-          <option value="{{ $c->id }}" {{ request('class_id')==$c->id ? 'selected':'' }}>{{ $c->name }}</option>
-        @endforeach
-      </select>
-    </div>
-    <div class="col-md-2">
-      <label class="form-label">Stream</label>
-      <select name="stream_id" class="form-select">
-        <option value="">All</option>
-        @foreach($streams as $s)
-          <option value="{{ $s->id }}" {{ request('stream_id')==$s->id ? 'selected':'' }}>{{ $s->name }}</option>
-        @endforeach
-      </select>
-    </div>
-    <div class="col-12">
-      <button class="btn btn-primary">Filter</button>
-      <a href="{{ route('finance.invoices.index') }}" class="btn btn-outline-secondary">Reset</a>
-    </div>
-  </form>
 
-  <div class="table-responsive">
-    <table class="table table-bordered align-middle">
-      <thead class="table-light">
-        <tr>
-          <th>#</th>
-          <th>Invoice #</th>
-          <th>Student</th>
-          <th>Class/Stream</th>
-          <th>Year/Term</th>
-          <th class="text-end">Total</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        @forelse($invoices as $inv)
-          <tr>
-            <td>{{ $loop->iteration + ($invoices->currentPage()-1)*$invoices->perPage() }}</td>
-            <td>{{ $inv->invoice_number }}</td>
-            <td>{{ $inv->student->full_name ?? 'Unknown' }}</td>
-            <td>{{ $inv->student->classroom->name ?? '-' }} / {{ $inv->student->stream->name ?? '-' }}</td>
-            <td>{{ $inv->year }} / T{{ $inv->term }}</td>
-            <td class="text-end">{{ number_format($inv->total,2) }}</td>
-            <td>
-              <a class="btn btn-sm btn-outline-primary" href="{{ route('finance.invoices.show',$inv) }}">
-                View
-              </a>
-            </td>
-          </tr>
-        @empty
-          <tr>
-            <td colspan="7" class="text-center text-muted">No invoices</td>
-          </tr>
-        @endforelse
-      </tbody>
-    </table>
-  </div>
-
-  {{ $invoices->links() }}
+    <!-- Invoices Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Student</th>
+                            <th>Class/Stream</th>
+                            <th>Year/Term</th>
+                            <th class="text-end">Total</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Balance</th>
+                            <th>Status</th>
+                            <th>Due Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($invoices as $inv)
+                        @php
+                            $balance = $inv->balance ?? ($inv->total - ($inv->paid_amount ?? 0));
+                        @endphp
+                        <tr>
+                            <td>
+                                <strong>{{ $inv->invoice_number }}</strong>
+                            </td>
+                            <td>
+                                {{ $inv->student->first_name ?? 'Unknown' }} {{ $inv->student->last_name ?? '' }}
+                                <br><small class="text-muted">{{ $inv->student->admission_number ?? '—' }}</small>
+                            </td>
+                            <td>
+                                {{ $inv->student->classroom->name ?? '—' }}
+                                @if($inv->student->stream)
+                                    / {{ $inv->student->stream->name }}
+                                @endif
+                            </td>
+                            <td>
+                                {{ $inv->academicYear->name ?? $inv->year ?? '—' }}
+                                @if($inv->term)
+                                    / {{ $inv->term->name ?? 'Term ' . $inv->term }}
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <strong>Ksh {{ number_format($inv->total, 2) }}</strong>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-success">Ksh {{ number_format($inv->paid_amount ?? 0, 2) }}</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-{{ $balance > 0 ? 'danger' : 'success' }}">
+                                    Ksh {{ number_format($balance, 2) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ $inv->status === 'paid' ? 'success' : ($inv->status === 'partial' ? 'warning' : 'danger') }}">
+                                    {{ ucfirst($inv->status) }}
+                                </span>
+                                @if($inv->isOverdue())
+                                    <span class="badge bg-danger ms-1">Overdue</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($inv->due_date)
+                                    {{ \Carbon\Carbon::parse($inv->due_date)->format('d M Y') }}
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('finance.invoices.show', $inv) }}" 
+                                       class="btn btn-outline-primary" 
+                                       target="_blank"
+                                       title="View Invoice PDF">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="10" class="text-center py-4">
+                                <p class="text-muted mb-0">No invoices found.</p>
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                    @if($invoices->isNotEmpty())
+                    <tfoot class="table-light">
+                        <tr>
+                            <th colspan="4" class="text-end">Totals:</th>
+                            <th class="text-end">Ksh {{ number_format($invoices->sum('total'), 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($invoices->sum('paid_amount'), 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($invoices->sum(function($i) { return $i->balance ?? ($i->total - ($i->paid_amount ?? 0)); }), 2) }}</th>
+                            <th colspan="3"></th>
+                        </tr>
+                    </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
+        @if($invoices->hasPages())
+        <div class="card-footer">
+            {{ $invoices->links() }}
+        </div>
+        @endif
+    </div>
 </div>
 @endsection
