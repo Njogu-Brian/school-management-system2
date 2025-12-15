@@ -67,6 +67,7 @@ use App\Http\Controllers\Finance\ReceiptController;
 use App\Http\Controllers\Finance\FeeReminderController;
 use App\Http\Controllers\Finance\FeePaymentPlanController;
 use App\Http\Controllers\Finance\FeeConcessionController;
+use App\Http\Controllers\Finance\DiscountController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -900,17 +901,21 @@ Route::middleware('auth')->group(function () {
 
         // Voteheads
         Route::resource('voteheads', VoteheadController::class)->except(['show']);
+        Route::get('voteheads/import', [VoteheadController::class, 'import'])->name('voteheads.import');
+        Route::post('voteheads/import', [VoteheadController::class, 'processImport'])->name('voteheads.process-import');
+        Route::get('voteheads/template/download', [VoteheadController::class, 'downloadTemplate'])->name('voteheads.download-template');
 
         // Fee Structures
         Route::get('fee-structures/manage',   [FeeStructureController::class, 'manage'])->name('fee-structures.manage');
         Route::post('fee-structures/manage',  [FeeStructureController::class, 'save'])->name('fee-structures.save');
         Route::post('fee-structures/replicate',[FeeStructureController::class, 'replicateTo'])->name('fee-structures.replicate');
+        Route::get('fee-structures/import', [FeeStructureController::class, 'import'])->name('fee-structures.import');
+        Route::post('fee-structures/import', [FeeStructureController::class, 'processImport'])->name('fee-structures.process-import');
+        Route::get('fee-structures/template/download', [FeeStructureController::class, 'downloadTemplate'])->name('fee-structures.download-template');
 
         // Invoices
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('/',               [InvoiceController::class, 'index'])->name('index');
-            Route::get('/create',         [InvoiceController::class, 'create'])->name('create');
-            Route::post('/generate',      [InvoiceController::class, 'generate'])->name('generate');
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
             Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
             Route::put('/{invoice}',      [InvoiceController::class, 'update'])->name('update');
@@ -943,6 +948,7 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/create', [PaymentController::class, 'create'])->name('payments.create');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+        Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         
         // Online Payments
@@ -975,6 +981,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/',       [PostingController::class, 'index'])->name('index');
             Route::post('/preview',[PostingController::class, 'preview'])->name('preview');
             Route::post('/commit', [PostingController::class, 'commit'])->name('commit');
+            Route::get('/{run:hash}',  [PostingController::class, 'show'])->name('show');
+            Route::post('/{run:hash}/reverse', [PostingController::class, 'reverse'])->name('reverse');
+            Route::post('/{run:hash}/reverse-student/{student}', [PostingController::class, 'reverseStudent'])->name('reverse-student');
         });
 
         // Journals
@@ -990,6 +999,38 @@ Route::middleware('auth')->group(function () {
         // Invoice line editing
         Route::post('invoices/{invoice}/items/{item}/update', [InvoiceController::class,'updateItem'])
             ->name('invoices.items.update');
+        Route::get('invoices/{invoice}/history', [InvoiceController::class, 'history'])
+            ->name('invoices.history');
+            
+        // Discounts (Fee Concessions)
+        Route::prefix('discounts')->name('discounts.')->group(function () {
+            Route::get('/', [DiscountController::class, 'index'])->name('index');
+            Route::get('/create', [DiscountController::class, 'create'])->name('create');
+            Route::post('/', [DiscountController::class, 'store'])->name('store');
+            
+            // Templates
+            Route::get('/templates', [DiscountController::class, 'templatesIndex'])->name('templates.index');
+            
+            // Allocation
+            Route::get('/allocate', [DiscountController::class, 'allocate'])->name('allocate');
+            Route::post('/allocate', [DiscountController::class, 'storeAllocation'])->name('allocate.store');
+            
+            // Allocations (Issued)
+            Route::get('/allocations', [DiscountController::class, 'allocationsIndex'])->name('allocations.index');
+            
+            // Approvals
+            Route::get('/approvals', [DiscountController::class, 'approvalsIndex'])->name('approvals.index');
+            Route::post('/approve/{discount}', [DiscountController::class, 'approve'])->name('approve');
+            Route::post('/reject/{discount}', [DiscountController::class, 'reject'])->name('reject');
+            
+            // Bulk Sibling Allocation (must come before /{discount} route)
+            Route::get('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSiblingForm'])->name('bulk-allocate-sibling');
+            Route::post('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSibling'])->name('bulk-allocate-sibling.store');
+            
+            // These routes with parameters should come last
+            Route::get('/{discount}', [DiscountController::class, 'show'])->name('show');
+            Route::post('/apply-sibling/{student}', [DiscountController::class, 'applySiblingDiscount'])->name('apply-sibling');
+        });
     });
 
     /*
@@ -1107,6 +1148,52 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------------------------------------------------------------------
+    | Point of Sale (POS) Management
+    |----------------------------------------------------------------------
+    */
+    Route::prefix('pos')->name('pos.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+        // Products
+        Route::resource('products', \App\Http\Controllers\Pos\ProductController::class);
+        Route::post('products/{product}/adjust-stock', [\App\Http\Controllers\Pos\ProductController::class, 'adjustStock'])->name('products.adjust-stock');
+        Route::post('products/bulk-import', [\App\Http\Controllers\Pos\ProductController::class, 'bulkImport'])->name('products.bulk-import');
+        Route::get('products/template/download', [\App\Http\Controllers\Pos\ProductController::class, 'downloadTemplate'])->name('products.template.download');
+        
+        // Product Variants
+        Route::get('products/{product}/variants', [\App\Http\Controllers\Pos\ProductVariantController::class, 'index'])->name('products.variants.index');
+        Route::post('products/{product}/variants', [\App\Http\Controllers\Pos\ProductVariantController::class, 'store'])->name('products.variants.store');
+        Route::put('variants/{variant}', [\App\Http\Controllers\Pos\ProductVariantController::class, 'update'])->name('variants.update');
+        Route::delete('variants/{variant}', [\App\Http\Controllers\Pos\ProductVariantController::class, 'destroy'])->name('variants.destroy');
+        
+        // Orders
+        Route::get('orders', [\App\Http\Controllers\Pos\OrderController::class, 'index'])->name('orders.index');
+        Route::get('orders/{order}', [\App\Http\Controllers\Pos\OrderController::class, 'show'])->name('orders.show');
+        Route::post('orders/{order}/update-status', [\App\Http\Controllers\Pos\OrderController::class, 'updateStatus'])->name('orders.update-status');
+        Route::post('orders/{order}/cancel', [\App\Http\Controllers\Pos\OrderController::class, 'cancel'])->name('orders.cancel');
+        Route::post('orders/{order}/items/{item}/fulfill', [\App\Http\Controllers\Pos\OrderController::class, 'fulfillItem'])->name('orders.items.fulfill');
+        
+        // Discounts
+        Route::resource('discounts', \App\Http\Controllers\Pos\DiscountController::class);
+        
+        // Public Shop Links
+        Route::resource('public-links', \App\Http\Controllers\Pos\PublicShopLinkController::class);
+        Route::post('public-links/{link}/regenerate-token', [\App\Http\Controllers\Pos\PublicShopLinkController::class, 'regenerateToken'])->name('public-links.regenerate-token');
+        
+        // Teacher Requirements (for teachers)
+        Route::get('teacher-requirements', [\App\Http\Controllers\Pos\TeacherRequirementsController::class, 'index'])->name('teacher-requirements.index');
+        Route::get('teacher-requirements/{requirement}', [\App\Http\Controllers\Pos\TeacherRequirementsController::class, 'show'])->name('teacher-requirements.show');
+        Route::post('teacher-requirements/{requirement}/mark-received', [\App\Http\Controllers\Pos\TeacherRequirementsController::class, 'markReceived'])->name('teacher-requirements.mark-received');
+        
+        // Uniform Management
+        Route::get('uniforms', [\App\Http\Controllers\Pos\UniformController::class, 'index'])->name('uniforms.index');
+        Route::get('uniforms/{uniform}', [\App\Http\Controllers\Pos\UniformController::class, 'show'])->name('uniforms.show');
+        Route::get('uniforms/{uniform}/manage-sizes', [\App\Http\Controllers\Pos\UniformController::class, 'manageSizes'])->name('uniforms.manage-sizes');
+        Route::post('uniforms/{uniform}/update-size-stock', [\App\Http\Controllers\Pos\UniformController::class, 'updateSizeStock'])->name('uniforms.update-size-stock');
+        Route::get('uniforms/backorders', [\App\Http\Controllers\Pos\UniformController::class, 'backorders'])->name('uniforms.backorders');
+        Route::post('orders/{order}/items/{item}/fulfill-backorder', [\App\Http\Controllers\Pos\UniformController::class, 'fulfillBackorder'])->name('orders.items.fulfill-backorder');
+    });
+
+    /*
+    |----------------------------------------------------------------------
     | Library Management
     |----------------------------------------------------------------------
     */
@@ -1178,6 +1265,27 @@ Route::middleware('auth')->group(function () {
 Route::prefix('online-admissions')->group(function () {
     Route::get('/apply', [OnlineAdmissionController::class, 'showPublicForm'])->name('online-admissions.public-form');
     Route::post('/apply', [OnlineAdmissionController::class, 'storePublicApplication'])->name('online-admissions.public-submit');
+});
+
+/*
+||--------------------------------------------------------------------------
+|| Public POS Shop
+||--------------------------------------------------------------------------
+*/
+Route::prefix('shop')->name('pos.shop.')->group(function () {
+    Route::get('/{token}', [\App\Http\Controllers\Pos\PublicShopController::class, 'shop'])->name('public');
+    Route::post('/{token}/cart/add', [\App\Http\Controllers\Pos\PublicShopController::class, 'addToCart'])->name('cart.add');
+    Route::post('/{token}/cart/update', [\App\Http\Controllers\Pos\PublicShopController::class, 'updateCart'])->name('cart.update');
+    Route::post('/{token}/cart/remove', [\App\Http\Controllers\Pos\PublicShopController::class, 'removeFromCart'])->name('cart.remove');
+    Route::get('/{token}/cart', [\App\Http\Controllers\Pos\PublicShopController::class, 'getCart'])->name('cart.get');
+    Route::post('/{token}/discount/apply', [\App\Http\Controllers\Pos\PublicShopController::class, 'applyDiscount'])->name('discount.apply');
+    Route::get('/{token}/checkout', [\App\Http\Controllers\Pos\PublicShopController::class, 'checkout'])->name('checkout');
+    Route::post('/{token}/checkout', [\App\Http\Controllers\Pos\PublicShopController::class, 'processCheckout'])->name('checkout.process');
+    Route::get('/{token}/order/{order}/confirmation', [\App\Http\Controllers\Pos\PublicShopController::class, 'orderConfirmation'])->name('order-confirmation');
+    Route::get('/{token}/order/{order}/payment', [\App\Http\Controllers\Pos\PaymentController::class, 'initiatePayment'])->name('payment');
+    Route::post('/{token}/order/{order}/payment', [\App\Http\Controllers\Pos\PaymentController::class, 'initiatePayment'])->name('payment.initiate');
+    Route::get('/{token}/order/{order}/payment-status', [\App\Http\Controllers\Pos\PaymentController::class, 'paymentStatus'])->name('payment-status');
+    Route::post('/{token}/order/{order}/verify-payment', [\App\Http\Controllers\Pos\PaymentController::class, 'verifyPayment'])->name('verify-payment');
 });
 
 // Include teacher routes
