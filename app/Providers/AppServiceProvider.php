@@ -29,20 +29,36 @@ class AppServiceProvider extends ServiceProvider
 
     protected function ensureCriticalPermissions(): void
     {
-        if (!class_exists(Permission::class) || !Schema::hasTable('permissions')) {
-            return;
-        }
+        try {
+            if (!class_exists(Permission::class) || !Schema::hasTable('permissions')) {
+                return;
+            }
 
-        $required = [
-            'curriculum_designs.view',
-            'curriculum_designs.view_own',
-            'curriculum_designs.create',
-            'curriculum_designs.edit',
-            'curriculum_designs.delete',
-        ];
+            // Check if permissions table has the correct structure (guard_name column)
+            // Skip if table has old custom structure (module/feature columns)
+            if (Schema::hasColumn('permissions', 'module') || !Schema::hasColumn('permissions', 'guard_name')) {
+                return; // Skip until table structure is fixed by migrations
+            }
 
-        foreach ($required as $permission) {
-            Permission::findOrCreate($permission, 'web');
+            // Verify Spatie permission tables exist before trying to use them
+            if (!Schema::hasTable('role_has_permissions') || !Schema::hasTable('model_has_permissions')) {
+                return; // Skip until Spatie tables are created
+            }
+
+            $required = [
+                'curriculum_designs.view',
+                'curriculum_designs.view_own',
+                'curriculum_designs.create',
+                'curriculum_designs.edit',
+                'curriculum_designs.delete',
+            ];
+
+            foreach ($required as $permission) {
+                Permission::findOrCreate($permission, 'web');
+            }
+        } catch (\Exception $e) {
+            // Silently fail if permissions can't be created yet
+            // This can happen during migrations or if tables aren't ready
         }
     }
 }

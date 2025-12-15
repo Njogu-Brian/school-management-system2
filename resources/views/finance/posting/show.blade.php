@@ -6,7 +6,7 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h3 class="mb-0">
-                    <i class="bi bi-clock-history"></i> Posting Run Details
+                    <i class="bi bi-clock-history"></i> Posting Run #{{ $run->id }}
                 </h3>
                 <div>
                     @if($run->canBeReversed())
@@ -39,7 +39,7 @@
                         </span>
                     </p>
                     <p class="mb-2">
-                        <strong>Academic Year:</strong> {{ $run->academicYear->year ?? 'N/A' }}
+                        <strong>Academic Year:</strong> {{ $run->academicYear->name ?? 'N/A' }}
                     </p>
                     <p class="mb-2">
                         <strong>Term:</strong> {{ $run->term->name ?? 'N/A' }}
@@ -116,40 +116,10 @@
                             <th class="text-end">Old Amount</th>
                             <th class="text-end">New Amount</th>
                             <th class="text-end">Difference</th>
-                            @if($run->canBeReversed())
-                            <th>Actions</th>
-                            @endif
                         </tr>
                     </thead>
                     <tbody>
-                        @php
-                            $groupedByStudent = $run->diffs->groupBy('student_id');
-                        @endphp
-                        @foreach($groupedByStudent as $studentId => $studentDiffs)
-                        @php
-                            $student = $studentDiffs->first()->student;
-                        @endphp
-                        <tr class="table-secondary">
-                            <td colspan="{{ $run->canBeReversed() ? '7' : '6' }}">
-                                <strong>
-                                    {{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}
-                                    @if($student)
-                                    <small class="text-muted">({{ $student->admission_number }})</small>
-                                    @endif
-                                </strong>
-                                @if($run->canBeReversed())
-                                <form action="{{ route('finance.posting.reverse-student', ['run' => $run, 'student' => $studentId]) }}" 
-                                      method="POST" class="d-inline float-end"
-                                      onsubmit="return confirm('Are you sure you want to reverse all changes for this student?');">
-                                    @csrf
-                                    <button type="submit" class="btn btn-sm btn-danger">
-                                        <i class="bi bi-arrow-counterclockwise"></i> Reverse Student
-                                    </button>
-                                </form>
-                                @endif
-                            </td>
-                        </tr>
-                        @foreach($studentDiffs as $diff)
+                        @foreach($run->diffs as $diff)
                         @php
                             $oldAmount = $diff->old_amount ?? 0;
                             $newAmount = $diff->new_amount ?? 0;
@@ -164,7 +134,12 @@
                             };
                         @endphp
                         <tr>
-                            <td></td>
+                            <td>
+                                {{ $diff->student->first_name ?? 'N/A' }} {{ $diff->student->last_name ?? '' }}
+                                @if($diff->student)
+                                <br><small class="text-muted">{{ $diff->student->admission_number }}</small>
+                                @endif
+                            </td>
                             <td>{{ $diff->votehead->name ?? 'Votehead #' . $diff->votehead_id }}</td>
                             <td>
                                 <span class="badge {{ $badgeClass }}">
@@ -186,11 +161,7 @@
                                     <span class="text-muted">0.00</span>
                                 @endif
                             </td>
-                            @if($run->canBeReversed())
-                            <td></td>
-                            @endif
                         </tr>
-                        @endforeach
                         @endforeach
                     </tbody>
                 </table>

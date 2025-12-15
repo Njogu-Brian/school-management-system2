@@ -258,6 +258,79 @@ if (!function_exists('get_subordinates')) {
 }
 
 /**
+ * Get current academic year (as integer)
+ */
+if (!function_exists('get_current_academic_year')) {
+    function get_current_academic_year(): ?int
+    {
+        $year = \App\Models\AcademicYear::where('is_active', true)->first();
+        return $year ? (int)$year->year : null;
+    }
+}
+
+/**
+ * Get current academic year model
+ */
+if (!function_exists('get_current_academic_year_model')) {
+    function get_current_academic_year_model(): ?\App\Models\AcademicYear
+    {
+        return \App\Models\AcademicYear::where('is_active', true)->first();
+    }
+}
+
+/**
+ * Get current term number (1, 2, or 3)
+ */
+if (!function_exists('get_current_term_number')) {
+    function get_current_term_number(): ?int
+    {
+        $term = \App\Models\Term::where('is_current', true)->first();
+        if (!$term) {
+            return null;
+        }
+        
+        // Extract term number from name (e.g., "Term 1" -> 1, "Term 2" -> 2, "Term 3" -> 3)
+        if (preg_match('/\d+/', $term->name, $matches)) {
+            return (int)$matches[0];
+        }
+        
+        return null;
+    }
+}
+
+/**
+ * Get current term model
+ */
+if (!function_exists('get_current_term_model')) {
+    function get_current_term_model(): ?\App\Models\Term
+    {
+        return \App\Models\Term::where('is_current', true)->first();
+    }
+}
+
+/**
+ * Get current term ID
+ */
+if (!function_exists('get_current_term_id')) {
+    function get_current_term_id(): ?int
+    {
+        $term = get_current_term_model();
+        return $term ? $term->id : null;
+    }
+}
+
+/**
+ * Get current academic year ID
+ */
+if (!function_exists('get_current_academic_year_id')) {
+    function get_current_academic_year_id(): ?int
+    {
+        $year = get_current_academic_year_model();
+        return $year ? $year->id : null;
+    }
+}
+
+/**
  * Check if a staff member is supervised by the current user
  */
 if (!function_exists('is_my_subordinate')) {

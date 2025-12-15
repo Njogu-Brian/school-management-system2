@@ -10,14 +10,10 @@ class FeeConcession extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'discount_template_id',
         'student_id',
         'family_id',
         'votehead_id',
         'invoice_id',
-        'term',
-        'year',
-        'academic_year_id',
         'type',
         'discount_type',
         'frequency',
@@ -28,8 +24,6 @@ class FeeConcession extends Model
         'start_date',
         'end_date',
         'is_active',
-        'approval_status',
-        'rejection_reason',
         'approved_by',
         'created_by',
     ];
@@ -40,16 +34,6 @@ class FeeConcession extends Model
         'is_active' => 'boolean',
         'value' => 'decimal:2',
     ];
-
-    public function discountTemplate(): BelongsTo
-    {
-        return $this->belongsTo(DiscountTemplate::class);
-    }
-
-    public function academicYear(): BelongsTo
-    {
-        return $this->belongsTo(AcademicYear::class);
-    }
 
     public function student()
     {

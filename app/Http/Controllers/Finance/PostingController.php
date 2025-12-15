@@ -24,19 +24,12 @@ class PostingController extends Controller
         $streams    = \App\Models\Academics\Stream::orderBy('name')->get();
         $voteheads  = \App\Models\Votehead::orderBy('name')->get();
         
-        // Get current academic year and term
-        $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
-        $currentTerm = \App\Models\Term::where('is_current', true)->first();
-        
-        $defaultYear = $currentYear ? (int)$currentYear->year : (int)date('Y');
-        $defaultTerm = $currentTerm ? (int)preg_replace('/[^0-9]/', '', $currentTerm->name) : 1;
-        
         // Get posting run history
         $runs = FeePostingRun::with(['academicYear', 'term', 'postedBy'])
             ->orderBy('posted_at', 'desc')
             ->paginate(20);
 
-        return view('finance.posting.index', compact('classrooms','streams','voteheads','runs','defaultYear','defaultTerm'));
+        return view('finance.posting.index', compact('classrooms','streams','voteheads','runs'));
     }
 
     public function preview(Request $request)
@@ -97,16 +90,6 @@ class PostingController extends Controller
             return redirect()
                 ->route('finance.posting.index')
                 ->with('success', "Posting run #{$run->id} reversed successfully.");
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
-    }
-    
-    public function reverseStudent(FeePostingRun $run, int $student)
-    {
-        try {
-            $this->postingService->reversePostingForStudent($run, $student);
-            return back()->with('success', "Changes for student reversed successfully.");
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }

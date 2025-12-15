@@ -333,15 +333,17 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 @endphp
 <a href="#financeMenu" data-bs-toggle="collapse"aria-expanded="{{ $financeActive ? 'true' : 'false' }}"class="{{ $financeActive ? 'parent-active' : '' }}"><i class="bi bi-currency-dollar"></i> Finance</a>
 <div class="collapse {{ $financeActive ? 'show' : '' }}" id="financeMenu">
-    <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}">Voteheads</a>
-    <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}">Fee Structures</a>
-    <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}">Invoices</a>
-    <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}">Optional Fees</a>
-    <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}">Payment Plans</a>
-    <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}">Fee Concessions</a>
-    <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}">Fee Reminders</a>
-    <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}">Posting (Pending → Active)</a>
-    <a href="{{ route('finance.journals.create') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}">Credit / Debit Adjustments</a>
+    <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Voteheads</a>
+    <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
+    <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
+    <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
+    <a href="{{ route('finance.discounts.index') }}"class="{{ Request::is('finance/discounts*') ? 'active' : '' }}"><i class="bi bi-percent"></i> Discounts</a>
+    <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
+    <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
+    <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
+    <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
+    <a href="{{ route('finance.journals.create') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
 </div>
 
 <!-- HR -->
@@ -544,6 +546,36 @@ class="{{ $inventoryActive ? 'parent-active' : '' }}">
     <a href="{{ route('inventory.requisitions.index') }}" 
     class="sublink {{ Request::is('inventory/requisitions*') ? 'active' : '' }}">
         <i class="bi bi-cart-check"></i> Requisitions
+    </a>
+</div>
+
+<!-- Point of Sale (POS) -->
+@php $posActive = Request::is('pos*'); @endphp
+<a href="#posMenu" data-bs-toggle="collapse" 
+aria-expanded="{{ $posActive ? 'true' : 'false' }}"
+class="{{ $posActive ? 'parent-active' : '' }}">
+    <i class="bi bi-shop"></i> Point of Sale
+</a>
+<div class="collapse {{ $posActive ? 'show' : '' }}" id="posMenu">
+    <a href="{{ route('pos.products.index') }}" 
+    class="sublink {{ Request::is('pos/products*') ? 'active' : '' }}">
+        <i class="bi bi-box-seam"></i> Products
+    </a>
+    <a href="{{ route('pos.orders.index') }}" 
+    class="sublink {{ Request::is('pos/orders*') ? 'active' : '' }}">
+        <i class="bi bi-receipt"></i> Orders
+    </a>
+    <a href="{{ route('pos.discounts.index') }}" 
+    class="sublink {{ Request::is('pos/discounts*') ? 'active' : '' }}">
+        <i class="bi bi-tag"></i> Discounts
+    </a>
+    <a href="{{ route('pos.public-links.index') }}" 
+    class="sublink {{ Request::is('pos/public-links*') ? 'active' : '' }}">
+        <i class="bi bi-link-45deg"></i> Public Links
+    </a>
+    <a href="{{ route('pos.uniforms.index') }}" 
+    class="sublink {{ Request::is('pos/uniforms*') ? 'active' : '' }}">
+        <i class="bi bi-person-badge"></i> Uniforms
     </a>
 </div>
 

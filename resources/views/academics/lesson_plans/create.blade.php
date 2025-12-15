@@ -64,7 +64,7 @@
                         <select name="academic_year_id" class="form-select @error('academic_year_id') is-invalid @enderror" required>
                             <option value="">Select Year</option>
                             @foreach($years as $year)
-                                <option value="{{ $year->id }}" {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
+                                <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYearId ?? null) == $year->id ? 'selected' : '' }}>
                                     {{ $year->year }}
                                 </option>
                             @endforeach
@@ -79,7 +79,7 @@
                         <select name="term_id" class="form-select @error('term_id') is-invalid @enderror" required>
                             <option value="">Select Term</option>
                             @foreach($terms as $term)
-                                <option value="{{ $term->id }}" {{ old('term_id') == $term->id ? 'selected' : '' }}>
+                                <option value="{{ $term->id }}" {{ old('term_id', $currentTermId ?? null) == $term->id ? 'selected' : '' }}>
                                     {{ $term->name }}
                                 </option>
                             @endforeach

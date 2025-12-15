@@ -25,7 +25,7 @@
                     <label class="form-label">Academic Year</label>
                     <select name="academic_year_id" class="form-select" required>
                         @foreach($years as $year)
-                            <option value="{{ $year->id }}" {{ ($selectedYear && $selectedYear->id == $year->id) || (!$selectedYear && $loop->first) ? 'selected' : '' }}>
+                            <option value="{{ $year->id }}" {{ ($selectedYear && $selectedYear->id == $year->id) || (!$selectedYear && ($currentYearId ?? null) == $year->id) || (!$selectedYear && !$currentYearId && $loop->first) ? 'selected' : '' }}>
                                 {{ $year->year }}
                             </option>
                         @endforeach
@@ -35,7 +35,7 @@
                     <label class="form-label">Term</label>
                     <select name="term_id" class="form-select" required>
                         @foreach($terms as $term)
-                            <option value="{{ $term->id }}" {{ ($selectedTerm && $selectedTerm->id == $term->id) || (!$selectedTerm && $loop->first) ? 'selected' : '' }}>
+                            <option value="{{ $term->id }}" {{ ($selectedTerm && $selectedTerm->id == $term->id) || (!$selectedTerm && ($currentTermId ?? null) == $term->id) || (!$selectedTerm && !$currentTermId && $loop->first) ? 'selected' : '' }}>
                                 {{ $term->name }}
                             </option>
                         @endforeach

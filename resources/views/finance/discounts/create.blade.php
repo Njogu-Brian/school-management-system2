@@ -5,7 +5,7 @@
     <div class="row mb-4">
         <div class="col-12">
             <h3 class="mb-0">
-                <i class="bi bi-plus-circle"></i> Create Discount Template
+                <i class="bi bi-plus-circle"></i> Create Fee Discount
             </h3>
         </div>
     </div>
@@ -94,49 +94,14 @@
                                 @enderror
                             </div>
 
-                            <!-- Sibling Discount Rules (only shown for sibling discount type) -->
-                            <div class="col-md-12" id="sibling_rules_section" style="display: none;">
-                                <label class="form-label">Sibling Discount Rules</label>
-                                <div class="alert alert-info">
-                                    <small>Define discount percentage for each child position. Leave blank to use base value × position.</small>
-                                </div>
-                                <div class="row g-2" id="sibling_rules_container">
-                                    <div class="col-md-3">
-                                        <label class="form-label small">2nd Child (%)</label>
-                                        <input type="number" name="sibling_rules[2]" class="form-control form-control-sm" 
-                                               value="{{ old('sibling_rules.2') }}" step="0.01" min="0" max="100">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label small">3rd Child (%)</label>
-                                        <input type="number" name="sibling_rules[3]" class="form-control form-control-sm" 
-                                               value="{{ old('sibling_rules.3') }}" step="0.01" min="0" max="100">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label small">4th Child (%)</label>
-                                        <input type="number" name="sibling_rules[4]" class="form-control form-control-sm" 
-                                               value="{{ old('sibling_rules.4') }}" step="0.01" min="0" max="100">
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label small">5th Child (%)</label>
-                                        <input type="number" name="sibling_rules[5]" class="form-control form-control-sm" 
-                                               value="{{ old('sibling_rules.5') }}" step="0.01" min="0" max="100">
-                                    </div>
-                                </div>
-                                <small class="text-muted">Example: 2nd child = 5%, 3rd child = 10%, 4th child = 15%</small>
-                            </div>
-
-                            <!-- Votehead Selection (only shown for votehead scope) -->
-                            <div class="col-md-12" id="votehead_selection_section" style="display: none;">
-                                <label class="form-label">Apply to Voteheads</label>
-                                <select name="votehead_ids[]" class="form-select @error('votehead_ids') is-invalid @enderror" multiple size="5">
-                                    @foreach(\App\Models\Votehead::orderBy('name')->get() as $votehead)
-                                        <option value="{{ $votehead->id }}" {{ in_array($votehead->id, old('votehead_ids', [])) ? 'selected' : '' }}>
-                                            {{ $votehead->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <small class="text-muted">Hold Ctrl/Cmd to select multiple voteheads. Leave empty to apply to all voteheads.</small>
-                                @error('votehead_ids')
+                            <div class="col-md-6">
+                                <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                                <input type="date" 
+                                       name="start_date" 
+                                       class="form-control @error('start_date') is-invalid @enderror" 
+                                       value="{{ old('start_date', date('Y-m-d')) }}" 
+                                       required>
+                                @error('start_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
@@ -151,19 +116,6 @@
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                                 <small class="text-muted">Leave blank for no expiry</small>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label class="form-label">Template Name <span class="text-danger">*</span></label>
-                                <input type="text" 
-                                       name="name" 
-                                       class="form-control @error('name') is-invalid @enderror" 
-                                       value="{{ old('name') }}" 
-                                       placeholder="e.g., Sibling Discount 10%" 
-                                       required>
-                                @error('name')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
                             </div>
 
                             <div class="col-md-12">
@@ -193,12 +145,12 @@
                                 <div class="form-check">
                                     <input class="form-check-input" 
                                            type="checkbox" 
-                                           name="requires_approval" 
+                                           name="auto_approve" 
                                            value="1" 
-                                           id="requires_approval"
-                                           {{ old('requires_approval', true) ? 'checked' : '' }}>
-                                    <label class="form-check-label" for="requires_approval">
-                                        Requires approval when allocated
+                                           id="auto_approve"
+                                           {{ old('auto_approve') ? 'checked' : '' }}>
+                                    <label class="form-check-label" for="auto_approve">
+                                        Auto-approve discount
                                     </label>
                                 </div>
                             </div>
@@ -210,19 +162,50 @@
             <div class="col-md-4">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white">
-                        <h5 class="mb-0">Template Info</h5>
+                        <h5 class="mb-0">Apply To</h5>
                     </div>
                     <div class="card-body">
-                        <div class="alert alert-info">
-                            <i class="bi bi-info-circle"></i> 
-                            <small>This creates a discount template. To assign it to students, use the "Allocate Discount" option after creation.</small>
+                        <div class="mb-3" id="student_selector">
+                            <label class="form-label">Student</label>
+                            <select name="student_id" class="form-select">
+                                <option value="">-- Select Student --</option>
+                                @foreach($students as $student)
+                                    <option value="{{ $student->id }}" {{ old('student_id') == $student->id ? 'selected' : '' }}>
+                                        {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="votehead_selector" style="display: none;">
+                            <label class="form-label">Votehead</label>
+                            <select name="votehead_id" class="form-select">
+                                <option value="">-- Select Votehead --</option>
+                                @foreach($voteheads as $votehead)
+                                    <option value="{{ $votehead->id }}" {{ old('votehead_id') == $votehead->id ? 'selected' : '' }}>
+                                        {{ $votehead->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="mb-3" id="invoice_selector" style="display: none;">
+                            <label class="form-label">Invoice</label>
+                            <select name="invoice_id" class="form-select">
+                                <option value="">-- Select Invoice --</option>
+                                @foreach($invoices as $invoice)
+                                    <option value="{{ $invoice->id }}" {{ old('invoice_id') == $invoice->id ? 'selected' : '' }}>
+                                        {{ $invoice->invoice_number }} - {{ $invoice->student->first_name ?? 'N/A' }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                     </div>
                 </div>
 
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> Create Template
+                        <i class="bi bi-check-circle"></i> Create Discount
                     </button>
                     <a href="{{ route('finance.discounts.index') }}" class="btn btn-secondary">
                         <i class="bi bi-arrow-left"></i> Cancel
@@ -236,40 +219,30 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const scopeSelect = document.getElementById('scope');
+    const studentSelector = document.getElementById('student_selector');
+    const voteheadSelector = document.getElementById('votehead_selector');
+    const invoiceSelector = document.getElementById('invoice_selector');
     const discountType = document.getElementById('discount_amount_type');
     const valueSuffix = document.getElementById('value_suffix');
-    const discountTypeSelect = document.querySelector('select[name="discount_type"]');
-    const scopeSelect = document.getElementById('scope');
-    const siblingRulesSection = document.getElementById('sibling_rules_section');
-    const voteheadSelectionSection = document.getElementById('votehead_selection_section');
+
+    // Handle scope changes
+    scopeSelect.addEventListener('change', function() {
+        studentSelector.style.display = (this.value === 'student' || this.value === 'family') ? 'block' : 'none';
+        voteheadSelector.style.display = this.value === 'votehead' ? 'block' : 'none';
+        invoiceSelector.style.display = this.value === 'invoice' ? 'block' : 'none';
+    });
+
+    // Trigger on page load
+    scopeSelect.dispatchEvent(new Event('change'));
 
     // Handle discount type change
     discountType.addEventListener('change', function() {
         valueSuffix.textContent = this.value === 'percentage' ? '%' : 'Ksh';
     });
 
-    // Handle discount type (sibling, referral, etc.) change
-    discountTypeSelect.addEventListener('change', function() {
-        if (this.value === 'sibling') {
-            siblingRulesSection.style.display = 'block';
-        } else {
-            siblingRulesSection.style.display = 'none';
-        }
-    });
-
-    // Handle scope change
-    scopeSelect.addEventListener('change', function() {
-        if (this.value === 'votehead') {
-            voteheadSelectionSection.style.display = 'block';
-        } else {
-            voteheadSelectionSection.style.display = 'none';
-        }
-    });
-
     // Trigger on page load
     discountType.dispatchEvent(new Event('change'));
-    discountTypeSelect.dispatchEvent(new Event('change'));
-    scopeSelect.dispatchEvent(new Event('change'));
 });
 </script>
 @endpush

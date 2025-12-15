@@ -14,8 +14,8 @@
                        class="btn btn-outline-secondary">
                        <i class="bi bi-printer"></i> Print Bulk PDF
                     </a>
-                    <a href="{{ route('finance.posting.index') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Post Pending Fees
+                    <a href="{{ route('finance.invoices.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create Invoice
                     </a>
                 </div>
             </div>
@@ -33,14 +33,14 @@
                     <input type="number" 
                            class="form-control" 
                            name="year" 
-                           value="{{ request('year', $currentYear ?? now()->year) }}">
+                           value="{{ request('year', now()->year) }}">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Term</label>
                     <select name="term" class="form-select">
                         <option value="">All Terms</option>
                         @for($i=1;$i<=3;$i++)
-                            <option value="{{ $i }}" {{ (request('term', $currentTermNumber ?? null) == $i) ? 'selected':'' }}>Term {{ $i }}</option>
+                            <option value="{{ $i }}" {{ request('term') == $i ? 'selected':'' }}>Term {{ $i }}</option>
                         @endfor
                     </select>
                 </div>
@@ -166,9 +166,14 @@
                                 <div class="btn-group btn-group-sm">
                                     <a href="{{ route('finance.invoices.show', $inv) }}" 
                                        class="btn btn-outline-primary" 
+                                       title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ route('finance.invoices.print_single', $inv) }}" 
+                                       class="btn btn-outline-secondary" 
                                        target="_blank"
-                                       title="View Invoice PDF">
-                                        <i class="bi bi-eye"></i> View
+                                       title="Print">
+                                        <i class="bi bi-printer"></i>
                                     </a>
                                 </div>
                             </td>

@@ -35,14 +35,14 @@
                     <select name="term" class="form-select" required>
                         <option value="">Select Term</option>
                         @for($i = 1; $i <= 3; $i++)
-                            <option value="{{ $i }}" {{ request('term') == $i ? 'selected' : '' }}>Term {{ $i }}</option>
+                            <option value="{{ $i }}" {{ (request('term', $currentTermNumber ?? 1) == $i) ? 'selected' : '' }}>Term {{ $i }}</option>
                         @endfor
                     </select>
                 </div>
 
                 <div class="col-md-2">
                     <label class="form-label">Year</label>
-                    <input type="number" name="year" value="{{ request('year') ?? now()->year }}" class="form-control" required>
+                    <input type="number" name="year" value="{{ request('year', $currentYear ?? now()->year) }}" class="form-control" required>
                 </div>
 
                 <div class="col-md-3">

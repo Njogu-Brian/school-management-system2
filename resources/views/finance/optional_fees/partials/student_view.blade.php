@@ -21,14 +21,14 @@
         <select name="term" id="termSelect" class="form-select" required>
             <option value="">Select</option>
             @for($i = 1; $i <= 3; $i++)
-                <option value="{{ $i }}" {{ request('term') == $i ? 'selected' : '' }}>Term {{ $i }}</option>
+                <option value="{{ $i }}" {{ (request('term', $currentTermNumber ?? 1) == $i) ? 'selected' : '' }}>Term {{ $i }}</option>
             @endfor
         </select>
     </div>
 
     <div class="col-md-3">
         <label class="form-label">Year</label>
-        <input type="number" name="year" id="yearInput" value="{{ request('year') ?? now()->year }}" class="form-control" required>
+        <input type="number" name="year" id="yearInput" value="{{ request('year', $currentYear ?? now()->year) }}" class="form-control" required>
     </div>
 </form>
 
@@ -56,7 +56,11 @@
                             <li>
                                 <strong>{{ $votehead->name }}:</strong>
                                 @foreach($activities as $activity)
-                                    {{ $activity->activity_name }}@if($activity->fee_amount) (KES {{ number_format($activity->fee_amount, 2) }})@endif@if(!$loop->last), @endif
+                                    {{ $activity->activity_name }}
+                                    @if($activity->fee_amount)
+                                        (KES {{ number_format($activity->fee_amount, 2) }})
+                                    @endif
+                                    @if(!$loop->last), @endif
                                 @endforeach
                             </li>
                         @endforeach

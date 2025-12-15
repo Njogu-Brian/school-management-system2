@@ -9,7 +9,8 @@ class StudentRequirement extends Model
     protected $fillable = [
         'student_id', 'requirement_template_id', 'academic_year_id', 'term_id',
         'collected_by', 'quantity_required', 'quantity_collected', 'quantity_missing',
-        'status', 'collected_at', 'notes', 'notified_parent'
+        'status', 'collected_at', 'notes', 'notified_parent',
+        'pos_order_id', 'pos_order_item_id', 'purchased_through_pos'
     ];
 
     protected $casts = [
@@ -18,6 +19,7 @@ class StudentRequirement extends Model
         'quantity_missing' => 'decimal:2',
         'collected_at' => 'datetime',
         'notified_parent' => 'boolean',
+        'purchased_through_pos' => 'boolean',
     ];
 
     public function student()
@@ -48,6 +50,16 @@ class StudentRequirement extends Model
     public function inventoryTransaction()
     {
         return $this->hasOne(InventoryTransaction::class);
+    }
+
+    public function posOrder()
+    {
+        return $this->belongsTo(\App\Models\Pos\Order::class, 'pos_order_id');
+    }
+
+    public function posOrderItem()
+    {
+        return $this->belongsTo(\App\Models\Pos\OrderItem::class, 'pos_order_item_id');
     }
 
     public function updateStatus()

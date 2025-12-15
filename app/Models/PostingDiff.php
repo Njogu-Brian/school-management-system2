@@ -26,7 +26,7 @@ class PostingDiff extends Model
 
     public function postingRun(): BelongsTo
     {
-        return $this->belongsTo(FeePostingRun::class, 'posting_run_id');
+        return $this->belongsTo(FeePostingRun::class);
     }
 
     public function student(): BelongsTo

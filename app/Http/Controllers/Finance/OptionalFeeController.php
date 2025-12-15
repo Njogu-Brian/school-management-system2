@@ -39,11 +39,18 @@ class OptionalFeeController extends Controller
         $allStudents       = Student::select('id','first_name','last_name','admission_number')
             ->orderBy('first_name')->get();
 
+        // Get current academic year and term for defaults
+        $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
+        $currentTerm = \App\Models\Term::where('is_current', true)->first();
+        
+        $defaultYear = $currentYear ? (int)$currentYear->year : (int)date('Y');
+        $defaultTerm = $currentTerm ? (int)preg_replace('/[^0-9]/', '', $currentTerm->name) : 1;
+
         $students = collect();   // class view list
         $student  = null;        // selected student (student view)
         $statuses = [];          // map for checked radios
-        $term     = $request?->term;
-        $year     = $request?->year;
+        $term     = $request?->term ?? $defaultTerm;
+        $year     = $request?->year ?? $defaultYear;
 
         // -------- CLASS VIEW --------
         if ($view === 'class' && $request?->filled(['classroom_id','term','year','votehead_id'])) {
@@ -90,6 +97,7 @@ class OptionalFeeController extends Controller
         }
 
         return view('finance.optional_fees.index', compact(
+            'defaultYear', 'defaultTerm',
             'view', 'classrooms', 'optionalVoteheads', 'allStudents',
             'students', 'student', 'statuses', 'term', 'year', 'linkedActivities'
         ));
@@ -158,6 +166,7 @@ class OptionalFeeController extends Controller
                         ]
                     );
 
+                    // Create invoice item as PENDING (not active) so it appears in pending fees preview
                     InvoiceItem::updateOrCreate(
                         [
                             'invoice_id' => $invoice->id,
@@ -165,6 +174,8 @@ class OptionalFeeController extends Controller
                         ],
                         [
                             'amount' => $amount,
+                            'status' => 'pending', // Pending until posted via Post Pending Fees
+                            'source' => 'optional',
                         ]
                     );
 
@@ -261,6 +272,7 @@ class OptionalFeeController extends Controller
                         ]
                     );
 
+                    // Create invoice item as PENDING (not active) so it appears in pending fees preview
                     InvoiceItem::updateOrCreate(
                         [
                             'invoice_id' => $invoice->id,
@@ -268,6 +280,8 @@ class OptionalFeeController extends Controller
                         ],
                         [
                             'amount' => $amount,
+                            'status' => 'pending', // Pending until posted via Post Pending Fees
+                            'source' => 'optional',
                         ]
                     );
 

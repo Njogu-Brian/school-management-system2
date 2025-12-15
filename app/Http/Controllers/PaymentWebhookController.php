@@ -69,6 +69,12 @@ class PaymentWebhookController extends Controller
                             'reference' => $result['mpesa_receipt_number'] ?? $transaction->reference,
                             'payment_date' => now(),
                         ]);
+
+                        // Handle POS order payment if exists
+                        $posOrder = \App\Models\Pos\Order::where('payment_transaction_id', $transaction->id)->first();
+                        if ($posOrder) {
+                            $this->processPosOrderPayment($posOrder, $transaction);
+                        }
                     });
 
                     $webhook->markAsProcessed();
@@ -122,6 +128,138 @@ class PaymentWebhookController extends Controller
     {
         // TODO: Implement PayPal webhook handling
         return response()->json(['message' => 'PayPal webhook not yet implemented'], 501);
+    }
+
+    /**
+     * Process POS order payment
+     */
+    protected function processPosOrderPayment(\App\Models\Pos\Order $order, PaymentTransaction $transaction)
+    {
+        // Mark order as paid
+        $order->markAsPaid($transaction->gateway, $transaction->transaction_id);
+        $order->payment_transaction_id = $transaction->id;
+        $order->save();
+
+        // Mark requirements as received for items purchased through POS
+        foreach ($order->items as $item) {
+            if ($item->requirement_template_id && $order->student_id) {
+                $studentRequirements = \App\Models\StudentRequirement::where('pos_order_id', $order->id)
+                    ->where('pos_order_item_id', $item->id)
+                    ->get();
+
+                foreach ($studentRequirements as $requirement) {
+                    $quantityToAdd = min(
+                        $item->quantity,
+                        $requirement->quantity_required - $requirement->quantity_collected
+                    );
+
+                    if ($quantityToAdd > 0) {
+                        $requirement->quantity_collected += $quantityToAdd;
+                        $requirement->collected_at = now();
+                        $requirement->updateStatus();
+                        $requirement->save();
+                    }
+                }
+            }
+
+            // Fulfill order items if in stock
+            if ($item->product && $item->product->isInStock()) {
+                $fulfillQuantity = min($item->quantity, $item->product->stock_quantity);
+                if ($fulfillQuantity > 0) {
+                    $item->fulfill($fulfillQuantity);
+
+                    // Update stock
+                    if ($item->product->track_stock) {
+                        if ($item->variant) {
+                            $item->variant->stock_quantity = max(0, $item->variant->stock_quantity - $fulfillQuantity);
+                            $item->variant->save();
+                        } else {
+                            $item->product->stock_quantity = max(0, $item->product->stock_quantity - $fulfillQuantity);
+                            $item->product->save();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Send notification to parent
+        $this->sendPosOrderConfirmation($order);
+    }
+
+    /**
+     * Send POS order confirmation notification
+     */
+    protected function sendPosOrderConfirmation(\App\Models\Pos\Order $order)
+    {
+        if (!$order->parent && !$order->student?->parent) {
+            return;
+        }
+
+        $parent = $order->parent ?? $order->student->parent;
+        $student = $order->student;
+        
+        try {
+            $commService = app(\App\Services\CommunicationService::class);
+
+            // Build order summary
+            $orderSummary = "Order #{$order->order_number}\n\n";
+            $orderSummary .= "Items Purchased:\n";
+            foreach ($order->items as $item) {
+                $orderSummary .= "- {$item->product_name}";
+                if ($item->variant_name) {
+                    $orderSummary .= " ({$item->variant_name})";
+                }
+                $orderSummary .= " x{$item->quantity} = KES " . number_format($item->total_price, 2) . "\n";
+            }
+            $orderSummary .= "\nSubtotal: KES " . number_format($order->subtotal, 2) . "\n";
+            if ($order->discount_amount > 0) {
+                $orderSummary .= "Discount: -KES " . number_format($order->discount_amount, 2) . "\n";
+            }
+            $orderSummary .= "Total: KES " . number_format($order->total_amount, 2) . "\n";
+            $orderSummary .= "Paid: KES " . number_format($order->paid_amount, 2) . "\n";
+            
+            if ($order->balance > 0) {
+                $orderSummary .= "\n⚠️ Balance Remaining: KES " . number_format($order->balance, 2);
+            } else {
+                $orderSummary .= "\n✅ Payment Complete!";
+            }
+
+            // Requirements status
+            $requirements = \App\Models\StudentRequirement::where('pos_order_id', $order->id)->get();
+            if ($requirements->count() > 0) {
+                $orderSummary .= "\n\nRequirements Status:\n";
+                foreach ($requirements as $req) {
+                    $status = $req->status === 'complete' ? '✅' : ($req->status === 'partial' ? '⚠️' : '❌');
+                    $orderSummary .= "{$status} {$req->requirementTemplate->requirementType->name}: ";
+                    $orderSummary .= number_format($req->quantity_collected, 2) . "/" . number_format($req->quantity_required, 2) . "\n";
+                }
+            }
+
+            $message = "Dear Parent,\n\n";
+            if ($student) {
+                $message .= "Payment confirmed for {$student->first_name} {$student->last_name}:\n\n";
+            }
+            $message .= $orderSummary;
+            $message .= "\n\nThank you for your purchase!";
+
+            // Send SMS
+            if ($parent->phone) {
+                $commService->sendSMS('parent', $parent->id, $parent->phone, $message, 'Order Payment Confirmation');
+            }
+
+            // Send Email
+            if ($parent->email) {
+                $htmlMessage = nl2br($message);
+                $commService->sendEmail('parent', $parent->id, $parent->email, 'Order Payment Confirmation - ' . $order->order_number, $htmlMessage);
+            }
+
+            \App\Models\ActivityLog::log('create', $order, "Payment confirmation sent for POS order {$order->order_number}");
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to send POS order confirmation', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }
 

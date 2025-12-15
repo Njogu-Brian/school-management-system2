@@ -67,7 +67,6 @@ use App\Http\Controllers\Finance\ReceiptController;
 use App\Http\Controllers\Finance\FeeReminderController;
 use App\Http\Controllers\Finance\FeePaymentPlanController;
 use App\Http\Controllers\Finance\FeeConcessionController;
-use App\Http\Controllers\Finance\DiscountController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -916,6 +915,8 @@ Route::middleware('auth')->group(function () {
         // Invoices
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('/',               [InvoiceController::class, 'index'])->name('index');
+            Route::get('/create',         [InvoiceController::class, 'create'])->name('create');
+            Route::post('/generate',      [InvoiceController::class, 'generate'])->name('generate');
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
             Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
             Route::put('/{invoice}',      [InvoiceController::class, 'update'])->name('update');
@@ -981,9 +982,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/',       [PostingController::class, 'index'])->name('index');
             Route::post('/preview',[PostingController::class, 'preview'])->name('preview');
             Route::post('/commit', [PostingController::class, 'commit'])->name('commit');
-            Route::get('/{run:hash}',  [PostingController::class, 'show'])->name('show');
-            Route::post('/{run:hash}/reverse', [PostingController::class, 'reverse'])->name('reverse');
-            Route::post('/{run:hash}/reverse-student/{student}', [PostingController::class, 'reverseStudent'])->name('reverse-student');
+            Route::get('/{run}',  [PostingController::class, 'show'])->name('show');
+            Route::post('/{run}/reverse', [PostingController::class, 'reverse'])->name('reverse');
         });
 
         // Journals
@@ -1007,27 +1007,6 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DiscountController::class, 'index'])->name('index');
             Route::get('/create', [DiscountController::class, 'create'])->name('create');
             Route::post('/', [DiscountController::class, 'store'])->name('store');
-            
-            // Templates
-            Route::get('/templates', [DiscountController::class, 'templatesIndex'])->name('templates.index');
-            
-            // Allocation
-            Route::get('/allocate', [DiscountController::class, 'allocate'])->name('allocate');
-            Route::post('/allocate', [DiscountController::class, 'storeAllocation'])->name('allocate.store');
-            
-            // Allocations (Issued)
-            Route::get('/allocations', [DiscountController::class, 'allocationsIndex'])->name('allocations.index');
-            
-            // Approvals
-            Route::get('/approvals', [DiscountController::class, 'approvalsIndex'])->name('approvals.index');
-            Route::post('/approve/{discount}', [DiscountController::class, 'approve'])->name('approve');
-            Route::post('/reject/{discount}', [DiscountController::class, 'reject'])->name('reject');
-            
-            // Bulk Sibling Allocation (must come before /{discount} route)
-            Route::get('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSiblingForm'])->name('bulk-allocate-sibling');
-            Route::post('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSibling'])->name('bulk-allocate-sibling.store');
-            
-            // These routes with parameters should come last
             Route::get('/{discount}', [DiscountController::class, 'show'])->name('show');
             Route::post('/apply-sibling/{student}', [DiscountController::class, 'applySiblingDiscount'])->name('apply-sibling');
         });

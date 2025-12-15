@@ -228,6 +228,15 @@ class StudentController extends Controller
             }
 
             $this->sendAdmissionCommunication($student, $parent);
+            
+            // Charge fees for newly admitted student
+            try {
+                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student: ' . $e->getMessage(), [
+                    'student_id' => $student->id,
+                ]);
+            }
 
             return redirect()->route('students.index')->with('success', 'Student created successfully.');
         } catch (\Exception $e) {
@@ -660,6 +669,15 @@ class StudentController extends Controller
 
             if ($isNew) {
                 $this->sendAdmissionCommunication($student, $parent);
+                
+                // Charge fees for newly admitted student
+                try {
+                    \App\Services\FeePostingService::chargeFeesForNewStudent($student);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student: ' . $e->getMessage(), [
+                        'student_id' => $student->id,
+                    ]);
+                }
             }
 
             $imported++;

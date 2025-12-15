@@ -19,7 +19,6 @@ class Invoice extends Model
         'year', // Keep for backward compatibility during migration
         'term', // Keep for backward compatibility during migration
         'invoice_number',
-        'hash',
         'total',
         'paid_amount',
         'balance',
@@ -80,14 +79,6 @@ class Invoice extends Model
         return $this->hasMany(InvoiceItem::class);
     }
 
-    /**
-     * Get only active invoice items (excludes pending items)
-     */
-    public function activeItems(): HasMany
-    {
-        return $this->hasMany(InvoiceItem::class)->where('status', 'active');
-    }
-
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
@@ -110,20 +101,18 @@ class Invoice extends Model
 
     /**
      * Calculate and update invoice totals
-     * Only includes active items (excludes pending items)
      */
     public function recalculate(): void
     {
         $this->refresh();
         
-        // Calculate total from active items only (exclude pending items)
+        // Calculate total from active items only
         $this->total = $this->items()
             ->where('status', 'active')
             ->sum('amount');
         
-        // Calculate paid amount from allocations (only for active items)
+        // Calculate paid amount from allocations
         $this->paid_amount = $this->items()
-            ->where('status', 'active')
             ->join('payment_allocations', 'invoice_items.id', '=', 'payment_allocations.invoice_item_id')
             ->where('invoice_items.invoice_id', $this->id)
             ->sum('payment_allocations.amount');
@@ -151,46 +140,5 @@ class Invoice extends Model
     public function isOverdue(): bool
     {
         return $this->due_date && $this->due_date->isPast() && !$this->isPaid();
-    }
-
-    /**
-     * Boot method to auto-generate hash
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::created(function ($invoice) {
-            if (empty($invoice->hash)) {
-                $invoice->hash = static::generateHash($invoice->id, $invoice->invoice_number ?? 'INV');
-                $invoice->saveQuietly(); // Save without triggering events
-            }
-        });
-    }
-
-    /**
-     * Generate a unique hash for the invoice
-     */
-    public static function generateHash(int $id, string $prefix): string
-    {
-        $secret = config('app.key');
-        $data = $id . $prefix . $secret . microtime(true) . uniqid('', true);
-        return hash('sha256', $data);
-    }
-
-    /**
-     * Find invoice by hash
-     */
-    public static function findByHash(string $hash): ?self
-    {
-        return static::where('hash', $hash)->first();
-    }
-
-    /**
-     * Get route key name for model binding
-     */
-    public function getRouteKeyName(): string
-    {
-        return 'hash';
     }
 }

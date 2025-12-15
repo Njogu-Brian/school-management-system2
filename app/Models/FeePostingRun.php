@@ -6,19 +6,16 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\DB;
 use App\Models\{AcademicYear, Term, User, Invoice, InvoiceItem};
 
 class FeePostingRun extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'hash',
         'academic_year_id',
         'term_id',
         'run_type',
         'status',
-        'is_active',
         'posted_by',
         'posted_at',
         'reversed_by',
@@ -27,44 +24,13 @@ class FeePostingRun extends Model
         'items_posted_count',
         'notes',
     ];
-    
+
     protected $casts = [
         'filters_applied' => 'array',
         'posted_at' => 'datetime',
         'reversed_at' => 'datetime',
         'items_posted_count' => 'integer',
-        'is_active' => 'boolean',
     ];
-    
-    protected static function boot()
-    {
-        parent::boot();
-        
-        static::creating(function ($run) {
-            if (empty($run->hash)) {
-                $run->hash = $run->generateHash();
-            }
-        });
-    }
-    
-    /**
-     * Generate a unique hash for this posting run
-     */
-    public function generateHash(): string
-    {
-        $secret = config('app.key');
-        $data = ($this->id ?? time()) . 'RUN' . $secret . microtime(true);
-        return hash('sha256', $data);
-    }
-    
-    /**
-     * Get the route key for the model.
-     */
-    public function getRouteKeyName(): string
-    {
-        return 'hash';
-    }
-
 
     public function academicYear(): BelongsTo
     {
@@ -88,7 +54,7 @@ class FeePostingRun extends Model
 
     public function diffs(): HasMany
     {
-        return $this->hasMany(PostingDiff::class, 'posting_run_id');
+        return $this->hasMany(PostingDiff::class);
     }
 
     public function invoices(): HasMany
@@ -118,61 +84,7 @@ class FeePostingRun extends Model
 
     public function canBeReversed(): bool
     {
-        return $this->status === 'completed' 
-            && $this->run_type === 'commit' 
-            && !$this->reversed_at
-            && $this->is_active; // Only the active run can be reversed
-    }
-    
-    /**
-     * Get the latest active run
-     */
-    public static function getLatestActive(): ?self
-    {
-        return static::where('status', 'completed')
-            ->where('run_type', 'commit')
-            ->whereNull('reversed_at')
-            ->where('is_active', true)
-            ->orderBy('posted_at', 'desc')
-            ->first();
-    }
-    
-    /**
-     * Activate this run and deactivate all others
-     */
-    public function activate(): void
-    {
-        DB::transaction(function () {
-            // Deactivate all other runs
-            static::where('id', '!=', $this->id)
-                ->update(['is_active' => false]);
-            
-            // Activate this run
-            $this->update(['is_active' => true]);
-        });
-    }
-    
-    /**
-     * Deactivate this run and activate the previous latest
-     */
-    public function deactivateAndActivatePrevious(): void
-    {
-        DB::transaction(function () {
-            // Deactivate this run
-            $this->update(['is_active' => false]);
-            
-            // Find and activate the previous latest completed, non-reversed run
-            $previous = static::where('status', 'completed')
-                ->where('run_type', 'commit')
-                ->whereNull('reversed_at')
-                ->where('id', '!=', $this->id)
-                ->orderBy('posted_at', 'desc')
-                ->first();
-            
-            if ($previous) {
-                $previous->update(['is_active' => true]);
-            }
-        });
+        return $this->status === 'completed' && $this->run_type === 'commit' && !$this->reversed_at;
     }
 }
 

@@ -213,6 +213,16 @@ class OnlineAdmissionController extends Controller
                 'reviewed_by' => auth()->id(),
                 'review_date' => now(),
             ]);
+            
+            // Charge fees for newly admitted student
+            try {
+                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student from online admission: ' . $e->getMessage(), [
+                    'student_id' => $student->id,
+                    'admission_id' => $admission->id,
+                ]);
+            }
         });
 
         return redirect()->route('online-admissions.index')

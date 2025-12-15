@@ -2,8 +2,17 @@
 
 @section('content')
 <div class="container">
-    <h4 class="mb-3">Voteheads</h4>
-    <a href="{{ route('finance.voteheads.create') }}" class="btn btn-primary mb-3">Add Votehead</a>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Voteheads</h4>
+        <div class="d-flex gap-2">
+            <a href="{{ route('finance.voteheads.import') }}" class="btn btn-success">
+                <i class="fas fa-upload me-1"></i>Import Voteheads
+            </a>
+            <a href="{{ route('finance.voteheads.create') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-1"></i>Add Votehead
+            </a>
+        </div>
+    </div>
 
     @if(session('success'))
         <div class="alert alert-success">{{ session('success') }}</div>

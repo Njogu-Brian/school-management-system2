@@ -30,7 +30,7 @@
             <select name="academic_year_id" class="form-select" required>
               <option value="">Select Year</option>
               @foreach($academicYears as $year)
-                <option value="{{ $year->id }}">{{ $year->year }}</option>
+                <option value="{{ $year->id }}" {{ ($currentYearId ?? null) == $year->id ? 'selected' : '' }}>{{ $year->year }}</option>
               @endforeach
             </select>
           </div>
@@ -39,7 +39,7 @@
             <select name="term_id" class="form-select">
               <option value="">All Terms</option>
               @foreach($terms as $term)
-                <option value="{{ $term->id }}">{{ $term->name }}</option>
+                <option value="{{ $term->id }}" {{ ($currentTermId ?? null) == $term->id ? 'selected' : '' }}>{{ $term->name }}</option>
               @endforeach
             </select>
             <small class="text-muted">Leave empty for year-wide settings</small>

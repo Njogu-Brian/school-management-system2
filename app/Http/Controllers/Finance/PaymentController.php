@@ -7,16 +7,28 @@ use App\Models\Payment;
 use App\Models\PaymentTransaction;
 use App\Models\Invoice;
 use App\Models\Student;
+use App\Models\BankAccount;
+use App\Models\PaymentMethod;
 use App\Services\PaymentService;
+use App\Services\PaymentAllocationService;
+use App\Services\ReceiptService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
     protected PaymentService $paymentService;
+    protected PaymentAllocationService $allocationService;
+    protected ReceiptService $receiptService;
 
-    public function __construct(PaymentService $paymentService)
-    {
+    public function __construct(
+        PaymentService $paymentService,
+        PaymentAllocationService $allocationService,
+        ReceiptService $receiptService
+    ) {
         $this->paymentService = $paymentService;
+        $this->allocationService = $allocationService;
+        $this->receiptService = $receiptService;
     }
 
     public function index(Request $request)
@@ -46,44 +58,113 @@ class PaymentController extends Controller
             : ($studentId 
                 ? Invoice::where('student_id', $studentId)->where('status', '!=', 'paid')->get()
                 : Invoice::where('status', '!=', 'paid')->get());
+        
+        $bankAccounts = BankAccount::active()->get();
+        $paymentMethods = PaymentMethod::active()->get();
 
-        return view('finance.payments.create', compact('students', 'invoices', 'studentId', 'invoiceId'));
+        return view('finance.payments.create', compact(
+            'students', 'invoices', 'studentId', 'invoiceId',
+            'bankAccounts', 'paymentMethods'
+        ));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
-            'invoice_id' => 'required|exists:invoices,id',
-            'amount_paid' => 'required|numeric|min:1',
+            'invoice_id' => 'nullable|exists:invoices,id',
+            'amount' => 'required|numeric|min:1',
             'payment_date' => 'required|date',
-            'payment_method' => 'required|in:cash,mpesa,stripe,paypal,bank,cheque',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'payment_method' => 'nullable|string', // Fallback
             'reference' => 'nullable|string|max:255',
+            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'payer_name' => 'nullable|string|max:255',
+            'payer_type' => 'nullable|in:parent,sponsor,student,other',
+            'narration' => 'nullable|string',
+            'auto_allocate' => 'nullable|boolean',
+            'allocations' => 'nullable|array', // Manual allocations
+            'allocations.*.invoice_item_id' => 'required|exists:invoice_items,id',
+            'allocations.*.amount' => 'required|numeric|min:0.01',
         ]);
 
-        $invoice = Invoice::findOrFail($validated['invoice_id']);
-        
-        // Create payment record
-        $payment = Payment::create([
-            'student_id' => $validated['student_id'],
-            'invoice_id' => $validated['invoice_id'],
-            'amount' => $validated['amount_paid'],
-            'payment_method' => $validated['payment_method'],
-            'reference' => $validated['reference'],
-            'payment_date' => $validated['payment_date'],
-        ]);
+        $student = Student::findOrFail($validated['student_id']);
 
-        // Update invoice
-        $invoice->increment('paid_amount', $validated['amount_paid']);
-        $invoice->update(['balance' => $invoice->total_amount - $invoice->paid_amount]);
-        
-        if ($invoice->balance <= 0) {
-            $invoice->update(['status' => 'paid']);
-        }
+        DB::transaction(function () use ($validated, $student) {
+            // Create payment
+            $payment = Payment::create([
+                'student_id' => $validated['student_id'],
+                'family_id' => $student->family_id,
+                'invoice_id' => $validated['invoice_id'] ?? null,
+                'amount' => $validated['amount'],
+                'payment_method' => $validated['payment_method'] ?? null,
+                'payment_method_id' => $validated['payment_method_id'] ?? null,
+                'reference' => $validated['reference'],
+                'bank_account_id' => $validated['bank_account_id'] ?? null,
+                'payer_name' => $validated['payer_name'],
+                'payer_type' => $validated['payer_type'],
+                'narration' => $validated['narration'],
+                'payment_date' => $validated['payment_date'],
+            ]);
+
+            // Allocate payment
+            if ($validated['auto_allocate'] ?? false) {
+                $this->allocationService->autoAllocate($payment);
+            } elseif (!empty($validated['allocations'])) {
+                $this->allocationService->allocatePayment($payment, $validated['allocations']);
+            }
+            
+            // Handle overpayment
+            if ($payment->hasOverpayment()) {
+                $this->allocationService->handleOverpayment($payment);
+            }
+            
+            // Log audit
+            if (class_exists(\App\Models\AuditLog::class)) {
+                \App\Models\AuditLog::log(
+                    'created',
+                    $payment,
+                    null,
+                    [
+                        'amount' => $payment->amount,
+                        'student_id' => $payment->student_id,
+                        'payment_method_id' => $payment->payment_method_id,
+                    ],
+                    ['payment_recorded']
+                );
+            }
+        });
 
         return redirect()
             ->route('finance.payments.index')
             ->with('success', 'Payment recorded successfully.');
+    }
+    
+    public function allocate(Request $request, Payment $payment)
+    {
+        $validated = $request->validate([
+            'allocations' => 'required|array',
+            'allocations.*.invoice_item_id' => 'required|exists:invoice_items,id',
+            'allocations.*.amount' => 'required|numeric|min:0.01',
+        ]);
+
+        try {
+            $this->allocationService->allocatePayment($payment, $validated['allocations']);
+            return redirect()
+                ->route('finance.payments.show', $payment)
+                ->with('success', 'Payment allocated successfully.');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+    
+    public function printReceipt(Payment $payment)
+    {
+        try {
+            return $this->receiptService->downloadReceipt($payment);
+        } catch (\Exception $e) {
+            return back()->with('error', 'Receipt generation failed: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -149,7 +230,14 @@ class PaymentController extends Controller
 
     public function show(Payment $payment)
     {
-        $payment->load(['student', 'invoice']);
+        $payment->load([
+            'student', 
+            'invoice', 
+            'paymentMethod', 
+            'bankAccount',
+            'allocations.invoiceItem.votehead',
+            'allocations.invoiceItem.invoice'
+        ]);
         return view('finance.payments.show', compact('payment'));
     }
 }

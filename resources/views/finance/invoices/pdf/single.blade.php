@@ -120,8 +120,14 @@
     </tr>
   </thead>
   <tbody>
-    @php $total=0; @endphp
-    @foreach($invoice->items as $i=>$item)
+    @php 
+      // Only show active items (pending items are excluded)
+      $activeItems = $invoice->items->filter(function($item) {
+          return ($item->status ?? 'active') === 'active';
+      });
+      $total=0; 
+    @endphp
+    @foreach($activeItems as $i=>$item)
       @php $total+=$item->amount; $ed=$item->effective_date; @endphp
       <tr>
         <td class="center">{{ $i+1 }}</td>

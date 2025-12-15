@@ -9,7 +9,8 @@ class RequirementTemplate extends Model
     protected $fillable = [
         'requirement_type_id', 'classroom_id', 'academic_year_id', 'term_id',
         'brand', 'quantity_per_student', 'unit', 'student_type',
-        'leave_with_teacher', 'is_verification_only', 'notes', 'is_active'
+        'leave_with_teacher', 'is_verification_only', 'notes', 'is_active',
+        'pos_product_id', 'is_available_in_shop'
     ];
 
     protected $casts = [
@@ -17,6 +18,7 @@ class RequirementTemplate extends Model
         'leave_with_teacher' => 'boolean',
         'is_verification_only' => 'boolean',
         'is_active' => 'boolean',
+        'is_available_in_shop' => 'boolean',
     ];
 
     public function requirementType()
@@ -42,5 +44,15 @@ class RequirementTemplate extends Model
     public function studentRequirements()
     {
         return $this->hasMany(StudentRequirement::class);
+    }
+
+    public function posProduct()
+    {
+        return $this->belongsTo(\App\Models\Pos\Product::class, 'pos_product_id');
+    }
+
+    public function orderItems()
+    {
+        return $this->hasMany(\App\Models\Pos\OrderItem::class, 'requirement_template_id');
     }
 }

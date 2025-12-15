@@ -6,69 +6,12 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <h3 class="mb-0">
-                    <i class="bi bi-percent"></i> Fee Discounts
+                    <i class="bi bi-percent"></i> Fee Discounts (Concessions)
                 </h3>
-                <div class="btn-group">
-                    <a href="{{ route('finance.discounts.create') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Create Template
-                    </a>
-                    <a href="{{ route('finance.discounts.allocate') }}" class="btn btn-success">
-                        <i class="bi bi-person-plus"></i> Allocate Discount
-                    </a>
-                    <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="btn btn-info">
-                        <i class="bi bi-people"></i> Bulk Allocate Siblings
-                    </a>
-                </div>
+                <a href="{{ route('finance.discounts.create') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Create Discount
+                </a>
             </div>
-        </div>
-    </div>
-
-    <!-- Quick Links -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card border-primary">
-                <div class="card-body text-center">
-                    <h5 class="text-primary">{{ \App\Models\DiscountTemplate::count() }}</h5>
-                    <small class="text-muted">Templates</small>
-                    <br>
-                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-sm btn-outline-primary mt-2">View All</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-success">
-                <div class="card-body text-center">
-                    <h5 class="text-success">{{ \App\Models\FeeConcession::whereNotNull('discount_template_id')->where('approval_status', 'approved')->count() }}</h5>
-                    <small class="text-muted">Approved Allocations</small>
-                    <br>
-                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-sm btn-outline-success mt-2">View All</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h5 class="text-warning">{{ \App\Models\FeeConcession::where('approval_status', 'pending')->count() }}</h5>
-                    <small class="text-muted">Pending Approvals</small>
-                    <br>
-                    <a href="{{ route('finance.discounts.approvals.index') }}" class="btn btn-sm btn-outline-warning mt-2">Review</a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card border-info">
-                <div class="card-body text-center">
-                    <h5 class="text-info">{{ \App\Models\FeeConcession::whereNotNull('discount_template_id')->count() }}</h5>
-                    <small class="text-muted">Total Allocations</small>
-                    <br>
-                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-sm btn-outline-info mt-2">View All</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col-12">
         </div>
     </div>
 
@@ -123,9 +66,93 @@
         </div>
     </div>
 
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> 
-        Use the quick links above to manage discount templates, allocations, and approvals.
+    <!-- Discounts Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Student/Family</th>
+                            <th>Discount Type</th>
+                            <th>Type</th>
+                            <th>Scope</th>
+                            <th class="text-end">Value</th>
+                            <th>Frequency</th>
+                            <th>Status</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($discounts as $discount)
+                        <tr>
+                            <td>
+                                @if($discount->student)
+                                    {{ $discount->student->first_name }} {{ $discount->student->last_name }}
+                                    <br><small class="text-muted">{{ $discount->student->admission_number }}</small>
+                                @elseif($discount->family)
+                                    Family: {{ $discount->family->surname ?? 'N/A' }}
+                                @else
+                                    <span class="text-muted">N/A</span>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ ucfirst(str_replace('_', ' ', $discount->discount_type)) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {{ $discount->type === 'percentage' ? 'Percentage' : 'Fixed Amount' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">
+                                    {{ ucfirst($discount->scope) }}
+                                </span>
+                            </td>
+                            <td class="text-end">
+                                @if($discount->type === 'percentage')
+                                    <strong>{{ number_format($discount->value, 1) }}%</strong>
+                                @else
+                                    <strong>Ksh {{ number_format($discount->value, 2) }}</strong>
+                                @endif
+                            </td>
+                            <td>{{ ucfirst($discount->frequency) }}</td>
+                            <td>
+                                <span class="badge bg-{{ $discount->is_active ? 'success' : 'danger' }}">
+                                    {{ $discount->is_active ? 'Active' : 'Inactive' }}
+                                </span>
+                            </td>
+                            <td>{{ $discount->start_date ? \Carbon\Carbon::parse($discount->start_date)->format('d M Y') : 'N/A' }}</td>
+                            <td>{{ $discount->end_date ? \Carbon\Carbon::parse($discount->end_date)->format('d M Y') : 'No expiry' }}</td>
+                            <td>
+                                <a href="{{ route('finance.discounts.show', $discount) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="10" class="text-center py-4">
+                                <p class="text-muted mb-0">No discounts found.</p>
+                                <a href="{{ route('finance.discounts.create') }}" class="btn btn-primary btn-sm mt-2">
+                                    <i class="bi bi-plus-circle"></i> Create First Discount
+                                </a>
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @if($discounts->hasPages())
+        <div class="card-footer">
+            {{ $discounts->links() }}
+        </div>
+        @endif
     </div>
 </div>
 @endsection

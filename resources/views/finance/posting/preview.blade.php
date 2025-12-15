@@ -196,18 +196,12 @@
         </div>
     </form>
     @else
-    <div class="card shadow-sm">
-        <div class="card-body text-center py-5">
-            <i class="bi bi-check-circle text-success" style="font-size: 3rem;"></i>
-            <h4 class="mt-3 text-muted">Nothing Has Changed</h4>
-            <p class="text-muted mb-4">
-                No fee changes detected for the selected filters. All fees are up to date.
-            </p>
-            <a href="{{ route('finance.posting.index') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Back to Posting
-            </a>
-        </div>
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No changes detected for the selected filters.
     </div>
+    <a href="{{ route('finance.posting.index') }}" class="btn btn-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Posting
+    </a>
     @endif
 </div>
 @endsection
