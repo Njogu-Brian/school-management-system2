@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Transport;
 use App\Models\Attendance;
@@ -20,6 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class Student extends Model
 {
+    use HasFactory;
     protected static function boot()
     {
         parent::boot();
@@ -125,6 +127,33 @@ class Student extends Model
     public function category()
     {
         return $this->belongsTo(StudentCategory::class, 'category_id');
+    }
+
+    /**
+     * Check if student is newly admitted (admitted in the current or recent academic year)
+     * This is used to determine if once-only fees should be charged
+     */
+    public function isNewlyAdmitted(?int $academicYear = null): bool
+    {
+        if (!$this->admission_date) {
+            // No admission date - assume existing student
+            return false;
+        }
+        
+        // If no academic year provided, use current year
+        if ($academicYear === null) {
+            $academicYear = (int) date('Y');
+        }
+        
+        // Handle both Carbon instance and string
+        if ($this->admission_date instanceof \Carbon\Carbon) {
+            $admissionYear = (int) $this->admission_date->format('Y');
+        } else {
+            $admissionYear = (int) date('Y', strtotime($this->admission_date));
+        }
+        
+        // Consider student as "new" if admitted in current academic year or later
+        return $admissionYear >= $academicYear;
     }
 
     public function getFullNameAttribute()

@@ -5,15 +5,18 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\FeeStructure;
 use App\Models\FeeCharge;
+use App\Services\FeeStructureImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Response;
 
 class FeeStructureController extends Controller
 {
     public function index()
     {
         $structures = FeeStructure::with('classroom', 'charges.votehead')->get();
-        return view('finance.fee_structures.index', compact('structures'));
+        $classrooms = \App\Models\Academics\Classroom::all();
+        return view('finance.fee_structures.index', compact('structures', 'classrooms'));
     }
     public function show(FeeStructure $feeStructure)
     {
@@ -84,30 +87,39 @@ class FeeStructureController extends Controller
     public function replicateTo(Request $request)
     {
         $request->validate([
-            'source_classroom_id' => 'required|exists:classrooms,id',
+            'source_structure_id' => 'nullable|exists:fee_structures,id',
+            'source_classroom_id' => 'nullable|exists:classrooms,id',
             'target_classroom_ids' => 'required|array|min:1',
             'target_classroom_ids.*' => 'exists:classrooms,id',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
+            'student_category_id' => 'nullable|exists:student_categories,id',
         ]);
 
-        $source = FeeStructure::with('charges')->where('classroom_id', $request->source_classroom_id)->first();
-
-        if (!$source) {
-            return back()->with('error', 'Source class has no fee structure.');
+        // Get source structure
+        if ($request->source_structure_id) {
+            $source = FeeStructure::with('charges')->findOrFail($request->source_structure_id);
+        } elseif ($request->source_classroom_id) {
+            $source = FeeStructure::with('charges')
+                ->where('classroom_id', $request->source_classroom_id)
+                ->where('is_active', true)
+                ->first();
+        } else {
+            return back()->with('error', 'Please specify either source structure or source classroom.');
         }
 
-        foreach ($request->target_classroom_ids as $targetId) {
-            // Delete old structure if exists
-            $existing = FeeStructure::where('classroom_id', $targetId)->first();
-            if ($existing) {
-                $existing->charges()->delete();
-                $existing->delete();
-            }
+        if (!$source) {
+            return back()->with('error', 'Source fee structure not found.');
+        }
 
-            // Clone fee structure
-            $newStructure = FeeStructure::create([
-                'classroom_id' => $targetId,
-                'year' => $source->year,
-            ]);
+        $replicated = $source->replicateTo(
+            $request->target_classroom_ids,
+            $request->academic_year_id,
+            $request->term_id,
+            $request->student_category_id
+        );
+
+        return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s).");
 
             foreach ($source->charges as $charge) {
                 FeeCharge::create([
@@ -122,4 +134,116 @@ class FeeStructureController extends Controller
         return back()->with('success', 'Fee structure replicated successfully.');
     }
 
+    /**
+     * Show import form
+     */
+    public function import()
+    {
+        $classrooms = \App\Models\Academics\Classroom::all();
+        $academicYears = \App\Models\AcademicYear::all();
+        $terms = \App\Models\Term::all();
+        $streams = \App\Models\Academics\Stream::all();
+        $voteheads = \App\Models\Votehead::all();
+
+        return view('finance.fee_structures.import', compact('classrooms', 'academicYears', 'terms', 'streams', 'voteheads'));
+    }
+
+    /**
+     * Process import
+     */
+    public function processImport(Request $request, FeeStructureImportService $importService)
+    {
+        $request->validate([
+            'csv_file' => 'required|file|mimes:csv,txt|max:10240', // 10MB max
+        ]);
+
+        try {
+            // Parse CSV file
+            $file = $request->file('csv_file');
+            $rows = $this->parseCsvFile($file);
+            
+            if (empty($rows)) {
+                return back()->with('error', 'CSV file is empty or could not be parsed.');
+            }
+
+            // Import data
+            $result = $importService->import($rows);
+
+            // Prepare response message
+            $message = sprintf(
+                'Import completed: %d created, %d updated, %d failed.',
+                $result['success'],
+                $result['updated'],
+                $result['failed']
+            );
+
+            if ($result['failed'] > 0 && !empty($result['errors'])) {
+                return back()
+                    ->with('import_result', $result)
+                    ->with('warning', $message . ' Please review errors below.');
+            }
+
+            return redirect()->route('finance.fee-structures.index')
+                ->with('success', $message);
+
+        } catch (\Exception $e) {
+            return back()->with('error', 'Import failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download CSV template
+     */
+    public function downloadTemplate(FeeStructureImportService $importService)
+    {
+        $csv = $importService->generateTemplate();
+        
+        return Response::make($csv, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="fee_structures_import_template.csv"',
+        ]);
+    }
+
+    /**
+     * Parse CSV file into array
+     */
+    protected function parseCsvFile($file): array
+    {
+        $rows = [];
+        $headers = [];
+        $handle = fopen($file->getRealPath(), 'r');
+        
+        if ($handle === false) {
+            return [];
+        }
+
+        // Read headers
+        $headerRow = fgetcsv($handle);
+        if ($headerRow === false) {
+            fclose($handle);
+            return [];
+        }
+
+        // Normalize header names (trim, lowercase, replace spaces with underscores)
+        $headers = array_map(function($header) {
+            return strtolower(trim(str_replace(' ', '_', $header)));
+        }, $headerRow);
+
+        // Read data rows
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) !== count($headers)) {
+                continue; // Skip malformed rows
+            }
+
+            $rowData = [];
+            foreach ($headers as $index => $header) {
+                $rowData[$header] = $row[$index] ?? null;
+            }
+
+            $rows[] = $rowData;
+        }
+
+        fclose($handle);
+        return $rows;
+    }
 }
