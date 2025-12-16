@@ -55,6 +55,7 @@ use App\Http\Controllers\Finance\VoteheadController;
 use App\Http\Controllers\Finance\FeeStructureController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\PaymentController;
+use App\Http\Controllers\Finance\BankAccountController;
 use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\Finance\CreditNoteController;
