@@ -10,6 +10,31 @@
     ])
 
     @include('finance.invoices.partials.alerts')
+    
+    @if(session('payment_id'))
+        <script>
+            window.addEventListener('load', function() {
+                // Open receipt in popup window (not tab)
+                const paymentId = {{ session('payment_id') }};
+                const receiptUrl = '{{ route("finance.payments.receipt.view", ":id") }}'.replace(':id', paymentId);
+                
+                // Request permission for popup
+                const popup = window.open(
+                    receiptUrl,
+                    'ReceiptWindow',
+                    'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'
+                );
+                
+                if (!popup || popup.closed || typeof popup.closed == 'undefined') {
+                    // Popup blocked - fallback to new tab
+                    alert('Popup blocked. Please allow popups for this site to view receipt automatically.');
+                    window.open(receiptUrl, '_blank');
+                } else {
+                    popup.focus();
+                }
+            });
+        </script>
+    @endif
 
     <!-- Filters -->
     <div class="finance-filter-card finance-animate">

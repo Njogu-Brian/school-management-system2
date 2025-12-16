@@ -3,80 +3,64 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
-use App\Models\Payment;
-use App\Models\PaymentTransaction;
-use App\Models\Invoice;
 use App\Models\Student;
-use App\Models\BankAccount;
-use App\Models\PaymentMethod;
-use App\Services\PaymentService;
+use App\Models\Payment;
+use App\Models\Invoice;
+use App\Models\CommunicationTemplate;
+use App\Models\CommunicationLog;
 use App\Services\PaymentAllocationService;
 use App\Services\ReceiptService;
+use App\Services\SMSService;
+use App\Services\CommunicationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use App\Mail\GenericMail;
 
 class PaymentController extends Controller
 {
-    protected PaymentService $paymentService;
     protected PaymentAllocationService $allocationService;
     protected ReceiptService $receiptService;
+    protected SMSService $smsService;
+    protected CommunicationService $commService;
 
     public function __construct(
-        PaymentService $paymentService,
         PaymentAllocationService $allocationService,
-        ReceiptService $receiptService
+        ReceiptService $receiptService,
+        SMSService $smsService,
+        CommunicationService $commService
     ) {
-        $this->paymentService = $paymentService;
         $this->allocationService = $allocationService;
         $this->receiptService = $receiptService;
+        $this->smsService = $smsService;
+        $this->commService = $commService;
     }
 
-    public function index(Request $request)
+    public function index()
     {
-        $query = Payment::with('student', 'invoice');
-
-        if ($request->filled('student_id')) {
-            $query->where('student_id', $request->student_id);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        $payments = $query->latest()->paginate(20)->withQueryString();
+        $payments = Payment::with(['student', 'paymentMethod', 'invoice'])
+            ->latest('payment_date')
+            ->paginate(20);
+        
         return view('finance.payments.index', compact('payments'));
     }
 
-    public function create(Request $request)
+    public function create()
     {
-        $studentId = $request->get('student_id');
-        $invoiceId = $request->get('invoice_id');
-
-        $students = Student::orderBy('first_name')->get();
-        $invoices = $invoiceId 
-            ? Invoice::where('id', $invoiceId)->get()
-            : ($studentId 
-                ? Invoice::where('student_id', $studentId)->where('status', '!=', 'paid')->get()
-                : Invoice::where('status', '!=', 'paid')->get());
-        
-        $bankAccounts = BankAccount::active()->get();
-        $paymentMethods = PaymentMethod::active()->get();
-
-        return view('finance.payments.create', compact(
-            'students', 'invoices', 'studentId', 'invoiceId',
-            'bankAccounts', 'paymentMethods'
-        ));
+        $bankAccounts = \App\Models\BankAccount::active()->get();
+        $paymentMethods = \App\Models\PaymentMethod::active()->get();
+        return view('finance.payments.create', compact('bankAccounts', 'paymentMethods'));
     }
 
-    public function getStudentInfo($studentId)
+    public function getStudentBalanceAndSiblings($studentId)
     {
-        $student = Student::with('family.students')->findOrFail($studentId);
-        
-        // Calculate balance
+        $student = Student::findOrFail($studentId);
         $invoices = Invoice::where('student_id', $studentId)->get();
+        
         $totalBalance = $invoices->sum('balance');
-        $unpaidInvoices = $invoices->where('status', '!=', 'paid')->count();
-        $partialInvoices = $invoices->where('status', 'partial')->count();
+        $unpaidInvoices = $invoices->where('balance', '>', 0)->count();
+        $partialInvoices = $invoices->where('balance', '>', 0)->where('balance', '<', $invoices->sum('total'))->count();
         
         // Get siblings (excluding current student)
         $siblings = $student->family 
@@ -141,7 +125,9 @@ class PaymentController extends Controller
                 ->with('show_overpayment_confirm', true);
         }
 
-        DB::transaction(function () use ($validated, $student, $isOverpayment) {
+        $createdPayment = null;
+
+        DB::transaction(function () use ($validated, $student, $isOverpayment, &$createdPayment) {
             // Handle payment sharing among siblings
             if ($validated['shared_payment'] ?? false && !empty($validated['shared_students'])) {
                 $sharedStudents = $validated['shared_students'];
@@ -178,6 +164,11 @@ class PaymentController extends Controller
                         
                         // Auto-allocate for sibling
                         $this->allocationService->autoAllocate($payment);
+                        
+                        // Store first payment for notifications
+                        if ($index === 0) {
+                            $createdPayment = $payment;
+                        }
                     }
                 }
             } else {
@@ -222,12 +213,138 @@ class PaymentController extends Controller
                         ['payment_recorded']
                     );
                 }
+                
+                $createdPayment = $payment;
             }
         });
 
+        // Send notifications
+        try {
+            $this->sendPaymentNotifications($createdPayment);
+        } catch (\Exception $e) {
+            Log::warning('Payment notification failed: ' . $e->getMessage());
+        }
+        
+        // Return with payment ID for receipt popup
         return redirect()
             ->route('finance.payments.index')
-            ->with('success', 'Payment recorded successfully.');
+            ->with('success', 'Payment recorded successfully.')
+            ->with('payment_id', $createdPayment->id);
+    }
+    
+    protected function sendPaymentNotifications(Payment $payment)
+    {
+        $payment->load(['student.parentInfo', 'paymentMethod']);
+        $student = $payment->student;
+        
+        // Get parent contact info
+        $parent = $student->parentInfo ?? $student->parents()->first();
+        $parentPhone = $parent->phone ?? $parent->mobile_phone ?? null;
+        $parentEmail = $parent->email ?? null;
+        
+        if (!$parentPhone && !$parentEmail) {
+            Log::info('No parent contact info found for payment notification', ['payment_id' => $payment->id]);
+            return;
+        }
+        
+        // Get or create payment receipt template
+        $smsTemplate = CommunicationTemplate::firstOrCreate(
+            ['code' => 'payment_receipt_sms'],
+            [
+                'name' => 'Payment Receipt SMS',
+                'type' => 'sms',
+                'title' => 'Payment Receipt',
+                'content' => 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View receipt: {{receipt_link}}',
+                'is_active' => true,
+            ]
+        );
+        
+        $emailTemplate = CommunicationTemplate::firstOrCreate(
+            ['code' => 'payment_receipt_email'],
+            [
+                'name' => 'Payment Receipt Email',
+                'type' => 'email',
+                'title' => 'Payment Receipt - {{receipt_number}}',
+                'content' => '<p>Dear {{parent_name}},</p><p>Payment of <strong>Ksh {{amount}}</strong> has been received for <strong>{{student_name}}</strong> (Admission: {{admission_number}}).</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}<br><strong>Payment Date:</strong> {{payment_date}}</p><p>Please find the receipt attached.</p><p><a href="{{receipt_link}}">View Receipt Online</a></p>',
+                'is_active' => true,
+            ]
+        );
+        
+        // Prepare template variables
+        $receiptLink = route('finance.payments.receipt.view', $payment);
+        $variables = [
+            'parent_name' => $parent->name ?? 'Parent',
+            'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
+            'admission_number' => $student->admission_number,
+            'amount' => number_format($payment->amount, 2),
+            'receipt_number' => $payment->receipt_number,
+            'transaction_code' => $payment->transaction_code,
+            'payment_date' => $payment->payment_date->format('d M Y'),
+            'receipt_link' => $receiptLink,
+        ];
+        
+        // Replace placeholders
+        $replacePlaceholders = function($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', $value, $text);
+            }
+            return $text;
+        };
+        
+        // Send SMS
+        if ($parentPhone) {
+            try {
+                $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                $this->smsService->sendSMS($parentPhone, $smsMessage);
+                
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id' => $parent->id ?? null,
+                    'contact' => $parentPhone,
+                    'channel' => 'sms',
+                    'title' => $smsTemplate->title,
+                    'message' => $smsMessage,
+                    'type' => 'sms',
+                    'status' => 'sent',
+                    'scope' => 'finance',
+                    'sent_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('SMS sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id]);
+            }
+        }
+        
+        // Send Email with PDF attachment
+        if ($parentEmail) {
+            try {
+                $emailSubject = $replacePlaceholders($emailTemplate->title, $variables);
+                $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+                
+                // Generate PDF receipt
+                $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
+                
+                Mail::to($parentEmail)->send(new GenericMail(
+                    $emailSubject,
+                    $emailContent,
+                    $pdfPath
+                ));
+                
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id' => $parent->id ?? null,
+                    'contact' => $parentEmail,
+                    'channel' => 'email',
+                    'title' => $emailSubject,
+                    'message' => $emailContent,
+                    'type' => 'email',
+                    'status' => 'sent',
+                    'scope' => 'finance',
+                    'sent_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Email sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id]);
+            }
+        }
     }
     
     public function allocate(Request $request, Payment $payment)
@@ -247,11 +364,37 @@ class PaymentController extends Controller
             return back()->with('error', $e->getMessage());
         }
     }
+
+    public function show(Payment $payment)
+    {
+        $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
+        return view('finance.payments.show', compact('payment'));
+    }
+
+    public function edit(Payment $payment)
+    {
+        // Payment editing might be restricted - implement as needed
+        return back()->with('error', 'Payment editing is not allowed. Please reverse the payment and create a new one.');
+    }
+
+    public function update(Request $request, Payment $payment)
+    {
+        // Payment updates might be restricted
+        return back()->with('error', 'Payment updates are not allowed.');
+    }
+
+    public function destroy(Payment $payment)
+    {
+        // Instead of delete, reverse the payment
+        return redirect()
+            ->route('finance.payments.reverse', $payment)
+            ->with('info', 'Use the reverse payment feature instead.');
+    }
     
     public function printReceipt(Payment $payment)
     {
         try {
-            $payment->load(['student', 'invoice', 'paymentMethod', 'bankAccount', 'allocations.invoiceItem.votehead']);
+            $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
             $pdf = $this->receiptService->generateReceipt($payment, ['save' => false]);
             
             // Return PDF in new window
@@ -266,7 +409,7 @@ class PaymentController extends Controller
 
     public function viewReceipt(Payment $payment)
     {
-        $payment->load(['student', 'invoice', 'paymentMethod', 'bankAccount', 'allocations.invoiceItem.votehead']);
+        $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
         return view('finance.receipts.view', compact('payment'));
     }
 
@@ -298,49 +441,34 @@ class PaymentController extends Controller
                 $options
             );
 
-            return redirect()
-                ->route('finance.payment-transactions.show', $transaction)
-                ->with('success', 'Payment initiated successfully. Please complete the payment on your phone.');
+            return response()->json([
+                'success' => true,
+                'transaction_id' => $transaction->id,
+                'message' => 'Payment initiated successfully. Please complete the payment.',
+            ]);
         } catch (\Exception $e) {
-            return back()
-                ->withInput()
-                ->with('error', 'Payment initiation failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment initiation failed: ' . $e->getMessage(),
+            ], 400);
         }
     }
 
-    /**
-     * Show payment transaction
-     */
-    public function showTransaction(PaymentTransaction $transaction)
+    public function showTransaction($transaction)
     {
-        $transaction->load(['student', 'invoice']);
+        $transaction = \App\Models\PaymentTransaction::findOrFail($transaction);
         return view('finance.payments.transaction', compact('transaction'));
     }
 
-    /**
-     * Verify payment status
-     */
-    public function verifyTransaction(PaymentTransaction $transaction)
+    public function verifyTransaction(Request $request, $transaction)
     {
+        $transaction = \App\Models\PaymentTransaction::findOrFail($transaction);
+        
         try {
-            $result = $this->paymentService->verifyPayment($transaction);
-            
-            return back()->with('success', 'Payment status updated.');
+            $status = $this->paymentService->verifyPayment($transaction);
+            return response()->json(['status' => $status]);
         } catch (\Exception $e) {
-            return back()->with('error', 'Verification failed: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 400);
         }
-    }
-
-    public function show(Payment $payment)
-    {
-        $payment->load([
-            'student', 
-            'invoice', 
-            'paymentMethod', 
-            'bankAccount',
-            'allocations.invoiceItem.votehead',
-            'allocations.invoiceItem.invoice'
-        ]);
-        return view('finance.payments.show', compact('payment'));
     }
 }

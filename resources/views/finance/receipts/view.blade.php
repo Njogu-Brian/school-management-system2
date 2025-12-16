@@ -39,7 +39,7 @@
                     'allocations' => $payment->allocations,
                     'total_amount' => $payment->amount,
                     'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method ?? 'Cash',
-                    'reference' => $payment->reference,
+                    'transaction_code' => $payment->transaction_code,
                     'narration' => $payment->narration,
                 ])
             </div>

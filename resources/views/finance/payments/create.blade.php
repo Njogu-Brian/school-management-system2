@@ -367,11 +367,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         totalSharedSpan.textContent = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         
-        const paymentAmount = parseFloat(document.getElementById('payment_amount').value || 0);
-        if (Math.abs(total - paymentAmount) > 0.01) {
-            sharingError.style.display = 'inline';
-            submitBtn.disabled = true;
+        // Only disable if payment sharing is active
+        if (sharedPaymentInput.value === '1') {
+            const paymentAmount = parseFloat(document.getElementById('payment_amount').value || 0);
+            if (Math.abs(total - paymentAmount) > 0.01) {
+                sharingError.style.display = 'inline';
+                submitBtn.disabled = true;
+            } else {
+                sharingError.style.display = 'none';
+                submitBtn.disabled = false;
+            }
         } else {
+            // Payment sharing not active, ensure button is enabled
             sharingError.style.display = 'none';
             submitBtn.disabled = false;
         }
@@ -395,6 +402,18 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Please confirm that you understand the overpayment will be carried forward.');
             return false;
         }
+        
+        // Ensure button is enabled before submission
+        submitBtn.disabled = false;
+    });
+    
+    // Enable button on form field changes
+    document.querySelectorAll('input, select, textarea').forEach(field => {
+        field.addEventListener('change', function() {
+            if (sharedPaymentInput.value !== '1') {
+                submitBtn.disabled = false;
+            }
+        });
     });
 });
 </script>
