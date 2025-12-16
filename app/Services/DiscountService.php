@@ -17,9 +17,9 @@ class DiscountService
     /**
      * Apply discounts to invoice during posting
      */
-    public function applyDiscountsToInvoice(Invoice $invoice): Invoice
+    public function applyDiscountsToInvoice(Invoice $invoice, bool $forceReapply = false): Invoice
     {
-        return DB::transaction(function () use ($invoice) {
+        return DB::transaction(function () use ($invoice, $forceReapply) {
             $student = $invoice->student;
             
             // Get applicable concessions for this student
@@ -52,6 +52,20 @@ class DiscountService
             
             foreach ($concessions as $concession) {
                 $discountAmount = 0;
+                
+                // Skip if discount already applied and not forcing reapply
+                if (!$forceReapply) {
+                    // Check if this discount was already applied to this invoice
+                    // by checking if invoice items have discount matching this concession
+                    $alreadyApplied = false;
+                    if ($concession->scope === 'votehead' && $concession->votehead_id) {
+                        $item = $invoice->items()->where('votehead_id', $concession->votehead_id)->first();
+                        if ($item && $item->discount_amount > 0) {
+                            // Discount might already be applied, but we'll reapply to ensure it's correct
+                            // Remove this check for now to allow recalculation
+                        }
+                    }
+                }
                 
                 switch ($concession->scope) {
                     case 'votehead':

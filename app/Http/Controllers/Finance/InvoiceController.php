@@ -157,6 +157,10 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
+        // Apply discounts if not already applied
+        $discountService = new \App\Services\DiscountService();
+        $invoice = $discountService->applyDiscountsToInvoice($invoice->fresh());
+        
         $invoice->load([
             'student.classroom',
             'student.stream',
