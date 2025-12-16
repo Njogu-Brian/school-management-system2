@@ -168,6 +168,9 @@
     <div class="receipt-container">
         <!-- Header -->
         <div class="header">
+            @php
+                $school = $school ?? [];
+            @endphp
             <h1>{{ $school['name'] ?? 'SCHOOL NAME' }}</h1>
             @if(!empty($school['address'] ?? ''))
             <div class="school-info">
@@ -286,7 +289,7 @@
             <div>This is a computer-generated receipt. No signature required.</div>
             <div style="margin-top: 10px;">
                 Generated on: {{ date('d M Y, H:i:s') }}<br>
-                @if($school['phone'])For inquiries, contact: {{ $school['phone'] }}@endif
+                @if(!empty($school['phone'] ?? ''))For inquiries, contact: {{ $school['phone'] }}@endif
             </div>
         </div>
     </div>
