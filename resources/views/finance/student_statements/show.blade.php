@@ -279,7 +279,8 @@
                             <th colspan="4" class="text-end">Totals:</th>
                             <th class="text-end">Ksh {{ number_format($totalCharges + $totalDebitNotes, 2) }}</th>
                             <th class="text-end">Ksh {{ number_format($totalPayments + $totalDiscounts + $totalCreditNotes, 2) }}</th>
-                            <th class="text-end"><strong>Ksh {{ number_format($balance, 2) }}</strong></th>
+                            <th class="text-end"><strong>Ksh {{ number_format($finalBalance ?? $balance, 2) }}</strong></th>
+                            <th></th>
                         </tr>
                     </tfoot>
                 </table>
