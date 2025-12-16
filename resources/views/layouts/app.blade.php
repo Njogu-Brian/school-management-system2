@@ -9,6 +9,39 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="icon" href="{{ asset('images/logo.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    @if(request()->is('finance*') || request()->is('voteheads*'))
+    <link rel="stylesheet" href="{{ asset('css/finance-modern.css') }}">
+    <style>
+        :root {
+            --finance-primary: {{ \App\Models\Setting::where('key', 'finance_primary_color')->first()?->value ?? '#6366f1' }};
+            --finance-secondary: {{ \App\Models\Setting::where('key', 'finance_secondary_color')->first()?->value ?? '#764ba2' }};
+            --finance-success: {{ \App\Models\Setting::where('key', 'finance_success_color')->first()?->value ?? '#10b981' }};
+            --finance-warning: {{ \App\Models\Setting::where('key', 'finance_warning_color')->first()?->value ?? '#f59e0b' }};
+            --finance-danger: {{ \App\Models\Setting::where('key', 'finance_danger_color')->first()?->value ?? '#ef4444' }};
+            --finance-info: {{ \App\Models\Setting::where('key', 'finance_info_color')->first()?->value ?? '#06b6d4' }};
+        }
+        .finance-page {
+            font-family: '{{ \App\Models\Setting::where('key', 'finance_primary_font')->first()?->value ?? 'Inter' }}', 'Poppins', sans-serif;
+        }
+        .finance-header h1,
+        .finance-header h2,
+        .finance-header h3 {
+            font-family: '{{ \App\Models\Setting::where('key', 'finance_heading_font')->first()?->value ?? 'Poppins' }}', sans-serif;
+        }
+        .finance-gradient-1 {
+            background: linear-gradient(135deg, var(--finance-primary) 0%, var(--finance-secondary) 100%);
+        }
+        .finance-card-header,
+        .finance-table thead,
+        .finance-stat-card.primary::before {
+            background: linear-gradient(135deg, var(--finance-primary) 0%, var(--finance-secondary) 100%);
+        }
+        .btn-finance-primary {
+            background: linear-gradient(135deg, var(--finance-primary) 0%, var(--finance-secondary) 100%);
+        }
+    </style>
+    @endif
+    @stack('styles')
 
     <style>
         body {
@@ -140,7 +173,7 @@
      @endauth
 
     <div class="content">
-        <div class="page-wrapper">@yield('content')</div>
+        <div class="page-wrapper @if(request()->is('finance*') || request()->is('voteheads*')) finance-page @endif">@yield('content')</div>
     </div>
 
     <script>

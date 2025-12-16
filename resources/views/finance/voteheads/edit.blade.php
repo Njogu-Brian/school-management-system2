@@ -1,14 +1,24 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <h3>Edit Votehead</h3>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Edit Votehead',
+        'icon' => 'bi bi-pencil',
+        'subtitle' => 'Update votehead details'
+    ])
 
-    <form method="POST" action="{{ route('finance.voteheads.update', $votehead->id) }}">
-        @csrf
-        @method('PUT')
-
-        @include('finance.voteheads.form')
-    </form>
+    <div class="finance-card finance-animate">
+        <div class="finance-card-header">
+            <i class="bi bi-file-earmark-text me-2"></i> Votehead Information
+        </div>
+        <div class="finance-card-body">
+            <form method="POST" action="{{ route('finance.voteheads.update', $votehead->id) }}">
+                @csrf
+                @method('PUT')
+                @include('finance.voteheads.form')
+            </form>
+        </div>
+    </div>
 </div>
 @endsection

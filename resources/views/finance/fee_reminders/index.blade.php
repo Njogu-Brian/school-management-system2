@@ -2,20 +2,22 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Fee Payment Reminders</h1>
-        <div class="btn-group">
-            <a href="{{ route('finance.fee-reminders.create') }}" class="btn btn-primary">
+    @include('finance.partials.header', [
+        'title' => 'Fee Payment Reminders',
+        'icon' => 'bi bi-bell',
+        'subtitle' => 'Manage and send payment reminders to students',
+        'actions' => '
+            <a href="' . route('finance.fee-reminders.create') . '" class="btn btn-finance btn-finance-primary">
                 <i class="bi bi-plus-circle"></i> Create Reminder
             </a>
-            <form action="{{ route('finance.fee-reminders.automated') }}" method="POST" class="d-inline">
-                @csrf
-                <button type="submit" class="btn btn-success">
+            <form action="' . route('finance.fee-reminders.automated') . '" method="POST" class="d-inline">
+                ' . csrf_field() . '
+                <button type="submit" class="btn btn-finance btn-finance-success">
                     <i class="bi bi-send"></i> Send Automated Reminders
                 </button>
             </form>
-        </div>
-    </div>
+        '
+    ])
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show">
@@ -31,38 +33,38 @@
         </div>
     @endif
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <form method="GET" class="row g-3 mb-3">
-                <div class="col-md-3">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
-                        <option value="">All</option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="sent" {{ request('status') == 'sent' ? 'selected' : '' }}>Sent</option>
-                        <option value="failed" {{ request('status') == 'failed' ? 'selected' : '' }}>Failed</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">Student</label>
-                    <select name="student_id" class="form-select">
-                        <option value="">All Students</option>
-                        @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
-                            <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                                {{ $student->first_name }} {{ $student->last_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label">&nbsp;</label>
-                    <button type="submit" class="btn btn-primary w-100">Filter</button>
-                </div>
-            </form>
+    <div class="finance-filter-card finance-animate">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="finance-form-label">Status</label>
+                <select name="status" class="finance-form-select">
+                    <option value="">All</option>
+                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="sent" {{ request('status') == 'sent' ? 'selected' : '' }}>Sent</option>
+                    <option value="failed" {{ request('status') == 'failed' ? 'selected' : '' }}>Failed</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="finance-form-label">Student</label>
+                <select name="student_id" class="finance-form-select">
+                    <option value="">All Students</option>
+                    @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
+                        <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
+                            {{ $student->first_name }} {{ $student->last_name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-finance btn-finance-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
 
-            <div class="table-responsive">
-                <table class="table table-bordered">
-                    <thead class="table-light">
+    <div class="finance-table-wrapper finance-animate">
+        <div class="table-responsive">
+            <table class="finance-table">
+                <thead>
                         <tr>
                             <th>Student</th>
                             <th>Outstanding Amount</th>
@@ -101,15 +103,28 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center">No reminders found.</td>
+                                <td colspan="8">
+                                    <div class="finance-empty-state">
+                                        <div class="finance-empty-state-icon">
+                                            <i class="bi bi-bell"></i>
+                                        </div>
+                                        <h4>No reminders found</h4>
+                                        <p class="text-muted mb-3">Create your first payment reminder to get started</p>
+                                        <a href="{{ route('finance.fee-reminders.create') }}" class="btn btn-finance btn-finance-primary">
+                                            <i class="bi bi-plus-circle"></i> Create Reminder
+                                        </a>
+                                    </div>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
-            </div>
-
+        </div>
+        @if($reminders->hasPages())
+        <div class="finance-card-body" style="padding-top: 1rem; border-top: 1px solid #e5e7eb;">
             {{ $reminders->links() }}
         </div>
+        @endif
     </div>
 </div>
 @endsection

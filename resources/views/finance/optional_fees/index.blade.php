@@ -1,8 +1,12 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <h3 class="mb-4">Manage Optional Fees</h3>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Optional Fees',
+        'icon' => 'bi bi-toggle-on',
+        'subtitle' => 'Manage optional fees for classes and individual students'
+    ])
 
     {{-- Tabs --}}
     <ul class="nav nav-tabs mb-3" id="optionalFeeTabs">

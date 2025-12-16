@@ -1,24 +1,23 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h3 class="mb-0">
-                <i class="bi bi-people"></i> Bulk Allocate Sibling Discounts
-            </h3>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Bulk Allocate Sibling Discounts',
+        'icon' => 'bi bi-people',
+        'subtitle' => 'Automatically allocate sibling discounts to all eligible families',
+        'actions' => '<a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back to Allocations</a>'
+    ])
 
     @include('finance.invoices.partials.alerts')
 
     <div class="row">
         <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Bulk Allocation Details</h5>
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header">
+                    <i class="bi bi-info-circle me-2"></i> Bulk Allocation Details
                 </div>
-                <div class="card-body">
+                <div class="finance-card-body">
                     <div class="alert alert-info" id="template_info_alert">
                         <i class="bi bi-info-circle"></i> 
                         <strong>How it works:</strong> The system will automatically find all families with 2 or more children and apply sibling discounts based on the selected template settings.
@@ -33,8 +32,8 @@
                         
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label class="form-label">Sibling Discount Template <span class="text-danger">*</span></label>
-                                <select name="discount_template_id" class="form-select @error('discount_template_id') is-invalid @enderror" required>
+                                <label class="finance-form-label">Sibling Discount Template <span class="text-danger">*</span></label>
+                                <select name="discount_template_id" class="finance-form-select @error('discount_template_id') is-invalid @enderror" required>
                                     <option value="">-- Select Template --</option>
                                     @foreach($templates as $template)
                                         <option value="{{ $template->id }}" {{ old('discount_template_id') == $template->id ? 'selected' : '' }}
@@ -68,8 +67,8 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Academic Year</label>
-                                <select name="academic_year_id" class="form-select @error('academic_year_id') is-invalid @enderror">
+                                <label class="finance-form-label">Academic Year</label>
+                                <select name="academic_year_id" class="finance-form-select @error('academic_year_id') is-invalid @enderror">
                                     <option value="">-- Select Year --</option>
                                     @foreach($academicYears as $year)
                                         <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYear->id ?? '') == $year->id ? 'selected' : '' }}>
@@ -83,10 +82,10 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Year <span class="text-danger">*</span></label>
+                                <label class="finance-form-label">Year <span class="text-danger">*</span></label>
                                 <input type="number" 
                                        name="year" 
-                                       class="form-control @error('year') is-invalid @enderror" 
+                                       class="finance-form-control @error('year') is-invalid @enderror" 
                                        value="{{ old('year', $currentYear->year ?? date('Y')) }}" 
                                        required>
                                 @error('year')
@@ -95,8 +94,8 @@
                             </div>
 
                             <div class="col-md-4">
-                                <label class="form-label">Term <span class="text-danger">*</span></label>
-                                <select name="term" class="form-select @error('term') is-invalid @enderror" required>
+                                <label class="finance-form-label">Term <span class="text-danger">*</span></label>
+                                <select name="term" class="finance-form-select @error('term') is-invalid @enderror" required>
                                     <option value="1" {{ old('term') == 1 ? 'selected' : '' }}>Term 1</option>
                                     <option value="2" {{ old('term') == 2 ? 'selected' : '' }}>Term 2</option>
                                     <option value="3" {{ old('term') == 3 ? 'selected' : '' }}>Term 3</option>
@@ -108,10 +107,10 @@
                         </div>
 
                         <div class="mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg">
+                            <button type="submit" class="btn btn-finance btn-finance-primary">
                                 <i class="bi bi-people-fill"></i> Allocate to All Families
                             </button>
-                            <a href="{{ route('finance.discounts.index') }}" class="btn btn-secondary btn-lg">
+                            <a href="{{ route('finance.discounts.index') }}" class="btn btn-finance btn-finance-outline">
                                 <i class="bi bi-arrow-left"></i> Cancel
                             </a>
                         </div>
@@ -121,11 +120,11 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Statistics</h5>
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header secondary">
+                    <i class="bi bi-bar-chart me-2"></i> Statistics
                 </div>
-                <div class="card-body">
+                <div class="finance-card-body">
                     @php
                         $familiesWithSiblings = \App\Models\Family::has('students', '>=', 2)->count();
                         $totalStudents = \App\Models\Student::where('status', 'active')->whereNotNull('family_id')->count();

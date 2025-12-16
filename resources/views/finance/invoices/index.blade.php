@@ -1,103 +1,87 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">
-                    <i class="bi bi-file-text"></i> Invoices
-                </h3>
-                <div>
-                    <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) }}"
-                       target="_blank"
-                       class="btn btn-outline-secondary">
-                       <i class="bi bi-printer"></i> Print Bulk PDF
-                    </a>
-                    <a href="{{ route('finance.invoices.create') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Create Invoice
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Invoices',
+        'icon' => 'bi bi-file-text',
+        'subtitle' => 'Manage and track all student invoices',
+        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print Bulk PDF</a><a href="' . route('finance.invoices.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Invoice</a>'
+    ])
 
     @includeIf('finance.invoices.partials.alerts')
 
     <!-- Filters -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ route('finance.invoices.index') }}" class="row g-3">
-                <div class="col-md-2">
-                    <label class="form-label">Year</label>
-                    <input type="number" 
-                           class="form-control" 
-                           name="year" 
-                           value="{{ request('year', now()->year) }}">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Term</label>
-                    <select name="term" class="form-select">
-                        <option value="">All Terms</option>
-                        @for($i=1;$i<=3;$i++)
-                            <option value="{{ $i }}" {{ request('term') == $i ? 'selected':'' }}>Term {{ $i }}</option>
-                        @endfor
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Votehead</label>
-                    <select name="votehead_id" class="form-select">
-                        <option value="">All Voteheads</option>
-                        @foreach($voteheads ?? [] as $vh)
-                            <option value="{{ $vh->id }}" {{ request('votehead_id')==$vh->id ? 'selected':'' }}>{{ $vh->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Class</label>
-                    <select name="class_id" class="form-select">
-                        <option value="">All Classes</option>
-                        @foreach($classrooms ?? [] as $c)
-                            <option value="{{ $c->id }}" {{ request('class_id')==$c->id ? 'selected':'' }}>{{ $c->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Stream</label>
-                    <select name="stream_id" class="form-select">
-                        <option value="">All Streams</option>
-                        @foreach($streams ?? [] as $s)
-                            <option value="{{ $s->id }}" {{ request('stream_id')==$s->id ? 'selected':'' }}>{{ $s->name }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
-                        <option value="">All Statuses</option>
-                        <option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
-                        <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
-                        <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
-                    </select>
-                </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-search"></i> Filter
-                    </button>
-                    <a href="{{ route('finance.invoices.index') }}" class="btn btn-outline-secondary">
-                        <i class="bi bi-x-circle"></i> Reset
-                    </a>
-                </div>
-            </form>
-        </div>
+    <div class="finance-filter-card finance-animate">
+        <form method="GET" action="{{ route('finance.invoices.index') }}" class="row g-3">
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Year</label>
+                <input type="number" 
+                       class="finance-form-control" 
+                       name="year" 
+                       value="{{ request('year', now()->year) }}">
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Term</label>
+                <select name="term" class="finance-form-select">
+                    <option value="">All Terms</option>
+                    @for($i=1;$i<=3;$i++)
+                        <option value="{{ $i }}" {{ request('term') == $i ? 'selected':'' }}>Term {{ $i }}</option>
+                    @endfor
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Votehead</label>
+                <select name="votehead_id" class="finance-form-select">
+                    <option value="">All Voteheads</option>
+                    @foreach($voteheads ?? [] as $vh)
+                        <option value="{{ $vh->id }}" {{ request('votehead_id')==$vh->id ? 'selected':'' }}>{{ $vh->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Class</label>
+                <select name="class_id" class="finance-form-select">
+                    <option value="">All Classes</option>
+                    @foreach($classrooms ?? [] as $c)
+                        <option value="{{ $c->id }}" {{ request('class_id')==$c->id ? 'selected':'' }}>{{ $c->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Stream</label>
+                <select name="stream_id" class="finance-form-select">
+                    <option value="">All Streams</option>
+                    @foreach($streams ?? [] as $s)
+                        <option value="{{ $s->id }}" {{ request('stream_id')==$s->id ? 'selected':'' }}>{{ $s->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Status</label>
+                <select name="status" class="finance-form-select">
+                    <option value="">All Statuses</option>
+                    <option value="unpaid" {{ request('status') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
+                    <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
+                    <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-finance btn-finance-primary">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+                <a href="{{ route('finance.invoices.index') }}" class="btn btn-finance btn-finance-outline">
+                    <i class="bi bi-x-circle"></i> Reset
+                </a>
+            </div>
+        </form>
     </div>
 
     <!-- Invoices Table -->
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+    <div class="finance-table-wrapper finance-animate">
+        <div class="table-responsive">
+            <table class="finance-table">
+                <thead>
                         <tr>
                             <th>Invoice #</th>
                             <th>Student</th>
@@ -183,11 +167,11 @@
                                 </span>
                             </td>
                             <td>
-                                <span class="badge bg-{{ $inv->status === 'paid' ? 'success' : ($inv->status === 'partial' ? 'warning' : 'danger') }}">
+                                <span class="finance-badge badge-{{ $inv->status === 'paid' ? 'paid' : ($inv->status === 'partial' ? 'partial' : 'unpaid') }}">
                                     {{ ucfirst($inv->status) }}
                                 </span>
                                 @if($inv->isOverdue())
-                                    <span class="badge bg-danger ms-1">Overdue</span>
+                                    <span class="finance-badge badge-unpaid ms-1">Overdue</span>
                                 @endif
                             </td>
                             <td>
@@ -198,14 +182,14 @@
                                 @endif
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm">
+                                <div class="finance-action-buttons">
                                     <a href="{{ route('finance.invoices.show', $inv) }}" 
-                                       class="btn btn-outline-primary" 
+                                       class="btn btn-sm btn-outline-primary" 
                                        title="View">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                     <a href="{{ route('finance.invoices.print_single', $inv) }}" 
-                                       class="btn btn-outline-secondary" 
+                                       class="btn btn-sm btn-outline-secondary" 
                                        target="_blank"
                                        title="Print">
                                         <i class="bi bi-printer"></i>
@@ -215,8 +199,17 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="12" class="text-center py-4">
-                                <p class="text-muted mb-0">No invoices found.</p>
+                            <td colspan="12">
+                                <div class="finance-empty-state">
+                                    <div class="finance-empty-state-icon">
+                                        <i class="bi bi-file-text"></i>
+                                    </div>
+                                    <h4>No invoices found</h4>
+                                    <p class="text-muted mb-3">Get started by creating your first invoice</p>
+                                    <a href="{{ route('finance.invoices.create') }}" class="btn btn-finance btn-finance-primary">
+                                        <i class="bi bi-plus-circle"></i> Create Invoice
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         @endforelse
@@ -252,10 +245,9 @@
                     </tfoot>
                     @endif
                 </table>
-            </div>
         </div>
         @if($invoices->hasPages())
-        <div class="card-footer">
+        <div class="finance-card-body" style="padding-top: 1rem; border-top: 1px solid #e5e7eb;">
             {{ $invoices->links() }}
         </div>
         @endif

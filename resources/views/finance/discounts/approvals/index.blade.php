@@ -1,28 +1,20 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <!-- Header with Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h3 class="mb-0">
-                        <i class="bi bi-check-circle"></i> Discount Approvals
-                    </h3>
-                    <p class="text-muted mb-0">Review and approve pending discount allocations</p>
-                </div>
-                <div class="btn-group">
-                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-outline-success">
-                        <i class="bi bi-list-check"></i> Allocations
-                    </a>
-                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-outline-primary">
-                        <i class="bi bi-file-earmark-text"></i> Templates
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Discount Approvals',
+        'icon' => 'bi bi-check-circle',
+        'subtitle' => 'Review and approve pending discount allocations',
+        'actions' => '
+            <a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline">
+                <i class="bi bi-list-check"></i> Allocations
+            </a>
+            <a href="' . route('finance.discounts.templates.index') . '" class="btn btn-finance btn-finance-outline">
+                <i class="bi bi-file-earmark-text"></i> Templates
+            </a>
+        '
+    ])
 
     @include('finance.invoices.partials.alerts')
 

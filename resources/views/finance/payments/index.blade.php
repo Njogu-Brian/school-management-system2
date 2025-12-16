@@ -1,80 +1,71 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">
-                    <i class="bi bi-cash-stack"></i> Payments
-                </h3>
-                <a href="{{ route('finance.payments.create') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Record Payment
-                </a>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Payments',
+        'icon' => 'bi bi-cash-stack',
+        'subtitle' => 'Track and manage all payment records',
+        'actions' => '<a href="' . route('finance.payments.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Record Payment</a>'
+    ])
 
     @include('finance.invoices.partials.alerts')
 
     <!-- Filters -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label">Student</label>
-                    <select name="student_id" class="form-select">
-                        <option value="">All Students</option>
-                        @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
-                            <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                                {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
-                        <option value="">All Statuses</option>
-                        <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
-                        <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
-                        <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">Payment Method</label>
-                    <select name="payment_method_id" class="form-select">
-                        <option value="">All Methods</option>
-                        @foreach(\App\Models\PaymentMethod::where('is_active', true)->get() as $method)
-                            <option value="{{ $method->id }}" {{ request('payment_method_id') == $method->id ? 'selected' : '' }}>
-                                {{ $method->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">From Date</label>
-                    <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label">To Date</label>
-                    <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}">
-                </div>
-                <div class="col-md-1 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-search"></i> Filter
-                    </button>
-                </div>
-            </form>
-        </div>
+    <div class="finance-filter-card finance-animate">
+        <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3">
+            <div class="col-md-6 col-lg-3">
+                <label class="finance-form-label">Student</label>
+                <select name="student_id" class="finance-form-select">
+                    <option value="">All Students</option>
+                    @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
+                        <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
+                            {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Status</label>
+                <select name="status" class="finance-form-select">
+                    <option value="">All Statuses</option>
+                    <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
+                    <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
+                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Payment Method</label>
+                <select name="payment_method_id" class="finance-form-select">
+                    <option value="">All Methods</option>
+                    @foreach(\App\Models\PaymentMethod::where('is_active', true)->get() as $method)
+                        <option value="{{ $method->id }}" {{ request('payment_method_id') == $method->id ? 'selected' : '' }}>
+                            {{ $method->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">From Date</label>
+                <input type="date" name="from_date" class="finance-form-control" value="{{ request('from_date') }}">
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">To Date</label>
+                <input type="date" name="to_date" class="finance-form-control" value="{{ request('to_date') }}">
+            </div>
+            <div class="col-md-6 col-lg-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-finance btn-finance-primary w-100">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </div>
+        </form>
     </div>
 
     <!-- Payments Table -->
-    <div class="card shadow-sm">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+    <div class="finance-table-wrapper finance-animate">
+        <div class="table-responsive">
+            <table class="finance-table">
+                <thead>
                         <tr>
                             <th>Receipt #</th>
                             <th>Student</th>
@@ -132,16 +123,16 @@
                                         $status = 'partial';
                                     }
                                 @endphp
-                                <span class="badge bg-{{ $status === 'allocated' ? 'success' : ($status === 'partial' ? 'warning' : 'info') }}">
+                                <span class="finance-badge badge-{{ $status === 'allocated' ? 'approved' : ($status === 'partial' ? 'partial' : 'pending') }}">
                                     {{ ucfirst($status) }}
                                 </span>
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-outline-primary" title="View">
+                                <div class="finance-action-buttons">
+                                    <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-outline-primary" title="View">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-outline-secondary" target="_blank" title="Print Receipt">
+                                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-sm btn-outline-secondary" target="_blank" title="Print Receipt">
                                         <i class="bi bi-printer"></i>
                                     </a>
                                 </div>
@@ -149,11 +140,17 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="10" class="text-center py-4">
-                                <p class="text-muted mb-0">No payments found.</p>
-                                <a href="{{ route('finance.payments.create') }}" class="btn btn-primary btn-sm mt-2">
-                                    <i class="bi bi-plus-circle"></i> Record First Payment
-                                </a>
+                            <td colspan="10">
+                                <div class="finance-empty-state">
+                                    <div class="finance-empty-state-icon">
+                                        <i class="bi bi-cash-stack"></i>
+                                    </div>
+                                    <h4>No payments found</h4>
+                                    <p class="text-muted mb-3">Record your first payment to get started</p>
+                                    <a href="{{ route('finance.payments.create') }}" class="btn btn-finance btn-finance-primary">
+                                        <i class="bi bi-plus-circle"></i> Record First Payment
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         @endforelse
@@ -170,10 +167,9 @@
                     </tfoot>
                     @endif
                 </table>
-            </div>
         </div>
         @if($payments->hasPages())
-        <div class="card-footer">
+        <div class="finance-card-body" style="padding-top: 1rem; border-top: 1px solid #e5e7eb;">
             {{ $payments->links() }}
         </div>
         @endif

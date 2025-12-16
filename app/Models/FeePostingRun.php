@@ -54,7 +54,7 @@ class FeePostingRun extends Model
 
     public function diffs(): HasMany
     {
-        return $this->hasMany(PostingDiff::class);
+        return $this->hasMany(PostingDiff::class, 'posting_run_id');
     }
 
     public function invoices(): HasMany

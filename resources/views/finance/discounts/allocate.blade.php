@@ -1,31 +1,13 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <!-- Header with Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h3 class="mb-0">
-                        <i class="bi bi-person-plus"></i> Allocate Discount
-                    </h3>
-                    <p class="text-muted mb-0">Assign a discount template to a student</p>
-                </div>
-                <div class="btn-group">
-                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-outline-primary">
-                        <i class="bi bi-file-earmark-text"></i> Templates
-                    </a>
-                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-outline-success">
-                        <i class="bi bi-list-check"></i> Allocations
-                    </a>
-                    <a href="{{ route('finance.discounts.approvals.index') }}" class="btn btn-outline-warning">
-                        <i class="bi bi-check-circle"></i> Approvals
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Allocate Discount',
+        'icon' => 'bi bi-person-plus',
+        'subtitle' => 'Assign a discount template to a student',
+        'actions' => '<a href="' . route('finance.discounts.templates.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-text"></i> Templates</a><a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-list-check"></i> Allocations</a><a href="' . route('finance.discounts.approvals.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-check-circle"></i> Approvals</a>'
+    ])
 
     @include('finance.invoices.partials.alerts')
 
@@ -34,15 +16,15 @@
         
         <div class="row">
             <div class="col-md-8">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Allocation Details</h5>
+                <div class="finance-card finance-animate">
+                    <div class="finance-card-header">
+                        <i class="bi bi-info-circle me-2"></i> Allocation Details
                     </div>
-                    <div class="card-body">
+                    <div class="finance-card-body">
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label class="form-label">Discount Template <span class="text-danger">*</span></label>
-                                <select name="discount_template_id" id="discount_template_id" class="form-select @error('discount_template_id') is-invalid @enderror" required>
+                                <label class="finance-form-label">Discount Template <span class="text-danger">*</span></label>
+                                <select name="discount_template_id" id="discount_template_id" class="finance-form-select @error('discount_template_id') is-invalid @enderror" required>
                                     <option value="">-- Select Template --</option>
                                     @foreach($templates as $template)
                                         <option value="{{ $template->id }}" {{ old('discount_template_id', request('template')) == $template->id ? 'selected' : '' }}
@@ -65,8 +47,8 @@
                             </div>
 
                             <div class="col-md-12">
-                                <label class="form-label">Student <span class="text-danger">*</span></label>
-                                <select name="student_id" class="form-select @error('student_id') is-invalid @enderror" required>
+                                <label class="finance-form-label">Student <span class="text-danger">*</span></label>
+                                <select name="student_id" class="finance-form-select @error('student_id') is-invalid @enderror" required>
                                     <option value="">-- Select Student --</option>
                                     @foreach($students as $student)
                                         <option value="{{ $student->id }}" {{ old('student_id') == $student->id ? 'selected' : '' }}>
@@ -80,8 +62,8 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Academic Year <span class="text-danger">*</span></label>
-                                <select name="academic_year_id" class="form-select @error('academic_year_id') is-invalid @enderror" required>
+                                <label class="finance-form-label">Academic Year <span class="text-danger">*</span></label>
+                                <select name="academic_year_id" class="finance-form-select @error('academic_year_id') is-invalid @enderror" required>
                                     <option value="">-- Select Year --</option>
                                     @foreach($academicYears as $year)
                                         <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYear?->id) == $year->id ? 'selected' : '' }}>
@@ -95,8 +77,8 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Year <span class="text-danger">*</span></label>
-                                <input type="number" name="year" class="form-control @error('year') is-invalid @enderror" 
+                                <label class="finance-form-label">Year <span class="text-danger">*</span></label>
+                                <input type="number" name="year" class="finance-form-control @error('year') is-invalid @enderror" 
                                        value="{{ old('year', $currentYear?->year) }}" 
                                        placeholder="e.g., 2025" required>
                                 @error('year')
@@ -105,8 +87,8 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Term <span class="text-danger">*</span></label>
-                                <select name="term" class="form-select @error('term') is-invalid @enderror" required>
+                                <label class="finance-form-label">Term <span class="text-danger">*</span></label>
+                                <select name="term" class="finance-form-select @error('term') is-invalid @enderror" required>
                                     <option value="">-- Select Term --</option>
                                     <option value="1" {{ old('term') == '1' ? 'selected' : '' }}>Term 1</option>
                                     <option value="2" {{ old('term') == '2' ? 'selected' : '' }}>Term 2</option>
@@ -118,8 +100,8 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Start Date</label>
-                                <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" 
+                                <label class="finance-form-label">Start Date</label>
+                                <input type="date" name="start_date" class="finance-form-control @error('start_date') is-invalid @enderror" 
                                        value="{{ old('start_date', date('Y-m-d')) }}">
                                 @error('start_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -127,8 +109,8 @@
                             </div>
 
                             <div class="col-md-12" id="votehead_selector" style="display: none;">
-                                <label class="form-label">Voteheads <span class="text-danger">*</span> <span class="text-muted">(Select one or more)</span></label>
-                                <select name="votehead_ids[]" class="form-select @error('votehead_ids') is-invalid @enderror" multiple size="6">
+                                <label class="finance-form-label">Voteheads <span class="text-danger">*</span> <span class="text-muted">(Select one or more)</span></label>
+                                <select name="votehead_ids[]" class="finance-form-select @error('votehead_ids') is-invalid @enderror" multiple size="6">
                                     @foreach($voteheads as $votehead)
                                         <option value="{{ $votehead->id }}" {{ in_array($votehead->id, old('votehead_ids', [])) ? 'selected' : '' }}>
                                             {{ $votehead->name }}
@@ -142,8 +124,8 @@
                             </div>
 
                             <div class="col-md-12">
-                                <label class="form-label">End Date</label>
-                                <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" 
+                                <label class="finance-form-label">End Date</label>
+                                <input type="date" name="end_date" class="finance-form-control @error('end_date') is-invalid @enderror" 
                                        value="{{ old('end_date') }}">
                                 @error('end_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -156,11 +138,11 @@
             </div>
 
             <div class="col-md-4">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Template Info</h5>
+                <div class="finance-card finance-animate mb-4">
+                    <div class="finance-card-header secondary">
+                        <i class="bi bi-info-circle me-2"></i> Template Info
                     </div>
-                    <div class="card-body" id="template_info">
+                    <div class="finance-card-body" id="template_info">
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> Select a template to see details
                         </div>
@@ -168,13 +150,13 @@
                 </div>
 
                 <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg">
+                    <button type="submit" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-check-circle"></i> Allocate Discount
                     </button>
-                    <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="btn btn-success">
+                    <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="btn btn-finance btn-finance-success">
                         <i class="bi bi-people"></i> Bulk Allocate Sibling Discounts
                     </a>
-                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Cancel
                     </a>
                 </div>

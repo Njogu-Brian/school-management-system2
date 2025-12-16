@@ -345,8 +345,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <div class="collapse {{ $discountsActive ? 'show' : '' }}" id="discountsMenu" style="padding-left: 20px;">
         <a href="{{ route('finance.discounts.index') }}" class="sublink {{ Request::is('finance/discounts') && !Request::is('finance/discounts/*') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
         <a href="{{ route('finance.discounts.templates.index') }}" class="sublink {{ Request::is('finance/discounts/templates*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Templates</a>
-        <a href="{{ route('finance.discounts.allocate') }}" class="sublink {{ Request::is('finance/discounts/allocate*') ? 'active' : '' }}"><i class="bi bi-person-plus"></i> Allocate</a>
-        <a href="{{ route('finance.discounts.allocations.index') }}" class="sublink {{ Request::is('finance/discounts/allocations*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations</a>
+        <a href="{{ route('finance.discounts.allocations.index') }}" class="sublink {{ Request::is('finance/discounts/allocations*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations & Allocate</a>
         <a href="{{ route('finance.discounts.approvals.index') }}" class="sublink {{ Request::is('finance/discounts/approvals*') ? 'active' : '' }}"><i class="bi bi-check-circle"></i> Approvals</a>
         <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="sublink {{ Request::is('finance/discounts/bulk-allocate-sibling*') ? 'active' : '' }}"><i class="bi bi-people"></i> Bulk Sibling</a>
     </div>

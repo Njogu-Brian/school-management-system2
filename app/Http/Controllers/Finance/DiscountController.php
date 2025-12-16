@@ -121,16 +121,10 @@ class DiscountController extends Controller
         return view('finance.discounts.templates.index', compact('templates'));
     }
 
-    // Discount Allocation
+    // Discount Allocation - Redirect to merged allocations page
     public function allocate()
     {
-        $templates = DiscountTemplate::where('is_active', true)->orderBy('name')->get();
-        $students = Student::orderBy('first_name')->get();
-        $voteheads = Votehead::orderBy('name')->get();
-        $academicYears = AcademicYear::orderByDesc('year')->get();
-        $currentYear = AcademicYear::where('is_active', true)->first();
-        
-        return view('finance.discounts.allocate', compact('templates', 'students', 'voteheads', 'academicYears', 'currentYear'));
+        return redirect()->route('finance.discounts.allocations.index', ['tab' => 'allocate']);
     }
 
     public function storeAllocation(Request $request)

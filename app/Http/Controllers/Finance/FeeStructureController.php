@@ -120,18 +120,6 @@ class FeeStructureController extends Controller
         );
 
         return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s).");
-
-            foreach ($source->charges as $charge) {
-                FeeCharge::create([
-                    'fee_structure_id' => $newStructure->id,
-                    'votehead_id' => $charge->votehead_id,
-                    'term' => $charge->term,
-                    'amount' => $charge->amount,
-                ]);
-            }
-        }
-
-        return back()->with('success', 'Fee structure replicated successfully.');
     }
 
     /**

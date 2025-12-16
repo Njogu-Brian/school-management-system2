@@ -2,8 +2,12 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-xxl">
-  <h2 class="mb-3">Finance Dashboard</h2>
+<div class="container-fluid">
+  @include('finance.partials.header', [
+      'title' => 'Finance Dashboard',
+      'icon' => 'bi bi-graph-up',
+      'subtitle' => 'Overview of financial activities and metrics'
+  ])
 
   @include('dashboard.partials.filters')
 

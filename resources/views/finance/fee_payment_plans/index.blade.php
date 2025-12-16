@@ -2,12 +2,12 @@
 
 @section('content')
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Fee Payment Plans</h1>
-        <a href="{{ route('finance.fee-payment-plans.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle"></i> Create Payment Plan
-        </a>
-    </div>
+    @include('finance.partials.header', [
+        'title' => 'Fee Payment Plans',
+        'icon' => 'bi bi-calendar-check',
+        'subtitle' => 'Manage installment payment plans for students',
+        'actions' => '<a href="' . route('finance.fee-payment-plans.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Payment Plan</a>'
+    ])
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show">
@@ -16,38 +16,38 @@
         </div>
     @endif
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <form method="GET" class="row g-3 mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Student</label>
-                    <select name="student_id" class="form-select">
-                        <option value="">All Students</option>
-                        @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
-                            <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                                {{ $student->first_name }} {{ $student->last_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
-                        <option value="">All</option>
-                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">&nbsp;</label>
-                    <button type="submit" class="btn btn-primary w-100">Filter</button>
-                </div>
-            </form>
+    <div class="finance-filter-card finance-animate">
+        <form method="GET" class="row g-3">
+            <div class="col-md-5">
+                <label class="finance-form-label">Student</label>
+                <select name="student_id" class="finance-form-select">
+                    <option value="">All Students</option>
+                    @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
+                        <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
+                            {{ $student->first_name }} {{ $student->last_name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="finance-form-label">Status</label>
+                <select name="status" class="finance-form-select">
+                    <option value="">All</option>
+                    <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Active</option>
+                    <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
+                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-finance btn-finance-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
 
-            <div class="table-responsive">
-                <table class="table table-bordered">
-                    <thead class="table-light">
+    <div class="finance-table-wrapper finance-animate">
+        <div class="table-responsive">
+            <table class="finance-table">
+                <thead>
                         <tr>
                             <th>Student</th>
                             <th>Total Amount</th>
@@ -79,15 +79,28 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center">No payment plans found.</td>
+                                <td colspan="8">
+                                    <div class="finance-empty-state">
+                                        <div class="finance-empty-state-icon">
+                                            <i class="bi bi-calendar-check"></i>
+                                        </div>
+                                        <h4>No payment plans found</h4>
+                                        <p class="text-muted mb-3">Create your first payment plan to get started</p>
+                                        <a href="{{ route('finance.fee-payment-plans.create') }}" class="btn btn-finance btn-finance-primary">
+                                            <i class="bi bi-plus-circle"></i> Create Payment Plan
+                                        </a>
+                                    </div>
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
-            </div>
-
+        </div>
+        @if($plans->hasPages())
+        <div class="finance-card-body" style="padding-top: 1rem; border-top: 1px solid #e5e7eb;">
             {{ $plans->links() }}
         </div>
+        @endif
     </div>
 </div>
 @endsection

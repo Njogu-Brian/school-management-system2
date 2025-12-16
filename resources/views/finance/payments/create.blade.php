@@ -1,14 +1,12 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h3 class="mb-0">
-                <i class="bi bi-cash-stack"></i> Record Payment
-            </h3>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Record Payment',
+        'icon' => 'bi bi-cash-stack',
+        'subtitle' => 'Record a new payment for a student'
+    ])
 
     @include('finance.invoices.partials.alerts')
 
@@ -17,15 +15,15 @@
         
         <div class="row">
             <div class="col-md-8">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0">Payment Information</h5>
+                <div class="finance-card finance-animate">
+                    <div class="finance-card-header">
+                        <i class="bi bi-info-circle me-2"></i> Payment Information
                     </div>
-                    <div class="card-body">
+                    <div class="finance-card-body">
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label class="form-label">Student <span class="text-danger">*</span></label>
-                                <select name="student_id" id="student_id" class="form-select @error('student_id') is-invalid @enderror" required>
+                                <label class="finance-form-label">Student <span class="text-danger">*</span></label>
+                                <select name="student_id" id="student_id" class="finance-form-select @error('student_id') is-invalid @enderror" required>
                                     <option value="">-- Search and Select Student --</option>
                                     @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
                                         <option value="{{ $student->id }}" {{ old('student_id') == $student->id ? 'selected' : '' }}>
@@ -39,14 +37,14 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Payment Amount <span class="text-danger">*</span></label>
+                                <label class="finance-form-label">Payment Amount <span class="text-danger">*</span></label>
                                 <div class="input-group">
                                     <span class="input-group-text">Ksh</span>
                                     <input type="number" 
                                            name="amount" 
                                            step="0.01" 
                                            min="0.01" 
-                                           class="form-control @error('amount') is-invalid @enderror" 
+                                           class="finance-form-control @error('amount') is-invalid @enderror" 
                                            value="{{ old('amount') }}" 
                                            id="payment_amount"
                                            required>
@@ -57,10 +55,10 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Payment Date <span class="text-danger">*</span></label>
+                                <label class="finance-form-label">Payment Date <span class="text-danger">*</span></label>
                                 <input type="date" 
                                        name="payment_date" 
-                                       class="form-control @error('payment_date') is-invalid @enderror" 
+                                       class="finance-form-control @error('payment_date') is-invalid @enderror" 
                                        value="{{ old('payment_date', date('Y-m-d')) }}" 
                                        required>
                                 @error('payment_date')
@@ -69,8 +67,8 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Payment Method <span class="text-danger">*</span></label>
-                                <select name="payment_method_id" class="form-select @error('payment_method_id') is-invalid @enderror" required>
+                                <label class="finance-form-label">Payment Method <span class="text-danger">*</span></label>
+                                <select name="payment_method_id" class="finance-form-select @error('payment_method_id') is-invalid @enderror" required>
                                     <option value="">-- Select Method --</option>
                                     @foreach(\App\Models\PaymentMethod::where('is_active', true)->get() as $method)
                                         <option value="{{ $method->id }}" {{ old('payment_method_id') == $method->id ? 'selected' : '' }}>
@@ -84,8 +82,8 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Bank Account</label>
-                                <select name="bank_account_id" class="form-select">
+                                <label class="finance-form-label">Bank Account</label>
+                                <select name="bank_account_id" class="finance-form-select">
                                     <option value="">-- Select Bank Account --</option>
                                     @foreach(\App\Models\BankAccount::where('is_active', true)->get() as $account)
                                         <option value="{{ $account->id }}" {{ old('bank_account_id') == $account->id ? 'selected' : '' }}>
@@ -96,17 +94,17 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Payer Name</label>
+                                <label class="finance-form-label">Payer Name</label>
                                 <input type="text" 
                                        name="payer_name" 
-                                       class="form-control" 
+                                       class="finance-form-control" 
                                        value="{{ old('payer_name') }}" 
                                        placeholder="Name of person making payment">
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Payer Type</label>
-                                <select name="payer_type" class="form-select">
+                                <label class="finance-form-label">Payer Type</label>
+                                <select name="payer_type" class="finance-form-select">
                                     <option value="">-- Select Type --</option>
                                     <option value="parent" {{ old('payer_type') == 'parent' ? 'selected' : '' }}>Parent</option>
                                     <option value="sponsor" {{ old('payer_type') == 'sponsor' ? 'selected' : '' }}>Sponsor</option>
@@ -116,18 +114,18 @@
                             </div>
 
                             <div class="col-md-12">
-                                <label class="form-label">Reference Number</label>
+                                <label class="finance-form-label">Reference Number</label>
                                 <input type="text" 
                                        name="reference" 
-                                       class="form-control" 
+                                       class="finance-form-control" 
                                        value="{{ old('reference') }}" 
                                        placeholder="M-Pesa code, cheque number, etc.">
                             </div>
 
                             <div class="col-md-12">
-                                <label class="form-label">Narration/Notes</label>
+                                <label class="finance-form-label">Narration/Notes</label>
                                 <textarea name="narration" 
-                                          class="form-control" 
+                                          class="finance-form-control" 
                                           rows="3" 
                                           placeholder="Additional payment notes">{{ old('narration') }}</textarea>
                             </div>
@@ -151,20 +149,20 @@
             </div>
 
             <div class="col-md-4">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
-                        <h5 class="mb-0">Student Balance Info</h5>
+                <div class="finance-card finance-animate">
+                    <div class="finance-card-header secondary">
+                        <i class="bi bi-info-circle me-2"></i> Student Balance Info
                     </div>
-                    <div class="card-body" id="student_balance_info">
+                    <div class="finance-card-body" id="student_balance_info">
                         <p class="text-muted text-center">Select a student to view balance</p>
                     </div>
                 </div>
 
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary">
+                <div class="d-grid gap-2 mt-3">
+                    <button type="submit" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-check-circle"></i> Record Payment
                     </button>
-                    <a href="{{ route('finance.payments.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('finance.payments.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Cancel
                     </a>
                 </div>

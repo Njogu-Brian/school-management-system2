@@ -1,31 +1,23 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <!-- Header with Quick Actions -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h3 class="mb-0">
-                        <i class="bi bi-file-earmark-text"></i> Discount Templates
-                    </h3>
-                    <p class="text-muted mb-0">Create and manage reusable discount templates</p>
-                </div>
-                <div class="btn-group">
-                    <a href="{{ route('finance.discounts.create') }}" class="btn btn-primary">
-                        <i class="bi bi-plus-circle"></i> Create Template
-                    </a>
-                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-outline-success">
-                        <i class="bi bi-list-check"></i> Allocations
-                    </a>
-                    <a href="{{ route('finance.discounts.approvals.index') }}" class="btn btn-outline-warning">
-                        <i class="bi bi-check-circle"></i> Approvals
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Discount Templates',
+        'icon' => 'bi bi-file-earmark-text',
+        'subtitle' => 'Create and manage reusable discount templates',
+        'actions' => '
+            <a href="' . route('finance.discounts.create') . '" class="btn btn-finance btn-finance-primary">
+                <i class="bi bi-plus-circle"></i> Create Template
+            </a>
+            <a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline">
+                <i class="bi bi-list-check"></i> Allocations
+            </a>
+            <a href="' . route('finance.discounts.approvals.index') . '" class="btn btn-finance btn-finance-outline">
+                <i class="bi bi-check-circle"></i> Approvals
+            </a>
+        '
+    ])
 
     @include('finance.invoices.partials.alerts')
 

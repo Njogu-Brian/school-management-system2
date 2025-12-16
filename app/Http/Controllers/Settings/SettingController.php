@@ -142,15 +142,24 @@ class SettingController extends Controller
     }
 
     /**
-     * Update Branding (school logo & login background)
+     * Update Branding (school logo, login background, and finance colors/fonts)
      */
     public function updateBranding(Request $request)
     {
         $request->validate([
             'school_logo'      => 'nullable|image|mimes:jpg,jpeg,png',
             'login_background' => 'nullable|image|mimes:jpg,jpeg,png',
+            'finance_primary_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_secondary_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_success_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_warning_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_danger_color'    => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_info_color'      => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_primary_font'    => 'nullable|string|max:100',
+            'finance_heading_font'    => 'nullable|string|max:100',
         ]);
 
+        // Handle file uploads
         foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
                 $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
@@ -160,7 +169,25 @@ class SettingController extends Controller
             }
         }
 
-        return back()->with('success', 'Branding updated.');
+        // Handle finance color settings
+        $colorKeys = [
+            'finance_primary_color',
+            'finance_secondary_color',
+            'finance_success_color',
+            'finance_warning_color',
+            'finance_danger_color',
+            'finance_info_color',
+            'finance_primary_font',
+            'finance_heading_font',
+        ];
+
+        foreach ($colorKeys as $key) {
+            if ($request->has($key) && $request->$key) {
+                Setting::updateOrCreate(['key' => $key], ['value' => $request->$key]);
+            }
+        }
+
+        return back()->with('success', 'Branding settings updated successfully.');
     }
 
     /**

@@ -2,9 +2,16 @@
 @extends('layouts.app')
 
 @section('content')
-<h1>Receipts</h1>
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Receipts',
+        'icon' => 'bi bi-receipt',
+        'subtitle' => 'View and manage payment receipts'
+    ])
 
-<table class="table table-bordered">
+    <div class="finance-table-wrapper finance-animate">
+        <div class="table-responsive">
+            <table class="finance-table">
     <thead>
         <tr>
             <th>#</th>
@@ -22,6 +29,9 @@
                 <td>KES {{ number_format($receipt->payment->amount ?? 0, 2) }}</td>
             </tr>
         @endforeach
-    </tbody>
-</table>
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
 @endsection
