@@ -2,11 +2,28 @@
 
 @section('content')
 <div class="container-fluid py-4">
+    <!-- Header with Quick Actions -->
     <div class="row mb-4">
         <div class="col-12">
-            <h3 class="mb-0">
-                <i class="bi bi-person-check"></i> Allocate Discount
-            </h3>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="mb-0">
+                        <i class="bi bi-person-plus"></i> Allocate Discount
+                    </h3>
+                    <p class="text-muted mb-0">Assign a discount template to a student</p>
+                </div>
+                <div class="btn-group">
+                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-file-earmark-text"></i> Templates
+                    </a>
+                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-outline-success">
+                        <i class="bi bi-list-check"></i> Allocations
+                    </a>
+                    <a href="{{ route('finance.discounts.approvals.index') }}" class="btn btn-outline-warning">
+                        <i class="bi bi-check-circle"></i> Approvals
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -19,7 +36,7 @@
             <div class="col-md-8">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white">
-                        <h5 class="mb-0">Allocation Details</h5>
+                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Allocation Details</h5>
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
@@ -28,17 +45,23 @@
                                 <select name="discount_template_id" id="discount_template_id" class="form-select @error('discount_template_id') is-invalid @enderror" required>
                                     <option value="">-- Select Template --</option>
                                     @foreach($templates as $template)
-                                        <option value="{{ $template->id }}" {{ old('discount_template_id') == $template->id ? 'selected' : '' }}
+                                        <option value="{{ $template->id }}" {{ old('discount_template_id', request('template')) == $template->id ? 'selected' : '' }}
                                             data-scope="{{ $template->scope }}"
                                             data-type="{{ $template->type }}"
                                             data-value="{{ $template->value }}">
-                                            {{ $template->name }} ({{ $template->type === 'percentage' ? $template->value . '%' : 'Ksh ' . number_format($template->value, 2) }})
+                                            {{ $template->name }} 
+                                            @if($template->type === 'percentage')
+                                                ({{ $template->value }}%)
+                                            @else
+                                                (Ksh {{ number_format($template->value, 2) }})
+                                            @endif
                                         </option>
                                     @endforeach
                                 </select>
                                 @error('discount_template_id')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
+                                <small class="text-muted">Select a discount template to allocate</small>
                             </div>
 
                             <div class="col-md-12">
@@ -56,12 +79,12 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label">Academic Year <span class="text-danger">*</span></label>
-                                <select name="academic_year_id" class="form-select @error('academic_year_id') is-invalid @enderror">
+                                <select name="academic_year_id" class="form-select @error('academic_year_id') is-invalid @enderror" required>
                                     <option value="">-- Select Year --</option>
                                     @foreach($academicYears as $year)
-                                        <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYear->id ?? '') == $year->id ? 'selected' : '' }}>
+                                        <option value="{{ $year->id }}" {{ old('academic_year_id', $currentYear?->id) == $year->id ? 'selected' : '' }}>
                                             {{ $year->year }}
                                         </option>
                                     @endforeach
@@ -71,61 +94,56 @@
                                 @enderror
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label">Year <span class="text-danger">*</span></label>
-                                <input type="number" 
-                                       name="year" 
-                                       class="form-control @error('year') is-invalid @enderror" 
-                                       value="{{ old('year', $currentYear->year ?? date('Y')) }}" 
-                                       required>
+                                <input type="number" name="year" class="form-control @error('year') is-invalid @enderror" 
+                                       value="{{ old('year', $currentYear?->year) }}" 
+                                       placeholder="e.g., 2025" required>
                                 @error('year')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="form-label">Term <span class="text-danger">*</span></label>
                                 <select name="term" class="form-select @error('term') is-invalid @enderror" required>
-                                    <option value="1" {{ old('term') == 1 ? 'selected' : '' }}>Term 1</option>
-                                    <option value="2" {{ old('term') == 2 ? 'selected' : '' }}>Term 2</option>
-                                    <option value="3" {{ old('term') == 3 ? 'selected' : '' }}>Term 3</option>
+                                    <option value="">-- Select Term --</option>
+                                    <option value="1" {{ old('term') == '1' ? 'selected' : '' }}>Term 1</option>
+                                    <option value="2" {{ old('term') == '2' ? 'selected' : '' }}>Term 2</option>
+                                    <option value="3" {{ old('term') == '3' ? 'selected' : '' }}>Term 3</option>
                                 </select>
                                 @error('term')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-md-12" id="votehead_selector" style="display: none;">
-                                <label class="form-label">Voteheads <span class="text-danger">*</span></label>
-                                <select name="votehead_ids[]" class="form-select @error('votehead_ids') is-invalid @enderror" multiple size="5">
-                                    @foreach($voteheads as $votehead)
-                                        <option value="{{ $votehead->id }}" {{ in_array($votehead->id, old('votehead_ids', [])) ? 'selected' : '' }}>
-                                            {{ $votehead->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                                <small class="text-muted">Hold Ctrl/Cmd to select multiple voteheads</small>
-                                @error('votehead_ids')
-                                    <div class="invalid-feedback">{{ $message }}</div>
-                                @enderror
-                            </div>
-
                             <div class="col-md-6">
                                 <label class="form-label">Start Date</label>
-                                <input type="date" 
-                                       name="start_date" 
-                                       class="form-control @error('start_date') is-invalid @enderror" 
+                                <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" 
                                        value="{{ old('start_date', date('Y-m-d')) }}">
                                 @error('start_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-12" id="votehead_selector" style="display: none;">
+                                <label class="form-label">Voteheads <span class="text-danger">*</span> <span class="text-muted">(Select one or more)</span></label>
+                                <select name="votehead_ids[]" class="form-select @error('votehead_ids') is-invalid @enderror" multiple size="6">
+                                    @foreach($voteheads as $votehead)
+                                        <option value="{{ $votehead->id }}" {{ in_array($votehead->id, old('votehead_ids', [])) ? 'selected' : '' }}>
+                                            {{ $votehead->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('votehead_ids')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple voteheads</small>
+                            </div>
+
+                            <div class="col-md-12">
                                 <label class="form-label">End Date</label>
-                                <input type="date" 
-                                       name="end_date" 
-                                       class="form-control @error('end_date') is-invalid @enderror" 
+                                <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" 
                                        value="{{ old('end_date') }}">
                                 @error('end_date')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -140,21 +158,23 @@
             <div class="col-md-4">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white">
-                        <h5 class="mb-0">Template Info</h5>
+                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Template Info</h5>
                     </div>
                     <div class="card-body" id="template_info">
-                        <p class="text-muted">Select a template to view details</p>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> Select a template to see details
+                        </div>
                     </div>
                 </div>
 
                 <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-primary btn-lg">
                         <i class="bi bi-check-circle"></i> Allocate Discount
                     </button>
                     <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="btn btn-success">
                         <i class="bi bi-people"></i> Bulk Allocate Sibling Discounts
                     </a>
-                    <a href="{{ route('finance.discounts.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-secondary">
                         <i class="bi bi-arrow-left"></i> Cancel
                     </a>
                 </div>
@@ -187,15 +207,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update template info
         if (this.value) {
-            const templateName = selectedOption.text;
-            const valueDisplay = type === 'percentage' ? value + '%' : 'Ksh ' + parseFloat(value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            const templateName = selectedOption.text.split('(')[0].trim();
             templateInfo.innerHTML = `
-                <p><strong>Template:</strong> ${templateName}</p>
-                <p><strong>Scope:</strong> ${scope.charAt(0).toUpperCase() + scope.slice(1)}</p>
-                <p><strong>Value:</strong> ${valueDisplay}</p>
+                <div class="mb-2">
+                    <strong>Template:</strong><br>
+                    <span class="badge bg-info">${templateName}</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Scope:</strong><br>
+                    <span class="badge bg-primary">${scope ? scope.charAt(0).toUpperCase() + scope.slice(1) : 'N/A'}</span>
+                </div>
+                <div class="mb-2">
+                    <strong>Value:</strong><br>
+                    <span class="text-primary fw-bold">${type === 'percentage' ? value + '%' : 'Ksh ' + parseFloat(value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
             `;
         } else {
-            templateInfo.innerHTML = '<p class="text-muted">Select a template to view details</p>';
+            templateInfo.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Select a template to see details
+                </div>
+            `;
         }
     });
 
@@ -207,4 +239,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 @endpush
 @endsection
-
