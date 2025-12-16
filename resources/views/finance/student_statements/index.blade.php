@@ -37,6 +37,12 @@
                             <i class="bi bi-eye"></i> View Statement
                         </a>
                     </div>
+                @else
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-finance btn-finance-primary" disabled>
+                            <i class="bi bi-search"></i> Please select a student first
+                        </button>
+                    </div>
                 @endif
             </form>
         </div>

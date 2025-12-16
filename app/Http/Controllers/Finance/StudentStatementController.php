@@ -261,6 +261,9 @@ class StudentStatementController extends Controller
     
     private function exportPdf($student, $invoices, $payments, $discounts, $year, $term)
     {
+        // Get terms for display
+        $terms = \App\Models\Term::orderBy('name')->get();
+        
         // For PDF, we'll use the same view but with print styles
         return view('finance.student_statements.print', compact(
             'student',
@@ -268,7 +271,8 @@ class StudentStatementController extends Controller
             'payments',
             'discounts',
             'year',
-            'term'
+            'term',
+            'terms'
         ));
     }
 }
