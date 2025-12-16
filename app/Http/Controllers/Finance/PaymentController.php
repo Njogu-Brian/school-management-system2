@@ -92,7 +92,8 @@ class PaymentController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        try {
+            $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'invoice_id' => 'nullable|exists:invoices,id',
             'amount' => 'required|numeric|min:1',
@@ -163,7 +164,9 @@ class PaymentController extends Controller
                         ]);
                         
                         // Auto-allocate for sibling
-                        $this->allocationService->autoAllocate($payment);
+                        if (method_exists($this->allocationService, 'autoAllocate')) {
+                            $this->allocationService->autoAllocate($payment);
+                        }
                         
                         // Store first payment for notifications
                         if ($index === 0) {
