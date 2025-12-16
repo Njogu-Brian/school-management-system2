@@ -251,22 +251,20 @@ class PaymentController extends Controller
         $smsTemplate = CommunicationTemplate::firstOrCreate(
             ['code' => 'payment_receipt_sms'],
             [
-                'name' => 'Payment Receipt SMS',
+                'title' => 'Payment Receipt SMS',
                 'type' => 'sms',
-                'title' => 'Payment Receipt',
+                'subject' => 'Payment Receipt',
                 'content' => 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View receipt: {{receipt_link}}',
-                'is_active' => true,
             ]
         );
         
         $emailTemplate = CommunicationTemplate::firstOrCreate(
             ['code' => 'payment_receipt_email'],
             [
-                'name' => 'Payment Receipt Email',
+                'title' => 'Payment Receipt Email',
                 'type' => 'email',
-                'title' => 'Payment Receipt - {{receipt_number}}',
+                'subject' => 'Payment Receipt - {{receipt_number}}',
                 'content' => '<p>Dear {{parent_name}},</p><p>Payment of <strong>Ksh {{amount}}</strong> has been received for <strong>{{student_name}}</strong> (Admission: {{admission_number}}).</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}<br><strong>Payment Date:</strong> {{payment_date}}</p><p>Please find the receipt attached.</p><p><a href="{{receipt_link}}">View Receipt Online</a></p>',
-                'is_active' => true,
             ]
         );
         
@@ -302,7 +300,7 @@ class PaymentController extends Controller
                     'recipient_id' => $parent->id ?? null,
                     'contact' => $parentPhone,
                     'channel' => 'sms',
-                    'title' => $smsTemplate->title,
+                    'title' => $smsTemplate->subject ?? $smsTemplate->title,
                     'message' => $smsMessage,
                     'type' => 'sms',
                     'status' => 'sent',
@@ -317,7 +315,7 @@ class PaymentController extends Controller
         // Send Email with PDF attachment
         if ($parentEmail) {
             try {
-                $emailSubject = $replacePlaceholders($emailTemplate->title, $variables);
+                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
                 
                 // Generate PDF receipt
