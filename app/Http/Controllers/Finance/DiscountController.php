@@ -11,6 +11,7 @@ use App\Models\Invoice;
 use App\Models\AcademicYear;
 use App\Services\DiscountService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DiscountController extends Controller
 {
@@ -435,7 +436,7 @@ class DiscountController extends Controller
     public function reverse(FeeConcession $allocation)
     {
         try {
-            return \Illuminate\Support\Facades\DB::transaction(function () use ($allocation) {
+            return DB::transaction(function () use ($allocation) {
                 $student = $allocation->student;
                 $term = $allocation->term;
                 $year = $allocation->year;
