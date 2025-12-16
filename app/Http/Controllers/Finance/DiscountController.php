@@ -23,8 +23,13 @@ class DiscountController extends Controller
 
     public function index(Request $request)
     {
-        // Show dashboard with quick stats
-        return view('finance.discounts.index');
+        $query = FeeConcession::with(['student', 'votehead', 'invoice', 'family'])
+            ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id))
+            ->when($request->filled('discount_type'), fn($q) => $q->where('discount_type', $request->discount_type))
+            ->when($request->filled('is_active'), fn($q) => $q->where('is_active', $request->is_active));
+
+        $discounts = $query->latest()->paginate(20)->withQueryString();
+        return view('finance.discounts.index', compact('discounts'));
     }
 
     public function create()
