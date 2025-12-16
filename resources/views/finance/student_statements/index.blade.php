@@ -31,19 +31,12 @@
                     <small class="text-muted">Select a student to view their statement</small>
                 </div>
                 
-                @if(request('student_id'))
-                    <div class="col-md-12">
-                        <a href="{{ route('finance.student-statements.show', request('student_id')) }}" class="btn btn-finance btn-finance-primary">
-                            <i class="bi bi-eye"></i> View Statement
-                        </a>
-                    </div>
-                @else
-                    <div class="col-md-12">
-                        <button type="submit" class="btn btn-finance btn-finance-primary" disabled>
-                            <i class="bi bi-search"></i> Please select a student first
-                        </button>
-                    </div>
-                @endif
+                <div class="col-md-12">
+                    <button type="submit" id="viewStatementBtn" class="btn btn-finance btn-finance-primary" 
+                            {{ request('student_id') ? '' : 'disabled' }}>
+                        <i class="bi bi-eye"></i> View Statement
+                    </button>
+                </div>
             </form>
         </div>
     </div>

@@ -76,6 +76,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (studentIdField) studentIdField.value = studentId;
                     if (studentNameField) studentNameField.value = displayName;
                     
+                    // Enable the view statement button
+                    const viewBtn = document.getElementById('viewStatementBtn');
+                    if (viewBtn) {
+                        viewBtn.disabled = false;
+                        viewBtn.innerHTML = '<i class="bi bi-eye"></i> View Statement';
+                    }
+                    
                     const modal = bootstrap.Modal.getInstance(document.getElementById('studentSearchModal'));
                     if (modal) modal.hide();
                 });

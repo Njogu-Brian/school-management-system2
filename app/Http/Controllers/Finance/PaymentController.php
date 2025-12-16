@@ -291,13 +291,20 @@ class PaymentController extends Controller
     
     protected function sendPaymentNotifications(Payment $payment)
     {
-        $payment->load(['student.parentInfo', 'paymentMethod']);
+        $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
         
         // Get parent contact info
-        $parent = $student->parentInfo ?? $student->parents()->first();
-        $parentPhone = $parent->phone ?? $parent->mobile_phone ?? null;
-        $parentEmail = $parent->email ?? null;
+        $parent = $student->parent;
+        
+        if (!$parent) {
+            Log::info('No parent found for payment notification', ['payment_id' => $payment->id, 'student_id' => $student->id]);
+            return;
+        }
+        
+        // Get primary contact phone and email from ParentInfo model
+        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
         
         if (!$parentPhone && !$parentEmail) {
             Log::info('No parent contact info found for payment notification', ['payment_id' => $payment->id]);
@@ -327,8 +334,9 @@ class PaymentController extends Controller
         
         // Prepare template variables
         $receiptLink = route('finance.payments.receipt.view', $payment);
+        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent';
         $variables = [
-            'parent_name' => $parent->name ?? 'Parent',
+            'parent_name' => $parentName,
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
             'amount' => number_format($payment->amount, 2),
