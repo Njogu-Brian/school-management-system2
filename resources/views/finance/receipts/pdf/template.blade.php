@@ -270,41 +270,33 @@
 
         <!-- Total Section -->
         <div class="total-section">
-            @if(isset($allocations) && $allocations->isNotEmpty())
+            @php
+                $totalBalance = $total_balance_before ?? 0;
+                $amountPaid = $total_amount ?? $payment->amount;
+                $remainingBalance = $total_balance_after ?? 0;
+                $overpayment = $amountPaid > $totalBalance ? ($amountPaid - $totalBalance) : 0;
+                $hasRemainingBalance = $remainingBalance > 0;
+            @endphp
+            
             <div class="total-row">
-                <span>Total Invoice Amount:</span>
-                <span>Ksh {{ number_format($total_item_amount ?? 0, 2) }}</span>
-            </div>
-            @if(($total_discount ?? 0) > 0)
-            <div class="total-row">
-                <span>Total Discount:</span>
-                <span>Ksh {{ number_format($total_discount ?? 0, 2) }}</span>
-            </div>
-            @endif
-            <div class="total-row">
-                <span>Balance Before Payment:</span>
-                <span>Ksh {{ number_format($total_balance_before ?? 0, 2) }}</span>
-            </div>
-            @endif
-            <div class="total-row">
-                <span>Amount Paid (This Receipt):</span>
-                <span><strong>Ksh {{ number_format($total_amount ?? $payment->amount, 2) }}</strong></span>
-            </div>
-            @if(isset($allocations) && $allocations->isNotEmpty())
-            <div class="total-row">
-                <span>Amount Allocated:</span>
-                <span>Ksh {{ number_format($total_allocated ?? 0, 2) }}</span>
+                <span>Total Balance:</span>
+                <span>Ksh {{ number_format($totalBalance, 2) }}</span>
             </div>
             <div class="total-row">
-                <span>Balance Remaining:</span>
-                <span><strong>Ksh {{ number_format($total_balance_after ?? 0, 2) }}</strong></span>
+                <span>Amount Paid:</span>
+                <span><strong>Ksh {{ number_format($amountPaid, 2) }}</strong></span>
             </div>
-            @if(($total_amount ?? $payment->amount) > ($total_allocated ?? 0))
-            <div class="total-row">
-                <span>Unallocated Amount:</span>
-                <span>Ksh {{ number_format(($total_amount ?? $payment->amount) - ($total_allocated ?? 0), 2) }}</span>
+            @if($overpayment > 0)
+            <div class="total-row" style="color: #28a745;">
+                <span>Overpayment:</span>
+                <span><strong>(Ksh {{ number_format($overpayment, 2) }})</strong></span>
             </div>
             @endif
+            @if($hasRemainingBalance)
+            <div class="total-row" style="color: #dc3545;">
+                <span>Remaining Balance:</span>
+                <span><strong>Ksh {{ number_format($remainingBalance, 2) }}</strong></span>
+            </div>
             @endif
         </div>
 

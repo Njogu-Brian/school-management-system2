@@ -52,9 +52,6 @@ class ReceiptService
         });
         
         // Calculate totals
-        $totalItemAmount = $allocations->sum('item_amount');
-        $totalDiscount = $allocations->sum('discount_amount');
-        $totalAllocated = $allocations->sum('allocated_amount');
         $totalBalanceBefore = $allocations->sum('balance_before');
         $totalBalanceAfter = $allocations->sum('balance_after');
         
@@ -67,9 +64,6 @@ class ReceiptService
             'student' => $payment->student,
             'allocations' => $allocations,
             'total_amount' => $payment->amount,
-            'total_item_amount' => $totalItemAmount,
-            'total_discount' => $totalDiscount,
-            'total_allocated' => $totalAllocated,
             'total_balance_before' => $totalBalanceBefore,
             'total_balance_after' => $totalBalanceAfter,
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,

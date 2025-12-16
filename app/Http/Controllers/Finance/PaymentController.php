@@ -350,22 +350,10 @@ class PaymentController extends Controller
         if ($parentPhone) {
             try {
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-                $this->smsService->sendSMS($parentPhone, $smsMessage);
-                
-                CommunicationLog::create([
-                    'recipient_type' => 'parent',
-                    'recipient_id' => $parent->id ?? null,
-                    'contact' => $parentPhone,
-                    'channel' => 'sms',
-                    'title' => $smsTemplate->subject ?? $smsTemplate->title,
-                    'message' => $smsMessage,
-                    'type' => 'sms',
-                    'status' => 'sent',
-                    'scope' => 'finance',
-                    'sent_at' => now(),
-                ]);
+                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title);
+                Log::info('Payment SMS sent successfully', ['payment_id' => $payment->id, 'phone' => $parentPhone]);
             } catch (\Exception $e) {
-                Log::error('SMS sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id]);
+                Log::error('SMS sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id, 'trace' => $e->getTraceAsString()]);
             }
         }
         
@@ -378,26 +366,11 @@ class PaymentController extends Controller
                 // Generate PDF receipt
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
                 
-                Mail::to($parentEmail)->send(new GenericMail(
-                    $emailSubject,
-                    $emailContent,
-                    $pdfPath
-                ));
-                
-                CommunicationLog::create([
-                    'recipient_type' => 'parent',
-                    'recipient_id' => $parent->id ?? null,
-                    'contact' => $parentEmail,
-                    'channel' => 'email',
-                    'title' => $emailSubject,
-                    'message' => $emailContent,
-                    'type' => 'email',
-                    'status' => 'sent',
-                    'scope' => 'finance',
-                    'sent_at' => now(),
-                ]);
+                // Use CommunicationService to send email (handles logging automatically)
+                $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
+                Log::info('Payment email sent successfully', ['payment_id' => $payment->id, 'email' => $parentEmail]);
             } catch (\Exception $e) {
-                Log::error('Email sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id]);
+                Log::error('Email sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id, 'trace' => $e->getTraceAsString()]);
             }
         }
     }
