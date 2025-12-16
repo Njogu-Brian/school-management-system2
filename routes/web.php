@@ -961,8 +961,10 @@ Route::middleware('auth')->group(function () {
         // Credit & Debit Notes (manual)
         Route::get('credits/create', [CreditNoteController::class, 'create'])->name('credits.create');
         Route::post('credits/store', [CreditNoteController::class, 'store'])->name('credits.store');
+        Route::delete('credit-notes/{creditNote}/reverse', [CreditNoteController::class, 'reverse'])->name('credit-notes.reverse');
         Route::get('debits/create',  [DebitNoteController::class, 'create'])->name('debits.create');
         Route::post('debits/store',  [DebitNoteController::class, 'store'])->name('debits.store');
+        Route::delete('debit-notes/{debitNote}/reverse', [DebitNoteController::class, 'reverse'])->name('debit-notes.reverse');
 
         // Fee Payment Plans
         Route::resource('fee-payment-plans', FeePaymentPlanController::class)->parameters(['fee-payment-plans' => 'feePaymentPlan']);
@@ -989,6 +991,7 @@ Route::middleware('auth')->group(function () {
 
         // Journals
         Route::prefix('journals')->name('journals.')->group(function(){
+            Route::get('/', [JournalController::class, 'index'])->name('index');
             Route::get('/create', [JournalController::class, 'create'])->name('create');
             Route::post('/store', [JournalController::class, 'store'])->name('store');
         });

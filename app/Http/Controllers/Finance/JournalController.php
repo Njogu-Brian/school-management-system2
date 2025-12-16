@@ -12,6 +12,34 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class JournalController extends Controller
 {
+    public function index(Request $request)
+    {
+        $query = \App\Models\Journal::with(['student', 'votehead', 'invoice', 'invoiceItem'])
+            ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id))
+            ->when($request->filled('type'), fn($q) => $q->where('type', $request->type))
+            ->when($request->filled('year'), fn($q) => $q->where('year', $request->year))
+            ->when($request->filled('term'), fn($q) => $q->where('term', $request->term));
+
+        $journals = $query->latest()->paginate(20)->withQueryString();
+        
+        // Also get credit and debit notes for display
+        $creditNotes = \App\Models\CreditNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
+            ->when($request->filled('student_id'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id)))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+            
+        $debitNotes = \App\Models\DebitNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
+            ->when($request->filled('student_id'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id)))
+            ->latest()
+            ->paginate(20)
+            ->withQueryString();
+        
+        $students = \App\Models\Student::orderBy('first_name')->get();
+        
+        return view('finance.credit_debit_adjustments.index', compact('journals', 'creditNotes', 'debitNotes', 'students'));
+    }
+
     public function create()
     {
         return view('finance.credit_debit_adjustments.create', [

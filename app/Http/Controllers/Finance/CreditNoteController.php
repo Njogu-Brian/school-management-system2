@@ -31,4 +31,31 @@ class CreditNoteController extends Controller
         CreditNote::create($request->all());
         return redirect()->route('credit-notes.index')->with('success', 'Credit note issued.');
     }
+
+    public function reverse(CreditNote $creditNote)
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($creditNote) {
+            $invoice = $creditNote->invoice;
+            
+            // If there's an associated invoice item, adjust it back
+            if ($creditNote->invoice_item_id) {
+                $item = $creditNote->invoiceItem;
+                if ($item) {
+                    // Reverse the credit by adding the amount back
+                    $item->increment('amount', $creditNote->amount);
+                    $item->save();
+                }
+            }
+            
+            // Delete the credit note
+            $creditNote->delete();
+            
+            // Recalculate invoice
+            if ($invoice) {
+                \App\Services\InvoiceService::recalc($invoice);
+            }
+            
+            return back()->with('success', 'Credit note reversed successfully.');
+        });
+    }
 }

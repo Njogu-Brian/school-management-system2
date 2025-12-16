@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Journal, InvoiceItem, Invoice};
+use App\Models\{Journal, InvoiceItem, Invoice, CreditNote, DebitNote};
 use Illuminate\Support\Facades\DB;
 
 class JournalService
@@ -31,6 +31,29 @@ class JournalService
             $item->save();
 
             $j->update(['invoice_id'=>$invoice->id, 'invoice_item_id'=>$item->id]);
+
+            // Create CreditNote or DebitNote record for display in invoice
+            if ($data['type'] === 'credit') {
+                CreditNote::create([
+                    'invoice_id' => $invoice->id,
+                    'invoice_item_id' => $item->id,
+                    'amount' => $data['amount'],
+                    'reason' => $data['reason'],
+                    'notes' => 'Created via Journal: ' . $j->journal_number,
+                    'issued_at' => $data['effective_date'] ?? now(),
+                    'issued_by' => auth()->id(),
+                ]);
+            } elseif ($data['type'] === 'debit') {
+                DebitNote::create([
+                    'invoice_id' => $invoice->id,
+                    'invoice_item_id' => $item->id,
+                    'amount' => $data['amount'],
+                    'reason' => $data['reason'],
+                    'notes' => 'Created via Journal: ' . $j->journal_number,
+                    'issued_at' => $data['effective_date'] ?? now(),
+                    'issued_by' => auth()->id(),
+                ]);
+            }
 
             InvoiceService::recalc($invoice);
 

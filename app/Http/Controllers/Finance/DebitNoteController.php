@@ -31,4 +31,34 @@ class DebitNoteController extends Controller
         DebitNote::create($request->all());
         return redirect()->route('debit-notes.index')->with('success', 'Debit note issued.');
     }
+
+    public function reverse(DebitNote $debitNote)
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($debitNote) {
+            $invoice = $debitNote->invoice;
+            
+            // If there's an associated invoice item, adjust it back
+            if ($debitNote->invoice_item_id) {
+                $item = $debitNote->invoiceItem;
+                if ($item) {
+                    // Reverse the debit by subtracting the amount back
+                    $item->decrement('amount', $debitNote->amount);
+                    if ($item->amount < 0) {
+                        $item->update(['amount' => 0]);
+                    }
+                    $item->save();
+                }
+            }
+            
+            // Delete the debit note
+            $debitNote->delete();
+            
+            // Recalculate invoice
+            if ($invoice) {
+                \App\Services\InvoiceService::recalc($invoice);
+            }
+            
+            return back()->with('success', 'Debit note reversed successfully.');
+        });
+    }
 }

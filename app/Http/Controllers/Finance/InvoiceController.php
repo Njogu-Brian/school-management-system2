@@ -214,8 +214,10 @@ class InvoiceController extends Controller
             'academicYear',
             'items.votehead',
             'items.allocations.payment',
-            'creditNotes.creator',
-            'debitNotes.creator',
+            'creditNotes.issuedBy',
+            'creditNotes.invoiceItem',
+            'debitNotes.issuedBy',
+            'debitNotes.invoiceItem',
             'payments.paymentMethod'
         ]);
         return view('finance.invoices.show', compact('invoice', 'appliedDiscounts'));
