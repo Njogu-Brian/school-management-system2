@@ -234,7 +234,13 @@ document.addEventListener('DOMContentLoaded', function() {
     studentSelect.addEventListener('change', function() {
         const studentId = this.value;
         if (studentId) {
-            fetch(`{{ route('finance.payments.student-info', ['student' => '__ID__']) }}`.replace('__ID__', studentId))
+            fetch(`{{ route('finance.payments.student-info', ['student' => '__ID__']) }}`.replace('__ID__', studentId), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin'
+            })
                 .then(response => response.json())
                 .then(data => {
                     currentStudentData = data;
@@ -294,8 +300,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     checkOverpayment();
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    balanceInfo.innerHTML = '<p class="text-muted">Unable to load balance info</p>';
+                    console.error('Error loading balance info:', error);
+                    balanceInfo.innerHTML = `
+                        <p class="text-danger"><i class="bi bi-exclamation-triangle"></i> Unable to load balance info</p>
+                        <small class="text-muted">Error: ${error.message || 'Unknown error'}</small>
+                    `;
                     siblingsCard.style.display = 'none';
                 });
         } else {

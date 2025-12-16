@@ -53,9 +53,9 @@ class PaymentController extends Controller
         return view('finance.payments.create', compact('bankAccounts', 'paymentMethods'));
     }
 
-    public function getStudentBalanceAndSiblings($studentId)
+    public function getStudentBalanceAndSiblings(Student $student)
     {
-        $student = Student::findOrFail($studentId);
+        $studentId = $student->id;
         $invoices = Invoice::where('student_id', $studentId)->get();
         
         $totalBalance = $invoices->sum('balance');
