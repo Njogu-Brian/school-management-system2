@@ -23,8 +23,6 @@ class Payment extends Model
         'unallocated_amount',
         'payment_method', // Keep for backward compatibility
         'payment_method_id',
-        'reference',
-        'bank_account_id',
         'payer_name',
         'payer_type',
         'narration',
