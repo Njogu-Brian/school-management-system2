@@ -430,4 +430,78 @@ class DiscountController extends Controller
         
         return view('finance.discounts.bulk-allocate-sibling', compact('templates', 'academicYears', 'currentYear'));
     }
+
+    // Reverse/Delete allocation
+    public function reverse(FeeConcession $allocation)
+    {
+        try {
+            return \Illuminate\Support\Facades\DB::transaction(function () use ($allocation) {
+                $student = $allocation->student;
+                $term = $allocation->term;
+                $year = $allocation->year;
+                
+                // Find and update invoices that have this discount applied
+                $invoices = \App\Models\Invoice::where('student_id', $student->id)
+                    ->when($term, fn($q) => $q->where('term', $term))
+                    ->when($year, fn($q) => $q->where('year', $year))
+                    ->get();
+                
+                foreach ($invoices as $invoice) {
+                    // Remove discount from invoice items based on scope
+                    switch ($allocation->scope) {
+                        case 'votehead':
+                            if ($allocation->votehead_id) {
+                                $item = $invoice->items()->where('votehead_id', $allocation->votehead_id)->first();
+                                if ($item && $item->discount_amount > 0) {
+                                    // Calculate how much discount was applied by this concession
+                                    $discountAmount = $allocation->calculateDiscount($item->amount);
+                                    $item->decrement('discount_amount', $discountAmount);
+                                    // Ensure discount_amount doesn't go negative
+                                    if ($item->discount_amount < 0) {
+                                        $item->update(['discount_amount' => 0]);
+                                    }
+                                }
+                            }
+                            break;
+                            
+                        case 'invoice':
+                            if ($allocation->invoice_id == $invoice->id) {
+                                $discountAmount = $allocation->calculateDiscount($invoice->total);
+                                $invoice->decrement('discount_amount', $discountAmount);
+                                if ($invoice->discount_amount < 0) {
+                                    $invoice->update(['discount_amount' => 0]);
+                                }
+                            }
+                            break;
+                            
+                        case 'student':
+                        case 'family':
+                            // Remove discount from all items
+                            foreach ($invoice->items as $item) {
+                                if ($item->discount_amount > 0) {
+                                    $itemDiscount = $allocation->calculateDiscount($item->amount);
+                                    $item->decrement('discount_amount', $itemDiscount);
+                                    if ($item->discount_amount < 0) {
+                                        $item->update(['discount_amount' => 0]);
+                                    }
+                                }
+                            }
+                            break;
+                    }
+                    
+                    // Recalculate invoice
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+                
+                // Delete the allocation
+                $allocation->delete();
+                
+                return redirect()
+                    ->route('finance.discounts.allocations.index')
+                    ->with('success', 'Discount allocation reversed successfully. Invoices have been recalculated.');
+            });
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to reverse allocation: ' . $e->getMessage());
+        }
+    }
 }

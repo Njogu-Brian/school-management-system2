@@ -137,9 +137,23 @@
                                 @endif
                             </td>
                             <td>
-                                <a href="{{ route('finance.discounts.show', $allocation) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-eye"></i> View
-                                </a>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ route('finance.discounts.show', $allocation) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i> View
+                                    </a>
+                                    @if($allocation->approval_status === 'approved')
+                                        <form action="{{ route('finance.discounts.allocations.reverse', $allocation) }}" 
+                                              method="POST" 
+                                              class="d-inline"
+                                              onsubmit="return confirm('Are you sure you want to reverse this discount allocation? This will remove the discount from all related invoices and recalculate them.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-x-circle"></i> Reverse
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                         @empty

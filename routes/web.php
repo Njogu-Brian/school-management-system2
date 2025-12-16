@@ -1028,6 +1028,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSiblingForm'])->name('bulk-allocate-sibling');
             Route::post('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSibling'])->name('bulk-allocate-sibling.store');
             
+            // Reverse allocation
+            Route::delete('/allocations/{allocation}/reverse', [DiscountController::class, 'reverse'])->name('allocations.reverse');
+            
             // Apply sibling discount (legacy)
             Route::post('/apply-sibling/{student}', [DiscountController::class, 'applySiblingDiscount'])->name('apply-sibling');
             
