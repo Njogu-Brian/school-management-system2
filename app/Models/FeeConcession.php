@@ -14,6 +14,10 @@ class FeeConcession extends Model
         'family_id',
         'votehead_id',
         'invoice_id',
+        'discount_template_id',
+        'term',
+        'year',
+        'academic_year_id',
         'type',
         'discount_type',
         'frequency',
@@ -24,6 +28,8 @@ class FeeConcession extends Model
         'start_date',
         'end_date',
         'is_active',
+        'approval_status',
+        'rejection_reason',
         'approved_by',
         'created_by',
     ];
@@ -33,6 +39,8 @@ class FeeConcession extends Model
         'end_date' => 'date',
         'is_active' => 'boolean',
         'value' => 'decimal:2',
+        'term' => 'integer',
+        'year' => 'integer',
     ];
 
     public function student()
@@ -63,6 +71,16 @@ class FeeConcession extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function discountTemplate(): BelongsTo
+    {
+        return $this->belongsTo(DiscountTemplate::class);
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
     }
 
     /**
