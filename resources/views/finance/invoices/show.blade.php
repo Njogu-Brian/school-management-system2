@@ -485,7 +485,10 @@
                             </td>
                         </tr>
                         @endif
-
+                        @endforeach
+                        
+                        <!-- Edit Item Modals (only for invoice items) -->
+                        @foreach($invoice->items as $item)
                         <!-- Edit Item Modal -->
                         <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1">
                             <div class="modal-dialog">
