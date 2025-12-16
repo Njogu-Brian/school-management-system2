@@ -72,8 +72,8 @@
                                     <strong class="text-warning">Ksh {{ number_format($payment->unallocated_amount ?? $payment->amount - ($payment->allocated_amount ?? 0), 2) }}</strong>
                                 </dd>
 
-                                <dt class="col-sm-5">Reference:</dt>
-                                <dd class="col-sm-7">{{ $payment->reference ?? 'N/A' }}</dd>
+                                <dt class="col-sm-5">Transaction Code:</dt>
+                                <dd class="col-sm-7"><code>{{ $payment->transaction_code ?? 'N/A' }}</code></dd>
 
                                 <dt class="col-sm-5">Payer Name:</dt>
                                 <dd class="col-sm-7">{{ $payment->payer_name ?? 'N/A' }}</dd>

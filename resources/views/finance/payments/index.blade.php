@@ -74,7 +74,7 @@
                             <th class="text-end">Allocated</th>
                             <th class="text-end">Unallocated</th>
                             <th>Payment Method</th>
-                            <th>Reference</th>
+                            <th>Transaction Code</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -112,7 +112,7 @@
                                 {{ $payment->paymentMethod->name ?? $payment->payment_method ?? 'N/A' }}
                             </td>
                             <td>
-                                <small>{{ $payment->reference ?? '—' }}</small>
+                                <small>{{ $payment->transaction_code ?? '—' }}</small>
                             </td>
                             <td>
                                 @php

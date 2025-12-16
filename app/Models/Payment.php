@@ -81,11 +81,6 @@ class Payment extends Model
         return $this->belongsTo(PaymentMethod::class);
     }
 
-    public function bankAccount(): BelongsTo
-    {
-        return $this->belongsTo(BankAccount::class);
-    }
-
     public function reversedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reversed_by');
