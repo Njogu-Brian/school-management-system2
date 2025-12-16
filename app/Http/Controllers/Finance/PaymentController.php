@@ -176,7 +176,7 @@ class PaymentController extends Controller
                 $payment = Payment::create([
                     'student_id' => $validated['student_id'],
                     'family_id' => $student->family_id,
-                    'invoice_id' => $validated['invoice_id'] ?? null,
+                    'invoice_id' => isset($validated['invoice_id']) ? $validated['invoice_id'] : null,
                     'amount' => $validated['amount'],
                     'payment_method_id' => $validated['payment_method_id'],
                     'payer_name' => $validated['payer_name'],
