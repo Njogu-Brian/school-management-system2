@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Models\{Student, Family, Invoice, PaymentMethod, BankAccount, User, PaymentAllocation, Receipt};
+use App\Models\{Student, Family, Invoice, PaymentMethod, User, PaymentAllocation, Receipt};
 
 class Payment extends Model
 {
