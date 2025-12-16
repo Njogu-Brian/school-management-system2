@@ -23,6 +23,20 @@
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Template Name <span class="text-danger">*</span></label>
+                                <input type="text" 
+                                       name="name" 
+                                       class="form-control @error('name') is-invalid @enderror" 
+                                       value="{{ old('name') }}" 
+                                       placeholder="e.g., Sibling Discount 5% for 2nd Child" 
+                                       required>
+                                @error('name')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Give this discount template a descriptive name</small>
+                            </div>
+
                             <div class="col-md-6">
                                 <label class="form-label">Discount Type <span class="text-danger">*</span></label>
                                 <select name="discount_type" class="form-select @error('discount_type') is-invalid @enderror" required>
