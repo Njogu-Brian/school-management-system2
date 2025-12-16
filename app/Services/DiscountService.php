@@ -22,6 +22,21 @@ class DiscountService
         return DB::transaction(function () use ($invoice, $forceReapply) {
             $student = $invoice->student;
             
+            // Get term number from term_id relationship if term integer is not set
+            $termNumber = $invoice->term;
+            if (!$termNumber && $invoice->term_id && $invoice->relationLoaded('term') && $invoice->term) {
+                // Extract term number from term name (e.g., "Term 3" -> 3)
+                if (preg_match('/\d+/', $invoice->term->name, $matches)) {
+                    $termNumber = (int)$matches[0];
+                }
+            }
+            
+            // Get year from academic_year_id if year integer is not set
+            $year = $invoice->year;
+            if (!$year && $invoice->academic_year_id && $invoice->relationLoaded('academicYear') && $invoice->academicYear) {
+                $year = $invoice->academicYear->year;
+            }
+            
             // Get applicable concessions for this student
             $concessions = FeeConcession::where(function ($q) use ($student) {
                 $q->where('student_id', $student->id)
@@ -39,22 +54,6 @@ class DiscountService
                 $q->whereNull('end_date')
                   ->orWhere('end_date', '>=', now());
             })
-            // Match term and year if specified
-            // Get term number from term_id relationship if term integer is not set
-            $termNumber = $invoice->term;
-            if (!$termNumber && $invoice->term_id && $invoice->relationLoaded('term') && $invoice->term) {
-                // Extract term number from term name (e.g., "Term 3" -> 3)
-                if (preg_match('/\d+/', $invoice->term->name, $matches)) {
-                    $termNumber = (int)$matches[0];
-                }
-            }
-            
-            // Get year from academic_year_id if year integer is not set
-            $year = $invoice->year;
-            if (!$year && $invoice->academic_year_id && $invoice->academicYear) {
-                $year = $invoice->academicYear->year;
-            }
-            
             // Match term
             ->when($termNumber, function($q) use ($termNumber) {
                 $q->where(function($q) use ($termNumber) {

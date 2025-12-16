@@ -338,13 +338,17 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
-    <a href="{{ route('finance.discounts.index') }}" class="{{ Request::is('finance/discounts*') ? 'active' : '' }}"><i class="bi bi-percent"></i> Discounts</a>
-    <div class="collapse {{ Request::is('finance/discounts*') ? 'show' : '' }}" id="discountsMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.discounts.templates.index') }}" class="{{ Request::is('finance/discounts/templates*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Templates</a>
-        <a href="{{ route('finance.discounts.allocate') }}" class="{{ Request::is('finance/discounts/allocate*') ? 'active' : '' }}"><i class="bi bi-person-plus"></i> Allocate</a>
-        <a href="{{ route('finance.discounts.allocations.index') }}" class="{{ Request::is('finance/discounts/allocations*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations</a>
-        <a href="{{ route('finance.discounts.approvals.index') }}" class="{{ Request::is('finance/discounts/approvals*') ? 'active' : '' }}"><i class="bi bi-check-circle"></i> Approvals</a>
-        <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="{{ Request::is('finance/discounts/bulk-allocate-sibling*') ? 'active' : '' }}"><i class="bi bi-people"></i> Bulk Sibling</a>
+    @php
+        $discountsActive = Request::is('finance/discounts*');
+    @endphp
+    <a href="#discountsMenu" data-bs-toggle="collapse" aria-expanded="{{ $discountsActive ? 'true' : 'false' }}" class="{{ $discountsActive ? 'parent-active' : '' }}"><i class="bi bi-percent"></i> Discounts</a>
+    <div class="collapse {{ $discountsActive ? 'show' : '' }}" id="discountsMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.discounts.index') }}" class="sublink {{ Request::is('finance/discounts') && !Request::is('finance/discounts/*') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        <a href="{{ route('finance.discounts.templates.index') }}" class="sublink {{ Request::is('finance/discounts/templates*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Templates</a>
+        <a href="{{ route('finance.discounts.allocate') }}" class="sublink {{ Request::is('finance/discounts/allocate*') ? 'active' : '' }}"><i class="bi bi-person-plus"></i> Allocate</a>
+        <a href="{{ route('finance.discounts.allocations.index') }}" class="sublink {{ Request::is('finance/discounts/allocations*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations</a>
+        <a href="{{ route('finance.discounts.approvals.index') }}" class="sublink {{ Request::is('finance/discounts/approvals*') ? 'active' : '' }}"><i class="bi bi-check-circle"></i> Approvals</a>
+        <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="sublink {{ Request::is('finance/discounts/bulk-allocate-sibling*') ? 'active' : '' }}"><i class="bi bi-people"></i> Bulk Sibling</a>
     </div>
     <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
     <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
