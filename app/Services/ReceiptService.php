@@ -19,10 +19,44 @@ class ReceiptService
      */
     public function generateReceipt(Payment $payment, array $options = []): string
     {
-        $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
+        $payment->load([
+            'student.classroom', 
+            'invoice', 
+            'paymentMethod', 
+            'allocations.invoiceItem.votehead',
+            'allocations.invoiceItem.invoice'
+        ]);
         
         // Get school settings
         $schoolSettings = $this->getSchoolSettings();
+        
+        // Calculate allocation details with balances
+        $allocations = $payment->allocations->map(function($allocation) {
+            $item = $allocation->invoiceItem;
+            $itemAmount = $item->amount ?? 0;
+            $discountAmount = $item->discount_amount ?? 0;
+            $allocatedAmount = $allocation->amount;
+            $balanceBefore = $item->getBalance() + $allocatedAmount; // Balance before this payment
+            $balanceAfter = $item->getBalance(); // Balance after this payment
+            
+            return [
+                'allocation' => $allocation,
+                'invoice' => $item->invoice ?? null,
+                'votehead' => $item->votehead ?? null,
+                'item_amount' => $itemAmount,
+                'discount_amount' => $discountAmount,
+                'allocated_amount' => $allocatedAmount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+            ];
+        });
+        
+        // Calculate totals
+        $totalItemAmount = $allocations->sum('item_amount');
+        $totalDiscount = $allocations->sum('discount_amount');
+        $totalAllocated = $allocations->sum('allocated_amount');
+        $totalBalanceBefore = $allocations->sum('balance_before');
+        $totalBalanceAfter = $allocations->sum('balance_after');
         
         // Prepare data for PDF
         $data = [
@@ -31,8 +65,13 @@ class ReceiptService
             'receipt_number' => $payment->receipt_number,
             'date' => $payment->payment_date->format('d/m/Y'),
             'student' => $payment->student,
-            'allocations' => $payment->allocations,
+            'allocations' => $allocations,
             'total_amount' => $payment->amount,
+            'total_item_amount' => $totalItemAmount,
+            'total_discount' => $totalDiscount,
+            'total_allocated' => $totalAllocated,
+            'total_balance_before' => $totalBalanceBefore,
+            'total_balance_after' => $totalBalanceAfter,
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
             'transaction_code' => $payment->transaction_code,
             'narration' => $payment->narration,

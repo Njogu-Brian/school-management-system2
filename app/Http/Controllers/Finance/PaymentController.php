@@ -469,12 +469,55 @@ class PaymentController extends Controller
 
     public function viewReceipt(Payment $payment)
     {
-        $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
+        $payment->load([
+            'student.classroom', 
+            'invoice', 
+            'paymentMethod', 
+            'allocations.invoiceItem.votehead',
+            'allocations.invoiceItem.invoice'
+        ]);
         
         // Get school settings for receipt
         $schoolSettings = $this->getSchoolSettings();
         
-        return view('finance.receipts.view', compact('payment', 'schoolSettings'));
+        // Calculate allocation details with balances (same as ReceiptService)
+        $allocations = $payment->allocations->map(function($allocation) {
+            $item = $allocation->invoiceItem;
+            $itemAmount = $item->amount ?? 0;
+            $discountAmount = $item->discount_amount ?? 0;
+            $allocatedAmount = $allocation->amount;
+            $balanceBefore = $item->getBalance() + $allocatedAmount;
+            $balanceAfter = $item->getBalance();
+            
+            return [
+                'allocation' => $allocation,
+                'invoice' => $item->invoice ?? null,
+                'votehead' => $item->votehead ?? null,
+                'item_amount' => $itemAmount,
+                'discount_amount' => $discountAmount,
+                'allocated_amount' => $allocatedAmount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+            ];
+        });
+        
+        // Calculate totals
+        $totalItemAmount = $allocations->sum('item_amount');
+        $totalDiscount = $allocations->sum('discount_amount');
+        $totalAllocated = $allocations->sum('allocated_amount');
+        $totalBalanceBefore = $allocations->sum('balance_before');
+        $totalBalanceAfter = $allocations->sum('balance_after');
+        
+        return view('finance.receipts.view', compact(
+            'payment', 
+            'schoolSettings',
+            'allocations',
+            'totalItemAmount',
+            'totalDiscount',
+            'totalAllocated',
+            'totalBalanceBefore',
+            'totalBalanceAfter'
+        ));
     }
     
     /**

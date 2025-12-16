@@ -237,20 +237,31 @@
                     <th>#</th>
                     <th>Invoice Number</th>
                     <th>Votehead</th>
-                    <th class="text-right">Amount Allocated</th>
+                    <th class="text-right">Item Amount</th>
+                    <th class="text-right">Discount</th>
+                    <th class="text-right">Amount Paid</th>
+                    <th class="text-right">Balance Remaining</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach($allocations as $index => $allocation)
+                @foreach($allocations as $index => $allocationData)
                 @php
-                    $item = $allocation->invoiceItem ?? null;
-                    $invoice = $item->invoice ?? null;
+                    $allocation = is_array($allocationData) ? ($allocationData['allocation'] ?? null) : $allocationData;
+                    $invoice = is_array($allocationData) ? ($allocationData['invoice'] ?? null) : ($allocation->invoiceItem->invoice ?? null);
+                    $votehead = is_array($allocationData) ? ($allocationData['votehead'] ?? null) : ($allocation->invoiceItem->votehead ?? null);
+                    $itemAmount = is_array($allocationData) ? ($allocationData['item_amount'] ?? 0) : ($allocation->invoiceItem->amount ?? 0);
+                    $discountAmount = is_array($allocationData) ? ($allocationData['discount_amount'] ?? 0) : ($allocation->invoiceItem->discount_amount ?? 0);
+                    $allocatedAmount = is_array($allocationData) ? ($allocationData['allocated_amount'] ?? 0) : ($allocation->amount ?? 0);
+                    $balanceAfter = is_array($allocationData) ? ($allocationData['balance_after'] ?? 0) : ($allocation->invoiceItem->getBalance() ?? 0);
                 @endphp
                 <tr>
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $invoice->invoice_number ?? 'N/A' }}</td>
-                    <td>{{ $item->votehead->name ?? 'N/A' }}</td>
-                    <td class="text-right">Ksh {{ number_format($allocation->amount, 2) }}</td>
+                    <td>{{ $votehead->name ?? 'N/A' }}</td>
+                    <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
+                    <td class="text-right">@if($discountAmount > 0)Ksh {{ number_format($discountAmount, 2) }}@else-@endif</td>
+                    <td class="text-right"><strong>Ksh {{ number_format($allocatedAmount, 2) }}</strong></td>
+                    <td class="text-right">Ksh {{ number_format($balanceAfter, 2) }}</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -259,19 +270,41 @@
 
         <!-- Total Section -->
         <div class="total-section">
+            @if(isset($allocations) && $allocations->isNotEmpty())
             <div class="total-row">
-                <span>Total Amount Paid:</span>
+                <span>Total Invoice Amount:</span>
+                <span>Ksh {{ number_format($total_item_amount ?? 0, 2) }}</span>
+            </div>
+            @if(($total_discount ?? 0) > 0)
+            <div class="total-row">
+                <span>Total Discount:</span>
+                <span>Ksh {{ number_format($total_discount ?? 0, 2) }}</span>
+            </div>
+            @endif
+            <div class="total-row">
+                <span>Balance Before Payment:</span>
+                <span>Ksh {{ number_format($total_balance_before ?? 0, 2) }}</span>
+            </div>
+            @endif
+            <div class="total-row">
+                <span>Amount Paid (This Receipt):</span>
                 <span><strong>Ksh {{ number_format($total_amount ?? $payment->amount, 2) }}</strong></span>
             </div>
             @if(isset($allocations) && $allocations->isNotEmpty())
             <div class="total-row">
                 <span>Amount Allocated:</span>
-                <span>Ksh {{ number_format($allocations->sum('amount'), 2) }}</span>
+                <span>Ksh {{ number_format($total_allocated ?? 0, 2) }}</span>
             </div>
             <div class="total-row">
-                <span>Unallocated Amount:</span>
-                <span>Ksh {{ number_format(($total_amount ?? $payment->amount) - $allocations->sum('amount'), 2) }}</span>
+                <span>Balance Remaining:</span>
+                <span><strong>Ksh {{ number_format($total_balance_after ?? 0, 2) }}</strong></span>
             </div>
+            @if(($total_amount ?? $payment->amount) > ($total_allocated ?? 0))
+            <div class="total-row">
+                <span>Unallocated Amount:</span>
+                <span>Ksh {{ number_format(($total_amount ?? $payment->amount) - ($total_allocated ?? 0), 2) }}</span>
+            </div>
+            @endif
             @endif
         </div>
 
