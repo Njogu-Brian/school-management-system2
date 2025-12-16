@@ -14,7 +14,7 @@
             <i class="bi bi-search me-2"></i> Search Student
         </div>
         <div class="finance-card-body">
-            <form method="GET" action="{{ route('finance.student-statements.index') }}" class="row g-3">
+            <form method="GET" action="{{ route('finance.student-statements.index') }}" class="row g-3" id="studentStatementForm">
                 <div class="col-md-12">
                     <label class="finance-form-label">Student <span class="text-danger">*</span></label>
                     <div class="input-group">
@@ -32,12 +32,22 @@
                 </div>
                 
                 <div class="col-md-12">
-                    <button type="submit" id="viewStatementBtn" class="btn btn-finance btn-finance-primary" 
-                            {{ request('student_id') ? '' : 'disabled' }}>
+                    <button type="button" id="viewStatementBtn" class="btn btn-finance btn-finance-primary" 
+                            {{ request('student_id') ? '' : 'disabled' }}
+                            onclick="viewStatement()">
                         <i class="bi bi-eye"></i> View Statement
                     </button>
                 </div>
             </form>
+            
+            <script>
+                function viewStatement() {
+                    const studentId = document.getElementById('selectedStudentId').value;
+                    if (studentId) {
+                        window.location.href = '{{ route("finance.student-statements.show", ":id") }}'.replace(':id', studentId);
+                    }
+                }
+            </script>
         </div>
     </div>
 </div>

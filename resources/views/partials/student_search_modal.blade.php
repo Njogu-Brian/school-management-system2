@@ -81,6 +81,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (viewBtn) {
                         viewBtn.disabled = false;
                         viewBtn.innerHTML = '<i class="bi bi-eye"></i> View Statement';
+                        // Update onclick to use the new student ID
+                        viewBtn.setAttribute('onclick', `viewStatement()`);
                     }
                     
                     const modal = bootstrap.Modal.getInstance(document.getElementById('studentSearchModal'));
