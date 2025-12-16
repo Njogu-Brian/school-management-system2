@@ -35,7 +35,9 @@ class DiscountController extends Controller
     public function create()
     {
         $voteheads = Votehead::orderBy('name')->get();
-        return view('finance.discounts.create', compact('voteheads'));
+        $students = collect(); // Empty collection - students are selected during allocation, not template creation
+        $invoices = collect(); // Empty collection - invoices are selected during allocation, not template creation
+        return view('finance.discounts.create', compact('voteheads', 'students', 'invoices'));
     }
 
     public function store(Request $request)
