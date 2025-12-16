@@ -65,6 +65,7 @@ use App\Http\Controllers\Finance\OptionalFeeController;
 use App\Http\Controllers\Finance\PostingController;
 use App\Http\Controllers\Finance\JournalController;
 use App\Http\Controllers\Finance\FeeStatementController;
+use App\Http\Controllers\Finance\StudentStatementController;
 use App\Http\Controllers\Finance\ReceiptController;
 use App\Http\Controllers\Finance\FeeReminderController;
 use App\Http\Controllers\Finance\FeePaymentPlanController;

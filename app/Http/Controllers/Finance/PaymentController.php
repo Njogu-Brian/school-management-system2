@@ -203,31 +203,32 @@ class PaymentController extends Controller
                     'receipt_date' => $validated['receipt_date'] ?? null,
                 ]);
 
-            // Allocate payment
-            if ($validated['auto_allocate'] ?? false) {
-                $this->allocationService->autoAllocate($payment);
-            } elseif (!empty($validated['allocations'])) {
-                $this->allocationService->allocatePayment($payment, $validated['allocations']);
-            }
-            
-            // Handle overpayment
-            if ($payment->hasOverpayment()) {
-                $this->allocationService->handleOverpayment($payment);
-            }
-            
-            // Log audit
-            if (class_exists(\App\Models\AuditLog::class)) {
-                \App\Models\AuditLog::log(
-                    'created',
-                    $payment,
-                    null,
-                    [
-                        'amount' => $payment->amount,
-                        'student_id' => $payment->student_id,
-                        'payment_method_id' => $payment->payment_method_id,
-                    ],
-                    ['payment_recorded']
-                );
+                // Allocate payment
+                if ($validated['auto_allocate'] ?? false) {
+                    $this->allocationService->autoAllocate($payment);
+                } elseif (!empty($validated['allocations'])) {
+                    $this->allocationService->allocatePayment($payment, $validated['allocations']);
+                }
+                
+                // Handle overpayment
+                if ($payment->hasOverpayment()) {
+                    $this->allocationService->handleOverpayment($payment);
+                }
+                
+                // Log audit
+                if (class_exists(\App\Models\AuditLog::class)) {
+                    \App\Models\AuditLog::log(
+                        'created',
+                        $payment,
+                        null,
+                        [
+                            'amount' => $payment->amount,
+                            'student_id' => $payment->student_id,
+                            'payment_method_id' => $payment->payment_method_id,
+                        ],
+                        ['payment_recorded']
+                    );
+                }
             }
         });
 
