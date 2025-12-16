@@ -23,17 +23,36 @@ class JournalController extends Controller
         $journals = $query->latest()->paginate(20)->withQueryString();
         
         // Also get credit and debit notes for display (all of them, not just from journals)
+        // Only show notes that have invoices (whereHas ensures invoice exists)
         $creditNotesQuery = \App\Models\CreditNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
-            ->when($request->filled('student_id'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id)))
-            ->when($request->filled('year'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('year', $request->year)))
-            ->when($request->filled('term'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('term', $request->term)));
+            ->whereHas('invoice'); // Only show notes with valid invoices
+            
+        // Apply filters only if they're explicitly provided
+        if ($request->filled('student_id')) {
+            $creditNotesQuery->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id));
+        }
+        if ($request->filled('year')) {
+            $creditNotesQuery->whereHas('invoice', fn($iq) => $iq->where('year', $request->year));
+        }
+        if ($request->filled('term')) {
+            $creditNotesQuery->whereHas('invoice', fn($iq) => $iq->where('term', $request->term));
+        }
             
         $creditNotes = $creditNotesQuery->latest()->paginate(20)->withQueryString();
             
         $debitNotesQuery = \App\Models\DebitNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
-            ->when($request->filled('student_id'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id)))
-            ->when($request->filled('year'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('year', $request->year)))
-            ->when($request->filled('term'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('term', $request->term)));
+            ->whereHas('invoice'); // Only show notes with valid invoices
+            
+        // Apply filters only if they're explicitly provided
+        if ($request->filled('student_id')) {
+            $debitNotesQuery->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id));
+        }
+        if ($request->filled('year')) {
+            $debitNotesQuery->whereHas('invoice', fn($iq) => $iq->where('year', $request->year));
+        }
+        if ($request->filled('term')) {
+            $debitNotesQuery->whereHas('invoice', fn($iq) => $iq->where('term', $request->term));
+        }
             
         $debitNotes = $debitNotesQuery->latest()->paginate(20)->withQueryString();
         
