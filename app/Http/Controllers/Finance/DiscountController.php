@@ -34,10 +34,7 @@ class DiscountController extends Controller
 
     public function create()
     {
-        $voteheads = Votehead::orderBy('name')->get();
-        $students = collect(); // Empty collection - students are selected during allocation, not template creation
-        $invoices = collect(); // Empty collection - invoices are selected during allocation, not template creation
-        return view('finance.discounts.create', compact('voteheads', 'students', 'invoices'));
+        return view('finance.discounts.create');
     }
 
     public function store(Request $request)
@@ -55,8 +52,6 @@ class DiscountController extends Controller
             'requires_approval' => 'nullable|boolean',
             'sibling_rules' => 'nullable|array',
             'sibling_rules.*' => 'numeric|min:0|max:100',
-            'votehead_ids' => 'nullable|array',
-            'votehead_ids.*' => 'exists:voteheads,id',
         ]);
 
         try {
@@ -72,9 +67,6 @@ class DiscountController extends Controller
                 $siblingRules = !empty($siblingRules) ? $siblingRules : null;
             }
 
-            // Process votehead_ids
-            $voteheadIds = !empty($validated['votehead_ids']) ? array_map('intval', $validated['votehead_ids']) : null;
-
             $template = DiscountTemplate::create([
                 'name' => $validated['name'],
                 'type' => $validated['type'],
@@ -83,7 +75,6 @@ class DiscountController extends Controller
                 'scope' => $validated['scope'],
                 'value' => $validated['value'],
                 'sibling_rules' => $siblingRules,
-                'votehead_ids' => $voteheadIds,
                 'reason' => $validated['reason'],
                 'description' => $validated['description'] ?? null,
                 'end_date' => $validated['end_date'] ?? null,
@@ -360,82 +351,46 @@ class DiscountController extends Controller
                         }
 
                         try {
-                            // Handle votehead-specific discounts
-                            if ($template->scope === 'votehead' && !empty($template->votehead_ids)) {
-                                // Create one allocation per votehead
-                                foreach ($template->votehead_ids as $voteheadId) {
-                                    // Check if allocation already exists
-                                    $existing = FeeConcession::where('student_id', $student->id)
-                                        ->where('discount_template_id', $template->id)
-                                        ->where('votehead_id', $voteheadId)
-                                        ->where('term', $validated['term'])
-                                        ->where('year', $validated['year'])
-                                        ->first();
-                                    
-                                    if ($existing) {
-                                        continue; // Skip if already allocated
-                                    }
-
-                                    FeeConcession::create([
-                                        'discount_template_id' => $template->id,
-                                        'student_id' => $student->id,
-                                        'family_id' => $family->id,
-                                        'votehead_id' => $voteheadId,
-                                        'term' => $validated['term'],
-                                        'year' => $validated['year'],
-                                        'academic_year_id' => $validated['academic_year_id'] ?? null,
-                                        'type' => $template->type,
-                                        'discount_type' => 'sibling',
-                                        'frequency' => $template->frequency,
-                                        'scope' => $template->scope,
-                                        'value' => $discountValue,
-                                        'reason' => "Sibling discount - {$childNumberFromOldest} of {$siblingCount} children",
-                                        'description' => $template->description ?? "Automatic sibling discount allocation. Family has {$siblingCount} children.",
-                                        'start_date' => now(),
-                                        'end_date' => $template->end_date,
-                                        'is_active' => true,
-                                        'approval_status' => $template->requires_approval ? 'pending' : 'approved',
-                                        'approved_by' => $template->requires_approval ? null : auth()->id(),
-                                        'created_by' => auth()->id(),
-                                    ]);
-                                    $allocationsCreated++;
-                                }
-                            } else {
-                                // Single allocation for other scopes
-                                // Check if allocation already exists
-                                $existing = FeeConcession::where('student_id', $student->id)
-                                    ->where('discount_template_id', $template->id)
-                                    ->where('term', $validated['term'])
-                                    ->where('year', $validated['year'])
-                                    ->first();
-                                
-                                if ($existing) {
-                                    continue; // Skip if already allocated
-                                }
-
-                                FeeConcession::create([
-                                    'discount_template_id' => $template->id,
-                                    'student_id' => $student->id,
-                                    'family_id' => $family->id,
-                                    'term' => $validated['term'],
-                                    'year' => $validated['year'],
-                                    'academic_year_id' => $validated['academic_year_id'] ?? null,
-                                    'type' => $template->type,
-                                    'discount_type' => 'sibling',
-                                    'frequency' => $template->frequency,
-                                    'scope' => $template->scope,
-                                    'value' => $discountValue,
-                                    'reason' => "Sibling discount - {$childNumberFromOldest} of {$siblingCount} children",
-                                    'description' => $template->description ?? "Automatic sibling discount allocation. Family has {$siblingCount} children.",
-                                    'start_date' => now(),
-                                    'end_date' => $template->end_date,
-                                    'is_active' => true,
-                                    'approval_status' => $template->requires_approval ? 'pending' : 'approved',
-                                    'approved_by' => $template->requires_approval ? null : auth()->id(),
-                                    'created_by' => auth()->id(),
-                                ]);
-                                $allocationsCreated++;
+                            // Skip votehead-specific discounts in bulk allocation
+                            // Votehead-specific discounts must be allocated individually where voteheads can be selected
+                            if ($template->scope === 'votehead') {
+                                continue;
                             }
+                            
+                            // Single allocation for non-votehead scopes
+                            // Check if allocation already exists
+                            $existing = FeeConcession::where('student_id', $student->id)
+                                ->where('discount_template_id', $template->id)
+                                ->where('term', $validated['term'])
+                                ->where('year', $validated['year'])
+                                ->first();
+                            
+                            if ($existing) {
+                                continue; // Skip if already allocated
+                            }
+
+                            FeeConcession::create([
+                                'discount_template_id' => $template->id,
+                                'student_id' => $student->id,
+                                'family_id' => $family->id,
+                                'term' => $validated['term'],
+                                'year' => $validated['year'],
+                                'academic_year_id' => $validated['academic_year_id'] ?? null,
+                                'type' => $template->type,
+                                'discount_type' => 'sibling',
+                                'frequency' => $template->frequency,
+                                'scope' => $template->scope,
+                                'value' => $discountValue,
+                                'reason' => "Sibling discount - {$childNumberFromOldest} of {$siblingCount} children",
+                                'description' => $template->description ?? "Automatic sibling discount allocation. Family has {$siblingCount} children.",
+                                'start_date' => now(),
+                                'end_date' => $template->end_date,
+                                'is_active' => true,
+                                'approval_status' => $template->requires_approval ? 'pending' : 'approved',
+                                'approved_by' => $template->requires_approval ? null : auth()->id(),
+                                'created_by' => auth()->id(),
+                            ]);
+                            $allocationsCreated++;
                         } catch (\Exception $e) {
                             $errors[] = "Failed to allocate for {$student->first_name} {$student->last_name}: " . $e->getMessage();
                         }

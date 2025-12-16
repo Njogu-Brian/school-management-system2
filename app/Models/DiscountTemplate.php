@@ -19,7 +19,6 @@ class DiscountTemplate extends Model
         'scope',
         'value',
         'sibling_rules',
-        'votehead_ids',
         'reason',
         'description',
         'end_date',
@@ -34,7 +33,6 @@ class DiscountTemplate extends Model
         'is_active' => 'boolean',
         'value' => 'decimal:2',
         'sibling_rules' => 'array', // {"2": 5, "3": 10, "4": 15} - child position => discount percentage
-        'votehead_ids' => 'array', // [1, 2, 3] - array of votehead IDs
     ];
 
     public function creator(): BelongsTo

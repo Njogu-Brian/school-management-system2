@@ -176,52 +176,21 @@
             <div class="col-md-4">
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-white">
-                        <h5 class="mb-0">Apply To</h5>
+                        <h5 class="mb-0">Info</h5>
                     </div>
                     <div class="card-body">
-                        <div class="mb-3" id="student_selector">
-                            <label class="form-label">Student</label>
-                            <select name="student_id" class="form-select">
-                                <option value="">-- Select Student --</option>
-                                @foreach($students as $student)
-                                    <option value="{{ $student->id }}" {{ old('student_id') == $student->id ? 'selected' : '' }}>
-                                        {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="mb-3" id="votehead_selector" style="display: none;">
-                            <label class="form-label">Voteheads <span class="text-muted">(Select one or more)</span></label>
-                            <select name="votehead_ids[]" class="form-select" multiple size="6">
-                                @foreach($voteheads as $votehead)
-                                    <option value="{{ $votehead->id }}" {{ in_array($votehead->id, old('votehead_ids', [])) ? 'selected' : '' }}>
-                                        {{ $votehead->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple voteheads</small>
-                        </div>
-
-                        <div class="mb-3" id="invoice_selector" style="display: none;">
-                            <label class="form-label">Invoice</label>
-                            <select name="invoice_id" class="form-select">
-                                <option value="">-- Select Invoice --</option>
-                                @foreach($invoices as $invoice)
-                                    <option value="{{ $invoice->id }}" {{ old('invoice_id') == $invoice->id ? 'selected' : '' }}>
-                                        {{ $invoice->invoice_number }} - {{ $invoice->student->first_name ?? 'N/A' }}
-                                    </option>
-                                @endforeach
-                            </select>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Note:</strong> This form creates a discount template. To allocate this discount to students, use the "Allocate Discount" option after creating the template.
                         </div>
                     </div>
                 </div>
 
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle"></i> Create Discount
+                        <i class="bi bi-check-circle"></i> Create Template
                     </button>
-                    <a href="{{ route('finance.discounts.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-secondary">
                         <i class="bi bi-arrow-left"></i> Cancel
                     </a>
                 </div>
@@ -233,22 +202,10 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const scopeSelect = document.getElementById('scope');
-    const studentSelector = document.getElementById('student_selector');
-    const voteheadSelector = document.getElementById('votehead_selector');
-    const invoiceSelector = document.getElementById('invoice_selector');
     const discountType = document.getElementById('discount_amount_type');
     const valueSuffix = document.getElementById('value_suffix');
 
-    // Handle scope changes
-    scopeSelect.addEventListener('change', function() {
-        studentSelector.style.display = (this.value === 'student' || this.value === 'family') ? 'block' : 'none';
-        voteheadSelector.style.display = this.value === 'votehead' ? 'block' : 'none';
-        invoiceSelector.style.display = this.value === 'invoice' ? 'block' : 'none';
-    });
-
-    // Trigger on page load
-    scopeSelect.dispatchEvent(new Event('change'));
+    // Scope selector is now just for information, no UI changes needed
 
     // Handle discount type change
     discountType.addEventListener('change', function() {
