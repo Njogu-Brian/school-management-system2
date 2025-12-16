@@ -19,7 +19,7 @@ class ReceiptService
      */
     public function generateReceipt(Payment $payment, array $options = []): string
     {
-        $payment->load(['student', 'invoice', 'paymentMethod', 'bankAccount', 'allocations.invoiceItem.votehead']);
+        $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
         
         // Get school settings
         $schoolSettings = $this->getSchoolSettings();

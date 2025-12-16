@@ -169,14 +169,14 @@
         <!-- Header -->
         <div class="header">
             <h1>{{ $school['name'] ?? 'SCHOOL NAME' }}</h1>
-            @if($school['address'])
+            @if(!empty($school['address'] ?? ''))
             <div class="school-info">
-                {{ $school['address'] }}<br>
-                @if($school['phone'])Tel: {{ $school['phone'] }} | @endif
-                @if($school['email'])Email: {{ $school['email'] }}@endif
+                {{ $school['address'] ?? '' }}<br>
+                @if(!empty($school['phone'] ?? ''))Tel: {{ $school['phone'] }} | @endif
+                @if(!empty($school['email'] ?? ''))Email: {{ $school['email'] }}@endif
             </div>
             @endif
-            @if($school['registration_number'])
+            @if(!empty($school['registration_number'] ?? ''))
             <div class="school-info" style="margin-top: 5px;">
                 Registration No: {{ $school['registration_number'] }}
             </div>

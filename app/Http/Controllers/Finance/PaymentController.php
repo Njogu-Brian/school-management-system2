@@ -458,6 +458,11 @@ class PaymentController extends Controller
                 'Content-Disposition' => 'inline; filename="Receipt_' . $payment->receipt_number . '.pdf"',
             ]);
         } catch (\Exception $e) {
+            \Log::error('Receipt generation failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return back()->with('error', 'Receipt generation failed: ' . $e->getMessage());
         }
     }
@@ -465,7 +470,48 @@ class PaymentController extends Controller
     public function viewReceipt(Payment $payment)
     {
         $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
-        return view('finance.receipts.view', compact('payment'));
+        
+        // Get school settings for receipt
+        $schoolSettings = $this->getSchoolSettings();
+        
+        return view('finance.receipts.view', compact('payment', 'schoolSettings'));
+    }
+    
+    /**
+     * Get school settings for receipt header/footer
+     */
+    private function getSchoolSettings(): array
+    {
+        // Try Setting model first
+        if (class_exists(\App\Models\Setting::class)) {
+            $settings = \App\Models\Setting::whereIn('key', [
+                'school_name',
+                'school_logo',
+                'school_address',
+                'school_phone',
+                'school_email',
+                'school_registration_number',
+            ])->pluck('value', 'key')->toArray();
+        } else {
+            // Fallback to direct table query
+            $settings = \Illuminate\Support\Facades\DB::table('settings')->whereIn('key', [
+                'school_name',
+                'school_logo',
+                'school_address',
+                'school_phone',
+                'school_email',
+                'school_registration_number',
+            ])->pluck('value', 'key')->toArray();
+        }
+        
+        return [
+            'name' => $settings['school_name'] ?? 'School Name',
+            'logo' => $settings['school_logo'] ?? null,
+            'address' => $settings['school_address'] ?? '',
+            'phone' => $settings['school_phone'] ?? '',
+            'email' => $settings['school_email'] ?? '',
+            'registration_number' => $settings['school_registration_number'] ?? '',
+        ];
     }
 
     /**

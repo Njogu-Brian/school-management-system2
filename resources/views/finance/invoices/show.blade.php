@@ -333,7 +333,7 @@
                                 </button>
                             </td>
                         </tr>
-                        
+
                         @elseif($type === 'item_discount')
                         @php
                             $item = $data;
