@@ -64,15 +64,15 @@
     </div>
 
     {{-- Summary --}}
-    <div class="row">
+    <div class="row g-3 mb-4">
         <div class="col-md-3">
             <div class="finance-stat-card border-primary finance-animate">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Total Charges</h6>
-                        <h3 class="mb-0">Ksh {{ number_format($totalCharges, 2) }}</h3>
+                        <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Total Charges</h6>
+                        <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">Ksh {{ number_format($totalCharges, 2) }}</h4>
                     </div>
-                    <i class="bi bi-arrow-up-circle fs-1 text-primary"></i>
+                    <i class="bi bi-arrow-up-circle" style="font-size: 2rem; color: var(--finance-primary);"></i>
                 </div>
             </div>
         </div>
@@ -80,10 +80,10 @@
             <div class="finance-stat-card border-success finance-animate">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Total Payments</h6>
-                        <h3 class="mb-0">Ksh {{ number_format($totalPayments, 2) }}</h3>
+                        <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Total Payments</h6>
+                        <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">Ksh {{ number_format($totalPayments, 2) }}</h4>
                     </div>
-                    <i class="bi bi-cash-stack fs-1 text-success"></i>
+                    <i class="bi bi-cash-stack" style="font-size: 2rem; color: var(--finance-success);"></i>
                 </div>
             </div>
         </div>
@@ -91,10 +91,10 @@
             <div class="finance-stat-card border-info finance-animate">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Total Discounts</h6>
-                        <h3 class="mb-0">Ksh {{ number_format($totalDiscounts, 2) }}</h3>
+                        <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Total Discounts</h6>
+                        <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">Ksh {{ number_format($totalDiscounts, 2) }}</h4>
                     </div>
-                    <i class="bi bi-percent fs-1 text-info"></i>
+                    <i class="bi bi-percent" style="font-size: 2rem; color: var(--finance-info);"></i>
                 </div>
             </div>
         </div>
@@ -102,10 +102,10 @@
             <div class="finance-stat-card {{ $balance > 0 ? 'border-danger' : 'border-success' }} finance-animate">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Balance</h6>
-                        <h3 class="mb-0">Ksh {{ number_format($balance, 2) }}</h3>
+                        <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Balance</h6>
+                        <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700; color: {{ $balance > 0 ? '#dc3545' : '#10b981' }};">Ksh {{ number_format($balance, 2) }}</h4>
                     </div>
-                    <i class="bi bi-wallet2 fs-1 {{ $balance > 0 ? 'text-danger' : 'text-success' }}"></i>
+                    <i class="bi bi-wallet2" style="font-size: 2rem; color: {{ $balance > 0 ? '#dc3545' : '#10b981' }};"></i>
                 </div>
             </div>
         </div>
@@ -128,6 +128,7 @@
                             <th class="text-end">Debit</th>
                             <th class="text-end">Credit</th>
                             <th class="text-end">Balance</th>
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -226,7 +227,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="text-center">
+                                <td colspan="8" class="text-center">
                                     <div class="finance-empty-state">
                                         <i class="bi bi-inbox finance-empty-state-icon"></i>
                                         <h4>No transactions found</h4>

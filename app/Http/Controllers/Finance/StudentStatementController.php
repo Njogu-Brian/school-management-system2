@@ -102,8 +102,8 @@ class StudentStatementController extends Controller
         
         $debitNotes = $debitNotesQuery->orderBy('created_at')->get();
         
-        // Calculate totals
-        $totalCharges = $invoices->sum('total');
+        // Calculate totals - invoices already have discounts applied in their total
+        $totalCharges = $invoices->sum('total'); // This already includes discounts
         $totalDiscounts = $discounts->sum('value') + $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
             return $inv->items->sum('discount_amount');
         });
@@ -111,7 +111,9 @@ class StudentStatementController extends Controller
         $totalCreditNotes = $creditNotes->sum('amount');
         $totalDebitNotes = $debitNotes->sum('amount');
         
-        $balance = $totalCharges - $totalDiscounts - $totalPayments - $totalCreditNotes + $totalDebitNotes;
+        // Balance = Charges (already net of discounts) - Payments - Credit Notes + Debit Notes
+        // Note: Invoices total already has discounts subtracted, so we don't subtract discounts again
+        $balance = $totalCharges - $totalPayments - $totalCreditNotes + $totalDebitNotes;
         
         // Get all terms and years for filter
         $terms = \App\Models\Term::orderBy('name')->get();
