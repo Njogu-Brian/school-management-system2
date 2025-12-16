@@ -159,21 +159,21 @@ class PaymentController extends Controller
                     $siblingAmount = $sharedAmounts[$index] ?? 0;
                     
                     if ($siblingAmount > 0) {
+                        // Generate unique transaction code for each sibling payment
+                        $transactionCode = $validated['transaction_code'] . '-' . ($index + 1);
+                        
                         $payment = Payment::create([
                             'student_id' => $siblingId,
                             'family_id' => $sibling->family_id,
                             'invoice_id' => null, // Will be auto-allocated
                             'amount' => $siblingAmount,
-                            'payment_method' => $validated['payment_method'] ?? null,
-                            'payment_method_id' => $validated['payment_method_id'] ?? null,
-                            'reference' => $validated['reference'],
-                            'bank_account_id' => $validated['bank_account_id'] ?? null,
+                            'payment_method_id' => $validated['payment_method_id'],
                             'payer_name' => $validated['payer_name'],
                             'payer_type' => $validated['payer_type'],
                             'narration' => $validated['narration'],
-                            'transaction_code' => $validated['transaction_code'] ?? null,
+                            'transaction_code' => $transactionCode,
                             'payment_date' => $validated['payment_date'],
-                            'receipt_date' => $validated['receipt_date'] ?? null,
+                            // receipt_date is set automatically in Payment model
                         ]);
                         
                         // Auto-allocate for sibling
