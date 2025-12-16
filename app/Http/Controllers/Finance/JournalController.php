@@ -49,13 +49,25 @@ class JournalController extends Controller
 
     public function store(Request $request)
     {
-        // ... (unchanged validation)
-        $j = \App\Services\JournalService::createAndApply($request->only(
-            'student_id','votehead_id','year','term','type','amount','reason','effective_date'
-        ));
+        $validated = $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'votehead_id' => 'required|exists:voteheads,id',
+            'year' => 'required|integer',
+            'term' => 'required|in:1,2,3',
+            'type' => 'required|in:credit,debit',
+            'amount' => 'required|numeric|min:0.01',
+            'reason' => 'required|string|max:255',
+            'effective_date' => 'nullable|date',
+        ]);
 
-        return redirect()->route('finance.invoices.show', $j->invoice_id)
-            ->with('success', "Journal {$j->journal_number} applied.");
+        try {
+            $j = \App\Services\JournalService::createAndApply($validated);
+
+            return redirect()->route('finance.invoices.show', $j->invoice_id)
+                ->with('success', "Journal {$j->journal_number} applied successfully.");
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
     }
 
      public function bulkForm()

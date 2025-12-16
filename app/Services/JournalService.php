@@ -11,11 +11,21 @@ class JournalService
     {
         // expected keys: student_id, votehead_id, year, term, type (credit|debit), amount, reason, effective_date?
         return DB::transaction(function () use ($data) {
+            // Check if invoice exists first - don't create new invoices for adjustments
+            $invoice = Invoice::where('student_id', $data['student_id'])
+                ->where('year', $data['year'])
+                ->where('term', $data['term'])
+                ->first();
+            
+            if (!$invoice) {
+                $student = \App\Models\Student::find($data['student_id']);
+                $studentName = $student ? $student->full_name : 'Student';
+                throw new \Exception("No existing invoice found for {$studentName} for Year {$data['year']}, Term {$data['term']}. Please create an invoice first before applying adjustments.");
+            }
+            
             $data['journal_number'] = NumberSeries::journal();
 
             $j = Journal::create($data);
-
-            $invoice = InvoiceService::ensure($data['student_id'], $data['year'], $data['term']);
 
             $item = InvoiceItem::firstOrNew([
                 'invoice_id'  => $invoice->id,
