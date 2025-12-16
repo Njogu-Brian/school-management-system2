@@ -172,7 +172,7 @@
     <!-- Invoice Items with Inline Editing -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Invoice Items</h5>
+            <h5 class="mb-0">Invoice Items, Discounts & Adjustments</h5>
             @if($invoice->balance > 0)
             <a href="{{ route('finance.payments.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-primary">
                 <i class="bi bi-cash-stack"></i> Record Payment
