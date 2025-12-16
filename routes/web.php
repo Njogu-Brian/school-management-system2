@@ -969,6 +969,11 @@ Route::middleware('auth')->group(function () {
         Route::get('document-settings', [DocumentSettingsController::class, 'index'])->name('document-settings.index');
         Route::post('document-settings', [DocumentSettingsController::class, 'update'])->name('document-settings.update');
         
+        // Student Statements
+        Route::get('student-statements', [StudentStatementController::class, 'index'])->name('student-statements.index');
+        Route::get('student-statements/{student}', [StudentStatementController::class, 'show'])->name('student-statements.show');
+        Route::get('student-statements/{student}/export', [StudentStatementController::class, 'export'])->name('student-statements.export');
+        
         // Online Payments
         Route::post('payments/initiate-online', [PaymentController::class, 'initiateOnline'])->name('payments.initiate-online');
         Route::get('payment-transactions/{transaction}', [PaymentController::class, 'showTransaction'])->name('payment-transactions.show');
