@@ -544,13 +544,15 @@
                                 </div>
                             </div>
                         </div>
-                        @empty
+                        @endforeach
+                        
+                        @if($allLineItems->isEmpty())
                         <tr>
                             <td colspan="10" class="text-center py-4 text-muted">
                                 No invoice items found.
                             </td>
                         </tr>
-                        @endforelse
+                        @endif
                     </tbody>
                     <tfoot class="table-light">
                         @php
