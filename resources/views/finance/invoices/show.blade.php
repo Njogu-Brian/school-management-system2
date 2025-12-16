@@ -123,6 +123,30 @@
             <h5 class="mb-0"><i class="bi bi-percent"></i> Discounts Applied</h5>
         </div>
         <div class="card-body">
+            @if(isset($appliedDiscounts) && $appliedDiscounts->isNotEmpty())
+            <div class="mb-3">
+                <h6 class="mb-2">Applied Discounts:</h6>
+                <ul class="list-unstyled mb-0">
+                    @foreach($appliedDiscounts as $discount)
+                    @php
+                        $discountName = $discount->discountTemplate->name ?? $discount->reason ?? 'Discount';
+                        $discountType = $discount->type === 'percentage' ? $discount->value . '%' : 'Ksh ' . number_format($discount->value, 2);
+                        $scopeLabel = ucfirst($discount->scope);
+                        if ($discount->scope === 'votehead' && $discount->votehead) {
+                            $scopeLabel .= ' (' . $discount->votehead->name . ')';
+                        }
+                    @endphp
+                    <li class="mb-2">
+                        <strong>{{ $discountName }}</strong>
+                        <span class="text-muted">({{ $scopeLabel }})</span>
+                        <br>
+                        <small class="text-muted">{{ $discountType }} - {{ $discount->description ?? $discount->reason }}</small>
+                    </li>
+                    @endforeach
+                </ul>
+            </div>
+            <hr>
+            @endif
             <div class="row">
                 <div class="col-md-6">
                     <p class="mb-1"><strong>Item-Level Discounts:</strong></p>

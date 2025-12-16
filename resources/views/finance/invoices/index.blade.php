@@ -103,6 +103,8 @@
                             <th>Student</th>
                             <th>Class/Stream</th>
                             <th>Year/Term</th>
+                            <th class="text-end">Subtotal</th>
+                            <th class="text-end">Discount</th>
                             <th class="text-end">Total</th>
                             <th class="text-end">Paid</th>
                             <th class="text-end">Balance</th>
@@ -114,7 +116,15 @@
                     <tbody>
                         @forelse($invoices as $inv)
                         @php
-                            $balance = $inv->balance ?? ($inv->total - ($inv->paid_amount ?? 0));
+                            // Calculate subtotal (before discounts)
+                            $subtotal = $inv->items->sum('amount') ?? $inv->total;
+                            // Calculate total discounts
+                            $itemDiscounts = $inv->items->sum('discount_amount') ?? 0;
+                            $invoiceDiscount = $inv->discount_amount ?? 0;
+                            $totalDiscount = $itemDiscounts + $invoiceDiscount;
+                            // Total after discounts (should match $inv->total if calculated correctly)
+                            $totalAfterDiscount = $subtotal - $totalDiscount;
+                            $balance = $inv->balance ?? ($totalAfterDiscount - ($inv->paid_amount ?? 0));
                         @endphp
                         <tr>
                             <td>
@@ -137,7 +147,17 @@
                                 @endif
                             </td>
                             <td class="text-end">
-                                <strong>Ksh {{ number_format($inv->total, 2) }}</strong>
+                                <span class="text-muted">Ksh {{ number_format($subtotal, 2) }}</span>
+                            </td>
+                            <td class="text-end">
+                                @if($totalDiscount > 0)
+                                    <span class="text-success">-Ksh {{ number_format($totalDiscount, 2) }}</span>
+                                @else
+                                    <span class="text-muted">Ksh 0.00</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <strong>Ksh {{ number_format($totalAfterDiscount, 2) }}</strong>
                             </td>
                             <td class="text-end">
                                 <span class="text-success">Ksh {{ number_format($inv->paid_amount ?? 0, 2) }}</span>
@@ -180,19 +200,38 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="10" class="text-center py-4">
+                            <td colspan="12" class="text-center py-4">
                                 <p class="text-muted mb-0">No invoices found.</p>
                             </td>
                         </tr>
                         @endforelse
                     </tbody>
                     @if($invoices->isNotEmpty())
+                    @php
+                        $totalSubtotal = $invoices->sum(function($i) { return $i->items->sum('amount') ?? $i->total; });
+                        $totalDiscounts = $invoices->sum(function($i) { 
+                            return ($i->items->sum('discount_amount') ?? 0) + ($i->discount_amount ?? 0); 
+                        });
+                        $totalAfterDiscount = $totalSubtotal - $totalDiscounts;
+                        $totalPaid = $invoices->sum('paid_amount');
+                        $totalBalance = $invoices->sum(function($i) { 
+                            return $i->balance ?? (($i->items->sum('amount') ?? $i->total) - (($i->items->sum('discount_amount') ?? 0) + ($i->discount_amount ?? 0)) - ($i->paid_amount ?? 0)); 
+                        });
+                    @endphp
                     <tfoot class="table-light">
                         <tr>
                             <th colspan="4" class="text-end">Totals:</th>
-                            <th class="text-end">Ksh {{ number_format($invoices->sum('total'), 2) }}</th>
-                            <th class="text-end">Ksh {{ number_format($invoices->sum('paid_amount'), 2) }}</th>
-                            <th class="text-end">Ksh {{ number_format($invoices->sum(function($i) { return $i->balance ?? ($i->total - ($i->paid_amount ?? 0)); }), 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($totalSubtotal, 2) }}</th>
+                            <th class="text-end">
+                                @if($totalDiscounts > 0)
+                                    <span class="text-success">-Ksh {{ number_format($totalDiscounts, 2) }}</span>
+                                @else
+                                    <span class="text-muted">Ksh 0.00</span>
+                                @endif
+                            </th>
+                            <th class="text-end">Ksh {{ number_format($totalAfterDiscount, 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($totalPaid, 2) }}</th>
+                            <th class="text-end">Ksh {{ number_format($totalBalance, 2) }}</th>
                             <th colspan="3"></th>
                         </tr>
                     </tfoot>

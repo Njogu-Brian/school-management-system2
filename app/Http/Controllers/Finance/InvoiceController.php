@@ -20,12 +20,13 @@ class InvoiceController extends Controller
 {
     public function index(Request $request)
     {
-        $q = Invoice::with(['student.classroom','student.stream'])
+        $q = Invoice::with(['student.classroom','student.stream', 'items', 'term', 'academicYear'])
             ->when($request->filled('year'), fn($qq)=>$qq->where('year',$request->year))
             ->when($request->filled('term'), fn($qq)=>$qq->where('term',$request->term))
             ->when($request->filled('class_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('classroom_id',$request->class_id)))
             ->when($request->filled('stream_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('stream_id',$request->stream_id)))
             ->when($request->filled('votehead_id'), fn($qq)=>$qq->whereHas('items', fn($ii)=>$ii->where('votehead_id',$request->votehead_id)))
+            ->when($request->filled('status'), fn($qq)=>$qq->where('status',$request->status))
             ->latest();
 
         $invoices = $q->paginate(20)->appends($request->all());
@@ -161,6 +162,51 @@ class InvoiceController extends Controller
         $discountService = new \App\Services\DiscountService();
         $invoice = $discountService->applyDiscountsToInvoice($invoice->fresh(['student', 'term', 'academicYear']), true);
         
+        // Get applied discounts for display
+        $student = $invoice->student;
+        $termNumber = $invoice->term;
+        if (!$termNumber && $invoice->term_id && $invoice->term) {
+            if (preg_match('/\d+/', $invoice->term->name, $matches)) {
+                $termNumber = (int)$matches[0];
+            }
+        }
+        $year = $invoice->year;
+        if (!$year && $invoice->academic_year_id && $invoice->academicYear) {
+            $year = $invoice->academicYear->year;
+        }
+        
+        $appliedDiscounts = \App\Models\FeeConcession::where(function ($q) use ($student) {
+                $q->where('student_id', $student->id)
+                  ->orWhere(function ($sq) use ($student) {
+                      if ($student->family_id) {
+                          $sq->where('family_id', $student->family_id)
+                            ->where('scope', 'family');
+                      }
+                  });
+            })
+            ->where('is_active', true)
+            ->where('approval_status', 'approved')
+            ->where('start_date', '<=', now())
+            ->where(function ($q) {
+                $q->whereNull('end_date')
+                  ->orWhere('end_date', '>=', now());
+            })
+            ->when($termNumber, function($q) use ($termNumber) {
+                $q->where(function($q) use ($termNumber) {
+                    $q->whereNull('term')->orWhere('term', $termNumber);
+                });
+            })
+            ->when($year, function($q) use ($year, $invoice) {
+                $q->where(function($q) use ($year, $invoice) {
+                    $q->whereNull('year')->orWhere('year', $year);
+                    if ($invoice->academic_year_id) {
+                        $q->orWhere('academic_year_id', $invoice->academic_year_id);
+                    }
+                });
+            })
+            ->with(['discountTemplate', 'votehead'])
+            ->get();
+        
         $invoice->load([
             'student.classroom',
             'student.stream',
@@ -172,7 +218,7 @@ class InvoiceController extends Controller
             'debitNotes.creator',
             'payments.paymentMethod'
         ]);
-        return view('finance.invoices.show', compact('invoice'));
+        return view('finance.invoices.show', compact('invoice', 'appliedDiscounts'));
     }
 
     public function importForm()
