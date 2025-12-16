@@ -427,6 +427,106 @@ class DiscountController extends Controller
         return view('finance.discounts.bulk-allocate-sibling', compact('templates', 'academicYears', 'currentYear'));
     }
 
+    // Replicate discount across terms/classes
+    public function replicateForm()
+    {
+        $templates = DiscountTemplate::where('is_active', true)->orderBy('name')->get();
+        $academicYears = AcademicYear::orderByDesc('year')->get();
+        $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
+        
+        return view('finance.discounts.replicate', compact('templates', 'academicYears', 'classrooms'));
+    }
+
+    public function replicate(Request $request)
+    {
+        $validated = $request->validate([
+            'template_id' => 'required|exists:discount_templates,id',
+            'source_year' => 'required|integer',
+            'source_term' => 'required|in:1,2,3',
+            'target_years' => 'required|array',
+            'target_years.*' => 'integer',
+            'target_terms' => 'required|array',
+            'target_terms.*' => 'in:1,2,3',
+            'target_classrooms' => 'nullable|array',
+            'target_classrooms.*' => 'exists:classrooms,id',
+        ]);
+
+        try {
+            $template = DiscountTemplate::findOrFail($validated['template_id']);
+            $sourceAllocations = FeeConcession::where('discount_template_id', $template->id)
+                ->where('year', $validated['source_year'])
+                ->where('term', $validated['source_term'])
+                ->where('approval_status', 'approved')
+                ->get();
+
+            if ($sourceAllocations->isEmpty()) {
+                return back()->with('error', 'No allocations found for the source term/year to replicate.');
+            }
+
+            $replicated = 0;
+            $errors = [];
+
+            DB::transaction(function () use ($validated, $template, $sourceAllocations, &$replicated, &$errors) {
+                foreach ($validated['target_years'] as $targetYear) {
+                    foreach ($validated['target_terms'] as $targetTerm) {
+                        foreach ($sourceAllocations as $sourceAllocation) {
+                            // Check if already exists
+                            $exists = FeeConcession::where('discount_template_id', $template->id)
+                                ->where('student_id', $sourceAllocation->student_id)
+                                ->where('year', $targetYear)
+                                ->where('term', $targetTerm)
+                                ->exists();
+
+                            if ($exists) continue;
+
+                            // Filter by classrooms if specified
+                            if (!empty($validated['target_classrooms'])) {
+                                $student = Student::find($sourceAllocation->student_id);
+                                if (!$student || !in_array($student->classroom_id, $validated['target_classrooms'])) {
+                                    continue;
+                                }
+                            }
+
+                            try {
+                                FeeConcession::create([
+                                    'discount_template_id' => $template->id,
+                                    'student_id' => $sourceAllocation->student_id,
+                                    'votehead_id' => $sourceAllocation->votehead_id,
+                                    'year' => $targetYear,
+                                    'term' => $targetTerm,
+                                    'type' => $template->type,
+                                    'scope' => $template->scope,
+                                    'value' => $template->value,
+                                    'reason' => $template->reason,
+                                    'description' => $template->description,
+                                    'approval_status' => $template->requires_approval ? 'pending' : 'approved',
+                                    'approved_by' => $template->requires_approval ? null : auth()->id(),
+                                    'created_by' => auth()->id(),
+                                ]);
+                                $replicated++;
+                            } catch (\Exception $e) {
+                                $errors[] = "Failed to replicate for student {$sourceAllocation->student_id}: " . $e->getMessage();
+                            }
+                        }
+                    }
+                }
+            });
+
+            $message = "Successfully replicated {$replicated} discount allocation(s).";
+            if (!empty($errors)) {
+                $message .= " " . count($errors) . " error(s) occurred.";
+            }
+
+            return redirect()
+                ->route('finance.discounts.allocations.index')
+                ->with('success', $message)
+                ->with('errors', $errors);
+
+        } catch (\Exception $e) {
+            return back()->withInput()->with('error', 'Replication failed: ' . $e->getMessage());
+        }
+    }
+
     // Bulk approve allocations
     public function bulkApprove(Request $request)
     {

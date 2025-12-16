@@ -68,6 +68,44 @@ class PaymentController extends Controller
         ));
     }
 
+    public function getStudentInfo($studentId)
+    {
+        $student = Student::with('family.students')->findOrFail($studentId);
+        
+        // Calculate balance
+        $invoices = Invoice::where('student_id', $studentId)->get();
+        $totalBalance = $invoices->sum('balance');
+        $unpaidInvoices = $invoices->where('status', '!=', 'paid')->count();
+        $partialInvoices = $invoices->where('status', 'partial')->count();
+        
+        // Get siblings (excluding current student)
+        $siblings = $student->family 
+            ? $student->family->students()->where('id', '!=', $studentId)->get()->map(function($sibling) {
+                $siblingInvoices = Invoice::where('student_id', $sibling->id)->get();
+                return [
+                    'id' => $sibling->id,
+                    'name' => $sibling->first_name . ' ' . $sibling->last_name,
+                    'admission_number' => $sibling->admission_number,
+                    'balance' => $siblingInvoices->sum('balance'),
+                ];
+            })
+            : collect();
+        
+        return response()->json([
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->first_name . ' ' . $student->last_name,
+                'admission_number' => $student->admission_number,
+            ],
+            'balance' => [
+                'total_balance' => $totalBalance,
+                'unpaid_invoices' => $unpaidInvoices,
+                'partial_invoices' => $partialInvoices,
+            ],
+            'siblings' => $siblings,
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -219,10 +257,23 @@ class PaymentController extends Controller
     public function printReceipt(Payment $payment)
     {
         try {
-            return $this->receiptService->downloadReceipt($payment);
+            $payment->load(['student', 'invoice', 'paymentMethod', 'bankAccount', 'allocations.invoiceItem.votehead']);
+            $pdf = $this->receiptService->generateReceipt($payment, ['save' => false]);
+            
+            // Return PDF in new window
+            return response($pdf, 200, [
+                'Content-Type' => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="Receipt_' . $payment->receipt_number . '.pdf"',
+            ]);
         } catch (\Exception $e) {
             return back()->with('error', 'Receipt generation failed: ' . $e->getMessage());
         }
+    }
+
+    public function viewReceipt(Payment $payment)
+    {
+        $payment->load(['student', 'invoice', 'paymentMethod', 'bankAccount', 'allocations.invoiceItem.votehead']);
+        return view('finance.receipts.view', compact('payment'));
     }
 
     /**

@@ -69,6 +69,7 @@ use App\Http\Controllers\Finance\FeeReminderController;
 use App\Http\Controllers\Finance\FeePaymentPlanController;
 use App\Http\Controllers\Finance\FeeConcessionController;
 use App\Http\Controllers\Finance\DiscountController;
+use App\Http\Controllers\Finance\DocumentSettingsController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -953,9 +954,15 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
+        Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
+        Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentInfo'])->name('payments.student-info');
         
         // Payment Methods
         Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
+        
+        // Document Settings
+        Route::get('document-settings', [DocumentSettingsController::class, 'index'])->name('document-settings.index');
+        Route::post('document-settings', [DocumentSettingsController::class, 'update'])->name('document-settings.update');
         
         // Online Payments
         Route::post('payments/initiate-online', [PaymentController::class, 'initiateOnline'])->name('payments.initiate-online');
@@ -1011,6 +1018,8 @@ Route::middleware('auth')->group(function () {
             ->name('invoices.history');
             
         // Discounts (Fee Concessions)
+        Route::get('discounts/replicate', [DiscountController::class, 'replicateForm'])->name('discounts.replicate.form');
+        Route::post('discounts/replicate', [DiscountController::class, 'replicate'])->name('discounts.replicate');
         Route::prefix('discounts')->name('discounts.')->group(function () {
             Route::get('/', [DiscountController::class, 'index'])->name('index');
             Route::get('/create', [DiscountController::class, 'create'])->name('create');

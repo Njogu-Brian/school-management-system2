@@ -1521,23 +1521,32 @@ This section documents all requirements for the Fees Management module, includin
 ### December 16, 2025
 
 **Added:**
-- Payment method management (PaymentMethodController)
+- Payment method management (PaymentMethodController) with full CRUD views
 - Bank account linkage to payment methods
 - Receipt date field separate from payment date
 - Transaction code uniqueness validation
-- Payment sharing infrastructure (backend logic)
-- Overpayment warning infrastructure
+- Payment sharing feature (share payments among siblings with UI)
+- Overpayment warning with confirmation
+- Sibling display in payment form (greyed out when student has siblings)
+- Discount replication feature (replicate discounts across terms & classes)
+- Document settings page (configure headers/footers for receipts, invoices, statements)
+- Receipt view in new window with PDF download and print options
+- Student info API endpoint for payment form (balance + siblings)
 - Comprehensive requirements documentation
 
 **Enhanced:**
 - Payment model with receipt_date and transaction_code validation
 - PaymentMethod model with bank_account_id relationship
-- PaymentController with payment sharing and overpayment handling
+- PaymentController with payment sharing, overpayment handling, and student info endpoint
+- Payment form with dynamic sibling display, sharing UI, and overpayment warnings
+- Receipt generation to open in new window
+- DiscountController with replication functionality
 
 **Documentation:**
 - Added complete requirements and improvements section
 - Documented all original requirements and suggested enhancements
 - Status tracking for all features
+- Updated implementation status for all features
 
 ### December 15, 2025
 

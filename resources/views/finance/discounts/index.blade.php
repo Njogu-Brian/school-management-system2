@@ -6,7 +6,7 @@
         'title' => 'Discounts Dashboard',
         'icon' => 'bi bi-percent',
         'subtitle' => 'Overview of all discount allocations and templates',
-        'actions' => '<a href="' . route('finance.discounts.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Template</a><a href="' . route('finance.discounts.allocations.index', ['tab' => 'allocate']) . '" class="btn btn-finance btn-finance-success"><i class="bi bi-person-plus"></i> Allocate Discount</a>'
+        'actions' => '<a href="' . route('finance.discounts.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Template</a><a href="' . route('finance.discounts.allocations.index', ['tab' => 'allocate']) . '" class="btn btn-finance btn-finance-success"><i class="bi bi-person-plus"></i> Allocate Discount</a><a href="' . route('finance.discounts.replicate.form') . '" class="btn btn-finance btn-finance-info"><i class="bi bi-copy"></i> Replicate</a>'
     ])
 
     @include('finance.invoices.partials.alerts')
