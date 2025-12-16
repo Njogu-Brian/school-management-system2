@@ -167,8 +167,13 @@ class PaymentController extends Controller
                         ]);
                         
                         // Auto-allocate for sibling
-                        if (method_exists($this->allocationService, 'autoAllocate')) {
-                            $this->allocationService->autoAllocate($payment);
+                        try {
+                            if (method_exists($this->allocationService, 'autoAllocate')) {
+                                $this->allocationService->autoAllocate($payment);
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning('Sibling auto-allocation failed: ' . $e->getMessage());
+                            // Continue - payment is still created
                         }
                         
                         // Store first payment for notifications
@@ -194,15 +199,32 @@ class PaymentController extends Controller
                 ]);
 
                 // Allocate payment
-                if ($validated['auto_allocate'] ?? false) {
-                    $this->allocationService->autoAllocate($payment);
+                if (isset($validated['auto_allocate']) && $validated['auto_allocate']) {
+                    try {
+                        $this->allocationService->autoAllocate($payment);
+                    } catch (\Exception $e) {
+                        Log::warning('Auto-allocation failed: ' . $e->getMessage());
+                        // Continue without allocation - payment is still created
+                    }
                 } elseif (!empty($validated['allocations'])) {
-                    $this->allocationService->allocatePayment($payment, $validated['allocations']);
+                    try {
+                        $this->allocationService->allocatePayment($payment, $validated['allocations']);
+                    } catch (\Exception $e) {
+                        Log::warning('Manual allocation failed: ' . $e->getMessage());
+                        // Continue without allocation - payment is still created
+                    }
                 }
                 
                 // Handle overpayment
-                if ($payment->hasOverpayment()) {
-                    $this->allocationService->handleOverpayment($payment);
+                try {
+                    if (method_exists($payment, 'hasOverpayment') && $payment->hasOverpayment()) {
+                        if (method_exists($this->allocationService, 'handleOverpayment')) {
+                            $this->allocationService->handleOverpayment($payment);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Overpayment handling failed: ' . $e->getMessage());
+                    // Continue - overpayment will be handled later
                 }
                 
                 // Log audit
