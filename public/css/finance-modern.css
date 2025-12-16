@@ -414,9 +414,9 @@
 
 /* Input Groups */
 .finance-page .input-group-text {
-    background: var(--finance-primary-color);
+    background: var(--finance-primary, #6366f1);
     color: white;
-    border-color: var(--finance-primary-color);
+    border-color: var(--finance-primary, #6366f1);
     font-weight: 500;
     border-radius: 10px 0 0 10px;
 }
