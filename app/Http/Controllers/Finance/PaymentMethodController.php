@@ -38,7 +38,9 @@ class PaymentMethodController extends Controller
             'is_active' => 'boolean',
             'display_order' => 'nullable|integer|min:0',
             'description' => 'nullable|string',
-            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'bank_account_id' => 'required|exists:bank_accounts,id',
+        ], [
+            'bank_account_id.required' => 'A bank account must be selected for this payment method.',
         ]);
 
         PaymentMethod::create($validated);

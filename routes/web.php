@@ -957,6 +957,9 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
         Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentInfo'])->name('payments.student-info');
         
+        // Bank Accounts
+        Route::resource('bank-accounts', BankAccountController::class)->parameters(['bank-accounts' => 'bankAccount']);
+        
         // Payment Methods
         Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
         

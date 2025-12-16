@@ -44,16 +44,26 @@
                     </div>
 
                     <div class="col-md-6">
-                        <label class="finance-form-label">Bank Account</label>
-                        <select name="bank_account_id" class="finance-form-select">
-                            <option value="">-- Select Bank Account (Optional) --</option>
+                        <label class="finance-form-label">Bank Account <span class="text-danger">*</span></label>
+                        <select name="bank_account_id" class="finance-form-select @error('bank_account_id') is-invalid @enderror" required>
+                            <option value="">-- Select Bank Account --</option>
                             @foreach($bankAccounts as $account)
                                 <option value="{{ $account->id }}" {{ old('bank_account_id') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->name }} - {{ $account->account_number }}
+                                    {{ $account->name }} - {{ $account->account_number }} ({{ $account->bank_name }})
                                 </option>
                             @endforeach
                         </select>
-                        <small class="form-text text-muted">Link this payment method to a specific bank account</small>
+                        <small class="form-text text-muted">A bank account is required for all payment methods</small>
+                        @error('bank_account_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        @if($bankAccounts->isEmpty())
+                            <div class="alert alert-warning mt-2">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>No bank accounts found!</strong> 
+                                <a href="{{ route('finance.bank-accounts.create') }}" class="alert-link">Create a bank account first</a> before setting up payment methods.
+                            </div>
+                        @endif
                     </div>
 
                     <div class="col-md-6">

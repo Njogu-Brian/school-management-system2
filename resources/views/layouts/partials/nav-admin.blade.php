@@ -337,6 +337,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    <a href="{{ route('finance.bank-accounts.index') }}"class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
     <a href="{{ route('finance.payment-methods.index') }}"class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
     @php
