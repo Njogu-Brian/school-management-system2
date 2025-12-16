@@ -95,10 +95,18 @@ class InvoiceController extends Controller
                               ->orWhere('votehead_id', $votehead->id);
                         })
                         ->where('is_active', true)
+                        ->where('approval_status', 'approved') // Only approved discounts
                         ->where('start_date', '<=', now())
                         ->where(function($q) {
                             $q->whereNull('end_date')
                               ->orWhere('end_date', '>=', now());
+                        })
+                        // Match term and year
+                        ->where(function($q) use ($request) {
+                            $q->whereNull('term')->orWhere('term', $request->term);
+                        })
+                        ->where(function($q) use ($request) {
+                            $q->whereNull('year')->orWhere('year', $request->year);
                         })
                         ->first();
 

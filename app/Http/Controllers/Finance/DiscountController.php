@@ -224,12 +224,18 @@ class DiscountController extends Controller
     // View allocated discounts
     public function allocationsIndex(Request $request)
     {
+        // Show all allocations (both with and without discount_template_id for backward compatibility)
+        // But prioritize those with discount_template_id
         $query = FeeConcession::with(['student', 'discountTemplate', 'votehead', 'academicYear', 'creator'])
-            ->whereNotNull('discount_template_id')
             ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id))
             ->when($request->filled('term'), fn($q) => $q->where('term', $request->term))
             ->when($request->filled('year'), fn($q) => $q->where('year', $request->year))
-            ->when($request->filled('approval_status'), fn($q) => $q->where('approval_status', $request->approval_status));
+            ->when($request->filled('approval_status'), fn($q) => $q->where('approval_status', $request->approval_status))
+            // If no approval_status filter, show all (pending, approved, rejected)
+            ->when(!$request->filled('approval_status'), function($q) {
+                // Show all statuses, but prioritize those with discount_template_id
+                $q->orderByRaw('CASE WHEN discount_template_id IS NOT NULL THEN 0 ELSE 1 END');
+            });
 
         $allocations = $query->latest()->paginate(20)->withQueryString();
         $students = Student::orderBy('first_name')->get();

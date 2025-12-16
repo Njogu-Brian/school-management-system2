@@ -33,11 +33,19 @@ class DiscountService
                   });
             })
             ->where('is_active', true)
+            ->where('approval_status', 'approved') // Only approved discounts
             ->where('start_date', '<=', now())
             ->where(function ($q) {
                 $q->whereNull('end_date')
                   ->orWhere('end_date', '>=', now());
             })
+            // Match term and year if specified
+            ->when($invoice->term, fn($q) => $q->where(function($q) use ($invoice) {
+                $q->whereNull('term')->orWhere('term', $invoice->term);
+            }))
+            ->when($invoice->year, fn($q) => $q->where(function($q) use ($invoice) {
+                $q->whereNull('year')->orWhere('year', $invoice->year);
+            }))
             ->get();
             
             $totalDiscount = 0;
