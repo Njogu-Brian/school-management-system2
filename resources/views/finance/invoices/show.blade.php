@@ -197,15 +197,88 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($invoice->items as $item)
                         @php
+                            $lineNumber = 0;
+                            $allLineItems = collect();
+                            
+                            // Add invoice items
+                            foreach ($invoice->items as $item) {
+                                $allLineItems->push([
+                                    'type' => 'item',
+                                    'data' => $item,
+                                    'sort_order' => 1
+                                ]);
+                            }
+                            
+                            // Add item-level discounts as line items
+                            foreach ($invoice->items as $item) {
+                                if (($item->discount_amount ?? 0) > 0) {
+                                    $allLineItems->push([
+                                        'type' => 'item_discount',
+                                        'data' => $item,
+                                        'sort_order' => 2
+                                    ]);
+                                }
+                            }
+                            
+                            // Add invoice-level discount
+                            if (($invoice->discount_amount ?? 0) > 0) {
+                                $allLineItems->push([
+                                    'type' => 'invoice_discount',
+                                    'data' => $invoice,
+                                    'sort_order' => 3
+                                ]);
+                            }
+                            
+                            // Add credit notes
+                            foreach ($invoice->creditNotes as $creditNote) {
+                                $allLineItems->push([
+                                    'type' => 'credit_note',
+                                    'data' => $creditNote,
+                                    'sort_order' => 4
+                                ]);
+                            }
+                            
+                            // Add debit notes
+                            foreach ($invoice->debitNotes as $debitNote) {
+                                $allLineItems->push([
+                                    'type' => 'debit_note',
+                                    'data' => $debitNote,
+                                    'sort_order' => 5
+                                ]);
+                            }
+                            
+                            // Sort by sort_order and then by date/created_at
+                            $allLineItems = $allLineItems->sortBy([
+                                ['sort_order', 'asc'],
+                                function($item) {
+                                    if ($item['type'] === 'item') {
+                                        return $item['data']->created_at ?? now();
+                                    } elseif (in_array($item['type'], ['credit_note', 'debit_note'])) {
+                                        return $item['data']->issued_at ?? now();
+                                    }
+                                    return now();
+                                }
+                            ]);
+                        @endphp
+                        
+                        @forelse($allLineItems as $lineItem)
+                        @php
+                            $lineNumber++;
+                            $type = $lineItem['type'];
+                            $data = $lineItem['data'];
+                        @endphp
+                        
+                        @if($type === 'item')
+                        @php
+                            $item = $data;
                             $discount = $item->discount_amount ?? 0;
                             $afterDiscount = $item->amount - $discount;
                             $paid = $item->getAllocatedAmount() ?? 0;
                             $balance = $afterDiscount - $paid;
                         @endphp
                         <tr>
-                            <td>{{ $loop->iteration }}</td>
+                            <td>{{ $lineNumber }}</td>
                             <td>
                                 {{ $item->votehead->name ?? 'Unknown' }}
                                 @if($item->is_optional)
@@ -216,14 +289,10 @@
                                 <strong>Ksh {{ number_format($item->amount, 2) }}</strong>
                             </td>
                             <td class="text-end">
-                                @if($discount > 0)
-                                    <span class="text-success">-Ksh {{ number_format($discount, 2) }}</span>
-                                @else
-                                    <span class="text-muted">Ksh 0.00</span>
-                                @endif
+                                <span class="text-muted">Ksh 0.00</span>
                             </td>
                             <td class="text-end">
-                                <strong class="text-primary">Ksh {{ number_format($afterDiscount, 2) }}</strong>
+                                <strong class="text-primary">Ksh {{ number_format($item->amount, 2) }}</strong>
                             </td>
                             <td class="text-end">
                                 <span class="text-success">Ksh {{ number_format($paid, 2) }}</span>
@@ -258,6 +327,164 @@
                                 </button>
                             </td>
                         </tr>
+                        
+                        @elseif($type === 'item_discount')
+                        @php
+                            $item = $data;
+                            $discount = $item->discount_amount ?? 0;
+                        @endphp
+                        <tr class="table-success">
+                            <td>{{ $lineNumber }}</td>
+                            <td>
+                                <i class="bi bi-percent text-success"></i> 
+                                <strong>Discount - {{ $item->votehead->name ?? 'Unknown' }}</strong>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-success"><strong>-Ksh {{ number_format($discount, 2) }}</strong></span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-success"><strong>-Ksh {{ number_format($discount, 2) }}</strong></span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success">Discount</span>
+                            </td>
+                            <td>
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="text-muted">—</span>
+                            </td>
+                        </tr>
+                        
+                        @elseif($type === 'invoice_discount')
+                        @php
+                            $invoiceDiscount = $invoice->discount_amount ?? 0;
+                        @endphp
+                        <tr class="table-success">
+                            <td>{{ $lineNumber }}</td>
+                            <td>
+                                <i class="bi bi-percent text-success"></i> 
+                                <strong>Invoice Discount</strong>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-success"><strong>-Ksh {{ number_format($invoiceDiscount, 2) }}</strong></span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-success"><strong>-Ksh {{ number_format($invoiceDiscount, 2) }}</strong></span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success">Discount</span>
+                            </td>
+                            <td>
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="text-muted">—</span>
+                            </td>
+                        </tr>
+                        
+                        @elseif($type === 'credit_note')
+                        @php
+                            $creditNote = $data;
+                        @endphp
+                        <tr class="table-success">
+                            <td>{{ $lineNumber }}</td>
+                            <td>
+                                <i class="bi bi-arrow-down-circle text-success"></i> 
+                                <strong>Credit Note: {{ $creditNote->credit_note_number }}</strong>
+                                <br>
+                                <small class="text-muted">{{ $creditNote->reason }}</small>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-success"><strong>-Ksh {{ number_format($creditNote->amount, 2) }}</strong></span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success">Credit</span>
+                            </td>
+                            <td>
+                                @if($creditNote->issued_at)
+                                    {{ \Carbon\Carbon::parse($creditNote->issued_at)->format('d M Y') }}
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="text-muted">—</span>
+                            </td>
+                        </tr>
+                        
+                        @elseif($type === 'debit_note')
+                        @php
+                            $debitNote = $data;
+                        @endphp
+                        <tr class="table-danger">
+                            <td>{{ $lineNumber }}</td>
+                            <td>
+                                <i class="bi bi-arrow-up-circle text-danger"></i> 
+                                <strong>Debit Note: {{ $debitNote->debit_note_number }}</strong>
+                                <br>
+                                <small class="text-muted">{{ $debitNote->reason }}</small>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-danger"><strong>+Ksh {{ number_format($debitNote->amount, 2) }}</strong></span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td class="text-end">
+                                <span class="text-muted">—</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-danger">Debit</span>
+                            </td>
+                            <td>
+                                @if($debitNote->issued_at)
+                                    {{ \Carbon\Carbon::parse($debitNote->issued_at)->format('d M Y') }}
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
+                            <td>
+                                <span class="text-muted">—</span>
+                            </td>
+                        </tr>
+                        @endif
 
                         <!-- Edit Item Modal -->
                         <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1">
@@ -316,7 +543,7 @@
                         </div>
                         @empty
                         <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
+                            <td colspan="10" class="text-center py-4 text-muted">
                                 No invoice items found.
                             </td>
                         </tr>
@@ -326,9 +553,12 @@
                         @php
                             $totalAmount = $invoice->items->sum('amount');
                             $totalDiscount = $invoice->items->sum('discount_amount') + ($invoice->discount_amount ?? 0);
+                            $totalCreditNotes = $invoice->creditNotes->sum('amount');
+                            $totalDebitNotes = $invoice->debitNotes->sum('amount');
                             $totalAfterDiscount = $totalAmount - $totalDiscount;
+                            $totalAfterAdjustments = $totalAfterDiscount - $totalCreditNotes + $totalDebitNotes;
                             $totalPaid = $invoice->items->sum(function($i) { return $i->getAllocatedAmount() ?? 0; });
-                            $totalBalance = $totalAfterDiscount - $totalPaid;
+                            $totalBalance = $totalAfterAdjustments - $totalPaid;
                         @endphp
                         <tr>
                             <th colspan="2" class="text-end">Subtotals:</th>
@@ -340,7 +570,7 @@
                                     <span class="text-muted">Ksh 0.00</span>
                                 @endif
                             </th>
-                            <th class="text-end"><strong>Ksh {{ number_format($totalAfterDiscount, 2) }}</strong></th>
+                            <th class="text-end"><strong>Ksh {{ number_format($totalAfterAdjustments, 2) }}</strong></th>
                             <th class="text-end">Ksh {{ number_format($totalPaid, 2) }}</th>
                             <th class="text-end"><strong>Ksh {{ number_format($totalBalance, 2) }}</strong></th>
                             <th colspan="3"></th>
@@ -351,46 +581,7 @@
         </div>
     </div>
 
-    <!-- Credit/Debit Notes Summary -->
-    @if($invoice->creditNotes->isNotEmpty() || $invoice->debitNotes->isNotEmpty())
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">Adjustments</h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                @if($invoice->creditNotes->isNotEmpty())
-                <div class="col-md-6">
-                    <h6 class="text-success">Credit Notes</h6>
-                    <ul class="list-unstyled">
-                        @foreach($invoice->creditNotes as $note)
-                        <li class="mb-2">
-                            <strong>{{ $note->credit_note_number }}:</strong> 
-                            Ksh {{ number_format($note->amount, 2) }} - {{ $note->reason }}
-                        </li>
-                        @endforeach
-                    </ul>
-                    <p><strong>Total Credits:</strong> Ksh {{ number_format($invoice->creditNotes->sum('amount'), 2) }}</p>
-                </div>
-                @endif
-                @if($invoice->debitNotes->isNotEmpty())
-                <div class="col-md-6">
-                    <h6 class="text-danger">Debit Notes</h6>
-                    <ul class="list-unstyled">
-                        @foreach($invoice->debitNotes as $note)
-                        <li class="mb-2">
-                            <strong>{{ $note->debit_note_number }}:</strong> 
-                            Ksh {{ number_format($note->amount, 2) }} - {{ $note->reason }}
-                        </li>
-                        @endforeach
-                    </ul>
-                    <p><strong>Total Debits:</strong> Ksh {{ number_format($invoice->debitNotes->sum('amount'), 2) }}</p>
-                </div>
-                @endif
-            </div>
-        </div>
-    </div>
-    @endif
+    {{-- Credit/Debit Notes are now shown as line items in the invoice items table above --}}
 
     <!-- Payment History -->
     @if($invoice->payments->isNotEmpty())
