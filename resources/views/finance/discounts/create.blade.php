@@ -178,15 +178,15 @@
                         </div>
 
                         <div class="mb-3" id="votehead_selector" style="display: none;">
-                            <label class="form-label">Votehead</label>
-                            <select name="votehead_id" class="form-select">
-                                <option value="">-- Select Votehead --</option>
+                            <label class="form-label">Voteheads <span class="text-muted">(Select one or more)</span></label>
+                            <select name="votehead_ids[]" class="form-select" multiple size="6">
                                 @foreach($voteheads as $votehead)
-                                    <option value="{{ $votehead->id }}" {{ old('votehead_id') == $votehead->id ? 'selected' : '' }}>
+                                    <option value="{{ $votehead->id }}" {{ in_array($votehead->id, old('votehead_ids', [])) ? 'selected' : '' }}>
                                         {{ $votehead->name }}
                                     </option>
                                 @endforeach
                             </select>
+                            <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple voteheads</small>
                         </div>
 
                         <div class="mb-3" id="invoice_selector" style="display: none;">
