@@ -107,6 +107,7 @@ class Invoice extends Model
         $this->refresh();
         
         // Calculate total from active items (amount - discount_amount)
+        // Note: Credit/debit notes modify item amounts directly, so they're already included
         $this->total = $this->items()
             ->where('status', 'active')
             ->get()
@@ -114,7 +115,7 @@ class Invoice extends Model
                 return $item->amount - ($item->discount_amount ?? 0);
             });
         
-        // Add invoice-level discount
+        // Subtract invoice-level discount
         $this->total = max(0, $this->total - ($this->discount_amount ?? 0));
         
         // Calculate paid amount from allocations
@@ -123,11 +124,16 @@ class Invoice extends Model
             ->where('invoice_items.invoice_id', $this->id)
             ->sum('payment_allocations.amount');
         
-        // Calculate balance (total already has discounts subtracted)
+        // Calculate balance (total already has discounts and credit/debit adjustments in item amounts)
         $this->balance = $this->total - $this->paid_amount;
         
+        // Ensure balance is never negative
+        if ($this->balance < 0) {
+            $this->balance = 0;
+        }
+        
         // Update status
-        if ($this->balance <= 0) {
+        if ($this->balance <= 0 && $this->paid_amount > 0) {
             $this->status = 'paid';
         } elseif ($this->paid_amount > 0) {
             $this->status = 'partial';

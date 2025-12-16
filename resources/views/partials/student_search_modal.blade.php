@@ -37,28 +37,53 @@ document.addEventListener('DOMContentLoaded', function() {
         results.innerHTML = '<tr><td colspan="4">Searching...</td></tr>';
         if (query.length < 2) return;
 
-        const res = await fetch(`/students/search?q=${encodeURIComponent(query)}`);
-        const data = await res.json();
-
-        results.innerHTML = data.length ? data.map(stu => `
-            <tr>
-                <td>${stu.admission_number}</td>
-                <td>${stu.full_name}</td>
-                <td>${stu.classroom_name ?? ''}</td>
-                <td><button type="button" class="btn btn-sm btn-primary selectStudentBtn" 
-                    data-id="${stu.id}" data-name="${stu.full_name} (${stu.admission_number})">
-                    Select
-                </button></td>
-            </tr>
-        `).join('') : '<tr><td colspan="4">No results found.</td></tr>';
-
-        document.querySelectorAll('.selectStudentBtn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.getElementById('selectedStudentId').value = this.dataset.id;
-                document.getElementById('selectedStudentName').value = this.dataset.name;
-                bootstrap.Modal.getInstance(document.getElementById('studentSearchModal')).hide();
+        try {
+            const res = await fetch(`{{ route('students.search') }}?q=${encodeURIComponent(query)}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
             });
-        });
+            if (!res.ok) {
+                throw new Error('Search failed');
+            }
+            const data = await res.json();
+
+            results.innerHTML = data.length ? data.map(stu => `
+                <tr>
+                    <td>${stu.admission_number || ''}</td>
+                    <td>${stu.full_name || ''}</td>
+                    <td>${stu.classroom_name || 'N/A'}</td>
+                    <td><button type="button" class="btn btn-sm btn-primary selectStudentBtn" 
+                        data-id="${stu.id}" 
+                        data-name="${stu.full_name || ''}" 
+                        data-adm="${stu.admission_number || ''}">
+                        Select
+                    </button></td>
+                </tr>
+            `).join('') : '<tr><td colspan="4" class="text-muted">No results found.</td></tr>';
+
+            document.querySelectorAll('.selectStudentBtn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const studentId = this.dataset.id;
+                    const studentName = this.dataset.name;
+                    const studentAdm = this.dataset.adm;
+                    const displayName = `${studentName} (${studentAdm})`;
+                    
+                    const studentIdField = document.getElementById('selectedStudentId');
+                    const studentNameField = document.getElementById('selectedStudentName');
+                    
+                    if (studentIdField) studentIdField.value = studentId;
+                    if (studentNameField) studentNameField.value = displayName;
+                    
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('studentSearchModal'));
+                    if (modal) modal.hide();
+                });
+            });
+        } catch (error) {
+            console.error('Search error:', error);
+            results.innerHTML = '<tr><td colspan="4" class="text-danger">Search failed. Please try again.</td></tr>';
+        }
     });
 });
 </script>

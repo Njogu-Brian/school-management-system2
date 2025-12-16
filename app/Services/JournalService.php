@@ -55,7 +55,11 @@ class JournalService
                 ]);
             }
 
+            // Recalculate invoice to ensure totals are correct
             InvoiceService::recalc($invoice);
+            
+            // Refresh the invoice to get updated totals
+            $invoice->refresh();
 
             return $j;
         });

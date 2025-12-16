@@ -116,14 +116,29 @@
                     <tbody>
                         @forelse($invoices as $inv)
                         @php
-                            // Calculate subtotal (before discounts)
-                            $subtotal = $inv->items->sum('amount') ?? $inv->total;
+                            // Recalculate invoice to ensure totals are up to date
+                            if (!$inv->relationLoaded('items') || $inv->items->isEmpty()) {
+                                $inv->load('items');
+                            }
+                            
+                            // Calculate subtotal (before discounts) - sum of all item amounts
+                            $subtotal = $inv->items->sum('amount') ?? 0;
+                            
                             // Calculate total discounts
                             $itemDiscounts = $inv->items->sum('discount_amount') ?? 0;
                             $invoiceDiscount = $inv->discount_amount ?? 0;
                             $totalDiscount = $itemDiscounts + $invoiceDiscount;
+                            
                             // Total after discounts (should match $inv->total if calculated correctly)
                             $totalAfterDiscount = $subtotal - $totalDiscount;
+                            
+                            // Use the invoice's calculated balance (which should be total - paid)
+                            // If balance seems wrong, recalculate
+                            if (abs($inv->balance - ($totalAfterDiscount - ($inv->paid_amount ?? 0))) > 0.01) {
+                                $inv->recalculate();
+                                $inv->refresh();
+                            }
+                            
                             $balance = $inv->balance ?? ($totalAfterDiscount - ($inv->paid_amount ?? 0));
                         @endphp
                         <tr>
