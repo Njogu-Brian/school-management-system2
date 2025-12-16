@@ -76,7 +76,7 @@
                 <div class="col-md-6 col-lg-2">
                     <label class="finance-form-label">Amount <span class="text-danger">*</span></label>
                     <div class="input-group">
-                        <span class="input-group-text" style="background: var(--finance-primary-color); color: white; border-color: var(--finance-primary-color);">Ksh</span>
+                        <span class="input-group-text">Ksh</span>
                         <input type="number" step="0.01" min="0.01" name="amount"
                                class="finance-form-control" value="{{ old('amount') }}" required>
                     </div>

@@ -337,6 +337,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    <a href="{{ route('finance.payment-methods.index') }}"class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
     @php
         $discountsActive = Request::is('finance/discounts*');
@@ -348,12 +349,14 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('finance.discounts.allocations.index') }}" class="sublink {{ Request::is('finance/discounts/allocations*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations & Allocate</a>
         <a href="{{ route('finance.discounts.approvals.index') }}" class="sublink {{ Request::is('finance/discounts/approvals*') ? 'active' : '' }}"><i class="bi bi-check-circle"></i> Approvals</a>
         <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="sublink {{ Request::is('finance/discounts/bulk-allocate-sibling*') ? 'active' : '' }}"><i class="bi bi-people"></i> Bulk Sibling</a>
+        <a href="{{ route('finance.discounts.replicate.form') }}" class="sublink {{ Request::is('finance/discounts/replicate*') ? 'active' : '' }}"><i class="bi bi-copy"></i> Replicate</a>
     </div>
     <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
     <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
     <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
     <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
-    <a href="{{ route('finance.journals.create') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
+    <a href="{{ route('finance.journals.index') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
+    <a href="{{ route('finance.document-settings.index') }}"class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
 </div>
 
 <!-- HR -->
