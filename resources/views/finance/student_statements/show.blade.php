@@ -145,6 +145,7 @@
                                     'reference' => $invoice->invoice_number,
                                     'debit' => $invoice->total,
                                     'credit' => 0,
+                                    'model_id' => $invoice->id,
                                 ]);
                             }
                             
@@ -157,6 +158,7 @@
                                     'reference' => $payment->receipt_number,
                                     'debit' => 0,
                                     'credit' => $payment->amount,
+                                    'model_id' => $payment->id,
                                 ]);
                             }
                             
@@ -169,6 +171,7 @@
                                     'reference' => 'DIS-' . $discount->id,
                                     'debit' => 0,
                                     'credit' => $discount->value,
+                                    'model_id' => $discount->id,
                                 ]);
                             }
                             
@@ -181,6 +184,7 @@
                                     'reference' => $note->credit_note_number,
                                     'debit' => 0,
                                     'credit' => $note->amount,
+                                    'model_id' => $note->id,
                                 ]);
                             }
                             
@@ -193,6 +197,7 @@
                                     'reference' => $note->debit_note_number,
                                     'debit' => $note->amount,
                                     'credit' => 0,
+                                    'model_id' => $note->id,
                                 ]);
                             }
                             
