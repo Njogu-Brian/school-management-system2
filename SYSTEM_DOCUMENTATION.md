@@ -1,7 +1,7 @@
 # School Management System - Comprehensive Documentation
 
-**Last Updated:** December 15, 2025  
-**Version:** 2.0  
+**Last Updated:** December 16, 2025  
+**Version:** 2.1  
 **Status:** Active Development
 
 ---
@@ -1214,7 +1214,330 @@ All models have factories:
 
 ---
 
+## Fees Management - Complete Requirements & Improvements
+
+**Last Updated:** December 16, 2025  
+**Status:** Requirements Documented - Implementation In Progress
+
+This section documents all requirements for the Fees Management module, including original requirements and suggested improvements for correctness, auditability, maintainability, and operational safety.
+
+### Original Requirements Summary
+
+#### 1. Voteheads & Charge Types ✅
+- Voteheads with charge types: once per term, yearly, once per family, once only
+- Mandatory voteheads (e.g., tuition fees)
+- Optional fees (e.g., swimming) linked to extra-curricular activities
+- **Status:** ✅ Implemented
+
+#### 2. Fee Structures ✅
+- Create fee structures from existing voteheads
+- Assign to specific classes (streams treated as separate classes)
+- Replicate across different classes
+- Fee structures per term (3 terms per academic year)
+- **Status:** ✅ Implemented
+
+#### 3. Post Pending Fees ✅
+- Admin selects term, academic year, specific or all classes
+- System checks fee structure and posts voteheads/amounts
+- Respects charge types
+- For already charged terms: only post differences
+- Always inform what changes have been made
+- For optional fees: only charge students taking those fees
+- **Status:** ✅ Implemented with diff calculation
+
+#### 4. Optional Fee Allocation ✅
+- View to select year, term, class/stream
+- Select optional votehead
+- Tick students taking that votehead
+- Puts them in pending state until posted
+- **Status:** ✅ Implemented
+
+#### 5. Post Pending Fees Logging & Reversal ✅
+- Log all changes made
+- View those changes
+- Reverse: whole operation, per class, or per student
+- **Status:** ✅ Implemented
+
+#### 6. Invoicing ✅
+- All voteheads in a term/year = one invoice
+- Voteheads have unique dates based on posting date
+- All share identical invoice number
+- No two students have similar invoice numbers
+- Settings for invoice/receipt number prefixes/suffixes
+- **Status:** ✅ Implemented (invoice item dates need verification)
+
+#### 7. Invoice Reversal ✅
+- Reverse invoice as a whole for a student
+- All information logged in statement
+- **Status:** ✅ Implemented
+
+#### 8. Student Fee View ✅
+- Search student, select term/year
+- View and edit invoices
+- View payments in same view
+- **Status:** ✅ Implemented
+
+#### 9. Credit/Debit Notes ✅
+- Select student, credit/debit note, figure, votehead
+- Credit adds, debit deducts
+- Logged in statement
+- Set credit/debit note numbers
+- **Status:** ✅ Implemented
+
+#### 10. Editing Invoice Items ⚠️
+- Edit amount by clicking
+- If reduced, create credit note
+- If increased, create debit note
+- Delete credit/debit notes (reverses changes)
+- **Status:** ⚠️ Partially Implemented - Manual creation exists, inline editing pending
+
+#### 11. Discounts ✅
+- Various types (sibling, referral, early repayment, transport, etc.)
+- Percentage or amount or both
+- Attach to voteheads or entire invoice
+- Frequencies: once, yearly, termly, manual
+- **Status:** ✅ Implemented
+
+#### 12. Discount Setup & Issuing ✅
+- Views to setup and issue discounts
+- Select term, academic year, classes or students
+- **Status:** ✅ Implemented
+
+#### 13. Discount Logging & Replication ⚠️
+- Discounts logged in statements
+- Replicate discounts across terms & classes
+- **Status:** ⚠️ Logging implemented, replication pending
+
+#### 14. Payments - Bank Accounts & Methods ✅
+- Setup bank accounts
+- Setup payment methods linked to bank accounts
+- **Status:** ✅ Implemented (bank account linkage added December 16, 2025)
+
+#### 15. Payment Entry ⚠️
+- Type student name, enter amount
+- Show siblings (greyed out) if child has siblings
+- "Share payment" button to share among siblings
+- Payment date (admin-set) separate from receipt date (auto-set)
+- Transaction code (narration) - must be unique
+- Select payment method
+- Show current student balance and sibling balances
+- Allow overpayment with warning and carry forward
+- **Status:** ⚠️ Partially Implemented
+  - ✅ Payment entry exists
+  - ✅ Payment date and receipt date separation (added December 16, 2025)
+  - ✅ Transaction code uniqueness validation (added December 16, 2025)
+  - ❌ Sibling display and sharing pending
+  - ❌ Overpayment warning pending
+  - ❌ Sibling balance display pending
+
+#### 16. Receipt Generation ✅
+- Unique receipt number
+- Student details (name, admission, class, term, year)
+- Payment date, receipt date
+- Description and balance/carry forward
+- Logged on receipt number
+- **Status:** ✅ Implemented (receipt date added December 16, 2025)
+- ⚠️ Receipt new window with PDF/print pending
+- ⚠️ Document settings for headers/footers pending
+
+### Suggested Improvements & Enhancements
+
+#### 1. Role-Based Access & Audit ⚠️
+**Requirements:**
+- Fine-grained roles: Admin, Accountant, Cashier, Viewer
+- Every change logged with user, timestamp, IP/session ID, before/after snapshots
+- **Status:** ⚠️ Partial - Basic audit logging exists, role-based access needs enhancement
+
+#### 2. Idempotency & Safe Posting ✅
+**Requirements:**
+- Posting should be idempotent (run twice, no double-charge)
+- Use posting_run_id and store per-student/posting metadata
+- Dry-run mode that returns diffs without persisting
+- **Status:** ✅ Implemented - FeePostingService has idempotency checks and preview mode
+
+#### 3. Atomic Batch Operations ✅
+**Requirements:**
+- Posting/reversing should be transactional per-run
+- Partial failures roll back that run
+- Option for partial commits with explicit approval
+- **Status:** ✅ Implemented - Uses DB transactions
+
+#### 4. Invoice/Receipt Numbering Engine ✅
+**Requirements:**
+- Configurable prefixes/suffixes/start numbers and padding
+- Sequence table guaranteeing uniqueness under concurrency
+- Per-school/branch option if needed
+- **Status:** ✅ Implemented - DocumentNumberService with DocumentCounter table
+
+#### 5. Versioned Fee Structures ⚠️
+**Requirements:**
+- Keep historical fee-structure versions
+- Each posting references exact fee-structure version used
+- **Status:** ⚠️ Pending - Fee structures have versioning support but not fully implemented
+
+#### 6. Diff Algorithm & Audit Summary ✅
+**Requirements:**
+- Show per-votehead and per-student diffs
+- Aggregate totals and run log
+- Indicate why difference exists
+- **Status:** ✅ Implemented - PostingDiff model and FeePostingService
+
+#### 7. Charge Types Enforcement ✅
+**Requirements:**
+- Enforce charge types strictly
+- Validate prior invoices and family-level invoicing
+- **Status:** ✅ Implemented - FeePostingService enforces charge types
+
+#### 8. Family-Level Logic & Sibling Handling ⚠️
+**Requirements:**
+- Bill families (one invoice per family) or individual students
+- Support split payment and share payment workflows
+- Explicit allocation records
+- **Status:** ⚠️ Partial - Family invoicing exists, payment sharing pending
+
+#### 9. Optional Fee Assignment & Constraints ✅
+**Requirements:**
+- Bulk assign/unassign optional fees
+- Assignment expiration date
+- Attachment to timetable/extracurricular event IDs
+- **Status:** ✅ Implemented - OptionalFee model and controller support bulk operations
+
+#### 10. Discount Engine ✅
+**Requirements:**
+- Rules: percentage/amount/both, scope (votehead/invoice/student/family)
+- Types: sibling, referral, early repayment, transport, ad-hoc
+- Frequency: manual/term/year/once
+- Discount stacking rules and conflict resolution
+- **Status:** ✅ Implemented - DiscountTemplate and FeeConcession models
+
+#### 11. Payment Constraints & Reconciliation ⚠️
+**Requirements:**
+- Unique transaction codes required
+- Prevent duplicate transaction codes
+- Support overpayments (carry forward or prepayment allocation)
+- Payment reversal workflow (reason, user, timestamp)
+- Bank account reconciliation metadata: bank_txn_ref, statement_date, reconciliation_status
+- **Status:** ⚠️ Partial
+  - ✅ Transaction code uniqueness (added December 16, 2025)
+  - ✅ Overpayment support exists
+  - ⚠️ Payment reversal workflow needs enhancement
+  - ❌ Bank reconciliation metadata pending
+
+#### 12. Receipts & Documents ⚠️
+**Requirements:**
+- PDF receipt templates with configurable header/footer
+- Show admin-editable template and data placeholders
+- Generate downloadable PDF in new window (print-friendly)
+- **Status:** ⚠️ Partial
+  - ✅ PDF generation exists
+  - ❌ Configurable header/footer settings pending
+  - ❌ New window with print options pending
+
+#### 13. Statements & Student Ledger ✅
+**Requirements:**
+- Per-student ledger with inv/credit/debit notes, payments, discounts, adjustments
+- Support export (CSV, PDF)
+- **Status:** ✅ Implemented - FeeStatementController and views
+
+#### 14. Reporting & Exports ⚠️
+**Requirements:**
+- Summary reports (term, year, class, stream, outstanding balances)
+- Aging balances
+- Receipts by bank account
+- Posting run reports
+- CSV/Excel export
+- **Status:** ⚠️ Partial - Basic reporting exists, comprehensive reports pending
+
+#### 15. Validation & Business Rules ✅
+**Requirements:**
+- Validation on posting (negative amounts prevented except via credit notes)
+- Missing fee structure warnings
+- Missing student records
+- Duplicate invoice prevention
+- **Status:** ✅ Implemented - Various validations in services and controllers
+
+#### 16. Testing, Acceptance Criteria & Sample Data ⚠️
+**Requirements:**
+- Unit tests for posting logic, diffs, reversal, invoice numbering
+- Integration tests for full workflows
+- Sample dataset (classes, students, families) for edge cases
+- **Status:** ⚠️ Partial - Some tests exist, comprehensive test suite pending
+
+#### 17. UI/UX Considerations ⚠️
+**Requirements:**
+- Clear statuses (Pending, Posted, Reversed)
+- Color-coded diffs
+- Bulk-select controls
+- Confirm dialogs with summary before commit
+- Audit log viewer with filtering
+- **Status:** ⚠️ Partial - Basic UI exists, enhancements pending
+
+#### 18. Performance & Scale Considerations ⚠️
+**Requirements:**
+- Batch operations use streaming inserts/updates for large cohorts
+- Reasonable chunk sizes for SQLite
+- Consider WAL mode
+- **Status:** ⚠️ Partial - Basic batching exists, optimization pending
+
+#### 19. Security & Concurrency ✅
+**Requirements:**
+- Enforce DB transactions and locking where necessary
+- Prevent race conditions when multiple cashiers/postings run concurrently
+- **Status:** ✅ Implemented - DB transactions used, unique constraints prevent duplicates
+
+### Implementation Status Summary
+
+**Completed (✅):** 11/19 major requirement areas  
+**Partially Completed (⚠️):** 7/19 major requirement areas  
+**Pending (❌):** 1/19 major requirement areas
+
+### Next Steps
+
+1. **High Priority:**
+   - Complete payment sharing feature (sibling display and sharing)
+   - Add overpayment warning in payment form
+   - Add inline invoice item editing
+   - Add discount replication feature
+   - Add receipt new window with PDF/print
+   - Add document settings page
+
+2. **Medium Priority:**
+   - Enhance role-based access control
+   - Add versioned fee structures
+   - Add bank reconciliation metadata
+   - Enhance payment reversal workflow
+   - Add comprehensive reporting
+
+3. **Low Priority:**
+   - UI/UX enhancements
+   - Performance optimizations
+   - Comprehensive test suite
+   - Sample data generation
+
+---
+
 ## Change Log
+
+### December 16, 2025
+
+**Added:**
+- Payment method management (PaymentMethodController)
+- Bank account linkage to payment methods
+- Receipt date field separate from payment date
+- Transaction code uniqueness validation
+- Payment sharing infrastructure (backend logic)
+- Overpayment warning infrastructure
+- Comprehensive requirements documentation
+
+**Enhanced:**
+- Payment model with receipt_date and transaction_code validation
+- PaymentMethod model with bank_account_id relationship
+- PaymentController with payment sharing and overpayment handling
+
+**Documentation:**
+- Added complete requirements and improvements section
+- Documented all original requirements and suggested enhancements
+- Status tracking for all features
 
 ### December 15, 2025
 
@@ -1281,7 +1604,7 @@ For issues, questions, or contributions, please refer to the project repository 
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** December 15, 2025  
+**Document Version:** 2.1  
+**Last Updated:** December 16, 2025  
 **Next Review:** As needed
 

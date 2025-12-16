@@ -55,6 +55,7 @@ use App\Http\Controllers\Finance\VoteheadController;
 use App\Http\Controllers\Finance\FeeStructureController;
 use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\PaymentController;
+use App\Http\Controllers\Finance\PaymentMethodController;
 use App\Http\Controllers\PaymentWebhookController;
 use App\Http\Controllers\Finance\CreditNoteController;
 use App\Http\Controllers\Finance\DebitNoteController;
@@ -952,6 +953,9 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
+        
+        // Payment Methods
+        Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
         
         // Online Payments
         Route::post('payments/initiate-online', [PaymentController::class, 'initiateOnline'])->name('payments.initiate-online');

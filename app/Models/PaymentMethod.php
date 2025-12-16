@@ -4,8 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\Payment;
+use App\Models\{Payment, BankAccount};
 
 class PaymentMethod extends Model
 {
@@ -18,6 +19,7 @@ class PaymentMethod extends Model
         'is_active',
         'display_order',
         'description',
+        'bank_account_id',
     ];
 
     protected $casts = [
@@ -30,6 +32,11 @@ class PaymentMethod extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
     }
 
     public function scopeActive($query)

@@ -29,6 +29,7 @@ class Payment extends Model
         'payer_type',
         'narration',
         'payment_date',
+        'receipt_date',
         'reversed',
         'reversed_by',
         'reversed_at',
@@ -39,6 +40,7 @@ class Payment extends Model
         'allocated_amount' => 'decimal:2',
         'unallocated_amount' => 'decimal:2',
         'payment_date' => 'datetime',
+        'receipt_date' => 'datetime',
         'reversed' => 'boolean',
         'reversed_at' => 'datetime',
     ];
@@ -53,6 +55,10 @@ class Payment extends Model
             }
             if (!$payment->receipt_number) {
                 $payment->receipt_number = \App\Services\DocumentNumberService::generate('receipt', 'RCPT');
+            }
+            // Auto-set receipt_date if not provided (set to current timestamp)
+            if (!$payment->receipt_date) {
+                $payment->receipt_date = now();
             }
         });
     }
