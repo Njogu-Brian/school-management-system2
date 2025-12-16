@@ -187,6 +187,19 @@
                             <i class="bi bi-file-text"></i> View Student Invoices
                         </a>
                         @endif
+                        @if(!$payment->reversed)
+                        <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" onsubmit="return confirm('Are you sure you want to reverse this payment? This will remove all allocations and recalculate invoices. This action cannot be undone.')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-outline-danger w-100">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
+                            </button>
+                        </form>
+                        @else
+                        <div class="alert alert-warning mb-0">
+                            <small><i class="bi bi-info-circle"></i> This payment has been reversed.</small>
+                        </div>
+                        @endif
                     </div>
                 </div>
             </div>

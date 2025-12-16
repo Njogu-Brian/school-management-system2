@@ -295,10 +295,14 @@
                                 <strong>Ksh {{ number_format($item->amount, 2) }}</strong>
                             </td>
                             <td class="text-end">
-                                <span class="text-muted">Ksh 0.00</span>
+                                @if($discount > 0)
+                                    <span class="text-success">-Ksh {{ number_format($discount, 2) }}</span>
+                                @else
+                                    <span class="text-muted">Ksh 0.00</span>
+                                @endif
                             </td>
                             <td class="text-end">
-                                <strong class="text-primary">Ksh {{ number_format($item->amount, 2) }}</strong>
+                                <strong class="text-primary">Ksh {{ number_format($afterDiscount, 2) }}</strong>
                             </td>
                             <td class="text-end">
                                 <span class="text-success">Ksh {{ number_format($paid, 2) }}</span>
@@ -624,11 +628,24 @@
                             </td>
                             <td class="text-end">Ksh {{ number_format($payment->amount, 2) }}</td>
                             <td>{{ $payment->paymentMethod->name ?? $payment->payment_method ?? 'N/A' }}</td>
-                            <td>{{ $payment->reference ?? '—' }}</td>
+                            <td>{{ $payment->transaction_code ?? '—' }}</td>
                             <td>
-                                <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-eye"></i>
-                                </a>
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-outline-primary" title="View Payment">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    @if(!$payment->reversed)
+                                    <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to reverse this payment? This action cannot be undone.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Reverse Payment">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                    @else
+                                    <span class="badge bg-secondary">Reversed</span>
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                         @endforeach

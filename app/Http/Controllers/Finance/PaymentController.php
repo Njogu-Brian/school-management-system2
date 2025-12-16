@@ -427,6 +427,42 @@ class PaymentController extends Controller
             ->with('info', 'Use the reverse payment feature instead.');
     }
     
+    public function reverse(Payment $payment)
+    {
+        if ($payment->reversed) {
+            return back()->with('error', 'This payment has already been reversed.');
+        }
+        
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment) {
+            // Collect invoice IDs from allocations before deleting them
+            $invoiceIds = collect();
+            
+            // Reverse all payment allocations and collect invoice IDs
+            foreach ($payment->allocations as $allocation) {
+                if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                    $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                }
+                $allocation->delete();
+            }
+            
+            // Mark payment as reversed
+            $payment->update([
+                'reversed' => true,
+                'reversed_by' => auth()->id(),
+                'reversed_at' => now(),
+            ]);
+            
+            // Recalculate affected invoices (unique invoice IDs)
+            $invoices = \App\Models\Invoice::whereIn('id', $invoiceIds->unique())->get();
+            
+            foreach ($invoices as $invoice) {
+                \App\Services\InvoiceService::recalc($invoice);
+            }
+            
+            return back()->with('success', 'Payment reversed successfully. All allocations have been removed and invoices recalculated.');
+        });
+    }
+    
     public function printReceipt(Payment $payment)
     {
         try {
