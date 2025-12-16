@@ -135,6 +135,7 @@
                         @php
                             $runningBalance = 0;
                             $allTransactions = collect();
+                            $finalBalance = 0; // Will store final balance after all transactions
                             
                             // Add invoices
                             foreach ($invoices as $invoice) {
@@ -208,6 +209,7 @@
                         @forelse($allTransactions as $transaction)
                             @php
                                 $runningBalance += $transaction['debit'] - $transaction['credit'];
+                                $finalBalance = $runningBalance; // Update final balance
                                 $transactionId = $transaction['model_id'] ?? null;
                             @endphp
                             <tr>
