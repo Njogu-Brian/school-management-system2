@@ -48,7 +48,7 @@ class ReceiptService
         
         // Save to storage if requested
         if ($options['save'] ?? false) {
-            $filename = 'receipts/' . $payment->receipt_number . '.pdf';
+            $filename = 'receipts/receipt_' . $payment->receipt_number . '_' . time() . '.pdf';
             Storage::disk('public')->put($filename, $pdf->output());
             return $filename;
         }
