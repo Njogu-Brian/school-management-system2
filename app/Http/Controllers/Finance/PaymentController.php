@@ -113,15 +113,11 @@ class PaymentController extends Controller
             'invoice_id' => 'nullable|exists:invoices,id',
             'amount' => 'required|numeric|min:1',
             'payment_date' => 'required|date',
-            'receipt_date' => 'nullable|date',
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
-            'payment_method' => 'nullable|string', // Fallback
-            'reference' => 'nullable|string|max:255',
-            'bank_account_id' => 'nullable|exists:bank_accounts,id',
+            'payment_method_id' => 'required|exists:payment_methods,id',
             'payer_name' => 'nullable|string|max:255',
             'payer_type' => 'nullable|in:parent,sponsor,student,other',
             'narration' => 'nullable|string',
-            'transaction_code' => 'nullable|string|unique:payments,transaction_code', // Transaction code must be unique if provided
+            'transaction_code' => 'required|string|unique:payments,transaction_code', // Transaction code must be unique
             'auto_allocate' => 'nullable|boolean',
             'allocations' => 'nullable|array', // Manual allocations
             'allocations.*.invoice_item_id' => 'required|exists:invoice_items,id',
@@ -191,16 +187,13 @@ class PaymentController extends Controller
                     'family_id' => $student->family_id,
                     'invoice_id' => $validated['invoice_id'] ?? null,
                     'amount' => $validated['amount'],
-                    'payment_method' => $validated['payment_method'] ?? null,
-                    'payment_method_id' => $validated['payment_method_id'] ?? null,
-                    'reference' => $validated['reference'],
-                    'bank_account_id' => $validated['bank_account_id'] ?? null,
+                    'payment_method_id' => $validated['payment_method_id'],
                     'payer_name' => $validated['payer_name'],
                     'payer_type' => $validated['payer_type'],
                     'narration' => $validated['narration'],
-                    'transaction_code' => $validated['transaction_code'] ?? null,
+                    'transaction_code' => $validated['transaction_code'],
                     'payment_date' => $validated['payment_date'],
-                    'receipt_date' => $validated['receipt_date'] ?? null,
+                    // receipt_date is set automatically in Payment model
                 ]);
 
                 // Allocate payment

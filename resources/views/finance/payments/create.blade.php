@@ -82,18 +82,6 @@
                             </div>
 
                             <div class="col-md-6">
-                                <label class="finance-form-label">Bank Account</label>
-                                <select name="bank_account_id" class="finance-form-select">
-                                    <option value="">-- Select Bank Account --</option>
-                                    @foreach(\App\Models\BankAccount::where('is_active', true)->get() as $account)
-                                        <option value="{{ $account->id }}" {{ old('bank_account_id') == $account->id ? 'selected' : '' }}>
-                                            {{ $account->name }} - {{ $account->account_number }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-6">
                                 <label class="finance-form-label">Payer Name</label>
                                 <input type="text" 
                                        name="payer_name" 
@@ -114,34 +102,25 @@
                             </div>
 
                             <div class="col-md-12">
-                                <label class="finance-form-label">Reference Number</label>
+                                <label class="finance-form-label">Transaction Code <span class="text-danger">*</span></label>
                                 <input type="text" 
-                                       name="reference" 
-                                       class="finance-form-control" 
-                                       value="{{ old('reference') }}" 
-                                       placeholder="M-Pesa code, cheque number, etc.">
-                            </div>
-
-                            <div class="col-md-12">
-                                <label class="finance-form-label">Transaction Code (Narration) <span class="text-danger">*</span></label>
-                                <textarea name="narration" 
-                                          class="finance-form-control @error('narration') is-invalid @enderror" 
-                                          rows="2" 
-                                          placeholder="Enter transaction code (e.g., M-Pesa code, bank reference). This must be unique."
-                                          required>{{ old('narration') }}</textarea>
+                                       name="transaction_code" 
+                                       class="finance-form-control @error('transaction_code') is-invalid @enderror" 
+                                       value="{{ old('transaction_code') }}" 
+                                       placeholder="Enter transaction code (e.g., M-Pesa code, bank reference). This must be unique."
+                                       required>
                                 <small class="form-text text-muted">This transaction code must be unique. No two payments can share the same code.</small>
-                                @error('narration')
+                                @error('transaction_code')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
                             </div>
 
                             <div class="col-md-12">
-                                <label class="finance-form-label">Receipt Date</label>
-                                <input type="datetime-local" 
-                                       name="receipt_date" 
-                                       class="finance-form-control" 
-                                       value="{{ old('receipt_date') }}">
-                                <small class="form-text text-muted">Leave empty to use current date/time. This is different from payment date.</small>
+                                <label class="finance-form-label">Narration</label>
+                                <textarea name="narration" 
+                                          class="finance-form-control" 
+                                          rows="2" 
+                                          placeholder="Additional notes or description">{{ old('narration') }}</textarea>
                             </div>
 
                             <div class="col-md-12">
