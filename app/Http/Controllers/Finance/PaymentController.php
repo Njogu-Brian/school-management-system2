@@ -253,11 +253,40 @@ class PaymentController extends Controller
             Log::warning('Payment notification failed: ' . $e->getMessage());
         }
         
+        // Check if payment was created
+        if (!$createdPayment) {
+            Log::error('Payment creation failed - no payment created', [
+                'validated' => $validated,
+                'student_id' => $validated['student_id'] ?? null
+            ]);
+            return back()
+                ->withInput()
+                ->with('error', 'Payment creation failed. Please try again.');
+        }
+        
         // Return with payment ID for receipt popup
         return redirect()
             ->route('finance.payments.index')
             ->with('success', 'Payment recorded successfully.')
             ->with('payment_id', $createdPayment->id);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::info('Payment validation failed', ['errors' => $e->errors()]);
+            return back()
+                ->withErrors($e->errors())
+                ->withInput();
+        } catch (\Exception $e) {
+            Log::error('Payment creation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'request' => $request->except(['_token'])
+            ]);
+            
+            return back()
+                ->withInput()
+                ->with('error', 'Payment creation failed: ' . $e->getMessage());
+        }
     }
     
     protected function sendPaymentNotifications(Payment $payment)
