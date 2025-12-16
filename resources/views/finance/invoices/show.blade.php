@@ -250,17 +250,22 @@
                             
                             // Sort by sort_order and then by date/created_at
                             $now = \Carbon\Carbon::now();
-                            $allLineItems = $allLineItems->sortBy([
-                                ['sort_order', 'asc'],
-                                function($item) use ($now) {
-                                    if ($item['type'] === 'item') {
-                                        return $item['data']->created_at ?? $now;
-                                    } elseif (in_array($item['type'], ['credit_note', 'debit_note'])) {
-                                        return $item['data']->issued_at ?? $now;
-                                    }
-                                    return $now;
+                            $allLineItems = $allLineItems->sortBy(function($item) use ($now) {
+                                // Primary sort: sort_order
+                                $sortKey = $item['sort_order'] . '_';
+                                
+                                // Secondary sort: date
+                                if ($item['type'] === 'item') {
+                                    $date = $item['data']->created_at ?? $now;
+                                } elseif (in_array($item['type'], ['credit_note', 'debit_note'])) {
+                                    $date = $item['data']->issued_at ?? $now;
+                                } else {
+                                    $date = $now;
                                 }
-                            ]);
+                                
+                                // Combine sort_order and timestamp for sorting
+                                return $sortKey . $date->timestamp;
+                            });
                         @endphp
                         
                         @forelse($allLineItems as $lineItem)
