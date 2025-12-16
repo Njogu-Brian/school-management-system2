@@ -67,6 +67,7 @@ use App\Http\Controllers\Finance\ReceiptController;
 use App\Http\Controllers\Finance\FeeReminderController;
 use App\Http\Controllers\Finance\FeePaymentPlanController;
 use App\Http\Controllers\Finance\FeeConcessionController;
+use App\Http\Controllers\Finance\DiscountController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -1007,8 +1008,31 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [DiscountController::class, 'index'])->name('index');
             Route::get('/create', [DiscountController::class, 'create'])->name('create');
             Route::post('/', [DiscountController::class, 'store'])->name('store');
-            Route::get('/{discount}', [DiscountController::class, 'show'])->name('show');
+            
+            // Templates
+            Route::get('/templates', [DiscountController::class, 'templatesIndex'])->name('templates.index');
+            
+            // Allocation
+            Route::get('/allocate', [DiscountController::class, 'allocate'])->name('allocate');
+            Route::post('/allocate', [DiscountController::class, 'storeAllocation'])->name('allocate.store');
+            
+            // Allocations list
+            Route::get('/allocations', [DiscountController::class, 'allocationsIndex'])->name('allocations.index');
+            
+            // Approvals
+            Route::get('/approvals', [DiscountController::class, 'approvalsIndex'])->name('approvals.index');
+            Route::post('/approve/{discount}', [DiscountController::class, 'approve'])->name('approve');
+            Route::post('/reject/{discount}', [DiscountController::class, 'reject'])->name('reject');
+            
+            // Bulk sibling allocation
+            Route::get('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSiblingForm'])->name('bulk-allocate-sibling');
+            Route::post('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSibling'])->name('bulk-allocate-sibling.store');
+            
+            // Apply sibling discount (legacy)
             Route::post('/apply-sibling/{student}', [DiscountController::class, 'applySiblingDiscount'])->name('apply-sibling');
+            
+            // Show discount (must be last to avoid route conflicts)
+            Route::get('/{discount}', [DiscountController::class, 'show'])->name('show');
         });
     });
 
