@@ -111,6 +111,40 @@
         </div>
     </div>
 
+    <!-- Discount Summary -->
+    @php
+        $itemDiscounts = $invoice->items->sum('discount_amount');
+        $invoiceDiscount = $invoice->discount_amount ?? 0;
+        $totalDiscounts = $itemDiscounts + $invoiceDiscount;
+    @endphp
+    @if($totalDiscounts > 0)
+    <div class="card shadow-sm mb-4 border-success">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-percent"></i> Discounts Applied</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Item-Level Discounts:</strong></p>
+                    <p class="text-success fs-5 mb-0">-Ksh {{ number_format($itemDiscounts, 2) }}</p>
+                </div>
+                @if($invoiceDiscount > 0)
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Invoice-Level Discount:</strong></p>
+                    <p class="text-success fs-5 mb-0">-Ksh {{ number_format($invoiceDiscount, 2) }}</p>
+                </div>
+                @endif
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-md-12">
+                    <p class="mb-0"><strong>Total Discounts:</strong> <span class="text-success fs-4">-Ksh {{ number_format($totalDiscounts, 2) }}</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
     <!-- Invoice Items with Inline Editing -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
@@ -129,6 +163,8 @@
                             <th>#</th>
                             <th>Votehead</th>
                             <th class="text-end">Amount</th>
+                            <th class="text-end">Discount</th>
+                            <th class="text-end">After Discount</th>
                             <th class="text-end">Paid</th>
                             <th class="text-end">Balance</th>
                             <th>Status</th>
@@ -139,8 +175,10 @@
                     <tbody>
                         @forelse($invoice->items as $item)
                         @php
+                            $discount = $item->discount_amount ?? 0;
+                            $afterDiscount = $item->amount - $discount;
                             $paid = $item->getAllocatedAmount() ?? 0;
-                            $balance = $item->amount - $paid;
+                            $balance = $afterDiscount - $paid;
                         @endphp
                         <tr>
                             <td>{{ $loop->iteration }}</td>
@@ -152,6 +190,16 @@
                             </td>
                             <td class="text-end">
                                 <strong>Ksh {{ number_format($item->amount, 2) }}</strong>
+                            </td>
+                            <td class="text-end">
+                                @if($discount > 0)
+                                    <span class="text-success">-Ksh {{ number_format($discount, 2) }}</span>
+                                @else
+                                    <span class="text-muted">Ksh 0.00</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <strong class="text-primary">Ksh {{ number_format($afterDiscount, 2) }}</strong>
                             </td>
                             <td class="text-end">
                                 <span class="text-success">Ksh {{ number_format($paid, 2) }}</span>
@@ -251,11 +299,26 @@
                         @endforelse
                     </tbody>
                     <tfoot class="table-light">
+                        @php
+                            $totalAmount = $invoice->items->sum('amount');
+                            $totalDiscount = $invoice->items->sum('discount_amount') + ($invoice->discount_amount ?? 0);
+                            $totalAfterDiscount = $totalAmount - $totalDiscount;
+                            $totalPaid = $invoice->items->sum(function($i) { return $i->getAllocatedAmount() ?? 0; });
+                            $totalBalance = $totalAfterDiscount - $totalPaid;
+                        @endphp
                         <tr>
-                            <th colspan="2" class="text-end">Totals:</th>
-                            <th class="text-end">Ksh {{ number_format($invoice->items->sum('amount'), 2) }}</th>
-                            <th class="text-end">Ksh {{ number_format($invoice->items->sum(function($i) { return $i->getAllocatedAmount() ?? 0; }), 2) }}</th>
-                            <th class="text-end">Ksh {{ number_format($invoice->items->sum(function($i) { return $i->amount - ($i->getAllocatedAmount() ?? 0); }), 2) }}</th>
+                            <th colspan="2" class="text-end">Subtotals:</th>
+                            <th class="text-end">Ksh {{ number_format($totalAmount, 2) }}</th>
+                            <th class="text-end">
+                                @if($totalDiscount > 0)
+                                    <span class="text-success">-Ksh {{ number_format($totalDiscount, 2) }}</span>
+                                @else
+                                    <span class="text-muted">Ksh 0.00</span>
+                                @endif
+                            </th>
+                            <th class="text-end"><strong>Ksh {{ number_format($totalAfterDiscount, 2) }}</strong></th>
+                            <th class="text-end">Ksh {{ number_format($totalPaid, 2) }}</th>
+                            <th class="text-end"><strong>Ksh {{ number_format($totalBalance, 2) }}</strong></th>
                             <th colspan="3"></th>
                         </tr>
                     </tfoot>

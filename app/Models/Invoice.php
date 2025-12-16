@@ -106,10 +106,16 @@ class Invoice extends Model
     {
         $this->refresh();
         
-        // Calculate total from active items only
+        // Calculate total from active items (amount - discount_amount)
         $this->total = $this->items()
             ->where('status', 'active')
-            ->sum('amount');
+            ->get()
+            ->sum(function($item) {
+                return $item->amount - ($item->discount_amount ?? 0);
+            });
+        
+        // Add invoice-level discount
+        $this->total = max(0, $this->total - ($this->discount_amount ?? 0));
         
         // Calculate paid amount from allocations
         $this->paid_amount = $this->items()
@@ -117,8 +123,8 @@ class Invoice extends Model
             ->where('invoice_items.invoice_id', $this->id)
             ->sum('payment_allocations.amount');
         
-        // Calculate balance
-        $this->balance = $this->total - $this->paid_amount - $this->discount_amount;
+        // Calculate balance (total already has discounts subtracted)
+        $this->balance = $this->total - $this->paid_amount;
         
         // Update status
         if ($this->balance <= 0) {

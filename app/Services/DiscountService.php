@@ -37,6 +37,13 @@ class DiscountService
                 $year = $invoice->academicYear->year;
             }
             
+            // Reset discount amounts if forcing reapply
+            if ($forceReapply) {
+                // Reset all item discounts
+                $invoice->items()->update(['discount_amount' => 0]);
+                $invoice->update(['discount_amount' => 0]);
+            }
+            
             // Get applicable concessions for this student
             $concessions = FeeConcession::where(function ($q) use ($student) {
                 $q->where('student_id', $student->id)
@@ -72,68 +79,63 @@ class DiscountService
             })
             ->get();
             
-            $totalDiscount = 0;
+            // Track discounts per item to avoid double application
+            $itemDiscounts = [];
+            $invoiceDiscount = 0;
             
             foreach ($concessions as $concession) {
-                $discountAmount = 0;
-                
-                // Skip if discount already applied and not forcing reapply
-                if (!$forceReapply) {
-                    // Check if this discount was already applied to this invoice
-                    // by checking if invoice items have discount matching this concession
-                    $alreadyApplied = false;
-                    if ($concession->scope === 'votehead' && $concession->votehead_id) {
-                        $item = $invoice->items()->where('votehead_id', $concession->votehead_id)->first();
-                        if ($item && $item->discount_amount > 0) {
-                            // Discount might already be applied, but we'll reapply to ensure it's correct
-                            // Remove this check for now to allow recalculation
-                        }
-                    }
-                }
-                
                 switch ($concession->scope) {
                     case 'votehead':
                         if ($concession->votehead_id) {
                             $item = $invoice->items()->where('votehead_id', $concession->votehead_id)->first();
                             if ($item) {
                                 $discountAmount = $concession->calculateDiscount($item->amount);
-                                $item->increment('discount_amount', $discountAmount);
+                                if (!isset($itemDiscounts[$item->id])) {
+                                    $itemDiscounts[$item->id] = 0;
+                                }
+                                $itemDiscounts[$item->id] += $discountAmount;
                             }
                         }
                         break;
                         
                     case 'invoice':
-                        if ($concession->invoice_id == $invoice->id) {
-                            $discountAmount = $concession->calculateDiscount($invoice->total);
-                            $invoice->increment('discount_amount', $discountAmount);
+                        if ($concession->invoice_id == $invoice->id || !$concession->invoice_id) {
+                            // Calculate discount on current invoice total (before discounts)
+                            $baseTotal = $invoice->items()->sum('amount');
+                            $discountAmount = $concession->calculateDiscount($baseTotal);
+                            $invoiceDiscount += $discountAmount;
                         }
                         break;
                         
                     case 'student':
+                    case 'family':
                         // Apply to all items in invoice
                         foreach ($invoice->items as $item) {
                             $itemDiscount = $concession->calculateDiscount($item->amount);
-                            $item->increment('discount_amount', $itemDiscount);
-                            $discountAmount += $itemDiscount;
-                        }
-                        break;
-                        
-                    case 'family':
-                        // Apply to all items
-                        foreach ($invoice->items as $item) {
-                            $itemDiscount = $concession->calculateDiscount($item->amount);
-                            $item->increment('discount_amount', $itemDiscount);
-                            $discountAmount += $itemDiscount;
+                            if (!isset($itemDiscounts[$item->id])) {
+                                $itemDiscounts[$item->id] = 0;
+                            }
+                            $itemDiscounts[$item->id] += $itemDiscount;
                         }
                         break;
                 }
-                
-                $totalDiscount += $discountAmount;
             }
             
-            if ($totalDiscount > 0) {
-                InvoiceService::recalc($invoice);
+            // Apply item-level discounts
+            foreach ($itemDiscounts as $itemId => $discountAmount) {
+                $item = InvoiceItem::find($itemId);
+                if ($item) {
+                    $item->update(['discount_amount' => $discountAmount]);
+                }
             }
+            
+            // Apply invoice-level discount
+            if ($invoiceDiscount > 0) {
+                $invoice->update(['discount_amount' => $invoiceDiscount]);
+            }
+            
+            // Recalculate invoice totals
+            InvoiceService::recalc($invoice);
             
             return $invoice->fresh();
         });
