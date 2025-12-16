@@ -116,7 +116,10 @@ class PaymentController extends Controller
 
         // Check for overpayment warning
         $invoice = isset($validated['invoice_id']) && $validated['invoice_id'] ? \App\Models\Invoice::find($validated['invoice_id']) : null;
-        $balance = $invoice ? $invoice->balance : $student->outstanding_balance ?? 0;
+        
+        // Calculate student balance from invoices
+        $studentInvoices = Invoice::where('student_id', $student->id)->get();
+        $balance = $invoice ? $invoice->balance : $studentInvoices->sum('balance');
         $isOverpayment = $validated['amount'] > $balance;
         
         if ($isOverpayment && !($request->has('confirm_overpayment') && $request->confirm_overpayment)) {
