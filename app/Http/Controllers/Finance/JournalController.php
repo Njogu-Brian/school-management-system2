@@ -22,18 +22,20 @@ class JournalController extends Controller
 
         $journals = $query->latest()->paginate(20)->withQueryString();
         
-        // Also get credit and debit notes for display
-        $creditNotes = \App\Models\CreditNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
+        // Also get credit and debit notes for display (all of them, not just from journals)
+        $creditNotesQuery = \App\Models\CreditNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
             ->when($request->filled('student_id'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id)))
-            ->latest()
-            ->paginate(20)
-            ->withQueryString();
+            ->when($request->filled('year'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('year', $request->year)))
+            ->when($request->filled('term'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('term', $request->term)));
             
-        $debitNotes = \App\Models\DebitNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
+        $creditNotes = $creditNotesQuery->latest()->paginate(20)->withQueryString();
+            
+        $debitNotesQuery = \App\Models\DebitNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
             ->when($request->filled('student_id'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id)))
-            ->latest()
-            ->paginate(20)
-            ->withQueryString();
+            ->when($request->filled('year'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('year', $request->year)))
+            ->when($request->filled('term'), fn($q) => $q->whereHas('invoice', fn($iq) => $iq->where('term', $request->term)));
+            
+        $debitNotes = $debitNotesQuery->latest()->paginate(20)->withQueryString();
         
         $students = \App\Models\Student::orderBy('first_name')->get();
         
