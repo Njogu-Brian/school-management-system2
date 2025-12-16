@@ -249,15 +249,16 @@
                             }
                             
                             // Sort by sort_order and then by date/created_at
+                            $now = \Carbon\Carbon::now();
                             $allLineItems = $allLineItems->sortBy([
                                 ['sort_order', 'asc'],
-                                function($item) {
+                                function($item) use ($now) {
                                     if ($item['type'] === 'item') {
-                                        return $item['data']->created_at ?? now();
+                                        return $item['data']->created_at ?? $now;
                                     } elseif (in_array($item['type'], ['credit_note', 'debit_note'])) {
-                                        return $item['data']->issued_at ?? now();
+                                        return $item['data']->issued_at ?? $now;
                                     }
-                                    return now();
+                                    return $now;
                                 }
                             ]);
                         @endphp
