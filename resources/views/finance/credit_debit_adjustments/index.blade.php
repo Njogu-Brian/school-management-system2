@@ -42,7 +42,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Year</label>
-                    <input type="number" name="year" class="form-control" value="{{ request('year', now()->year) }}">
+                    <input type="number" name="year" class="form-control" value="{{ request('year') }}" placeholder="All Years">
                 </div>
                 <div class="col-md-2">
                     <label class="form-label">Term</label>
