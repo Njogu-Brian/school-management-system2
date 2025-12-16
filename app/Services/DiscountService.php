@@ -40,12 +40,37 @@ class DiscountService
                   ->orWhere('end_date', '>=', now());
             })
             // Match term and year if specified
-            ->when($invoice->term, fn($q) => $q->where(function($q) use ($invoice) {
-                $q->whereNull('term')->orWhere('term', $invoice->term);
-            }))
-            ->when($invoice->year, fn($q) => $q->where(function($q) use ($invoice) {
-                $q->whereNull('year')->orWhere('year', $invoice->year);
-            }))
+            // Get term number from term_id relationship if term integer is not set
+            $termNumber = $invoice->term;
+            if (!$termNumber && $invoice->term_id && $invoice->relationLoaded('term') && $invoice->term) {
+                // Extract term number from term name (e.g., "Term 3" -> 3)
+                if (preg_match('/\d+/', $invoice->term->name, $matches)) {
+                    $termNumber = (int)$matches[0];
+                }
+            }
+            
+            // Get year from academic_year_id if year integer is not set
+            $year = $invoice->year;
+            if (!$year && $invoice->academic_year_id && $invoice->academicYear) {
+                $year = $invoice->academicYear->year;
+            }
+            
+            // Match term
+            ->when($termNumber, function($q) use ($termNumber) {
+                $q->where(function($q) use ($termNumber) {
+                    $q->whereNull('term')->orWhere('term', $termNumber);
+                });
+            })
+            // Match year
+            ->when($year, function($q) use ($year, $invoice) {
+                $q->where(function($q) use ($year, $invoice) {
+                    $q->whereNull('year')->orWhere('year', $year);
+                    // Also check academic_year_id
+                    if ($invoice->academic_year_id) {
+                        $q->orWhere('academic_year_id', $invoice->academic_year_id);
+                    }
+                });
+            })
             ->get();
             
             $totalDiscount = 0;

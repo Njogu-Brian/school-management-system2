@@ -1028,6 +1028,10 @@ Route::middleware('auth')->group(function () {
             Route::get('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSiblingForm'])->name('bulk-allocate-sibling');
             Route::post('/bulk-allocate-sibling', [DiscountController::class, 'bulkAllocateSibling'])->name('bulk-allocate-sibling.store');
             
+            // Bulk actions
+            Route::post('/allocations/bulk-approve', [DiscountController::class, 'bulkApprove'])->name('allocations.bulk-approve');
+            Route::post('/allocations/bulk-reject', [DiscountController::class, 'bulkReject'])->name('allocations.bulk-reject');
+            
             // Reverse allocation
             Route::delete('/allocations/{allocation}/reverse', [DiscountController::class, 'reverse'])->name('allocations.reverse');
             

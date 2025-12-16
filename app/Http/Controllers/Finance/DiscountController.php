@@ -432,6 +432,52 @@ class DiscountController extends Controller
         return view('finance.discounts.bulk-allocate-sibling', compact('templates', 'academicYears', 'currentYear'));
     }
 
+    // Bulk approve allocations
+    public function bulkApprove(Request $request)
+    {
+        $request->validate([
+            'allocation_ids' => 'required|array',
+            'allocation_ids.*' => 'exists:fee_concessions,id',
+        ]);
+
+        try {
+            $count = FeeConcession::whereIn('id', $request->allocation_ids)
+                ->where('approval_status', 'pending')
+                ->update([
+                    'approval_status' => 'approved',
+                    'approved_by' => auth()->id(),
+                ]);
+
+            return back()->with('success', "Successfully approved {$count} discount allocation(s).");
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to approve allocations: ' . $e->getMessage());
+        }
+    }
+
+    // Bulk reject allocations
+    public function bulkReject(Request $request)
+    {
+        $request->validate([
+            'allocation_ids' => 'required|array',
+            'allocation_ids.*' => 'exists:fee_concessions,id',
+            'rejection_reason' => 'required|string|max:500',
+        ]);
+
+        try {
+            $count = FeeConcession::whereIn('id', $request->allocation_ids)
+                ->where('approval_status', 'pending')
+                ->update([
+                    'approval_status' => 'rejected',
+                    'rejection_reason' => $request->rejection_reason,
+                    'approved_by' => auth()->id(),
+                ]);
+
+            return back()->with('success', "Successfully rejected {$count} discount allocation(s).");
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to reject allocations: ' . $e->getMessage());
+        }
+    }
+
     // Reverse/Delete allocation
     public function reverse(FeeConcession $allocation)
     {

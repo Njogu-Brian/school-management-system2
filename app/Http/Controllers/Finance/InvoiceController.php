@@ -164,6 +164,8 @@ class InvoiceController extends Controller
         $invoice->load([
             'student.classroom',
             'student.stream',
+            'term',
+            'academicYear',
             'items.votehead',
             'items.allocations.payment',
             'creditNotes.creator',

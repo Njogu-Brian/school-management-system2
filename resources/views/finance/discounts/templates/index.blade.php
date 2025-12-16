@@ -2,23 +2,87 @@
 
 @section('content')
 <div class="container-fluid py-4">
+    <!-- Header with Quick Actions -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">
-                    <i class="bi bi-file-earmark-text"></i> Discount Templates
-                </h3>
-                <a href="{{ route('finance.discounts.create') }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Create Template
-                </a>
+                <div>
+                    <h3 class="mb-0">
+                        <i class="bi bi-file-earmark-text"></i> Discount Templates
+                    </h3>
+                    <p class="text-muted mb-0">Create and manage reusable discount templates</p>
+                </div>
+                <div class="btn-group">
+                    <a href="{{ route('finance.discounts.create') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Create Template
+                    </a>
+                    <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-outline-success">
+                        <i class="bi bi-list-check"></i> Allocations
+                    </a>
+                    <a href="{{ route('finance.discounts.approvals.index') }}" class="btn btn-outline-warning">
+                        <i class="bi bi-check-circle"></i> Approvals
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
     @include('finance.invoices.partials.alerts')
 
+    <!-- Quick Stats -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Total Templates</h6>
+                            <h3 class="mb-0">{{ $templates->total() }}</h3>
+                        </div>
+                        <div class="text-primary" style="font-size: 2rem;">
+                            <i class="bi bi-file-earmark-text"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Active Templates</h6>
+                            <h3 class="mb-0 text-success">{{ $templates->where('is_active', true)->count() }}</h3>
+                        </div>
+                        <div class="text-success" style="font-size: 2rem;">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Requires Approval</h6>
+                            <h3 class="mb-0 text-info">{{ $templates->where('requires_approval', true)->count() }}</h3>
+                        </div>
+                        <div class="text-info" style="font-size: 2rem;">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Templates Table -->
     <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-table"></i> Templates</h5>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
@@ -56,17 +120,17 @@
                             </td>
                             <td class="text-end">
                                 @if($template->type === 'percentage')
-                                    <strong>{{ number_format($template->value, 1) }}%</strong>
+                                    <strong class="text-primary">{{ number_format($template->value, 1) }}%</strong>
                                 @else
-                                    <strong>Ksh {{ number_format($template->value, 2) }}</strong>
+                                    <strong class="text-primary">Ksh {{ number_format($template->value, 2) }}</strong>
                                 @endif
                             </td>
                             <td>{{ ucfirst($template->frequency) }}</td>
                             <td>
                                 @if($template->requires_approval)
-                                    <span class="badge bg-warning">Yes</span>
+                                    <span class="badge bg-warning"><i class="bi bi-shield-check"></i> Yes</span>
                                 @else
-                                    <span class="badge bg-success">No</span>
+                                    <span class="badge bg-success"><i class="bi bi-check"></i> No</span>
                                 @endif
                             </td>
                             <td>
@@ -81,9 +145,14 @@
                                 @endif
                             </td>
                             <td>
-                                <a href="{{ route('finance.discounts.allocate') }}?template={{ $template->id }}" class="btn btn-sm btn-primary">
-                                    <i class="bi bi-person-plus"></i> Allocate
-                                </a>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ route('finance.discounts.allocate') }}?template={{ $template->id }}" class="btn btn-sm btn-primary" title="Allocate">
+                                        <i class="bi bi-person-plus"></i>
+                                    </a>
+                                    <a href="{{ route('finance.discounts.show', $template) }}" class="btn btn-sm btn-outline-primary" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         @empty
@@ -108,4 +177,3 @@
     </div>
 </div>
 @endsection
-
