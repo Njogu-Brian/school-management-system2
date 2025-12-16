@@ -111,9 +111,27 @@ class StudentStatementController extends Controller
         $totalCreditNotes = $creditNotes->sum('amount');
         $totalDebitNotes = $debitNotes->sum('amount');
         
-        // Balance = Charges (already net of discounts) - Payments - Credit Notes + Debit Notes
-        // Note: Invoices total already has discounts subtracted, so we don't subtract discounts again
-        $balance = $totalCharges - $totalPayments - $totalCreditNotes + $totalDebitNotes;
+        // Calculate balance from transaction history (more accurate)
+        // Start with 0, add debits, subtract credits
+        $calculatedBalance = 0;
+        foreach ($invoices as $invoice) {
+            $calculatedBalance += $invoice->total; // Debit
+        }
+        foreach ($payments as $payment) {
+            $calculatedBalance -= $payment->amount; // Credit
+        }
+        foreach ($discounts as $discount) {
+            $calculatedBalance -= $discount->value; // Credit
+        }
+        foreach ($creditNotes as $note) {
+            $calculatedBalance -= $note->amount; // Credit
+        }
+        foreach ($debitNotes as $note) {
+            $calculatedBalance += $note->amount; // Debit
+        }
+        
+        // Use calculated balance (matches transaction history)
+        $balance = $calculatedBalance;
         
         // Get all terms and years for filter
         $terms = \App\Models\Term::orderBy('name')->get();

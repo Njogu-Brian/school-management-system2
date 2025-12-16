@@ -208,6 +208,7 @@
                         @forelse($allTransactions as $transaction)
                             @php
                                 $runningBalance += $transaction['debit'] - $transaction['credit'];
+                                $transactionId = $transaction['model_id'] ?? null;
                             @endphp
                             <tr>
                                 <td>{{ $transaction['date']->format('d M Y') }}</td>
@@ -229,6 +230,35 @@
                                 <td class="text-end">{{ $transaction['debit'] > 0 ? 'Ksh ' . number_format($transaction['debit'], 2) : '—' }}</td>
                                 <td class="text-end">{{ $transaction['credit'] > 0 ? 'Ksh ' . number_format($transaction['credit'], 2) : '—' }}</td>
                                 <td class="text-end"><strong>Ksh {{ number_format($runningBalance, 2) }}</strong></td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        @if($transaction['type'] == 'Invoice' && $transactionId)
+                                            <a href="{{ route('finance.invoices.show', $transactionId) }}" class="btn btn-sm btn-outline-primary" title="View Invoice">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        @elseif($transaction['type'] == 'Payment' && $transactionId)
+                                            <a href="{{ route('finance.payments.show', $transactionId) }}" class="btn btn-sm btn-outline-success" title="View Payment">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        @elseif($transaction['type'] == 'Credit Note' && $transactionId)
+                                            <form action="{{ route('finance.credit-notes.reverse', $transactionId) }}" method="POST" class="d-inline" onsubmit="return confirm('Reverse this credit note?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-warning" title="Reverse Credit Note">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            </form>
+                                        @elseif($transaction['type'] == 'Debit Note' && $transactionId)
+                                            <form action="{{ route('finance.debit-notes.reverse', $transactionId) }}" method="POST" class="d-inline" onsubmit="return confirm('Reverse this debit note?')">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Reverse Debit Note">
+                                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @empty
                             <tr>
