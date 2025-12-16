@@ -475,9 +475,6 @@ class PaymentController extends Controller
         });
         
         // Calculate totals
-        $totalItemAmount = $allocations->sum('item_amount');
-        $totalDiscount = $allocations->sum('discount_amount');
-        $totalAllocated = $allocations->sum('allocated_amount');
         $totalBalanceBefore = $allocations->sum('balance_before');
         $totalBalanceAfter = $allocations->sum('balance_after');
         
@@ -485,9 +482,6 @@ class PaymentController extends Controller
             'payment', 
             'schoolSettings',
             'allocations',
-            'totalItemAmount',
-            'totalDiscount',
-            'totalAllocated',
             'totalBalanceBefore',
             'totalBalanceAfter'
         ));
