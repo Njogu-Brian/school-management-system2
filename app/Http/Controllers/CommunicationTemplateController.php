@@ -16,7 +16,9 @@ class CommunicationTemplateController extends Controller
 
     public function create()
     {
-        return view('communication.templates.create');
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
+        return view('communication.templates.create', compact('systemPlaceholders', 'customPlaceholders'));
     }
 
     public function store(Request $request)
@@ -43,7 +45,61 @@ class CommunicationTemplateController extends Controller
     public function edit(CommunicationTemplate $communication_template)
     {
         $template = $communication_template;
-        return view('communication.templates.edit', compact('template'));
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
+        return view('communication.templates.edit', compact('template', 'systemPlaceholders', 'customPlaceholders'));
+    }
+
+    /**
+     * Get system placeholders (same as in settings)
+     */
+    protected function getSystemPlaceholders()
+    {
+        return [
+            // General
+            ['key' => 'school_name',  'value' => setting('school_name') ?? 'School Name'],
+            ['key' => 'school_phone', 'value' => setting('school_phone') ?? 'School Phone'],
+            ['key' => 'date',         'value' => now()->format('d M Y')],
+            
+            // Student & Parent
+            ['key' => 'student_name', 'value' => 'Student\'s full name'],
+            ['key' => 'admission_number', 'value' => 'Student admission number'],
+            ['key' => 'class_name',   'value' => 'Classroom name'],
+            ['key' => 'parent_name',  'value' => 'Parent\'s full name'],
+            ['key' => 'father_name',  'value' => 'Parent\'s full name'],
+            
+            // Staff
+            ['key' => 'staff_name',   'value' => 'Staff full name'],
+            
+            // Receipts
+            ['key' => 'receipt_number', 'value' => 'Receipt number (e.g., RCPT-2024-001)'],
+            ['key' => 'transaction_code', 'value' => 'Transaction code (e.g., TXN-20241217-ABC123)'],
+            ['key' => 'payment_date', 'value' => 'Payment date (e.g., 17 Dec 2024)'],
+            ['key' => 'amount', 'value' => 'Payment amount (e.g., 5,000.00)'],
+            ['key' => 'receipt_link', 'value' => 'Public receipt link (10-char token)'],
+            
+            // Invoices & Reminders
+            ['key' => 'invoice_number', 'value' => 'Invoice number (e.g., INV-2024-001)'],
+            ['key' => 'total_amount', 'value' => 'Total invoice amount (e.g., 15,000.00)'],
+            ['key' => 'due_date', 'value' => 'Due date (e.g., 31 Dec 2024)'],
+            ['key' => 'outstanding_amount', 'value' => 'Outstanding balance amount'],
+            ['key' => 'status', 'value' => 'Invoice status (paid, partial, unpaid)'],
+            ['key' => 'invoice_link', 'value' => 'Public invoice link (10-char hash)'],
+            ['key' => 'days_overdue', 'value' => 'Number of days overdue'],
+            
+            // Payment Plans
+            ['key' => 'installment_count', 'value' => 'Number of installments'],
+            ['key' => 'installment_amount', 'value' => 'Amount per installment'],
+            ['key' => 'installment_number', 'value' => 'Current installment number'],
+            ['key' => 'start_date', 'value' => 'Payment plan start date'],
+            ['key' => 'end_date', 'value' => 'Payment plan end date'],
+            ['key' => 'remaining_installments', 'value' => 'Number of remaining installments'],
+            ['key' => 'payment_plan_link', 'value' => 'Public payment plan link (10-char hash)'],
+            
+            // Custom Finance
+            ['key' => 'custom_message', 'value' => 'Custom message content'],
+            ['key' => 'custom_subject', 'value' => 'Custom email subject'],
+        ];
     }
 
     public function update(Request $request, CommunicationTemplate $communication_template)

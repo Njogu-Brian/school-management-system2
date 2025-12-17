@@ -155,29 +155,83 @@
         </div>
     @endif
 
-    {{-- ✅ Login form --}}
-    <form method="POST" action="{{ route('login') }}" class="text-start">
-        @csrf
-        <div class="mb-3">
-            <label>Email Address</label>
-            <input type="email" class="form-control" name="email" value="{{ old('email') }}" required autofocus>
-        </div>
-
-        <div class="mb-3">
-            <label>Password</label>
-            <input type="password" class="form-control" name="password" required>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <div class="form-check">
-                <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
-                <label class="form-check-label">Remember Me</label>
+    {{-- ✅ OTP Login Form (shown when OTP is requested) --}}
+    @if(session('otp_sent'))
+        <form method="POST" action="{{ route('login') }}" class="text-start" id="otpLoginForm">
+            @csrf
+            <input type="hidden" name="email" value="{{ session('otp_email') }}">
+            
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> OTP sent to phone ending in <strong>{{ session('otp_phone') }}</strong>
             </div>
-            <a href="{{ route('password.request') }}" class="text-decoration-none small">Forgot Password?</a>
-        </div>
 
-        <button class="btn btn-primary w-100">Login</button>
-    </form>
+            <div class="mb-3">
+                <label>Enter OTP Code</label>
+                <input type="text" class="form-control text-center" name="otp_code" 
+                       placeholder="000000" maxlength="6" pattern="[0-9]{6}" required autofocus
+                       style="font-size: 24px; letter-spacing: 8px;">
+                <small class="text-muted">6-digit code sent via SMS</small>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                    <label class="form-check-label">Remember Me</label>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mb-2">Verify & Login</button>
+            <button type="button" class="btn btn-outline-secondary w-100" onclick="showPasswordForm()">Use Password Instead</button>
+        </form>
+    @else
+        {{-- ✅ Standard Login Form --}}
+        <form method="POST" action="{{ route('login') }}" class="text-start" id="passwordLoginForm">
+            @csrf
+            <div class="mb-3">
+                <label>Email Address</label>
+                <input type="email" class="form-control" name="email" value="{{ old('email') }}" required autofocus>
+            </div>
+
+            <div class="mb-3">
+                <label>Password</label>
+                <input type="password" class="form-control" name="password" required>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" name="remember" {{ old('remember') ? 'checked' : '' }}>
+                    <label class="form-check-label">Remember Me</label>
+                </div>
+                <a href="{{ route('password.request') }}" class="text-decoration-none small">Forgot Password?</a>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mb-2">Login</button>
+            <button type="button" class="btn btn-outline-info w-100" onclick="requestOTP()">Login with OTP</button>
+        </form>
+
+        {{-- ✅ Hidden OTP Request Form --}}
+        <form method="POST" action="{{ route('login') }}" class="d-none" id="otpRequestForm">
+            @csrf
+            <input type="hidden" name="request_otp" value="1">
+            <input type="hidden" name="email" id="otpRequestEmail">
+        </form>
+    @endif
+
+    <script>
+        function requestOTP() {
+            const email = document.querySelector('#passwordLoginForm input[name="email"]').value;
+            if (!email) {
+                alert('Please enter your email address first.');
+                return;
+            }
+            document.getElementById('otpRequestEmail').value = email;
+            document.getElementById('otpRequestForm').submit();
+        }
+
+        function showPasswordForm() {
+            window.location.reload();
+        }
+    </script>
 
     {{-- ✅ Announcements --}}
     <div class="announcements mt-4">

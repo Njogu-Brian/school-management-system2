@@ -41,6 +41,37 @@
         }
     </style>
     @endif
+    @if(request()->is('communication*'))
+    <link rel="stylesheet" href="{{ asset('css/communication-modern.css') }}">
+    <style>
+        :root {
+            --comm-primary: {{ \App\Models\Setting::where('key', 'finance_primary_color')->first()?->value ?? '#6366f1' }};
+            --comm-secondary: {{ \App\Models\Setting::where('key', 'finance_secondary_color')->first()?->value ?? '#764ba2' }};
+            --comm-success: {{ \App\Models\Setting::where('key', 'finance_success_color')->first()?->value ?? '#10b981' }};
+            --comm-warning: {{ \App\Models\Setting::where('key', 'finance_warning_color')->first()?->value ?? '#f59e0b' }};
+            --comm-danger: {{ \App\Models\Setting::where('key', 'finance_danger_color')->first()?->value ?? '#ef4444' }};
+            --comm-info: {{ \App\Models\Setting::where('key', 'finance_info_color')->first()?->value ?? '#06b6d4' }};
+        }
+        .comm-page {
+            font-family: '{{ \App\Models\Setting::where('key', 'finance_primary_font')->first()?->value ?? 'Inter' }}', 'Poppins', sans-serif;
+        }
+        .comm-header h1,
+        .comm-header h2,
+        .comm-header h3 {
+            font-family: '{{ \App\Models\Setting::where('key', 'finance_heading_font')->first()?->value ?? 'Poppins' }}', sans-serif;
+        }
+        .comm-gradient-1 {
+            background: linear-gradient(135deg, var(--comm-primary) 0%, var(--comm-secondary) 100%);
+        }
+        .comm-card-header,
+        .comm-table thead {
+            background: linear-gradient(135deg, var(--comm-primary) 0%, var(--comm-secondary) 100%);
+        }
+        .btn-comm-primary {
+            background: linear-gradient(135deg, var(--comm-primary) 0%, var(--comm-secondary) 100%);
+        }
+    </style>
+    @endif
     @stack('styles')
 
     <style>

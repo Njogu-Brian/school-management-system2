@@ -14,7 +14,7 @@
                         </div>
                     @endif
 
-                    <form method="POST" action="{{ route('password.email') }}">
+                    <form method="POST" action="{{ route('password.email') }}" id="emailResetForm">
                         @csrf
 
                         <div class="row mb-3">
@@ -33,12 +33,33 @@
 
                         <div class="row mb-0">
                             <div class="col-md-6 offset-md-4">
-                                <button type="submit" class="btn btn-primary">
+                                <button type="submit" class="btn btn-primary mb-2 w-100">
                                     {{ __('Send Password Reset Link') }}
+                                </button>
+                                <button type="button" class="btn btn-outline-info w-100" onclick="requestOTPReset()">
+                                    {{ __('Reset with OTP (SMS)') }}
                                 </button>
                             </div>
                         </div>
                     </form>
+
+                    <form method="POST" action="{{ route('password.email') }}" class="d-none" id="otpResetForm">
+                        @csrf
+                        <input type="hidden" name="use_otp" value="1">
+                        <input type="hidden" name="email" id="otpResetEmail">
+                    </form>
+
+                    <script>
+                        function requestOTPReset() {
+                            const email = document.getElementById('email').value;
+                            if (!email) {
+                                alert('Please enter your email address first.');
+                                return;
+                            }
+                            document.getElementById('otpResetEmail').value = email;
+                            document.getElementById('otpResetForm').submit();
+                        }
+                    </script>
                 </div>
             </div>
         </div>

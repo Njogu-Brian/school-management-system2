@@ -23,22 +23,92 @@ class CommunicationService
         try {
             $result = $this->smsService->sendSMS($phone, $message);
 
+            // Check for insufficient credits error
+            if (isset($result['status']) && $result['status'] === 'error' && isset($result['error_code']) && $result['error_code'] === 'INSUFFICIENT_CREDITS') {
+                $balance = $result['balance'] ?? 0;
+                Log::error('SMS sending blocked: Insufficient credits', [
+                    'phone' => $phone,
+                    'balance' => $balance
+                ]);
+
+                CommunicationLog::create([
+                    'recipient_type' => $recipientType,
+                    'recipient_id'   => $recipientId,
+                    'contact'        => $phone,
+                    'channel'        => 'sms',
+                    'title'          => $title ?? 'SMS Notification',
+                    'message'        => $message,
+                    'type'           => 'sms',
+                    'status'         => 'failed',
+                    'response'       => $result,
+                    'scope'          => 'sms',
+                    'sent_at'        => now(),
+                    'error_code'     => 'INSUFFICIENT_CREDITS',
+                ]);
+
+                // Re-throw as exception so caller can handle it
+                throw new \Exception("Insufficient SMS credits. Current balance: {$balance}");
+            }
+
             // Check if the provider returned an error status
             $providerStatus = strtolower(data_get($result, 'status', 'sent'));
             $statusCode = data_get($result, 'statusCode');
-            $reason = data_get($result, 'reason');
+            $reason = strtolower(data_get($result, 'reason', ''));
+            $msgId = data_get($result, 'msgId');
+            $transactionId = data_get($result, 'transactionId');
             
             // Determine final status based on provider response
-            $finalStatus = 'sent';
-            if ($providerStatus === 'error' || $statusCode || $reason) {
+            // Success conditions: status is "success" AND (statusCode is "200" or 200) AND reason is "success"
+            $isSuccess = (
+                $providerStatus === 'success' && 
+                ($statusCode === '200' || $statusCode === 200) && 
+                $reason === 'success'
+            );
+            
+            // Also check for other success indicators (some providers may use different formats)
+            if (!$isSuccess && $providerStatus === 'sent') {
+                $isSuccess = true;
+            }
+            
+            // CRITICAL: If msgId is empty, the message was NOT queued for delivery
+            // This often happens when balance is 0 - provider accepts request but doesn't process it
+            if ($isSuccess && empty($msgId)) {
+                Log::error('SMS provider returned success but msgId is empty - message NOT queued for delivery', [
+                    'phone' => $phone,
+                    'transaction_id' => $transactionId,
+                    'status' => $providerStatus,
+                    'statusCode' => $statusCode,
+                    'reason' => $reason,
+                    'result' => $result,
+                    'likely_cause' => 'Insufficient balance or account issue'
+                ]);
+                
+                // Treat as failed - message won't be delivered
+                $isSuccess = false;
                 $finalStatus = 'failed';
-                Log::warning('SMS provider returned error', [
+            } else {
+                $finalStatus = $isSuccess ? 'sent' : 'failed';
+            }
+            
+            if (!$isSuccess) {
+                Log::warning('SMS provider returned error or failed validation', [
                     'phone' => $phone,
                     'status' => $providerStatus,
                     'statusCode' => $statusCode,
                     'reason' => $reason,
+                    'msgId' => $msgId,
                     'result' => $result
                 ]);
+            }
+
+            // Determine error code
+            $errorCode = null;
+            if (!$isSuccess) {
+                if (empty($msgId) && $providerStatus === 'success') {
+                    $errorCode = 'NO_MSG_ID'; // Message accepted but not queued (likely insufficient balance)
+                } else {
+                    $errorCode = $statusCode ?? 'UNKNOWN_ERROR';
+                }
             }
 
             CommunicationLog::create([
@@ -53,9 +123,9 @@ class CommunicationService
                 'response'       => is_array($result) ? $result : ['response' => (string) $result],
                 'scope'          => 'sms',
                 'sent_at'        => now(),
-                'provider_id'    => data_get($result, 'id') ?? data_get($result, 'message_id') ?? data_get($result, 'MessageID'),
+                'provider_id'    => $transactionId ?? data_get($result, 'id') ?? data_get($result, 'message_id') ?? data_get($result, 'MessageID'),
                 'provider_status' => $providerStatus,
-                'error_code'     => $statusCode,
+                'error_code'     => $errorCode,
             ]);
 
             Log::info("SMS attempt finished", [

@@ -133,6 +133,10 @@ Route::middleware('guest')->group(function () {
     Route::post('/password/email', [AuthController::class, 'sendResetLinkEmail'])->name('password.email');
     Route::get('/password/reset/{token}', [AuthController::class, 'showResetForm'])->name('password.reset');
     Route::post('/password/reset', [AuthController::class, 'reset'])->name('password.update');
+    
+    // OTP Password Reset
+    Route::get('/password/reset-otp', [AuthController::class, 'showOTPResetForm'])->name('password.reset.otp');
+    Route::post('/password/reset-otp', [AuthController::class, 'resetWithOTP'])->name('password.reset.otp.submit');
 });
 
 Route::middleware('auth')->group(function () {
@@ -141,6 +145,21 @@ Route::middleware('auth')->group(function () {
 
 // Public student search (kept public per your original)
 Route::get('/students/search', [StudentController::class, 'search'])->name('students.search');
+
+// Public finance views (no authentication required, using hashed IDs/tokens)
+// These routes explicitly use hashed_id/public_token, not numeric IDs
+Route::get('receipt/{token}', [\App\Http\Controllers\Finance\PaymentController::class, 'publicViewReceipt'])
+    ->where('token', '[A-Za-z0-9]{10}') // Only 10-char tokens, not numeric IDs
+    ->name('receipts.public');
+Route::get('invoice/{hash}', [\App\Http\Controllers\Finance\InvoiceController::class, 'publicView'])
+    ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
+    ->name('invoices.public');
+Route::get('statement/{hash}', [\App\Http\Controllers\Finance\StudentStatementController::class, 'publicView'])
+    ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
+    ->name('statements.public');
+Route::get('payment-plan/{hash}', [\App\Http\Controllers\Finance\FeePaymentPlanController::class, 'publicView'])
+    ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
+    ->name('payment-plans.public');
 
 // SMS Delivery Report Webhook
 Route::post('/webhooks/sms/dlr', [CommunicationController::class, 'smsDeliveryReport'])->name('webhooks.sms.dlr');

@@ -1,0 +1,350 @@
+/* Modern Communication Module Styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --comm-primary: var(--comm-primary, #6366f1);
+    --comm-primary-dark: #4f46e5;
+    --comm-primary-light: #818cf8;
+    --comm-secondary: var(--comm-secondary, #764ba2);
+    --comm-success: var(--comm-success, #10b981);
+    --comm-success-dark: #059669;
+    --comm-warning: var(--comm-warning, #f59e0b);
+    --comm-danger: var(--comm-danger, #ef4444);
+    --comm-info: var(--comm-info, #06b6d4);
+    --comm-gradient-1: linear-gradient(135deg, var(--comm-primary) 0%, var(--comm-secondary) 100%);
+    --comm-gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --comm-gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --comm-gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    --comm-gradient-5: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    --comm-shadow-sm: 0 2px 4px rgba(99, 102, 241, 0.1);
+    --comm-shadow-md: 0 4px 6px rgba(99, 102, 241, 0.15);
+    --comm-shadow-lg: 0 10px 25px rgba(99, 102, 241, 0.2);
+    --comm-shadow-xl: 0 20px 40px rgba(99, 102, 241, 0.25);
+}
+
+/* Communication Page Container */
+.comm-page {
+    font-family: 'Inter', 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+
+/* Modern Header Section */
+.comm-header {
+    background: var(--comm-gradient-1);
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    margin-bottom: 2rem;
+    color: white;
+    box-shadow: var(--comm-shadow-lg);
+    position: relative;
+    overflow: hidden;
+}
+
+.comm-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.comm-header::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.comm-header-content {
+    position: relative;
+    z-index: 1;
+}
+
+.comm-header h1,
+.comm-header h2,
+.comm-header h3,
+.comm-header-title {
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: white;
+}
+
+.comm-header-title {
+    font-size: 1.75rem;
+}
+
+.comm-header p,
+.comm-header-subtitle {
+    opacity: 0.95;
+    font-size: 1.05rem;
+    margin-bottom: 0;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.comm-header-subtitle {
+    font-size: 1rem;
+}
+
+/* Modern Cards */
+.comm-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: var(--comm-shadow-md);
+    border: none;
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.comm-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--comm-shadow-xl);
+}
+
+.comm-card-header {
+    background: var(--comm-gradient-1);
+    color: white;
+    padding: 1.25rem 1.5rem;
+    font-weight: 600;
+    border: none;
+    font-size: 1.1rem;
+}
+
+.comm-card-header.secondary {
+    background: var(--comm-gradient-3);
+}
+
+.comm-card-header.success {
+    background: var(--comm-gradient-4);
+}
+
+.comm-card-header.warning {
+    background: var(--comm-gradient-5);
+}
+
+.comm-card-header.danger {
+    background: var(--comm-gradient-2);
+}
+
+.comm-card-body {
+    padding: 1.5rem;
+}
+
+/* Modern Buttons */
+.btn-comm {
+    padding: 0.75rem 1.5rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    border: none;
+    transition: all 0.3s ease;
+    box-shadow: var(--comm-shadow-sm);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-comm::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-comm:hover::before {
+    width: 300px;
+    height: 300px;
+}
+
+.btn-comm-primary {
+    background: var(--comm-gradient-1);
+    color: white;
+}
+
+.btn-comm-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--comm-shadow-lg);
+    color: white;
+}
+
+.btn-comm-success {
+    background: var(--comm-gradient-4);
+    color: white;
+}
+
+.btn-comm-success:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--comm-shadow-lg);
+    color: white;
+}
+
+.btn-comm-warning {
+    background: var(--comm-gradient-5);
+    color: white;
+}
+
+.btn-comm-warning:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--comm-shadow-lg);
+    color: white;
+}
+
+.btn-comm-outline {
+    background: white;
+    color: var(--comm-primary);
+    border: 2px solid var(--comm-primary);
+}
+
+.btn-comm-outline:hover {
+    background: var(--comm-primary);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* Form Controls */
+.comm-form-control {
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    padding: 0.75rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.comm-form-control:focus {
+    border-color: var(--comm-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    outline: none;
+}
+
+.comm-form-label {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.5rem;
+    font-size: 0.95rem;
+}
+
+/* Tables */
+.comm-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.comm-table thead {
+    background: var(--comm-gradient-1);
+    color: white;
+}
+
+.comm-table thead th {
+    padding: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    border: none;
+}
+
+.comm-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.comm-table tbody tr:hover {
+    background: #f9fafb;
+    transform: scale(1.01);
+}
+
+.comm-table tbody td {
+    padding: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: middle;
+}
+
+/* Animations */
+.comm-animate {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Tabs */
+.nav-tabs .nav-link {
+    border: none;
+    border-radius: 10px 10px 0 0;
+    padding: 0.75rem 1.5rem;
+    color: #6b7280;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    color: var(--comm-primary);
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.nav-tabs .nav-link.active {
+    background: var(--comm-gradient-1);
+    color: white;
+    font-weight: 600;
+}
+
+/* Alerts */
+.comm-alert {
+    border-radius: 12px;
+    border: none;
+    padding: 1rem 1.5rem;
+    box-shadow: var(--comm-shadow-sm);
+}
+
+/* Action Buttons */
+.comm-action-buttons {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .comm-header {
+        padding: 1.5rem 1rem;
+    }
+    
+    .comm-header-title {
+        font-size: 1.5rem;
+    }
+    
+    .comm-card-body {
+        padding: 1rem;
+    }
+    
+    .comm-action-buttons {
+        width: 100%;
+    }
+    
+    .comm-action-buttons .btn {
+        flex: 1;
+    }
+}
+

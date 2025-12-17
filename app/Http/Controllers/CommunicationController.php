@@ -299,27 +299,96 @@ class CommunicationController extends Controller
         return $out;
     }
 
+    /**
+     * Handle SMS Delivery Report (DLR) webhook from HostPinnacle
+     * Matches exact parameter names from HostPinnacle webhook configuration
+     */
     public function smsDeliveryReport(Request $request)
     {
-        // Typical provider fields (rename to yours)
-        $providerId = $request->input('id') 
-            ?? $request->input('message_id') 
-            ?? $request->input('MessageID');
+        \Log::info('SMS DLR Webhook Received', ['data' => $request->all()]);
 
-        $status     = strtolower($request->input('status', ''));
-        $delivered  = $request->input('delivered_at') ?? $request->input('done_time');
-        $errorCode  = $request->input('error_code');
-
-        if (!$providerId) {
-            return response()->json(['ok' => false, 'reason' => 'missing provider id'], 422);
+        // Required parameters (from screenshot)
+        $transactionId = $request->input('transactionId');
+        $messageId = $request->input('messageId');
+        $mobileNo = $request->input('mobileNo');
+        $errorCode = $request->input('errorCode');
+        
+        // Time parameters (long format - milliseconds)
+        $receivedTime = $request->input('receivedTime'); // Long format
+        $deliveredTime = $request->input('deliveredTime'); // Long format
+        
+        // Optional parameters (from screenshot)
+        $status = strtolower($request->input('status', ''));
+        $cause = $request->input('cause'); // Status description
+        $senderName = $request->input('senderName');
+        $length = $request->input('length');
+        $channel = $request->input('channel');
+        $text = $request->input('text');
+        $cost = $request->input('cost');
+        $msgType = $request->input('msgType');
+        
+        // String format timestamps (optional)
+        $receivedTimeString = $request->input('receivedTimeString'); // YYYYMMDD HH:MM:SS
+        $doneDateString = $request->input('doneDateString'); // YYYYMMDD HH:MM:SS
+        
+        // Use cause as errorCode if errorCode not provided
+        if (!$errorCode && $cause) {
+            $errorCode = $cause;
+        }
+        
+        // Convert long timestamp to Carbon if provided
+        $deliveredAt = null;
+        if ($deliveredTime) {
+            try {
+                // Convert milliseconds to seconds
+                $deliveredAt = \Carbon\Carbon::createFromTimestamp($deliveredTime / 1000);
+            } catch (\Exception $e) {
+                // Try string format if long format fails
+                if ($doneDateString) {
+                    try {
+                        $deliveredAt = \Carbon\Carbon::createFromFormat('Ymd H:i:s', $doneDateString);
+                    } catch (\Exception $e2) {
+                        \Log::warning('Failed to parse delivered time', [
+                            'deliveredTime' => $deliveredTime,
+                            'doneDateString' => $doneDateString
+                        ]);
+                    }
+                }
+            }
         }
 
-        $log = \App\Models\CommunicationLog::where('provider_id', $providerId)->first();
+        // Try to find log by transactionId first (HostPinnacle primary identifier)
+        $log = null;
+        if ($transactionId) {
+            $log = \App\Models\CommunicationLog::where('provider_id', $transactionId)->first();
+        }
+        
+        // Fallback to messageId if transactionId not found
+        if (!$log && $messageId) {
+            $log = \App\Models\CommunicationLog::where('provider_id', $messageId)->first();
+        }
+
         if (!$log) {
+            \Log::warning('SMS DLR webhook: Log not found', [
+                'transactionId' => $transactionId,
+                'messageId' => $messageId,
+                'mobileNo' => $mobileNo
+            ]);
             return response()->json(['ok' => false, 'reason' => 'log not found'], 404);
         }
 
-        // Map provider statuses to app statuses
+        // Map HostPinnacle statuses to app statuses
+        // Use 'status' field if provided, otherwise infer from 'cause'
+        $finalStatus = $status;
+        if (!$finalStatus && $cause) {
+            // Infer status from cause
+            if (stripos($cause, 'delivered') !== false) {
+                $finalStatus = 'delivered';
+            } elseif (stripos($cause, 'failed') !== false || stripos($cause, 'undelivered') !== false) {
+                $finalStatus = 'failed';
+            }
+        }
+        
         $map = [
             'delivered'   => 'sent',
             'success'     => 'sent',
@@ -330,14 +399,31 @@ class CommunicationController extends Controller
             'failed'      => 'failed',
             'blacklisted' => 'failed',
             'rejected'    => 'failed',
+            'expired'     => 'failed',
         ];
-        $appStatus = $map[$status] ?? $log->status;
+        $appStatus = $map[strtolower($finalStatus)] ?? $log->status;
 
-        $log->update([
+        $updateData = [
             'status'          => $appStatus,
-            'provider_status' => $status ?: $log->provider_status,
-            'delivered_at'    => $delivered ? \Illuminate\Support\Carbon::parse($delivered) : $log->delivered_at,
-            'error_code'      => $errorCode,
+            'provider_status' => $finalStatus ?: $log->provider_status,
+        ];
+
+        if ($deliveredAt) {
+            $updateData['delivered_at'] = $deliveredAt;
+        }
+
+        if ($errorCode) {
+            $updateData['error_code'] = $errorCode;
+        }
+
+        $log->update($updateData);
+
+        \Log::info('SMS DLR Updated', [
+            'log_id' => $log->id,
+            'status' => $appStatus,
+            'transactionId' => $transactionId,
+            'cause' => $cause,
+            'delivered_at' => $deliveredAt
         ]);
 
         return response()->json(['ok' => true]);
