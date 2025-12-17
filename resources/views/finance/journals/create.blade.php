@@ -42,12 +42,10 @@
 
                 <div class="col-md-6 col-lg-4">
                     <label class="finance-form-label">Votehead <span class="text-danger">*</span></label>
-                    <select name="votehead_id" class="finance-form-select" required>
-                        <option value="">-- Select Votehead --</option>
-                        @foreach(\App\Models\Votehead::orderBy('name')->get() as $vh)
-                            <option value="{{ $vh->id }}" @selected(old('votehead_id')==$vh->id)>{{ $vh->name }}</option>
-                        @endforeach
+                    <select name="votehead_id" id="voteheadSelect" class="finance-form-select" required disabled>
+                        <option value="">-- Select Student First --</option>
                     </select>
+                    <small class="text-muted" id="voteheadHelp">Select a student to see available voteheads from their invoice</small>
                 </div>
 
                 <div class="col-md-6 col-lg-2">
@@ -115,5 +113,92 @@
 
 {{-- Include the student search modal partial --}}
 @include('partials.student_search_modal')
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const studentIdInput = document.getElementById('selectedStudentId');
+    const studentNameInput = document.getElementById('selectedStudentName');
+    const voteheadSelect = document.getElementById('voteheadSelect');
+    const voteheadHelp = document.getElementById('voteheadHelp');
+    const yearInput = document.querySelector('input[name="year"]');
+    const termSelect = document.querySelector('select[name="term"]');
+    
+    // Function to load voteheads from invoice
+    function loadVoteheadsFromInvoice() {
+        const studentId = studentIdInput.value;
+        const year = yearInput.value;
+        const term = termSelect.value;
+        
+        if (!studentId || !year || !term) {
+            voteheadSelect.innerHTML = '<option value="">-- Select Student, Year, and Term First --</option>';
+            voteheadSelect.disabled = true;
+            return;
+        }
+        
+        // Show loading state
+        voteheadSelect.disabled = true;
+        voteheadSelect.innerHTML = '<option value="">Loading voteheads...</option>';
+        voteheadHelp.textContent = 'Loading voteheads from invoice...';
+        
+        // Fetch voteheads from invoice
+        fetch(`{{ route('finance.journals.get-invoice-voteheads') }}?student_id=${studentId}&year=${year}&term=${term}`)
+            .then(response => response.json())
+            .then(data => {
+                voteheadSelect.innerHTML = '<option value="">-- Select Votehead --</option>';
+                
+                if (data.voteheads && data.voteheads.length > 0) {
+                    data.voteheads.forEach(vh => {
+                        const option = document.createElement('option');
+                        option.value = vh.id;
+                        option.textContent = `${vh.name} (Current: Ksh ${parseFloat(vh.amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})})`;
+                        voteheadSelect.appendChild(option);
+                    });
+                    voteheadSelect.disabled = false;
+                    voteheadHelp.textContent = `Found ${data.voteheads.length} votehead(s) in invoice`;
+                } else {
+                    voteheadSelect.innerHTML = '<option value="">No invoice found or no voteheads in invoice</option>';
+                    voteheadSelect.disabled = true;
+                    voteheadHelp.textContent = 'No invoice found for this student, year, and term. Please create an invoice first.';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading voteheads:', error);
+                voteheadSelect.innerHTML = '<option value="">Error loading voteheads</option>';
+                voteheadSelect.disabled = true;
+                voteheadHelp.textContent = 'Error loading voteheads. Please try again.';
+            });
+    }
+    
+    // Listen for student selection (from modal)
+    const studentSearchModal = document.getElementById('studentSearchModal');
+    if (studentSearchModal) {
+        studentSearchModal.addEventListener('shown.bs.modal', function() {
+            // When modal is shown, set up listener for student selection
+            setTimeout(() => {
+                const studentRows = studentSearchModal.querySelectorAll('[data-student-id]');
+                studentRows.forEach(row => {
+                    row.addEventListener('click', function() {
+                        setTimeout(() => {
+                            loadVoteheadsFromInvoice();
+                        }, 500); // Wait for modal to close and input to be set
+                    });
+                });
+            }, 100);
+        });
+    }
+    
+    // Also listen for direct changes to student input (if manually set)
+    studentIdInput.addEventListener('change', loadVoteheadsFromInvoice);
+    yearInput.addEventListener('change', loadVoteheadsFromInvoice);
+    termSelect.addEventListener('change', loadVoteheadsFromInvoice);
+    
+    // Load voteheads if student is already selected (on page load with old input)
+    if (studentIdInput.value && yearInput.value && termSelect.value) {
+        loadVoteheadsFromInvoice();
+    }
+});
+</script>
+@endpush
 @endsection
 

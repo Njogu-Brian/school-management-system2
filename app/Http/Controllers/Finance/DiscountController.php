@@ -239,19 +239,6 @@ class DiscountController extends Controller
         return view('finance.discounts.allocations.index', compact('allocations', 'students'));
     }
 
-    // Discount Approvals
-    public function approvalsIndex(Request $request)
-    {
-        $query = FeeConcession::with(['student', 'discountTemplate', 'votehead', 'creator'])
-            ->where('approval_status', 'pending')
-            ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id));
-
-        $pendingApprovals = $query->latest()->paginate(20)->withQueryString();
-        $students = Student::orderBy('first_name')->get();
-        
-        return view('finance.discounts.approvals.index', compact('pendingApprovals', 'students'));
-    }
-
     public function approve(FeeConcession $discount)
     {
         $discount->update([
@@ -259,7 +246,32 @@ class DiscountController extends Controller
             'approved_by' => auth()->id(),
         ]);
 
-        return back()->with('success', 'Discount approved successfully.');
+        // Reapply discounts to all affected invoices
+        $discountService = new \App\Services\DiscountService();
+        
+        // Find all invoices for this student that match the discount criteria
+        $student = $discount->student;
+        if ($student) {
+            $invoicesQuery = \App\Models\Invoice::where('student_id', $student->id)
+                ->where('year', $discount->year);
+            
+            if ($discount->term) {
+                $invoicesQuery->where('term', $discount->term);
+            }
+            
+            if ($discount->academic_year_id) {
+                $invoicesQuery->where('academic_year_id', $discount->academic_year_id);
+            }
+            
+            $invoices = $invoicesQuery->get();
+            
+            foreach ($invoices as $invoice) {
+                // Force reapply discounts to ensure the newly approved discount is included
+                $discountService->applyDiscountsToInvoice($invoice->fresh(['student', 'term', 'academicYear']), true);
+            }
+        }
+
+        return back()->with('success', 'Discount approved successfully and applied to invoices.');
     }
 
     public function reject(Request $request, FeeConcession $discount)
@@ -536,14 +548,51 @@ class DiscountController extends Controller
         ]);
 
         try {
-            $count = FeeConcession::whereIn('id', $request->allocation_ids)
+            $discounts = FeeConcession::whereIn('id', $request->allocation_ids)
+                ->where('approval_status', 'pending')
+                ->get();
+            
+            $count = $discounts->count();
+            
+            // Update approval status
+            FeeConcession::whereIn('id', $request->allocation_ids)
                 ->where('approval_status', 'pending')
                 ->update([
                     'approval_status' => 'approved',
                     'approved_by' => auth()->id(),
                 ]);
+            
+            // Reapply discounts to all affected invoices
+            $discountService = new \App\Services\DiscountService();
+            $processedInvoices = [];
+            
+            foreach ($discounts as $discount) {
+                $student = $discount->student;
+                if ($student) {
+                    $invoicesQuery = \App\Models\Invoice::where('student_id', $student->id)
+                        ->where('year', $discount->year);
+                    
+                    if ($discount->term) {
+                        $invoicesQuery->where('term', $discount->term);
+                    }
+                    
+                    if ($discount->academic_year_id) {
+                        $invoicesQuery->where('academic_year_id', $discount->academic_year_id);
+                    }
+                    
+                    $invoices = $invoicesQuery->get();
+                    
+                    foreach ($invoices as $invoice) {
+                        // Avoid processing the same invoice multiple times
+                        if (!in_array($invoice->id, $processedInvoices)) {
+                            $discountService->applyDiscountsToInvoice($invoice->fresh(['student', 'term', 'academicYear']), true);
+                            $processedInvoices[] = $invoice->id;
+                        }
+                    }
+                }
+            }
 
-            return back()->with('success', "Successfully approved {$count} discount allocation(s).");
+            return back()->with('success', "Successfully approved {$count} discount allocation(s) and applied to invoices.");
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to approve allocations: ' . $e->getMessage());
         }

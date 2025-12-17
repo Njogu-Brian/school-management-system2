@@ -229,7 +229,7 @@
             @endif
         </div>
 
-        <!-- Payment Allocations -->
+        <!-- Payment Allocations and Unpaid Voteheads -->
         @if(isset($allocations) && $allocations->isNotEmpty())
         <table class="allocations-table">
             <thead>
@@ -244,24 +244,40 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($allocations as $index => $allocationData)
+                @foreach($allocations as $index => $itemData)
                 @php
-                    $allocation = is_array($allocationData) ? ($allocationData['allocation'] ?? null) : $allocationData;
-                    $invoice = is_array($allocationData) ? ($allocationData['invoice'] ?? null) : ($allocation->invoiceItem->invoice ?? null);
-                    $votehead = is_array($allocationData) ? ($allocationData['votehead'] ?? null) : ($allocation->invoiceItem->votehead ?? null);
-                    $itemAmount = is_array($allocationData) ? ($allocationData['item_amount'] ?? 0) : ($allocation->invoiceItem->amount ?? 0);
-                    $discountAmount = is_array($allocationData) ? ($allocationData['discount_amount'] ?? 0) : ($allocation->invoiceItem->discount_amount ?? 0);
-                    $allocatedAmount = is_array($allocationData) ? ($allocationData['allocated_amount'] ?? 0) : ($allocation->amount ?? 0);
-                    $balanceAfter = is_array($allocationData) ? ($allocationData['balance_after'] ?? 0) : ($allocation->invoiceItem->getBalance() ?? 0);
+                    $type = is_array($itemData) ? ($itemData['type'] ?? 'paid') : 'paid';
+                    $invoice = is_array($itemData) ? ($itemData['invoice'] ?? null) : null;
+                    $votehead = is_array($itemData) ? ($itemData['votehead'] ?? null) : null;
+                    $itemAmount = is_array($itemData) ? ($itemData['item_amount'] ?? 0) : 0;
+                    $discountAmount = is_array($itemData) ? ($itemData['discount_amount'] ?? 0) : 0;
+                    $allocatedAmount = is_array($itemData) ? ($itemData['allocated_amount'] ?? 0) : 0;
+                    $balanceAfter = is_array($itemData) ? ($itemData['balance_after'] ?? 0) : 0;
+                    $isPaid = $type === 'paid' && $allocatedAmount > 0;
                 @endphp
-                <tr>
+                <tr style="{{ $isPaid ? '' : 'background-color: #fff3cd;' }}">
                     <td>{{ $loop->iteration }}</td>
                     <td>{{ $invoice->invoice_number ?? 'N/A' }}</td>
-                    <td>{{ $votehead->name ?? 'N/A' }}</td>
+                    <td>
+                        {{ $votehead->name ?? 'N/A' }}
+                        @if(!$isPaid)
+                            <span style="color: #856404; font-size: 10px;">(Unpaid)</span>
+                        @endif
+                    </td>
                     <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
                     <td class="text-right">@if($discountAmount > 0)Ksh {{ number_format($discountAmount, 2) }}@else-@endif</td>
-                    <td class="text-right"><strong>Ksh {{ number_format($allocatedAmount, 2) }}</strong></td>
-                    <td class="text-right">Ksh {{ number_format($balanceAfter, 2) }}</td>
+                    <td class="text-right">
+                        @if($isPaid)
+                            <strong>Ksh {{ number_format($allocatedAmount, 2) }}</strong>
+                        @else
+                            <span style="color: #856404;">-</span>
+                        @endif
+                    </td>
+                    <td class="text-right">
+                        <strong style="{{ $balanceAfter > 0 ? 'color: #dc3545;' : 'color: #28a745;' }}">
+                            Ksh {{ number_format($balanceAfter, 2) }}
+                        </strong>
+                    </td>
                 </tr>
                 @endforeach
             </tbody>
@@ -271,31 +287,41 @@
         <!-- Total Section -->
         <div class="total-section">
             @php
-                $totalBalance = $total_balance_before ?? 0;
+                // Get totals for ALL invoices (not just this payment)
                 $amountPaid = $total_amount ?? $payment->amount;
-                $remainingBalance = $total_balance_after ?? 0;
-                $overpayment = $amountPaid > $totalBalance ? ($amountPaid - $totalBalance) : 0;
-                $hasRemainingBalance = $remainingBalance > 0;
+                $totalOutstandingBalance = $total_outstanding_balance ?? 0;
+                $totalInvoices = $total_invoices ?? 0;
+                
+                $hasTotalOutstanding = $totalOutstandingBalance > 0;
             @endphp
             
             <div class="total-row">
-                <span>Total Balance:</span>
-                <span>Ksh {{ number_format($totalBalance, 2) }}</span>
+                <span>Total Invoices:</span>
+                <span><strong>Ksh {{ number_format($totalInvoices, 2) }}</strong></span>
             </div>
             <div class="total-row">
-                <span>Amount Paid:</span>
+                <span>Payment Made:</span>
                 <span><strong>Ksh {{ number_format($amountPaid, 2) }}</strong></span>
             </div>
-            @if($overpayment > 0)
-            <div class="total-row" style="color: #28a745;">
-                <span>Overpayment:</span>
-                <span><strong>(Ksh {{ number_format($overpayment, 2) }})</strong></span>
+            
+            @php
+                $carriedForward = $payment->unallocated_amount ?? 0;
+            @endphp
+            @if($carriedForward > 0)
+            <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+                <span><strong>Carried Forward:</strong></span>
+                <span style="color: #28a745;"><strong>(Ksh {{ number_format($carriedForward, 2) }})</strong></span>
             </div>
             @endif
-            @if($hasRemainingBalance)
-            <div class="total-row" style="color: #dc3545;">
-                <span>Remaining Balance:</span>
-                <span><strong>Ksh {{ number_format($remainingBalance, 2) }}</strong></span>
+            @if($hasTotalOutstanding)
+            <div class="total-row grand-total" style="border-top: 2px solid #3a1a59; padding-top: 10px; margin-top: 10px; color: #dc3545;">
+                <span style="font-size: 16px; font-weight: bold;">Balance:</span>
+                <span style="font-size: 16px; font-weight: bold;">Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
+            </div>
+            @else
+            <div class="total-row grand-total" style="border-top: 2px solid #3a1a59; padding-top: 10px; margin-top: 10px; color: #28a745;">
+                <span style="font-size: 16px; font-weight: bold;">Balance:</span>
+                <span style="font-size: 16px; font-weight: bold;">Ksh 0.00</span>
             </div>
             @endif
         </div>

@@ -9,10 +9,10 @@
                     <i class="bi bi-cash-stack"></i> Payment #{{ $payment->receipt_number ?? $payment->transaction_code }}
                 </h3>
                 <div>
-                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-primary" target="_blank">
+                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary" target="_blank">
                         <i class="bi bi-printer"></i> Print Receipt
                     </a>
-                    <a href="{{ route('finance.payments.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('finance.payments.index') }}" class="btn btn-finance btn-finance-secondary">
                         <i class="bi bi-arrow-left"></i> Back
                     </a>
                 </div>
@@ -102,7 +102,7 @@
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Payment Allocations</h5>
                     @if($payment->unallocated_amount > 0)
-                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
+                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
                         <i class="bi bi-plus-circle"></i> Allocate Payment
                     </button>
                     @endif
@@ -162,7 +162,7 @@
                     <div class="p-4 text-center">
                         <p class="text-muted mb-3">No allocations yet.</p>
                         @if($payment->unallocated_amount > 0)
-                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
+                        <button type="button" class="btn btn-finance btn-finance-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
                             <i class="bi bi-plus-circle"></i> Allocate Payment
                         </button>
                         @endif
@@ -188,6 +188,9 @@
                         </a>
                         @endif
                         @if(!$payment->reversed)
+                        <button type="button" class="btn btn-outline-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
+                            <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
+                        </button>
                         <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" onsubmit="return confirm('Are you sure you want to reverse this payment? This will remove all allocations and recalculate invoices. This action cannot be undone.')">
                             @csrf
                             @method('DELETE')
@@ -295,9 +298,117 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Allocate Payment</button>
+                    <button type="submit" class="btn btn-finance btn-finance-primary">Allocate Payment</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+@endif
+
+<!-- Transfer/Share Payment Modal -->
+@if(!$payment->reversed && $payment->unallocated_amount > 0)
+<div class="modal fade" id="transferPaymentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form action="{{ route('finance.payments.transfer', $payment) }}" method="POST" id="transferPaymentForm">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title">Transfer/Share Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Available to transfer:</strong> Ksh {{ number_format($payment->unallocated_amount, 2) }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Transfer Type <span class="text-danger">*</span></label>
+                        <select name="transfer_type" id="transferType" class="form-select" required>
+                            <option value="">-- Select Type --</option>
+                            <option value="transfer">Transfer to Another Student</option>
+                            <option value="share">Share Among Multiple Students</option>
+                        </select>
+                    </div>
+                    
+                    <div id="transferSingleStudent" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Student <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="hidden" name="target_student_id" id="targetStudentId">
+                                <input type="text" id="targetStudentName" class="form-control" placeholder="Search student..." readonly>
+                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentSearchModalTransfer">
+                                    <i class="bi bi-search"></i> Search
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Amount to Transfer <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <span class="input-group-text">Ksh</span>
+                                <input type="number" step="0.01" min="0.01" max="{{ $payment->unallocated_amount }}" name="transfer_amount" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="transferMultipleStudents" style="display: none;">
+                        <div class="mb-3">
+                            <label class="form-label">Students to Share With <span class="text-danger">*</span></label>
+                            <div id="sharedStudentsList">
+                                <div class="shared-student-item mb-2">
+                                    <div class="input-group">
+                                        <input type="hidden" name="shared_students[]" class="shared-student-id">
+                                        <input type="text" class="form-control shared-student-name" placeholder="Search student..." readonly>
+                                        <button type="button" class="btn btn-outline-primary btn-sm search-student-btn">
+                                            <i class="bi bi-search"></i>
+                                        </button>
+                                        <div class="input-group">
+                                            <span class="input-group-text">Ksh</span>
+                                            <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount">
+                                        </div>
+                                        <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addSharedStudent">
+                                <i class="bi bi-plus"></i> Add Student
+                            </button>
+                            <div class="mt-2">
+                                <strong>Total Allocated: <span id="totalSharedAmount">Ksh 0.00</span></strong>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Reason/Notes</label>
+                        <textarea name="transfer_reason" class="form-control" rows="2" placeholder="Reason for transfer/share"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-finance btn-finance-primary">Transfer Payment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Student Search Modal for Transfer -->
+<div class="modal fade" id="studentSearchModalTransfer" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Search Student</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="studentSearchInputTransfer" class="form-control mb-3" placeholder="Search by name or admission number...">
+                <div id="studentSearchResultsTransfer" class="list-group" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Results will be populated here -->
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -324,6 +435,117 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.setCustomValidity('');
             }
         });
+    });
+    
+    // Transfer/Share Payment functionality
+    const transferType = document.getElementById('transferType');
+    const transferSingle = document.getElementById('transferSingleStudent');
+    const transferMultiple = document.getElementById('transferMultipleStudents');
+    
+    if (transferType) {
+        transferType.addEventListener('change', function() {
+            if (this.value === 'transfer') {
+                transferSingle.style.display = 'block';
+                transferMultiple.style.display = 'none';
+            } else if (this.value === 'share') {
+                transferSingle.style.display = 'none';
+                transferMultiple.style.display = 'block';
+            } else {
+                transferSingle.style.display = 'none';
+                transferMultiple.style.display = 'none';
+            }
+        });
+    }
+    
+    // Student search for transfer
+    const studentSearchInput = document.getElementById('studentSearchInputTransfer');
+    if (studentSearchInput) {
+        studentSearchInput.addEventListener('input', function() {
+            const query = this.value.trim();
+            if (query.length < 2) {
+                document.getElementById('studentSearchResultsTransfer').innerHTML = '';
+                return;
+            }
+            
+            fetch(`/students/search?q=${encodeURIComponent(query)}`)
+                .then(response => response.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById('studentSearchResultsTransfer');
+                    resultsDiv.innerHTML = '';
+                    
+                    if (data.students && data.students.length > 0) {
+                        data.students.forEach(student => {
+                            const item = document.createElement('a');
+                            item.href = '#';
+                            item.className = 'list-group-item list-group-item-action';
+                            item.innerHTML = `<strong>${student.first_name} ${student.last_name}</strong><br><small>Admission: ${student.admission_number}</small>`;
+                            item.addEventListener('click', function(e) {
+                                e.preventDefault();
+                                document.getElementById('targetStudentId').value = student.id;
+                                document.getElementById('targetStudentName').value = `${student.first_name} ${student.last_name} (${student.admission_number})`;
+                                bootstrap.Modal.getInstance(document.getElementById('studentSearchModalTransfer')).hide();
+                            });
+                            resultsDiv.appendChild(item);
+                        });
+                    } else {
+                        resultsDiv.innerHTML = '<div class="list-group-item">No students found</div>';
+                    }
+                });
+        });
+    }
+    
+    // Add shared student
+    const addSharedStudentBtn = document.getElementById('addSharedStudent');
+    if (addSharedStudentBtn) {
+        addSharedStudentBtn.addEventListener('click', function() {
+            const list = document.getElementById('sharedStudentsList');
+            const newItem = document.createElement('div');
+            newItem.className = 'shared-student-item mb-2';
+            newItem.innerHTML = `
+                <div class="input-group">
+                    <input type="hidden" name="shared_students[]" class="shared-student-id">
+                    <input type="text" class="form-control shared-student-name" placeholder="Search student..." readonly>
+                    <button type="button" class="btn btn-outline-primary btn-sm search-student-btn">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <div class="input-group">
+                        <span class="input-group-text">Ksh</span>
+                        <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount">
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </div>
+            `;
+            list.appendChild(newItem);
+            
+            // Add remove functionality
+            newItem.querySelector('.remove-student-btn').addEventListener('click', function() {
+                newItem.remove();
+                updateTotalShared();
+            });
+            
+            // Add amount change listener
+            newItem.querySelector('.shared-amount').addEventListener('input', updateTotalShared);
+        });
+    }
+    
+    // Update total shared amount
+    function updateTotalShared() {
+        const amounts = document.querySelectorAll('.shared-amount');
+        let total = 0;
+        amounts.forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        document.getElementById('totalSharedAmount').textContent = `Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    }
+    
+    // Remove student functionality
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.remove-student-btn')) {
+            e.target.closest('.shared-student-item').remove();
+            updateTotalShared();
+        }
     });
 });
 </script>

@@ -198,6 +198,53 @@ class Payment extends Model
         $this->allocated_amount = $this->calculateAllocatedAmount();
         $this->unallocated_amount = $this->calculateUnallocatedAmount();
         $this->save();
+        
+        // Auto-update status
+        $this->updateStatus();
+    }
+    
+    /**
+     * Update payment status based on allocation
+     */
+    public function updateStatus(): void
+    {
+        if ($this->reversed) {
+            return; // Don't update status for reversed payments
+        }
+        
+        // Status is determined by allocation:
+        // - If fully allocated: "Completed"
+        // - If partially allocated: "Partial"
+        // - If unallocated: "Unallocated" (overpayment/carry forward)
+        
+        // Note: We don't store status in DB, it's calculated on-the-fly
+        // But we can add a computed attribute if needed
+        $this->save(); // Save any allocation updates
+    }
+    
+    /**
+     * Get payment status (computed attribute)
+     * Note: If status column exists in DB, this will override it
+     */
+    public function getStatusAttribute(): string
+    {
+        // Check if status column exists and has a value (for backward compatibility)
+        if (isset($this->attributes['status']) && $this->attributes['status']) {
+            return $this->attributes['status'];
+        }
+        
+        // Compute status from allocation
+        if ($this->reversed) {
+            return 'reversed';
+        }
+        
+        if ($this->allocated_amount >= $this->amount) {
+            return 'completed';
+        } elseif ($this->allocated_amount > 0) {
+            return 'partial';
+        } else {
+            return 'unallocated';
+        }
     }
 
     public function isFullyAllocated(): bool

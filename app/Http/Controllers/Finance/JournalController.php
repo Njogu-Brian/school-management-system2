@@ -14,7 +14,13 @@ class JournalController extends Controller
 {
     public function index(Request $request)
     {
-        $query = \App\Models\Journal::with(['student', 'votehead', 'invoice', 'invoiceItem'])
+        // Optimize journal query - limit eager loading
+        $query = \App\Models\Journal::with([
+            'student:id,first_name,last_name,admission_number',
+            'votehead:id,name',
+            'invoice:id,invoice_number,student_id,year,term',
+            'invoiceItem:id,invoice_id,votehead_id'
+        ])
             ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id))
             ->when($request->filled('type'), fn($q) => $q->where('type', $request->type))
             ->when($request->filled('year'), fn($q) => $q->where('year', $request->year))
@@ -22,49 +28,108 @@ class JournalController extends Controller
 
         $journals = $query->latest()->paginate(20)->withQueryString();
         
-        // Also get credit and debit notes for display (all of them, not just from journals)
-        // Only show notes that have invoices (whereHas ensures invoice exists)
-        $creditNotesQuery = \App\Models\CreditNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
-            ->whereHas('invoice'); // Only show notes with valid invoices
+        // Build invoice filter subquery once for reuse
+        $buildInvoiceSubquery = function() use ($request) {
+            $query = \App\Models\Invoice::query()->select('id');
             
-        // Apply filters only if they're explicitly provided
-        if ($request->filled('student_id')) {
-            $creditNotesQuery->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id));
-        }
-        if ($request->filled('year')) {
-            $creditNotesQuery->whereHas('invoice', fn($iq) => $iq->where('year', $request->year));
-        }
-        if ($request->filled('term')) {
-            $creditNotesQuery->whereHas('invoice', fn($iq) => $iq->where('term', $request->term));
-        }
+            if ($request->filled('student_id')) {
+                $query->where('student_id', $request->student_id);
+            }
+            if ($request->filled('year')) {
+                $query->where('year', $request->year);
+            }
+            if ($request->filled('term')) {
+                $query->where('term', $request->term);
+            }
             
-        $creditNotes = $creditNotesQuery->latest()->paginate(20)->withQueryString();
-            
-        $debitNotesQuery = \App\Models\DebitNote::with(['invoice.student', 'invoiceItem.votehead', 'issuedBy'])
-            ->whereHas('invoice'); // Only show notes with valid invoices
-            
-        // Apply filters only if they're explicitly provided
-        if ($request->filled('student_id')) {
-            $debitNotesQuery->whereHas('invoice', fn($iq) => $iq->where('student_id', $request->student_id));
-        }
-        if ($request->filled('year')) {
-            $debitNotesQuery->whereHas('invoice', fn($iq) => $iq->where('year', $request->year));
-        }
-        if ($request->filled('term')) {
-            $debitNotesQuery->whereHas('invoice', fn($iq) => $iq->where('term', $request->term));
-        }
-            
-        $debitNotes = $debitNotesQuery->latest()->paginate(20)->withQueryString();
+            return $query;
+        };
         
-        $students = \App\Models\Student::orderBy('first_name')->get();
+        // Optimize credit notes query - use whereIn with subquery for better performance
+        $creditNotesQuery = \App\Models\CreditNote::whereIn('invoice_id', $buildInvoiceSubquery())
+            ->with([
+                'invoice:id,invoice_number,student_id,year,term',
+                'invoice.student:id,first_name,last_name,admission_number',
+                'invoiceItem:id,invoice_id,votehead_id',
+                'invoiceItem.votehead:id,name',
+                'issuedBy:id,name'
+            ]);
+            
+        $creditNotes = $creditNotesQuery->latest('credit_notes.created_at')
+            ->paginate(20)
+            ->withQueryString();
+            
+        // Optimize debit notes query - use whereIn with subquery for better performance
+        $debitNotesQuery = \App\Models\DebitNote::whereIn('invoice_id', $buildInvoiceSubquery())
+            ->with([
+                'invoice:id,invoice_number,student_id,year,term',
+                'invoice.student:id,first_name,last_name,admission_number',
+                'invoiceItem:id,invoice_id,votehead_id',
+                'invoiceItem.votehead:id,name',
+                'issuedBy:id,name'
+            ]);
+            
+        $debitNotes = $debitNotesQuery->latest('debit_notes.created_at')
+            ->paginate(20)
+            ->withQueryString();
+        
+        // Load students efficiently - only load a reasonable number for dropdown
+        // Use a simple query without complex joins to prevent timeout
+        $students = \App\Models\Student::select('id', 'first_name', 'last_name', 'admission_number')
+            ->orderBy('first_name')
+            ->limit(500) // Limit to prevent timeout on large datasets
+            ->get();
         
         return view('finance.credit_debit_adjustments.index', compact('journals', 'creditNotes', 'debitNotes', 'students'));
     }
 
     public function create()
     {
-        return view('finance.credit_debit_adjustments.create', [
+        return view('finance.journals.create', [
             'voteheads'=> \App\Models\Votehead::orderBy('name')->get(),
+        ]);
+    }
+    
+    public function getInvoiceVoteheads(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'year' => 'required|integer',
+            'term' => 'required|in:1,2,3',
+        ]);
+        
+        // Find invoice for student, year, term
+        $invoice = \App\Models\Invoice::where('student_id', $request->student_id)
+            ->where('year', $request->year)
+            ->where('term', $request->term)
+            ->first();
+        
+        if (!$invoice) {
+            return response()->json([
+                'voteheads' => [],
+                'message' => 'No invoice found for this student, year, and term.'
+            ]);
+        }
+        
+        // Get voteheads from invoice items (not balance, but actual invoice items)
+        $voteheads = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+            ->where('status', 'active')
+            ->with('votehead:id,name')
+            ->get()
+            ->map(function($item) {
+                return [
+                    'id' => $item->votehead_id,
+                    'name' => $item->votehead->name ?? 'Unknown',
+                    'amount' => $item->amount ?? 0,
+                ];
+            })
+            ->unique('id')
+            ->values();
+        
+        return response()->json([
+            'voteheads' => $voteheads,
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
         ]);
     }
 

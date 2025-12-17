@@ -46,10 +46,38 @@ class PostingController extends Controller
         // Use enhanced service with diffs
         $result = $this->postingService->previewWithDiffs($request->all());
         
+        // Group diffs by student for clustered view
+        $diffs = $result['diffs'];
+        $groupedByStudent = $diffs->groupBy('student_id');
+        
+        // Paginate students (not individual diffs) for better UX
+        $perPage = (int)$request->get('per_page', 25); // Default 25, options: 25, 50, 100, 200
+        $currentPage = $request->get('page', 1);
+        $total = $groupedByStudent->count();
+        $offset = ($currentPage - 1) * $perPage;
+        
+        // Get paginated student groups
+        $paginatedStudents = $groupedByStudent->slice($offset, $perPage);
+        
+        // Create paginator for students
+        $studentsPaginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedStudents,
+            $total,
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+                'pageName' => 'page'
+            ]
+        );
+        
         return view('finance.posting.preview', [
-            'diffs' => $result['diffs'],
+            'groupedDiffs' => $studentsPaginator, // Paginated student groups
+            'allDiffs' => $diffs, // Keep all diffs for form submission
             'summary' => $result['summary'],
-            'filters' => $request->all()
+            'filters' => $request->all(),
+            'perPage' => $perPage
         ]);
     }
 
@@ -87,9 +115,19 @@ class PostingController extends Controller
     {
         try {
             $this->postingService->reversePostingRun($run);
+            
+            // Read affected payment count from run notes if available
+            $message = "Posting run #{$run->id} reversed successfully.";
+            if ($run->notes && str_contains($run->notes, 'payment(s)')) {
+                // Extract payment count from notes
+                if (preg_match('/(\d+)\s+payment\(s\)/', $run->notes, $matches)) {
+                    $message .= " {$matches[1]} payment(s) have been freed and can be carried forward to other invoices.";
+                }
+            }
+            
             return redirect()
                 ->route('finance.posting.index')
-                ->with('success', "Posting run #{$run->id} reversed successfully.");
+                ->with('success', $message);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }

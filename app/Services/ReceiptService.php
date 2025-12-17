@@ -30,8 +30,29 @@ class ReceiptService
         // Get school settings
         $schoolSettings = $this->getSchoolSettings();
         
-        // Calculate allocation details with balances
-        $allocations = $payment->allocations->map(function($allocation) {
+        $student = $payment->student;
+        
+        // Get ALL unpaid invoice items for the student (not just allocated ones)
+        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
+            $q->where('student_id', $student->id);
+        })
+        ->where('status', 'active')
+        ->with(['invoice', 'votehead', 'allocations'])
+        ->get()
+        ->filter(function($item) {
+            return $item->getBalance() > 0; // Only unpaid items
+        });
+        
+        // Get payment allocations for this specific payment
+        $paymentAllocations = $payment->allocations;
+        
+        // Build comprehensive receipt items showing:
+        // 1. Items that received payment (with allocation details)
+        // 2. All other unpaid items (with their balances)
+        $receiptItems = collect();
+        
+        // First, add items that received payment from this payment
+        foreach ($paymentAllocations as $allocation) {
             $item = $allocation->invoiceItem;
             $itemAmount = $item->amount ?? 0;
             $discountAmount = $item->discount_amount ?? 0;
@@ -39,7 +60,8 @@ class ReceiptService
             $balanceBefore = $item->getBalance() + $allocatedAmount; // Balance before this payment
             $balanceAfter = $item->getBalance(); // Balance after this payment
             
-            return [
+            $receiptItems->push([
+                'type' => 'paid',
                 'allocation' => $allocation,
                 'invoice' => $item->invoice ?? null,
                 'votehead' => $item->votehead ?? null,
@@ -48,12 +70,63 @@ class ReceiptService
                 'allocated_amount' => $allocatedAmount,
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
-            ];
-        });
+            ]);
+        }
+        
+        // Then, add all other unpaid items that didn't receive payment
+        $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
+        foreach ($allUnpaidItems as $item) {
+            // Skip if already included in paid items
+            if (in_array($item->id, $paidItemIds)) {
+                continue;
+            }
+            
+            $itemAmount = $item->amount ?? 0;
+            $discountAmount = $item->discount_amount ?? 0;
+            $balance = $item->getBalance();
+            
+            $receiptItems->push([
+                'type' => 'unpaid',
+                'allocation' => null,
+                'invoice' => $item->invoice ?? null,
+                'votehead' => $item->votehead ?? null,
+                'item_amount' => $itemAmount,
+                'discount_amount' => $discountAmount,
+                'allocated_amount' => 0,
+                'balance_before' => $balance,
+                'balance_after' => $balance,
+            ]);
+        }
         
         // Calculate totals
-        $totalBalanceBefore = $allocations->sum('balance_before');
-        $totalBalanceAfter = $allocations->sum('balance_after');
+        $totalBalanceBefore = $receiptItems->sum('balance_before');
+        $totalBalanceAfter = $receiptItems->sum('balance_after');
+        
+        // Calculate TOTAL outstanding balance and total invoices across ALL voteheads for the student
+        // Optimize: Use direct queries instead of recalculating each invoice
+        $invoices = \App\Models\Invoice::where('student_id', $student->id)
+            ->with('items') // Eager load items to avoid N+1
+            ->get();
+        
+        $totalOutstandingBalance = 0;
+        $totalInvoices = 0;
+        
+        // Calculate totals without recalculating each invoice (use existing balance if accurate)
+        foreach ($invoices as $invoice) {
+            // Use existing balance if invoice was recently updated, otherwise recalculate
+            if ($invoice->updated_at && $invoice->updated_at->gt(now()->subMinutes(5))) {
+                // Recently updated, use existing balance
+                $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
+            } else {
+                // Recalculate only if needed
+                $invoice->recalculate();
+                $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
+            }
+            $totalInvoices += $invoice->total ?? 0;
+        }
+        
+        // Use receiptItems instead of allocations for template
+        $allocations = $receiptItems;
         
         // Prepare data for PDF
         $data = [
@@ -61,11 +134,13 @@ class ReceiptService
             'school' => $schoolSettings,
             'receipt_number' => $payment->receipt_number,
             'date' => $payment->payment_date->format('d/m/Y'),
-            'student' => $payment->student,
+            'student' => $student,
             'allocations' => $allocations,
             'total_amount' => $payment->amount,
             'total_balance_before' => $totalBalanceBefore,
             'total_balance_after' => $totalBalanceAfter,
+            'total_outstanding_balance' => $totalOutstandingBalance, // Total across all voteheads
+            'total_invoices' => $totalInvoices, // Total of all invoices
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
             'transaction_code' => $payment->transaction_code,
             'narration' => $payment->narration,

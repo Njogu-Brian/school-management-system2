@@ -143,6 +143,82 @@ class Invoice extends Model
         }
         
         $this->save();
+        
+        // Auto-update payment statuses and auto-allocate unallocated payments
+        $this->updatePaymentStatuses();
+        $this->autoAllocateUnallocatedPayments();
+    }
+    
+    /**
+     * Update payment statuses for all payments related to this invoice
+     */
+    protected function updatePaymentStatuses(): void
+    {
+        // Get all payments that have allocations to this invoice's items
+        $paymentIds = \App\Models\PaymentAllocation::whereHas('invoiceItem', function($q) {
+            $q->where('invoice_id', $this->id);
+        })->pluck('payment_id')->unique();
+        
+        foreach ($paymentIds as $paymentId) {
+            $payment = \App\Models\Payment::find($paymentId);
+            if ($payment) {
+                $payment->updateStatus();
+            }
+        }
+    }
+    
+    /**
+     * Auto-allocate unallocated payments for this student when invoice is updated
+     * Only runs if auto-allocation is enabled (to prevent infinite loops)
+     */
+    protected function autoAllocateUnallocatedPayments(): void
+    {
+        // Prevent infinite loops - only auto-allocate if flag is explicitly enabled
+        // Default is false to prevent automatic allocation on every invoice update
+        if (!app()->bound('auto_allocating') || !app('auto_allocating')) {
+            return;
+        }
+        
+        // Get all unallocated or partially allocated payments for this student
+        $payments = \App\Models\Payment::where('student_id', $this->student_id)
+            ->where('reversed', false)
+            ->where(function($q) {
+                $q->where('unallocated_amount', '>', 0)
+                  ->orWhereRaw('amount > allocated_amount');
+            })
+            ->get();
+        
+        foreach ($payments as $payment) {
+            // Check if there are unpaid invoice items for this student
+            $unpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) {
+                $q->where('student_id', $this->student_id)
+                  ->where('status', '!=', 'paid');
+            })
+            ->where('status', 'active')
+            ->get()
+            ->filter(function($item) {
+                return $item->getBalance() > 0;
+            });
+            
+            if ($unpaidItems->isNotEmpty() && $payment->unallocated_amount > 0) {
+                // Auto-allocate using PaymentAllocationService
+                try {
+                    // Temporarily disable auto-allocation to prevent recursion
+                    $originalFlag = app('auto_allocating');
+                    app()->instance('auto_allocating', false);
+                    \App\Services\PaymentAllocationService::autoAllocate($payment, $this->student_id);
+                    app()->instance('auto_allocating', $originalFlag);
+                } catch (\Exception $e) {
+                    // Log but don't fail - auto-allocation is best effort
+                    \Illuminate\Support\Facades\Log::warning('Auto-allocation failed', [
+                        'payment_id' => $payment->id,
+                        'student_id' => $this->student_id,
+                        'error' => $e->getMessage()
+                    ]);
+                    app()->instance('auto_allocating', $originalFlag ?? false);
+                }
+            }
+        }
     }
 
     public function isPaid(): bool

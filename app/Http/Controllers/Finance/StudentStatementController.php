@@ -24,10 +24,17 @@ class StudentStatementController extends Controller
         $year = $request->get('year', now()->year);
         $term = $request->get('term');
         
-        // Get all invoices for the student
+        // Get all invoices for the student with detailed items
         $invoicesQuery = Invoice::where('student_id', $student->id)
             ->where('year', $year)
-            ->with(['items.votehead', 'term', 'academicYear', 'items.creditNotes', 'items.debitNotes']);
+            ->with([
+                'items.votehead', 
+                'items.creditNotes', 
+                'items.debitNotes',
+                'items.allocations.payment',
+                'term', 
+                'academicYear'
+            ]);
             
         if ($term) {
             $invoicesQuery->whereHas('term', function($q) use ($term) {
@@ -38,12 +45,12 @@ class StudentStatementController extends Controller
         
         $invoices = $invoicesQuery->orderBy('created_at')->get();
         
-        // Get all payments
+        // Get all payments with allocations
         $paymentsQuery = Payment::where('student_id', $student->id)
-            ->whereYear('payment_date', $year);
+            ->whereYear('payment_date', $year)
+            ->with(['allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice']);
             
         if ($term) {
-            // Filter payments by term if needed
             $paymentsQuery->whereHas('invoice', function($q) use ($term) {
                 $q->whereHas('term', function($q2) use ($term) {
                     $q2->where('name', 'like', "%Term {$term}%")
@@ -71,7 +78,7 @@ class StudentStatementController extends Controller
             $q->whereHas('invoice', function($q2) use ($student) {
                 $q2->where('student_id', $student->id);
             });
-        })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'issuedBy']);
+        })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'invoiceItem.votehead', 'issuedBy']);
         
         if ($term) {
             $creditNotesQuery->whereHas('invoiceItem.invoice', function($q) use ($term) {
@@ -89,7 +96,7 @@ class StudentStatementController extends Controller
             $q->whereHas('invoice', function($q2) use ($student) {
                 $q2->where('student_id', $student->id);
             });
-        })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'issuedBy']);
+        })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'invoiceItem.votehead', 'issuedBy']);
         
         if ($term) {
             $debitNotesQuery->whereHas('invoiceItem.invoice', function($q) use ($term) {
@@ -102,36 +109,257 @@ class StudentStatementController extends Controller
         
         $debitNotes = $debitNotesQuery->orderBy('created_at')->get();
         
-        // Calculate totals - invoices already have discounts applied in their total
-        $totalCharges = $invoices->sum('total'); // This already includes discounts
-        $totalDiscounts = $discounts->sum('value') + $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
-            return $inv->items->sum('discount_amount');
+        // Recalculate all invoices to ensure accurate balances
+        foreach ($invoices as $invoice) {
+            $invoice->recalculate();
+        }
+        
+        // Build detailed transaction list with votehead-level items
+        $detailedTransactions = collect();
+        
+        // 1. Add invoice items (each votehead as separate line item)
+        foreach ($invoices as $invoice) {
+            foreach ($invoice->items as $item) {
+                $itemDate = $item->posted_at ?? $item->effective_date ?? $item->created_at ?? $invoice->created_at;
+                $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+                $itemAmount = $item->amount ?? 0;
+                $discountAmount = $item->discount_amount ?? 0;
+                $netAmount = $itemAmount - $discountAmount;
+                
+                if ($netAmount > 0) {
+                    $detailedTransactions->push([
+                        'date' => $itemDate,
+                        'type' => 'Invoice Item',
+                        'description' => $voteheadName . ' - ' . ($invoice->term->name ?? 'Term') . ' ' . $year,
+                        'reference' => $invoice->invoice_number,
+                        'votehead' => $voteheadName,
+                        'debit' => $netAmount,
+                        'credit' => 0,
+                        'invoice_id' => $invoice->id,
+                        'invoice_item_id' => $item->id,
+                        'model_type' => 'InvoiceItem',
+                        'model_id' => $item->id,
+                    ]);
+                }
+                
+                // Add item-level discounts as separate line items
+                if ($discountAmount > 0) {
+                    $detailedTransactions->push([
+                        'date' => $itemDate,
+                        'type' => 'Discount',
+                        'description' => 'Discount - ' . $voteheadName,
+                        'reference' => $invoice->invoice_number,
+                        'votehead' => $voteheadName,
+                        'debit' => 0,
+                        'credit' => $discountAmount,
+                        'invoice_id' => $invoice->id,
+                        'invoice_item_id' => $item->id,
+                        'model_type' => 'InvoiceItem',
+                        'model_id' => $item->id,
+                    ]);
+                }
+            }
+            
+            // Add invoice-level discounts
+            if ($invoice->discount_amount > 0) {
+                $detailedTransactions->push([
+                    'date' => $invoice->created_at,
+                    'type' => 'Discount',
+                    'description' => 'Invoice Discount - ' . $invoice->invoice_number,
+                    'reference' => $invoice->invoice_number,
+                    'votehead' => 'All Voteheads',
+                    'debit' => 0,
+                    'credit' => $invoice->discount_amount,
+                    'invoice_id' => $invoice->id,
+                    'model_type' => 'Invoice',
+                    'model_id' => $invoice->id,
+                ]);
+            }
+        }
+        
+        // 2. Add payment allocations (each votehead payment as separate line item)
+        foreach ($payments as $payment) {
+            if ($payment->reversed) {
+                // For reversed payments, we need to show what was reversed
+                // Get the original allocations from payment history or show as reversal
+                // Since allocations are deleted on reversal, we'll show the reversal with the original payment amount
+                // Try to get original allocation info if available (from audit log or payment notes)
+                $reversalDate = $payment->reversed_at ?? $payment->updated_at;
+                
+                // Show reversal per votehead if we can determine them, otherwise show as single reversal
+                // For now, show as single reversal entry
+                $detailedTransactions->push([
+                    'date' => $reversalDate,
+                    'type' => 'Payment Reversal',
+                    'description' => 'Payment Reversed - ' . ($payment->paymentMethod->name ?? 'N/A') . ' (Original: ' . $payment->receipt_number . ')',
+                    'reference' => $payment->receipt_number . '-REV',
+                    'votehead' => 'All Voteheads',
+                    'debit' => $payment->amount, // Reversal increases balance (debit)
+                    'credit' => 0,
+                    'payment_id' => $payment->id,
+                    'model_type' => 'Payment',
+                    'model_id' => $payment->id,
+                    'is_reversal' => true,
+                ]);
+            } else {
+                // Show each payment allocation per votehead
+                if ($payment->allocations->isEmpty()) {
+                    // Unallocated payment
+                    $detailedTransactions->push([
+                        'date' => $payment->payment_date,
+                        'type' => 'Payment',
+                        'description' => 'Payment - ' . ($payment->paymentMethod->name ?? 'N/A') . ' (Unallocated)',
+                        'reference' => $payment->receipt_number,
+                        'votehead' => 'Unallocated',
+                        'debit' => 0,
+                        'credit' => $payment->amount,
+                        'payment_id' => $payment->id,
+                        'model_type' => 'Payment',
+                        'model_id' => $payment->id,
+                    ]);
+                } else {
+                    foreach ($payment->allocations as $allocation) {
+                        $item = $allocation->invoiceItem;
+                        $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+                        $detailedTransactions->push([
+                            'date' => $payment->payment_date,
+                            'type' => 'Payment',
+                            'description' => 'Payment - ' . $voteheadName,
+                            'reference' => $payment->receipt_number,
+                            'votehead' => $voteheadName,
+                            'debit' => 0,
+                            'credit' => $allocation->amount,
+                            'payment_id' => $payment->id,
+                            'invoice_item_id' => $item->id,
+                            'model_type' => 'PaymentAllocation',
+                            'model_id' => $allocation->id,
+                        ]);
+                    }
+                }
+            }
+        }
+        
+        // 3. Fee concessions (discounts) are already shown as part of invoice items above
+        // No need to show them separately here to avoid duplication
+        
+        // 4. Add credit notes as separate line items
+        foreach ($creditNotes as $note) {
+            $item = $note->invoiceItem;
+            $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            
+            $detailedTransactions->push([
+                'date' => $note->created_at,
+                'type' => 'Credit Note',
+                'description' => 'Credit Note - ' . $voteheadName . ': ' . ($note->reason ?? 'Adjustment'),
+                'reference' => $note->credit_note_number ?? 'CN-' . $note->id,
+                'votehead' => $voteheadName,
+                'debit' => 0,
+                'credit' => $note->amount,
+                'invoice_id' => $note->invoice_id,
+                'invoice_item_id' => $note->invoice_item_id,
+                'model_type' => 'CreditNote',
+                'model_id' => $note->id,
+            ]);
+        }
+        
+        // 5. Add debit notes as separate line items
+        foreach ($debitNotes as $note) {
+            $item = $note->invoiceItem;
+            $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            
+            $detailedTransactions->push([
+                'date' => $note->created_at,
+                'type' => 'Debit Note',
+                'description' => 'Debit Note - ' . $voteheadName . ': ' . ($note->reason ?? 'Adjustment'),
+                'reference' => $note->debit_note_number ?? 'DN-' . $note->id,
+                'votehead' => $voteheadName,
+                'debit' => $note->amount,
+                'credit' => 0,
+                'invoice_id' => $note->invoice_id,
+                'invoice_item_id' => $note->invoice_item_id,
+                'model_type' => 'DebitNote',
+                'model_id' => $note->id,
+            ]);
+        }
+        
+        // 6. Add posting run reversals
+        // Get invoice items that were created by posting runs that were later reversed
+        // Items with posting_run_id pointing to a reversed run
+        $reversedPostingRunsQuery = \App\Models\FeePostingRun::whereHas('invoiceItems', function($q) use ($student, $year) {
+            $q->whereHas('invoice', function($q2) use ($student, $year) {
+                $q2->where('student_id', $student->id)
+                   ->where('year', $year);
+            });
+        })
+        ->where(function($q) {
+            $q->where('is_active', false)
+              ->orWhereNotNull('reversed_at');
         });
-        $totalPayments = $payments->sum('amount');
+        
+        if ($term) {
+            $reversedPostingRunsQuery->whereHas('term', function($q) use ($term) {
+                $q->where('name', 'like', "%Term {$term}%")
+                  ->orWhere('id', $term);
+            });
+        }
+        
+        $reversedRuns = $reversedPostingRunsQuery->get();
+        
+        foreach ($reversedRuns as $run) {
+            // Get invoice items that belong to this reversed posting run
+            $reversedItems = \App\Models\InvoiceItem::where('posting_run_id', $run->id)
+                ->whereHas('invoice', function($q) use ($student) {
+                    $q->where('student_id', $student->id);
+                })
+                ->with(['invoice', 'votehead'])
+                ->get();
+            
+            foreach ($reversedItems as $item) {
+                $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+                $itemAmount = $item->amount ?? 0;
+                $discountAmount = $item->discount_amount ?? 0;
+                $netAmount = $itemAmount - $discountAmount;
+                
+                if ($netAmount > 0) {
+                    $reversalDate = $run->reversed_at ?? $run->updated_at ?? $run->created_at;
+                    $detailedTransactions->push([
+                        'date' => $reversalDate,
+                        'type' => 'Posting Reversal',
+                        'description' => 'Fee Posting Reversed - ' . $voteheadName . ' (Run #' . $run->id . ')',
+                        'reference' => 'RUN-' . $run->id . '-REV',
+                        'votehead' => $voteheadName,
+                        'debit' => 0,
+                        'credit' => $netAmount, // Reversal credits (reduces balance)
+                        'invoice_id' => $item->invoice_id,
+                        'invoice_item_id' => $item->id,
+                        'model_type' => 'FeePostingRun',
+                        'model_id' => $run->id,
+                        'is_reversal' => true,
+                    ]);
+                }
+            }
+        }
+        
+        // Sort all transactions by date
+        $detailedTransactions = $detailedTransactions->sortBy('date');
+        
+        // Calculate totals
+        // Total charges = sum of all invoice totals (before discounts)
+        $totalCharges = $invoices->sum(function($inv) {
+            return $inv->items->sum('amount') ?? 0;
+        });
+        
+        // Total discounts = sum of all item-level and invoice-level discounts
+        $totalDiscounts = $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
+            return $inv->items->sum('discount_amount') ?? 0;
+        });
+        
+        $totalPayments = $payments->where('reversed', false)->sum('amount');
         $totalCreditNotes = $creditNotes->sum('amount');
         $totalDebitNotes = $debitNotes->sum('amount');
         
-        // Calculate balance from transaction history (more accurate)
-        // Start with 0, add debits, subtract credits
-        $calculatedBalance = 0;
-        foreach ($invoices as $invoice) {
-            $calculatedBalance += $invoice->total; // Debit
-        }
-        foreach ($payments as $payment) {
-            $calculatedBalance -= $payment->amount; // Credit
-        }
-        foreach ($discounts as $discount) {
-            $calculatedBalance -= $discount->value; // Credit
-        }
-        foreach ($creditNotes as $note) {
-            $calculatedBalance -= $note->amount; // Credit
-        }
-        foreach ($debitNotes as $note) {
-            $calculatedBalance += $note->amount; // Debit
-        }
-        
-        // Use calculated balance (matches transaction history)
-        $balance = $calculatedBalance;
+        // Calculate balance: Charges - Discounts - Payments + Debit Notes - Credit Notes
+        $balance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
         
         // Get all terms and years for filter
         $terms = \App\Models\Term::orderBy('name')->get();
@@ -157,7 +385,8 @@ class StudentStatementController extends Controller
             'year',
             'term',
             'terms',
-            'years'
+            'years',
+            'detailedTransactions'
         ));
     }
 

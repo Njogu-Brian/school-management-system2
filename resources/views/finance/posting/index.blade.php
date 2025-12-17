@@ -110,16 +110,14 @@
               <a href="{{ route('finance.posting.show', $run) }}" class="btn btn-sm btn-info">
                 <i class="bi bi-eye"></i> View
               </a>
-              @if($run->is_active && $run->canBeReversed())
+              @if($run->canBeReversed())
               <form action="{{ route('finance.posting.reverse', $run) }}" method="POST" class="d-inline" 
-                    onsubmit="return confirm('Are you sure you want to reverse this posting run? This will remove all invoice items created by this run.');">
+                    onsubmit="return confirm('Are you sure you want to reverse this posting run? This will remove all invoice items created by this run. If items have payment allocations, reversal will be blocked.');">
                 @csrf
                 <button type="submit" class="btn btn-sm btn-danger">
                   <i class="bi bi-arrow-counterclockwise"></i> Reverse
                 </button>
               </form>
-              @elseif($run->is_active)
-              <span class="finance-badge badge-approved">Active</span>
               @endif
             </div>
           </td>

@@ -6,7 +6,7 @@
         'title' => 'Allocate Discount',
         'icon' => 'bi bi-person-plus',
         'subtitle' => 'Assign a discount template to a student',
-        'actions' => '<a href="' . route('finance.discounts.templates.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-text"></i> Templates</a><a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-list-check"></i> Allocations</a><a href="' . route('finance.discounts.approvals.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-check-circle"></i> Approvals</a>'
+        'actions' => '<a href="' . route('finance.discounts.templates.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-text"></i> Templates</a><a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-list-check"></i> Allocations</a>'
     ])
 
     @include('finance.invoices.partials.alerts')

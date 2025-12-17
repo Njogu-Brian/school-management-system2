@@ -141,15 +141,25 @@
                             </td>
                             <td>
                                 @php
-                                    $status = $payment->status ?? 'completed';
-                                    if ($payment->allocated_amount >= $payment->amount) {
-                                        $status = 'allocated';
-                                    } elseif ($payment->allocated_amount > 0) {
-                                        $status = 'partial';
-                                    }
+                                    // Use computed status from Payment model
+                                    $status = $payment->status; // This uses the getStatusAttribute accessor
+                                    $badgeClass = match($status) {
+                                        'completed' => 'success',
+                                        'partial' => 'warning',
+                                        'unallocated' => 'info',
+                                        'reversed' => 'danger',
+                                        default => 'secondary'
+                                    };
+                                    $statusLabel = match($status) {
+                                        'completed' => 'Completed',
+                                        'partial' => 'Partial',
+                                        'unallocated' => 'Unallocated',
+                                        'reversed' => 'Reversed',
+                                        default => ucfirst($status)
+                                    };
                                 @endphp
-                                <span class="finance-badge badge-{{ $status === 'allocated' ? 'approved' : ($status === 'partial' ? 'partial' : 'pending') }}">
-                                    {{ ucfirst($status) }}
+                                <span class="badge bg-{{ $badgeClass }}">
+                                    {{ $statusLabel }}
                                 </span>
                             </td>
                             <td>

@@ -93,7 +93,7 @@ class PaymentController extends Controller
     public function store(Request $request)
     {
         try {
-            $validated = $request->validate([
+        $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'invoice_id' => 'nullable|exists:invoices,id',
             'amount' => 'required|numeric|min:1',
@@ -184,62 +184,62 @@ class PaymentController extends Controller
                 }
             } else {
                 // Create single payment
-                $payment = Payment::create([
-                    'student_id' => $validated['student_id'],
-                    'family_id' => $student->family_id,
+            $payment = Payment::create([
+                'student_id' => $validated['student_id'],
+                'family_id' => $student->family_id,
                     'invoice_id' => isset($validated['invoice_id']) ? $validated['invoice_id'] : null,
-                    'amount' => $validated['amount'],
+                'amount' => $validated['amount'],
                     'payment_method_id' => $validated['payment_method_id'],
-                    'payer_name' => $validated['payer_name'],
-                    'payer_type' => $validated['payer_type'],
-                    'narration' => $validated['narration'],
+                'payer_name' => $validated['payer_name'],
+                'payer_type' => $validated['payer_type'],
+                'narration' => $validated['narration'],
                     'transaction_code' => $validated['transaction_code'],
-                    'payment_date' => $validated['payment_date'],
+                'payment_date' => $validated['payment_date'],
                     // receipt_date is set automatically in Payment model
-                ]);
+            ]);
 
-                // Allocate payment
+            // Allocate payment
                 if (isset($validated['auto_allocate']) && $validated['auto_allocate']) {
                     try {
-                        $this->allocationService->autoAllocate($payment);
+                $this->allocationService->autoAllocate($payment);
                     } catch (\Exception $e) {
                         Log::warning('Auto-allocation failed: ' . $e->getMessage());
                         // Continue without allocation - payment is still created
                     }
-                } elseif (!empty($validated['allocations'])) {
+            } elseif (!empty($validated['allocations'])) {
                     try {
-                        $this->allocationService->allocatePayment($payment, $validated['allocations']);
+                $this->allocationService->allocatePayment($payment, $validated['allocations']);
                     } catch (\Exception $e) {
                         Log::warning('Manual allocation failed: ' . $e->getMessage());
                         // Continue without allocation - payment is still created
                     }
-                }
-                
-                // Handle overpayment
+            }
+            
+            // Handle overpayment
                 try {
                     if (method_exists($payment, 'hasOverpayment') && $payment->hasOverpayment()) {
                         if (method_exists($this->allocationService, 'handleOverpayment')) {
-                            $this->allocationService->handleOverpayment($payment);
+                $this->allocationService->handleOverpayment($payment);
                         }
                     }
                 } catch (\Exception $e) {
                     Log::warning('Overpayment handling failed: ' . $e->getMessage());
                     // Continue - overpayment will be handled later
-                }
-                
-                // Log audit
-                if (class_exists(\App\Models\AuditLog::class)) {
-                    \App\Models\AuditLog::log(
-                        'created',
-                        $payment,
-                        null,
-                        [
-                            'amount' => $payment->amount,
-                            'student_id' => $payment->student_id,
-                            'payment_method_id' => $payment->payment_method_id,
-                        ],
-                        ['payment_recorded']
-                    );
+            }
+            
+            // Log audit
+            if (class_exists(\App\Models\AuditLog::class)) {
+                \App\Models\AuditLog::log(
+                    'created',
+                    $payment,
+                    null,
+                    [
+                        'amount' => $payment->amount,
+                        'student_id' => $payment->student_id,
+                        'payment_method_id' => $payment->payment_method_id,
+                    ],
+                    ['payment_recorded']
+                );
                 }
                 
                 $createdPayment = $payment;
@@ -376,30 +376,48 @@ class PaymentController extends Controller
         // Refresh payment to ensure allocations are loaded
         $payment->refresh();
         
-        // Get all invoices for the student and refresh to get latest balances
-        // (Allocation service should have already recalculated them)
-        $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+        // Optimize: Only recalculate invoices that were affected by this payment
+        // Get invoices that have allocations from this payment
+        $affectedInvoiceIds = $payment->allocations()->pluck('invoice_id')->unique()->filter();
         
-        // Recalculate invoices to ensure balances are up to date after payment allocation
-        // This ensures accuracy even if allocation didn't trigger recalculation
-        foreach ($studentInvoices as $invoice) {
-            try {
-                if (class_exists(\App\Services\InvoiceService::class) && method_exists(\App\Services\InvoiceService::class, 'recalc')) {
-                    \App\Services\InvoiceService::recalc($invoice);
-                } elseif (method_exists($invoice, 'recalculate')) {
-                    $invoice->recalculate();
+        if ($affectedInvoiceIds->isNotEmpty()) {
+            // Only recalculate affected invoices
+            $studentInvoices = \App\Models\Invoice::whereIn('id', $affectedInvoiceIds)
+                ->orWhere('student_id', $student->id) // Also include all student invoices for balance calculation
+                ->get();
+            
+            // Enable auto-allocation for invoice recalculation (to auto-allocate unallocated payments)
+            app()->instance('auto_allocating', true);
+            
+            // Recalculate only affected invoices
+            foreach ($studentInvoices->whereIn('id', $affectedInvoiceIds) as $invoice) {
+                try {
+                    if (class_exists(\App\Services\InvoiceService::class) && method_exists(\App\Services\InvoiceService::class, 'recalc')) {
+                        \App\Services\InvoiceService::recalc($invoice);
+                    } elseif (method_exists($invoice, 'recalculate')) {
+                        $invoice->recalculate();
+                    }
+                } catch (\Exception $e) {
+                    Log::debug('Invoice recalculation in notification: ' . $e->getMessage());
                 }
-            } catch (\Exception $e) {
-                // Log but continue - balance will be from current invoice state
-                Log::debug('Invoice recalculation in notification: ' . $e->getMessage());
             }
+            
+            // Disable auto-allocation after recalculation
+            app()->instance('auto_allocating', false);
+            
+            // Refresh only affected invoices
+            $studentInvoices->whereIn('id', $affectedInvoiceIds)->each->refresh();
+        } else {
+            // No allocations yet, get all invoices for balance calculation
+            $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
         }
-        
-        // Refresh invoices to get updated balances
-        $studentInvoices->each->refresh();
         
         // Calculate total outstanding balance after payment
         $outstandingBalance = $studentInvoices->sum('balance');
+        
+        // Refresh payment to get latest unallocated_amount
+        $payment->refresh();
+        $carriedForward = $payment->unallocated_amount ?? 0;
         
         $variables = [
             'parent_name' => $parentName,
@@ -411,6 +429,7 @@ class PaymentController extends Controller
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
             'outstanding_amount' => number_format($outstandingBalance, 2),
+            'carried_forward' => number_format($carriedForward, 2),
         ];
         
         // Replace placeholders
@@ -442,13 +461,14 @@ class PaymentController extends Controller
             }
         }
         
-        // Send Email with PDF attachment
+        // Send Email with PDF attachment (queue PDF generation for better performance)
         if ($parentEmail) {
             try {
                 $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
                 
-                // Generate PDF receipt
+                // Generate PDF receipt (this is still synchronous but optimized)
+                // TODO: Consider queuing PDF generation for bulk operations
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
                 
                 // Use CommunicationService to send email (handles logging automatically)
@@ -540,6 +560,91 @@ class PaymentController extends Controller
         });
     }
     
+    public function transfer(Request $request, Payment $payment)
+    {
+        if ($payment->reversed) {
+            return back()->with('error', 'Cannot transfer a reversed payment.');
+        }
+        
+        $request->validate([
+            'transfer_type' => 'required|in:transfer,share',
+            'target_student_id' => 'required_if:transfer_type,transfer|exists:students,id',
+            'transfer_amount' => 'required_if:transfer_type,transfer|numeric|min:0.01|max:' . $payment->unallocated_amount,
+            'shared_students' => 'required_if:transfer_type,share|array',
+            'shared_students.*' => 'exists:students,id',
+            'shared_amounts' => 'required_if:transfer_type,share|array',
+            'shared_amounts.*' => 'numeric|min:0.01',
+            'transfer_reason' => 'nullable|string|max:500',
+        ]);
+        
+        return DB::transaction(function () use ($request, $payment) {
+            if ($request->transfer_type === 'transfer') {
+                // Single student transfer
+                $targetStudent = Student::findOrFail($request->target_student_id);
+                $transferAmount = (float)$request->transfer_amount;
+                
+                // Create new payment for target student
+                $newPayment = Payment::create([
+                    'student_id' => $targetStudent->id,
+                    'amount' => $transferAmount,
+                    'payment_method_id' => $payment->payment_method_id,
+                    'payment_date' => $payment->payment_date,
+                    'transaction_code' => $payment->transaction_code . '-T' . $targetStudent->id,
+                    'payer_name' => $payment->payer_name,
+                    'payer_type' => $payment->payer_type,
+                    'narration' => ($request->transfer_reason ?? 'Transferred from payment ' . $payment->transaction_code),
+                ]);
+                
+                // Reduce original payment amount
+                $payment->decrement('amount', $transferAmount);
+                $payment->decrement('unallocated_amount', $transferAmount);
+                
+                        // Auto-allocate to target student's invoices
+                        $this->allocationService->autoAllocate($newPayment, $targetStudent->id);
+                
+                return back()->with('success', "Payment of Ksh " . number_format($transferAmount, 2) . " transferred to {$targetStudent->full_name}.");
+            } else {
+                // Share among multiple students
+                $sharedStudents = $request->shared_students;
+                $sharedAmounts = $request->shared_amounts;
+                $totalShared = array_sum($sharedAmounts);
+                
+                if (abs($totalShared - $payment->unallocated_amount) > 0.01) {
+                    return back()->with('error', 'Total shared amounts must equal unallocated amount.');
+                }
+                
+                foreach ($sharedStudents as $index => $studentId) {
+                    $student = Student::findOrFail($studentId);
+                    $amount = (float)($sharedAmounts[$index] ?? 0);
+                    
+                    if ($amount > 0) {
+                        $newPayment = Payment::create([
+                            'student_id' => $student->id,
+                            'amount' => $amount,
+                            'payment_method_id' => $payment->payment_method_id,
+                            'payment_date' => $payment->payment_date,
+                            'transaction_code' => $payment->transaction_code . '-S' . $student->id,
+                            'payer_name' => $payment->payer_name,
+                            'payer_type' => $payment->payer_type,
+                            'narration' => ($request->transfer_reason ?? 'Shared from payment ' . $payment->transaction_code),
+                        ]);
+                        
+                        // Auto-allocate
+                        $this->allocationService->autoAllocate($newPayment, $student->id);
+                    }
+                }
+                
+                // Mark original payment as fully allocated
+                $payment->update([
+                    'unallocated_amount' => 0,
+                    'allocated_amount' => $payment->amount,
+                ]);
+                
+                return back()->with('success', 'Payment shared among ' . count($sharedStudents) . ' student(s).');
+            }
+        });
+    }
+    
     public function printReceipt(Payment $payment)
     {
         try {
@@ -571,11 +676,27 @@ class PaymentController extends Controller
             'allocations.invoiceItem.invoice'
         ]);
         
-        // Get school settings for receipt
-        $schoolSettings = $this->getSchoolSettings();
+        $student = $payment->student;
         
-        // Calculate allocation details with balances (same as ReceiptService)
-        $allocations = $payment->allocations->map(function($allocation) {
+        // Get ALL unpaid invoice items for the student
+        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
+            $q->where('student_id', $student->id);
+        })
+        ->where('status', 'active')
+        ->with(['invoice', 'votehead', 'allocations'])
+        ->get()
+        ->filter(function($item) {
+            return $item->getBalance() > 0;
+        });
+        
+        // Get payment allocations for this specific payment
+        $paymentAllocations = $payment->allocations;
+        
+        // Build comprehensive receipt items
+        $receiptItems = collect();
+        
+        // First, add items that received payment
+        foreach ($paymentAllocations as $allocation) {
             $item = $allocation->invoiceItem;
             $itemAmount = $item->amount ?? 0;
             $discountAmount = $item->discount_amount ?? 0;
@@ -583,7 +704,8 @@ class PaymentController extends Controller
             $balanceBefore = $item->getBalance() + $allocatedAmount;
             $balanceAfter = $item->getBalance();
             
-            return [
+            $receiptItems->push([
+                'type' => 'paid',
                 'allocation' => $allocation,
                 'invoice' => $item->invoice ?? null,
                 'votehead' => $item->votehead ?? null,
@@ -592,20 +714,62 @@ class PaymentController extends Controller
                 'allocated_amount' => $allocatedAmount,
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
-            ];
-        });
+            ]);
+        }
+        
+        // Then, add all other unpaid items
+        $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
+        foreach ($allUnpaidItems as $item) {
+            if (in_array($item->id, $paidItemIds)) {
+                continue;
+            }
+            
+            $itemAmount = $item->amount ?? 0;
+            $discountAmount = $item->discount_amount ?? 0;
+            $balance = $item->getBalance();
+            
+            $receiptItems->push([
+                'type' => 'unpaid',
+                'allocation' => null,
+                'invoice' => $item->invoice ?? null,
+                'votehead' => $item->votehead ?? null,
+                'item_amount' => $itemAmount,
+                'discount_amount' => $discountAmount,
+                'allocated_amount' => 0,
+                'balance_before' => $balance,
+                'balance_after' => $balance,
+            ]);
+        }
         
         // Calculate totals
-        $totalBalanceBefore = $allocations->sum('balance_before');
-        $totalBalanceAfter = $allocations->sum('balance_after');
+        $totalBalanceBefore = $receiptItems->sum('balance_before');
+        $totalBalanceAfter = $receiptItems->sum('balance_after');
+        
+        // Calculate total outstanding balance and total invoices
+        $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+        $totalOutstandingBalance = 0;
+        $totalInvoices = 0;
+        foreach ($invoices as $invoice) {
+            $invoice->recalculate();
+            $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
+            $totalInvoices += $invoice->total ?? 0;
+        }
+        
+        // Get school settings
+        $schoolSettings = $this->getSchoolSettings();
         
         return view('finance.receipts.view', compact(
-            'payment', 
+            'payment',
             'schoolSettings',
-            'allocations',
             'totalBalanceBefore',
-            'totalBalanceAfter'
-        ));
+            'totalBalanceAfter',
+            'totalOutstandingBalance',
+            'totalInvoices'
+        ))->with([
+            'allocations' => $receiptItems,
+            'total_outstanding_balance' => $totalOutstandingBalance,
+            'total_invoices' => $totalInvoices
+        ]);
     }
 
     /**
@@ -627,11 +791,27 @@ class PaymentController extends Controller
             'allocations.invoiceItem.invoice'
         ]);
         
-        // Get school settings for receipt
-        $schoolSettings = $this->getSchoolSettings();
+        $student = $payment->student;
         
-        // Calculate allocation details with balances (same as ReceiptService)
-        $allocations = $payment->allocations->map(function($allocation) {
+        // Get ALL unpaid invoice items for the student
+        $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
+            $q->where('student_id', $student->id);
+        })
+        ->where('status', 'active')
+        ->with(['invoice', 'votehead', 'allocations'])
+        ->get()
+        ->filter(function($item) {
+            return $item->getBalance() > 0;
+        });
+        
+        // Get payment allocations for this specific payment
+        $paymentAllocations = $payment->allocations;
+        
+        // Build comprehensive receipt items
+        $receiptItems = collect();
+        
+        // First, add items that received payment
+        foreach ($paymentAllocations as $allocation) {
             $item = $allocation->invoiceItem;
             $itemAmount = $item->amount ?? 0;
             $discountAmount = $item->discount_amount ?? 0;
@@ -639,7 +819,8 @@ class PaymentController extends Controller
             $balanceBefore = $item->getBalance() + $allocatedAmount;
             $balanceAfter = $item->getBalance();
             
-            return [
+            $receiptItems->push([
+                'type' => 'paid',
                 'allocation' => $allocation,
                 'invoice' => $item->invoice ?? null,
                 'votehead' => $item->votehead ?? null,
@@ -648,20 +829,62 @@ class PaymentController extends Controller
                 'allocated_amount' => $allocatedAmount,
                 'balance_before' => $balanceBefore,
                 'balance_after' => $balanceAfter,
-            ];
-        });
+            ]);
+        }
+        
+        // Then, add all other unpaid items
+        $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
+        foreach ($allUnpaidItems as $item) {
+            if (in_array($item->id, $paidItemIds)) {
+                continue;
+            }
+            
+            $itemAmount = $item->amount ?? 0;
+            $discountAmount = $item->discount_amount ?? 0;
+            $balance = $item->getBalance();
+            
+            $receiptItems->push([
+                'type' => 'unpaid',
+                'allocation' => null,
+                'invoice' => $item->invoice ?? null,
+                'votehead' => $item->votehead ?? null,
+                'item_amount' => $itemAmount,
+                'discount_amount' => $discountAmount,
+                'allocated_amount' => 0,
+                'balance_before' => $balance,
+                'balance_after' => $balance,
+            ]);
+        }
         
         // Calculate totals
-        $totalBalanceBefore = $allocations->sum('balance_before');
-        $totalBalanceAfter = $allocations->sum('balance_after');
+        $totalBalanceBefore = $receiptItems->sum('balance_before');
+        $totalBalanceAfter = $receiptItems->sum('balance_after');
+        
+        // Calculate total outstanding balance and total invoices
+        $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+        $totalOutstandingBalance = 0;
+        $totalInvoices = 0;
+        foreach ($invoices as $invoice) {
+            $invoice->recalculate();
+            $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
+            $totalInvoices += $invoice->total ?? 0;
+        }
+        
+        // Get school settings for receipt
+        $schoolSettings = $this->getSchoolSettings();
         
         return view('finance.receipts.public', compact(
             'payment', 
             'schoolSettings',
-            'allocations',
             'totalBalanceBefore',
-            'totalBalanceAfter'
-        ));
+            'totalBalanceAfter',
+            'totalOutstandingBalance',
+            'totalInvoices'
+        ))->with([
+            'allocations' => $receiptItems,
+            'total_outstanding_balance' => $totalOutstandingBalance,
+            'total_invoices' => $totalInvoices
+        ]);
     }
     
     /**

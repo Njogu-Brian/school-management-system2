@@ -970,6 +970,7 @@ Route::middleware('auth')->group(function () {
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
         Route::delete('payments/{payment}/reverse', [PaymentController::class, 'reverse'])->name('payments.reverse');
+        Route::post('payments/{payment}/transfer', [PaymentController::class, 'transfer'])->name('payments.transfer');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
         Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentBalanceAndSiblings'])->name('payments.student-info');
@@ -1030,6 +1031,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/', [JournalController::class, 'index'])->name('index');
             Route::get('/create', [JournalController::class, 'create'])->name('create');
             Route::post('/store', [JournalController::class, 'store'])->name('store');
+            Route::get('/get-invoice-voteheads', [JournalController::class, 'getInvoiceVoteheads'])->name('get-invoice-voteheads');
         });
         // Journals (bulk)
         Route::get('journals/bulk',      [JournalController::class, 'bulkForm'])->name('journals.bulk.form');
@@ -1060,8 +1062,7 @@ Route::middleware('auth')->group(function () {
             // Allocations list
             Route::get('/allocations', [DiscountController::class, 'allocationsIndex'])->name('allocations.index');
             
-            // Approvals
-            Route::get('/approvals', [DiscountController::class, 'approvalsIndex'])->name('approvals.index');
+            // Approve/Reject (individual actions)
             Route::post('/approve/{discount}', [DiscountController::class, 'approve'])->name('approve');
             Route::post('/reject/{discount}', [DiscountController::class, 'reject'])->name('reject');
             

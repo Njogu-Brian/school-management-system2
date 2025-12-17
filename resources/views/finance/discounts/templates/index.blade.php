@@ -13,9 +13,6 @@
             <a href="' . route('finance.discounts.allocations.index') . '" class="btn btn-finance btn-finance-outline">
                 <i class="bi bi-list-check"></i> Allocations
             </a>
-            <a href="' . route('finance.discounts.approvals.index') . '" class="btn btn-finance btn-finance-outline">
-                <i class="bi bi-check-circle"></i> Approvals
-            </a>
         '
     ])
 

@@ -236,6 +236,9 @@ class InvoiceController extends Controller
 
     public function updateItem(Request $request, Invoice $invoice, InvoiceItem $item)
     {
+        // Always treat as JSON if X-Requested-With header is present
+        $isAjax = $request->expectsJson() || $request->header('X-Requested-With') === 'XMLHttpRequest';
+        
         $request->validate([
             'new_amount' => 'required|numeric|min:0',
             'reason' => 'required|string|max:255',
@@ -246,6 +249,9 @@ class InvoiceController extends Controller
         $delta = $newAmount - (float)$item->amount;
         
         if ($delta == 0) {
+            if ($isAjax) {
+                return response()->json(['success' => true, 'message' => 'No change.']);
+            }
             return back()->with('success', 'No change.');
         }
 
@@ -255,19 +261,39 @@ class InvoiceController extends Controller
                 $item,
                 $newAmount,
                 $request->reason,
-                $request->notes
+                $request->notes ?? null
             );
 
             $message = 'Invoice item updated.';
             if ($result['credit_note']) {
-                $message .= ' Credit note #' . $result['credit_note']->credit_note_number . ' created.';
+                $message .= ' Credit note #' . ($result['credit_note']->credit_note_number ?? $result['credit_note']->id) . ' created.';
             }
             if ($result['debit_note']) {
-                $message .= ' Debit note #' . $result['debit_note']->debit_note_number . ' created.';
+                $message .= ' Debit note #' . ($result['debit_note']->debit_note_number ?? $result['debit_note']->id) . ' created.';
+            }
+
+            if ($isAjax) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'item' => $result['item'],
+                ]);
             }
 
             return back()->with('success', $message);
         } catch (\Exception $e) {
+            \Log::error('Invoice item update failed: ' . $e->getMessage(), [
+                'invoice_id' => $invoice->id,
+                'item_id' => $item->id,
+                'exception' => $e
+            ]);
+            
+            if ($isAjax) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'Update failed: ' . $e->getMessage()
+                ], 422);
+            }
             return back()->with('error', 'Update failed: ' . $e->getMessage());
         }
     }

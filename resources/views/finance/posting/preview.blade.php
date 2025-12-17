@@ -1,14 +1,17 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h3 class="mb-3">
-                <i class="bi bi-eye"></i> Posting Preview - Fee Changes
-            </h3>
-            
-            @include('finance.invoices.partials.alerts')
+<div class="container-fluid">
+    @include('finance.partials.header', [
+        'title' => 'Posting Preview - Fee Changes',
+        'icon' => 'bi bi-eye',
+        'subtitle' => 'Review fee changes before committing',
+        'actions' => '<a href="' . route('finance.posting.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+    ])
+
+    @include('finance.invoices.partials.alerts')
+    
+    <div class="container-fluid py-4">
             
             @if(isset($summary))
             <div class="row mb-4">
@@ -59,14 +62,14 @@
         </div>
     </div>
 
-    @if(isset($diffs) && $diffs->isNotEmpty())
+    @if(isset($allDiffs) && $allDiffs->isNotEmpty())
     <form method="POST" action="{{ route('finance.posting.commit') }}">
         @csrf
         <input type="hidden" name="year" value="{{ $filters['year'] ?? request('year') }}">
         <input type="hidden" name="term" value="{{ $filters['term'] ?? request('term') }}">
         <input type="hidden" name="activate_now" value="1">
         
-        @foreach($diffs as $index => $diff)
+        @foreach($allDiffs as $index => $diff)
             <input type="hidden" name="diffs[{{ $index }}][student_id]" value="{{ $diff['student_id'] }}">
             <input type="hidden" name="diffs[{{ $index }}][votehead_id]" value="{{ $diff['votehead_id'] }}">
             <input type="hidden" name="diffs[{{ $index }}][old_amount]" value="{{ $diff['old_amount'] ?? 0 }}">
@@ -75,99 +78,171 @@
             <input type="hidden" name="diffs[{{ $index }}][origin]" value="{{ $diff['origin'] ?? 'structure' }}">
         @endforeach
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-white">
-                <h5 class="mb-0">Change Details</h5>
+        <div class="finance-card finance-animate">
+            <div class="finance-card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Change Details</h5>
+                        <small class="text-muted">{{ $allDiffs->count() }} total changes across {{ $groupedDiffs->total() }} students</small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
+                        <label class="mb-0 small text-muted">Per Page:</label>
+                        <select class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
+                            <option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
+                            <option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
+                            <option value="100" {{ $perPage == 100 ? 'selected' : '' }}>100</option>
+                            <option value="200" {{ $perPage == 200 ? 'selected' : '' }}>200</option>
+                        </select>
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-0">
+            <div class="finance-card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
+                    <table class="table finance-table mb-0">
+                        <thead>
                             <tr>
-                                <th>Student</th>
-                                <th>Votehead</th>
-                                <th>Change Type</th>
-                                <th class="text-end">Old Amount</th>
-                                <th class="text-end">New Amount</th>
-                                <th class="text-end">Difference</th>
-                                <th>Origin</th>
+                                <th style="width: 25%;">Student</th>
+                                <th style="width: 35%;">Changes Summary</th>
+                                <th class="text-end" style="width: 12%;">Old Total</th>
+                                <th class="text-end" style="width: 12%;">New Total</th>
+                                <th class="text-end" style="width: 12%;">Difference</th>
+                                <th style="width: 4%;"></th>
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($diffs as $diff)
+                            @foreach($groupedDiffs as $studentId => $studentDiffs)
                             @php
-                                $student = \App\Models\Student::find($diff['student_id']);
-                                $votehead = \App\Models\Votehead::find($diff['votehead_id']);
-                                $oldAmount = $diff['old_amount'] ?? 0;
-                                $newAmount = $diff['new_amount'] ?? 0;
-                                $difference = $newAmount - $oldAmount;
+                                $student = \App\Models\Student::find($studentId);
+                                $studentOldTotal = $studentDiffs->sum('old_amount');
+                                $studentNewTotal = $studentDiffs->sum('new_amount');
+                                $studentDifference = $studentNewTotal - $studentOldTotal;
                                 
-                                $badgeClass = match($diff['action']) {
-                                    'added' => 'bg-success',
-                                    'increased' => 'bg-warning',
-                                    'decreased' => 'bg-danger',
-                                    'unchanged' => 'bg-secondary',
-                                    default => 'bg-info'
-                                };
-                                
-                                $textClass = match($diff['action']) {
-                                    'added' => 'text-success',
-                                    'increased' => 'text-warning',
-                                    'decreased' => 'text-danger',
-                                    default => 'text-muted'
-                                };
+                                // Count changes by type
+                                $addedCount = $studentDiffs->where('action', 'added')->count();
+                                $increasedCount = $studentDiffs->where('action', 'increased')->count();
+                                $decreasedCount = $studentDiffs->where('action', 'decreased')->count();
+                                $removedCount = $studentDiffs->where('action', 'removed')->count();
+                                $totalChanges = $studentDiffs->count();
                             @endphp
-                            <tr>
+                            <tr class="finance-table-row">
                                 <td>
                                     @if($student)
-                                        {{ $student->first_name }} {{ $student->last_name }}
+                                        <strong>{{ $student->first_name }} {{ $student->last_name }}</strong>
                                         <br><small class="text-muted">{{ $student->admission_number }}</small>
                                     @else
-                                        Student ID: {{ $diff['student_id'] }}
+                                        <strong>Student ID: {{ $studentId }}</strong>
                                     @endif
                                 </td>
-                                <td>{{ $votehead->name ?? 'Votehead #' . $diff['votehead_id'] }}</td>
                                 <td>
-                                    <span class="badge {{ $badgeClass }}">
-                                        {{ ucfirst(str_replace('_', ' ', $diff['action'])) }}
-                                    </span>
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        @if($addedCount > 0)
+                                            <span class="badge bg-success">{{ $addedCount }} Added</span>
+                                        @endif
+                                        @if($increasedCount > 0)
+                                            <span class="badge bg-warning">{{ $increasedCount }} Increased</span>
+                                        @endif
+                                        @if($decreasedCount > 0)
+                                            <span class="badge bg-danger">{{ $decreasedCount }} Decreased</span>
+                                        @endif
+                                        @if($removedCount > 0)
+                                            <span class="badge bg-info">{{ $removedCount }} Removed</span>
+                                        @endif
+                                    </div>
+                                    <div class="small text-muted">
+                                        <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" data-bs-toggle="collapse" data-bs-target="#details-{{ $studentId }}" aria-expanded="false">
+                                            <i class="bi bi-chevron-down"></i> View {{ $totalChanges }} change(s)
+                                        </button>
+                                    </div>
+                                    <div class="collapse mt-2" id="details-{{ $studentId }}">
+                                        <div class="card card-body p-2 bg-light">
+                                            <table class="table table-sm table-borderless mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Votehead</th>
+                                                        <th>Type</th>
+                                                        <th class="text-end">Old</th>
+                                                        <th class="text-end">New</th>
+                                                        <th class="text-end">Diff</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach($studentDiffs as $diff)
+                                                    @php
+                                                        $votehead = \App\Models\Votehead::find($diff['votehead_id']);
+                                                        $oldAmount = $diff['old_amount'] ?? 0;
+                                                        $newAmount = $diff['new_amount'] ?? 0;
+                                                        $difference = $newAmount - $oldAmount;
+                                                        
+                                                        $badgeClass = match($diff['action']) {
+                                                            'added' => 'bg-success',
+                                                            'increased' => 'bg-warning',
+                                                            'decreased' => 'bg-danger',
+                                                            'removed' => 'bg-info',
+                                                            default => 'bg-secondary'
+                                                        };
+                                                    @endphp
+                                                    <tr>
+                                                        <td><small>{{ $votehead->name ?? 'Votehead #' . $diff['votehead_id'] }}</small></td>
+                                                        <td><span class="badge {{ $badgeClass }} badge-sm">{{ ucfirst($diff['action']) }}</span></td>
+                                                        <td class="text-end"><small>{{ $oldAmount > 0 ? 'Ksh ' . number_format($oldAmount, 2) : '—' }}</small></td>
+                                                        <td class="text-end"><small>Ksh {{ number_format($newAmount, 2) }}</small></td>
+                                                        <td class="text-end"><small>{{ $difference != 0 ? ($difference > 0 ? '+' : '') . number_format($difference, 2) : '0.00' }}</small></td>
+                                                    </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </td>
                                 <td class="text-end">
-                                    @if($oldAmount > 0)
-                                        Ksh {{ number_format($oldAmount, 2) }}
+                                    @if($studentOldTotal > 0)
+                                        <strong>Ksh {{ number_format($studentOldTotal, 2) }}</strong>
                                     @else
                                         <span class="text-muted">—</span>
                                     @endif
                                 </td>
-                                <td class="text-end {{ $textClass }}">
-                                    <strong>Ksh {{ number_format($newAmount, 2) }}</strong>
+                                <td class="text-end">
+                                    <strong class="{{ $studentDifference > 0 ? 'text-success' : ($studentDifference < 0 ? 'text-danger' : '') }}">
+                                        Ksh {{ number_format($studentNewTotal, 2) }}
+                                    </strong>
                                 </td>
-                                <td class="text-end {{ $textClass }}">
-                                    @if($difference != 0)
-                                        <strong>{{ $difference > 0 ? '+' : '' }}{{ number_format($difference, 2) }}</strong>
+                                <td class="text-end">
+                                    @if($studentDifference != 0)
+                                        <strong class="{{ $studentDifference > 0 ? 'text-success' : 'text-danger' }}">
+                                            {{ $studentDifference > 0 ? '+' : '' }}{{ number_format($studentDifference, 2) }}
+                                        </strong>
                                     @else
                                         <span class="text-muted">0.00</span>
                                     @endif
                                 </td>
-                                <td>
-                                    <span class="badge bg-secondary">
-                                        {{ $diff['origin'] ?? 'structure' }}
-                                    </span>
-                                </td>
+                                <td></td>
                             </tr>
                             @endforeach
                         </tbody>
-                        <tfoot class="table-light">
-                            <tr>
-                                <th colspan="3" class="text-end">Totals:</th>
+                        <tfoot>
+                            <tr class="finance-table-footer">
+                                <th colspan="2" class="text-end">Page Totals ({{ $groupedDiffs->count() }} students):</th>
                                 <th class="text-end">
-                                    Ksh {{ number_format($diffs->sum('old_amount'), 2) }}
+                                    Ksh {{ number_format($groupedDiffs->flatten()->sum('old_amount'), 2) }}
                                 </th>
                                 <th class="text-end">
-                                    Ksh {{ number_format($diffs->sum('new_amount'), 2) }}
+                                    Ksh {{ number_format($groupedDiffs->flatten()->sum('new_amount'), 2) }}
                                 </th>
                                 <th class="text-end">
-                                    Ksh {{ number_format($diffs->sum('new_amount') - $diffs->sum('old_amount'), 2) }}
+                                    Ksh {{ number_format($groupedDiffs->flatten()->sum('new_amount') - $groupedDiffs->flatten()->sum('old_amount'), 2) }}
+                                </th>
+                                <th></th>
+                            </tr>
+                            <tr class="finance-table-footer-total">
+                                <th colspan="2" class="text-end"><strong>Grand Totals (All {{ $groupedDiffs->total() }} students):</strong></th>
+                                <th class="text-end">
+                                    <strong>Ksh {{ number_format($allDiffs->sum('old_amount'), 2) }}</strong>
+                                </th>
+                                <th class="text-end">
+                                    <strong>Ksh {{ number_format($allDiffs->sum('new_amount'), 2) }}</strong>
+                                </th>
+                                <th class="text-end">
+                                    <strong>Ksh {{ number_format($allDiffs->sum('new_amount') - $allDiffs->sum('old_amount'), 2) }}</strong>
                                 </th>
                                 <th></th>
                             </tr>
@@ -175,7 +250,7 @@
                     </table>
                 </div>
             </div>
-            <div class="card-footer bg-white">
+            <div class="finance-card-footer">
                 <div class="row align-items-center">
                     <div class="col-md-6">
                         <small class="text-muted">
@@ -184,24 +259,53 @@
                         </small>
                     </div>
                     <div class="col-md-6 text-end">
-                        <a href="{{ route('finance.posting.index') }}" class="btn btn-secondary me-2">
+                        <a href="{{ route('finance.posting.index') }}" class="btn btn-finance btn-finance-secondary me-2">
                             <i class="bi bi-arrow-left"></i> Back
                         </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-cloud-upload"></i> Commit Posting ({{ $diffs->count() }} changes)
+                        <button type="submit" class="btn btn-finance btn-finance-primary">
+                            <i class="bi bi-cloud-upload"></i> Commit Posting ({{ $allDiffs->count() }} changes)
                         </button>
                     </div>
                 </div>
             </div>
+            
+            @if($groupedDiffs->hasPages())
+            <div class="finance-card-footer border-top">
+                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div class="small text-muted">
+                        Showing {{ $groupedDiffs->firstItem() }} to {{ $groupedDiffs->lastItem() }} of {{ $groupedDiffs->total() }} students
+                    </div>
+                    <div>
+                        {{ $groupedDiffs->appends(request()->query())->links() }}
+                    </div>
+                </div>
+            </div>
+            @endif
         </div>
     </form>
     @else
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle"></i> No changes detected for the selected filters.
+    <div class="finance-card finance-animate">
+        <div class="finance-card-body">
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No changes detected for the selected filters.
+            </div>
+            <a href="{{ route('finance.posting.index') }}" class="btn btn-finance btn-finance-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Posting
+            </a>
+        </div>
     </div>
-    <a href="{{ route('finance.posting.index') }}" class="btn btn-secondary">
-        <i class="bi bi-arrow-left"></i> Back to Posting
-    </a>
     @endif
+    </div>
 </div>
+
+@push('scripts')
+<script>
+function changePerPage(value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', value);
+    url.searchParams.set('page', '1'); // Reset to first page
+    window.location.href = url.toString();
+}
+</script>
+@endpush
 @endsection

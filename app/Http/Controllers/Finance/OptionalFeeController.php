@@ -141,6 +141,8 @@ class OptionalFeeController extends Controller
             foreach ($request->students as $studentId => $status) {
                 $status = $status === 'bill' ? 'billed' : $status; // tolerate "bill"
                 if ($status === 'billed') {
+                    // Only save the OptionalFee record - DO NOT create invoice items yet
+                    // Invoice items will be created when posting is committed via Post Pending Fees
                     OptionalFee::updateOrCreate(
                         [
                             'student_id' => $studentId,
@@ -153,35 +155,9 @@ class OptionalFeeController extends Controller
                             'amount' => $amount,
                         ]
                     );
-
-                    $invoice = Invoice::firstOrCreate(
-                        [
-                            'student_id' => $studentId,
-                            'term'       => $term,
-                            'year'       => $year,
-                        ],
-                        [
-                            'invoice_number' => $this->generateInvoiceNumber(),
-                            'total'          => 0,
-                        ]
-                    );
-
-                    // Create invoice item as PENDING (not active) so it appears in pending fees preview
-                    InvoiceItem::updateOrCreate(
-                        [
-                            'invoice_id' => $invoice->id,
-                            'votehead_id'=> $voteheadId,
-                        ],
-                        [
-                            'amount' => $amount,
-                            'status' => 'pending', // Pending until posted via Post Pending Fees
-                            'source' => 'optional',
-                        ]
-                    );
-
-                    $invoice->update([
-                        'total' => $invoice->items()->sum('amount'),
-                    ]);
+                    
+                    // DO NOT create invoice items here - they will be created during posting commit
+                    // This ensures optional fees appear in the preview correctly
                 } else {
                     // Exempt: remove optional fee + invoice item (and invoice if empty)
                     OptionalFee::where([
@@ -247,6 +223,8 @@ class OptionalFeeController extends Controller
                 }
 
                 if ($status === 'billed') {
+                    // Only save the OptionalFee record - DO NOT create invoice items yet
+                    // Invoice items will be created when posting is committed via Post Pending Fees
                     OptionalFee::updateOrCreate(
                         [
                             'student_id' => $student->id,
@@ -259,35 +237,9 @@ class OptionalFeeController extends Controller
                             'amount' => $amount,
                         ]
                     );
-
-                    $invoice = Invoice::firstOrCreate(
-                        [
-                            'student_id' => $student->id,
-                            'term'       => $term,
-                            'year'       => $year,
-                        ],
-                        [
-                            'invoice_number' => $this->generateInvoiceNumber(),
-                            'total'          => 0,
-                        ]
-                    );
-
-                    // Create invoice item as PENDING (not active) so it appears in pending fees preview
-                    InvoiceItem::updateOrCreate(
-                        [
-                            'invoice_id' => $invoice->id,
-                            'votehead_id'=> $voteheadId,
-                        ],
-                        [
-                            'amount' => $amount,
-                            'status' => 'pending', // Pending until posted via Post Pending Fees
-                            'source' => 'optional',
-                        ]
-                    );
-
-                    $invoice->update([
-                        'total' => $invoice->items()->sum('amount'),
-                    ]);
+                    
+                    // DO NOT create invoice items here - they will be created during posting commit
+                    // This ensures optional fees appear in the preview correctly
                 } else {
                     OptionalFee::where([
                         'student_id' => $student->id,

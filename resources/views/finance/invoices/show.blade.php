@@ -113,13 +113,14 @@
 
     <!-- Discount Summary -->
     @php
-        $itemDiscounts = $invoice->items->sum('discount_amount');
+        // Ensure we're using fresh data
+        $invoice->load('items');
+        $itemDiscounts = $invoice->items->sum('discount_amount') ?? 0;
         $invoiceDiscount = $invoice->discount_amount ?? 0;
         $totalDiscounts = $itemDiscounts + $invoiceDiscount;
     @endphp
-    @if($totalDiscounts > 0)
-    <div class="card shadow-sm mb-4 border-success">
-        <div class="card-header bg-success text-white">
+    <div class="card shadow-sm mb-4 {{ $totalDiscounts > 0 ? 'border-success' : 'border-secondary' }}">
+        <div class="card-header {{ $totalDiscounts > 0 ? 'bg-success text-white' : 'bg-secondary text-white' }}">
             <h5 class="mb-0"><i class="bi bi-percent"></i> Discounts Applied</h5>
         </div>
         <div class="card-body">
@@ -146,35 +147,45 @@
                 </ul>
             </div>
             <hr>
+            @else
+            <div class="mb-3">
+                <p class="text-muted mb-0"><em>No discounts applied to this invoice.</em></p>
+            </div>
+            <hr>
             @endif
             <div class="row">
                 <div class="col-md-6">
                     <p class="mb-1"><strong>Item-Level Discounts:</strong></p>
-                    <p class="text-success fs-5 mb-0">-Ksh {{ number_format($itemDiscounts, 2) }}</p>
+                    <p class="{{ $itemDiscounts > 0 ? 'text-success' : 'text-muted' }} fs-5 mb-0">
+                        {{ $itemDiscounts > 0 ? '-' : '' }}Ksh {{ number_format($itemDiscounts, 2) }}
+                    </p>
                 </div>
-                @if($invoiceDiscount > 0)
                 <div class="col-md-6">
                     <p class="mb-1"><strong>Invoice-Level Discount:</strong></p>
-                    <p class="text-success fs-5 mb-0">-Ksh {{ number_format($invoiceDiscount, 2) }}</p>
+                    <p class="{{ $invoiceDiscount > 0 ? 'text-success' : 'text-muted' }} fs-5 mb-0">
+                        {{ $invoiceDiscount > 0 ? '-' : '' }}Ksh {{ number_format($invoiceDiscount, 2) }}
+                    </p>
                 </div>
-                @endif
             </div>
             <hr>
             <div class="row">
                 <div class="col-md-12">
-                    <p class="mb-0"><strong>Total Discounts:</strong> <span class="text-success fs-4">-Ksh {{ number_format($totalDiscounts, 2) }}</span></p>
+                    <p class="mb-0"><strong>Total Discounts:</strong> 
+                        <span class="{{ $totalDiscounts > 0 ? 'text-success' : 'text-muted' }} fs-4">
+                            {{ $totalDiscounts > 0 ? '-' : '' }}Ksh {{ number_format($totalDiscounts, 2) }}
+                        </span>
+                    </p>
                 </div>
             </div>
         </div>
     </div>
-    @endif
 
     <!-- Invoice Items with Inline Editing -->
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Invoice Items, Discounts & Adjustments</h5>
             @if($invoice->balance > 0)
-            <a href="{{ route('finance.payments.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-primary">
+            <a href="{{ route('finance.payments.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-finance btn-finance-primary">
                 <i class="bi bi-cash-stack"></i> Record Payment
             </a>
             @endif
@@ -503,7 +514,7 @@
                         <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
-                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}">
+                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="edit-item-form" id="editItemForm{{ $item->id }}">
                                         @csrf
                                         <div class="modal-header">
                                             <h5 class="modal-title">Edit Invoice Item</h5>
@@ -548,7 +559,7 @@
                                         </div>
                                         <div class="modal-footer">
                                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-primary">Update Item</button>
+                                            <button type="submit" class="btn btn-finance btn-finance-primary">Update Item</button>
                                         </div>
                                     </form>
                                 </div>
@@ -566,14 +577,15 @@
                     </tbody>
                     <tfoot class="table-light">
                         @php
+                            // Ensure invoice is recalculated for accurate balance
+                            $invoice->recalculate();
+                            
                             $totalAmount = $invoice->items->sum('amount');
                             $totalDiscount = $invoice->items->sum('discount_amount') + ($invoice->discount_amount ?? 0);
-                            $totalCreditNotes = $invoice->creditNotes->sum('amount');
-                            $totalDebitNotes = $invoice->debitNotes->sum('amount');
-                            $totalAfterDiscount = $totalAmount - $totalDiscount;
-                            $totalAfterAdjustments = $totalAfterDiscount - $totalCreditNotes + $totalDebitNotes;
-                            $totalPaid = $invoice->items->sum(function($i) { return $i->getAllocatedAmount() ?? 0; });
-                            $totalBalance = $totalAfterAdjustments - $totalPaid;
+                            $totalPaid = $invoice->paid_amount ?? 0;
+                            
+                            // Use invoice balance (already calculated correctly in recalculate)
+                            $totalBalance = $invoice->balance ?? 0;
                         @endphp
                         <tr>
                             <th colspan="2" class="text-end">Subtotals:</th>
@@ -585,7 +597,7 @@
                                     <span class="text-muted">Ksh 0.00</span>
                                 @endif
                             </th>
-                            <th class="text-end"><strong>Ksh {{ number_format($totalAfterAdjustments, 2) }}</strong></th>
+                            <th class="text-end"><strong>Ksh {{ number_format($invoice->total, 2) }}</strong></th>
                             <th class="text-end">Ksh {{ number_format($totalPaid, 2) }}</th>
                             <th class="text-end"><strong>Ksh {{ number_format($totalBalance, 2) }}</strong></th>
                             <th colspan="3"></th>
@@ -656,4 +668,204 @@
     </div>
     @endif
 </div>
+
+@push('scripts')
+<script>
+// Handle AJAX form submission for invoice item editing
+(function() {
+    'use strict';
+    
+    function handleFormSubmit(e) {
+        const form = e.target;
+        
+        // Only handle forms with class 'edit-item-form'
+        if (!form || !form.classList || !form.classList.contains('edit-item-form')) {
+            return true; // Let other forms submit normally
+        }
+        
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        console.log('[Invoice Edit] Form submit intercepted:', form.action);
+        console.log('[Invoice Edit] Form element:', form);
+        
+        // Get CSRF token from form - try multiple ways BEFORE creating FormData
+        let csrfToken = null;
+        
+        // Method 1: From form input (most reliable)
+        const csrfInput = form.querySelector('input[name="_token"]');
+        if (csrfInput) {
+            csrfToken = csrfInput.value;
+            console.log('[Invoice Edit] CSRF token found in form input');
+        }
+        
+        // Method 2: From meta tag in head
+        if (!csrfToken) {
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            if (metaToken) {
+                csrfToken = metaToken.getAttribute('content');
+                console.log('[Invoice Edit] CSRF token found in meta tag');
+            }
+        }
+        
+        // Method 3: Try to find any hidden input with _token
+        if (!csrfToken) {
+            const allInputs = form.querySelectorAll('input[type="hidden"]');
+            for (let input of allInputs) {
+                if (input.name === '_token' || input.name.includes('token')) {
+                    csrfToken = input.value;
+                    console.log('[Invoice Edit] CSRF token found in hidden input:', input.name);
+                    break;
+                }
+            }
+        }
+        
+        console.log('[Invoice Edit] CSRF token found:', !!csrfToken);
+        console.log('[Invoice Edit] CSRF token length:', csrfToken ? csrfToken.length : 0);
+        
+        if (!csrfToken) {
+            console.error('[Invoice Edit] CSRF token not found.');
+            console.error('[Invoice Edit] Form inputs:', Array.from(form.querySelectorAll('input')).map(i => i.name + '=' + i.type));
+            console.error('[Invoice Edit] Form HTML (first 1000 chars):', form.innerHTML.substring(0, 1000));
+            alert('CSRF token not found. Please refresh the page and try again.');
+            return false;
+        }
+        
+        const formData = new FormData(form);
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalText = submitButton ? submitButton.innerHTML : '';
+        
+        // Validate form
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return false;
+        }
+        
+        // Disable submit button
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Updating...';
+        }
+        
+        console.log('[Invoice Edit] Sending AJAX request to:', form.action);
+        
+        // Use XMLHttpRequest for better compatibility
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', form.action, true);
+        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('Accept', 'application/json');
+        
+        xhr.onload = function() {
+            console.log('[Invoice Edit] Response status:', xhr.status);
+            console.log('[Invoice Edit] Response text:', xhr.responseText.substring(0, 500));
+            
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    console.log('[Invoice Edit] Parsed data:', data);
+                    
+                    if (data.success !== false && (data.success || data.message)) {
+                        // Show success message
+                        const message = data.message || 'Invoice item updated successfully';
+                        alert(message);
+                        
+                        // Close modal
+                        const modalElement = form.closest('.modal');
+                        if (modalElement) {
+                            const modal = bootstrap.Modal.getInstance(modalElement);
+                            if (modal) {
+                                modal.hide();
+                            }
+                        }
+                        
+                        // Reload page to show updated amounts
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 300);
+                    } else {
+                        const errorMsg = data.error || data.message || 'Failed to update amount';
+                        alert(errorMsg);
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = originalText;
+                        }
+                    }
+                } catch (parseError) {
+                    console.error('[Invoice Edit] JSON parse error:', parseError);
+                    console.error('[Invoice Edit] Response was:', xhr.responseText);
+                    // If response is HTML (validation errors), reload page to show errors
+                    alert('Update completed. Reloading page...');
+                    window.location.reload();
+                }
+            } else {
+                // Error response
+                console.error('[Invoice Edit] Error response:', xhr.status, xhr.responseText);
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    alert(data.error || data.message || 'Update failed. Please try again.');
+                } catch (e) {
+                    alert('Update failed (Status: ' + xhr.status + '). Please try again.');
+                }
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = originalText;
+                }
+            }
+        };
+        
+        xhr.onerror = function() {
+            console.error('[Invoice Edit] XHR network error');
+            alert('Network error. Please check your connection and try again.');
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        };
+        
+        xhr.ontimeout = function() {
+            console.error('[Invoice Edit] XHR timeout');
+            alert('Request timed out. Please try again.');
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        };
+        
+        xhr.timeout = 30000; // 30 second timeout
+        
+        try {
+            xhr.send(formData);
+        } catch (sendError) {
+            console.error('[Invoice Edit] Error sending request:', sendError);
+            alert('Error sending request: ' + sendError.message);
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        }
+        
+        return false;
+    }
+    
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('[Invoice Edit] DOM loaded, attaching submit handler');
+            document.addEventListener('submit', handleFormSubmit, true); // Use capture phase
+        });
+    } else {
+        console.log('[Invoice Edit] DOM already ready, attaching submit handler');
+        document.addEventListener('submit', handleFormSubmit, true); // Use capture phase
+    }
+    
+    // Also attach directly to existing forms
+    document.querySelectorAll('.edit-item-form').forEach(form => {
+        console.log('[Invoice Edit] Found form:', form.id || form.action);
+        form.addEventListener('submit', handleFormSubmit, true);
+    });
+})();
+</script>
+@endpush
 @endsection

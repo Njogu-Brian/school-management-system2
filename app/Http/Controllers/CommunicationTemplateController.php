@@ -77,6 +77,7 @@ class CommunicationTemplateController extends Controller
             ['key' => 'payment_date', 'value' => 'Payment date (e.g., 17 Dec 2024)'],
             ['key' => 'amount', 'value' => 'Payment amount (e.g., 5,000.00)'],
             ['key' => 'receipt_link', 'value' => 'Public receipt link (10-char token)'],
+            ['key' => 'carried_forward', 'value' => 'Carried forward amount (unallocated payment)'],
             
             // Invoices & Reminders
             ['key' => 'invoice_number', 'value' => 'Invoice number (e.g., INV-2024-001)'],

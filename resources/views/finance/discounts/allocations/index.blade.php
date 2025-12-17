@@ -10,9 +10,6 @@
             <a href="' . route('finance.discounts.templates.index') . '" class="btn btn-finance btn-finance-outline">
                 <i class="bi bi-file-earmark-text"></i> Templates
             </a>
-            <a href="' . route('finance.discounts.approvals.index') . '" class="btn btn-finance btn-finance-outline">
-                <i class="bi bi-check-circle"></i> Approvals
-            </a>
         '
     ])
 
@@ -138,15 +135,25 @@
         </form>
     </div>
 
-    <!-- Bulk Actions Form -->
-    <form id="bulkActionsForm" method="POST" action="">
-        @csrf
-        <div id="bulkRejectReason" class="finance-card finance-animate mb-3" style="display: none;">
-            <div class="finance-card-body">
+    <!-- Bulk Reject Reason (outside form) -->
+    <div id="bulkRejectReason" class="finance-card finance-animate mb-3" style="display: none;">
+        <div class="finance-card-body">
+            <form id="bulkRejectForm" method="POST" action="{{ route('finance.discounts.allocations.bulk-reject') }}">
+                @csrf
                 <label class="finance-form-label">Rejection Reason <span class="text-danger">*</span></label>
                 <textarea name="rejection_reason" class="finance-form-control" rows="2" required></textarea>
-            </div>
+                <div id="bulkRejectCheckboxes"></div>
+                <button type="submit" class="btn btn-finance btn-finance-danger btn-sm mt-2">
+                    <i class="bi bi-x-circle"></i> Confirm Reject Selected
+                </button>
+            </form>
         </div>
+    </div>
+
+    <!-- Bulk Actions Form -->
+    <form id="bulkActionsForm" method="POST" action="{{ route('finance.discounts.allocations.bulk-approve') }}">
+        @csrf
+        <div id="bulkCheckboxesContainer" style="display: none;"></div>
 
         <!-- Allocations Table -->
         <div class="finance-card finance-animate">
@@ -154,7 +161,7 @@
                 <span><i class="bi bi-table me-2"></i> Allocations</span>
                 <div id="bulkActions" style="display: none;" class="mt-2 mt-md-0">
                     <div class="btn-group flex-wrap">
-                        <button type="submit" formaction="{{ route('finance.discounts.allocations.bulk-approve') }}" class="btn btn-sm btn-finance btn-finance-success">
+                        <button type="submit" class="btn btn-sm btn-finance btn-finance-success">
                             <i class="bi bi-check-circle"></i> <span class="d-none d-md-inline">Approve Selected</span>
                         </button>
                         <button type="button" id="bulkRejectBtn" class="btn btn-sm btn-finance btn-finance-danger">
@@ -172,7 +179,7 @@
                         <thead>
                             <tr>
                                 <th width="40">
-                                    <input type="checkbox" id="selectAll" title="Select All">
+                                    <input type="checkbox" id="selectAll" title="Select All" style="cursor: pointer;">
                                 </th>
                                 <th>Student</th>
                                 <th>Template</th>
@@ -189,7 +196,9 @@
                             <tr>
                                 <td>
                                     @if($allocation->approval_status === 'pending')
-                                        <input type="checkbox" name="allocation_ids[]" value="{{ $allocation->id }}" class="allocation-checkbox">
+                                        <input type="checkbox" data-allocation-id="{{ $allocation->id }}" class="allocation-checkbox" style="cursor: pointer;">
+                                    @else
+                                        <span class="text-muted">—</span>
                                     @endif
                                 </td>
                                 <td>
@@ -248,7 +257,7 @@
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if($allocation->approval_status === 'pending')
-                                            <form action="{{ route('finance.discounts.approve', $allocation) }}" method="POST" class="d-inline">
+                                            <form action="{{ route('finance.discounts.approve', $allocation) }}" method="POST" class="d-inline approve-form" style="display: inline-block;" onsubmit="return confirm('Approve this discount allocation?');">
                                                 @csrf
                                                 <button type="submit" class="btn btn-sm btn-outline-success" title="Approve">
                                                     <i class="bi bi-check"></i>
@@ -546,56 +555,141 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Existing allocations page scripts
     const selectAll = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.allocation-checkbox');
+    let checkboxes = document.querySelectorAll('.allocation-checkbox');
     const bulkActions = document.getElementById('bulkActions');
     const bulkRejectBtn = document.getElementById('bulkRejectBtn');
     const bulkRejectReason = document.getElementById('bulkRejectReason');
     const bulkActionsForm = document.getElementById('bulkActionsForm');
     const clearSelection = document.getElementById('clearSelection');
 
-    if (selectAll) {
-        selectAll.addEventListener('change', function() {
-            checkboxes.forEach(cb => cb.checked = this.checked);
-            updateBulkActions();
-        });
+    // Function to refresh checkboxes (in case they're added dynamically)
+    function refreshCheckboxes() {
+        checkboxes = document.querySelectorAll('.allocation-checkbox');
+        return checkboxes;
     }
 
-    if (checkboxes.length > 0) {
-        checkboxes.forEach(cb => {
-            cb.addEventListener('change', function() {
-                if (selectAll) selectAll.checked = Array.from(checkboxes).every(c => c.checked);
-                updateBulkActions();
-            });
-        });
-    }
-
+    // Function to update bulk actions visibility
     function updateBulkActions() {
+        refreshCheckboxes();
         const checked = Array.from(checkboxes).filter(cb => cb.checked);
         if (bulkActions) {
             if (checked.length > 0) {
                 bulkActions.style.display = 'block';
+                
+                // Update hidden checkboxes in bulk form
+                const bulkContainer = document.getElementById('bulkCheckboxesContainer');
+                if (bulkContainer) {
+                    bulkContainer.innerHTML = '';
+                    checked.forEach(cb => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'allocation_ids[]';
+                        input.value = cb.dataset.allocationId || cb.value;
+                        bulkContainer.appendChild(input);
+                    });
+                }
             } else {
                 bulkActions.style.display = 'none';
                 if (bulkRejectReason) bulkRejectReason.style.display = 'none';
+                const bulkContainer = document.getElementById('bulkCheckboxesContainer');
+                if (bulkContainer) bulkContainer.innerHTML = '';
             }
         }
     }
 
+    // Select all functionality
+    if (selectAll) {
+        selectAll.addEventListener('change', function(e) {
+            e.stopPropagation();
+            refreshCheckboxes();
+            checkboxes.forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateBulkActions();
+        });
+        
+        // Also handle click event for better compatibility
+        selectAll.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+
+    // Individual checkbox change handlers
+    function attachCheckboxHandlers() {
+        refreshCheckboxes();
+        checkboxes.forEach(cb => {
+            // Remove existing listeners to prevent duplicates
+            const newCb = cb.cloneNode(true);
+            cb.parentNode.replaceChild(newCb, cb);
+            
+            newCb.addEventListener('change', function(e) {
+                e.stopPropagation();
+                refreshCheckboxes();
+                if (selectAll) {
+                    selectAll.checked = Array.from(checkboxes).every(c => c.checked);
+                }
+                updateBulkActions();
+            });
+            
+            // Also handle click for better compatibility
+            newCb.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+    }
+
+    // Attach handlers initially
+    attachCheckboxHandlers();
+    
+    // Re-attach if checkboxes are added dynamically (e.g., after filtering)
+    const observer = new MutationObserver(function(mutations) {
+        let shouldRefresh = false;
+        mutations.forEach(function(mutation) {
+            if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+                shouldRefresh = true;
+            }
+        });
+        if (shouldRefresh) {
+            attachCheckboxHandlers();
+        }
+    });
+    
+    const tableBody = document.querySelector('.finance-table tbody');
+    if (tableBody) {
+        observer.observe(tableBody, { childList: true, subtree: true });
+    }
+
     if (bulkRejectBtn) {
         bulkRejectBtn.addEventListener('click', function() {
-            if (bulkRejectReason) {
-                if (bulkRejectReason.style.display === 'none') {
-                    bulkRejectReason.style.display = 'block';
-                    bulkRejectReason.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                } else {
-                    if (bulkActionsForm) {
-                        bulkActionsForm.action = '{{ route('finance.discounts.allocations.bulk-reject') }}';
-                        const reasonTextarea = bulkActionsForm.querySelector('textarea[name="rejection_reason"]');
-                        if (reasonTextarea && reasonTextarea.value.trim()) {
-                            bulkActionsForm.submit();
-                        } else {
-                            alert('Please provide a rejection reason.');
-                        }
+            const bulkRejectForm = document.getElementById('bulkRejectForm');
+            const bulkRejectCheckboxes = document.getElementById('bulkRejectCheckboxes');
+            
+            if (bulkRejectReason && bulkRejectReason.style.display === 'none') {
+                // Show rejection reason form
+                bulkRejectReason.style.display = 'block';
+                bulkRejectReason.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                
+                // Populate checkboxes in reject form
+                if (bulkRejectCheckboxes && bulkRejectForm) {
+                    bulkRejectCheckboxes.innerHTML = '';
+                    refreshCheckboxes();
+                    const checked = Array.from(checkboxes).filter(cb => cb.checked);
+                    checked.forEach(cb => {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'allocation_ids[]';
+                        input.value = cb.dataset.allocationId || cb.value;
+                        bulkRejectCheckboxes.appendChild(input);
+                    });
+                }
+            } else {
+                // Submit reject form
+                if (bulkRejectForm) {
+                    const reasonTextarea = bulkRejectForm.querySelector('textarea[name="rejection_reason"]');
+                    if (reasonTextarea && reasonTextarea.value.trim()) {
+                        bulkRejectForm.submit();
+                    } else {
+                        alert('Please provide a rejection reason.');
                     }
                 }
             }
@@ -609,6 +703,15 @@ document.addEventListener('DOMContentLoaded', function() {
             updateBulkActions();
         });
     }
+    
+    // Handle individual approve forms - ensure they work even if visually nested
+    document.querySelectorAll('.approve-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            // Ensure form submits correctly
+            e.stopPropagation();
+            // Form will submit normally
+        });
+    });
     
     // Activate allocate tab if tab parameter is set
     @if(request('tab') == 'allocate')

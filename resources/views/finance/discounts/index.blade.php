@@ -36,7 +36,7 @@
             </a>
         </div>
         <div class="col-md-6 col-lg-3">
-            <a href="{{ route('finance.discounts.approvals.index') }}" class="text-decoration-none">
+            <a href="{{ route('finance.discounts.allocations.index', ['approval_status' => 'pending']) }}" class="text-decoration-none">
                 <div class="finance-stat-card warning finance-animate">
                     <div class="stat-icon">
                         <i class="bi bi-clock-history"></i>

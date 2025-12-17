@@ -23,6 +23,9 @@ class FeePostingRun extends Model
         'filters_applied',
         'items_posted_count',
         'notes',
+        'is_active',
+        'total_amount_posted',
+        'total_students_affected',
     ];
 
     protected $casts = [
@@ -30,6 +33,9 @@ class FeePostingRun extends Model
         'posted_at' => 'datetime',
         'reversed_at' => 'datetime',
         'items_posted_count' => 'integer',
+        'is_active' => 'boolean',
+        'total_amount_posted' => 'decimal:2',
+        'total_students_affected' => 'integer',
     ];
 
     public function academicYear(): BelongsTo
@@ -64,7 +70,7 @@ class FeePostingRun extends Model
 
     public function invoiceItems(): HasMany
     {
-        return $this->hasMany(InvoiceItem::class);
+        return $this->hasMany(InvoiceItem::class, 'posting_run_id');
     }
 
     public function isDryRun(): bool

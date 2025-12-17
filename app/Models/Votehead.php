@@ -111,21 +111,20 @@ class Votehead extends Model
     {
         switch ($this->charge_type) {
             case 'once':
-                // Once-only fees should only be charged to newly admitted students
-                // Existing students should be marked as already charged
+                // Once-only fees should ONLY be charged to newly admitted students upon admission
+                // Do NOT charge continuing/existing students, even if they haven't been charged before
                 $isNewStudent = $student->isNewlyAdmitted($year);
                 
                 if (!$isNewStudent) {
-                    // Existing student - check if already charged
-                    return !InvoiceItemModel::whereHas('invoice', function ($q) use ($student) {
-                        $q->where('student_id', $student->id);
-                    })->where('votehead_id', $this->id)->exists();
-                } else {
-                    // New student - can charge, but still check if already charged (just in case)
-                    return !InvoiceItemModel::whereHas('invoice', function ($q) use ($student) {
-                        $q->where('student_id', $student->id);
-                    })->where('votehead_id', $this->id)->exists();
+                    // Existing/continuing student - DO NOT charge once fees
+                    // They should have been charged at admission, and if missed, it should be handled manually
+                    return false;
                 }
+                
+                // New student - check if already charged (shouldn't happen, but safety check)
+                return !InvoiceItemModel::whereHas('invoice', function ($q) use ($student) {
+                    $q->where('student_id', $student->id);
+                })->where('votehead_id', $this->id)->exists();
                 
             case 'once_annually':
                 // Check if already charged in this year
