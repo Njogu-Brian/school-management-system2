@@ -250,7 +250,14 @@ class PaymentController extends Controller
         try {
             $this->sendPaymentNotifications($createdPayment);
         } catch (\Exception $e) {
-            Log::warning('Payment notification failed: ' . $e->getMessage());
+            Log::error('Payment notification failed', [
+                'payment_id' => $createdPayment->id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            // Don't fail payment creation if notification fails
         }
         
         // Check if payment was created
@@ -312,15 +319,22 @@ class PaymentController extends Controller
         }
         
         // Get or create payment receipt template
+        // Include public receipt link in SMS
         $smsTemplate = CommunicationTemplate::firstOrCreate(
             ['code' => 'payment_receipt_sms'],
             [
                 'title' => 'Payment Receipt SMS',
                 'type' => 'sms',
                 'subject' => 'Payment Receipt',
-                'content' => 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View receipt: {{receipt_link}}',
+                'content' => 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}',
             ]
         );
+        
+        // Update existing template to include receipt link if it doesn't have it
+        if (strpos($smsTemplate->content, '{{receipt_link}}') === false) {
+            $smsTemplate->content = 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}';
+            $smsTemplate->save();
+        }
         
         $emailTemplate = CommunicationTemplate::firstOrCreate(
             ['code' => 'payment_receipt_email'],
@@ -333,8 +347,60 @@ class PaymentController extends Controller
         );
         
         // Prepare template variables
-        $receiptLink = route('finance.payments.receipt.view', $payment);
+        // Use public receipt link (token-based, no ID in URL)
+        // Ensure payment has public_token (generate if missing)
+        if (!$payment->public_token) {
+            $payment->public_token = \App\Models\Payment::generatePublicToken();
+            $payment->save();
+        }
+        
+        try {
+            // Use public_token (10 chars) for receipt link in communications
+            // This is only for external/parent communications, not internal portal
+            // Use url() helper which respects APP_URL, then normalize to fix any port issues
+            $receiptLink = url('/receipt/' . $payment->public_token);
+            $receiptLink = $this->normalizeUrl($receiptLink);
+        } catch (\Exception $e) {
+            Log::error('Failed to generate receipt link', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Fallback: use a simple message without link
+            $receiptLink = 'Contact school for receipt details';
+        }
+        
         $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent';
+        
+        // Calculate outstanding balance for the student (after this payment)
+        // Refresh payment to ensure allocations are loaded
+        $payment->refresh();
+        
+        // Get all invoices for the student and refresh to get latest balances
+        // (Allocation service should have already recalculated them)
+        $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+        
+        // Recalculate invoices to ensure balances are up to date after payment allocation
+        // This ensures accuracy even if allocation didn't trigger recalculation
+        foreach ($studentInvoices as $invoice) {
+            try {
+                if (class_exists(\App\Services\InvoiceService::class) && method_exists(\App\Services\InvoiceService::class, 'recalc')) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                } elseif (method_exists($invoice, 'recalculate')) {
+                    $invoice->recalculate();
+                }
+            } catch (\Exception $e) {
+                // Log but continue - balance will be from current invoice state
+                Log::debug('Invoice recalculation in notification: ' . $e->getMessage());
+            }
+        }
+        
+        // Refresh invoices to get updated balances
+        $studentInvoices->each->refresh();
+        
+        // Calculate total outstanding balance after payment
+        $outstandingBalance = $studentInvoices->sum('balance');
+        
         $variables = [
             'parent_name' => $parentName,
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
@@ -344,6 +410,7 @@ class PaymentController extends Controller
             'transaction_code' => $payment->transaction_code,
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
+            'outstanding_amount' => number_format($outstandingBalance, 2),
         ];
         
         // Replace placeholders
@@ -359,9 +426,19 @@ class PaymentController extends Controller
             try {
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
                 $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title);
-                Log::info('Payment SMS sent successfully', ['payment_id' => $payment->id, 'phone' => $parentPhone]);
+                Log::info('Payment SMS sent successfully', [
+                    'payment_id' => $payment->id, 
+                    'phone' => $parentPhone,
+                    'receipt_link' => $receiptLink
+                ]);
             } catch (\Exception $e) {
-                Log::error('SMS sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id, 'trace' => $e->getTraceAsString()]);
+                Log::error('Payment SMS sending failed', [
+                    'error' => $e->getMessage(), 
+                    'payment_id' => $payment->id, 
+                    'phone' => $parentPhone,
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Don't throw - allow email to still be sent
             }
         }
         
@@ -530,6 +607,62 @@ class PaymentController extends Controller
             'totalBalanceAfter'
         ));
     }
+
+    /**
+     * Public receipt view (no authentication required, uses token instead of ID)
+     * This route only accepts public_token (10 chars), not numeric IDs
+     */
+    public function publicViewReceipt(string $token)
+    {
+        // Explicitly find by public_token and validate length to prevent numeric ID access
+        $payment = Payment::where('public_token', $token)
+            ->whereRaw('LENGTH(public_token) = 10') // Ensure it's exactly 10 chars
+            ->firstOrFail();
+        
+        $payment->load([
+            'student.classroom', 
+            'invoice', 
+            'paymentMethod', 
+            'allocations.invoiceItem.votehead',
+            'allocations.invoiceItem.invoice'
+        ]);
+        
+        // Get school settings for receipt
+        $schoolSettings = $this->getSchoolSettings();
+        
+        // Calculate allocation details with balances (same as ReceiptService)
+        $allocations = $payment->allocations->map(function($allocation) {
+            $item = $allocation->invoiceItem;
+            $itemAmount = $item->amount ?? 0;
+            $discountAmount = $item->discount_amount ?? 0;
+            $allocatedAmount = $allocation->amount;
+            $balanceBefore = $item->getBalance() + $allocatedAmount;
+            $balanceAfter = $item->getBalance();
+            
+            return [
+                'allocation' => $allocation,
+                'invoice' => $item->invoice ?? null,
+                'votehead' => $item->votehead ?? null,
+                'item_amount' => $itemAmount,
+                'discount_amount' => $discountAmount,
+                'allocated_amount' => $allocatedAmount,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+            ];
+        });
+        
+        // Calculate totals
+        $totalBalanceBefore = $allocations->sum('balance_before');
+        $totalBalanceAfter = $allocations->sum('balance_after');
+        
+        return view('finance.receipts.public', compact(
+            'payment', 
+            'schoolSettings',
+            'allocations',
+            'totalBalanceBefore',
+            'totalBalanceAfter'
+        ));
+    }
     
     /**
      * Get school settings for receipt header/footer
@@ -625,5 +758,58 @@ class PaymentController extends Controller
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
+    }
+
+    /**
+     * Normalize URL for local/production environments
+     * Prevents double port numbers and ensures correct URL format
+     */
+    protected function normalizeUrl(string $url): string
+    {
+        // First, remove any double ports (e.g., :8000:8000)
+        $url = preg_replace('/:(\d+):\1/', ':$1', $url);
+        
+        // Parse the URL
+        $parsed = parse_url($url);
+        
+        if (!$parsed) {
+            return $url;
+        }
+        
+        $scheme = $parsed['scheme'] ?? request()->getScheme();
+        $host = $parsed['host'] ?? request()->getHost();
+        $path = $parsed['path'] ?? '';
+        $query = isset($parsed['query']) ? '?' . $parsed['query'] : '';
+        $fragment = isset($parsed['fragment']) ? '#' . $parsed['fragment'] : '';
+        
+        // Extract port from host if present
+        $portInHost = null;
+        if (strpos($host, ':') !== false) {
+            [$host, $portInHost] = explode(':', $host, 2);
+        }
+        
+        // Determine which port to use
+        $port = $portInHost ?? $parsed['port'] ?? null;
+        $currentPort = request()->getPort();
+        
+        // For local development, use current port if not 80/443
+        if (in_array($host, ['127.0.0.1', 'localhost']) && $currentPort && !in_array($currentPort, [80, 443])) {
+            $port = $currentPort;
+        }
+        
+        // Build URL
+        $normalizedUrl = $scheme . '://' . $host;
+        
+        // Add port only if needed and not standard ports
+        if ($port && !in_array($port, [80, 443])) {
+            $normalizedUrl .= ':' . $port;
+        }
+        
+        $normalizedUrl .= $path . $query . $fragment;
+        
+        // Final safety check: remove any remaining double ports
+        $normalizedUrl = preg_replace('/:(\d+):\1/', ':$1', $normalizedUrl);
+        
+        return $normalizedUrl;
     }
 }

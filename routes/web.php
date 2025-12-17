@@ -108,7 +108,6 @@ use App\Http\Controllers\Academics\ExamAnalyticsController;
 use App\Http\Controllers\ParentPortal\DiaryController as ParentDiaryController;
 
 // Communication
-use App\Http\Controllers\Communication\BulkCommunicationController;
 
 // Events & Documents
 use App\Http\Controllers\EventCalendarController;
@@ -909,10 +908,6 @@ Route::middleware('auth')->group(function () {
             ->parameters(['communication-templates' => 'communication_template'])
             ->except(['show']);
 
-        // Bulk Communication
-        Route::get('bulk', [BulkCommunicationController::class, 'index'])->name('communication.bulk.index');
-        Route::get('bulk/create', [BulkCommunicationController::class, 'create'])->name('communication.bulk.create');
-        Route::post('bulk', [BulkCommunicationController::class, 'store'])->name('communication.bulk.store');
     });
 
     /*

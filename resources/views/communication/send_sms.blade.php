@@ -119,13 +119,13 @@
                         <tr><th>Placeholder</th><th>Description</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td><code>{{school_name}}</code></td><td>School name</td></tr>
-                        <tr><td><code>{{student_name}}</code></td><td>Student full name</td></tr>
-                        <tr><td><code>{{parent_name}}</code></td><td>Parent or guardian name</td></tr>
-                        <tr><td><code>{{class_name}}</code></td><td>Class or grade name</td></tr>
-                        <tr><td><code>{{staff_name}}</code></td><td>Staff name</td></tr>
-                        <tr><td><code>{{role}}</code></td><td>Staff role</td></tr>
-                        <tr><td><code>{{date}}</code></td><td>Current date</td></tr>
+                        <tr><td><code>@{{school_name}}</code></td><td>School name</td></tr>
+                        <tr><td><code>@{{student_name}}</code></td><td>Student full name</td></tr>
+                        <tr><td><code>@{{parent_name}}</code></td><td>Parent or guardian name</td></tr>
+                        <tr><td><code>@{{class_name}}</code></td><td>Class or grade name</td></tr>
+                        <tr><td><code>@{{staff_name}}</code></td><td>Staff name</td></tr>
+                        <tr><td><code>@{{role}}</code></td><td>Staff role</td></tr>
+                        <tr><td><code>@{{date}}</code></td><td>Current date</td></tr>
                     </tbody>
                 </table>
             </div>

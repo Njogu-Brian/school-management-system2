@@ -9,6 +9,7 @@ class FeeReminder extends Model
     protected $fillable = [
         'student_id',
         'invoice_id',
+        'hashed_id',
         'channel',
         'status',
         'outstanding_amount',
@@ -33,5 +34,28 @@ class FeeReminder extends Model
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    /**
+     * Generate hashed ID for secure URL access
+     */
+    public static function generateHashedId(): string
+    {
+        do {
+            $hash = substr(str_shuffle('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'), 0, 10);
+        } while (self::where('hashed_id', $hash)->exists());
+        
+        return $hash;
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($reminder) {
+            if (!$reminder->hashed_id) {
+                $reminder->hashed_id = self::generateHashedId();
+            }
+        });
     }
 }

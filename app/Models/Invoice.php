@@ -19,6 +19,7 @@ class Invoice extends Model
         'year', // Keep for backward compatibility during migration
         'term', // Keep for backward compatibility during migration
         'invoice_number',
+        'hashed_id',
         'total',
         'paid_amount',
         'balance',
@@ -152,5 +153,57 @@ class Invoice extends Model
     public function isOverdue(): bool
     {
         return $this->due_date && $this->due_date->isPast() && !$this->isPaid();
+    }
+
+    /**
+     * Generate hashed ID for secure URL access
+     */
+    public static function generateHashedId(): string
+    {
+        do {
+            $hash = substr(str_shuffle('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'), 0, 10);
+        } while (self::where('hashed_id', $hash)->exists());
+        
+        return $hash;
+    }
+
+    /**
+     * Get route key name - use ID for internal routes, hashed_id for public routes
+     */
+    public function getRouteKeyName()
+    {
+        // For internal routes, use 'id' (default)
+        // For public routes, explicitly use 'hashed_id' in route definition
+        return 'id';
+    }
+
+    /**
+     * Resolve route binding - support both ID and hashed_id
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        // If field is explicitly set to 'hashed_id', use that
+        if ($field === 'hashed_id') {
+            return $this->where('hashed_id', $value)->firstOrFail();
+        }
+        
+        // Otherwise, try numeric ID first (for internal routes)
+        if (is_numeric($value)) {
+            return $this->where('id', $value)->firstOrFail();
+        }
+        
+        // Fallback to hashed_id if not numeric
+        return $this->where('hashed_id', $value)->firstOrFail();
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($invoice) {
+            if (!$invoice->hashed_id) {
+                $invoice->hashed_id = self::generateHashedId();
+            }
+        });
     }
 }

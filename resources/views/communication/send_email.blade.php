@@ -126,14 +126,14 @@
                         <tr><th>Placeholder</th><th>Description</th></tr>
                     </thead>
                     <tbody>
-                        <tr><td><code>{{school_name}}</code></td><td>School name from settings</td></tr>
-                        <tr><td><code>{{date}}</code></td><td>Current date</td></tr>
-                        <tr><td><code>{{student_name}}</code></td><td>Student's full name</td></tr>
-                        <tr><td><code>{{admission_no}}</code></td><td>Student's admission number</td></tr>
-                        <tr><td><code>{{class_name}}</code></td><td>Class or grade name</td></tr>
-                        <tr><td><code>{{parent_name}}</code></td><td>Parent or guardian name</td></tr>
-                        <tr><td><code>{{staff_name}}</code></td><td>Staff full name</td></tr>
-                        <tr><td><code>{{role}}</code></td><td>Staff role or title</td></tr>
+                        <tr><td><code>@{{school_name}}</code></td><td>School name from settings</td></tr>
+                        <tr><td><code>@{{date}}</code></td><td>Current date</td></tr>
+                        <tr><td><code>@{{student_name}}</code></td><td>Student's full name</td></tr>
+                        <tr><td><code>@{{admission_no}}</code></td><td>Student's admission number</td></tr>
+                        <tr><td><code>@{{class_name}}</code></td><td>Class or grade name</td></tr>
+                        <tr><td><code>@{{parent_name}}</code></td><td>Parent or guardian name</td></tr>
+                        <tr><td><code>@{{staff_name}}</code></td><td>Staff full name</td></tr>
+                        <tr><td><code>@{{role}}</code></td><td>Staff role or title</td></tr>
                     </tbody>
                 </table>
             </div>

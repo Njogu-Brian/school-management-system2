@@ -386,4 +386,32 @@ class InvoiceController extends Controller
         return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
     }
 
+    /**
+     * Public view of invoice using hashed ID (no authentication required)
+     * This route only accepts hashed_id (10 chars), not numeric IDs
+     */
+    public function publicView(string $hash)
+    {
+        // Explicitly find by hashed_id to prevent numeric ID access
+        $invoice = Invoice::where('hashed_id', $hash)
+            ->whereRaw('LENGTH(hashed_id) = 10') // Ensure it's exactly 10 chars
+            ->firstOrFail();
+        
+        // Load relationships
+        $invoice->load([
+            'student.parent',
+            'student.classroom',
+            'student.stream',
+            'term',
+            'academicYear',
+            'items.votehead',
+            'items.allocations.payment',
+        ]);
+        
+        // Get school settings
+        $schoolSettings = \App\Services\ReceiptService::getSchoolSettings();
+        
+        return view('finance.invoices.public', compact('invoice', 'schoolSettings'));
+    }
+
 }

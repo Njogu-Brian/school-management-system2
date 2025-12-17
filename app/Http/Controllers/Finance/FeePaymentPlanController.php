@@ -105,4 +105,23 @@ class FeePaymentPlanController extends Controller
         $feePaymentPlan->update(['status' => $validated['status']]);
         return back()->with('success', 'Payment plan status updated.');
     }
+
+    /**
+     * Public view of payment plan using hashed ID (no authentication required)
+     * This route only accepts hashed_id (10 chars), not numeric IDs
+     */
+    public function publicView(string $hash)
+    {
+        // Explicitly find by hashed_id to prevent numeric ID access
+        $plan = FeePaymentPlan::where('hashed_id', $hash)
+            ->whereRaw('LENGTH(hashed_id) = 10') // Ensure it's exactly 10 chars
+            ->firstOrFail();
+        
+        $plan->load(['student.parent', 'invoice', 'installments', 'creator']);
+        
+        // Get school settings
+        $schoolSettings = \App\Services\ReceiptService::getSchoolSettings();
+        
+        return view('finance.fee_payment_plans.public', compact('plan', 'schoolSettings'));
+    }
 }

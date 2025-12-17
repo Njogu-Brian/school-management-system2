@@ -2,60 +2,67 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <h4 class="mb-3">📜 Email & SMS Logs</h4>
+<div class="container-fluid">
+    @include('communication.partials.header', [
+        'title' => 'Email & SMS Logs',
+        'icon' => 'bi bi-journal-text',
+        'subtitle' => 'View all communication logs and delivery status',
+        'actions' => ''
+    ])
 
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-            <thead>
-                <tr>
-                    <th>Title</th>
-                    <th>Target</th>
-                    <th>Channel</th>
-                    <th>Status</th>
-                    <th>Sent At</th>
-                    <th>Message</th>
-                    <th style="width:1%;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($logs as $log)
-                    @php
-                        // Prefer provider_status (from delivery reports), fallback to app status
-                        $status = strtolower($log->provider_status ?: $log->status);
-                        $cls = match($status) {
-                            'delivered','sent','success' => 'bg-success',
-                            'pending','queued'           => 'bg-warning text-dark',
-                            'blacklisted','failed','undelivered','rejected' => 'bg-danger',
-                            default => 'bg-secondary'
-                        };
+    <div class="comm-card comm-animate">
+        <div class="comm-card-body">
+            <div class="table-responsive">
+                <table class="table comm-table">
+                    <thead>
+                        <tr>
+                            <th>Title</th>
+                            <th>Target</th>
+                            <th>Channel</th>
+                            <th>Status</th>
+                            <th>Sent At</th>
+                            <th>Message</th>
+                            <th style="width:1%;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($logs as $log)
+                            @php
+                                // Prefer provider_status (from delivery reports), fallback to app status
+                                $status = strtolower($log->provider_status ?: $log->status);
+                                $cls = match($status) {
+                                    'delivered','sent','success' => 'bg-success',
+                                    'pending','queued'           => 'bg-warning text-dark',
+                                    'blacklisted','failed','undelivered','rejected' => 'bg-danger',
+                                    default => 'bg-secondary'
+                                };
 
-                        // Title fallback if missing
-                        $safeTitle = $log->title ?: \Illuminate\Support\Str::limit(strip_tags($log->message), 40, '…');
+                                // Title fallback if missing
+                                $safeTitle = $log->title ?: \Illuminate\Support\Str::limit(strip_tags($log->message), 40, '…');
 
-                        // Human time
-                        $sentAt = $log->sent_at
-                            ? \Illuminate\Support\Carbon::parse($log->sent_at)->format('Y-m-d H:i')
-                            : '-';
-                    @endphp
+                                // Human time
+                                $sentAt = $log->sent_at
+                                    ? \Illuminate\Support\Carbon::parse($log->sent_at)->format('Y-m-d H:i')
+                                    : '-';
+                            @endphp
 
-                    <tr>
-                        <td class="text-nowrap">{{ $safeTitle }}</td>
-                        <td>{{ ucfirst($log->recipient_type ?? '-') }}</td>
-                        <td>{{ strtoupper($log->channel) }}</td>
-                        <td><span class="badge {{ $cls }}">{{ ucfirst($status) }}</span></td>
-                        <td class="text-nowrap">{{ $sentAt }}</td>
-                        <td class="text-truncate" style="max-width: 380px;">
-                            {{ \Illuminate\Support\Str::limit(strip_tags($log->message), 90, '…') }}
-                        </td>
-                        <td>
-                            <button class="btn btn-outline-primary btn-sm"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#msg{{ $log->id }}">
-                                View
-                            </button>
-                        </td>
-                    </tr>
+                            <tr>
+                                <td class="text-nowrap"><strong>{{ $safeTitle }}</strong></td>
+                                <td><span class="badge bg-secondary">{{ ucfirst($log->recipient_type ?? '-') }}</span></td>
+                                <td><span class="badge bg-info">{{ strtoupper($log->channel) }}</span></td>
+                                <td><span class="badge {{ $cls }}">{{ ucfirst($status) }}</span></td>
+                                <td class="text-nowrap"><small>{{ $sentAt }}</small></td>
+                                <td class="text-truncate" style="max-width: 380px;">
+                                    <small class="text-muted">{{ \Illuminate\Support\Str::limit(strip_tags($log->message), 90, '…') }}</small>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-comm-outline"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#msg{{ $log->id }}">
+                                        <i class="bi bi-eye"></i> View
+                                    </button>
+                                </td>
+                            </tr>
 
                     <!-- Details Modal -->
                     <div class="modal fade" id="msg{{ $log->id }}" tabindex="-1" aria-hidden="true">
@@ -121,17 +128,24 @@
                             </div>
                         </div>
                     </div>
-                @empty
-                    <tr>
-                        <td colspan="7" class="text-center text-muted">No communications found.</td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-5">
+                                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                                    <p class="mt-3 mb-0">No communications found.</p>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
 
-    <div>
-        {{ $logs->links() }}
+            @if($logs->hasPages())
+            <div class="mt-3">
+                {{ $logs->links() }}
+            </div>
+            @endif
+        </div>
     </div>
 </div>
 @endsection

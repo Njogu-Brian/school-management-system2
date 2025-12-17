@@ -14,6 +14,8 @@ class Payment extends Model
     use HasFactory;
     protected $fillable = [
         'transaction_code',
+        'public_token',
+        'hashed_id',
         'receipt_number',
         'student_id',
         'family_id',
@@ -53,6 +55,14 @@ class Payment extends Model
             }
             if (!$payment->receipt_number) {
                 $payment->receipt_number = \App\Services\DocumentNumberService::generate('receipt', 'RCPT');
+            }
+            // Generate unique public token for receipt access (10 chars for SMS cost reduction)
+            if (!$payment->public_token) {
+                $payment->public_token = self::generatePublicToken();
+            }
+            // Generate hashed ID for secure URL access
+            if (!$payment->hashed_id) {
+                $payment->hashed_id = self::generateHashedId();
             }
             // Auto-set receipt_date if not provided (set to current timestamp)
             if (!$payment->receipt_date) {
@@ -106,6 +116,62 @@ class Payment extends Model
         } while (self::where('transaction_code', $code)->exists());
         
         return $code;
+    }
+
+    /**
+     * Generate unique public token for receipt access (10 characters for SMS cost reduction)
+     */
+    public static function generatePublicToken(): string
+    {
+        do {
+            // Generate 10 character alphanumeric token (case-sensitive for more combinations)
+            $token = substr(str_shuffle('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'), 0, 10);
+        } while (self::where('public_token', $token)->exists());
+        
+        return $token;
+    }
+
+    /**
+     * Generate hashed ID for secure URL access
+     */
+    public static function generateHashedId(): string
+    {
+        do {
+            // Generate 10 character alphanumeric hash
+            $hash = substr(str_shuffle('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'), 0, 10);
+        } while (self::where('hashed_id', $hash)->exists());
+        
+        return $hash;
+    }
+
+    /**
+     * Get route key name - use ID for internal routes
+     */
+    public function getRouteKeyName()
+    {
+        return 'id';
+    }
+
+    /**
+     * Resolve route binding - support both ID and hashed_id/public_token
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        // If field is explicitly set, use that
+        if ($field === 'hashed_id') {
+            return $this->where('hashed_id', $value)->firstOrFail();
+        }
+        if ($field === 'public_token') {
+            return $this->where('public_token', $value)->firstOrFail();
+        }
+        
+        // Otherwise, try numeric ID first (for internal routes)
+        if (is_numeric($value)) {
+            return $this->where('id', $value)->firstOrFail();
+        }
+        
+        // Fallback to public_token if not numeric (for public receipt routes)
+        return $this->where('public_token', $value)->firstOrFail();
     }
 
     /**

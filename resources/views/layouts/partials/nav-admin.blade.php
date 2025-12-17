@@ -531,10 +531,6 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
     <i class="bi bi-megaphone"></i> Announcements
     </a>
-    <a href="{{ route('communication.bulk.index') }}" 
-    class="sublink {{ Request::is('communication/bulk*') ? 'active' : '' }}">
-    <i class="bi bi-broadcast"></i> Bulk Communication
-    </a>
 </div>
 
 <!-- Events Calendar -->

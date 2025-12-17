@@ -12,6 +12,7 @@ class DebitNote extends Model
         'invoice_id',
         'invoice_item_id',
         'debit_note_number',
+        'hashed_id',
         'amount',
         'reason',
         'notes',
@@ -37,6 +38,9 @@ class DebitNote extends Model
                     $debitNote->debit_note_number = 'DN-' . date('Y') . '-' . str_pad((DebitNote::max('id') ?? 0) + 1, 5, '0', STR_PAD_LEFT);
                 }
             }
+            if (!$debitNote->hashed_id) {
+                $debitNote->hashed_id = self::generateHashedId();
+            }
             if (!$debitNote->issued_by && auth()->check()) {
                 $debitNote->issued_by = auth()->id();
             }
@@ -44,6 +48,42 @@ class DebitNote extends Model
                 $debitNote->issued_at = now();
             }
         });
+    }
+
+    /**
+     * Generate hashed ID for secure URL access
+     */
+    public static function generateHashedId(): string
+    {
+        do {
+            $hash = substr(str_shuffle('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'), 0, 10);
+        } while (self::where('hashed_id', $hash)->exists());
+        
+        return $hash;
+    }
+
+    /**
+     * Get route key name - use ID for internal routes
+     */
+    public function getRouteKeyName()
+    {
+        return 'id';
+    }
+
+    /**
+     * Resolve route binding - support both ID and hashed_id
+     */
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if ($field === 'hashed_id') {
+            return $this->where('hashed_id', $value)->firstOrFail();
+        }
+        
+        if (is_numeric($value)) {
+            return $this->where('id', $value)->firstOrFail();
+        }
+        
+        return $this->where('hashed_id', $value)->firstOrFail();
     }
 
     public function invoice(): BelongsTo

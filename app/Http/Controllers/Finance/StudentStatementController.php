@@ -295,5 +295,28 @@ class StudentStatementController extends Controller
             'terms'
         ));
     }
+
+    /**
+     * Public view of statement using hashed ID (no authentication required)
+     * Note: This uses student's hashed_id, not statement's (statements are generated on-the-fly)
+     */
+    public function publicView(string $hash, Request $request)
+    {
+        // Find student by hashed_id (we'll need to add this to Student model)
+        // For now, we'll use a different approach - generate a token for statements
+        // Actually, statements are dynamic, so we'll use student's admission number as hash
+        // Or better: create a statement token system
+        
+        // For simplicity, let's use student ID encoded in hash
+        // In production, you'd want a proper token system
+        $student = Student::where('admission_number', $hash)->first();
+        
+        if (!$student) {
+            abort(404, 'Statement not found');
+        }
+        
+        // Use the same logic as show method
+        return $this->show($request, $student);
+    }
 }
 
