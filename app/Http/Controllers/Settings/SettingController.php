@@ -155,6 +155,10 @@ class SettingController extends Controller
             'finance_warning_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'finance_danger_color'    => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'finance_info_color'      => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_surface_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_border_color'    => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_text_color'      => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'finance_muted_color'     => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'finance_primary_font'    => 'nullable|string|max:100',
             'finance_heading_font'    => 'nullable|string|max:100',
         ]);
@@ -177,6 +181,10 @@ class SettingController extends Controller
             'finance_warning_color',
             'finance_danger_color',
             'finance_info_color',
+            'finance_surface_color',
+            'finance_border_color',
+            'finance_text_color',
+            'finance_muted_color',
             'finance_primary_font',
             'finance_heading_font',
         ];

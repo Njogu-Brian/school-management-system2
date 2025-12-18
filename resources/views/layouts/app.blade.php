@@ -76,14 +76,32 @@
     @stack('styles')
 
     <style>
+        :root {
+            --brand-primary: {{ setting('finance_primary_color', '#3a1a59') }};
+            --brand-primary-dark: {{ setting('finance_primary_color', '#2e1344') }};
+            --brand-accent: {{ setting('finance_secondary_color', '#14b8a6') }};
+            --brand-bg: #f8f9fa;
+            --brand-surface: #ffffff;
+            --brand-border: #e5e7eb;
+            --brand-text: #0f172a;
+            --brand-muted: #6b7280;
+        }
         body {
             font-family: 'Poppins', sans-serif;
-            background-color: #f8f9fa;
+            background-color: var(--brand-bg);
+            color: var(--brand-text);
+        }
+        body.theme-dark {
+            --brand-bg: #0b1220;
+            --brand-surface: #111827;
+            --brand-border: #1f2937;
+            --brand-text: #e5e7eb;
+            --brand-muted: #9ca3af;
         }
         .sidebar {
             width: 240px;
             height: 100vh;
-            background: #3a1a59;
+            background: var(--brand-primary);
             color: white;
             position: fixed;
             top: 0; left: 0;
@@ -122,7 +140,7 @@
         .sidebar a:hover,
         .sidebar a.active,
         .sidebar a.parent-active {
-            background: #5a2c8a;
+            background: color-mix(in srgb, var(--brand-primary) 85%, #ffffff 15%);
             color: #fff;
         }
         .collapse a {
@@ -142,12 +160,92 @@
         .sidebar-toggle {
             position: fixed;
             top: 15px; left: 15px;
-            background: #3a1a59;
+            background: var(--brand-primary);
             color: white;
             border: none;
             font-size: 20px;
             border-radius: 4px;
             z-index: 1100;
+        }
+        .toggle-bar {
+            position: sticky;
+            top: 10px;
+            z-index: 1200;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 6px 0;
+        }
+        .brand-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--brand-surface);
+            border: 1px solid var(--brand-border);
+            border-radius: 18px;
+            padding: 8px 12px;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+        }
+        .toggle-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .toggle-pill input {
+            display: none;
+        }
+        .toggle-pill .track {
+            position: relative;
+            width: 74px;
+            height: 34px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #f3f4f6, #dfe3ea);
+            border: 1px solid var(--brand-border);
+            transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .toggle-pill .icon {
+            font-size: 14px;
+            color: var(--brand-muted);
+        }
+        .toggle-pill .thumb {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #ffffff;
+            top: 1px;
+            left: 1px;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.2);
+            transition: transform 0.2s ease, background 0.2s ease;
+        }
+        .toggle-pill input:checked + .track {
+            background: linear-gradient(135deg, #0f172a, #1f2937);
+            border-color: #0f172a;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.25);
+        }
+        .toggle-pill input:checked + .track .icon {
+            color: #f8fafc;
+        }
+        .toggle-pill input:checked + .track .thumb {
+            transform: translateX(40px);
+            background: #f8fafc;
+        }
+        .toggle-pill .label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--brand-text);
+            white-space: nowrap;
+        }
+        body.theme-dark .brand-toggle {
+            background: var(--brand-surface);
+            border-color: var(--brand-border);
         }
 
         .avatar-36 { width:36px; height:36px; border-radius:50%; object-fit:cover; display:inline-block; }
@@ -195,7 +293,6 @@
 @endif
 
 
-
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault();document.getElementById('logout-form').submit();" class="text-danger">
             <i class="bi bi-box-arrow-right"></i> Logout
@@ -205,6 +302,19 @@
      @endauth
 
     <div class="content">
+        <div class="toggle-bar">
+            <div class="brand-toggle">
+                <label class="toggle-pill">
+                    <input type="checkbox" id="darkModeToggle">
+                    <span class="track">
+                        <i class="bi bi-sun icon"></i>
+                        <i class="bi bi-moon-stars icon"></i>
+                        <span class="thumb"></span>
+                    </span>
+                    <span class="label">Dark</span>
+                </label>
+            </div>
+        </div>
         <div class="page-wrapper @if(request()->is('finance*') || request()->is('voteheads*')) finance-page @endif">@yield('content')</div>
     </div>
 
@@ -212,6 +322,25 @@
         document.getElementById("sidebarToggle").addEventListener("click", function(){
             document.querySelector(".sidebar").classList.toggle("active");
         });
+        (function(){
+            const body = document.body;
+            const darkToggle = document.getElementById('darkModeToggle');
+
+            const themeStored = localStorage.getItem('themeMode') || 'light';
+
+            if (themeStored === 'dark') {
+                body.classList.add('theme-dark');
+                if (darkToggle) darkToggle.checked = true;
+            }
+
+            if (darkToggle) {
+                darkToggle.addEventListener('change', () => {
+                    const isDark = darkToggle.checked;
+                    body.classList.toggle('theme-dark', isDark);
+                    localStorage.setItem('themeMode', isDark ? 'dark' : 'light');
+                });
+            }
+        })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     @stack('scripts')

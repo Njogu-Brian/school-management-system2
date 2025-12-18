@@ -874,13 +874,27 @@ Route::middleware('auth')->group(function () {
     */
     Route::prefix('online-admissions')->middleware('role:Super Admin|Admin|Secretary')->group(function () {
         Route::get('/', [OnlineAdmissionController::class, 'index'])->name('online-admissions.index');
-        Route::get('/{admission}', [OnlineAdmissionController::class, 'show'])->name('online-admissions.show');
-        Route::post('/{admission}/approve', [OnlineAdmissionController::class, 'approve'])->name('online-admissions.approve');
-        Route::post('/{admission}/reject', [OnlineAdmissionController::class, 'reject'])->name('online-admissions.reject');
-        Route::post('/{admission}/waitlist', [OnlineAdmissionController::class, 'addToWaitlist'])->name('online-admissions.waitlist');
-        Route::post('/{admission}/transfer', [OnlineAdmissionController::class, 'transferFromWaitlist'])->name('online-admissions.transfer');
-        Route::put('/{admission}/status', [OnlineAdmissionController::class, 'updateStatus'])->name('online-admissions.update-status');
-        Route::delete('/{admission}', [OnlineAdmissionController::class, 'destroy'])->name('online-admissions.destroy');
+        Route::get('/{admission}', [OnlineAdmissionController::class, 'show'])
+            ->whereNumber('admission')
+            ->name('online-admissions.show');
+        Route::post('/{admission}/approve', [OnlineAdmissionController::class, 'approve'])
+            ->whereNumber('admission')
+            ->name('online-admissions.approve');
+        Route::post('/{admission}/reject', [OnlineAdmissionController::class, 'reject'])
+            ->whereNumber('admission')
+            ->name('online-admissions.reject');
+        Route::post('/{admission}/waitlist', [OnlineAdmissionController::class, 'addToWaitlist'])
+            ->whereNumber('admission')
+            ->name('online-admissions.waitlist');
+        Route::post('/{admission}/transfer', [OnlineAdmissionController::class, 'transferFromWaitlist'])
+            ->whereNumber('admission')
+            ->name('online-admissions.transfer');
+        Route::put('/{admission}/status', [OnlineAdmissionController::class, 'updateStatus'])
+            ->whereNumber('admission')
+            ->name('online-admissions.update-status');
+        Route::delete('/{admission}', [OnlineAdmissionController::class, 'destroy'])
+            ->whereNumber('admission')
+            ->name('online-admissions.destroy');
     });
 
     /*
