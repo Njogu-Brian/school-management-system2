@@ -1175,6 +1175,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/create', [BackupRestoreController::class, 'create'])->name('create');
         Route::get('/download/{filename}', [BackupRestoreController::class, 'download'])->name('download');
         Route::post('/restore', [BackupRestoreController::class, 'restore'])->name('restore');
+        Route::post('/schedule', [BackupRestoreController::class, 'updateSchedule'])->name('schedule');
     });
 
     /*

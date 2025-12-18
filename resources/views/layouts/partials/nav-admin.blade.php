@@ -604,30 +604,6 @@ class="{{ $posActive ? 'parent-active' : '' }}">
     <i class="bi bi-file-earmark"></i> Documents
 </a>
 
-<!-- Activity Logs -->
-@if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
-@php $activityLogsActive = Request::is('activity-logs*'); @endphp
-<a href="{{ route('activity-logs.index') }}" class="{{ $activityLogsActive ? 'active' : '' }}">
-    <i class="bi bi-clock-history"></i> Activity Logs
-</a>
-@endif
-
-<!-- System Logs -->
-@if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
-@php $systemLogsActive = Request::is('system-logs*'); @endphp
-<a href="{{ route('system-logs.index') }}" class="{{ $systemLogsActive ? 'active' : '' }}">
-    <i class="bi bi-file-earmark-text"></i> System Logs
-</a>
-@endif
-
-<!-- Backup & Restore -->
-@php $backupActive = Request::is('backup-restore*'); @endphp
-@if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
-<a href="{{ route('backup-restore.index') }}" class="{{ $backupActive ? 'active' : '' }}">
-    <i class="bi bi-database"></i> Backup & Restore
-</a>
-@endif
-
 <!-- Settings -->
 @php $isSettingsActive = Request::is('settings*'); @endphp
 <a href="#settingsMenu" data-bs-toggle="collapse" 
@@ -648,4 +624,18 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('settings/school-days*') ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> School Days & Holidays
     </a>
+    @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
+    <a href="{{ route('backup-restore.index') }}" 
+    class="sublink {{ Request::is('backup-restore*') ? 'active' : '' }}">
+    <i class="bi bi-database"></i> Backup & Restore
+    </a>
+    <a href="{{ route('activity-logs.index') }}" 
+    class="sublink {{ Request::is('activity-logs*') ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Activity Logs
+    </a>
+    <a href="{{ route('system-logs.index') }}" 
+    class="sublink {{ Request::is('system-logs*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> System Logs
+    </a>
+    @endif
 </div>

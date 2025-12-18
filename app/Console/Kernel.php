@@ -4,6 +4,7 @@ namespace App\Console;
 
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use App\Http\Controllers\BackupRestoreController;
 
 class Kernel extends ConsoleKernel
 {
@@ -19,6 +20,11 @@ class Kernel extends ConsoleKernel
         
         // Send fee reminders daily at 9 AM
         $schedule->job(new \App\Jobs\SendFeeRemindersJob)->dailyAt('09:00');
+
+        // Database backup schedule checker (honors frequency/time in settings)
+        $schedule->call(function () {
+            BackupRestoreController::runScheduledIfDue();
+        })->hourly();
     }
 
     protected function commands()
