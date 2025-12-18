@@ -1,145 +1,75 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Uniform Management</h1>
-            <p class="text-muted mb-0">Manage uniforms, sizes, stock, and backorders</p>
-        </div>
-        <div class="btn-group">
-            <a href="{{ route('pos.uniforms.backorders') }}" class="btn btn-warning">
-                <i class="bi bi-exclamation-triangle"></i> View Backorders ({{ $backorderedOrders->count() }})
-            </a>
-            <a href="{{ route('pos.products.create') }}?type=uniform" class="btn btn-primary">
-                <i class="bi bi-plus-lg"></i> Add Uniform
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">POS / Uniforms</div>
+                <h1>Uniform Products</h1>
+                <p>Manage uniform items, sizes, and stock.</p>
+            </div>
+            <a href="{{ route('pos.products.create', ['type' => 'uniform']) }}" class="btn btn-settings-primary">
+                                        <i class="bi bi-plus-lg"></i> Add Uniform Item
             </a>
         </div>
-    </div>
 
-    @include('partials.alerts')
+        @include('partials.alerts')
 
-    @if($backorderedOrders->count() > 0)
-        <div class="alert alert-warning mb-4">
-            <h5><i class="bi bi-exclamation-triangle"></i> Active Backorders</h5>
-            <p class="mb-2">You have {{ $backorderedOrders->count() }} orders with backordered items. <a href="{{ route('pos.uniforms.backorders') }}">View all backorders</a></p>
-            <div class="row g-2">
-                @foreach($backorderedOrders->take(5) as $order)
-                    <div class="col-md-6">
-                        <div class="card card-body p-2">
-                            <small>
-                                <strong>{{ $order->order_number }}</strong> - 
-                                @if($order->student)
-                                    {{ $order->student->first_name }} {{ $order->student->last_name }}
-                                @else
-                                    Guest Order
-                                @endif
-                            </small>
-                        </div>
+        <div class="settings-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Uniforms</h5>
+                <span class="input-chip">{{ $uniforms->total() }} total</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-modern mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Sizes</th>
+                                <th class="text-end">Price</th>
+                                <th class="text-end">Stock</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($uniforms as $uniform)
+                                <tr>
+                                    <td>{{ $uniform->name }}</td>
+                                    <td>{{ $uniform->sizes->pluck('size')->join(', ') }}</td>
+                                    <td class="text-end">KES {{ number_format($uniform->price, 2) }}</td>
+                                    <td class="text-end">{{ number_format($uniform->total_stock) }}</td>
+                                    <td><span class="pill-badge">{{ $uniform->is_active ? 'Active' : 'Inactive' }}</span></td>
+                                    <td class="text-end d-flex justify-content-end gap-2">
+                                        <a href="{{ route('pos.uniforms.show', $uniform) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-eye"></i></a>
+                                        <a href="{{ route('pos.uniforms.manage-sizes', $uniform) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-rulers"></i></a>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                        <p class="mt-2">No uniform items found</p>
+                                        <a href="{{ route('pos.products.create', ['type' => 'uniform']) }}" class="btn btn-settings-primary btn-sm">Add Item</a>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @if($uniforms->hasPages())
+                    <div class="p-3">
+                        {{ $uniforms->links() }}
                     </div>
-                @endforeach
+                @endif
             </div>
         </div>
-    @endif
-
-    <div class="card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Uniform</th>
-                            <th>Sizes Available</th>
-                            <th>Total Stock</th>
-                            <th>Low Stock Sizes</th>
-                            <th>Backorders</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($uniforms as $uniform)
-                            @php
-                                $variants = $uniform->variants;
-                                $totalStock = $variants->sum('stock_quantity');
-                                $lowStockSizes = $variants->filter(function($v) {
-                                    return $v->stock_quantity <= 5 && $v->stock_quantity > 0;
-                                });
-                                $outOfStockSizes = $variants->filter(function($v) {
-                                    return $v->stock_quantity <= 0;
-                                });
-                                $backorderCount = \App\Models\Pos\OrderItem::where('product_id', $uniform->id)
-                                    ->where('fulfillment_status', 'backordered')
-                                    ->count();
-                            @endphp
-                            <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        @if($uniform->images && count($uniform->images) > 0)
-                                            <img src="{{ asset('storage/' . $uniform->images[0]) }}" alt="{{ $uniform->name }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
-                                        @endif
-                                        <div>
-                                            <a href="{{ route('pos.uniforms.show', $uniform) }}" class="fw-semibold text-decoration-none">
-                                                {{ $uniform->name }}
-                                            </a>
-                                            <div class="small text-muted">KES {{ number_format($uniform->base_price, 2) }}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="d-flex flex-wrap gap-1">
-                                        @foreach($variants as $variant)
-                                            <span class="badge {{ $variant->stock_quantity > 0 ? 'bg-success' : 'bg-secondary' }}">
-                                                {{ $variant->value }} ({{ $variant->stock_quantity }})
-                                            </span>
-                                        @endforeach
-                                    </div>
-                                </td>
-                                <td>
-                                    <strong>{{ number_format($totalStock) }}</strong>
-                                </td>
-                                <td>
-                                    @if($lowStockSizes->count() > 0)
-                                        <span class="badge bg-warning text-dark">
-                                            {{ $lowStockSizes->count() }} sizes
-                                        </span>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($backorderCount > 0)
-                                        <span class="badge bg-danger">{{ $backorderCount }} items</span>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">
-                                    <a href="{{ route('pos.uniforms.show', $uniform) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    <a href="{{ route('pos.uniforms.manage-sizes', $uniform) }}" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-list-ul"></i> Sizes
-                                    </a>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                                    <p class="mt-2">No uniforms found</p>
-                                    <a href="{{ route('pos.products.create') }}?type=uniform" class="btn btn-primary btn-sm">Add First Uniform</a>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        @if($uniforms->hasPages())
-            <div class="card-footer">
-                {{ $uniforms->links() }}
-            </div>
-        @endif
     </div>
 </div>
 @endsection

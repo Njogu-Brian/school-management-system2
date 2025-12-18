@@ -1136,6 +1136,8 @@ Route::middleware('auth')->group(function () {
         Route::post('/', [DocumentManagementController::class, 'store'])->name('store');
         Route::get('/{document}', [DocumentManagementController::class, 'show'])->name('show');
         Route::get('/{document}/download', [DocumentManagementController::class, 'download'])->name('download');
+        Route::get('/{document}/preview', [DocumentManagementController::class, 'preview'])->name('preview');
+        Route::post('/{document}/email', [DocumentManagementController::class, 'email'])->name('email');
         Route::post('/{document}/version', [DocumentManagementController::class, 'updateVersion'])->name('version');
         Route::delete('/{document}', [DocumentManagementController::class, 'destroy'])->name('destroy');
     });

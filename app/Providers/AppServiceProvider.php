@@ -25,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->ensureCriticalPermissions();
+
+        // Global activity logging for web routes (accountability & auditing)
+        $this->app['router']->pushMiddlewareToGroup('web', \App\Http\Middleware\ActivityLogger::class);
     }
 
     protected function ensureCriticalPermissions(): void

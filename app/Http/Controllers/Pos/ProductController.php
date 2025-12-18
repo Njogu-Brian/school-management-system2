@@ -59,6 +59,11 @@ class ProductController extends Controller
         $requirementTypes = RequirementType::active()->orderBy('name')->get();
         $categories = Product::distinct()->pluck('category')->filter();
 
+        $type = request('type');
+        if ($type === 'uniform') {
+            return view('pos.products.create-uniform', compact('inventoryItems', 'requirementTypes', 'categories'));
+        }
+
         return view('pos.products.create', compact('inventoryItems', 'requirementTypes', 'categories'));
     }
 

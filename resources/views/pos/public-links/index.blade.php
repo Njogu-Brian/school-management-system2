@@ -1,112 +1,79 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Public Shop Links</h1>
-            <p class="text-muted mb-0">Generate and manage public access links for the school shop</p>
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">POS / Public Links</div>
+                <h1>Public Shop Links</h1>
+                <p>Manage shareable links for the public shop.</p>
+            </div>
+            <a href="{{ route('pos.public-links.create') }}" class="btn btn-settings-primary">
+                <i class="bi bi-plus-lg"></i> New Link
+            </a>
         </div>
-        <a href="{{ route('pos.public-links.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus-lg"></i> Create Link
-        </a>
-    </div>
 
-    @include('partials.alerts')
+        @include('partials.alerts')
 
-    <div class="card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Name</th>
-                            <th>Access Type</th>
-                            <th>Student/Class</th>
-                            <th>URL</th>
-                            <th>Usage</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($links as $link)
+        <div class="settings-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Links</h5>
+                <span class="input-chip">{{ $links->total() }} total</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-modern mb-0 align-middle">
+                        <thead class="table-light">
                             <tr>
-                                <td>{{ $link->name ?? 'Untitled Link' }}</td>
-                                <td>
-                                    <span class="badge bg-info">{{ ucfirst($link->access_type) }}</span>
-                                </td>
-                                <td>
-                                    @if($link->student)
-                                        {{ $link->student->first_name }} {{ $link->student->last_name }}
-                                    @elseif($link->classroom)
-                                        {{ $link->classroom->name }}
-                                    @else
-                                        <span class="text-muted">Public</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    <code class="small">{{ $link->getUrl() }}</code>
-                                    <button class="btn btn-sm btn-link p-0 ms-1" onclick="copyToClipboard('{{ $link->getUrl() }}')" title="Copy URL">
-                                        <i class="bi bi-clipboard"></i>
-                                    </button>
-                                </td>
-                                <td>{{ $link->usage_count }} times</td>
-                                <td>
-                                    @if($link->isValid())
-                                        <span class="badge bg-success">Active</span>
-                                    @else
-                                        <span class="badge bg-secondary">Expired</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">
-                                    <a href="{{ route('pos.public-links.edit', $link) }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
-                                    <form action="{{ route('pos.public-links.regenerate-token', $link) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        <button class="btn btn-sm btn-outline-secondary" title="Regenerate Token">
-                                            <i class="bi bi-arrow-clockwise"></i>
-                                        </button>
-                                    </form>
-                                    <form action="{{ route('pos.public-links.destroy', $link) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this link?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </form>
-                                </td>
+                                <th>Name</th>
+                                <th>Token</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                                <th class="text-end">Actions</th>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox" style="font-size: 2rem;"></i>
-                                    <p class="mt-2">No links found</p>
-                                    <a href="{{ route('pos.public-links.create') }}" class="btn btn-primary btn-sm">Create First Link</a>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @forelse($links as $link)
+                                <tr>
+                                    <td>{{ $link->name }}</td>
+                                    <td><span class="input-chip">{{ Str::limit($link->token, 10) }}</span></td>
+                                    <td><span class="pill-badge">{{ $link->is_active ? 'Active' : 'Inactive' }}</span></td>
+                                    <td>{{ $link->expires_at ? $link->expires_at->format('M d, Y') : '—' }}</td>
+                                    <td class="text-end d-flex justify-content-end gap-2">
+                                        <a href="{{ route('pos.shop.public', $link->token) }}" target="_blank" class="btn btn-sm btn-ghost-strong">Open</a>
+                                        <a href="{{ route('pos.public-links.edit', $link) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-pencil"></i></a>
+                                        <form action="{{ route('pos.public-links.destroy', $link) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this link?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="btn btn-sm btn-ghost-strong text-danger"><i class="bi bi-trash"></i></button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                        <p class="mt-2">No links found</p>
+                                        <a href="{{ route('pos.public-links.create') }}" class="btn btn-settings-primary btn-sm">Create Link</a>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @if($links->hasPages())
+                    <div class="p-3">
+                        {{ $links->links() }}
+                    </div>
+                @endif
             </div>
         </div>
-        @if($links->hasPages())
-            <div class="card-footer">
-                {{ $links->links() }}
-            </div>
-        @endif
     </div>
 </div>
-
-<script>
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(function() {
-        alert('URL copied to clipboard!');
-    });
-}
-</script>
 @endsection
-
-
 

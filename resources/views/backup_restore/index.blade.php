@@ -62,7 +62,10 @@
                     </div>
                     <div class="col-md-4 d-flex gap-2">
                         <button class="btn btn-settings-primary"><i class="bi bi-save"></i> Save Schedule</button>
-                        <a href="{{ route('backup-restore.create') }}" class="btn btn-ghost-strong"><i class="bi bi-play-fill"></i> Run now</a>
+                        <form action="{{ route('backup-restore.create') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn btn-ghost-strong"><i class="bi bi-play-fill"></i> Run now</button>
+                        </form>
                     </div>
                 </form>
             </div>

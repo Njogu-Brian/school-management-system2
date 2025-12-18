@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\Setting;
+use Symfony\Component\Process\Process;
 
 class BackupRestoreController extends Controller
 {
@@ -30,8 +30,7 @@ class BackupRestoreController extends Controller
     public function create()
     {
         try {
-            Artisan::call('backup:run', ['--only-db' => true]);
-            
+            $this->runBackup();
             return back()->with('success', 'Database backup created successfully.');
         } catch (\Exception $e) {
             return back()->with('error', 'Backup failed: ' . $e->getMessage());
@@ -124,7 +123,7 @@ class BackupRestoreController extends Controller
         }
 
         try {
-            Artisan::call('backup:run', ['--only-db' => true]);
+            (new self)->runBackup();
             Setting::setJson('backup_schedule', [
                 'frequency' => $schedule['frequency'] ?? 'weekly',
                 'time' => $schedule['time'] ?? '02:00',
@@ -157,5 +156,68 @@ class BackupRestoreController extends Controller
         usort($backups, fn($a, $b) => $b['created_at'] <=> $a['created_at']);
 
         return $backups;
+    }
+
+    /**
+     * Run a database backup without relying on backup:run command.
+     */
+    protected function runBackup(): void
+    {
+        $connection = config('database.default');
+        $config = config("database.connections.{$connection}");
+        $backupDir = env('BACKUP_STORAGE_PATH', storage_path('app/backups'));
+        if (!is_dir($backupDir)) {
+            mkdir($backupDir, 0755, true);
+        }
+        $timestamp = now()->format('Ymd_His');
+        $filePath = "{$backupDir}/backup_{$connection}_{$timestamp}.sql";
+
+        if ($config['driver'] === 'mysql') {
+            $binary = env('MYSQLDUMP_PATH', 'mysqldump'); // Prefer PATH; override via env when needed
+            if ((str_contains($binary, '\\') || str_contains($binary, '/')) && !file_exists($binary)) {
+                throw new \RuntimeException("mysqldump not found at {$binary}. Set MYSQLDUMP_PATH to the full binary path or place it on PATH.");
+            }
+            $command = [
+                $binary,
+                '--user=' . $config['username'],
+                '--password=' . ($config['password'] ?? ''),
+                '--host=' . ($config['host'] ?? '127.0.0.1'),
+                '--port=' . ($config['port'] ?? '3306'),
+                $config['database'],
+                '--result-file=' . $filePath,
+            ];
+            $env = null;
+        } elseif ($config['driver'] === 'pgsql') {
+            $env = ['PGPASSWORD' => $config['password'] ?? ''];
+            $command = [
+                'pg_dump',
+                '-U', $config['username'],
+                '-h', $config['host'] ?? '127.0.0.1',
+                '-p', $config['port'] ?? '5432',
+                '-d', $config['database'],
+                '-f', $filePath,
+            ];
+        } elseif ($config['driver'] === 'sqlite') {
+            $dbPath = $config['database'];
+            if (!file_exists($dbPath)) {
+                throw new \RuntimeException('SQLite database file not found.');
+            }
+            if (!copy($dbPath, $filePath)) {
+                throw new \RuntimeException('Failed to copy SQLite database file.');
+            }
+            return;
+        } else {
+            throw new \RuntimeException("Backup not supported for driver: {$config['driver']}");
+        }
+
+        $process = new Process($command);
+        if (isset($env)) {
+            $process->setEnv($env + $_ENV + $_SERVER);
+        }
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            throw new \RuntimeException('Backup failed: ' . $process->getErrorOutput());
+        }
     }
 }

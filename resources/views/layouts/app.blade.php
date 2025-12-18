@@ -108,7 +108,7 @@
             padding-top: 20px;
             overflow-y: auto;
             transition: all 0.3s ease;
-            z-index: 1000;
+            z-index: 1500;
         }
         .sidebar .brand {
             text-align: center;
@@ -165,7 +165,7 @@
             border: none;
             font-size: 20px;
             border-radius: 4px;
-            z-index: 1100;
+            z-index: 2000;
         }
         .toggle-bar {
             position: sticky;
@@ -319,8 +319,18 @@
     </div>
 
     <script>
-        document.getElementById("sidebarToggle").addEventListener("click", function(){
-            document.querySelector(".sidebar").classList.toggle("active");
+        document.addEventListener('DOMContentLoaded', function () {
+            const toggles = document.querySelectorAll("#sidebarToggle, .sidebar-toggle");
+            const sidebar = document.querySelector(".sidebar");
+            if (sidebar && toggles.length) {
+                toggles.forEach(btn => {
+                    btn.addEventListener("click", function (e) {
+                        e.preventDefault();
+                        sidebar.classList.toggle("active");
+                        document.body.classList.toggle('sidebar-open', sidebar.classList.contains('active'));
+                    });
+                });
+            }
         });
         (function(){
             const body = document.body;
