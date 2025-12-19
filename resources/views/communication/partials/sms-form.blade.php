@@ -23,11 +23,8 @@
         </select>
         <small class="text-muted">Optional. Loads content when chosen.</small>
     </div>
-    <div class="col-md-4 sms-mode sms-mode-manual d-none">
-        <label class="form-label fw-semibold">Sender ID</label>
-        <input type="text" name="sender_id" class="form-control" value="{{ old('sender_id', config('app.name')) }}">
-        <small class="text-muted">Optional branding where supported.</small>
-    </div>
+    <div class="col-md-4 sms-mode sms-mode-template d-none"></div>
+    <input type="hidden" name="sender_id" value="{{ env('SMS_SENDER_ID', config('app.name')) }}">
     <div class="col-md-4">
         <label class="form-label fw-semibold">Target</label>
         <select name="target" id="sms-target" class="form-select" required>
@@ -69,13 +66,9 @@
         <textarea name="custom_numbers" class="form-control" rows="3" placeholder="+2547..., +2547...">{{ old('custom_numbers') }}</textarea>
     </div>
 
-    <div class="col-12 sms-mode sms-mode-manual d-none">
-        <label class="form-label fw-semibold">Message *</label>
+    <div class="col-12">
+        <label class="form-label fw-semibold">Message</label>
         <textarea name="message" rows="5" class="form-control" placeholder="160 characters per SMS segment.">{{ old('message') }}</textarea>
-    </div>
-    <div class="col-12 sms-mode sms-mode-template">
-        <label class="form-label fw-semibold">Message (optional override)</label>
-        <textarea name="message" rows="4" class="form-control" placeholder="Leave blank to use template content">{{ old('message') }}</textarea>
     </div>
 
     <div class="col-md-3">

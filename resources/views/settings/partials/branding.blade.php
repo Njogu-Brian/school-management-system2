@@ -1,27 +1,3 @@
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Surface Color</label>
-                                <input type="color" class="form-control form-control-color" name="finance_surface_color"
-                                       value="{{ $settings['finance_surface_color']->value ?? '#ffffff' }}">
-                                <div class="form-note mt-1">Cards and panels background.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Border Color</label>
-                                <input type="color" class="form-control form-control-color" name="finance_border_color"
-                                       value="{{ $settings['finance_border_color']->value ?? '#e5e7eb' }}">
-                                <div class="form-note mt-1">Table and card outlines.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Text Color</label>
-                                <input type="color" class="form-control form-control-color" name="finance_text_color"
-                                       value="{{ $settings['finance_text_color']->value ?? '#0f172a' }}">
-                                <div class="form-note mt-1">Primary text color.</div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Muted Text Color</label>
-                                <input type="color" class="form-control form-control-color" name="finance_muted_color"
-                                       value="{{ $settings['finance_muted_color']->value ?? '#6b7280' }}">
-                                <div class="form-note mt-1">Helper and secondary text.</div>
-                            </div>
 @php
     $financePrimary = $settings['finance_primary_color']->value ?? '#6366f1';
     $financeSecondary = $settings['finance_secondary_color']->value ?? '#764ba2';
@@ -38,7 +14,18 @@
                 <h5 class="mb-1">Branding & Theme</h5>
                 <div class="section-note">Refresh the visual identity used on login, invoices, and finance pages.</div>
             </div>
-            <span class="pill-badge"><i class="bi bi-palette"></i> Visual system</span>
+            <div class="d-flex align-items-center gap-2">
+                <label class="toggle-pill mb-0" title="Enable brand colors across the app">
+                    <input type="checkbox" id="brandThemeToggle">
+                    <span class="track">
+                        <i class="bi bi-palette icon"></i>
+                        <i class="bi bi-slash-circle icon"></i>
+                        <span class="thumb"></span>
+                    </span>
+                    <span class="label">Brand Colors</span>
+                </label>
+                <span class="pill-badge"><i class="bi bi-palette"></i> Visual system</span>
+            </div>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ route('settings.update.branding') }}" enctype="multipart/form-data">
@@ -84,38 +71,62 @@
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold">Primary Color</label>
                                 <input type="color" class="form-control form-control-color" name="finance_primary_color"
                                        value="{{ $financePrimary }}">
                                 <div class="form-note mt-1">Headers, primary buttons</div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <label class="form-label fw-semibold">Secondary Color</label>
                                 <input type="color" class="form-control form-control-color" name="finance_secondary_color"
                                        value="{{ $financeSecondary }}">
                                 <div class="form-note mt-1">Gradients & accents</div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Success Color</label>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Surface</label>
+                                <input type="color" class="form-control form-control-color" name="finance_surface_color"
+                                       value="{{ $settings['finance_surface_color']->value ?? '#ffffff' }}">
+                                <div class="form-note mt-1">Cards and panels background.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Border</label>
+                                <input type="color" class="form-control form-control-color" name="finance_border_color"
+                                       value="{{ $settings['finance_border_color']->value ?? '#e5e7eb' }}">
+                                <div class="form-note mt-1">Table and card outlines.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Text</label>
+                                <input type="color" class="form-control form-control-color" name="finance_text_color"
+                                       value="{{ $settings['finance_text_color']->value ?? '#0f172a' }}">
+                                <div class="form-note mt-1">Primary text color.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Muted Text</label>
+                                <input type="color" class="form-control form-control-color" name="finance_muted_color"
+                                       value="{{ $settings['finance_muted_color']->value ?? '#6b7280' }}">
+                                <div class="form-note mt-1">Helper and secondary text.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Success</label>
                                 <input type="color" class="form-control form-control-color" name="finance_success_color"
                                        value="{{ $financeSuccess }}">
                                 <div class="form-note mt-1">Positive states</div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Warning Color</label>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Warning</label>
                                 <input type="color" class="form-control form-control-color" name="finance_warning_color"
                                        value="{{ $financeWarning }}">
                                 <div class="form-note mt-1">Alerts and partials</div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Danger Color</label>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Danger</label>
                                 <input type="color" class="form-control form-control-color" name="finance_danger_color"
                                        value="{{ $financeDanger }}">
                                 <div class="form-note mt-1">Errors & overdue</div>
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold">Info Color</label>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Info</label>
                                 <input type="color" class="form-control form-control-color" name="finance_info_color"
                                        value="{{ $financeInfo }}">
                                 <div class="form-note mt-1">Hints & chips</div>
@@ -123,28 +134,24 @@
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Primary Font Family</label>
                                 <select class="form-select" name="finance_primary_font">
-                                    <option value="Inter" {{ ($settings['finance_primary_font']->value ?? 'Inter') == 'Inter' ? 'selected' : '' }}>Inter</option>
-                                    <option value="Poppins" {{ ($settings['finance_primary_font']->value ?? '') == 'Poppins' ? 'selected' : '' }}>Poppins</option>
-                                    <option value="Roboto" {{ ($settings['finance_primary_font']->value ?? '') == 'Roboto' ? 'selected' : '' }}>Roboto</option>
-                                    <option value="Open Sans" {{ ($settings['finance_primary_font']->value ?? '') == 'Open Sans' ? 'selected' : '' }}>Open Sans</option>
-                                    <option value="Lato" {{ ($settings['finance_primary_font']->value ?? '') == 'Lato' ? 'selected' : '' }}>Lato</option>
-                                    <option value="Montserrat" {{ ($settings['finance_primary_font']->value ?? '') == 'Montserrat' ? 'selected' : '' }}>Montserrat</option>
-                                    <option value="Nunito" {{ ($settings['finance_primary_font']->value ?? '') == 'Nunito' ? 'selected' : '' }}>Nunito</option>
-                                    <option value="Manrope" {{ ($settings['finance_primary_font']->value ?? '') == 'Manrope' ? 'selected' : '' }}>Manrope</option>
+                                    @foreach(['Inter','Poppins','Roboto','Open Sans','Lato','Montserrat','Nunito','Manrope'] as $font)
+                                        <option value="{{ $font }}" style="font-family:'{{ $font }}', sans-serif"
+                                            {{ ($settings['finance_primary_font']->value ?? 'Inter') == $font ? 'selected' : '' }}>
+                                            {{ $font }}
+                                        </option>
+                                    @endforeach
                                 </select>
                                 <div class="form-note mt-1">Body text across finance screens.</div>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-semibold">Heading Font Family</label>
                                 <select class="form-select" name="finance_heading_font">
-                                    <option value="Poppins" {{ ($settings['finance_heading_font']->value ?? 'Poppins') == 'Poppins' ? 'selected' : '' }}>Poppins</option>
-                                    <option value="Inter" {{ ($settings['finance_heading_font']->value ?? '') == 'Inter' ? 'selected' : '' }}>Inter</option>
-                                    <option value="Roboto" {{ ($settings['finance_heading_font']->value ?? '') == 'Roboto' ? 'selected' : '' }}>Roboto</option>
-                                    <option value="Open Sans" {{ ($settings['finance_heading_font']->value ?? '') == 'Open Sans' ? 'selected' : '' }}>Open Sans</option>
-                                    <option value="Lato" {{ ($settings['finance_heading_font']->value ?? '') == 'Lato' ? 'selected' : '' }}>Lato</option>
-                                    <option value="Montserrat" {{ ($settings['finance_heading_font']->value ?? '') == 'Montserrat' ? 'selected' : '' }}>Montserrat</option>
-                                    <option value="Nunito" {{ ($settings['finance_heading_font']->value ?? '') == 'Nunito' ? 'selected' : '' }}>Nunito</option>
-                                    <option value="Manrope" {{ ($settings['finance_heading_font']->value ?? '') == 'Manrope' ? 'selected' : '' }}>Manrope</option>
+                                    @foreach(['Poppins','Inter','Roboto','Open Sans','Lato','Montserrat','Nunito','Manrope'] as $font)
+                                        <option value="{{ $font }}" style="font-family:'{{ $font }}', sans-serif"
+                                            {{ ($settings['finance_heading_font']->value ?? 'Poppins') == $font ? 'selected' : '' }}>
+                                            {{ $font }}
+                                        </option>
+                                    @endforeach
                                 </select>
                                 <div class="form-note mt-1">For headings and KPIs.</div>
                             </div>

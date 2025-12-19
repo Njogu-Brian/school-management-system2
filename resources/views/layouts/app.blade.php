@@ -167,24 +167,62 @@
             border-radius: 4px;
             z-index: 2000;
         }
-        .toggle-bar {
+        .app-header {
             position: sticky;
-            top: 10px;
-            z-index: 1200;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            padding: 6px 0;
+            top: 0;
+            z-index: 1400;
+            background: color-mix(in srgb, var(--brand-primary) 6%, #ffffff 94%);
+            border: 1px solid var(--brand-border);
+            border-radius: 14px;
+            padding: 10px 14px;
+            box-shadow: 0 12px 24px rgba(0,0,0,0.06);
+            flex-wrap: wrap;
         }
-        .brand-toggle {
+        .header-alerts {
+            margin-left: auto;
+        }
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header-profile {
             display: inline-flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
+            padding: 6px 10px;
             background: var(--brand-surface);
             border: 1px solid var(--brand-border);
-            border-radius: 18px;
-            padding: 8px 12px;
-            box-shadow: 0 10px 24px rgba(0,0,0,0.12);
+            border-radius: 12px;
+        }
+        .header-profile .avatar-36 {
+            border: 1px solid var(--brand-border);
+            background: #fff;
+        }
+        .profile-dropdown {
+            position: relative;
+        }
+        .profile-dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 110%;
+            background: var(--brand-surface);
+            border: 1px solid var(--brand-border);
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+            min-width: 200px;
+            padding: 8px;
+            display: none;
+        }
+        .profile-dropdown-menu a {
+            display: block;
+            padding: 8px 10px;
+            border-radius: 8px;
+            color: var(--brand-text);
+            text-decoration: none;
+        }
+        .profile-dropdown-menu a:hover {
+            background: color-mix(in srgb, var(--brand-primary) 8%, #ffffff 92%);
         }
         .toggle-pill {
             display: inline-flex;
@@ -303,8 +341,16 @@
 
     <div class="content">
         @auth
-        <div class="toggle-bar">
-            <div class="brand-toggle">
+        <div class="app-header d-flex align-items-center gap-3 mb-3">
+            <div class="header-actions ms-auto">
+                <div class="dropdown header-alerts">
+                    <button class="btn btn-ghost-strong btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-bell"></i> Alerts
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><span class="dropdown-item-text text-muted small">No alerts yet</span></li>
+                    </ul>
+                </div>
                 <label class="toggle-pill">
                     <input type="checkbox" id="darkModeToggle">
                     <span class="track">
@@ -314,6 +360,33 @@
                     </span>
                     <span class="label">Dark</span>
                 </label>
+                <div class="profile-dropdown">
+                    <div class="header-profile cursor-pointer" id="headerProfileToggle">
+                        <div class="avatar-36">
+                            <img src="{{ auth()->user()->photo_url ?? asset('images/logo.png') }}" alt="Profile" class="avatar-36">
+                        </div>
+                        <div class="d-flex flex-column">
+                            <span class="fw-semibold">{{ auth()->user()->name ?? 'User' }}</span>
+                        </div>
+                    </div>
+                    @php
+                        $profileUrl = \Illuminate\Support\Facades\Route::has('profile.show')
+                            ? route('profile.show')
+                            : (\Illuminate\Support\Facades\Route::has('profile')
+                                ? route('profile')
+                                : '/my/profile');
+                        $passwordUrl = \Illuminate\Support\Facades\Route::has('password.change')
+                            ? route('password.change')
+                            : (\Illuminate\Support\Facades\Route::has('password.request')
+                                ? route('password.request')
+                                : '/password/reset');
+                    @endphp
+                    <div class="profile-dropdown-menu" id="headerProfileMenu">
+                        <a href="{{ $profileUrl }}">Profile</a>
+                        <a href="{{ $passwordUrl }}">Change Password</a>
+                        <a href="#" class="text-danger" onclick="event.preventDefault();document.getElementById('logout-form').submit();">Logout</a>
+                    </div>
+                </div>
             </div>
         </div>
         @endauth
@@ -350,6 +423,19 @@
                     const isDark = darkToggle.checked;
                     body.classList.toggle('theme-dark', isDark);
                     localStorage.setItem('themeMode', isDark ? 'dark' : 'light');
+                });
+            }
+            const profileToggle = document.getElementById('headerProfileToggle');
+            const profileMenu = document.getElementById('headerProfileMenu');
+            if (profileToggle && profileMenu) {
+                profileToggle.addEventListener('click', () => {
+                    const isOpen = profileMenu.style.display === 'block';
+                    profileMenu.style.display = isOpen ? 'none' : 'block';
+                });
+                document.addEventListener('click', (e) => {
+                    if (!profileMenu.contains(e.target) && !profileToggle.contains(e.target)) {
+                        profileMenu.style.display = 'none';
+                    }
                 });
             }
         })();
