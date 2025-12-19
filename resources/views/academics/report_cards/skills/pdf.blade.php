@@ -1,37 +1,27 @@
-@php
-// Simple print styles
-@endphp
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <title>Report Card - {{ $dto['student']['name'] ?? '' }}</title>
     <style>
+        :root { --ink:#111; --muted:#555; --border:#444; --soft:#f3f3f3; }
         * { box-sizing: border-box; }
-        body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; font-size: 12px; color: #111; }
-        .header, .footer { width: 100%; }
-        .title { font-size: 18px; font-weight: bold; margin: 0; }
-        .muted { color: #666; }
-        .mb-1{ margin-bottom: 6px; } .mb-2{ margin-bottom: 10px; } .mb-3{ margin-bottom: 16px; }
-        .table { width: 100%; border-collapse: collapse; }
-        .table th, .table td { border: 1px solid #444; padding: 6px; }
-        .table th { background: #f3f3f3; text-align: left; }
+        body { font-family: DejaVu Sans, Arial, Helvetica, sans-serif; font-size: 12px; color: var(--ink); }
+        .table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .table th, .table td { border: 1px solid var(--border); padding: 6px; }
+        .table th { background: var(--soft); text-align: left; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .box { border: 1px solid #999; padding: 8px; }
-        .text-right { text-align: right; }
-        .small { font-size: 11px; }
         .center { text-align: center; }
-        .logo { height: 60px; }
-        .sign { height: 50px; border-bottom: 1px solid #999; }
+        .small { font-size: 11px; }
         .pt-2{ padding-top: 10px; } .mt-2{ margin-top: 10px; }
     </style>
 </head>
 <body>
     @include('pdf.partials.header', ['dto' => $dto, 'title' => 'Academic Report'])
 
-    {{-- Student & term info --}}
     <div class="mb-2">
-        <table class="table" style="border: 1px solid #444;">
+        <table class="table" style="border: 1px solid var(--border);">
             <tr>
                 <td><strong>Student:</strong> {{ $dto['student']['name'] }}</td>
                 <td><strong>Adm No:</strong> {{ $dto['student']['admission_number'] }}</td>
@@ -41,11 +31,7 @@
         </table>
     </div>
 
-    {{-- Subjects table: columns are all exams in the term + Term Avg + Grade --}}
-    @php
-        // Build columns from the first subject row (safe if exists)
-        $examHeaders = collect($dto['subjects'])->first()['exams'] ?? [];
-    @endphp
+    @php $examHeaders = collect($dto['subjects'])->first()['exams'] ?? []; @endphp
     <table class="table mb-3">
         <thead>
             <tr>
@@ -75,7 +61,6 @@
         </tbody>
     </table>
 
-    {{-- Skills & Attendance/Behaviour --}}
     <div class="grid">
         <div class="box">
             <strong>Skills</strong>
@@ -106,14 +91,9 @@
                 </tr>
                 <tr>
                     <td><strong>Behaviour</strong></td>
-                    <td colspan="4">
-                        Total: {{ $dto['behavior']['count'] ?? 0 }},
-                        +ve: {{ $dto['behavior']['positive'] ?? 0 }},
-                        -ve: {{ $dto['behavior']['negative'] ?? 0 }}
-                    </td>
+                    <td colspan="4">Total: {{ $dto['behavior']['count'] ?? 0 }}, +ve: {{ $dto['behavior']['positive'] ?? 0 }}, -ve: {{ $dto['behavior']['negative'] ?? 0 }}</td>
                 </tr>
             </table>
-
             @if(!empty($dto['behavior']['latest']))
                 <div class="small mt-2">
                     <strong>Recent behaviour notes:</strong>
@@ -127,7 +107,6 @@
         </div>
     </div>
 
-    {{-- Comments --}}
     <div class="grid mt-2">
         <div class="box">
             <strong>Class Teacher’s Remark</strong>
