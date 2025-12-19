@@ -1,50 +1,70 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container">
-    <h4 class="mb-4">Edit Kitchen Recipient</h4>
+<div class="settings-page">
+  <div class="settings-shell">
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <div class="crumb">Attendance</div>
+        <h1 class="mb-1">Edit Notification Recipient</h1>
+        <p class="text-muted mb-0">Update who receives attendance alerts.</p>
+      </div>
+      <a href="{{ route('attendance.notifications.index') }}" class="btn btn-ghost-strong">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+    </div>
 
-    <form action="{{ route(attendance.notifications.update', $recipient->id) }}" method="POST">
-        @csrf @method('PUT')
-
-        <div class="mb-3">
-            <label class="form-label">Label *</label>
-            <input type="text" name="label" class="form-control" value="{{ $recipient->label }}" required>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Select Staff *</label>
-            <select name="staff_id" class="form-select" required>
-                @foreach($staff as $s)
-                    <option value="{{ $s->id }}" {{ $recipient->staff_id == $s->id ? 'selected' : '' }}>
-                        {{ $s->first_name }} {{ $s->last_name }} ({{ $s->phone_number }})
-                    </option>
-                @endforeach
-            </select>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Assign Classes</label>
-            <select name="classroom_ids[]" class="form-select" multiple>
-                @foreach($classrooms as $id => $name)
-                    <option value="{{ $id }}" {{ in_array($id, $recipient->classrooms_ids ?? []) ? 'selected' : '' }}>
-                        {{ $name }}
-                    </option>
-                @endforeach
-            </select>
-            <small class="text-muted">Leave empty to assign ALL classes</small>
-        </div>
-
-        <div class="mb-3">
-            <label class="form-label">Active?</label>
-            <select name="active" class="form-select">
-                <option value="1" {{ $recipient->active ? 'selected' : '' }}>Yes</option>
-                <option value="0" {{ !$recipient->active ? 'selected' : '' }}>No</option>
-            </select>
-        </div>
-
-        <button type="submit" class="btn btn-success">Update Recipient</button>
-        <a href="{{ route(attendance.notifications.index') }}" class="btn btn-secondary">Cancel</a>
-    </form>
+    <div class="settings-card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0">Recipient Details</h5>
+        <span class="pill-badge pill-secondary">Ref #{{ $recipient->id }}</span>
+      </div>
+      <div class="card-body">
+        <form action="{{ route('attendance.notifications.update', $recipient->id) }}" method="POST" class="row g-3">
+            @csrf @method('PUT')
+            <div class="col-md-6">
+                <label class="form-label">Label <span class="text-danger">*</span></label>
+                <input type="text" name="label" class="form-control" value="{{ $recipient->label }}" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Select Staff <span class="text-danger">*</span></label>
+                <select name="staff_id" class="form-select" required>
+                    @foreach($staff as $s)
+                        <option value="{{ $s->id }}" {{ $recipient->staff_id == $s->id ? 'selected' : '' }}>
+                            {{ $s->first_name }} {{ $s->last_name }} ({{ $s->phone_number }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Assign Classes</label>
+                <select name="classroom_ids[]" class="form-select" multiple>
+                    @foreach($classrooms as $id => $name)
+                        <option value="{{ $id }}" {{ in_array($id, $recipient->classrooms_ids ?? []) ? 'selected' : '' }}>
+                            {{ $name }}
+                        </option>
+                    @endforeach
+                </select>
+                <small class="text-muted">Leave empty to assign ALL classes.</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Active?</label>
+                <select name="active" class="form-select">
+                    <option value="1" {{ $recipient->active ? 'selected' : '' }}>Yes</option>
+                    <option value="0" {{ !$recipient->active ? 'selected' : '' }}>No</option>
+                </select>
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2">
+                <a href="{{ route('attendance.notifications.index') }}" class="btn btn-ghost-strong">Cancel</a>
+                <button type="submit" class="btn btn-settings-primary">Update Recipient</button>
+            </div>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 @endsection
