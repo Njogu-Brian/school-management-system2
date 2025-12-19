@@ -1,63 +1,70 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    <div class="mb-4">
-        <a href="{{ route('inventory.requisitions.index') }}" class="text-decoration-none">
-            <i class="bi bi-arrow-left"></i> Requisitions
-        </a>
-    </div>
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">Inventory / Requisitions / Create</div>
+                <h1>New Requisition</h1>
+                <p>Request inventory items or requirement items for communication.</p>
+            </div>
+            <a href="{{ route('inventory.requisitions.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Requisitions</a>
+        </div>
 
-    @include('partials.alerts')
+        @include('partials.alerts')
 
-    <div class="card shadow-sm">
-        <div class="card-body">
-            <h1 class="h4 mb-3">New Requisition</h1>
-            <form method="POST" action="{{ route('inventory.requisitions.store') }}" id="requisitionForm">
-                @csrf
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Type</label>
-                        <select name="type" id="requisitionType" class="form-select" required>
-                            <option value="inventory" @selected(old('type') === 'inventory')>Inventory Item (issue from store)</option>
-                            <option value="requirement" @selected(old('type') === 'requirement')>Requirement Item (for parent communication)</option>
-                        </select>
+        <div class="settings-card">
+            <div class="card-body">
+                <form method="POST" action="{{ route('inventory.requisitions.store') }}" id="requisitionForm">
+                    @csrf
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Type</label>
+                            <select name="type" id="requisitionType" class="form-select" required>
+                                <option value="inventory" @selected(old('type') === 'inventory')>Inventory Item (issue from store)</option>
+                                <option value="requirement" @selected(old('type') === 'requirement')>Requirement Item (for parent communication)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Purpose / Reason</label>
+                            <input type="text" name="purpose" class="form-control" value="{{ old('purpose') }}" placeholder="E.g. Extra art supplies for Grade 4">
+                        </div>
                     </div>
-                    <div class="col-md-8">
-                        <label class="form-label">Purpose / Reason</label>
-                        <input type="text" name="purpose" class="form-control" value="{{ old('purpose') }}" placeholder="E.g. Extra art supplies for Grade 4">
+
+                    <div class="table-responsive mt-4">
+                        <table class="table table-modern align-middle" id="itemsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 220px;">Inventory Item</th>
+                                    <th style="width: 220px;">Requirement Type</th>
+                                    <th>Custom Name</th>
+                                    <th style="width: 120px;">Brand</th>
+                                    <th style="width: 120px;">Quantity</th>
+                                    <th style="width: 110px;">Unit</th>
+                                    <th>Purpose</th>
+                                    <th style="width: 60px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemsBody"></tbody>
+                        </table>
                     </div>
-                </div>
 
-                <div class="table-responsive mt-4">
-                    <table class="table table-bordered align-middle" id="itemsTable">
-                        <thead class="table-light">
-                            <tr>
-                                <th style="width: 220px;">Inventory Item</th>
-                                <th style="width: 220px;">Requirement Type</th>
-                                <th>Custom Name</th>
-                                <th style="width: 120px;">Brand</th>
-                                <th style="width: 120px;">Quantity</th>
-                                <th style="width: 110px;">Unit</th>
-                                <th>Purpose</th>
-                                <th style="width: 60px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="itemsBody">
-                        </tbody>
-                    </table>
-                </div>
-
-                <button type="button" class="btn btn-outline-secondary" id="addItemBtn">
-                <i class="bi bi-plus-circle"></i> Add Item
-                </button>
-
-                <div class="text-end mt-4">
-                    <button class="btn btn-primary">
-                        <i class="bi bi-send-check"></i> Submit Requisition
+                    <button type="button" class="btn btn-ghost-strong mt-2" id="addItemBtn">
+                        <i class="bi bi-plus-circle"></i> Add Item
                     </button>
-                </div>
-            </form>
+
+                    <div class="text-end mt-4">
+                        <button class="btn btn-settings-primary">
+                            <i class="bi bi-send-check"></i> Submit Requisition
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -80,23 +87,13 @@
                 @endforeach
             </select>
         </td>
-        <td>
-            <input type="text" class="form-control" name="items[__INDEX__][item_name]" required placeholder="E.g. A4 paper">
-        </td>
-        <td>
-            <input type="text" class="form-control" name="items[__INDEX__][brand]" placeholder="Brand / variant">
-        </td>
-        <td>
-            <input type="number" step="0.01" min="0" class="form-control" name="items[__INDEX__][quantity_requested]" required>
-        </td>
-        <td>
-            <input type="text" class="form-control" name="items[__INDEX__][unit]" required value="pcs">
-        </td>
-        <td>
-            <input type="text" class="form-control" name="items[__INDEX__][purpose]" placeholder="Optional note">
-        </td>
+        <td><input type="text" class="form-control" name="items[__INDEX__][item_name]" required placeholder="E.g. A4 paper"></td>
+        <td><input type="text" class="form-control" name="items[__INDEX__][brand]" placeholder="Brand / variant"></td>
+        <td><input type="number" step="0.01" min="0" class="form-control" name="items[__INDEX__][quantity_requested]" required></td>
+        <td><input type="text" class="form-control" name="items[__INDEX__][unit]" required value="pcs"></td>
+        <td><input type="text" class="form-control" name="items[__INDEX__][purpose]" placeholder="Optional note"></td>
         <td class="text-center">
-            <button type="button" class="btn btn-sm btn-outline-danger remove-row">
+            <button type="button" class="btn btn-sm btn-ghost-strong text-danger remove-row">
                 <i class="bi bi-x-lg"></i>
             </button>
         </td>
@@ -139,9 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Seed at least one row
-    if (itemsBody.children.length === 0) {
-        addRow();
-    }
+    if (itemsBody.children.length === 0) addRow();
 });
 </script>
 @endpush

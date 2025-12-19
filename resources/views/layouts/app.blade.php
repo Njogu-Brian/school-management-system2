@@ -302,6 +302,7 @@
      @endauth
 
     <div class="content">
+        @auth
         <div class="toggle-bar">
             <div class="brand-toggle">
                 <label class="toggle-pill">
@@ -315,6 +316,7 @@
                 </label>
             </div>
         </div>
+        @endauth
         <div class="page-wrapper @if(request()->is('finance*') || request()->is('voteheads*')) finance-page @endif">@yield('content')</div>
     </div>
 

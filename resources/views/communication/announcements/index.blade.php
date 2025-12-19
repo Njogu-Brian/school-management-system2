@@ -1,72 +1,96 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    @include('communication.partials.header', [
-        'title' => 'Announcements',
-        'icon' => 'bi bi-megaphone',
-        'subtitle' => 'Manage and view school announcements',
-        'actions' => (!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('teacher')) 
-            ? '<a href="' . route('announcements.create') . '" class="btn btn-comm btn-comm-primary"><i class="bi bi-plus-circle"></i> New Announcement</a>'
-            : ''
-    ])
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">Communication / Announcements</div>
+                <h1>Announcements</h1>
+                <p>Manage and view school announcements.</p>
+            </div>
+            @if(!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('teacher'))
+                <a href="{{ route('announcements.create') }}" class="btn btn-settings-primary">
+                    <i class="bi bi-plus-circle"></i> New Announcement
+                </a>
+            @endif
+        </div>
 
-    @forelse($announcements as $announcement)
-        <div class="comm-card comm-animate">
-            <div class="comm-card-body">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                    <div>
-                        <h5 class="mb-2">{{ $announcement->title }}</h5>
-                        <div class="d-flex gap-3 align-items-center mb-2">
-                            @if($announcement->expires_at)
-                                <span class="badge bg-info">
-                                    <i class="bi bi-calendar-event me-1"></i>
-                                    Expires: {{ $announcement->expires_at->format('M j, Y') }}
-                                </span>
-                            @else
-                                <span class="badge bg-secondary">
-                                    <i class="bi bi-infinity me-1"></i>
-                                    No expiry
-                                </span>
-                            @endif
-                            <span class="badge {{ $announcement->active ? 'bg-success' : 'bg-secondary' }}">
-                                {{ $announcement->active ? 'Active' : 'Inactive' }}
-                            </span>
-                        </div>
+        @include('partials.alerts')
+
+        <div class="settings-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">All announcements</h5>
+                @if(method_exists($announcements, 'total'))
+                    <span class="input-chip">{{ $announcements->total() }} total</span>
+                @endif
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-modern mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($announcements as $announcement)
+                                <tr>
+                                    <td class="fw-semibold">{{ $announcement->title }}</td>
+                                    <td><span class="pill-badge">{{ $announcement->active ? 'Active' : 'Inactive' }}</span></td>
+                                    <td>
+                                        @if($announcement->expires_at)
+                                            {{ $announcement->expires_at->format('M j, Y') }}
+                                        @else
+                                            <span class="text-muted">No expiry</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-end d-flex justify-content-end gap-2">
+                                        <button class="btn btn-sm btn-ghost-strong" type="button" data-bs-toggle="collapse" data-bs-target="#annBody{{ $announcement->id }}">
+                                            View
+                                        </button>
+                                        @if(!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('teacher'))
+                                            <a href="{{ route('announcements.edit', $announcement) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-pencil"></i></a>
+                                            <form method="POST" action="{{ route('announcements.destroy', $announcement) }}" class="d-inline">
+                                                @csrf @method('DELETE')
+                                                <button class="btn btn-sm btn-ghost-strong text-danger" onclick="return confirm('Delete this announcement?')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                                <tr class="collapse" id="annBody{{ $announcement->id }}">
+                                    <td colspan="4">
+                                        <div class="p-3 text-muted">{!! nl2br(e($announcement->content)) !!}</div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">
+                                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                        <p class="mt-2 mb-0">No announcements available.</p>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @if(method_exists($announcements, 'links') && $announcements->hasPages())
+                    <div class="p-3">
+                        {{ $announcements->links() }}
                     </div>
-                    @if(!auth()->user()->hasRole('Teacher') && !auth()->user()->hasRole('teacher'))
-                        <div class="d-flex gap-2">
-                            <a href="{{ route('announcements.edit', $announcement) }}" class="btn btn-sm btn-comm btn-comm-warning">
-                                <i class="bi bi-pencil"></i> Edit
-                            </a>
-                            <form method="POST" action="{{ route('announcements.destroy', $announcement) }}" class="d-inline">
-                                @csrf @method('DELETE')
-                                <button class="btn btn-sm btn-comm btn-comm-danger" onclick="return confirm('Delete this announcement?')">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </form>
-                        </div>
-                    @endif
-                </div>
-                <div class="text-muted">
-                    {!! nl2br(e($announcement->content)) !!}
-                </div>
+                @endif
             </div>
         </div>
-    @empty
-        <div class="comm-card comm-animate">
-            <div class="comm-card-body text-center py-5">
-                <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
-                <p class="mt-3 mb-0 text-muted">No announcements available.</p>
-            </div>
-        </div>
-    @endforelse
-
-    @if(method_exists($announcements, 'links'))
-        <div class="mt-3">
-            {{ $announcements->links() }}
-        </div>
-    @endif
+    </div>
 </div>
 @endsection
 

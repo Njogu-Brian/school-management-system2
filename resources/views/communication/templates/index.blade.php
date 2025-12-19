@@ -1,95 +1,68 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    @include('communication.partials.header', [
-        'title' => 'Communication Templates',
-        'icon' => 'bi bi-file-text',
-        'subtitle' => 'Manage SMS and email templates for automated communications',
-        'actions' => '<a href="' . route('communication-templates.create') . '" class="btn btn-comm btn-comm-primary"><i class="bi bi-plus-circle"></i> Add Template</a>'
-    ])
+<div class="settings-page">
+    <div class="settings-shell">
+        @include('communication.partials.header', [
+            'title' => 'Templates',
+            'icon' => 'bi bi-layout-text-window',
+            'subtitle' => 'Reusable email/SMS templates',
+            'actions' => '<a href="' . route('communication-templates.create') . '" class="btn btn-settings-primary"><i class="bi bi-plus-circle"></i> New Template</a>'
+        ])
 
-    @if(session('success'))
-        <div class="alert alert-success comm-alert alert-dismissible fade show" role="alert">
-            <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-    @if(session('error'))
-        <div class="alert alert-danger comm-alert alert-dismissible fade show" role="alert">
-            <i class="bi bi-exclamation-circle me-2"></i>{{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
-    <div class="comm-card comm-animate">
-        <div class="comm-card-body">
-            <div class="table-responsive">
-                <table class="table comm-table">
-                    <thead>
-                        <tr>
-                            <th>Code</th>
-                            <th>Title</th>
-                            <th>Type</th>
-                            <th>Subject</th>
-                            <th>Attachment</th>
-                            <th>Preview</th>
-                            <th style="width: 140px;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($templates as $t)
+        <div class="settings-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Templates</h5>
+                <span class="input-chip">{{ $templates->total() }} total</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-modern mb-0 align-middle">
+                        <thead class="table-light">
                             <tr>
-                                <td><code class="bg-light px-2 py-1 rounded">{{ $t->code }}</code></td>
-                                <td><strong>{{ $t->title }}</strong></td>
-                                <td>
-                                    <span class="badge bg-{{ $t->type === 'sms' ? 'info' : 'primary' }} text-uppercase">
-                                        {{ $t->type }}
-                                    </span>
-                                </td>
-                                <td>{{ $t->subject ?? '—' }}</td>
-                                <td>
-                                    @if($t->attachment)
-                                        <a href="{{ asset('storage/'.$t->attachment) }}" target="_blank" class="btn btn-sm btn-comm-outline">
-                                            <i class="bi bi-paperclip"></i> View
-                                        </a>
-                                    @else
-                                        <span class="text-muted">—</span>
-                                    @endif
-                                </td>
-                                <td><small class="text-muted">{!! Str::limit(strip_tags($t->content), 80) !!}</small></td>
-                                <td>
-                                    <div class="d-flex gap-2">
-                                        <a href="{{ route('communication-templates.edit', $t->id) }}" class="btn btn-sm btn-comm btn-comm-warning">
-                                            <i class="bi bi-pencil"></i> Edit
-                                        </a>
-                                        <form action="{{ route('communication-templates.destroy', $t->id) }}" method="POST" class="d-inline">
+                                <th>Title</th>
+                                <th>Channel</th>
+                                <th>Updated</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse($templates as $template)
+                                <tr>
+                                    <td class="fw-semibold">{{ $template->title }}</td>
+                                    <td><span class="pill-badge">{{ strtoupper($template->type ?? 'N/A') }}</span></td>
+                                    <td>{{ $template->updated_at?->format('M d, Y') }}</td>
+                                    <td class="text-end d-flex justify-content-end gap-2">
+                                        <a href="{{ route('communication-templates.edit', $template) }}" class="btn btn-sm btn-ghost-strong"><i class="bi bi-pencil"></i></a>
+                                        <form action="{{ route('communication-templates.destroy', $template) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this template?');">
                                             @csrf @method('DELETE')
-                                            <button class="btn btn-sm btn-comm btn-comm-danger" onclick="return confirm('Delete this template?')">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
+                                            <button class="btn btn-sm btn-ghost-strong text-danger"><i class="bi bi-trash"></i></button>
                                         </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-5">
-                                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
-                                    <p class="mt-3 mb-0">No templates found. Create your first template to get started.</p>
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                        <p class="mt-2 mb-0">No templates found.</p>
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                @if($templates->hasPages())
+                    <div class="p-3">
+                        {{ $templates->links() }}
+                    </div>
+                @endif
             </div>
-
-            @if($templates->hasPages())
-            <div class="mt-3">
-                {{ $templates->links() }}
-            </div>
-            @endif
         </div>
     </div>
 </div>
 @endsection
+

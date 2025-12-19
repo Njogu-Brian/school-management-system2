@@ -1,62 +1,51 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container">
-    <h4>Send Email</h4>
+<div class="settings-page">
+    <div class="settings-shell">
+        @include('communication.partials.header', [
+            'title' => 'Send Email via Template',
+            'icon' => 'bi bi-envelope-paper',
+            'subtitle' => $template->title ?? 'Email Template'
+        ])
 
-    @if(session('success')) <div class="alert alert-success">{{ session('success') }}</div> @endif
-    @if(session('error'))   <div class="alert alert-danger">{{ session('error') }}</div> @endif
-
-    <form action="{{ route('communication.send.email.submit') }}" method="POST" enctype="multipart/form-data">
-        @csrf
-
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Target *</label>
-                <select name="target" class="form-control" required>
-                    <option value="parents">Parents</option>
-                    <option value="students">Students</option>
-                    <option value="teachers">Teachers</option>
-                    <option value="staff">All Staff</option>
-                    <option value="custom">Custom</option>
-                </select>
-            </div>
-
-            <div class="col-md-8">
-                <label class="form-label">Custom Emails (comma separated)</label>
-                <input type="text" name="custom_emails" class="form-control" placeholder="e.g. a@b.com,c@d.com">
-            </div>
-
-            <div class="col-md-4">
-                <label class="form-label">Use Template (optional)</label>
-                <select name="template_code" class="form-control">
-                    <option value="">— None —</option>
-                    @foreach($templates as $t)
-                        <option value="{{ $t->code }}">{{ $t->title }} ({{ $t->code }})</option>
-                    @endforeach
-                </select>
-                <small class="text-muted">Selecting a template will prefill message/subject. You can still override below.</small>
-            </div>
-
-            <div class="col-md-4">
-                <label class="form-label">Subject (override)</label>
-                <input type="text" name="title" class="form-control" placeholder="Leave blank to use template subject">
-            </div>
-
-            <div class="col-md-4">
-                <label class="form-label">Attachment (override)</label>
-                <input type="file" name="attachment" class="form-control">
-            </div>
-
-            <div class="col-12">
-                <label class="form-label">Message (override)</label>
-                <textarea name="message" rows="10" class="form-control rich-text" placeholder="Leave blank to use template content"></textarea>
+        <div class="settings-card">
+            <div class="card-body">
+                <form action="{{ route('communication.templates.email.send', $template) }}" method="POST">
+                    @csrf
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Recipients</label>
+                            <select name="recipients[]" class="form-select" multiple required>
+                                @foreach($recipients as $recipient)
+                                    <option value="{{ $recipient->id }}">{{ $recipient->name }} ({{ $recipient->email }})</option>
+                                @endforeach
+                            </select>
+                            <small class="text-muted">Hold CTRL/CMD to select multiple</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Subject</label>
+                            <input type="text" name="subject" class="form-control" required value="{{ old('subject', $template->title) }}">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Preview</label>
+                            <div class="p-3 bg-light rounded border">
+                                {!! nl2br(e($template->content ?? '')) !!}
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="{{ route('communication.templates.index') }}" class="btn btn-ghost-strong">Cancel</a>
+                            <button class="btn btn-settings-primary"><i class="bi bi-send"></i> Send Email</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
-
-        <div class="mt-3">
-            <button class="btn btn-primary">Send</button>
-        </div>
-    </form>
+    </div>
 </div>
 @endsection
+

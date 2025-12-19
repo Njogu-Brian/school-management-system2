@@ -1,19 +1,27 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="container-fluid">
-    @include('communication.partials.header', [
-        'title' => 'Create Announcement',
-        'icon' => 'bi bi-plus-circle',
-        'subtitle' => 'Create a new school announcement',
-        'actions' => '<a href="' . route('announcements.index') . '" class="btn btn-comm btn-comm-outline"><i class="bi bi-arrow-left"></i> Back</a>'
-    ])
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
 
-    <div class="comm-card comm-animate">
-        <div class="comm-card-body">
-            <form action="{{ route('announcements.store') }}" method="POST">
-                @include('communication.announcements.partials._form')
-            </form>
+@section('content')
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">Communication / Announcements</div>
+                <h1>Create Announcement</h1>
+                <p>Create a new school announcement.</p>
+            </div>
+            <a href="{{ route('announcements.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
+        </div>
+
+        <div class="settings-card">
+            <div class="card-body">
+                <form action="{{ route('announcements.store') }}" method="POST">
+                    @include('communication.announcements.partials._form')
+                </form>
+            </div>
         </div>
     </div>
 </div>
