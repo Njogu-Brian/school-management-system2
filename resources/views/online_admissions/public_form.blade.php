@@ -7,40 +7,66 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <style>
+        :root {
+            --primary: #5b6bff;
+            --gradient: linear-gradient(135deg, #5b6bff 0%, #8a5bff 100%);
+        }
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--gradient);
             min-height: 100vh;
             padding: 2rem 0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
         }
         .form-container {
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            padding: 2rem;
-            max-width: 900px;
+            border-radius: 16px;
+            box-shadow: 0 14px 50px rgba(0,0,0,0.12);
+            padding: 2.5rem;
+            max-width: 960px;
             margin: 0 auto;
         }
         .form-header {
             text-align: center;
             margin-bottom: 2rem;
             padding-bottom: 1rem;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid #eef1ff;
         }
         .form-header h1 {
-            color: #667eea;
-            font-weight: 600;
+            color: var(--primary);
+            font-weight: 700;
         }
         .section-title {
-            color: #667eea;
-            font-weight: 600;
+            color: var(--primary);
+            font-weight: 700;
             margin-top: 2rem;
             margin-bottom: 1rem;
             padding-bottom: 0.5rem;
-            border-bottom: 1px solid #e9ecef;
+            border-bottom: 1px solid #eef1ff;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
         }
         .required-field::after {
             content: " *";
-            color: red;
+            color: #dc3545;
+        }
+        .form-control, .form-select {
+            border-radius: 10px;
+        }
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .btn-primary:hover { filter: brightness(0.95); }
+        .badge-soft {
+            background: rgba(91,107,255,0.1);
+            color: var(--primary);
+            border: 1px solid rgba(91,107,255,0.3);
+            border-radius: 999px;
+            padding: 0.35rem 0.65rem;
+            font-size: 0.85rem;
         }
     </style>
 </head>
@@ -50,6 +76,7 @@
             <div class="form-header">
                 <h1><i class="bi bi-mortarboard"></i> Online Admission Application</h1>
                 <p class="text-muted">Please fill in all required fields marked with <span class="text-danger">*</span></p>
+                <span class="badge-soft">Secure | Fast | Mobile-friendly</span>
             </div>
 
             @if (session('success'))
@@ -73,7 +100,6 @@
             <form action="{{ route('online-admissions.public-submit') }}" method="POST" enctype="multipart/form-data">
                 @csrf
 
-                {{-- Student Information --}}
                 <h5 class="section-title"><i class="bi bi-person"></i> Student Information</h5>
                 <div class="row g-3">
                     <div class="col-md-4">
@@ -128,66 +154,29 @@
                     </div>
                 </div>
 
-                {{-- Father Information --}}
                 <h5 class="section-title"><i class="bi bi-person-badge"></i> Father Information</h5>
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Father's Name</label>
-                        <input type="text" name="father_name" class="form-control" value="{{ old('father_name') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Father's Phone</label>
-                        <input type="text" name="father_phone" class="form-control" value="{{ old('father_phone') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Father's Email</label>
-                        <input type="email" name="father_email" class="form-control" value="{{ old('father_email') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Father's ID Number</label>
-                        <input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number') }}">
-                    </div>
+                    <div class="col-md-6"><label class="form-label">Father's Name</label><input type="text" name="father_name" class="form-control" value="{{ old('father_name') }}"></div>
+                    <div class="col-md-6"><label class="form-label">Father's Phone</label><input type="text" name="father_phone" class="form-control" value="{{ old('father_phone') }}"></div>
+                    <div class="col-md-6"><label class="form-label">Father's Email</label><input type="email" name="father_email" class="form-control" value="{{ old('father_email') }}"></div>
+                    <div class="col-md-6"><label class="form-label">Father's ID Number</label><input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number') }}"></div>
                 </div>
 
-                {{-- Mother Information --}}
                 <h5 class="section-title"><i class="bi bi-person-badge"></i> Mother Information</h5>
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Mother's Name</label>
-                        <input type="text" name="mother_name" class="form-control" value="{{ old('mother_name') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Mother's Phone</label>
-                        <input type="text" name="mother_phone" class="form-control" value="{{ old('mother_phone') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Mother's Email</label>
-                        <input type="email" name="mother_email" class="form-control" value="{{ old('mother_email') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Mother's ID Number</label>
-                        <input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number') }}">
-                    </div>
+                    <div class="col-md-6"><label class="form-label">Mother's Name</label><input type="text" name="mother_name" class="form-control" value="{{ old('mother_name') }}"></div>
+                    <div class="col-md-6"><label class="form-label">Mother's Phone</label><input type="text" name="mother_phone" class="form-control" value="{{ old('mother_phone') }}"></div>
+                    <div class="col-md-6"><label class="form-label">Mother's Email</label><input type="email" name="mother_email" class="form-control" value="{{ old('mother_email') }}"></div>
+                    <div class="col-md-6"><label class="form-label">Mother's ID Number</label><input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number') }}"></div>
                 </div>
 
-                {{-- Guardian Information --}}
                 <h5 class="section-title"><i class="bi bi-shield-check"></i> Guardian Information</h5>
                 <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label">Guardian's Name</label>
-                        <input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name') }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Guardian's Phone</label>
-                        <input type="text" name="guardian_phone" class="form-control" value="{{ old('guardian_phone') }}">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Guardian's Email</label>
-                        <input type="email" name="guardian_email" class="form-control" value="{{ old('guardian_email') }}">
-                    </div>
+                    <div class="col-md-4"><label class="form-label">Guardian's Name</label><input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name') }}"></div>
+                    <div class="col-md-4"><label class="form-label">Guardian's Phone</label><input type="text" name="guardian_phone" class="form-control" value="{{ old('guardian_phone') }}"></div>
+                    <div class="col-md-4"><label class="form-label">Guardian's Email</label><input type="email" name="guardian_email" class="form-control" value="{{ old('guardian_email') }}"></div>
                 </div>
 
-                {{-- Documents --}}
                 <h5 class="section-title"><i class="bi bi-file-earmark"></i> Documents</h5>
                 <div class="row g-3">
                     <div class="col-md-4">
@@ -226,4 +215,3 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-
