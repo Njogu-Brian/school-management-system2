@@ -1,101 +1,92 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container">
-    <h1>Edit Classroom</h1>
+<div class="settings-page">
+  <div class="settings-shell">
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <div class="crumb">Academics</div>
+        <h1 class="mb-1">Edit Classroom</h1>
+        <p class="text-muted mb-0">Update class details, promotion mapping, and teachers.</p>
+      </div>
+      <a href="{{ route('academics.classrooms.index') }}" class="btn btn-ghost-strong">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+    </div>
 
-    <form action="{{ route('academics.classrooms.update', $classroom->id) }}" method="POST">
-        @csrf
-        @method('PUT')
-
-        <div class="mb-3">
-            <label>Class Name <span class="text-danger">*</span></label>
+    <form action="{{ route('academics.classrooms.update', $classroom->id) }}" method="POST" class="settings-card">
+      @csrf
+      @method('PUT')
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Class Name <span class="text-danger">*</span></label>
             <input type="text" class="form-control" name="name" value="{{ old('name', $classroom->name) }}" required>
-        </div>
-
-        <div class="mb-3">
-            <label>Next Class (for promotion)</label>
-            <select name="next_class_id" class="form-control">
-                <option value="">-- Select Next Class --</option>
-                @if($classroom->is_alumni)
-                    <option value="" selected>Alumni (Last Class)</option>
-                @endif
-                @foreach ($classrooms as $class)
-                    <option value="{{ $class->id }}" 
-                        @selected(old('next_class_id', $classroom->next_class_id) == $class->id)
-                        @if(in_array($class->id, $usedAsNextClass ?? []) && $classroom->next_class_id != $class->id) 
-                            disabled 
-                            style="color: #999; background-color: #f5f5f5;"
-                        @endif>
-                        {{ $class->name }}
-                        @if($class->is_alumni)
-                            (Alumni)
-                        @endif
-                        @if(in_array($class->id, $usedAsNextClass ?? []) && $classroom->next_class_id != $class->id)
-                            - Already mapped by another class
-                        @endif
-                    </option>
-                @endforeach
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Next Class (for promotion)</label>
+            <select name="next_class_id" class="form-select">
+              <option value="">-- Select Next Class --</option>
+              @if($classroom->is_alumni)
+                <option value="" selected>Alumni (Last Class)</option>
+              @endif
+              @foreach ($classrooms as $class)
+                <option value="{{ $class->id }}" 
+                  @selected(old('next_class_id', $classroom->next_class_id) == $class->id)
+                  @if(in_array($class->id, $usedAsNextClass ?? []) && $classroom->next_class_id != $class->id) disabled style="color: #999; background-color: #f5f5f5;" @endif>
+                  {{ $class->name }}
+                  @if($class->is_alumni) (Alumni) @endif
+                  @if(in_array($class->id, $usedAsNextClass ?? []) && $classroom->next_class_id != $class->id) - Already mapped by another class @endif
+                </option>
+              @endforeach
             </select>
-            <small class="text-muted">
-                Select the class students will be promoted to. Leave empty or select "Alumni" for the last class.
-                <br><span class="text-warning"><i class="bi bi-info-circle"></i> Classes already mapped by another class are disabled to prevent conflicts.</span>
-            </small>
+            <small class="text-muted">Select the class students will be promoted to. Leave empty or choose Alumni for the last class.</small>
             @if($classroom->nextClass)
-                <div class="mt-1">
-                    <small class="text-info">Current next class: <strong>{{ $classroom->nextClass->name }}</strong></small>
-                </div>
+              <div class="mt-1 small text-info">Current next class: <strong>{{ $classroom->nextClass->name }}</strong></div>
             @endif
+          </div>
         </div>
 
-        <div class="row mb-3">
-            <div class="col-md-6">
-                <div class="form-check">
-                    <input type="checkbox" name="is_beginner" value="1" class="form-check-input" id="is_beginner" 
-                        @checked(old('is_beginner', $classroom->is_beginner))>
-                    <label class="form-check-label" for="is_beginner">
-                        Beginner Class (First Class)
-                    </label>
-                    <small class="text-muted d-block">Check if this is the entry/first class for new students</small>
-                </div>
+        <div class="row g-3 mt-1">
+          <div class="col-md-6">
+            <div class="form-check">
+              <input type="checkbox" name="is_beginner" value="1" class="form-check-input" id="is_beginner" @checked(old('is_beginner', $classroom->is_beginner))>
+              <label class="form-check-label" for="is_beginner">Beginner Class (First Class)</label>
+              <small class="text-muted d-block">Entry class for new students</small>
             </div>
-            <div class="col-md-6">
-                <div class="form-check">
-                    <input type="checkbox" name="is_alumni" value="1" class="form-check-input" id="is_alumni"
-                        @checked(old('is_alumni', $classroom->is_alumni))>
-                    <label class="form-check-label" for="is_alumni">
-                        Alumni Class (Last Class)
-                    </label>
-                    <small class="text-muted d-block">Check if this is the final class (students become alumni after this)</small>
-                </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-check">
+              <input type="checkbox" name="is_alumni" value="1" class="form-check-input" id="is_alumni" @checked(old('is_alumni', $classroom->is_alumni))>
+              <label class="form-check-label" for="is_alumni">Alumni Class (Last Class)</label>
+              <small class="text-muted d-block">Final class; students become alumni after this</small>
             </div>
+          </div>
         </div>
 
-        <div class="mb-3">
-            <label>Assign Teachers</label>
-            <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
-                @forelse ($teachers as $teacher)
-                    <div class="form-check">
-                        <input
-                            type="checkbox"
-                            name="teacher_ids[]"
-                            value="{{ $teacher->id }}"
-                            class="form-check-input"
-                            id="teacher_{{ $teacher->id }}"
-                            {{ in_array($teacher->id, $assignedTeachers) ? 'checked' : '' }}
-                        >
-                        <label class="form-check-label" for="teacher_{{ $teacher->id }}">
-                            {{ $teacher->name }}
-                        </label>
-                    </div>
-                @empty
-                    <p class="text-muted">No teachers found.</p>
-                @endforelse
-            </div>
+        <div class="mt-3">
+          <label class="form-label">Assign Teachers</label>
+          <div class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
+            @forelse ($teachers as $teacher)
+              <div class="form-check">
+                <input type="checkbox" name="teacher_ids[]" value="{{ $teacher->id }}" class="form-check-input" id="teacher_{{ $teacher->id }}" {{ in_array($teacher->id, $assignedTeachers) ? 'checked' : '' }}>
+                <label class="form-check-label" for="teacher_{{ $teacher->id }}">{{ $teacher->name }}</label>
+              </div>
+            @empty
+              <p class="text-muted mb-0">No teachers found.</p>
+            @endforelse
+          </div>
         </div>
-
-        <button type="submit" class="btn btn-primary">Update Classroom</button>
-        <a href="{{ route('academics.classrooms.index') }}" class="btn btn-secondary">Cancel</a>
+      </div>
+      <div class="card-footer d-flex justify-content-end gap-2">
+        <a href="{{ route('academics.classrooms.index') }}" class="btn btn-ghost-strong">Cancel</a>
+        <button type="submit" class="btn btn-settings-primary">Update Classroom</button>
+      </div>
     </form>
+  </div>
 </div>
 @endsection

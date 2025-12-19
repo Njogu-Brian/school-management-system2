@@ -1,69 +1,78 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container">
-    <h1>Report Cards</h1>
+<div class="settings-page">
+  <div class="settings-shell">
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <div class="crumb">Academics · Report Cards</div>
+        <h1 class="mb-1">Report Cards</h1>
+        <p class="text-muted mb-0">View, publish, and manage report cards.</p>
+      </div>
+    </div>
 
     @if(session('success'))
-        <div class="alert alert-success">{{ session('success') }}</div>
+      <div class="alert alert-success alert-dismissible fade show">{{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     @endif
 
-    <div class="table-responsive">
-        <table class="table table-bordered align-middle">
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Class</th>
-                    <th>Term</th>
-                    <th>Year</th>
-                    <th>Status</th>
-                    <th>Published</th>
-                    <th width="160">Actions</th>
-                </tr>
+    <div class="settings-card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-modern table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Student</th>
+                <th>Class</th>
+                <th>Term</th>
+                <th>Year</th>
+                <th>Status</th>
+                <th>Published</th>
+                <th class="text-end">Actions</th>
+              </tr>
             </thead>
             <tbody>
-                @forelse($report_cards as $rc)
-                    <tr>
-                        <td>{{ $rc->student->full_name }}</td>
-                        <td>{{ $rc->classroom->name ?? '' }} {{ $rc->stream->name ?? '' }}</td>
-                        <td>{{ $rc->term->name ?? '' }}</td>
-                        <td>{{ $rc->academicYear->year ?? '' }}</td>
-                        <td>
-                            @if($rc->locked_at)
-                                <span class="badge bg-danger">Locked</span>
-                            @elseif($rc->published_at)
-                                <span class="badge bg-success">Published</span>
-                            @else
-                                <span class="badge bg-warning">Draft</span>
-                            @endif
-                        </td>
-                        <td>{{ $rc->published_at ? $rc->published_at->format('d M Y') : '-' }}</td>
-                        <td>
-                            <a href="{{ route('academics.report_cards.show',$rc) }}" class="btn btn-sm btn-info">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                            @if(!$rc->locked_at)
-                                <a href="{{ route('academics.report_cards.edit',$rc) }}" class="btn btn-sm btn-warning">
-                                    <i class="bi bi-pencil"></i>
-                                </a>
-                                <form action="{{ route('academics.report_cards.destroy',$rc) }}" method="POST" class="d-inline">
-                                    @csrf @method('DELETE')
-                                    <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this report card?')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </form>
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="7">No report cards found.</td></tr>
-                @endforelse
+              @forelse($report_cards as $rc)
+                <tr>
+                  <td>{{ $rc->student->full_name }}</td>
+                  <td>{{ $rc->classroom->name ?? '' }} {{ $rc->stream->name ?? '' }}</td>
+                  <td>{{ $rc->term->name ?? '' }}</td>
+                  <td>{{ $rc->academicYear->year ?? '' }}</td>
+                  <td>
+                    @if($rc->locked_at)
+                      <span class="pill-badge pill-danger">Locked</span>
+                    @elseif($rc->published_at)
+                      <span class="pill-badge pill-success">Published</span>
+                    @else
+                      <span class="pill-badge pill-warning">Draft</span>
+                    @endif
+                  </td>
+                  <td>{{ $rc->published_at ? $rc->published_at->format('d M Y') : '-' }}</td>
+                  <td class="text-end">
+                    <div class="d-flex justify-content-end gap-1 flex-wrap">
+                      <a href="{{ route('academics.report_cards.show',$rc) }}" class="btn btn-sm btn-ghost-strong text-info" title="View"><i class="bi bi-eye"></i></a>
+                      @if(!$rc->locked_at)
+                        <a href="{{ route('academics.report_cards.edit',$rc) }}" class="btn btn-sm btn-ghost-strong" title="Edit"><i class="bi bi-pencil"></i></a>
+                        <form action="{{ route('academics.report_cards.destroy',$rc) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this report card?')">
+                          @csrf @method('DELETE')
+                          <button class="btn btn-sm btn-ghost-strong text-danger" title="Delete"><i class="bi bi-trash"></i></button>
+                        </form>
+                      @endif
+                    </div>
+                  </td>
+                </tr>
+              @empty
+                <tr><td colspan="7" class="text-center text-muted py-4">No report cards found.</td></tr>
+              @endforelse
             </tbody>
-        </table>
+          </table>
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-end">{{ $report_cards->links() }}</div>
     </div>
-
-    <div class="mt-3">
-        {{ $report_cards->links() }}
-    </div>
+  </div>
 </div>
 @endsection
