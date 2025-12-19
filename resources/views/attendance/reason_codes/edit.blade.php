@@ -1,20 +1,32 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="mb-0">Edit Reason Code</h2>
-    <a href="{{ route('attendance.reason-codes.index') }}" class="btn btn-outline-secondary">
-      <i class="bi bi-arrow-left"></i> Back
-    </a>
-  </div>
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
 
-  <div class="card">
-    <div class="card-body">
-      <form action="{{ route('attendance.reason-codes.update', $reasonCode) }}" method="POST">
-        @csrf
-        @method('PUT')
-        <div class="row g-3">
+@section('content')
+<div class="settings-page">
+  <div class="settings-shell">
+    <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+      <div>
+        <div class="crumb">Attendance</div>
+        <h1 class="mb-1">Edit Reason Code</h1>
+        <p class="text-muted mb-0">Update an existing attendance reason code.</p>
+      </div>
+      <a href="{{ route('attendance.reason-codes.index') }}" class="btn btn-ghost-strong">
+        <i class="bi bi-arrow-left"></i> Back
+      </a>
+    </div>
+
+    <div class="settings-card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0">Reason Code Details</h5>
+        <span class="pill-badge pill-secondary">Ref #{{ $reasonCode->id }}</span>
+      </div>
+      <div class="card-body">
+        <form action="{{ route('attendance.reason-codes.update', $reasonCode) }}" method="POST" class="row g-3">
+          @csrf
+          @method('PUT')
           <div class="col-md-6">
             <label class="form-label">Code <span class="text-danger">*</span></label>
             <input type="text" name="code" class="form-control @error('code') is-invalid @enderror" value="{{ old('code', $reasonCode->code) }}" required>
@@ -55,16 +67,15 @@
             <label class="form-label">Sort Order</label>
             <input type="number" name="sort_order" class="form-control" value="{{ old('sort_order', $reasonCode->sort_order) }}" min="0">
           </div>
-        </div>
-        <div class="mt-4">
-          <button type="submit" class="btn btn-primary">
-            <i class="bi bi-save"></i> Update Reason Code
-          </button>
-          <a href="{{ route('attendance.reason-codes.index') }}" class="btn btn-outline-secondary">Cancel</a>
-        </div>
-      </form>
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <a href="{{ route('attendance.reason-codes.index') }}" class="btn btn-ghost-strong">Cancel</a>
+            <button type="submit" class="btn btn-settings-primary">
+              <i class="bi bi-save"></i> Update Reason Code
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 </div>
 @endsection
-
