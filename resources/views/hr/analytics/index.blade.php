@@ -1,250 +1,314 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-  <div class="d-flex align-items-center justify-content-between mb-4">
-    <div>
-      <h2 class="mb-0">HR Analytics Dashboard</h2>
-      <small class="text-muted">Comprehensive HR metrics and insights</small>
-    </div>
-    <a href="{{ route('hr.reports.index') }}" class="btn btn-outline-primary">
-      <i class="bi bi-file-earmark-text"></i> Reports
-    </a>
-  </div>
-
-  {{-- KPI Cards --}}
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="card bg-primary text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3">
             <div>
-              <h6 class="card-subtitle mb-2 text-white-50">Total Staff</h6>
-              <h3 class="mb-0">{{ $totalStaff }}</h3>
+                <div class="crumb">HR & Payroll / Analytics</div>
+                <h1 class="mb-1">HR Analytics Dashboard</h1>
+                <p class="text-muted mb-0">Comprehensive HR metrics and insights.</p>
             </div>
-            <i class="bi bi-people fs-1 opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card bg-success text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-white-50">Active Staff</h6>
-              <h3 class="mb-0">{{ $activeStaff }}</h3>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route('hr.reports.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-file-earmark-text"></i> Reports
+                </a>
+                <a href="{{ route('hr.profile_requests.index') }}" class="btn btn-settings-primary">
+                    <i class="bi bi-speedometer2"></i> Review Requests
+                </a>
             </div>
-            <i class="bi bi-check-circle fs-1 opacity-50"></i>
-          </div>
         </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card bg-info text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-white-50">New Hires (This Year)</h6>
-              <h3 class="mb-0">{{ $newHiresThisYear }}</h3>
-            </div>
-            <i class="bi bi-person-plus fs-1 opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card bg-warning text-white">
-        <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="card-subtitle mb-2 text-white-50">On Leave</h6>
-              <h3 class="mb-0">{{ $onLeaveStaff }}</h3>
-            </div>
-            <i class="bi bi-calendar-x fs-1 opacity-50"></i>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="row g-3">
-    {{-- Left Column --}}
-    <div class="col-12 col-xl-8">
-      {{-- Charts Row --}}
-      <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-6">
-          <div class="card shadow-sm">
-            <div class="card-header bg-white">
-              <strong>Staff by Department</strong>
-            </div>
-            <div class="card-body">
-              <canvas id="departmentChart" height="200"></canvas>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="card shadow-sm">
-            <div class="card-header bg-white">
-              <strong>Staff by Category</strong>
-            </div>
-            <div class="card-body">
-              <canvas id="categoryChart" height="200"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {{-- Employment Status & Leave Utilization --}}
-      <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-6">
-          <div class="card shadow-sm">
-            <div class="card-header bg-white">
-              <strong>Employment Status Breakdown</strong>
-            </div>
-            <div class="card-body">
-              <canvas id="employmentStatusChart" height="200"></canvas>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="card shadow-sm">
-            <div class="card-header bg-white">
-              <strong>Leave Utilization</strong>
-            </div>
-            <div class="card-body">
-              <div class="text-center mb-3">
-                <h4 class="mb-0">{{ number_format($leaveUtilization['utilization_rate'], 1) }}%</h4>
-                <small class="text-muted">Utilization Rate</small>
-              </div>
-              <div class="row text-center">
-                <div class="col-4">
-                  <div class="border-end">
-                    <h6 class="mb-0">{{ $leaveUtilization['total_entitlement'] }}</h6>
-                    <small class="text-muted">Entitlement</small>
-                  </div>
-                </div>
-                <div class="col-4">
-                  <div class="border-end">
-                    <h6 class="mb-0">{{ $leaveUtilization['total_used'] }}</h6>
-                    <small class="text-muted">Used</small>
-                  </div>
-                </div>
-                <div class="col-4">
-                  <h6 class="mb-0">{{ $leaveUtilization['total_remaining'] }}</h6>
-                  <small class="text-muted">Remaining</small>
-                </div>
-              </div>
-              <hr>
-              <div class="row text-center">
-                <div class="col-6">
-                  <h6 class="mb-0">{{ $leaveUtilization['pending_requests'] }}</h6>
-                  <small class="text-muted">Pending Requests</small>
-                </div>
-                <div class="col-6">
-                  <h6 class="mb-0">{{ $leaveUtilization['approved_requests'] }}</h6>
-                  <small class="text-muted">Approved (This Year)</small>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {{-- Attendance Statistics --}}
-      <div class="card shadow-sm">
-        <div class="card-header bg-white">
-          <strong>Attendance Statistics (This Month)</strong>
-        </div>
-        <div class="card-body">
-          <div class="row text-center">
-            <div class="col-md-3">
-              <h4 class="mb-0 text-success">{{ $attendanceStats['present'] }}</h4>
-              <small class="text-muted">Present</small>
-            </div>
-            <div class="col-md-3">
-              <h4 class="mb-0 text-danger">{{ $attendanceStats['absent'] }}</h4>
-              <small class="text-muted">Absent</small>
-            </div>
-            <div class="col-md-3">
-              <h4 class="mb-0 text-warning">{{ $attendanceStats['late'] }}</h4>
-              <small class="text-muted">Late</small>
-            </div>
-            <div class="col-md-3">
-              <h4 class="mb-0 text-info">{{ number_format($attendanceStats['attendance_rate'], 1) }}%</h4>
-              <small class="text-muted">Attendance Rate</small>
-            </div>
-          </div>
-          <hr>
-          <div class="row text-center">
-            <div class="col-6">
-              <h6 class="mb-0">{{ $attendanceStats['present_today'] }}</h6>
-              <small class="text-muted">Present Today</small>
-            </div>
-            <div class="col-6">
-              <h6 class="mb-0">{{ $attendanceStats['absent_today'] }}</h6>
-              <small class="text-muted">Absent Today</small>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {{-- Right Column --}}
-    <div class="col-12 col-xl-4">
-      {{-- Recent Hires --}}
-      <div class="card shadow-sm mb-3">
-        <div class="card-header bg-white">
-          <strong>Recent Hires</strong>
-        </div>
-        <div class="card-body">
-          @if($recentHires->count() > 0)
-            <div class="list-group list-group-flush">
-              @foreach($recentHires as $hire)
-                <div class="list-group-item px-0">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6 class="mb-1">{{ $hire->full_name }}</h6>
-                      <small class="text-muted">{{ $hire->department?->name ?? 'N/A' }} • {{ $hire->jobTitle?->name ?? 'N/A' }}</small>
+        {{-- KPI Cards --}}
+        <div class="row g-3 mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="settings-card stat-card border-start border-4 border-primary h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted text-uppercase fw-semibold small mb-1">Total Staff</div>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h3 class="mb-0">{{ $totalStaff }}</h3>
+                                    <span class="pill-badge pill-secondary">All</span>
+                                </div>
+                            </div>
+                            <span class="pill-icon pill-primary"><i class="bi bi-people"></i></span>
+                        </div>
                     </div>
-                    <small class="text-muted">{{ $hire->hire_date?->format('M d, Y') ?? 'N/A' }}</small>
-                  </div>
                 </div>
-              @endforeach
             </div>
-          @else
-            <p class="text-muted text-center mb-0">No recent hires</p>
-          @endif
-        </div>
-      </div>
-
-      {{-- Upcoming Contract Renewals --}}
-      <div class="card shadow-sm">
-        <div class="card-header bg-white">
-          <strong>Upcoming Contract Renewals (Next 30 Days)</strong>
-        </div>
-        <div class="card-body">
-          @if($upcomingRenewals->count() > 0)
-            <div class="list-group list-group-flush">
-              @foreach($upcomingRenewals as $renewal)
-                <div class="list-group-item px-0">
-                  <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                      <h6 class="mb-1">{{ $renewal->full_name }}</h6>
-                      <small class="text-muted">{{ $renewal->department?->name ?? 'N/A' }}</small>
+            <div class="col-sm-6 col-lg-3">
+                <div class="settings-card stat-card border-start border-4 border-success h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted text-uppercase fw-semibold small mb-1">Active Staff</div>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h3 class="mb-0">{{ $activeStaff }}</h3>
+                                    <span class="pill-badge pill-success">Active</span>
+                                </div>
+                            </div>
+                            <span class="pill-icon pill-success"><i class="bi bi-check-circle"></i></span>
+                        </div>
                     </div>
-                    <small class="text-danger">{{ $renewal->contract_end_date?->format('M d') ?? 'N/A' }}</small>
-                  </div>
                 </div>
-              @endforeach
             </div>
-          @else
-            <p class="text-muted text-center mb-0">No upcoming renewals</p>
-          @endif
+            <div class="col-sm-6 col-lg-3">
+                <div class="settings-card stat-card border-start border-4 border-info h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted text-uppercase fw-semibold small mb-1">New Hires (Year)</div>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h3 class="mb-0">{{ $newHiresThisYear }}</h3>
+                                    <span class="pill-badge pill-info">YTD</span>
+                                </div>
+                            </div>
+                            <span class="pill-icon pill-info"><i class="bi bi-person-plus"></i></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="settings-card stat-card border-start border-4 border-warning h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted text-uppercase fw-semibold small mb-1">On Leave</div>
+                                <div class="d-flex align-items-baseline gap-2">
+                                    <h3 class="mb-0">{{ $onLeaveStaff }}</h3>
+                                    <span class="pill-badge pill-warning">Today</span>
+                                </div>
+                            </div>
+                            <span class="pill-icon pill-warning"><i class="bi bi-calendar-event"></i></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
+
+        <div class="row g-3">
+            {{-- Left Column --}}
+            <div class="col-12 col-xl-8">
+                {{-- Charts Row --}}
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-lg-6">
+                        <div class="settings-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Staff by Department</strong>
+                                    <div class="text-muted small">Distribution across active departments</div>
+                                </div>
+                                <span class="pill-badge pill-secondary">Bar</span>
+                            </div>
+                            <div class="card-body"><canvas id="departmentChart" height="220"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="settings-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Staff by Category</strong>
+                                    <div class="text-muted small">Headcount by HR category</div>
+                                </div>
+                                <span class="pill-badge pill-info">Donut</span>
+                            </div>
+                            <div class="card-body"><canvas id="categoryChart" height="220"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Employment Status & Leave Utilization --}}
+                <div class="row g-3 mb-3">
+                    <div class="col-12 col-lg-6">
+                        <div class="settings-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Employment Status Breakdown</strong>
+                                    <div class="text-muted small">Contract vs permanent vs inactive</div>
+                                </div>
+                                <span class="pill-badge pill-success">Live</span>
+                            </div>
+                            <div class="card-body"><canvas id="employmentStatusChart" height="220"></canvas></div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-6">
+                        <div class="settings-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Leave Utilization</strong>
+                                    <div class="text-muted small">Entitlement vs usage</div>
+                                </div>
+                                <span class="pill-badge pill-warning">This Year</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="text-center mb-3">
+                                    <h4 class="mb-0">{{ number_format($leaveUtilization['utilization_rate'], 1) }}%</h4>
+                                    <small class="text-muted">Utilization Rate</small>
+                                </div>
+                                <div class="row text-center g-2">
+                                    <div class="col-4">
+                                        <div class="mini-stat">
+                                            <div class="fw-semibold">{{ $leaveUtilization['total_entitlement'] }}</div>
+                                            <small class="text-muted">Entitlement</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="mini-stat">
+                                            <div class="fw-semibold">{{ $leaveUtilization['total_used'] }}</div>
+                                            <small class="text-muted">Used</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="mini-stat">
+                                            <div class="fw-semibold">{{ $leaveUtilization['total_remaining'] }}</div>
+                                            <small class="text-muted">Remaining</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="divider my-3"></div>
+                                <div class="row text-center g-2">
+                                    <div class="col-6">
+                                        <div class="mini-stat">
+                                            <div class="fw-semibold">{{ $leaveUtilization['pending_requests'] }}</div>
+                                            <small class="text-muted">Pending Requests</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mini-stat">
+                                            <div class="fw-semibold">{{ $leaveUtilization['approved_requests'] }}</div>
+                                            <small class="text-muted">Approved (This Year)</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Attendance Statistics --}}
+                <div class="settings-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Attendance Statistics (This Month)</strong>
+                            <div class="text-muted small">Presence, absences and punctuality</div>
+                        </div>
+                        <span class="pill-badge pill-info">{{ number_format($attendanceStats['attendance_rate'], 1) }}% rate</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center g-3">
+                            <div class="col-md-3 col-6">
+                                <div class="mini-stat">
+                                    <h4 class="mb-0 text-success">{{ $attendanceStats['present'] }}</h4>
+                                    <small class="text-muted">Present</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="mini-stat">
+                                    <h4 class="mb-0 text-danger">{{ $attendanceStats['absent'] }}</h4>
+                                    <small class="text-muted">Absent</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="mini-stat">
+                                    <h4 class="mb-0 text-warning">{{ $attendanceStats['late'] }}</h4>
+                                    <small class="text-muted">Late</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="mini-stat">
+                                    <h4 class="mb-0 text-info">{{ number_format($attendanceStats['attendance_rate'], 1) }}%</h4>
+                                    <small class="text-muted">Attendance Rate</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="divider my-3"></div>
+                        <div class="row text-center g-3">
+                            <div class="col-6">
+                                <div class="mini-stat">
+                                    <div class="fw-semibold">{{ $attendanceStats['present_today'] }}</div>
+                                    <small class="text-muted">Present Today</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="mini-stat">
+                                    <div class="fw-semibold">{{ $attendanceStats['absent_today'] }}</div>
+                                    <small class="text-muted">Absent Today</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Right Column --}}
+            <div class="col-12 col-xl-4">
+                {{-- Recent Hires --}}
+                <div class="settings-card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Recent Hires</strong>
+                            <div class="text-muted small">Latest additions to the team</div>
+                        </div>
+                        <span class="pill-badge pill-success">{{ $recentHires->count() }} new</span>
+                    </div>
+                    <div class="card-body">
+                        @if($recentHires->count() > 0)
+                            <div class="list-group list-group-flush">
+                                @foreach($recentHires as $hire)
+                                    <div class="list-group-item px-0">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1">{{ $hire->full_name }}</h6>
+                                                <small class="text-muted">{{ $hire->department?->name ?? 'N/A' }} • {{ $hire->jobTitle?->name ?? 'N/A' }}</small>
+                                            </div>
+                                            <small class="text-muted">{{ $hire->hire_date?->format('M d, Y') ?? 'N/A' }}</small>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-muted text-center mb-0">No recent hires</p>
+                        @endif
+                    </div>
+                </div>
+
+                {{-- Upcoming Contract Renewals --}}
+                <div class="settings-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Upcoming Contract Renewals (Next 30 Days)</strong>
+                            <div class="text-muted small">Keep contracts current</div>
+                        </div>
+                        <span class="pill-badge pill-warning">{{ $upcomingRenewals->count() }} due</span>
+                    </div>
+                    <div class="card-body">
+                        @if($upcomingRenewals->count() > 0)
+                            <div class="list-group list-group-flush">
+                                @foreach($upcomingRenewals as $renewal)
+                                    <div class="list-group-item px-0">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1">{{ $renewal->full_name }}</h6>
+                                                <small class="text-muted">{{ $renewal->department?->name ?? 'N/A' }}</small>
+                                            </div>
+                                            <small class="text-danger">{{ $renewal->contract_end_date?->format('M d') ?? 'N/A' }}</small>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="text-muted text-center mb-0">No upcoming renewals</p>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 @endsection
 

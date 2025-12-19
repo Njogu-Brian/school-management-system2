@@ -1,86 +1,95 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-0">Leave Balance - {{ $staff->full_name }}</h2>
-            <small class="text-muted">View and manage leave balances</small>
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">HR & Payroll / Staff</div>
+                <h1 class="mb-1">Leave Balance - {{ $staff->full_name }}</h1>
+                <p class="text-muted mb-0">View and manage leave balances.</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route('staff.leave-balances.index') }}" class="btn btn-ghost-strong">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <a href="{{ route('staff.leave-balances.create', ['staff_id' => $staff->id]) }}" class="btn btn-settings-primary">
+                    <i class="bi bi-plus-circle"></i> Add Balance
+                </a>
+            </div>
         </div>
-        <div>
-            <a href="{{ route('staff.leave-balances.index') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left"></i> Back
-            </a>
-            <a href="{{ route('staff.leave-balances.create', ['staff_id' => $staff->id]) }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Add Balance
-            </a>
-        </div>
-    </div>
 
-    @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show">
-            {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
 
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">
-                Leave Balances
-                @if($currentYear)
-                    <small class="text-muted">({{ $currentYear->year }})</small>
+        <div class="settings-card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-0">
+                        Leave Balances
+                        @if($currentYear)
+                            <small class="text-muted">({{ $currentYear->year }})</small>
+                        @endif
+                    </h5>
+                </div>
+                @if($balances->count())
+                    <span class="input-chip">{{ $balances->count() }} types</span>
                 @endif
-            </h5>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Leave Type</th>
-                            <th>Entitlement</th>
-                            <th>Used</th>
-                            <th>Carried Forward</th>
-                            <th>Remaining</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($balances as $balance)
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-modern table-hover">
+                        <thead class="table-light">
                             <tr>
-                                <td class="fw-semibold">{{ $balance->leaveType->name }}</td>
-                                <td>{{ $balance->entitlement_days }} days</td>
-                                <td>
-                                    <span class="badge bg-warning">{{ $balance->used_days }} days</span>
-                                </td>
-                                <td>{{ $balance->carried_forward }} days</td>
-                                <td>
-                                    @if($balance->remaining_days > 0)
-                                        <span class="badge bg-success">{{ $balance->remaining_days }} days</span>
-                                    @else
-                                        <span class="badge bg-danger">{{ $balance->remaining_days }} days</span>
-                                    @endif
-                                </td>
-                                <td class="text-end">
-                                    <button type="button" class="btn btn-sm btn-primary" onclick="editBalance({{ $balance->id }}, {{ $balance->entitlement_days }}, {{ $balance->carried_forward }})">
-                                        <i class="bi bi-pencil"></i> Edit
-                                    </button>
-                                </td>
+                                <th>Leave Type</th>
+                                <th>Entitlement</th>
+                                <th>Used</th>
+                                <th>Carried Forward</th>
+                                <th>Remaining</th>
+                                <th class="text-end">Actions</th>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center text-muted py-4">No leave balances set for this staff member.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @forelse($balances as $balance)
+                                <tr>
+                                    <td class="fw-semibold">{{ $balance->leaveType->name }}</td>
+                                    <td>{{ $balance->entitlement_days }} days</td>
+                                    <td>
+                                        <span class="pill-badge pill-warning">{{ $balance->used_days }} days</span>
+                                    </td>
+                                    <td>{{ $balance->carried_forward }} days</td>
+                                    <td>
+                                        <span class="pill-badge {{ $balance->remaining_days > 0 ? 'pill-success' : 'pill-danger' }}">
+                                            {{ $balance->remaining_days }} days
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-ghost-strong" onclick="editBalance({{ $balance->id }}, {{ $balance->entitlement_days }}, {{ $balance->carried_forward }})">
+                                            <i class="bi bi-pencil"></i> Edit
+                                        </button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">No leave balances set for this staff member.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Edit Balance Modal -->
 <div class="modal fade" id="editBalanceModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -102,8 +111,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update</button>
+                    <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-settings-primary">Update</button>
                 </div>
             </form>
         </div>

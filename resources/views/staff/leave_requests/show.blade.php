@@ -1,120 +1,131 @@
 @extends('layouts.app')
 
-@section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-0">Leave Request Details</h2>
-            <small class="text-muted">View and manage leave request</small>
-        </div>
-        <a href="{{ route('staff.leave-requests.index') }}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left"></i> Back
-        </a>
-    </div>
+@push('styles')
+    @include('settings.partials.styles')
+@endpush
 
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Request Information</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Staff Member</label>
-                            <div class="fw-semibold">{{ $leaveRequest->staff->full_name }}</div>
-                            <small class="text-muted">{{ $leaveRequest->staff->staff_id }}</small>
+@section('content')
+<div class="settings-page">
+    <div class="settings-shell">
+        <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div>
+                <div class="crumb">HR & Payroll / Staff</div>
+                <h1 class="mb-1">Leave Request Details</h1>
+                <p class="text-muted mb-0">Review and act on this leave request.</p>
+            </div>
+            <a href="{{ route('staff.leave-requests.index') }}" class="btn btn-ghost-strong">
+                <i class="bi bi-arrow-left"></i> Back
+            </a>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-8">
+                <div class="settings-card">
+                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <h5 class="mb-0">Request Information</h5>
+                            <p class="text-muted small mb-0">Staff, type, period, and notes.</p>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Leave Type</label>
-                            <div><span class="badge bg-info">{{ $leaveRequest->leaveType->name }}</span></div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Start Date</label>
-                            <div class="fw-semibold">{{ $leaveRequest->start_date->format('d M Y') }}</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">End Date</label>
-                            <div class="fw-semibold">{{ $leaveRequest->end_date->format('d M Y') }}</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Days Requested</label>
-                            <div><span class="badge bg-primary fs-6">{{ $leaveRequest->days_requested }} days</span></div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Status</label>
-                            <div>
+                        <span class="pill-badge pill-secondary">Ref #{{ $leaveRequest->id }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Staff Member</label>
+                                <div class="fw-semibold">{{ $leaveRequest->staff->full_name }}</div>
+                                <small class="text-muted">{{ $leaveRequest->staff->staff_id }}</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Leave Type</label>
+                                <div><span class="pill-badge pill-info">{{ $leaveRequest->leaveType->name }}</span></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Start Date</label>
+                                <div class="fw-semibold">{{ $leaveRequest->start_date->format('d M Y') }}</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">End Date</label>
+                                <div class="fw-semibold">{{ $leaveRequest->end_date->format('d M Y') }}</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Days Requested</label>
+                                <div><span class="pill-badge pill-primary fs-6">{{ $leaveRequest->days_requested }} days</span></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="text-muted small">Status</label>
                                 @php
                                     $statusColors = [
-                                        'pending' => 'warning',
-                                        'approved' => 'success',
-                                        'rejected' => 'danger',
-                                        'cancelled' => 'secondary'
+                                        'pending' => 'pill-warning',
+                                        'approved' => 'pill-success',
+                                        'rejected' => 'pill-danger',
+                                        'cancelled' => 'pill-secondary'
                                     ];
                                 @endphp
-                                <span class="badge bg-{{ $statusColors[$leaveRequest->status] ?? 'secondary' }} fs-6">
-                                    {{ ucfirst($leaveRequest->status) }}
-                                </span>
+                                <div>
+                                    <span class="pill-badge {{ $statusColors[$leaveRequest->status] ?? 'pill-secondary' }} fs-6">
+                                        {{ ucfirst($leaveRequest->status) }}
+                                    </span>
+                                </div>
                             </div>
+                            @if($leaveRequest->reason)
+                                <div class="col-md-12 mb-3">
+                                    <label class="text-muted small">Reason</label>
+                                    <div>{{ $leaveRequest->reason }}</div>
+                                </div>
+                            @endif
+                            @if($leaveRequest->approvedBy)
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">Approved By</label>
+                                    <div>{{ $leaveRequest->approvedBy->name }}</div>
+                                    <small class="text-muted">{{ $leaveRequest->approved_at->format('d M Y, H:i') }}</small>
+                                </div>
+                            @endif
+                            @if($leaveRequest->rejectedBy)
+                                <div class="col-md-6 mb-3">
+                                    <label class="text-muted small">Rejected By</label>
+                                    <div>{{ $leaveRequest->rejectedBy->name }}</div>
+                                    <small class="text-muted">{{ $leaveRequest->rejected_at->format('d M Y, H:i') }}</small>
+                                </div>
+                                @if($leaveRequest->rejection_reason)
+                                    <div class="col-md-12 mb-3">
+                                        <label class="text-muted small">Rejection Reason</label>
+                                        <div class="text-danger">{{ $leaveRequest->rejection_reason }}</div>
+                                    </div>
+                                @endif
+                            @endif
+                            @if($leaveRequest->admin_notes)
+                                <div class="col-md-12 mb-3">
+                                    <label class="text-muted small">Admin Notes</label>
+                                    <div>{{ $leaveRequest->admin_notes }}</div>
+                                </div>
+                            @endif
                         </div>
-                        @if($leaveRequest->reason)
-                        <div class="col-md-12 mb-3">
-                            <label class="text-muted small">Reason</label>
-                            <div>{{ $leaveRequest->reason }}</div>
-                        </div>
-                        @endif
-                        @if($leaveRequest->approvedBy)
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Approved By</label>
-                            <div>{{ $leaveRequest->approvedBy->name }}</div>
-                            <small class="text-muted">{{ $leaveRequest->approved_at->format('d M Y, H:i') }}</small>
-                        </div>
-                        @endif
-                        @if($leaveRequest->rejectedBy)
-                        <div class="col-md-6 mb-3">
-                            <label class="text-muted small">Rejected By</label>
-                            <div>{{ $leaveRequest->rejectedBy->name }}</div>
-                            <small class="text-muted">{{ $leaveRequest->rejected_at->format('d M Y, H:i') }}</small>
-                        </div>
-                        @if($leaveRequest->rejection_reason)
-                        <div class="col-md-12 mb-3">
-                            <label class="text-muted small">Rejection Reason</label>
-                            <div class="text-danger">{{ $leaveRequest->rejection_reason }}</div>
-                        </div>
-                        @endif
-                        @endif
-                        @if($leaveRequest->admin_notes)
-                        <div class="col-md-12 mb-3">
-                            <label class="text-muted small">Admin Notes</label>
-                            <div>{{ $leaveRequest->admin_notes }}</div>
-                        </div>
-                        @endif
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="col-md-4">
-            @if($leaveRequest->status === 'pending')
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Actions</h5>
+            <div class="col-md-4">
+                @if($leaveRequest->status === 'pending')
+                <div class="settings-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Actions</h5>
+                        <span class="pill-badge pill-warning">Pending</span>
+                    </div>
+                    <div class="card-body">
+                        <button type="button" class="btn btn-success w-100 mb-2" onclick="approveRequest({{ $leaveRequest->id }})">
+                            <i class="bi bi-check-circle"></i> Approve Request
+                        </button>
+                        <button type="button" class="btn btn-danger w-100" onclick="rejectRequest({{ $leaveRequest->id }})">
+                            <i class="bi bi-x-circle"></i> Reject Request
+                        </button>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <button type="button" class="btn btn-success w-100 mb-2" onclick="approveRequest({{ $leaveRequest->id }})">
-                        <i class="bi bi-check-circle"></i> Approve Request
-                    </button>
-                    <button type="button" class="btn btn-danger w-100" onclick="rejectRequest({{ $leaveRequest->id }})">
-                        <i class="bi bi-x-circle"></i> Reject Request
-                    </button>
-                </div>
+                @endif
             </div>
-            @endif
         </div>
     </div>
 </div>
 
-<!-- Approve Modal -->
 <div class="modal fade" id="approveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -132,7 +143,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-success">Approve</button>
                 </div>
             </form>
@@ -140,7 +151,6 @@
     </div>
 </div>
 
-<!-- Reject Modal -->
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -158,7 +168,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-danger">Reject</button>
                 </div>
             </form>

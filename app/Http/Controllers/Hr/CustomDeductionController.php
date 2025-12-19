@@ -30,7 +30,10 @@ class CustomDeductionController extends Controller
         }
 
         $deductions = $query->orderBy('created_at', 'desc')->paginate(20);
-        $staff = Staff::where('status', 'active')->orderBy('name')->get();
+        $staff = Staff::where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
         $types = DeductionType::where('is_active', true)->orderBy('name')->get();
 
         return view('hr.payroll.custom-deductions.index', compact('deductions', 'staff', 'types'));
@@ -38,7 +41,10 @@ class CustomDeductionController extends Controller
 
     public function create()
     {
-        $staff = Staff::where('status', 'active')->orderBy('name')->get();
+        $staff = Staff::where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
         $types = DeductionType::where('is_active', true)->where('is_statutory', false)->orderBy('name')->get();
         $advances = \App\Models\StaffAdvance::where('status', 'active')
             ->where('balance', '>', 0)
@@ -94,7 +100,10 @@ class CustomDeductionController extends Controller
             return back()->with('error', 'Only active deductions can be edited.');
         }
 
-        $staff = Staff::where('status', 'active')->orderBy('name')->get();
+        $staff = Staff::where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
         $types = DeductionType::where('is_active', true)->where('is_statutory', false)->orderBy('name')->get();
         $advances = \App\Models\StaffAdvance::where('status', 'active')
             ->where('balance', '>', 0)
