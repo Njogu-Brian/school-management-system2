@@ -289,6 +289,89 @@
         .avatar-36 { width:36px; height:36px; border-radius:50%; object-fit:cover; display:inline-block; }
         .avatar-44 { width:44px; height:44px; border-radius:50%; object-fit:cover; display:inline-block; }
 
+        /* Guided navigation */
+        .guided-tour-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+            color: #fff;
+            border: none;
+            padding: 8px 12px;
+            font-weight: 600;
+            box-shadow: 0 10px 18px rgba(0,0,0,0.12);
+        }
+        .guided-tour-panel {
+            position: fixed;
+            right: 18px;
+            bottom: 24px;
+            width: min(440px, 90vw);
+            background: linear-gradient(135deg, var(--brand-primary) 0%, color-mix(in srgb, var(--brand-primary) 70%, var(--brand-accent) 30%) 100%);
+            color: #fff;
+            border-radius: 16px;
+            box-shadow: 0 18px 45px rgba(0,0,0,0.25);
+            padding: 16px 18px;
+            display: none;
+            z-index: 3000;
+        }
+        .guided-tour-panel.active { display: block; }
+        .guided-tour-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .guided-tour-step {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+        .guided-tour-list {
+            margin: 0;
+            padding-left: 1.1rem;
+            color: rgba(255,255,255,0.9);
+            font-size: 13px;
+        }
+        .guided-tour-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .guided-tour-actions .btn-light {
+            color: var(--brand-primary);
+            font-weight: 600;
+        }
+        .guided-tour-progress {
+            width: 6px;
+            background: rgba(255,255,255,0.25);
+            border-radius: 999px;
+            position: relative;
+            flex-shrink: 0;
+            height: 100%;
+            min-height: 120px;
+        }
+        .guided-tour-progress .bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: #fff;
+            border-radius: 999px;
+            transition: height 0.25s ease;
+        }
+        .guided-tour-close {
+            background: transparent;
+            border: none;
+            color: rgba(255,255,255,0.8);
+        }
+
         @media(max-width:992px){
             .sidebar{ left:-240px; }
             .sidebar.active{ left:0; }
@@ -330,6 +413,136 @@
   @include('layouts.partials.nav-admin')
 @endif
 
+@php
+    $guidedTourSteps = [
+        [
+            'title' => 'Dashboard overview',
+            'route_name' => 'admin.dashboard',
+            'summary' => 'Start here to see KPIs, shortcuts, and quick links for every module.',
+            'highlights' => [
+                'Live stats for admissions, finance, HR, and teaching.',
+                'Tiles link directly into deeper module pages.'
+            ],
+        ],
+        [
+            'title' => 'Students & admissions',
+            'route_name' => 'students.index',
+            'summary' => 'View and manage student records with sibling and online admission links.',
+            'highlights' => [
+                'Find students fast, open profiles, and jump to medical/discipline tabs.',
+                'Admissions: capture new students or bulk-import from spreadsheets.'
+            ],
+        ],
+        [
+            'title' => 'Attendance & follow-up',
+            'route_name' => 'attendance.mark.form',
+            'summary' => 'Record attendance, review trends, and notify guardians about issues.',
+            'highlights' => [
+                'Mark daily attendance or back-fill missed days.',
+                'Check at-risk students and send notifications to recipients.'
+            ],
+        ],
+        [
+            'title' => 'Academics setup',
+            'route_name' => 'academics.classrooms.index',
+            'summary' => 'Build classrooms, streams, subjects, and assign teachers.',
+            'highlights' => [
+                'Create subject groups and map teachers to classes.',
+                'Maintain promotions and timetables for learning continuity.'
+            ],
+        ],
+        [
+            'title' => 'Exams & results',
+            'route_name' => 'academics.exams.index',
+            'summary' => 'Plan exams, enter marks, and publish timetables and result slips.',
+            'highlights' => [
+                'Set exam types and grades, then collect marks in bulk.',
+                'Share results and analytics with teachers and guardians.'
+            ],
+        ],
+        [
+            'title' => 'Finance workspace',
+            'route_name' => 'finance.dashboard',
+            'summary' => 'End-to-end fee setup, posting, invoicing, payments, and reminders.',
+            'highlights' => [
+                'Configure voteheads and fee structures, then post to active terms.',
+                'Track invoices, receipts, concessions, and payment plans.'
+            ],
+        ],
+        [
+            'title' => 'HR & staff records',
+            'route_name' => 'staff.index',
+            'summary' => 'Manage staff profiles, roles, leave, attendance, and approvals.',
+            'highlights' => [
+                'Assign permissions, control access lookups, and review requests.',
+                'Track leave balances, attendance, and documents centrally.'
+            ],
+        ],
+        [
+            'title' => 'Payroll processing',
+            'route_name' => 'hr.payroll.records.index',
+            'summary' => 'Run payroll periods, advances, and deductions with audit trails.',
+            'highlights' => [
+                'Maintain salary structures and deduction types.',
+                'Process advances and generate payroll records per period.'
+            ],
+        ],
+        [
+            'title' => 'Communication hub',
+            'route_name' => 'communication.send.email',
+            'summary' => 'Send announcements by email/SMS and keep templates consistent.',
+            'highlights' => [
+                'Use saved templates for bulk sends.',
+                'Review delivery logs and announcements in one place.'
+            ],
+        ],
+        [
+            'title' => 'Transport operations',
+            'route_name' => 'transport.dashboard',
+            'summary' => 'Oversee routes, vehicles, and student assignments for trips.',
+            'highlights' => [
+                'Create vehicles and routes, then schedule trips.',
+                'Assign students to stops and track utilization.'
+            ],
+        ],
+        [
+            'title' => 'Inventory & requirements',
+            'route_name' => 'inventory.items.index',
+            'summary' => 'Track items, student requirements, and requisitions.',
+            'highlights' => [
+                'Set requirement templates and collect items from students.',
+                'Raise requisitions and monitor fulfillment status.'
+            ],
+        ],
+        [
+            'title' => 'Point of Sale',
+            'route_name' => 'pos.products.index',
+            'summary' => 'Manage school shop products, uniforms, and orders.',
+            'highlights' => [
+                'Configure products and discounts.',
+                'Share public links or record in-person sales.'
+            ],
+        ],
+        [
+            'title' => 'System settings',
+            'route_name' => 'settings.index',
+            'summary' => 'Keep school info, academic terms, backups, and logs in sync.',
+            'highlights' => [
+                'Update school profile, academic years, and calendars.',
+                'Super admins can back up, restore, and audit activity.'
+            ],
+        ],
+    ];
+
+    $guidedTourSteps = array_values(array_filter(array_map(function ($step) {
+        if (!\Illuminate\Support\Facades\Route::has($step['route_name'])) {
+            return null;
+        }
+        $step['url'] = route($step['route_name']);
+        return $step;
+    }, $guidedTourSteps)));
+@endphp
+
 
         <!-- Logout -->
         <a href="#" onclick="event.preventDefault();document.getElementById('logout-form').submit();" class="text-danger">
@@ -343,6 +556,11 @@
         @auth
         <div class="app-header d-flex align-items-center gap-3 mb-3">
             <div class="header-actions ms-auto">
+                @if(!empty($guidedTourSteps))
+                <button class="guided-tour-toggle btn btn-sm" type="button" id="guidedTourStart">
+                    <i class="bi bi-compass"></i> Guide me
+                </button>
+                @endif
                 <div class="dropdown header-alerts">
                     <button class="btn btn-ghost-strong btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-bell"></i> Alerts
@@ -390,10 +608,46 @@
             </div>
         </div>
         @endauth
+        @if(!empty($guidedTourSteps))
+        <div id="guidedTourPanel" class="guided-tour-panel">
+            <div class="d-flex gap-3 align-items-start">
+                <div class="flex-grow-1">
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="guided-tour-badge">
+                            <i class="bi bi-compass"></i>
+                            Guided navigation
+                        </span>
+                        <span class="guided-tour-step" id="guidedTourPosition"></span>
+                    </div>
+                    <h6 class="mb-1" id="guidedTourTitle"></h6>
+                    <p class="small mb-2" id="guidedTourSummary" style="color: rgba(255,255,255,0.9);"></p>
+                    <ul class="guided-tour-list mb-3" id="guidedTourHighlights"></ul>
+                    <div class="guided-tour-actions">
+                        <a id="guidedTourOpen" class="btn btn-light btn-sm" href="#">
+                            <i class="bi bi-box-arrow-up-right"></i> Open this step
+                        </a>
+                        <button id="guidedTourNext" class="btn btn-outline-light btn-sm" type="button">
+                            Next
+                        </button>
+                        <button id="guidedTourPrev" class="btn btn-outline-light btn-sm" type="button">
+                            Back
+                        </button>
+                        <button id="guidedTourClose" class="guided-tour-close" type="button">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="guided-tour-progress">
+                    <div class="bar" id="guidedTourProgressBar" style="height: 0;"></div>
+                </div>
+            </div>
+        </div>
+        @endif
         <div class="page-wrapper @if(request()->is('finance*') || request()->is('voteheads*')) finance-page @endif">@yield('content')</div>
     </div>
 
     <script>
+        const guidedTourSteps = @json($guidedTourSteps ?? []);
         document.addEventListener('DOMContentLoaded', function () {
             const toggles = document.querySelectorAll("#sidebarToggle, .sidebar-toggle");
             const sidebar = document.querySelector(".sidebar");
@@ -437,6 +691,116 @@
                         profileMenu.style.display = 'none';
                     }
                 });
+            }
+        })();
+
+        (function(){
+            if (!guidedTourSteps.length) return;
+            const panel = document.getElementById('guidedTourPanel');
+            const startBtn = document.getElementById('guidedTourStart');
+            if (!panel || !startBtn) return;
+
+            const titleEl = document.getElementById('guidedTourTitle');
+            const summaryEl = document.getElementById('guidedTourSummary');
+            const highlightsEl = document.getElementById('guidedTourHighlights');
+            const positionEl = document.getElementById('guidedTourPosition');
+            const progressBar = document.getElementById('guidedTourProgressBar');
+            const openBtn = document.getElementById('guidedTourOpen');
+            const nextBtn = document.getElementById('guidedTourNext');
+            const prevBtn = document.getElementById('guidedTourPrev');
+            const closeBtn = document.getElementById('guidedTourClose');
+
+            const storageKey = 'guidedTourState';
+            let state = { active: false, index: 0 };
+            try {
+                const stored = JSON.parse(localStorage.getItem(storageKey));
+                if (stored && typeof stored.index === 'number') {
+                    state = { ...state, ...stored };
+                }
+            } catch (e) { /* ignore */ }
+
+            const clampIndex = () => {
+                if (state.index >= guidedTourSteps.length) state.index = guidedTourSteps.length - 1;
+                if (state.index < 0) state.index = 0;
+            };
+
+            const persist = () => localStorage.setItem(storageKey, JSON.stringify(state));
+
+            const render = () => {
+                clampIndex();
+                const step = guidedTourSteps[state.index];
+                if (!step) return;
+                positionEl.textContent = `${state.index + 1} of ${guidedTourSteps.length}`;
+                titleEl.textContent = step.title;
+                summaryEl.textContent = step.summary;
+                highlightsEl.innerHTML = '';
+                (step.highlights || []).forEach(text => {
+                    const li = document.createElement('li');
+                    li.textContent = text;
+                    highlightsEl.appendChild(li);
+                });
+                if (progressBar) {
+                    const pct = ((state.index + 1) / guidedTourSteps.length) * 100;
+                    progressBar.style.height = `${pct}%`;
+                }
+                if (openBtn && step.url) {
+                    openBtn.href = step.url;
+                }
+                prevBtn.disabled = state.index === 0;
+                nextBtn.textContent = state.index === guidedTourSteps.length - 1 ? 'Finish' : 'Next';
+            };
+
+            const openPanel = () => {
+                panel.classList.add('active');
+                state.active = true;
+                persist();
+                render();
+            };
+            const closePanel = () => {
+                panel.classList.remove('active');
+                state.active = false;
+                persist();
+            };
+
+            startBtn.addEventListener('click', () => {
+                if (panel.classList.contains('active')) {
+                    closePanel();
+                } else {
+                    openPanel();
+                }
+            });
+
+            nextBtn?.addEventListener('click', () => {
+                if (state.index < guidedTourSteps.length - 1) {
+                    state.index += 1;
+                    persist();
+                    render();
+                    window.location.href = guidedTourSteps[state.index].url;
+                } else {
+                    closePanel();
+                }
+            });
+
+            prevBtn?.addEventListener('click', () => {
+                state.index = Math.max(0, state.index - 1);
+                persist();
+                render();
+                window.location.href = guidedTourSteps[state.index].url;
+            });
+
+            openBtn?.addEventListener('click', (e) => {
+                if (!guidedTourSteps[state.index]?.url) return;
+                persist();
+                // allow anchor navigation but remember state
+            });
+
+            closeBtn?.addEventListener('click', closePanel);
+            document.addEventListener('keyup', (e) => {
+                if (e.key === 'Escape' && panel.classList.contains('active')) closePanel();
+            });
+
+            if (state.active) {
+                openPanel();
             }
         })();
     </script>

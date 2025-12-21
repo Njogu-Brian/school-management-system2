@@ -12,6 +12,14 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('parent_info', function (Blueprint $table) {
+            // Ensure guardian_email/guardian_relationship exist so "after" clauses are valid
+            if (!Schema::hasColumn('parent_info', 'guardian_email')) {
+                $table->string('guardian_email')->nullable()->after('guardian_phone');
+            }
+            if (!Schema::hasColumn('parent_info', 'guardian_relationship')) {
+                $table->string('guardian_relationship')->nullable()->after('guardian_email');
+            }
+
             // Father extended info
             if (!Schema::hasColumn('parent_info', 'father_occupation')) {
                 $table->string('father_occupation')->nullable()->after('father_id_number');

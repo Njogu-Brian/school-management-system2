@@ -9,7 +9,11 @@ class UpdateParentInfoTable extends Migration
     public function up()
     {
         Schema::table('parent_info', function (Blueprint $table) {
-            // Check if the column does not exist before adding it
+            // Ensure guardian_email exists before using it in "after" clauses
+            if (!Schema::hasColumn('parent_info', 'guardian_email')) {
+                $table->string('guardian_email')->nullable()->after('guardian_phone');
+            }
+
             if (!Schema::hasColumn('parent_info', 'guardian_relationship')) {
                 $table->string('guardian_relationship')->nullable()->after('guardian_email');
             }
