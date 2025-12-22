@@ -89,16 +89,14 @@ class DemoDataSeeder extends Seeder
 
             // 3) Classes & streams
             $classrooms = collect([
-                ['name' => 'Grade 4', 'description' => 'Upper Primary', 'capacity' => 45],
-                ['name' => 'Grade 6', 'description' => 'Upper Primary', 'capacity' => 45],
-                ['name' => 'Form 1', 'description' => 'Secondary', 'capacity' => 50],
+                ['name' => 'Grade 4', 'level_type' => 'upper_primary'],
+                ['name' => 'Grade 6', 'level_type' => 'upper_primary'],
+                ['name' => 'Form 1', 'level_type' => 'junior_high'],
             ])->map(function (array $data) {
                 return \App\Models\Academics\Classroom::firstOrCreate(
                     ['name' => $data['name']],
                     [
-                        'description' => $data['description'],
-                        'capacity' => $data['capacity'],
-                        'is_active' => true,
+                        'level_type' => $data['level_type'],
                     ]
                 );
             });
@@ -108,8 +106,7 @@ class DemoDataSeeder extends Seeder
                 foreach (['North', 'South'] as $streamName) {
                     $streams->push(
                         \App\Models\Academics\Stream::firstOrCreate(
-                            ['name' => $streamName, 'classroom_id' => $classroom->id],
-                            ['capacity' => 25, 'is_active' => true]
+                            ['name' => $streamName, 'classroom_id' => $classroom->id]
                         )
                     );
                 }
