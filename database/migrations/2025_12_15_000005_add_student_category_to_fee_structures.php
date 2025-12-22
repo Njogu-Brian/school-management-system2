@@ -20,10 +20,14 @@ return new class extends Migration
             
             // Update unique constraint to include category
             // Drop old constraint first if it exists
-            try {
-                $table->dropUnique('unique_active_structure');
-            } catch (\Exception $e) {
-                // Constraint may not exist
+            // Only drop unique_active_structure if not required by a foreign key
+            $fkCheck = DB::selectOne("SELECT COUNT(*) as count FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fee_structures' AND CONSTRAINT_NAME = 'unique_active_structure' AND REFERENCED_TABLE_NAME IS NOT NULL");
+            if (!$fkCheck || !$fkCheck->count) {
+                try {
+                    $table->dropUnique('unique_active_structure');
+                } catch (\Exception $e) {
+                    // Constraint may not exist
+                }
             }
             
             // Add new unique constraint with category
