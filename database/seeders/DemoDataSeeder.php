@@ -348,7 +348,7 @@ class DemoDataSeeder extends Seeder
                     $invoice->update([
                         'paid_amount' => $paymentAmount,
                         'balance' => max(0, $total - $paymentAmount),
-                        'status' => 'partially_paid',
+                        'status' => 'partial',
                     ]);
                 }
             });
