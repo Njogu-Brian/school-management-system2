@@ -72,21 +72,17 @@ class DemoDataSeeder extends Seeder
             $academicYear = AcademicYear::firstOrCreate(
                 ['year' => $currentYear],
                 [
-                    'name' => "{$currentYear}/" . ($currentYear + 1),
-                    'start_date' => "{$currentYear}-01-01",
-                    'end_date' => ($currentYear + 1) . "-12-31",
                     'is_active' => true,
                 ]
             );
 
             $terms = collect([1, 2, 3])->map(function (int $termNumber) use ($academicYear) {
                 return Term::firstOrCreate(
-                    ['academic_year_id' => $academicYear->id, 'term_number' => $termNumber],
+                    ['academic_year_id' => $academicYear->id, 'name' => "Term {$termNumber}"],
                     [
-                        'name' => "Term {$termNumber}",
                         'start_date' => Carbon::parse("first day of January {$academicYear->year}")->addMonths(($termNumber - 1) * 4),
                         'end_date' => Carbon::parse("first day of January {$academicYear->year}")->addMonths($termNumber * 4)->subDay(),
-                        'is_active' => $termNumber === 1,
+                        'is_current' => $termNumber === 1,
                     ]
                 );
             });
@@ -167,6 +163,7 @@ class DemoDataSeeder extends Seeder
                 return Staff::firstOrCreate(
                     ['user_id' => $user->id],
                     [
+                        'staff_id' => 'STAFF-' . str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
                         'first_name' => $names[0] ?? 'Staff',
                         'middle_name' => $names[1] ?? null,
                         'last_name' => $names[2] ?? 'Demo',
