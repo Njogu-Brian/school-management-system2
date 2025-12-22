@@ -63,14 +63,9 @@ class DemoDataSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
-            // 1) Baseline reference data & permissions
-            $this->call([
-                RolesAndPermissionsSeeder::class,
-                PermissionSeeder::class,
-                PaymentMethodSeeder::class,
-                VoteheadCategorySeeder::class,
-                CBCComprehensiveSeeder::class,
-            ]);
+            // Note: Reference data seeders (roles, permissions, payment methods, etc.) 
+            // are called by DatabaseSeeder before this seeder runs.
+            // This seeder focuses on creating demo data (students, staff, invoices, etc.)
 
             // 2) Academic calendar
             $currentYear = (int) now()->format('Y');
