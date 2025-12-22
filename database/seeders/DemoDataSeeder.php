@@ -53,6 +53,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Role;
 
 class DemoDataSeeder extends Seeder
@@ -62,7 +63,6 @@ class DemoDataSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::transaction(function () {
             // 1) Baseline reference data & permissions
             $this->call([
                 RolesAndPermissionsSeeder::class,
@@ -72,14 +72,33 @@ class DemoDataSeeder extends Seeder
                 CBCComprehensiveSeeder::class,
             ]);
 
+            // Ensure hashed_id columns exist for invoices and payments (some envs may lack later migrations)
+            if (!Schema::hasColumn('invoices', 'hashed_id')) {
+                Schema::table('invoices', function ($table) {
+                    $table->string('hashed_id')->nullable();
+                });
+            }
+            if (!Schema::hasColumn('payments', 'hashed_id')) {
+                Schema::table('payments', function ($table) {
+                    $table->string('hashed_id')->nullable();
+                });
+            }
+            if (!Schema::hasColumn('payments', 'public_token')) {
+                Schema::table('payments', function ($table) {
+                    $table->string('public_token')->nullable();
+                });
+            }
+            if (!Schema::hasColumn('payments', 'receipt_date')) {
+                Schema::table('payments', function ($table) {
+                    $table->timestamp('receipt_date')->nullable();
+                });
+            }
+
             // 2) Academic calendar
             $currentYear = (int) now()->format('Y');
             $academicYear = AcademicYear::firstOrCreate(
                 ['year' => $currentYear],
                 [
-                    'name' => "{$currentYear}/" . ($currentYear + 1),
-                    'start_date' => "{$currentYear}-01-01",
-                    'end_date' => ($currentYear + 1) . "-12-31",
                     'is_active' => true,
                 ]
             );
@@ -97,17 +116,12 @@ class DemoDataSeeder extends Seeder
 
             // 3) Classes & streams
             $classrooms = collect([
-                ['name' => 'Grade 4', 'description' => 'Upper Primary', 'capacity' => 45],
-                ['name' => 'Grade 6', 'description' => 'Upper Primary', 'capacity' => 45],
-                ['name' => 'Form 1', 'description' => 'Secondary', 'capacity' => 50],
+                ['name' => 'Grade 4'],
+                ['name' => 'Grade 6'],
+                ['name' => 'Form 1'],
             ])->map(function (array $data) {
                 return \App\Models\Academics\Classroom::firstOrCreate(
-                    ['name' => $data['name']],
-                    [
-                        'description' => $data['description'],
-                        'capacity' => $data['capacity'],
-                        'is_active' => true,
-                    ]
+                    ['name' => $data['name']]
                 );
             });
 
@@ -116,8 +130,7 @@ class DemoDataSeeder extends Seeder
                 foreach (['North', 'South'] as $streamName) {
                     $streams->push(
                         \App\Models\Academics\Stream::firstOrCreate(
-                            ['name' => $streamName, 'classroom_id' => $classroom->id],
-                            ['capacity' => 25, 'is_active' => true]
+                            ['name' => $streamName, 'classroom_id' => $classroom->id]
                         )
                     );
                 }
@@ -171,15 +184,13 @@ class DemoDataSeeder extends Seeder
                 return Staff::firstOrCreate(
                     ['user_id' => $user->id],
                     [
+                        'staff_id' => 'STF-' . str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
                         'first_name' => $names[0] ?? 'Staff',
                         'middle_name' => $names[1] ?? null,
                         'last_name' => $names[2] ?? 'Demo',
                         'phone_number' => '07' . rand(10, 99) . rand(100000, 999999),
-                        'work_email' => $user->email,
+                        'email' => $user->email,
                         'status' => 'active',
-                        'employment_status' => 'active',
-                        'employment_type' => 'full_time',
-                        'hire_date' => Carbon::now()->subYears(rand(1, 5)),
                     ]
                 );
             });
@@ -239,6 +250,7 @@ class DemoDataSeeder extends Seeder
                 return Student::updateOrCreate(
                     ['admission_number' => $admission],
                     [
+                        'name' => $name['first'] . ' ' . $name['last'],
                         'first_name' => $name['first'],
                         'last_name' => $name['last'],
                         'gender' => $name['gender'],
@@ -295,6 +307,7 @@ class DemoDataSeeder extends Seeder
                     'term_id' => $terms->first()->id,
                 ],
                 [
+                    'year' => $academicYear->year,
                     'is_active' => true,
                     'version' => 1,
                 ]
@@ -392,8 +405,10 @@ class DemoDataSeeder extends Seeder
                 StudentAssignment::firstOrCreate(
                     ['student_id' => $student->id],
                     [
+                        'trip_id' => $trip->id,
                         'morning_trip_id' => $trip->id,
                         'evening_trip_id' => $trip->id,
+                        'drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
                         'morning_drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
                         'evening_drop_off_point_id' => $dropPoints[$index % $dropPoints->count()]->id,
                     ]
@@ -637,9 +652,6 @@ class DemoDataSeeder extends Seeder
                     'status' => 'complete',
                     'collected_at' => Carbon::now()->subDay(),
                     'notified_parent' => true,
-                    'purchased_through_pos' => true,
-                    'pos_order_id' => $posOrder->id,
-                    'pos_order_item_id' => $orderItem->id,
                 ]
             );
 
@@ -822,14 +834,12 @@ class DemoDataSeeder extends Seeder
             DB::table('announcements')->updateOrInsert(
                 ['content' => 'Hii ni data ya majaribio ili uone moduli zote na taarifa halisi.'],
                 [
-                    'title' => 'Welcome to Demo Mode',
                     'active' => true,
                     'expires_at' => Carbon::now()->addMonth(),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]
             );
-        });
     }
 }
 

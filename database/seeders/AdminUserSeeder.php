@@ -41,7 +41,7 @@ class AdminUserSeeder extends Seeder
                 'staff_id' => 'ADM-001',
                 'first_name' => 'System',
                 'last_name' => 'Admin',
-                'work_email' => 'admin@school.com',
+                'email' => 'admin@school.com',
                 'phone_number' => '0700000000',
                 'status' => 'active',
             ]
