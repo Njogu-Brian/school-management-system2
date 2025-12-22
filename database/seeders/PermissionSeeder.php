@@ -3,48 +3,51 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\Permission;
+use Spatie\Permission\Models\Permission;
 
 class PermissionSeeder extends Seeder
 {
     public function run()
     {
-        $data = [
-            ['module' => 'communication', 'feature' => 'send_email'],
-            ['module' => 'communication', 'feature' => 'send_sms'],
-            ['module' => 'communication', 'feature' => 'logs'],
-            ['module' => 'communication', 'feature' => 'email_template'],
-            ['module' => 'communication', 'feature' => 'sms_template'],
-            ['module' => 'communication', 'feature' => 'announcements'],
+        // Convert module/feature format to Spatie Permission name format
+        $permissions = [
+            'communication.send_email',
+            'communication.send_sms',
+            'communication.logs',
+            'communication.email_template',
+            'communication.sms_template',
+            'communication.announcements',
 
-            ['module' => 'staff', 'feature' => 'manage_staff'],
-            ['module' => 'staff', 'feature' => 'upload_staff'],
+            'staff.manage_staff',
+            'staff.upload_staff',
 
-            ['module' => 'students', 'feature' => 'manage_students'],
+            'students.manage_students',
 
-            ['module' => 'attendance', 'feature' => 'mark_attendance'],
-            ['module' => 'attendance', 'feature' => 'view_attendance'],
+            'attendance.mark_attendance',
+            'attendance.view_attendance',
 
-            ['module' => 'transport', 'feature' => 'vehicles'],
-            ['module' => 'transport', 'feature' => 'routes'],
-            ['module' => 'transport', 'feature' => 'trips'],
+            'transport.vehicles',
+            'transport.routes',
+            'transport.trips',
 
-            ['module' => 'kitchen', 'feature' => 'daily_summary'],
+            'kitchen.daily_summary',
 
-            ['module' => 'academics', 'feature' => 'classrooms'],
-            ['module' => 'academics', 'feature' => 'streams'],
-            ['module' => 'academics', 'feature' => 'student_categories'],
+            'academics.classrooms',
+            'academics.streams',
+            'academics.student_categories',
 
-            ['module' => 'admissions', 'feature' => 'online_admission'],
+            'admissions.online_admission',
 
-            ['module' => 'settings', 'feature' => 'general'],
-            ['module' => 'settings', 'feature' => 'regional'],
-            ['module' => 'settings', 'feature' => 'branding'],
-            ['module' => 'settings', 'feature' => 'roles_permissions'],
+            'settings.general',
+            'settings.regional',
+            'settings.branding',
+            'settings.roles_permissions',
         ];
 
-        foreach ($data as $perm) {
-            Permission::firstOrCreate($perm);
+        foreach ($permissions as $permName) {
+            Permission::firstOrCreate(
+                ['name' => $permName, 'guard_name' => 'web']
+            );
         }
     }
 }
