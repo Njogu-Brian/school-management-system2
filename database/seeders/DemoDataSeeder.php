@@ -252,13 +252,15 @@ class DemoDataSeeder extends Seeder
             }
 
             // 10) Finance: voteheads, fee structures, invoices & payments
-            $voteheads = collect([
+            $voteheadData = collect([
                 ['code' => 'TUIT', 'name' => 'Tuition', 'amount' => 15000],
                 ['code' => 'TRAN', 'name' => 'Transport', 'amount' => 4000],
                 ['code' => 'HOS', 'name' => 'Hostel', 'amount' => 12000],
                 ['code' => 'LIB', 'name' => 'Library', 'amount' => 1500],
                 ['code' => 'ACT', 'name' => 'Activities', 'amount' => 2500],
-            ])->map(function (array $vh) {
+            ]);
+
+            $voteheads = $voteheadData->map(function (array $vh) {
                 return Votehead::updateOrCreate(
                     ['code' => $vh['code']],
                     [
@@ -267,7 +269,6 @@ class DemoDataSeeder extends Seeder
                         'category' => 'Tuition',
                         'is_mandatory' => true,
                         'charge_type' => 'per_student',
-                        'default_amount' => $vh['amount'],
                         'is_active' => true,
                     ]
                 );
@@ -286,10 +287,11 @@ class DemoDataSeeder extends Seeder
                 ]
             );
 
-            foreach ($voteheads as $votehead) {
+            foreach ($voteheads as $index => $votehead) {
+                $amount = $voteheadData[$index]['amount'];
                 FeeCharge::firstOrCreate(
                     ['fee_structure_id' => $feeStructure->id, 'votehead_id' => $votehead->id],
-                    ['term' => 1, 'amount' => $votehead->default_amount ?? 1000]
+                    ['term' => 1, 'amount' => $amount]
                 );
             }
 
@@ -315,8 +317,8 @@ class DemoDataSeeder extends Seeder
                 );
 
                 $total = 0;
-                foreach ($voteheads as $votehead) {
-                    $amount = $votehead->default_amount ?? 1000;
+                foreach ($voteheads as $index => $votehead) {
+                    $amount = $voteheadData[$index]['amount'];
                     InvoiceItem::firstOrCreate(
                         ['invoice_id' => $invoice->id, 'votehead_id' => $votehead->id],
                         ['amount' => $amount, 'discount_amount' => 0, 'status' => 'active', 'effective_date' => Carbon::now()->subWeek(), 'source' => 'structure']
