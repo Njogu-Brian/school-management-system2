@@ -15,15 +15,12 @@ return new class extends Migration
             }
 
             // Add FK only if not already present
-            $hasForeign = false;
             if (Schema::hasColumn('streams', 'classroom_id')) {
-                $schemaManager = Schema::getConnection()->getDoctrineSchemaManager();
-                $doctrineTable = $schemaManager->listTableDetails('streams');
-                $hasForeign = $doctrineTable->hasForeignKey('streams_classroom_id_foreign');
-            }
-
-            if (! $hasForeign && Schema::hasColumn('streams', 'classroom_id')) {
-            $table->foreign('classroom_id')->references('id')->on('classrooms')->onDelete('cascade');
+                try {
+                    $table->foreign('classroom_id')->references('id')->on('classrooms')->onDelete('cascade');
+                } catch (\Throwable $e) {
+                    // Ignore if already exists
+                }
             }
         });
     }

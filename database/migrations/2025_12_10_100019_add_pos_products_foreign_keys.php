@@ -56,12 +56,16 @@ return new class extends Migration
         if (Schema::hasTable('pos_products')) {
             Schema::table('pos_products', function (Blueprint $table) {
                 // Drop foreign keys if they exist
-                $foreignKeys = $this->getTableForeignKeys('pos_products');
-                foreach ($foreignKeys as $fk) {
-                    $columns = $fk->getLocalColumns();
-                    if (in_array('inventory_item_id', $columns) || in_array('requirement_type_id', $columns)) {
-                        $table->dropForeign([$columns[0]]);
-                    }
+                // Try to drop foreign keys if columns exist
+                if (Schema::hasColumn('pos_products', 'inventory_item_id')) {
+                    try {
+                        $table->dropForeign(['inventory_item_id']);
+                    } catch (\Exception $e) {}
+                }
+                if (Schema::hasColumn('pos_products', 'requirement_type_id')) {
+                    try {
+                        $table->dropForeign(['requirement_type_id']);
+                    } catch (\Exception $e) {}
                 }
             });
         }
