@@ -8,7 +8,7 @@ return new class extends Migration {
     public function up()
     {
         Schema::table('students', function (Blueprint $table) {
-            $table->boolean('archive')->default(false)->after('parent_id'); // Add archive column
+            $table->boolean('archive')->default(false); // Add archive column
         });
     }
 

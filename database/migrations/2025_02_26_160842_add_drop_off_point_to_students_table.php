@@ -12,7 +12,7 @@ return new class extends Migration
     public function up()
 {
     Schema::table('students', function (Blueprint $table) {
-        $table->string('drop_off_point')->nullable()->after('class');
+        $table->string('drop_off_point')->nullable();
     });
 }
 
