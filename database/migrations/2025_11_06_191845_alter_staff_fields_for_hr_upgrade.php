@@ -11,17 +11,20 @@ return new class extends Migration {
             // If legacy columns exist, rename them. Guard with checks.
             if (Schema::hasColumn('staff', 'email') && !Schema::hasColumn('staff', 'work_email')) {
                 $table->renameColumn('email', 'work_email');
-            } elseif (!Schema::hasColumn('staff', 'work_email')) {
-                // Only add if neither 'email' nor 'work_email' exists
-                $table->string('work_email')->nullable();
             }
             if (Schema::hasColumn('staff', 'address') && !Schema::hasColumn('staff', 'residential_address')) {
                 $table->renameColumn('address', 'residential_address');
-            } elseif (!Schema::hasColumn('staff', 'residential_address')) {
-                $table->string('residential_address')->nullable();
+            }
+
+            // Add only if missing
+            if (!Schema::hasColumn('staff', 'work_email')) {
+                $table->string('work_email')->nullable();
             }
             if (!Schema::hasColumn('staff', 'personal_email')) {
                 $table->string('personal_email')->nullable();
+            }
+            if (!Schema::hasColumn('staff', 'residential_address')) {
+                $table->string('residential_address')->nullable();
             }
             if (!Schema::hasColumn('staff', 'emergency_contact_relationship')) {
                 $table->string('emergency_contact_relationship')->nullable();

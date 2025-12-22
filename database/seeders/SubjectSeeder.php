@@ -24,14 +24,16 @@ class SubjectSeeder extends Seeder
         foreach ($subjects as $sub) {
             $group = SubjectGroup::where('name',$sub['group'])->first();
             if ($group) {
-                Subject::create([
+                Subject::updateOrCreate(
+                    ['code' => $sub['code']],
+                    [
                     'subject_group_id' => $group->id,
-                    'code' => $sub['code'],
                     'name' => $sub['name'],
                     'learning_area' => $sub['learning_area'],
                     'level' => null,
                     'is_active' => true,
-                ]);
+                    ]
+                );
             }
         }
     }

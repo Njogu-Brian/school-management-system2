@@ -9,45 +9,43 @@ class PermissionSeeder extends Seeder
 {
     public function run()
     {
-        // Convert module/feature format to Spatie Permission name format
-        $permissions = [
-            'communication.send_email',
-            'communication.send_sms',
-            'communication.logs',
-            'communication.email_template',
-            'communication.sms_template',
-            'communication.announcements',
+        // Use Spatie permission names
+        $data = [
+            ['name' => 'communication.send_email'],
+            ['name' => 'communication.send_sms'],
+            ['name' => 'communication.logs'],
+            ['name' => 'communication.email_template'],
+            ['name' => 'communication.sms_template'],
+            ['name' => 'communication.announcements'],
 
-            'staff.manage_staff',
-            'staff.upload_staff',
+            ['name' => 'staff.manage_staff'],
+            ['name' => 'staff.upload_staff'],
 
-            'students.manage_students',
+            ['name' => 'students.manage_students'],
 
-            'attendance.mark_attendance',
-            'attendance.view_attendance',
+            ['name' => 'attendance.mark_attendance'],
+            ['name' => 'attendance.view_attendance'],
 
-            'transport.vehicles',
-            'transport.routes',
-            'transport.trips',
+            ['name' => 'transport.vehicles'],
+            ['name' => 'transport.routes'],
+            ['name' => 'transport.trips'],
 
-            'kitchen.daily_summary',
+            ['name' => 'kitchen.daily_summary'],
 
-            'academics.classrooms',
-            'academics.streams',
-            'academics.student_categories',
+            ['name' => 'academics.classrooms'],
+            ['name' => 'academics.streams'],
+            ['name' => 'academics.student_categories'],
 
-            'admissions.online_admission',
+            ['name' => 'admissions.online_admission'],
 
-            'settings.general',
-            'settings.regional',
-            'settings.branding',
-            'settings.roles_permissions',
+            ['name' => 'settings.general'],
+            ['name' => 'settings.regional'],
+            ['name' => 'settings.branding'],
+            ['name' => 'settings.roles_permissions'],
         ];
 
-        foreach ($permissions as $permName) {
-            Permission::firstOrCreate(
-                ['name' => $permName, 'guard_name' => 'web']
-            );
+        foreach ($data as $perm) {
+            Permission::firstOrCreate($perm);
         }
     }
 }

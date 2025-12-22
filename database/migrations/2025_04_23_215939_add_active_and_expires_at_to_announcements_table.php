@@ -12,12 +12,8 @@ return new class extends Migration
     public function up()
 {
     Schema::table('announcements', function (Blueprint $table) {
-        if (!Schema::hasColumn('announcements', 'active')) {
-            $table->boolean('active')->default(1);
-        }
-        if (!Schema::hasColumn('announcements', 'expires_at')) {
-            $table->timestamp('expires_at')->nullable();
-        }
+        $table->boolean('active')->default(1);
+        $table->timestamp('expires_at')->nullable();
     });
 }
 

@@ -10,7 +10,7 @@ return new class extends Migration
 {
     Schema::table('students', function (Blueprint $table) {
         if (!Schema::hasColumn('students', 'family_id')) {
-            $table->unsignedBigInteger('family_id')->nullable();
+            $table->unsignedBigInteger('family_id')->nullable()->after('id');
         } else {
             $table->unsignedBigInteger('family_id')->nullable()->change();
         }

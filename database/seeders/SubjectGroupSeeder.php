@@ -18,7 +18,10 @@ class SubjectGroupSeeder extends Seeder
         ];
 
         foreach ($groups as $group) {
-            SubjectGroup::create($group);
+            SubjectGroup::updateOrCreate(
+                ['code' => $group['code']],
+                $group
+            );
         }
     }
 }

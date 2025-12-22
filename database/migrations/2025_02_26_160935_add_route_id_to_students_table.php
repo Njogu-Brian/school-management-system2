@@ -12,7 +12,7 @@ return new class extends Migration
     public function up()
     {
         Schema::table('students', function (Blueprint $table) {
-            $table->unsignedBigInteger('route_id')->nullable();
+            $table->unsignedBigInteger('route_id')->nullable()->after('drop_off_point');
             $table->foreign('route_id')->references('id')->on('transport')->onDelete('set null');
         });
     }

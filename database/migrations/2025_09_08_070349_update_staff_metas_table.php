@@ -8,15 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('staff_meta', function (Blueprint $table) {
-            if (!Schema::hasColumn('staff_meta', 'staff_id')) {
+        Schema::table('staff_metas', function (Blueprint $table) {
+            if (!Schema::hasColumn('staff_metas', 'staff_id')) {
                 $table->unsignedBigInteger('staff_id')->after('id');
                 $table->foreign('staff_id')->references('id')->on('staff')->onDelete('cascade');
             }
-            if (!Schema::hasColumn('staff_meta', 'field_key')) {
+            if (!Schema::hasColumn('staff_metas', 'field_key')) {
                 $table->string('field_key', 100)->after('staff_id');
             }
-            if (!Schema::hasColumn('staff_meta', 'field_value')) {
+            if (!Schema::hasColumn('staff_metas', 'field_value')) {
                 $table->text('field_value')->nullable()->after('field_key');
             }
         });
@@ -24,7 +24,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('staff_meta', function (Blueprint $table) {
+        Schema::table('staff_metas', function (Blueprint $table) {
             $table->dropForeign(['staff_id']);
             $table->dropColumn(['staff_id','field_key','field_value']);
         });

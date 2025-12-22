@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('fee_posting_runs', function (Blueprint $table) {
             $table->decimal('total_amount_posted', 10, 2)->default(0)->after('items_posted_count');
-            $table->integer('total_students_affected')->default(0);
+            $table->integer('total_students_affected')->default(0)->after('total_amount_posted');
         });
     }
 

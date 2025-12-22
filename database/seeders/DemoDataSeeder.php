@@ -63,15 +63,23 @@ class DemoDataSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
-            // Note: Reference data seeders (roles, permissions, payment methods, etc.) 
-            // are called by DatabaseSeeder before this seeder runs.
-            // This seeder focuses on creating demo data (students, staff, invoices, etc.)
+            // 1) Baseline reference data & permissions
+            $this->call([
+                RolesAndPermissionsSeeder::class,
+                PermissionSeeder::class,
+                PaymentMethodSeeder::class,
+                VoteheadCategorySeeder::class,
+                CBCComprehensiveSeeder::class,
+            ]);
 
             // 2) Academic calendar
             $currentYear = (int) now()->format('Y');
             $academicYear = AcademicYear::firstOrCreate(
                 ['year' => $currentYear],
                 [
+                    'name' => "{$currentYear}/" . ($currentYear + 1),
+                    'start_date' => "{$currentYear}-01-01",
+                    'end_date' => ($currentYear + 1) . "-12-31",
                     'is_active' => true,
                 ]
             );
@@ -89,14 +97,16 @@ class DemoDataSeeder extends Seeder
 
             // 3) Classes & streams
             $classrooms = collect([
-                ['name' => 'Grade 4', 'level_type' => 'upper_primary'],
-                ['name' => 'Grade 6', 'level_type' => 'upper_primary'],
-                ['name' => 'Form 1', 'level_type' => 'junior_high'],
+                ['name' => 'Grade 4', 'description' => 'Upper Primary', 'capacity' => 45],
+                ['name' => 'Grade 6', 'description' => 'Upper Primary', 'capacity' => 45],
+                ['name' => 'Form 1', 'description' => 'Secondary', 'capacity' => 50],
             ])->map(function (array $data) {
                 return \App\Models\Academics\Classroom::firstOrCreate(
                     ['name' => $data['name']],
                     [
-                        'level_type' => $data['level_type'],
+                        'description' => $data['description'],
+                        'capacity' => $data['capacity'],
+                        'is_active' => true,
                     ]
                 );
             });
@@ -106,7 +116,8 @@ class DemoDataSeeder extends Seeder
                 foreach (['North', 'South'] as $streamName) {
                     $streams->push(
                         \App\Models\Academics\Stream::firstOrCreate(
-                            ['name' => $streamName, 'classroom_id' => $classroom->id]
+                            ['name' => $streamName, 'classroom_id' => $classroom->id],
+                            ['capacity' => 25, 'is_active' => true]
                         )
                     );
                 }
@@ -160,7 +171,6 @@ class DemoDataSeeder extends Seeder
                 return Staff::firstOrCreate(
                     ['user_id' => $user->id],
                     [
-                        'staff_id' => 'STAFF-' . str_pad((string) ($index + 1), 3, '0', STR_PAD_LEFT),
                         'first_name' => $names[0] ?? 'Staff',
                         'middle_name' => $names[1] ?? null,
                         'last_name' => $names[2] ?? 'Demo',
@@ -225,20 +235,23 @@ class DemoDataSeeder extends Seeder
                 $stream = $streams->where('classroom_id', $classroom->id)->values()->get($index % 2);
                 $family = $families[$familyIndex];
 
-                return Student::create([
-                    'admission_number' => 'ADM-' . str_pad((string) ($index + 101), 4, '0', STR_PAD_LEFT),
-                    'first_name' => $name['first'],
-                    'last_name' => $name['last'],
-                    'gender' => $name['gender'],
-                    'classroom_id' => $classroom->id,
-                    'stream_id' => $stream->id ?? null,
-                    'family_id' => $family['family']->id,
-                    'parent_id' => $family['parent']->id,
-                    'category_id' => $category->id,
-                    'status' => 'active',
-                    'admission_date' => Carbon::parse("{$academicYear->year}-01-15")->subYears(rand(0, 2)),
-                    'home_county' => 'Nairobi',
-                ]);
+                $admission = 'ADM-' . str_pad((string) ($index + 101), 4, '0', STR_PAD_LEFT);
+                return Student::updateOrCreate(
+                    ['admission_number' => $admission],
+                    [
+                        'first_name' => $name['first'],
+                        'last_name' => $name['last'],
+                        'gender' => $name['gender'],
+                        'classroom_id' => $classroom->id,
+                        'stream_id' => $stream->id ?? null,
+                        'family_id' => $family['family']->id,
+                        'parent_id' => $family['parent']->id,
+                        'category_id' => $category->id,
+                        'status' => 'active',
+                        'admission_date' => Carbon::parse("{$academicYear->year}-01-15")->subYears(rand(0, 2)),
+                        'home_county' => 'Nairobi',
+                    ]
+                );
             });
 
             // 9) Attendance samples
@@ -282,7 +295,6 @@ class DemoDataSeeder extends Seeder
                     'term_id' => $terms->first()->id,
                 ],
                 [
-                    'year' => $academicYear->year,
                     'is_active' => true,
                     'version' => 1,
                 ]
@@ -332,18 +344,28 @@ class DemoDataSeeder extends Seeder
                 // Record partial payment for first few students
                 if ($index < 4 && $paymentMethod) {
                     $paymentAmount = $total * 0.4;
-                    $payment = Payment::create([
-                        'student_id' => $student->id,
-                        'invoice_id' => $invoice->id,
-                        'amount' => $paymentAmount,
-                        'allocated_amount' => $paymentAmount,
-                        'unallocated_amount' => 0,
-                        'payment_method_id' => $paymentMethod->id,
-                        'payer_name' => $student->family?->guardian_name ?? $student->first_name . ' Parent',
-                        'payer_type' => 'parent',
-                        'payment_date' => Carbon::now()->subDays(2),
-                        'narration' => 'Demo M-Pesa payment',
-                    ]);
+                    $tx = 'TXN-' . strtoupper(uniqid());
+                    $receipt = 'RCPT-' . strtoupper(uniqid());
+                    $token = substr(uniqid('', true), -8);
+                    $payment = Payment::updateOrCreate(
+                        ['invoice_id' => $invoice->id],
+                        [
+                            'student_id' => $student->id,
+                            'amount' => $paymentAmount,
+                            'allocated_amount' => $paymentAmount,
+                            'unallocated_amount' => 0,
+                            'payment_method_id' => $paymentMethod->id,
+                            'payer_name' => $student->family?->guardian_name ?? $student->first_name . ' Parent',
+                            'payer_type' => 'parent',
+                            'payment_date' => Carbon::now()->subDays(2),
+                            'narration' => 'Demo M-Pesa payment',
+                            'transaction_code' => $tx,
+                            'receipt_number' => $receipt,
+                            'public_token' => $token,
+                            'hashed_id' => $token,
+                            'receipt_date' => Carbon::now(),
+                        ]
+                    );
 
                     $invoice->update([
                         'paid_amount' => $paymentAmount,
@@ -354,14 +376,16 @@ class DemoDataSeeder extends Seeder
             });
 
             // 11) Transport: routes, trips, assignments
-            $route = Route::factory()->create(['name' => 'Nairobi Westlands Loop']);
-            $vehicle = Vehicle::factory()->create(['registration_number' => 'KDA 234A']);
+            $route = Route::firstOrCreate(['name' => 'Nairobi Westlands Loop']);
+            $vehicle = Vehicle::firstOrCreate(
+                ['vehicle_number' => 'KDA 234A'],
+                ['driver_name' => 'Demo Driver']
+            );
             $dropPoints = collect(['Westlands Stage', 'Lavington Mall', 'Kilimani Junction'])
                 ->map(fn ($name) => DropOffPoint::firstOrCreate(['name' => $name, 'route_id' => $route->id]));
 
             $trip = Trip::firstOrCreate(
-                ['name' => 'Morning Pickup', 'route_id' => $route->id],
-                ['type' => 'morning', 'vehicle_id' => $vehicle->id]
+                ['trip_name' => 'Morning Pickup', 'route_id' => $route->id, 'vehicle_id' => $vehicle->id]
             );
 
             $students->take(5)->each(function (Student $student, int $index) use ($trip, $dropPoints) {
@@ -443,7 +467,7 @@ class DemoDataSeeder extends Seeder
             $room = HostelRoom::firstOrCreate(
                 ['hostel_id' => $hostel->id, 'room_number' => 'A1'],
                 [
-                    'room_type' => 'standard',
+                    'room_type' => 'dormitory',
                     'capacity' => 6,
                     'current_occupancy' => 2,
                     'floor' => 1,
@@ -459,7 +483,7 @@ class DemoDataSeeder extends Seeder
                     'bed_number' => 'B2',
                     'allocation_date' => Carbon::now()->subWeeks(2),
                     'status' => 'active',
-                    'allocated_by' => $warden?->id,
+                    'allocated_by' => $warden?->user_id,
                 ]
             );
 
@@ -516,7 +540,7 @@ class DemoDataSeeder extends Seeder
                 [
                     'quantity_per_student' => 1,
                     'unit' => 'set',
-                    'student_type' => 'Day Scholar',
+                    'student_type' => 'both',
                     'leave_with_teacher' => false,
                     'is_verification_only' => false,
                     'is_active' => true,
@@ -527,7 +551,7 @@ class DemoDataSeeder extends Seeder
                 ['name' => 'PE Kit - Demo', 'sku' => 'PE-KIT-DEM'],
                 [
                     'barcode' => 'PEKIT001',
-                    'type' => 'stock',
+                    'type' => 'uniform',
                     'inventory_item_id' => $inventoryItems->firstWhere('name', 'PE Kit - Green')?->id,
                     'requirement_type_id' => $requirementTypes->firstWhere('name', 'Uniform')?->id,
                     'description' => 'PE kit for demo learners',
@@ -558,7 +582,7 @@ class DemoDataSeeder extends Seeder
             $posOrder = Order::firstOrCreate(
                 [
                     'student_id' => $students->first()->id,
-                    'order_type' => 'shop',
+                    'order_type' => 'uniform',
                 ],
                 [
                     'status' => 'completed',
@@ -575,7 +599,6 @@ class DemoDataSeeder extends Seeder
                 ]
             );
 
-            $variantPrice = $uniformProduct->base_price + ($variantM->price_adjustment ?? 0);
             $orderItem = OrderItem::firstOrCreate(
                 [
                     'order_id' => $posOrder->id,
@@ -586,22 +609,17 @@ class DemoDataSeeder extends Seeder
                     'product_name' => $uniformProduct->name,
                     'variant_name' => $variantM->name,
                     'quantity' => 1,
-                    'unit_price' => $variantPrice,
+                    'unit_price' => $uniformProduct->getPriceForVariant($variantM->id),
                     'discount_amount' => 0,
-                    'total_price' => $variantPrice,
+                    'total_price' => $uniformProduct->getPriceForVariant($variantM->id),
                     'fulfillment_status' => 'fulfilled',
                     'quantity_fulfilled' => 1,
                     'requirement_template_id' => $uniformTemplate->id,
                 ]
             );
 
-            // Update order totals manually
-            $posOrder->subtotal = $variantPrice;
-            $posOrder->total_amount = $variantPrice;
-            $posOrder->paid_amount = $variantPrice;
-            $posOrder->balance = 0;
-            $posOrder->payment_reference = 'MPESA-DEMO-'.rand(1000,9999);
-            $posOrder->save();
+            $posOrder->calculateTotals();
+            $posOrder->markAsPaid('MPESA', 'MPESA-DEMO-'.rand(1000,9999));
 
             // Student requirement tied to POS order
             $studentRequirement = StudentRequirement::firstOrCreate(
@@ -764,8 +782,8 @@ class DemoDataSeeder extends Seeder
                     'file_name' => 'report-sample.pdf',
                     'file_type' => 'application/pdf',
                     'file_size' => 102400,
-                    'category' => 'Academics',
-                    'document_type' => 'report_card',
+                    'category' => 'academic',
+                    'document_type' => 'report',
                     'version' => 1,
                     'is_active' => true,
                     'uploaded_by' => $demoUsers->first()->id ?? null,
@@ -780,8 +798,8 @@ class DemoDataSeeder extends Seeder
                     'file_name' => 'hr-contract.pdf',
                     'file_type' => 'application/pdf',
                     'file_size' => 204800,
-                    'category' => 'HR',
-                    'document_type' => 'contract',
+                    'category' => 'staff',
+                    'document_type' => 'other',
                     'version' => 1,
                     'is_active' => true,
                     'uploaded_by' => $demoUsers->first()->id ?? null,
@@ -789,20 +807,26 @@ class DemoDataSeeder extends Seeder
             );
 
             // 14) Communication templates & announcements
-            CommunicationTemplate::firstOrCreate(
-                ['code' => 'fee_reminder_sms', 'type' => 'sms'],
+            DB::table('communication_templates')->updateOrInsert(
+                ['code' => 'fee_reminder_sms'],
                 [
                     'title' => 'Fee Reminder',
+                    'type' => 'sms',
                     'subject' => null,
                     'content' => 'Habari mzazi, tafadhali lipia ada yako iliyobaki. Asante.',
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]
             );
 
-            Announcement::firstOrCreate(
+            DB::table('announcements')->updateOrInsert(
                 ['content' => 'Hii ni data ya majaribio ili uone moduli zote na taarifa halisi.'],
                 [
+                    'title' => 'Welcome to Demo Mode',
                     'active' => true,
                     'expires_at' => Carbon::now()->addMonth(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]
             );
         });
