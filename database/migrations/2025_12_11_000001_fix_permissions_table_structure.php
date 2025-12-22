@@ -30,24 +30,30 @@ return new class extends Migration
             // Old custom structure - need to drop foreign keys first, then recreate
             // Drop foreign key constraints from permission_role table if it exists
             if (Schema::hasTable('permission_role')) {
-                Schema::table('permission_role', function (Blueprint $table) {
-                    try {
-                        $table->dropForeign(['permission_id']);
-                    } catch (\Exception $e) {
-                        // Foreign key might not exist or have different name
-                    }
-                });
+                // Only drop if the FK exists
+                $fkExists = DB::selectOne("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'permission_role' AND COLUMN_NAME = 'permission_id' AND REFERENCED_TABLE_NAME IS NOT NULL");
+                if ($fkExists && isset($fkExists->CONSTRAINT_NAME)) {
+                    Schema::table('permission_role', function (Blueprint $table) {
+                        try {
+                            $table->dropForeign(['permission_id']);
+                        } catch (\Exception $e) {
+                            // Foreign key might not exist or have different name
+                        }
+                    });
+                }
             }
-            
             // Also check role_has_permissions table
             if (Schema::hasTable('role_has_permissions')) {
-                Schema::table('role_has_permissions', function (Blueprint $table) {
-                    try {
-                        $table->dropForeign(['permission_id']);
-                    } catch (\Exception $e) {
-                        // Foreign key might not exist
-                    }
-                });
+                $fkExists = DB::selectOne("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'role_has_permissions' AND COLUMN_NAME = 'permission_id' AND REFERENCED_TABLE_NAME IS NOT NULL");
+                if ($fkExists && isset($fkExists->CONSTRAINT_NAME)) {
+                    Schema::table('role_has_permissions', function (Blueprint $table) {
+                        try {
+                            $table->dropForeign(['permission_id']);
+                        } catch (\Exception $e) {
+                            // Foreign key might not exist
+                        }
+                    });
+                }
             }
             
             // Drop and recreate with Spatie structure
