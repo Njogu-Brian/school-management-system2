@@ -19,15 +19,34 @@ return new class extends Migration
             }
             
             // Update unique constraint to include category
-            // Drop old constraint first if it exists
-            // Only drop unique_active_structure if not required by a foreign key
-            $fkCheck = DB::selectOne("SELECT COUNT(*) as count FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fee_structures' AND CONSTRAINT_NAME = 'unique_active_structure' AND REFERENCED_TABLE_NAME IS NOT NULL");
-            if (!$fkCheck || !$fkCheck->count) {
-                try {
-                    $table->dropUnique('unique_active_structure');
-                } catch (\Exception $e) {
-                    // Constraint may not exist
+            // Drop any foreign keys that depend on the unique index before dropping it
+            $foreignKeys = DB::select("
+                SELECT CONSTRAINT_NAME 
+                FROM information_schema.KEY_COLUMN_USAGE 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'fee_structures' 
+                  AND REFERENCED_TABLE_NAME IS NOT NULL
+            ");
+            foreach ($foreignKeys as $fk) {
+                // Check if this foreign key uses the unique index columns
+                $fkColumns = DB::select("
+                    SELECT COLUMN_NAME 
+                    FROM information_schema.KEY_COLUMN_USAGE 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'fee_structures' 
+                      AND CONSTRAINT_NAME = ?
+                ", [$fk->CONSTRAINT_NAME]);
+                $uniqueIndexColumns = ['classroom_id', 'academic_year_id', 'term_id', 'stream_id', 'is_active'];
+                $fkColumnNames = array_map(function($col){ return $col->COLUMN_NAME; }, $fkColumns);
+                if (count(array_intersect($fkColumnNames, $uniqueIndexColumns)) > 0) {
+                    DB::statement("ALTER TABLE `fee_structures` DROP FOREIGN KEY `{$fk->CONSTRAINT_NAME}`");
                 }
+            }
+            // Now drop the unique index
+            try {
+                $table->dropUnique('unique_active_structure');
+            } catch (\Exception $e) {
+                // Constraint may not exist
             }
             
             // Add new unique constraint with category
