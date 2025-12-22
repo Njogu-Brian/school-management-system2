@@ -194,7 +194,16 @@ class PDFExportService
             'school_phone' => setting('school_phone', ''),
             'school_address' => setting('school_address', ''),
             'school_logo' => setting('school_logo'),
-            'logo_path' => setting('school_logo') ? asset('images/' . setting('school_logo')) : null,
+            'logo_path' => (function () {
+                $logo = setting('school_logo');
+                if ($logo && \Illuminate\Support\Facades\Storage::disk('public')->exists($logo)) {
+                    return storage_path('app/public/' . $logo);
+                }
+                if ($logo && file_exists(public_path('images/' . $logo))) {
+                    return public_path('images/' . $logo);
+                }
+                return null;
+            })(),
             'header_html' => setting('pdf_header_html'),
             'footer_html' => setting('pdf_footer_html'),
             'watermark' => setting('pdf_watermark'),

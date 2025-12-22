@@ -8,11 +8,27 @@
 
         $appName = $schoolNameSetting?->value ?? config('app.name', 'School Management System');
 
-        $logoPath = $schoolLogoSetting?->value ? public_path('images/'.$schoolLogoSetting->value) : null;
-        $logoUrl  = ($logoPath && file_exists($logoPath)) ? asset('images/'.$schoolLogoSetting->value) : asset('images/logo.png');
+        $logoSetting = $schoolLogoSetting?->value;
+        $faviconSettingValue = $faviconSetting?->value;
 
-        $faviconPath = $faviconSetting?->value ? public_path('images/'.$faviconSetting->value) : null;
-        $faviconUrl  = ($faviconPath && file_exists($faviconPath)) ? asset('images/'.$faviconSetting->value) : asset('images/logo.png');
+        // Prefer storage (uploaded via portal)
+        $logoUrl = null;
+        if ($logoSetting && \Illuminate\Support\Facades\Storage::disk('public')->exists($logoSetting)) {
+            $logoUrl = \Illuminate\Support\Facades\Storage::url($logoSetting);
+        } elseif ($logoSetting && file_exists(public_path('images/'.$logoSetting))) {
+            $logoUrl = asset('images/'.$logoSetting);
+        } else {
+            $logoUrl = asset('images/logo.png');
+        }
+
+        $faviconUrl = null;
+        if ($faviconSettingValue && \Illuminate\Support\Facades\Storage::disk('public')->exists($faviconSettingValue)) {
+            $faviconUrl = \Illuminate\Support\Facades\Storage::url($faviconSettingValue);
+        } elseif ($faviconSettingValue && file_exists(public_path('images/'.$faviconSettingValue))) {
+            $faviconUrl = asset('images/'.$faviconSettingValue);
+        } else {
+            $faviconUrl = asset('images/logo.png');
+        }
     @endphp
 
     <meta charset="UTF-8">

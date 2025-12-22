@@ -9,9 +9,13 @@
     // Try to use background image from settings, then fallback to existing images
     $bgImage = null;
     if ($loginBg) {
-        $bgPath = public_path('images/' . $loginBg);
-        if (file_exists($bgPath)) {
-            $bgImage = asset('images/' . $loginBg);
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($loginBg)) {
+            $bgImage = \Illuminate\Support\Facades\Storage::url($loginBg);
+        } else {
+            $bgPath = public_path('images/' . $loginBg);
+            if (file_exists($bgPath)) {
+                $bgImage = asset('images/' . $loginBg);
+            }
         }
     }
     
@@ -19,6 +23,10 @@
     if (!$bgImage) {
         $fallbackImages = ['page background.jpg', '1757052514_page background.jpg'];
         foreach ($fallbackImages as $fallback) {
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($fallback)) {
+                $bgImage = \Illuminate\Support\Facades\Storage::url($fallback);
+                break;
+            }
             $fallbackPath = public_path('images/' . $fallback);
             if (file_exists($fallbackPath)) {
                 $bgImage = asset('images/' . $fallback);

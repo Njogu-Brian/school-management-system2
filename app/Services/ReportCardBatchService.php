@@ -191,7 +191,16 @@ class ReportCardBatchService
         // Branding (pull from your settings table/logic)
         $branding = [
             'school_name' => setting('school_name') ?? 'Your School',
-            'logo_path'   => setting('school_logo') ? public_path('images/' . setting('school_logo')) : null,
+            'logo_path'   => (function () {
+                $logo = setting('school_logo');
+                if ($logo && \Illuminate\Support\Facades\Storage::disk('public')->exists($logo)) {
+                    return storage_path('app/public/' . $logo);
+                }
+                if ($logo && file_exists(public_path('images/' . $logo))) {
+                    return public_path('images/' . $logo);
+                }
+                return null;
+            })(),
             'address'     => setting('school_address') ?? '',
             'phone'       => setting('school_phone') ?? '',
             'email'       => setting('school_email') ?? '',

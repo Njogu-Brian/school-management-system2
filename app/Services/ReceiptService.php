@@ -206,9 +206,17 @@ class ReceiptService
             ])->pluck('value', 'key')->toArray();
         }
         
+        $logoPath = null;
+        if (!empty($settings['school_logo']) && \Illuminate\Support\Facades\Storage::disk('public')->exists($settings['school_logo'])) {
+            $logoPath = storage_path('app/public/' . $settings['school_logo']);
+        } elseif (!empty($settings['school_logo']) && file_exists(public_path('images/' . $settings['school_logo']))) {
+            $logoPath = public_path('images/' . $settings['school_logo']);
+        }
+
         return [
             'name' => $settings['school_name'] ?? 'School Name',
             'logo' => $settings['school_logo'] ?? null,
+            'logo_path' => $logoPath,
             'address' => $settings['school_address'] ?? '',
             'phone' => $settings['school_phone'] ?? '',
             'email' => $settings['school_email'] ?? '',
