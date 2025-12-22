@@ -14,8 +14,8 @@ class CommunicationTemplatesSeeder extends Seeder
             ['code' => 'welcome_staff_email', 'type' => 'email'],
             [
                 'title' => 'Welcome Staff',
-                'subject' => 'Welcome to Royal Kings School',
-                'content' => '<p>Dear {name},</p><p>Welcome to Royal Kings School. Your login credentials are:</p><ul><li><strong>Email:</strong> {login}</li><li><strong>Password:</strong> {password}</li></ul><p>Please change your password after your first login.</p><p>Regards,<br>Royal Kings ICT Team</p>',
+                'subject' => 'Welcome to {school_name}',
+                'content' => '<p>Dear {name},</p><p>Welcome to {school_name}. Your login credentials are:</p><ul><li><strong>Email:</strong> {login}</li><li><strong>Password:</strong> {password}</li></ul><p>Please change your password after your first login.</p><p>Regards,<br>{school_name} ICT Team</p>',
                 'updated_at' => now(),
                 'created_at' => now(),
             ]
@@ -26,7 +26,7 @@ class CommunicationTemplatesSeeder extends Seeder
             [
                 'title' => 'Student Admission',
                 'subject' => 'Student Admission Confirmation',
-                'content' => '<p>Dear Parent,</p><p>Your child <strong>{student_name}</strong> has been successfully admitted to Royal Kings School.</p><p>Class: <strong>{class}</strong></p><p>Welcome to our school community!</p>',
+                'content' => '<p>Dear Parent,</p><p>Your child <strong>{student_name}</strong> has been successfully admitted to {school_name}.</p><p>Class: <strong>{class}</strong></p><p>Welcome to our school community!</p>',
                 'updated_at' => now(),
                 'created_at' => now(),
             ]
@@ -49,7 +49,7 @@ class CommunicationTemplatesSeeder extends Seeder
             [
                 'title' => 'Welcome Staff',
                 'subject' => null,
-                'content' => 'Welcome {name} to Royal Kings School. Login: {login} | Password: {password}',
+                'content' => 'Welcome {name} to {school_name}. Login: {login} | Password: {password}',
                 'updated_at' => now(),
                 'created_at' => now(),
             ]
@@ -60,7 +60,7 @@ class CommunicationTemplatesSeeder extends Seeder
             [
                 'title' => 'Student Admission',
                 'subject' => null,
-                'content' => 'Dear Parent, your child {student_name} has been admitted to class {class}. Welcome to Royal Kings.',
+                'content' => 'Dear Parent, your child {student_name} has been admitted to class {class}. Welcome to {school_name}.',
                 'updated_at' => now(),
                 'created_at' => now(),
             ]

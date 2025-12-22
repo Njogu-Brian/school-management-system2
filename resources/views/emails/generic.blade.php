@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Royal Kings School Email</title>
+    <title>{{ $schoolName ?? 'School' }} Email</title>
     <style>
         body {
             margin: 0;
@@ -65,9 +65,9 @@
     <div class="email-container">
         <!-- Header -->
         <div class="email-header">
-            <img src="https://www.royalkingsschools.sc.ke/assets/images/logo.png" alt="Royal Kings School Logo">
-            <h2>Royal Kings School</h2>
-            <p>A sure Foundation Where Learning is Fun</p>
+            <img src="{{ $schoolLogo ?? '' }}" alt="{{ $schoolName ?? 'School' }} Logo">
+            <h2>{{ $schoolName ?? 'School' }}</h2>
+            <p>{{ $schoolMotto ?? '' }}</p>
         </div>
 
         <!-- Body -->
@@ -77,7 +77,7 @@
 
         <!-- Footer -->
         <div class="email-footer">
-            <p>Royal Kings School, Riverside - Wangige</p>
+            <p>{{ $schoolName ?? 'School' }}</p>
             <p>
                 <a href="mailto:info@royalkingsschools.sc.ke">info@royalkingsschools.sc.ke</a> |
                 <a href="tel:+254719396233">+254 719396233</a>

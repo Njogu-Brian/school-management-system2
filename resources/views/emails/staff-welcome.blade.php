@@ -1,4 +1,4 @@
-<h2>Welcome to Royal Kings School</h2>
+<h2>Welcome to {{ $schoolName ?? 'our school' }}</h2>
 <p>Hello {{ $user->name }},</p>
 
 <p>Your account has been created. Here are your login credentials:</p>
@@ -10,4 +10,4 @@
 
 <p>Please log in and change your password immediately.</p>
 
-<p>Regards,<br>School Admin</p>
+<p>Regards,<br>{{ $schoolName ?? 'School Admin' }}</p>

@@ -23,7 +23,15 @@ class StaffWelcomeMail extends Mailable
 
     public function build()
     {
-        return $this->subject('Welcome to Royal Kings School')
-                    ->view('emails.staff-welcome');
+        $settings = \App\Models\Setting::whereIn('key', ['school_name'])->pluck('value', 'key');
+        $schoolName = $settings['school_name'] ?? config('app.name', 'School');
+
+        return $this->subject("Welcome to {$schoolName}")
+                    ->view('emails.staff-welcome')
+                    ->with([
+                        'user' => $this->user,
+                        'password' => $this->password,
+                        'schoolName' => $schoolName,
+                    ]);
     }
 }
