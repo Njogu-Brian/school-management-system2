@@ -1,20 +1,20 @@
-{{-- Finance Header Partial --}}
-<div class="finance-header finance-animate">
-    <div class="finance-header-content">
-        <div class="d-flex justify-content-between align-items-start flex-wrap">
+{{-- Finance Header (uses the same card styling as the rest of the app) --}}
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
             <div>
-                <h3 class="finance-header-title mb-2">
+                <h4 class="mb-1">
                     <i class="{{ $icon ?? 'bi bi-currency-dollar' }} me-2"></i>
                     {{ $title ?? 'Finance' }}
-                </h3>
+                </h4>
                 @if(isset($subtitle))
-                <p class="finance-header-subtitle mb-0">{{ $subtitle }}</p>
+                    <p class="text-muted mb-0">{{ $subtitle }}</p>
                 @endif
             </div>
             @if(isset($actions))
-            <div class="finance-action-buttons mt-3 mt-md-0">
-                {!! $actions !!}
-            </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {!! $actions !!}
+                </div>
             @endif
         </div>
     </div>

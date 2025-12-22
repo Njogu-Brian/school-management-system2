@@ -40,38 +40,19 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <link rel="icon" href="{{ $faviconUrl }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    @if(request()->is('finance*') || request()->is('voteheads*'))
-    <link rel="stylesheet" href="{{ asset('css/finance-modern.css') }}">
     <style>
-        :root {
-            --finance-primary: {{ \App\Models\Setting::where('key', 'finance_primary_color')->first()?->value ?? '#6366f1' }};
-            --finance-secondary: {{ \App\Models\Setting::where('key', 'finance_secondary_color')->first()?->value ?? '#764ba2' }};
-            --finance-success: {{ \App\Models\Setting::where('key', 'finance_success_color')->first()?->value ?? '#10b981' }};
-            --finance-warning: {{ \App\Models\Setting::where('key', 'finance_warning_color')->first()?->value ?? '#f59e0b' }};
-            --finance-danger: {{ \App\Models\Setting::where('key', 'finance_danger_color')->first()?->value ?? '#ef4444' }};
-            --finance-info: {{ \App\Models\Setting::where('key', 'finance_info_color')->first()?->value ?? '#06b6d4' }};
-        }
-        .finance-page {
-            font-family: '{{ \App\Models\Setting::where('key', 'finance_primary_font')->first()?->value ?? 'Inter' }}', 'Poppins', sans-serif;
-        }
-        .finance-header h1,
-        .finance-header h2,
-        .finance-header h3 {
-            font-family: '{{ \App\Models\Setting::where('key', 'finance_heading_font')->first()?->value ?? 'Poppins' }}', sans-serif;
-        }
-        .finance-gradient-1 {
-            background: linear-gradient(135deg, var(--finance-primary) 0%, var(--finance-secondary) 100%);
-        }
-        .finance-card-header,
-        .finance-table thead,
-        .finance-stat-card.primary::before {
-            background: linear-gradient(135deg, var(--finance-primary) 0%, var(--finance-secondary) 100%);
-        }
-        .btn-finance-primary {
-            background: linear-gradient(135deg, var(--finance-primary) 0%, var(--finance-secondary) 100%);
-        }
+        /* Finance legacy class fallbacks aligned to the standard app theme */
+        .finance-table { width: 100%; border-collapse: collapse; }
+        .finance-table th, .finance-table td { padding: 0.75rem; border-bottom: 1px solid #dee2e6; }
+        .finance-table thead th { background: #f8f9fa; }
+        .finance-table-wrapper { background: #fff; border: 1px solid #e9ecef; border-radius: 0.5rem; }
+        .finance-badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 999px; font-size: 0.8rem; }
+        .badge-approved { background: #d1e7dd; color: #0f5132; }
+        .badge-pending { background: #e2e3e5; color: #41464b; }
+        .finance-empty-state { text-align: center; padding: 1.5rem; }
+        .finance-empty-state .finance-empty-state-icon { font-size: 2rem; margin-bottom: 0.5rem; color: #6c757d; }
+        .finance-action-buttons { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     </style>
-    @endif
     @if(request()->is('communication*'))
     <link rel="stylesheet" href="{{ asset('css/communication-modern.css') }}">
     <style>
