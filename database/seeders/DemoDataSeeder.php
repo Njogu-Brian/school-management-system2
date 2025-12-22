@@ -298,7 +298,7 @@ class DemoDataSeeder extends Seeder
 
             $paymentMethod = PaymentMethod::where('code', 'MPESA')->first() ?? PaymentMethod::first();
 
-            $students->each(function (Student $student, int $index) use ($feeStructure, $voteheads, $academicYear, $terms, $paymentMethod) {
+            $students->each(function (Student $student, int $index) use ($feeStructure, $voteheads, $voteheadData, $academicYear, $terms, $paymentMethod) {
                 $invoice = Invoice::firstOrCreate(
                     [
                         'student_id' => $student->id,
@@ -318,8 +318,8 @@ class DemoDataSeeder extends Seeder
                 );
 
                 $total = 0;
-                foreach ($voteheads as $index => $votehead) {
-                    $amount = $voteheadData[$index]['amount'];
+                foreach ($voteheads as $vhIndex => $votehead) {
+                    $amount = $voteheadData[$vhIndex]['amount'];
                     InvoiceItem::firstOrCreate(
                         ['invoice_id' => $invoice->id, 'votehead_id' => $votehead->id],
                         ['amount' => $amount, 'discount_amount' => 0, 'status' => 'active', 'effective_date' => Carbon::now()->subWeek(), 'source' => 'structure']
