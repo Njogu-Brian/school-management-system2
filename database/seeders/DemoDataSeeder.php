@@ -835,6 +835,7 @@ class DemoDataSeeder extends Seeder
                 ['content' => 'Hii ni data ya majaribio ili uone moduli zote na taarifa halisi.'],
                 [
                     'active' => true,
+                    'is_active' => true,
                     'expires_at' => Carbon::now()->addMonth(),
                     'created_at' => now(),
                     'updated_at' => now(),

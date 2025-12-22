@@ -1,14 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    @php
+        $schoolNameSetting = \App\Models\Setting::where('key', 'school_name')->first();
+        $schoolLogoSetting = \App\Models\Setting::where('key', 'school_logo')->first();
+        $faviconSetting = \App\Models\Setting::where('key', 'favicon')->first();
+
+        $appName = $schoolNameSetting?->value ?? config('app.name', 'School Management System');
+
+        $logoPath = $schoolLogoSetting?->value ? public_path('images/'.$schoolLogoSetting->value) : null;
+        $logoUrl  = ($logoPath && file_exists($logoPath)) ? asset('images/'.$schoolLogoSetting->value) : asset('images/logo.png');
+
+        $faviconPath = $faviconSetting?->value ? public_path('images/'.$faviconSetting->value) : null;
+        $faviconUrl  = ($faviconPath && file_exists($faviconPath)) ? asset('images/'.$faviconSetting->value) : asset('images/logo.png');
+    @endphp
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Royal Kings Education Centre</title>
+    <title>{{ $appName }}</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
-    <link rel="icon" href="{{ asset('images/logo.png') }}">
+    <link rel="icon" href="{{ $faviconUrl }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     @if(request()->is('finance*') || request()->is('voteheads*'))
     <link rel="stylesheet" href="{{ asset('css/finance-modern.css') }}">
@@ -302,8 +316,8 @@
 
     <div class="sidebar">
         <div class="brand">
-            <img src="{{ asset('images/logo.png') }}" alt="School Logo">
-            <h5>Royal Kings School</h5>
+            <img src="{{ $logoUrl }}" alt="{{ $appName }} Logo">
+            <h5>{{ $appName }}</h5>
         </div>
 
  @php
