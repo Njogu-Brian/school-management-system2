@@ -282,6 +282,7 @@ class DemoDataSeeder extends Seeder
                     'term_id' => $terms->first()->id,
                 ],
                 [
+                    'year' => $academicYear->year,
                     'is_active' => true,
                     'version' => 1,
                 ]
@@ -429,7 +430,7 @@ class DemoDataSeeder extends Seeder
             $hostel = Hostel::firstOrCreate(
                 ['name' => 'Kilimanjaro Hostel'],
                 [
-                    'type' => 'boarding',
+                    'type' => 'mixed',
                     'capacity' => 60,
                     'current_occupancy' => 10,
                     'warden_id' => $warden->id ?? null,
@@ -574,6 +575,7 @@ class DemoDataSeeder extends Seeder
                 ]
             );
 
+            $variantPrice = $uniformProduct->base_price + ($variantM->price_adjustment ?? 0);
             $orderItem = OrderItem::firstOrCreate(
                 [
                     'order_id' => $posOrder->id,
@@ -584,17 +586,22 @@ class DemoDataSeeder extends Seeder
                     'product_name' => $uniformProduct->name,
                     'variant_name' => $variantM->name,
                     'quantity' => 1,
-                    'unit_price' => $uniformProduct->getPriceForVariant($variantM->id),
+                    'unit_price' => $variantPrice,
                     'discount_amount' => 0,
-                    'total_price' => $uniformProduct->getPriceForVariant($variantM->id),
+                    'total_price' => $variantPrice,
                     'fulfillment_status' => 'fulfilled',
                     'quantity_fulfilled' => 1,
                     'requirement_template_id' => $uniformTemplate->id,
                 ]
             );
 
-            $posOrder->calculateTotals();
-            $posOrder->markAsPaid('MPESA', 'MPESA-DEMO-'.rand(1000,9999));
+            // Update order totals manually
+            $posOrder->subtotal = $variantPrice;
+            $posOrder->total_amount = $variantPrice;
+            $posOrder->paid_amount = $variantPrice;
+            $posOrder->balance = 0;
+            $posOrder->payment_reference = 'MPESA-DEMO-'.rand(1000,9999);
+            $posOrder->save();
 
             // Student requirement tied to POS order
             $studentRequirement = StudentRequirement::firstOrCreate(
@@ -783,21 +790,19 @@ class DemoDataSeeder extends Seeder
 
             // 14) Communication templates & announcements
             CommunicationTemplate::firstOrCreate(
-                ['name' => 'Fee Reminder'],
+                ['code' => 'fee_reminder_sms', 'type' => 'sms'],
                 [
-                    'channel' => 'sms',
-                    'subject' => 'Fee Reminder',
-                    'body' => 'Habari mzazi, tafadhali lipia ada yako iliyobaki. Asante.',
-                    'placeholders' => ['student_name', 'balance'],
+                    'title' => 'Fee Reminder',
+                    'subject' => null,
+                    'content' => 'Habari mzazi, tafadhali lipia ada yako iliyobaki. Asante.',
                 ]
             );
 
             Announcement::firstOrCreate(
-                ['title' => 'Welcome to Demo Mode'],
+                ['content' => 'Hii ni data ya majaribio ili uone moduli zote na taarifa halisi.'],
                 [
-                    'content' => 'Hii ni data ya majaribio ili uone moduli zote na taarifa halisi.',
-                    'published_at' => Carbon::now()->subDay(),
-                    'published_by' => $demoUsers->first()->id ?? null,
+                    'active' => true,
+                    'expires_at' => Carbon::now()->addMonth(),
                 ]
             );
         });
