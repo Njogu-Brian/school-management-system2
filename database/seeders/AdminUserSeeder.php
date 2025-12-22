@@ -38,6 +38,7 @@ class AdminUserSeeder extends Seeder
         Staff::updateOrCreate(
             ['user_id' => $adminUser->id],
             [
+                'staff_id' => 'ADMIN-001',
                 'first_name' => 'System',
                 'last_name' => 'Admin',
                 'work_email' => 'admin@school.com',
