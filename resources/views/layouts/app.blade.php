@@ -9,7 +9,8 @@
         $appName = $schoolNameSetting?->value ?? config('app.name', 'School Management System');
 
         $logoSetting = $schoolLogoSetting?->value;
-        $faviconSettingValue = $faviconSetting?->value;
+        // If favicon not set, fall back to the uploaded school logo so the icon stays in sync
+        $faviconSettingValue = $faviconSetting?->value ?? $logoSetting;
 
         // Prefer storage (uploaded via portal)
         $logoUrl = null;
@@ -26,6 +27,9 @@
             $faviconUrl = \Illuminate\Support\Facades\Storage::url($faviconSettingValue);
         } elseif ($faviconSettingValue && file_exists(public_path('images/'.$faviconSettingValue))) {
             $faviconUrl = asset('images/'.$faviconSettingValue);
+        } elseif ($logoSetting && file_exists(public_path('images/'.$logoSetting))) {
+            // Last-resort: mirror the school logo as the favicon
+            $faviconUrl = asset('images/'.$logoSetting);
         } else {
             $faviconUrl = asset('images/logo.png');
         }

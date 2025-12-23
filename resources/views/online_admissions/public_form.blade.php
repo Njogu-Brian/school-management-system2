@@ -1,9 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    @php
+        $settings = \App\Models\Setting::whereIn('key', ['school_name', 'school_logo', 'favicon'])->pluck('value', 'key');
+        $schoolName = $settings['school_name'] ?? config('app.name', 'School Management System');
+        $logoSetting = $settings['school_logo'] ?? null;
+        $faviconSetting = $settings['favicon'] ?? $logoSetting;
+
+        $resolveImage = function ($filename) {
+            if (!$filename) return null;
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($filename)) {
+                return \Illuminate\Support\Facades\Storage::url($filename);
+            }
+            if (file_exists(public_path('images/'.$filename))) {
+                return asset('images/'.$filename);
+            }
+            return null;
+        };
+
+        $logoUrl = $resolveImage($logoSetting) ?? asset('images/logo.png');
+        $faviconUrl = $resolveImage($faviconSetting) ?? $logoUrl;
+    @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Online Admission Application - {{ config('app.name', 'School Management System') }}</title>
+    <title>Online Admission Application - {{ $schoolName }}</title>
+    <link rel="icon" href="{{ $faviconUrl }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
     <style>
@@ -74,7 +95,11 @@
     <div class="container">
         <div class="form-container">
             <div class="form-header">
-                <h1><i class="bi bi-mortarboard"></i> Online Admission Application</h1>
+                <div class="mb-3">
+                    <img src="{{ $logoUrl }}" alt="Logo" style="max-height: 72px;">
+                </div>
+                <h1 class="mb-2"><i class="bi bi-mortarboard"></i> Online Admission Application</h1>
+                <p class="text-muted mb-1">{{ $schoolName }}</p>
                 <p class="text-muted">Please fill in all required fields marked with <span class="text-danger">*</span></p>
                 <span class="badge-soft">Secure | Fast | Mobile-friendly</span>
             </div>
