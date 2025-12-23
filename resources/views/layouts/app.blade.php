@@ -85,6 +85,9 @@
     </style>
     @endif
     @stack('styles')
+    @if(request()->is('finance*') || request()->is('voteheads*'))
+        @include('finance.partials.styles')
+    @endif
 
     <style>
         :root {
@@ -96,6 +99,7 @@
             --brand-border: #e5e7eb;
             --brand-text: #0f172a;
             --brand-muted: #6b7280;
+            --nav-highlight: {{ setting('navigation_highlight_color', '#ffc107') }};
         }
         body {
             font-family: 'Poppins', sans-serif;
@@ -150,18 +154,39 @@
         }
         .sidebar a:hover,
         .sidebar a.active,
-        .sidebar a.parent-active {
-            background: color-mix(in srgb, var(--brand-primary) 85%, #ffffff 15%);
-            color: #fff;
+        .sidebar a.parent-active,
+        .sidebar a.active-click {
+            background: var(--nav-highlight);
+            color: #0f172a;
+            font-weight: 700;
         }
         .collapse a {
             margin-left: 25px;
+            padding: 8px 14px;
             font-size: 14px;
-            color: #d1c4e9;
+            color: #f4f4f5;
+            border-radius: 6px;
         }
-        .collapse a.active {
-            color: #ffc107;
-            font-weight: 600;
+        .collapse a.active,
+        .collapse a.active-click {
+            color: #0f172a;
+            font-weight: 700;
+            background: var(--nav-highlight);
+        }
+        .collapse a:focus-visible {
+            outline: 2px solid var(--nav-highlight);
+            outline-offset: 2px;
+        }
+        .collapse a.text-muted,
+        .collapse a.small {
+            color: #e5e7eb !important;
+        }
+        .sidebar .text-muted,
+        .sidebar .text-muted small,
+        .sidebar .small,
+        .sidebar small {
+            color: #e5e7eb !important;
+            opacity: 1 !important;
         }
         .content {
             margin-left: 240px;
@@ -401,7 +426,18 @@
             </div>
         </div>
         @endauth
-        <div class="page-wrapper @if(request()->is('finance*') || request()->is('voteheads*')) finance-page @endif">@yield('content')</div>
+        @php $isFinance = request()->is('finance*') || request()->is('voteheads*'); @endphp
+        <div class="page-wrapper @if($isFinance) finance-page @endif">
+            @if($isFinance)
+                <div class="finance-page">
+                    <div class="finance-shell">
+                        @yield('content')
+                    </div>
+                </div>
+            @else
+                @yield('content')
+            @endif
+        </div>
     </div>
 
     <script>
@@ -452,6 +488,64 @@
         })();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const initSidebarFocus = function () {
+            const sidebar = document.querySelector('.sidebar');
+            if (!sidebar) return;
+
+            const clearActiveClicks = () => {
+                sidebar.querySelectorAll('a.active-click').forEach(a => a.classList.remove('active-click'));
+            };
+
+            const scrollToCenter = (el) => {
+                if (el && typeof el.scrollIntoView === 'function') {
+                    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            };
+
+            const ensureParentOpen = (el) => {
+                const parentCollapse = el?.closest?.('.collapse');
+                if (parentCollapse && typeof bootstrap !== 'undefined') {
+                    const instance = bootstrap.Collapse.getOrCreateInstance(parentCollapse, { toggle: false });
+                    instance.show();
+                }
+            };
+
+            const markAndCenter = (el) => {
+                if (!el) return;
+                clearActiveClicks();
+                el.classList.add('active-click');
+                ensureParentOpen(el);
+                scrollToCenter(el);
+            };
+
+            const initialActive = sidebar.querySelector('a.active') || sidebar.querySelector('a.parent-active');
+            if (initialActive) {
+                clearActiveClicks();
+                ensureParentOpen(initialActive);
+                scrollToCenter(initialActive);
+            }
+
+            sidebar.querySelectorAll('a[href]').forEach(link => {
+                link.addEventListener('click', () => markAndCenter(link));
+            });
+
+            sidebar.querySelectorAll('[data-bs-toggle="collapse"]').forEach(trigger => {
+                const targetSelector = trigger.getAttribute('href');
+                if (!targetSelector) return;
+                const targetEl = document.querySelector(targetSelector);
+                if (!targetEl) return;
+                targetEl.addEventListener('shown.bs.collapse', () => trigger.classList.add('parent-active'));
+                targetEl.addEventListener('hidden.bs.collapse', () => trigger.classList.remove('parent-active'));
+            });
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSidebarFocus);
+        } else {
+            initSidebarFocus();
+        }
+    </script>
     @stack('scripts')
 </body>
 </html>

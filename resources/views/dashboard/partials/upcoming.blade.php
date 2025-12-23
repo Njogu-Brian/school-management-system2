@@ -1,5 +1,5 @@
-<div class="card shadow-sm mb-3">
-  <div class="card-header bg-white"><strong>Coming Up</strong></div>
+<div class="dash-card card mb-3">
+  <div class="card-header"><strong>Coming Up</strong></div>
   <div class="list-group list-group-flush">
     @forelse($upcoming as $it)
       <div class="list-group-item d-flex justify-content-between align-items-center">

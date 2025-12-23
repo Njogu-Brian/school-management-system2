@@ -1,5 +1,5 @@
-<div class="card shadow-sm">
-  <div class="card-header bg-white"><strong>System Health</strong></div>
+<div class="dash-card card">
+  <div class="card-header"><strong>System Health</strong></div>
   <div class="card-body small">
     <div class="d-flex justify-content-between">
       <div>Jobs queue</div><div class="{{ $health['queue_ok'] ? 'text-success':'text-danger' }}">{{ $health['queue_ok'] ? 'OK' : 'Delayed' }}</div>

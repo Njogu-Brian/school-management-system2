@@ -56,18 +56,18 @@
 @foreach($cards as $card)
     @continue(!empty($card['hide']))
     <div class="col-12 col-sm-6 col-lg-4">
-        <div class="card h-100 shadow-sm border-0">
+        <div class="dash-card card h-100">
             <div class="card-body d-flex">
                 <div class="flex-grow-1">
-                    <div class="text-muted small mb-1">{{ $card['label'] }}</div>
+                    <div class="dash-muted small mb-1">{{ $card['label'] }}</div>
                     <div class="fs-4 fw-semibold">{{ $card['value'] }}</div>
                     @if(!empty($card['muted']))
-                        <div class="text-muted small">{{ $card['muted'] }}</div>
+                        <div class="dash-muted small">{{ $card['muted'] }}</div>
                     @endif
                 </div>
 
                 <div class="ms-3 d-flex align-items-start">
-                    <span class="badge rounded-circle p-3 bg-light border">
+                    <span class="dash-kpi-icon">
                         <i class="bi {{ $card['icon'] }} fs-5"></i>
                     </span>
                 </div>
@@ -79,11 +79,11 @@
                     $deltaUp = $delta >= 0;
                 @endphp
                 <div class="card-footer bg-transparent border-0 pt-0">
-                    <span class="small {{ $deltaUp ? 'text-success' : 'text-danger' }}">
+                    <span class="dash-delta {{ $deltaUp ? 'up' : 'down' }}">
                         <i class="bi {{ $deltaUp ? 'bi-arrow-up-right' : 'bi-arrow-down-right' }}"></i>
                         {{ $deltaUp ? '+' : '' }}{{ number_format($delta, 1) }}%
                     </span>
-                    <span class="small text-muted"> vs. previous period</span>
+                    <span class="small dash-muted"> vs. previous period</span>
                 </div>
             @endif
         </div>

@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Student;
 use Illuminate\Support\Collection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AttendanceReportService
@@ -49,9 +50,53 @@ class AttendanceReportService
         ];
 
         foreach ($records as $r) {
-            $g = strtolower($r->student->gender ?? 'other');
-            if (!isset($byGender[$g])) $g = 'other';
+            $rawGender = strtolower(trim($r->student->gender ?? ''));
+            $g = match ($rawGender) {
+                'male', 'm', 'boy', 'boys' => 'male',
+                'female', 'f', 'girl', 'girls' => 'female',
+                default => 'other',
+            };
+            if (!isset($byGender[$g])) {
+                $g = 'other';
+            }
             $byGender[$g][$r->status] = ($byGender[$g][$r->status] ?? 0) + 1;
+        }
+
+        // Fallback: if male/female buckets are empty but totals exist, recalc directly from DB
+        $genderTotals = function (array $bucket) {
+            return ($bucket['present'] ?? 0) + ($bucket['absent'] ?? 0) + ($bucket['late'] ?? 0);
+        };
+        $maleTotal = $genderTotals($byGender['male']);
+        $femaleTotal = $genderTotals($byGender['female']);
+
+        if (($maleTotal + $femaleTotal) === 0 && ($totals['all'] ?? 0) > 0) {
+            $rows = DB::table('attendance')
+                ->join('students', 'students.id', '=', 'attendance.student_id')
+                ->whereBetween('attendance.date', [$startDate, $endDate])
+                ->when($classId, fn ($q) => $q->where('students.classroom_id', $classId))
+                ->when($streamId, fn ($q) => $q->where('students.stream_id', $streamId))
+                ->selectRaw('LOWER(TRIM(students.gender)) as g, attendance.status, COUNT(*) as c')
+                ->groupBy('g', 'attendance.status')
+                ->get();
+
+            // reset buckets
+            $byGender = [
+                'male'   => ['present'=>0,'absent'=>0,'late'=>0],
+                'female' => ['present'=>0,'absent'=>0,'late'=>0],
+                'other'  => ['present'=>0,'absent'=>0,'late'=>0],
+            ];
+
+            foreach ($rows as $row) {
+                $g = match ($row->g) {
+                    'male','m','boy','boys' => 'male',
+                    'female','f','girl','girls' => 'female',
+                    default => 'other',
+                };
+                if (!isset($byGender[$g])) {
+                    $g = 'other';
+                }
+                $byGender[$g][$row->status] = $byGender[$g][$row->status] + $row->c;
+            }
         }
 
         return [

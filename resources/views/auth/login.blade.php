@@ -12,9 +12,9 @@
         if (\Illuminate\Support\Facades\Storage::disk('public')->exists($loginBg)) {
             $bgImage = \Illuminate\Support\Facades\Storage::url($loginBg);
         } else {
-            $bgPath = public_path('images/' . $loginBg);
-            if (file_exists($bgPath)) {
-                $bgImage = asset('images/' . $loginBg);
+        $bgPath = public_path('images/' . $loginBg);
+        if (file_exists($bgPath)) {
+            $bgImage = asset('images/' . $loginBg);
             }
         }
     }

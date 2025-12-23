@@ -141,7 +141,7 @@
           </div>
         </div>
 
-        @if($homework && $homework->count() > 0)
+    @if(isset($homework) && $homework && $homework->count() > 0)
         <div class="settings-card">
           <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-journal-check"></i><h5 class="mb-0">Linked Homework ({{ $homework->count() }})</h5></div>
           <div class="card-body">

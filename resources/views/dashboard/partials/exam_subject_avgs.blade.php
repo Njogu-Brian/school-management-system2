@@ -1,11 +1,11 @@
-<div class="card shadow-sm h-100">
-    <div class="card-header bg-white">
+<div class="dash-card card h-100">
+    <div class="card-header">
         <strong>Exam Subject Averages</strong>
     </div>
 
     <div class="card-body text-center">
         {{-- Placeholder message or chart --}}
-        <p class="text-muted mb-2">
+        <p class="dash-muted mb-2">
             Average scores per subject will appear here.
         </p>
 

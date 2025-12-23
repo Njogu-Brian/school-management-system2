@@ -65,18 +65,18 @@ class Homework extends Model
         return $this->belongsTo(SchemeOfWork::class, 'scheme_of_work_id');
     }
 
-    public function homeworkDiary()
+    public function homeworkDiaries()
     {
         return $this->hasMany(HomeworkDiary::class, 'homework_id');
     }
 
     public function submittedHomework()
     {
-        return $this->homeworkDiary()->whereIn('status', ['submitted', 'marked']);
+        return $this->homeworkDiaries()->whereIn('status', ['submitted', 'marked']);
     }
 
     public function markedHomework()
     {
-        return $this->homeworkDiary()->where('status', 'marked');
+        return $this->homeworkDiaries()->where('status', 'marked');
     }
 }

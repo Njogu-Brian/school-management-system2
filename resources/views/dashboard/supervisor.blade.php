@@ -1,15 +1,21 @@
 {{-- resources/views/dashboard/supervisor.blade.php --}}
 @extends('layouts.app')
 
+@push('styles')
+    @include('dashboard.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-xxl">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="dashboard-page">
+  <div class="dashboard-shell">
+  <div class="dash-hero d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
+      <span class="crumb">Dashboard</span>
       <h2 class="mb-1">Supervisor Dashboard</h2>
-      <p class="text-muted mb-0">Welcome back, {{ $staff->full_name ?? auth()->user()->name }}!</p>
+      <p class="mb-0">Welcome back, {{ $staff->full_name ?? auth()->user()->name }}!</p>
     </div>
     <div>
-      <span class="badge bg-primary">{{ now()->format('l, F j, Y') }}</span>
+      <span class="dash-chip">{{ now()->format('l, F j, Y') }}</span>
     </div>
   </div>
 
@@ -298,6 +304,8 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
   </div>
 </div>
 @endsection

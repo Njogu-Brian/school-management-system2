@@ -19,14 +19,20 @@ class ExamMarkController extends Controller
     {
         // Support both permission names for backward compatibility
         $this->middleware(function ($request, $next) {
-            if (!auth()->user()->hasAnyPermission(['exams.enter_marks', 'exam_marks.create'])) {
+            $user = auth()->user();
+            if (!$user->hasAnyPermission(['exams.enter_marks', 'exam_marks.create'])
+                && !$user->hasAnyRole(['Super Admin','Admin','System Admin'])
+            ) {
                 abort(403, 'You do not have permission to enter exam marks.');
             }
             return $next($request);
         })->only(['bulkForm', 'bulkEdit', 'bulkEditView', 'bulkStore', 'edit', 'update']);
         
         $this->middleware(function ($request, $next) {
-            if (!auth()->user()->hasAnyPermission(['exams.view', 'exam_marks.view'])) {
+            $user = auth()->user();
+            if (!$user->hasAnyPermission(['exams.view', 'exam_marks.view'])
+                && !$user->hasAnyRole(['Super Admin','Admin','System Admin'])
+            ) {
                 abort(403, 'You do not have permission to view exam marks.');
             }
             return $next($request);

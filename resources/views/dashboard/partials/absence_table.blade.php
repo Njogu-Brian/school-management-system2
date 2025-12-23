@@ -1,9 +1,9 @@
-<div class="card shadow-sm h-100">
-  <div class="card-header bg-white">
+<div class="dash-card card h-100">
+  <div class="card-header">
     <strong>Top Absence Alerts (last 7 days)</strong>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm mb-0">
+    <table class="table table-sm mb-0 dash-table">
       <thead><tr><th>Student</th><th>Class</th><th>Days Absent</th><th></th></tr></thead>
       <tbody>
         @forelse($absenceAlerts as $row)

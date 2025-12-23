@@ -1,5 +1,5 @@
-<div class="card shadow-sm mb-3 h-100">
-    <div class="card-header bg-white">
+<div class="dash-card card mb-3 h-100">
+    <div class="card-header">
         <strong>Behaviour (last 7 days)</strong>
     </div>
 
@@ -20,9 +20,9 @@
 
     <div class="card-body">
         <div class="d-flex gap-2 flex-wrap mb-2">
-            <div><span class="badge bg-success">{{ $minor }}</span> <span class="small text-muted">Minor</span></div>
-            <div><span class="badge bg-warning text-dark">{{ $moderate }}</span> <span class="small text-muted">Moderate</span></div>
-            <div><span class="badge bg-danger">{{ $major }}</span> <span class="small text-muted">Major</span></div>
+            <div><span class="badge bg-success">{{ $minor }}</span> <span class="small dash-muted">Minor</span></div>
+            <div><span class="badge bg-warning text-dark">{{ $moderate }}</span> <span class="small dash-muted">Moderate</span></div>
+            <div><span class="badge bg-danger">{{ $major }}</span> <span class="small dash-muted">Major</span></div>
         </div>
 
         <ul class="list-unstyled mt-2 mb-0">

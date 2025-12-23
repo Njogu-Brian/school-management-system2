@@ -48,18 +48,13 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-features-tab" data-bs-toggle="pill" data-bs-target="#tab-features" type="button" role="tab">
-                    <i class="bi bi-toggle-on"></i> Features
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-placeholders-tab" data-bs-toggle="pill" data-bs-target="#tab-placeholders" type="button" role="tab">
                     <i class="bi bi-braces"></i> Placeholders
                 </button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-modules-tab" data-bs-toggle="pill" data-bs-target="#tab-modules" type="button" role="tab">
-                    <i class="bi bi-grid"></i> Modules
+                    <i class="bi bi-sliders"></i> Modules & Features
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -74,9 +69,8 @@
             @include('settings.partials.branding')
             @include('settings.partials.regional')
             @include('settings.partials.ids')
-            @include('settings.partials.system')
-            @include('settings.partials.features')
             @include('settings.partials.modules')
+            @include('settings.partials.system')
             @include('settings.partials.placeholders', [
                 'systemPlaceholders' => [
                     ['key' => 'school_name',  'value' => setting('school_name') ?? 'School Name'],

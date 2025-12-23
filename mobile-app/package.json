@@ -1,0 +1,57 @@
+{
+    "name": "school-erp-mobile",
+    "version": "1.0.0",
+    "description": "School ERP Management System - Mobile App",
+    "main": "index.js",
+    "scripts": {
+        "android": "react-native run-android",
+        "ios": "react-native run-ios",
+        "start": "react-native start",
+        "test": "jest",
+        "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+    },
+    "dependencies": {
+        "react": "18.2.0",
+        "react-native": "0.73.2",
+        "@react-navigation/native": "^6.1.9",
+        "@react-navigation/stack": "^6.3.20",
+        "@react-navigation/bottom-tabs": "^6.5.11",
+        "@react-navigation/drawer": "^6.6.6",
+        "react-native-screens": "^3.29.0",
+        "react-native-safe-area-context": "^4.8.2",
+        "react-native-gesture-handler": "^2.14.1",
+        "react-native-reanimated": "^3.6.1",
+        "react-native-paper": "^5.11.3",
+        "react-native-vector-icons": "^10.0.3",
+        "axios": "^1.6.5",
+        "@react-native-async-storage/async-storage": "^1.21.0",
+        "react-hook-form": "^7.49.3",
+        "date-fns": "^3.2.0",
+        "react-native-dotenv": "^3.4.10",
+        "react-native-pdf": "^6.7.4",
+        "react-native-chart-kit": "^6.12.0",
+        "react-native-svg": "^14.1.0",
+        "react-native-image-picker": "^7.1.0",
+        "react-native-document-picker": "^9.1.1"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.23.7",
+        "@babel/preset-env": "^7.23.8",
+        "@babel/runtime": "^7.23.8",
+        "@react-native/eslint-config": "^0.73.2",
+        "@react-native/metro-config": "^0.73.3",
+        "@react-native/typescript-config": "^0.73.1",
+        "@types/react": "^18.2.48",
+        "@types/react-native": "^0.73.0",
+        "@types/react-test-renderer": "^18.0.7",
+        "babel-jest": "^29.7.0",
+        "eslint": "^8.56.0",
+        "jest": "^29.7.0",
+        "prettier": "^3.1.1",
+        "react-test-renderer": "18.2.0",
+        "typescript": "^5.3.3"
+    },
+    "engines": {
+        "node": ">=18"
+    }
+}

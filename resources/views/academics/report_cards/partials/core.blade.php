@@ -182,25 +182,27 @@
 @endif
 
 {{-- CBC CAT Breakdown --}}
-@if(!empty($D['cbc']['cat_breakdown']) && is_array($D['cbc']['cat_breakdown']))
-  @php $hasCatData = collect($D['cbc']['cat_breakdown'])->except('average')->filter(function($v){ return $v !== null; })->isNotEmpty(); @endphp
-  @if($hasCatData)
-  <table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:10px;">
-    <thead>
-      <tr style="background:#f3f4f6;"><th style="padding:6px; border:1px solid #d1d5db; text-align:left;" colspan="5">CAT Breakdown</th></tr>
-      <tr style="background:#f9fafb;"><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 1</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 2</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 3</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 4</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Average</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat1'] ?? 'N/A' }}</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat2'] ?? 'N/A' }}</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat3'] ?? 'N/A' }}</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat4'] ?? 'N/A' }}</td>
-        <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['average'] ?? 'N/A' }}</td>
-      </tr>
-    </tbody>
-  </table>
-  @endif
+@php
+  $hasCatData = !empty($D['cbc']['cat_breakdown']) && is_array($D['cbc']['cat_breakdown'])
+    ? collect($D['cbc']['cat_breakdown'])->except('average')->filter(fn($v) => $v !== null)->isNotEmpty()
+    : false;
+@endphp
+@if(!empty($hasCatData))
+<table style="width:100%; border-collapse:collapse; border:1px solid #d1d5db; margin-bottom:10px;">
+  <thead>
+    <tr style="background:#f3f4f6;"><th style="padding:6px; border:1px solid #d1d5db; text-align:left;" colspan="5">CAT Breakdown</th></tr>
+    <tr style="background:#f9fafb;"><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 1</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 2</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 3</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">CAT 4</th><th style="padding:6px; border:1px solid #d1d5db; text-align:center;">Average</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat1'] ?? 'N/A' }}</td>
+      <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat2'] ?? 'N/A' }}</td>
+      <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat3'] ?? 'N/A' }}</td>
+      <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['cat4'] ?? 'N/A' }}</td>
+      <td style="padding:6px; border:1px solid #d1d5db; text-align:center;">{{ $D['cbc']['cat_breakdown']['average'] ?? 'N/A' }}</td>
+    </tr>
+  </tbody>
+</table>
 @endif
 
 {{-- Comments --}}

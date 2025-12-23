@@ -1,14 +1,21 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('dashboard.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-fluid">
-    {{-- Page header --}}
-    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+<div class="dashboard-page">
+  <div class="dashboard-shell">
+    <div class="dash-hero d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
         <div>
-            <h2 class="mb-0">Admin Dashboard</h2>
-            <small class="text-muted">An overview of students, attendance, finance, exams, transport & communications</small>
+            <span class="crumb">Dashboard</span>
+            <h2 class="mb-1">Admin Dashboard</h2>
+            <p class="mb-0">Overview of students, attendance, finance, exams, transport & communications.</p>
         </div>
-        @include('dashboard.partials.quick_actions')
+        <div class="actions">
+            @include('dashboard.partials.quick_actions')
+        </div>
     </div>
 
     {{-- Flash messages --}}
@@ -59,6 +66,7 @@
             @include('dashboard.partials.system_health')
         </div>
     </div>
+  </div>
 </div>
 @endsection
 

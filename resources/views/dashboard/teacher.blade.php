@@ -1,17 +1,23 @@
 {{-- resources/views/dashboard/teacher.blade.php --}}
 @extends('layouts.app')
 
+@push('styles')
+    @include('dashboard.partials.styles')
+@endpush
+
 @section('content')
-<div class="container-xxl">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-      <h2 class="mb-1">Teacher Dashboard</h2>
-      <p class="text-muted mb-0">Welcome back, {{ $staff->full_name ?? auth()->user()->name }}!</p>
+<div class="dashboard-page">
+  <div class="dashboard-shell">
+    <div class="dash-hero d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+      <div>
+        <span class="crumb">Dashboard</span>
+        <h2 class="mb-1">Teacher Dashboard</h2>
+        <p class="mb-0">Welcome back, {{ $staff->full_name ?? auth()->user()->name }}!</p>
+      </div>
+      <div>
+        <span class="dash-chip">{{ now()->format('l, F j, Y') }}</span>
+      </div>
     </div>
-    <div>
-      <span class="badge bg-primary">{{ now()->format('l, F j, Y') }}</span>
-    </div>
-  </div>
 
   {{-- Quick Stats --}}
   <div class="row g-3 mb-4">
@@ -326,7 +332,7 @@
       @include('dashboard.partials.announcements', ['announcements' => $announcements])
 
       {{-- Recent Homework --}}
-      @if($recentHomework->isNotEmpty())
+      @if(isset($recentHomework) && $recentHomework->isNotEmpty())
         <div class="card shadow-sm border-0 mb-4">
           <div class="card-header bg-white border-bottom">
             <h5 class="mb-0"><i class="bi bi-journal me-2"></i>Recent Homework</h5>

@@ -1,7 +1,7 @@
-<div class="card shadow-sm mb-3">
-  <div class="card-header bg-white d-flex justify-content-between">
+<div class="dash-card card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
     <strong>Announcements</strong>
-    <a class="small" href="{{ route('announcements.index') }}">Manage</a>
+    <a class="small dash-btn-ghost" href="{{ route('announcements.index') }}">Manage</a>
   </div>
 
   <ul class="list-group list-group-flush">

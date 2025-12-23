@@ -176,6 +176,8 @@ Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookCon
 Route::middleware(['auth'])->group(function () {
     Route::get('/my/profile',  [StaffProfileController::class, 'show'])->name('staff.profile.show');
     Route::post('/my/profile', [StaffProfileController::class, 'update'])->name('staff.profile.update');
+    // Friendly alias
+    Route::redirect('/profile', '/my/profile')->name('staff.profile.alias');
 });
 
 /*
@@ -433,6 +435,10 @@ Route::middleware('auth')->group(function () {
         // Term Assessment
         Route::get('assessments/term', [ReportCardController::class,'termAssessment'])->name('assessments.term');
 
+        // Generate batch reports
+        Route::get('report_cards/generate',  [ReportCardController::class,'generateForm'])->name('report_cards.generate.form');
+        Route::post('report_cards/generate', [ReportCardController::class,'generate'])->name('report_cards.generate');
+
         // Report Cards
         Route::resource('report_cards', ReportCardController::class)
             ->names('report_cards')
@@ -452,10 +458,6 @@ Route::middleware('auth')->group(function () {
             Route::put('skills/{skill}',      [ReportCardSkillController::class,'update'])->name('update');
             Route::delete('skills/{skill}',   [ReportCardSkillController::class,'destroy'])->name('destroy');
         });
-
-        // Generate batch reports
-        Route::get('report_cards/generate',  [ReportCardController::class,'generateForm'])->name('report_cards.generate.form');
-        Route::post('report_cards/generate', [ReportCardController::class,'generate'])->name('report_cards.generate');
 
         // Behaviour
         Route::resource('behaviours', BehaviourController::class);
@@ -718,6 +720,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/id-settings',     [SettingController::class, 'updateIdSettings'])->name('ids.save');
 
             // Modules update
+            Route::post('/update-features', [SettingController::class, 'updateFeatures'])->name('update.features');
             Route::post('/update-modules',  [SettingController::class, 'updateModules'])->name('update.modules');
         });
 

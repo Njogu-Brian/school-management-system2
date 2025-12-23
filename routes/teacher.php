@@ -84,8 +84,14 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])-
         Route::get('report_cards/{report_card}/skills', [ReportCardSkillController::class,'index'])
             ->name('academics.report_cards.skills.index');
 
+        Route::get('report_cards/{report_card}/skills/create', [ReportCardSkillController::class,'create'])
+            ->name('academics.report_cards.skills.create');
+
         Route::post('report_cards/{report_card}/skills', [ReportCardSkillController::class,'store'])
             ->name('academics.report_cards.skills.store');
+
+        Route::get('report_cards/{report_card}/skills/{skill}/edit', [ReportCardSkillController::class,'edit'])
+            ->name('academics.report_cards.skills.edit');
 
         Route::put('report_cards/{report_card}/skills/{skill}', [ReportCardSkillController::class,'update'])
             ->name('academics.report_cards.skills.update');

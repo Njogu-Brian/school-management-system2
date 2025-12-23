@@ -103,6 +103,9 @@
                         </tbody>
                     </table>
                 </div>
+                <div class="p-3">
+                    {{ $years->links() }}
+                </div>
             </div>
         </div>
     </div>

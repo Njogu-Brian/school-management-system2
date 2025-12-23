@@ -93,8 +93,7 @@ class ExtraCurricularActivity extends Model
             [
                 'description' => "Optional fee for {$this->name} activity",
                 'is_mandatory' => false,
-                'charge_type' => 'fixed',
-                'default_amount' => $this->fee_amount,
+                'charge_type' => 'per_student',
             ]
         );
 
@@ -118,7 +117,7 @@ class ExtraCurricularActivity extends Model
                 ],
                 [
                     'amount' => $this->fee_amount,
-                    'term' => $this->term->name ?? 'Term 1',
+                    'term' => $this->term->id ?? 1,
                 ]
             );
         }
@@ -146,7 +145,7 @@ class ExtraCurricularActivity extends Model
                 [
                     'student_id' => $studentId,
                     'votehead_id' => $this->votehead_id,
-                    'term' => $term->name ?? 'Term 1',
+                    'term' => $term->id ?? 1,
                     'year' => $year->year ?? date('Y'),
                 ],
                 [

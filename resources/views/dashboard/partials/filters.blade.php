@@ -1,4 +1,4 @@
-<form method="GET" class="card card-body shadow-sm mb-3">
+<form method="GET" class="dash-card card card-body mb-3">
   <div class="row g-2 align-items-end">
     <div class="col-6 col-md-3">
       <label class="form-label">Academic Year</label>

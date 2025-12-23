@@ -19,9 +19,9 @@ return new class extends Migration
                     ->onDelete('cascade');
             }
         });
-
+            
         // Update unique constraint to include category (use raw SQL with guard to avoid FK index issues)
-        try {
+            try {
             DB::statement("ALTER TABLE `fee_structures` DROP INDEX `unique_active_structure`");
         } catch (\Throwable $e) {
             // Index may not exist or cannot be dropped due to FK; continue

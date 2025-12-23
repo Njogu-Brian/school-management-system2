@@ -11,13 +11,14 @@ class AcademicConfigController extends Controller
 {
     public function index()
     {
+        // Paginate to avoid long renders on instances with many years/terms
         $years = AcademicYear::with(['terms' => function ($q) {
                 // Sort terms numerically by the number after "Term "
                 $q->orderByRaw('CAST(SUBSTRING(name, 6) AS UNSIGNED) ASC');
             }])
             // Sort years numerically by year column
             ->orderByRaw('CAST(year AS UNSIGNED) DESC')
-            ->get();
+            ->paginate(25);
 
         return view('settings.academic.index', compact('years'));
     }

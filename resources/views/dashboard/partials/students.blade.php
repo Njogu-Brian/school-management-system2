@@ -1,8 +1,8 @@
 @if ($filtersApplied && $students->isNotEmpty())
-    <div class="card mt-3">
+    <div class="dash-card card mt-3">
         <div class="card-header">Filtered Students</div>
         <div class="card-body">
-            <table class="table table-bordered">
+            <table class="table table-bordered dash-table">
                 <thead>
                     <tr>
                         <th>Name</th>

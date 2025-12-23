@@ -1,5 +1,5 @@
-<div class="card shadow-sm h-100">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+<div class="dash-card card h-100">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <strong>Transport Snapshot</strong>
         @isset($transportRoutesIndex)
             <a class="small" href="{{ $transportRoutesIndex }}">View</a>

@@ -50,6 +50,7 @@
         <span>Transport Dashboard</span>
     </a>
 </li>
+
 <!-- Profile -->
 <li>
     <a href="{{ route('staff.profile.show') }}"
@@ -154,50 +155,6 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
     </a>
 </div>
 
-{{-- Exams --}}
-@php
-    $examsActive = Request::is('academics/exams*')
-        || Request::is('academics/exam-types*')
-        || Request::is('academics/exam-grades*')
-        || Request::is('academics/exam-marks*')
-        || Request::is('academics/exams/results*')
-        || Request::is('academics/exams/timetable*');
-@endphp
-
-<a href="#examsMenu" data-bs-toggle="collapse"
-aria-expanded="{{ $examsActive ? 'true' : 'false' }}"
-class="{{ $examsActive ? 'parent-active' : '' }}">
-<i class="bi bi-file-earmark-text"></i> Exams
-</a>
-
-<div class="collapse {{ $examsActive ? 'show' : '' }}" id="examsMenu">
-    {{-- New exam structure --}}
-    <a href="{{ route('academics.exams.types.index') }}"
-    class="sublink {{ Request::is('academics/exam-types*') ? 'active' : '' }}">
-        <i class="bi bi-sliders2"></i> Exam Types
-    </a>
-
-    <a href="{{ route('academics.exams.index') }}"
-    class="sublink {{ Request::is('academics/exams') && !Request::is('academics/exams/*') ? 'active' : '' }}">
-        <i class="bi bi-journal-check"></i> Manage Exams
-    </a>
-
-    <a href="{{ route('academics.exam-marks.bulk.form') }}"
-    class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
-        <i class="bi bi-pencil-square"></i> Enter Marks
-    </a>
-
-    <a href="{{ route('academics.exams.results.index') }}"
-    class="sublink {{ Request::is('academics/exams/results*') ? 'active' : '' }}">
-        <i class="bi bi-bar-chart"></i> Exam Results
-    </a>
-
-    <a href="{{ route('academics.exams.timetable') }}"
-    class="sublink {{ Request::is('academics/exams/timetable*') ? 'active' : '' }}">
-        <i class="bi bi-printer"></i> Exam Timetable
-    </a>
-</div>
-
 {{-- CBC Curriculum & Planning --}}
 @php 
     $cbcActive = Request::is('academics/learning-areas*') 
@@ -270,6 +227,50 @@ class="{{ $examsActive ? 'parent-active' : '' }}">
 <div class="collapse {{ $homeworkActive ? 'show' : '' }}" id="homeworkMenu">
     <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') ? 'active' : '' }}">Homework</a>
     <a href="{{ route('academics.diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
+</div>
+
+{{-- Exams --}}
+@php
+    $examsActive = Request::is('academics/exams*')
+        || Request::is('academics/exam-types*')
+        || Request::is('academics/exam-grades*')
+        || Request::is('academics/exam-marks*')
+        || Request::is('academics/exams/results*')
+        || Request::is('academics/exams/timetable*');
+@endphp
+
+<a href="#examsMenu" data-bs-toggle="collapse"
+aria-expanded="{{ $examsActive ? 'true' : 'false' }}"
+class="{{ $examsActive ? 'parent-active' : '' }}">
+<i class="bi bi-file-earmark-text"></i> Exams
+</a>
+
+<div class="collapse {{ $examsActive ? 'show' : '' }}" id="examsMenu">
+    {{-- New exam structure --}}
+    <a href="{{ route('academics.exams.types.index') }}"
+    class="sublink {{ Request::is('academics/exam-types*') ? 'active' : '' }}">
+        <i class="bi bi-sliders2"></i> Exam Types
+    </a>
+
+    <a href="{{ route('academics.exams.index') }}"
+    class="sublink {{ Request::is('academics/exams') && !Request::is('academics/exams/*') ? 'active' : '' }}">
+        <i class="bi bi-journal-check"></i> Manage Exams
+    </a>
+
+    <a href="{{ route('academics.exam-marks.bulk.form') }}"
+    class="sublink {{ Request::is('academics/exam-marks*') ? 'active' : '' }}">
+        <i class="bi bi-pencil-square"></i> Enter Marks
+    </a>
+
+    <a href="{{ route('academics.exams.results.index') }}"
+    class="sublink {{ Request::is('academics/exams/results*') ? 'active' : '' }}">
+        <i class="bi bi-bar-chart"></i> Exam Results
+    </a>
+
+    <a href="{{ route('academics.exams.timetable') }}"
+    class="sublink {{ Request::is('academics/exams/timetable*') ? 'active' : '' }}">
+        <i class="bi bi-printer"></i> Exam Timetable
+    </a>
 </div>
 
 {{-- Report Cards --}}
@@ -367,6 +368,62 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
     <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
     <a href="{{ route('finance.document-settings.index') }}"class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
+</div>
+
+<!-- Transport -->
+@php $isTransportActive = Request::is('transport*'); @endphp
+<a href="#transportMenu" data-bs-toggle="collapse" 
+aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}"
+class="{{ $isTransportActive ? 'parent-active' : '' }}">
+<i class="bi bi-truck"></i><span> Transport</span>
+</a>
+<div class="collapse {{ $isTransportActive ? 'show' : '' }}" id="transportMenu">
+    <a href="{{ route('transport.vehicles.index') }}" 
+    class="sublink {{ Request::is('transport/vehicles*') ? 'active' : '' }}">
+    <i class="bi bi-bus-front"></i> Vehicles
+    </a>
+    <a href="{{ route('transport.routes.index') }}" 
+    class="sublink {{ Request::is('transport/routes*') ? 'active' : '' }}">
+    <i class="bi bi-map"></i> Routes
+    </a>
+    <a href="{{ route('transport.trips.index') }}" 
+    class="sublink {{ Request::is('transport/trips*') ? 'active' : '' }}">
+    <i class="bi bi-geo"></i> Trips
+    </a>
+    <a href="{{ route('transport.student-assignments.index') }}" 
+    class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">
+    <i class="bi bi-people"></i> Assignments
+    </a>
+</div>
+
+<!-- Communication -->
+@php $isCommunicationActive = Request::is('communication*') || Request::is('announcements*'); @endphp
+<a href="#communicationMenu" data-bs-toggle="collapse" 
+aria-expanded="{{ $isCommunicationActive ? 'true' : 'false' }}"
+class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
+<i class="bi bi-chat-dots"></i><span> Communication</span>
+</a>
+<div class="collapse {{ $isCommunicationActive ? 'show' : '' }}" id="communicationMenu">
+    <a href="{{ route('communication.send.email') }}" 
+    class="sublink {{ Request::is('communication/send-email*') ? 'active' : '' }}">
+    <i class="bi bi-envelope"></i> Send Email
+    </a>
+    <a href="{{ route('communication.send.sms') }}" 
+    class="sublink {{ Request::is('communication/send-sms*') ? 'active' : '' }}">
+    <i class="bi bi-chat"></i> Send SMS
+    </a>
+    <a href="{{ route('communication-templates.index') }}" 
+    class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
+    <i class="bi bi-layer-forward"></i> Templates
+    </a>
+    <a href="{{ route('communication.logs') }}" 
+    class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
+    <i class="bi bi-clock-history"></i> Logs
+    </a>
+    <a href="{{ route('announcements.index') }}" 
+    class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
+    <i class="bi bi-megaphone"></i> Announcements
+    </a>
 </div>
 
 <!-- HR -->
@@ -476,62 +533,6 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
   </a>
 </div>
 
-<!-- Transport -->
-@php $isTransportActive = Request::is('transport*'); @endphp
-<a href="#transportMenu" data-bs-toggle="collapse" 
-aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}"
-class="{{ $isTransportActive ? 'parent-active' : '' }}">
-<i class="bi bi-truck"></i><span> Transport</span>
-</a>
-<div class="collapse {{ $isTransportActive ? 'show' : '' }}" id="transportMenu">
-    <a href="{{ route('transport.vehicles.index') }}" 
-    class="sublink {{ Request::is('transport/vehicles*') ? 'active' : '' }}">
-    <i class="bi bi-bus-front"></i> Vehicles
-    </a>
-    <a href="{{ route('transport.routes.index') }}" 
-    class="sublink {{ Request::is('transport/routes*') ? 'active' : '' }}">
-    <i class="bi bi-map"></i> Routes
-    </a>
-    <a href="{{ route('transport.trips.index') }}" 
-    class="sublink {{ Request::is('transport/trips*') ? 'active' : '' }}">
-    <i class="bi bi-geo"></i> Trips
-    </a>
-    <a href="{{ route('transport.student-assignments.index') }}" 
-    class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">
-    <i class="bi bi-people"></i> Assignments
-    </a>
-</div>
-
-<!-- Communication -->
-@php $isCommunicationActive = Request::is('communication*') || Request::is('announcements*'); @endphp
-<a href="#communicationMenu" data-bs-toggle="collapse" 
-aria-expanded="{{ $isCommunicationActive ? 'true' : 'false' }}"
-class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
-<i class="bi bi-chat-dots"></i><span> Communication</span>
-</a>
-<div class="collapse {{ $isCommunicationActive ? 'show' : '' }}" id="communicationMenu">
-    <a href="{{ route('communication.send.email') }}" 
-    class="sublink {{ Request::is('communication/send-email*') ? 'active' : '' }}">
-    <i class="bi bi-envelope"></i> Send Email
-    </a>
-    <a href="{{ route('communication.send.sms') }}" 
-    class="sublink {{ Request::is('communication/send-sms*') ? 'active' : '' }}">
-    <i class="bi bi-chat"></i> Send SMS
-    </a>
-    <a href="{{ route('communication-templates.index') }}" 
-    class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
-    <i class="bi bi-layer-forward"></i> Templates
-    </a>
-    <a href="{{ route('communication.logs') }}" 
-    class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
-    <i class="bi bi-clock-history"></i> Logs
-    </a>
-    <a href="{{ route('announcements.index') }}" 
-    class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
-    <i class="bi bi-megaphone"></i> Announcements
-    </a>
-</div>
-
 <!-- Events Calendar -->
 @php $eventsActive = Request::is('events*'); @endphp
 <a href="{{ route('events.index') }}" class="{{ $eventsActive ? 'active' : '' }}">
@@ -606,6 +607,9 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 
 <!-- Settings -->
 @php $isSettingsActive = Request::is('settings*'); @endphp
+@php 
+    $isAcademicConfig = Request::is('settings/academic*') || Request::is('settings/school-days*');
+@endphp
 <a href="#settingsMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isSettingsActive ? 'true' : 'false' }}"
 class="{{ $isSettingsActive ? 'parent-active' : '' }}">
@@ -617,18 +621,10 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     <i class="bi bi-building"></i> General Info
     </a>
     <a href="{{ route('settings.academic.index') }}" 
-    class="sublink {{ Request::is('settings/academic*') ? 'active' : '' }}">
-    <i class="bi bi-calendar"></i> Academic Years & Terms
-    </a>
-    <a href="{{ route('settings.school-days.index') }}" 
-    class="sublink {{ Request::is('settings/school-days*') ? 'active' : '' }}">
-    <i class="bi bi-calendar-check"></i> School Days & Holidays
+    class="sublink {{ $isAcademicConfig ? 'active' : '' }}">
+    <i class="bi bi-calendar-check"></i> Academic Calendar (Years, Terms, Days)
     </a>
     @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
-    <a href="{{ route('backup-restore.index') }}" 
-    class="sublink {{ Request::is('backup-restore*') ? 'active' : '' }}">
-    <i class="bi bi-database"></i> Backup & Restore
-    </a>
     <a href="{{ route('activity-logs.index') }}" 
     class="sublink {{ Request::is('activity-logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Activity Logs

@@ -54,7 +54,7 @@ class TimetableController extends Controller
         }
         
         $years = AcademicYear::orderByDesc('year')->get();
-        $terms = Term::orderBy('name')->get();
+        $terms = Term::orderByDesc('start_date')->orderBy('name')->get();
 
         $selectedClassroom = $request->filled('classroom_id') ? Classroom::find($request->classroom_id) : null;
         $selectedTeacher = $request->filled('teacher_id') ? Staff::find($request->teacher_id) : null;
@@ -104,7 +104,7 @@ class TimetableController extends Controller
     public function classroom(Classroom $classroom, Request $request)
     {
         $yearId = $request->get('academic_year_id') ?? AcademicYear::orderByDesc('year')->first()?->id;
-        $termId = $request->get('term_id') ?? Term::orderBy('name')->first()?->id;
+        $termId = $request->get('term_id') ?? Term::orderByDesc('start_date')->orderBy('name')->first()?->id;
 
         if (!$yearId || !$termId) {
             return back()->with('error', 'Please select academic year and term.');
@@ -165,7 +165,7 @@ class TimetableController extends Controller
     public function edit(Classroom $classroom, Request $request)
     {
         $yearId = $request->get('academic_year_id') ?? AcademicYear::orderByDesc('year')->first()?->id;
-        $termId = $request->get('term_id') ?? Term::orderBy('name')->first()?->id;
+        $termId = $request->get('term_id') ?? Term::orderByDesc('start_date')->orderBy('name')->first()?->id;
 
         if (!$yearId || !$termId) {
             return back()->with('error', 'Please select academic year and term.');

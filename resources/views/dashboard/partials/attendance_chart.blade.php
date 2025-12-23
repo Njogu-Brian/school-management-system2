@@ -1,5 +1,5 @@
-<div class="card shadow-sm h-100">
-  <div class="card-header bg-white">
+<div class="dash-card card h-100">
+  <div class="card-header">
     <strong>Attendance – last 30 days</strong>
   </div>
   <div class="card-body">

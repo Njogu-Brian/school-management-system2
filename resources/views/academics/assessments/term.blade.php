@@ -58,22 +58,38 @@
         </div>
     </form>
 
-    @if(!empty($data))
+    @if(empty($data) || empty($data['rows']))
+        <div class="alert alert-info">No marks found for the selected filters.</div>
+    @else
         @php
             $exams = $data['exams'];
-            // group rows by student
             $byStudent = collect($data['rows'])->groupBy(fn($r) => $r['student']->id);
         @endphp
 
         @foreach($byStudent as $studentId => $rows)
+            @php
+                $student = $rows->first()['student'];
+                $subjectCount = $rows->count();
+                $avgTerm = $rows->avg('avg');
+                $best = $rows->sortByDesc('avg')->first();
+                $worst = $rows->sortBy('avg')->first();
+            @endphp
             <div class="card mb-4 shadow-sm">
-                <div class="card-header">
-                    <strong>{{ $rows->first()['student']->full_name }}</strong>
-                    <span class="text-muted ms-2">
-                        Adm: {{ $rows->first()['student']->admission_number ?? '-' }} |
-                        Class: {{ $rows->first()['student']->classroom->name ?? '-' }}
-                        @if($rows->first()['student']->stream) — Stream: {{ $rows->first()['student']->stream->name }} @endif
-                    </span>
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <strong>{{ $student->full_name }}</strong>
+                        <span class="text-muted ms-2">
+                            Adm: {{ $student->admission_number ?? '-' }} |
+                            Class: {{ $student->classroom->name ?? '-' }}
+                            @if($student->stream) — Stream: {{ $student->stream->name }} @endif
+                        </span>
+                    </div>
+                    <div class="d-flex gap-3 small text-muted">
+                        <span>Subjects: <strong>{{ $subjectCount }}</strong></span>
+                        <span>Avg: <strong>{{ $avgTerm ? number_format($avgTerm,2) : '—' }}</strong></span>
+                        <span>Best: <strong>{{ $best?->marks->first()?->subject?->name ?? '-' }}</strong> ({{ $best?->avg ? number_format($best->avg,2) : '—' }})</span>
+                        <span>Lowest: <strong>{{ $worst?->marks->first()?->subject?->name ?? '-' }}</strong> ({{ $worst?->avg ? number_format($worst->avg,2) : '—' }})</span>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -106,10 +122,6 @@
                 </div>
             </div>
         @endforeach
-
-        @if($byStudent->isEmpty())
-            <div class="alert alert-info">No marks found for the selected filters.</div>
-        @endif
     @endif
 </div>
 @endsection

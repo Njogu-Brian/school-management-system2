@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Setting;
+use Carbon\Carbon;
 use App\Models\StaffCategory;
 use App\Models\Department;
 use App\Models\JobTitle;
@@ -40,9 +41,15 @@ class SettingController extends Controller
         }
 
         return view('settings.index', [
-            'settings'       => $settings,
-            'modules'        => $availableModules,
-            'enabledModules' => $enabledModules ?? [],
+            'settings'        => $settings,
+            'modules'         => $availableModules,
+            'enabledModules'  => $enabledModules ?? [],
+            'backupSchedule'  => Setting::getJson('backup_schedule', [
+                'frequency' => 'weekly',
+                'time'      => '02:00',
+                'last_run'  => null,
+            ]),
+            'backups'         => $this->getBackupList(),
         ]);
     }
 
@@ -105,6 +112,27 @@ class SettingController extends Controller
         }
 
         return redirect()->back()->with('success', 'Modules updated successfully.');
+    }
+
+    /**
+     * Update feature toggles (beta flags, rollouts)
+     */
+    public function updateFeatures(Request $request)
+    {
+        $request->validate([
+            'enable_online_admission'   => 'nullable|boolean',
+            'enable_communication_logs' => 'nullable|boolean',
+        ]);
+
+        try {
+            Setting::setBool('enable_online_admission', $request->boolean('enable_online_admission'));
+            Setting::setBool('enable_communication_logs', $request->boolean('enable_communication_logs'));
+        } catch (\Exception $e) {
+            Log::error("Failed to update feature toggles: " . $e->getMessage());
+            return back()->withErrors('Error updating feature toggles.');
+        }
+
+        return redirect()->back()->with('success', 'Feature toggles updated successfully.');
     }
 
     /**
@@ -250,6 +278,32 @@ class SettingController extends Controller
 
         \App\Models\CustomPlaceholder::create($data);
         return back()->with('success', 'Placeholder added successfully.');
+    }
+
+    /**
+     * Lightweight backup listing for settings tab
+     */
+    protected function getBackupList(): array
+    {
+        $backupDir = storage_path('app/backups');
+        if (!is_dir($backupDir)) {
+            return [];
+        }
+
+        $files = glob($backupDir . '/*.{sql,zip}', GLOB_BRACE);
+        $backups = [];
+
+        foreach ($files as $file) {
+            $backups[] = [
+                'name'       => basename($file),
+                'size'       => filesize($file),
+                'created_at' => Carbon::createFromTimestamp(filemtime($file)),
+            ];
+        }
+
+        usort($backups, fn ($a, $b) => $b['created_at'] <=> $a['created_at']);
+
+        return $backups;
     }
 
 }
