@@ -1,37 +1,36 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">
-                    <i class="bi bi-clock-history"></i> Posting Run #{{ $run->id }}
-                </h3>
-                <div>
-                    @if($run->canBeReversed())
-                    <form action="{{ route('finance.posting.reverse', $run) }}" method="POST" class="d-inline" 
-                          onsubmit="return confirm('Are you sure you want to reverse this posting run? This will remove all invoice items created by this run.');">
-                        @csrf
-                        @method('POST')
-                        <button type="submit" class="btn btn-danger">
-                            <i class="bi bi-arrow-counterclockwise"></i> Reverse Run
-                        </button>
-                    </form>
-                    @endif
-                    <a href="{{ route('finance.posting.index') }}" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Back
-                    </a>
-                </div>
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3">
+        <div class="finance-card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="bi bi-clock-history"></i> Posting Run #{{ $run->id }}
+            </h3>
+            <div>
+                @if($run->canBeReversed())
+                <form action="{{ route('finance.posting.reverse', $run) }}" method="POST" class="d-inline" 
+                      onsubmit="return confirm('Are you sure you want to reverse this posting run? This will remove all invoice items created by this run.');">
+                    @csrf
+                    @method('POST')
+                    <button type="submit" class="btn btn-finance btn-finance-danger">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reverse Run
+                    </button>
+                </form>
+                @endif
+                <a href="{{ route('finance.posting.index') }}" class="btn btn-finance btn-finance-outline">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
             </div>
         </div>
-    </div>
+        <div class="finance-card-body">
 
     <div class="row mb-4">
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="text-muted mb-3">Run Information</h6>
+            <div class="finance-card">
+                <div class="finance-card-body">
+                    <h6 class="finance-muted mb-3">Run Information</h6>
                     <p class="mb-2">
                         <strong>Status:</strong> 
                         <span class="badge bg-{{ $run->status === 'completed' ? 'success' : ($run->status === 'reversed' ? 'danger' : 'warning') }}">
@@ -55,9 +54,9 @@
         </div>
         
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="text-muted mb-3">Statistics</h6>
+            <div class="finance-card">
+                <div class="finance-card-body">
+                    <h6 class="finance-muted mb-3">Statistics</h6>
                     <p class="mb-2">
                         <strong>Items Posted:</strong> {{ $run->total_students_affected ?? $run->diffs->count() }}
                     </p>
@@ -75,9 +74,9 @@
         </div>
         
         <div class="col-md-4">
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="text-muted mb-3">Reversal Info</h6>
+            <div class="finance-card">
+                <div class="finance-card-body">
+                    <h6 class="finance-muted mb-3">Reversal Info</h6>
                     @if($run->status === 'reversed')
                     <p class="mb-2">
                         <strong>Reversed By:</strong> {{ $run->reversedBy->name ?? 'N/A' }}
@@ -101,14 +100,14 @@
     @endif
 
     @if($run->diffs->isNotEmpty())
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
+    <div class="finance-card finance-animate">
+        <div class="finance-card-header">
             <h5 class="mb-0">Changes in This Run</h5>
         </div>
-        <div class="card-body p-0">
+        <div class="finance-card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+                <table class="finance-table mb-0">
+                    <thead>
                         <tr>
                             <th>Student</th>
                             <th>Votehead</th>
@@ -169,6 +168,9 @@
         </div>
     </div>
     @endif
+        </div>
+    </div>
+  </div>
 </div>
 @endsection
 

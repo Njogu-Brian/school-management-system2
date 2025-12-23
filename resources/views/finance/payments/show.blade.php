@@ -1,34 +1,33 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">
-                    <i class="bi bi-cash-stack"></i> Payment #{{ $payment->receipt_number ?? $payment->transaction_code }}
-                </h3>
-                <div>
-                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary" target="_blank">
-                        <i class="bi bi-printer"></i> Print Receipt
-                    </a>
-                    <a href="{{ route('finance.payments.index') }}" class="btn btn-finance btn-finance-secondary">
-                        <i class="bi bi-arrow-left"></i> Back
-                    </a>
-                </div>
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3">
+        <div class="finance-card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="bi bi-cash-stack"></i> Payment #{{ $payment->receipt_number ?? $payment->transaction_code }}
+            </h3>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary" target="_blank">
+                    <i class="bi bi-printer"></i> Print Receipt
+                </a>
+                <a href="{{ route('finance.payments.index') }}" class="btn btn-finance btn-finance-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
             </div>
         </div>
-    </div>
+        <div class="finance-card-body">
 
     @include('finance.invoices.partials.alerts')
 
     <div class="row">
         <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white">
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header">
                     <h5 class="mb-0">Payment Information</h5>
                 </div>
-                <div class="card-body">
+                <div class="finance-card-body">
                     <div class="row">
                         <div class="col-md-6">
                             <dl class="row mb-0">
@@ -98,8 +97,8 @@
             </div>
 
             <!-- Payment Allocations -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Payment Allocations</h5>
                     @if($payment->unallocated_amount > 0)
                     <button type="button" class="btn btn-sm btn-finance btn-finance-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
@@ -107,7 +106,7 @@
                     </button>
                     @endif
                 </div>
-                <div class="card-body p-0">
+                <div class="finance-card-body p-0">
                     @php
                         $allocations = $payment->allocations ?? collect();
                         $invoiceItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($payment) {
@@ -173,11 +172,11 @@
         </div>
 
         <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-white">
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header">
                     <h5 class="mb-0">Quick Actions</h5>
                 </div>
-                <div class="card-body">
+                <div class="finance-card-body">
                     <div class="d-grid gap-2">
                         <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-outline-primary" target="_blank">
                             <i class="bi bi-download"></i> Download Receipt PDF
@@ -229,6 +228,7 @@
             </div>
         </div>
     </div>
+  </div>
 </div>
 
 <!-- Allocation Modal -->

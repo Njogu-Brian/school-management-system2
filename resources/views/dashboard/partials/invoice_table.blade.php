@@ -1,10 +1,10 @@
-<div class="card shadow-sm h-100">
-  <div class="card-header bg-white d-flex justify-content-between">
+<div class="dash-card card h-100">
+  <div class="card-header d-flex justify-content-between align-items-center">
     <strong>Invoices – Due / Overdue</strong>
-    <a class="small" href="{{ route('finance.invoices.index') }}">View all</a>
+    <a class="small dash-btn-ghost" href="{{ route('finance.invoices.index') }}">View all</a>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm mb-0">
+    <table class="table table-sm mb-0 dash-table">
       <thead><tr><th>Invoice #</th><th>Student</th><th>Due</th><th>Status</th><th></th></tr></thead>
       <tbody>
         @forelse($invoices as $inv)

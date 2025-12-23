@@ -1,7 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+<div class="finance-page">
+  <div class="finance-shell">
     @include('finance.partials.header', [
         'title' => 'Optional Fees',
         'icon' => 'bi bi-toggle-on',
@@ -109,6 +110,7 @@
             ])
         </div>
     </div>
+  </div>
 </div>
 
 {{-- Auto-switch to Student tab when a student_id exists (e.g., after submit) --}}

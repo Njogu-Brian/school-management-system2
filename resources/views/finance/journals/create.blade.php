@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'New Credit / Debit Adjustment',
         'icon' => 'bi bi-arrow-left-right',
@@ -109,8 +108,6 @@
             </form>
         </div>
     </div>
-</div>
-
 {{-- Include the student search modal partial --}}
 @include('partials.student_search_modal')
 

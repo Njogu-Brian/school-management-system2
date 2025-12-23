@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Document Settings',
         'icon' => 'bi bi-file-earmark-text',
@@ -115,6 +114,5 @@
             </button>
         </div>
     </form>
-</div>
 @endsection
 

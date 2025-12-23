@@ -1,7 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+<div class="finance-page">
+  <div class="finance-shell">
     @include('finance.partials.header', [
         'title' => 'Fee Payment Plans',
         'icon' => 'bi bi-calendar-check',
@@ -102,6 +103,7 @@
         </div>
         @endif
     </div>
+  </div>
 </div>
 @endsection
 

@@ -1,7 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+<div class="finance-page">
+  <div class="finance-shell">
     @include('finance.partials.header', [
         'title' => 'Discount Templates',
         'icon' => 'bi bi-file-earmark-text',
@@ -21,8 +22,8 @@
     <!-- Quick Stats -->
     <div class="row mb-4">
         <div class="col-md-4">
-            <div class="card border-primary">
-                <div class="card-body">
+            <div class="finance-card">
+                <div class="finance-card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-0">Total Templates</h6>
@@ -36,8 +37,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-success">
-                <div class="card-body">
+            <div class="finance-card">
+                <div class="finance-card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-0">Active Templates</h6>
@@ -51,8 +52,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="card border-info">
-                <div class="card-body">
+            <div class="finance-card">
+                <div class="finance-card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-0">Requires Approval</h6>
@@ -68,14 +69,14 @@
     </div>
 
     <!-- Templates Table -->
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
+    <div class="finance-card finance-animate">
+        <div class="finance-card-header">
             <h5 class="mb-0"><i class="bi bi-table"></i> Templates</h5>
         </div>
-        <div class="card-body p-0">
+        <div class="finance-card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+                <table class="finance-table">
+                    <thead>
                         <tr>
                             <th>Name</th>
                             <th>Type</th>
@@ -164,5 +165,6 @@
         </div>
         @endif
     </div>
+  </div>
 </div>
 @endsection

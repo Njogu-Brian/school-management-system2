@@ -1,21 +1,22 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Payment Plan Details</h1>
-        <a href="{{ route('finance.fee-payment-plans.index') }}" class="btn btn-secondary">
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3 d-flex justify-content-between align-items-center p-3">
+        <h1 class="h4 mb-0">Payment Plan Details</h1>
+        <a href="{{ route('finance.fee-payment-plans.index') }}" class="btn btn-finance btn-finance-outline">
             <i class="bi bi-arrow-left"></i> Back
         </a>
     </div>
 
     <div class="row">
         <div class="col-md-6">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header">
                     <h5 class="mb-0">Plan Information</h5>
                 </div>
-                <div class="card-body">
+                <div class="finance-card-body">
                     <table class="table table-borderless">
                         <tr>
                             <th>Student:</th>
@@ -55,8 +56,8 @@
         </div>
 
         <div class="col-md-6">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Installments</h5>
                     <form action="{{ route('finance.fee-payment-plans.update-status', $feePaymentPlan) }}" method="POST" class="d-inline">
                         @csrf
@@ -67,7 +68,7 @@
                         </select>
                     </form>
                 </div>
-                <div class="card-body">
+                <div class="finance-card-body">
                     <div class="table-responsive">
                         <table class="table table-sm">
                             <thead>
@@ -98,6 +99,7 @@
             </div>
         </div>
     </div>
+  </div>
 </div>
 @endsection
 

@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Edit Votehead',
         'icon' => 'bi bi-pencil',
@@ -20,5 +19,4 @@
             </form>
         </div>
     </div>
-</div>
 @endsection

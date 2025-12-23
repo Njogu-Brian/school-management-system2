@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+
     @include('finance.partials.header', [
         'title' => 'Allocated Discounts',
         'icon' => 'bi bi-list-check',

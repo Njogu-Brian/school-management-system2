@@ -1,5 +1,5 @@
-<div class="card shadow-sm h-100">
-    <div class="card-header bg-white">
+<div class="dash-card card h-100">
+    <div class="card-header">
         <strong>Finance Snapshot</strong>
     </div>
 
@@ -12,7 +12,7 @@
         $formatMoney = fn($value) => format_money($value ?? 0);
     @endphp
 
-    <div class="mt-2 small text-muted text-center pb-3">
+    <div class="mt-2 small dash-muted text-center pb-3">
         Collected:
         <strong>{{ $formatMoney($kpis['fees_collected'] ?? 0) }}</strong> ·
         Outstanding:
@@ -23,7 +23,12 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ctx = document.getElementById('financeDonut').getContext('2d');
+    const canvas = document.getElementById('financeDonut');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rootStyles = getComputedStyle(document.body);
+    const colPrimary = rootStyles.getPropertyValue('--brand-primary') || '#0f766e';
+    const colAccent = rootStyles.getPropertyValue('--brand-accent') || '#14b8a6';
 
     new Chart(ctx, {
         type: 'doughnut',
@@ -34,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     {{ (float)($kpis['fees_collected'] ?? 0) }},
                     {{ (float)($kpis['fees_outstanding'] ?? 0) }}
                 ],
-                backgroundColor: ['#28a745', '#ffc107'],
+                backgroundColor: [colPrimary.trim(), colAccent.trim()],
                 borderWidth: 0
             }]
         },

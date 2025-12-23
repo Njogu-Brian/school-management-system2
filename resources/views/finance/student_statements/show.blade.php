@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Student Fee Statement',
         'icon' => 'bi bi-file-text',
@@ -267,7 +266,7 @@
             </div>
         </div>
     </div>
-</div>
+@endsection
 
 @push('scripts')
 <script>

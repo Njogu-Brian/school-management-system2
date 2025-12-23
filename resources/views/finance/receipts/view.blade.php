@@ -13,7 +13,8 @@
     </style>
 </head>
 <body>
-    <div class="container-fluid py-4">
+    <div class="finance-page">
+        <div class="finance-shell py-4">
         <div class="d-flex justify-content-between align-items-center mb-3 no-print">
             <h3>Receipt: {{ $payment->receipt_number }}</h3>
             <div>

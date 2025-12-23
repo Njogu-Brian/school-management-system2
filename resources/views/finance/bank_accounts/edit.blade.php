@@ -1,7 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+<div class="finance-page">
+  <div class="finance-shell">
     @include('finance.partials.header', [
         'title' => 'Edit Bank Account',
         'icon' => 'bi bi-pencil',
@@ -121,6 +122,7 @@
             </form>
         </div>
     </div>
+  </div>
 </div>
 @endsection
 

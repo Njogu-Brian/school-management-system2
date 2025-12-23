@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Fee Structures',
         'icon' => 'bi bi-table',
@@ -110,5 +109,4 @@
             </form>
         </div>
     </div>
-</div>
 @endsection

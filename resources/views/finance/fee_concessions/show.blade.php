@@ -1,29 +1,30 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Fee Concession Details</h1>
-        <div class="btn-group">
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3 d-flex justify-content-between align-items-center p-3">
+        <h1 class="h4 mb-0">Fee Concession Details</h1>
+        <div class="d-flex gap-2">
             @if(!$feeConcession->is_active)
                 <form action="{{ route('finance.fee-concessions.approve', $feeConcession) }}" method="POST" class="d-inline">
                     @csrf
-                    <button type="submit" class="btn btn-success">Approve</button>
+                    <button type="submit" class="btn btn-finance btn-finance-success">Approve</button>
                 </form>
             @else
                 <form action="{{ route('finance.fee-concessions.deactivate', $feeConcession) }}" method="POST" class="d-inline">
                     @csrf
-                    <button type="submit" class="btn btn-warning">Deactivate</button>
+                    <button type="submit" class="btn btn-finance btn-finance-warning">Deactivate</button>
                 </form>
             @endif
-            <a href="{{ route('finance.fee-concessions.index') }}" class="btn btn-secondary">
+            <a href="{{ route('finance.fee-concessions.index') }}" class="btn btn-finance btn-finance-outline">
                 <i class="bi bi-arrow-left"></i> Back
             </a>
         </div>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
+    <div class="finance-card finance-animate">
+        <div class="finance-card-body">
             <table class="table table-borderless">
                 <tr>
                     <th width="200">Student:</th>
@@ -76,6 +77,7 @@
             </table>
         </div>
     </div>
+  </div>
 </div>
 @endsection
 

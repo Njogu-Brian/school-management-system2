@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Bulk Allocate Sibling Discounts',
         'icon' => 'bi bi-people',
@@ -146,7 +145,6 @@
             </div>
         </div>
     </div>
-</div>
 
 @push('scripts')
 <script>

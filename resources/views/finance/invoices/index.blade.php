@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Invoices',
         'icon' => 'bi bi-file-text',
@@ -252,5 +251,4 @@
         </div>
         @endif
     </div>
-</div>
 @endsection

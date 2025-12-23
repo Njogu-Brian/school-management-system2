@@ -1,21 +1,18 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">
-                        <i class="fas fa-upload me-2"></i>Import Voteheads
-                    </h4>
-                    <div>
-                        <a href="{{ route('finance.voteheads.index') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left me-1"></i>Back to Voteheads
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
+    <div class="finance-card finance-animate mb-3">
+        <div class="finance-card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+                <i class="fas fa-upload me-2"></i>Import Voteheads
+            </h4>
+            <div>
+                <a href="{{ route('finance.voteheads.index') }}" class="btn btn-finance btn-finance-outline">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Voteheads
+                </a>
+            </div>
+        </div>
+        <div class="finance-card-body">
                     @if(session('success'))
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
@@ -89,32 +86,32 @@
 
                     <div class="row">
                         <div class="col-md-8">
-                            <div class="card bg-light">
-                                <div class="card-body">
-                                    <h5 class="card-title">
+                            <div class="finance-card finance-animate">
+                                <div class="finance-card-body">
+                                    <h5 class="mb-2">
                                         <i class="fas fa-file-excel me-2"></i>Upload Excel/CSV File
                                     </h5>
-                                    <p class="text-muted mb-3">
+                                    <p class="finance-muted mb-3">
                                         Upload an Excel file (.xlsx) or CSV file containing votehead data. The Excel template includes dropdown menus for easy selection.
                                     </p>
 
                                     <form action="{{ route('finance.voteheads.process-import') }}" method="POST" enctype="multipart/form-data">
                                         @csrf
                                         <div class="mb-3">
-                                            <label for="csv_file" class="form-label">File (Excel or CSV)</label>
-                                            <input type="file" class="form-control @error('csv_file') is-invalid @enderror" 
+                                            <label for="csv_file" class="finance-form-label">File (Excel or CSV)</label>
+                                            <input type="file" class="finance-form-control @error('csv_file') is-invalid @enderror" 
                                                    id="csv_file" name="csv_file" accept=".csv,.txt,.xlsx,.xls" required>
                                             @error('csv_file')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
-                                            <small class="form-text text-muted">Maximum file size: 10MB. Excel template (.xlsx) includes dropdown menus for categories. CSV format also accepted.</small>
+                                            <small class="finance-muted d-block mt-1">Maximum file size: 10MB. Excel template (.xlsx) includes dropdown menus for categories. CSV format also accepted.</small>
                                         </div>
 
                                         <div class="d-flex gap-2">
-                                            <button type="submit" class="btn btn-primary">
+                                            <button type="submit" class="btn btn-finance btn-finance-primary">
                                                 <i class="fas fa-upload me-1"></i>Import Voteheads
                                             </button>
-                                            <a href="{{ route('finance.voteheads.download-template') }}" class="btn btn-outline-primary">
+                                            <a href="{{ route('finance.voteheads.download-template') }}" class="btn btn-finance btn-finance-outline">
                                                 <i class="fas fa-download me-1"></i>Download Excel Template
                                             </a>
                                         </div>
@@ -124,9 +121,9 @@
                         </div>
 
                         <div class="col-md-4">
-                            <div class="card bg-light">
-                                <div class="card-body">
-                                    <h5 class="card-title">
+                            <div class="finance-card finance-animate">
+                                <div class="finance-card-body">
+                                    <h5 class="mb-2">
                                         <i class="fas fa-info-circle me-2"></i>Import Instructions
                                     </h5>
                                     
@@ -185,6 +182,5 @@
             </div>
         </div>
     </div>
-</div>
 @endsection
 

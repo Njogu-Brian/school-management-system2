@@ -1,16 +1,17 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Create Fee Reminder</h1>
-        <a href="{{ route('finance.fee-reminders.index') }}" class="btn btn-secondary">
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3 d-flex justify-content-between align-items-center p-3">
+        <h1 class="h4 mb-0">Create Fee Reminder</h1>
+        <a href="{{ route('finance.fee-reminders.index') }}" class="btn btn-finance btn-finance-outline">
             <i class="bi bi-arrow-left"></i> Back
         </a>
     </div>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
+    <div class="finance-card finance-animate">
+        <div class="finance-card-body">
             <form action="{{ route('finance.fee-reminders.store') }}" method="POST">
                 @csrf
 
@@ -70,12 +71,13 @@
                 </div>
 
                 <div class="d-flex justify-content-end gap-2">
-                    <a href="{{ route('finance.fee-reminders.index') }}" class="btn btn-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-primary">Create Reminder</button>
+                    <a href="{{ route('finance.fee-reminders.index') }}" class="btn btn-finance btn-finance-outline">Cancel</a>
+                    <button type="submit" class="btn btn-finance btn-finance-primary">Create Reminder</button>
                 </div>
             </form>
         </div>
     </div>
+  </div>
 </div>
 @endsection
 

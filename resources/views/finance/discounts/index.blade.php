@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Discounts Dashboard',
         'icon' => 'bi bi-percent',
@@ -142,5 +141,4 @@
             </div>
         </div>
     </div>
-</div>
 @endsection

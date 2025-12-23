@@ -1,7 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
+<div class="finance-page">
+  <div class="finance-shell">
     @include('finance.partials.header', [
         'title' => 'Create Bank Account',
         'icon' => 'bi bi-plus-circle',
@@ -125,6 +126,7 @@
             </form>
         </div>
     </div>
+  </div>
 </div>
 @endsection
 

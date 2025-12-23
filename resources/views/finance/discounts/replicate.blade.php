@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Replicate Discounts',
         'icon' => 'bi bi-copy',
@@ -166,6 +165,5 @@
             </form>
         </div>
     </div>
-</div>
 @endsection
 

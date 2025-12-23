@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
   @include('finance.partials.header', [
       'title' => 'Post Pending Fees',
       'icon' => 'bi bi-arrow-right-circle',
@@ -132,5 +131,4 @@
     </div>
   </div>
   @endif
-</div>
 @endsection

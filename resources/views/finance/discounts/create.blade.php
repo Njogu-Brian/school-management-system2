@@ -1,13 +1,12 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h3 class="mb-0">
-                <i class="bi bi-plus-circle"></i> Create Fee Discount
-            </h3>
-        </div>
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3 p-3">
+        <h3 class="mb-0">
+            <i class="bi bi-plus-circle"></i> Create Fee Discount
+        </h3>
     </div>
 
     @include('finance.invoices.partials.alerts')
@@ -17,11 +16,11 @@
         
         <div class="row">
             <div class="col-md-8">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
+                <div class="finance-card finance-animate mb-4">
+                    <div class="finance-card-header">
                         <h5 class="mb-0">Discount Details</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="finance-card-body">
                         <div class="row g-3">
                             <div class="col-md-12">
                                 <label class="form-label">Template Name <span class="text-danger">*</span></label>
@@ -174,11 +173,11 @@
             </div>
 
             <div class="col-md-4">
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-white">
+                <div class="finance-card finance-animate mb-4">
+                    <div class="finance-card-header">
                         <h5 class="mb-0">Info</h5>
                     </div>
-                    <div class="card-body">
+                    <div class="finance-card-body">
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i>
                             <strong>Note:</strong> This form creates a discount template. To allocate this discount to students, use the "Allocate Discount" option after creating the template.
@@ -187,16 +186,17 @@
                 </div>
 
                 <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-check-circle"></i> Create Template
                     </button>
-                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-secondary">
+                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Cancel
                     </a>
                 </div>
             </div>
         </div>
     </form>
+  </div>
 </div>
 
 @push('scripts')

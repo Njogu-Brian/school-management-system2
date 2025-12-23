@@ -1,7 +1,28 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid py-4">
+<div class="finance-page">
+  <div class="finance-shell">
+    <div class="finance-card finance-animate mb-3">
+        <div class="finance-card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="bi bi-file-text"></i> Invoice: {{ $invoice->invoice_number }}
+            </h3>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('finance.invoices.print_single', $invoice) }}" 
+                   target="_blank" 
+                   class="btn btn-finance btn-finance-outline">
+                   <i class="bi bi-printer"></i> Print PDF
+                </a>
+                <a href="{{ route('finance.invoices.history', $invoice) }}" class="btn btn-finance btn-finance-secondary">
+                    <i class="bi bi-clock-history"></i> History
+                </a>
+                <a href="{{ route('finance.invoices.index') }}" class="btn btn-finance btn-finance-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+            </div>
+        </div>
+        <div class="finance-card-body">
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
@@ -76,33 +97,33 @@
     <!-- Invoice Summary Cards -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card border-primary">
-                <div class="card-body text-center">
-                    <h6 class="text-muted mb-2">Total Amount</h6>
+            <div class="finance-card">
+                <div class="finance-card-body text-center">
+                    <h6 class="finance-muted mb-2">Total Amount</h6>
                     <h4 class="text-primary mb-0">Ksh {{ number_format($invoice->total, 2) }}</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-success">
-                <div class="card-body text-center">
-                    <h6 class="text-muted mb-2">Paid Amount</h6>
+            <div class="finance-card">
+                <div class="finance-card-body text-center">
+                    <h6 class="finance-muted mb-2">Paid Amount</h6>
                     <h4 class="text-success mb-0">Ksh {{ number_format($invoice->paid_amount ?? 0, 2) }}</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-warning">
-                <div class="card-body text-center">
-                    <h6 class="text-muted mb-2">Balance</h6>
+            <div class="finance-card">
+                <div class="finance-card-body text-center">
+                    <h6 class="finance-muted mb-2">Balance</h6>
                     <h4 class="text-warning mb-0">Ksh {{ number_format($invoice->balance ?? $invoice->total, 2) }}</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card border-info">
-                <div class="card-body text-center">
-                    <h6 class="text-muted mb-2">Status</h6>
+            <div class="finance-card">
+                <div class="finance-card-body text-center">
+                    <h6 class="finance-muted mb-2">Status</h6>
                     <span class="badge bg-{{ $invoice->status === 'paid' ? 'success' : ($invoice->status === 'partial' ? 'warning' : 'danger') }} fs-6">
                         {{ ucfirst($invoice->status) }}
                     </span>

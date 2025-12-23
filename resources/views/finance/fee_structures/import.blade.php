@@ -1,21 +1,18 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">
-                        <i class="fas fa-upload me-2"></i>Import Fee Structures
-                    </h4>
-                    <div>
-                        <a href="{{ route('finance.fee-structures.index') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left me-1"></i>Back to Fee Structures
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
+    <div class="finance-card finance-animate mb-3">
+        <div class="finance-card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">
+                <i class="fas fa-upload me-2"></i>Import Fee Structures
+            </h4>
+            <div>
+                <a href="{{ route('finance.fee-structures.index') }}" class="btn btn-finance btn-finance-outline">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Fee Structures
+                </a>
+            </div>
+        </div>
+        <div class="finance-card-body">
                     @if(session('success'))
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle me-2"></i>{{ session('success') }}
@@ -91,32 +88,32 @@
 
                     <div class="row">
                         <div class="col-md-8">
-                            <div class="card bg-light">
-                                <div class="card-body">
-                                    <h5 class="card-title">
+                            <div class="finance-card finance-animate">
+                                <div class="finance-card-body">
+                                    <h5 class="mb-2">
                                         <i class="fas fa-file-csv me-2"></i>Upload CSV File
                                     </h5>
-                                    <p class="text-muted mb-3">
+                                    <p class="finance-muted mb-3">
                                         Upload a CSV file containing fee structure data. Download the template below to see the required format.
                                     </p>
 
                                     <form action="{{ route('finance.fee-structures.process-import') }}" method="POST" enctype="multipart/form-data">
                                         @csrf
                                         <div class="mb-3">
-                                            <label for="csv_file" class="form-label">CSV File</label>
-                                            <input type="file" class="form-control @error('csv_file') is-invalid @enderror" 
+                                            <label for="csv_file" class="finance-form-label">CSV File</label>
+                                            <input type="file" class="finance-form-control @error('csv_file') is-invalid @enderror" 
                                                    id="csv_file" name="csv_file" accept=".csv,.txt" required>
                                             @error('csv_file')
                                                 <div class="invalid-feedback">{{ $message }}</div>
                                             @enderror
-                                            <small class="form-text text-muted">Maximum file size: 10MB. File must be in CSV format.</small>
+                                            <small class="finance-muted d-block mt-1">Maximum file size: 10MB. File must be in CSV format.</small>
                                         </div>
 
                                         <div class="d-flex gap-2">
-                                            <button type="submit" class="btn btn-primary">
+                                            <button type="submit" class="btn btn-finance btn-finance-primary">
                                                 <i class="fas fa-upload me-1"></i>Import Fee Structures
                                             </button>
-                                            <a href="{{ route('finance.fee-structures.download-template') }}" class="btn btn-outline-primary">
+                                            <a href="{{ route('finance.fee-structures.download-template') }}" class="btn btn-finance btn-finance-outline">
                                                 <i class="fas fa-download me-1"></i>Download Template
                                             </a>
                                         </div>
@@ -126,9 +123,9 @@
                         </div>
 
                         <div class="col-md-4">
-                            <div class="card bg-light">
-                                <div class="card-body">
-                                    <h5 class="card-title">
+                            <div class="finance-card finance-animate">
+                                <div class="finance-card-body">
+                                    <h5 class="mb-2">
                                         <i class="fas fa-info-circle me-2"></i>Import Instructions
                                     </h5>
                                     <ul class="small mb-0">
@@ -173,14 +170,14 @@
                     <!-- Quick Reference Tables -->
                     <div class="row mt-4">
                         <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header">
+                            <div class="finance-card finance-animate">
+                                <div class="finance-card-header">
                                     <h6 class="mb-0">Available Classrooms</h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="finance-card-body">
                                     <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                                        <table class="table table-sm table-bordered mb-0">
-                                            <thead class="table-light sticky-top">
+                                        <table class="finance-table mb-0">
+                                            <thead>
                                                 <tr>
                                                     <th>ID</th>
                                                     <th>Name</th>
@@ -201,14 +198,14 @@
                         </div>
 
                         <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header">
+                            <div class="finance-card finance-animate">
+                                <div class="finance-card-header">
                                     <h6 class="mb-0">Available Voteheads</h6>
                                 </div>
-                                <div class="card-body">
+                                <div class="finance-card-body">
                                     <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
-                                        <table class="table table-sm table-bordered mb-0">
-                                            <thead class="table-light sticky-top">
+                                        <table class="finance-table mb-0">
+                                            <thead>
                                                 <tr>
                                                     <th>ID</th>
                                                     <th>Code</th>
@@ -234,6 +231,5 @@
             </div>
         </div>
     </div>
-</div>
 @endsection
 

@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Student Statements',
         'icon' => 'bi bi-file-text',
@@ -50,8 +49,6 @@
             </script>
         </div>
     </div>
-</div>
-
 @include('partials.student_search_modal')
 @endsection
 

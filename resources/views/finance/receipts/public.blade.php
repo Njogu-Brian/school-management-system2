@@ -16,7 +16,8 @@
     </style>
 </head>
 <body>
-    <div class="container-fluid py-4">
+    <div class="finance-page">
+        <div class="finance-shell py-4">
         <div class="d-flex justify-content-end align-items-center mb-3 no-print">
             <div>
                 <button onclick="window.print()" class="btn btn-success">

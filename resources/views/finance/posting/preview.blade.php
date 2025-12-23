@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
     @include('finance.partials.header', [
         'title' => 'Posting Preview - Fee Changes',
         'icon' => 'bi bi-eye',
@@ -11,49 +10,49 @@
 
     @include('finance.invoices.partials.alerts')
     
-    <div class="container-fluid py-4">
-            
+    <div class="finance-card finance-animate mb-3">
+        <div class="finance-card-body">
             @if(isset($summary))
-            <div class="row mb-4">
+            <div class="row g-3">
                 <div class="col-md-3">
-                    <div class="card border-primary">
-                        <div class="card-body text-center">
+                    <div class="finance-card">
+                        <div class="finance-card-body text-center">
                             <h5 class="text-primary">{{ $summary['total'] }}</h5>
-                            <small class="text-muted">Total Changes</small>
+                            <small class="finance-muted">Total Changes</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="card border-success">
-                        <div class="card-body text-center">
+                    <div class="finance-card">
+                        <div class="finance-card-body text-center">
                             <h5 class="text-success">{{ $summary['added'] ?? 0 }}</h5>
-                            <small class="text-muted">Added</small>
+                            <small class="finance-muted">Added</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="card border-warning">
-                        <div class="card-body text-center">
+                    <div class="finance-card">
+                        <div class="finance-card-body text-center">
                             <h5 class="text-warning">{{ $summary['increased'] ?? 0 }}</h5>
-                            <small class="text-muted">Increased</small>
+                            <small class="finance-muted">Increased</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="card border-danger">
-                        <div class="card-body text-center">
+                    <div class="finance-card">
+                        <div class="finance-card-body text-center">
                             <h5 class="text-danger">{{ $summary['decreased'] ?? 0 }}</h5>
-                            <small class="text-muted">Decreased</small>
+                            <small class="finance-muted">Decreased</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="card border-info">
-                        <div class="card-body text-center">
+                    <div class="finance-card">
+                        <div class="finance-card-body text-center">
                             <h5 class="text-info">
                                 Ksh {{ number_format($summary['total_amount_change'] ?? 0, 2) }}
                             </h5>
-                            <small class="text-muted">Net Amount Change</small>
+                            <small class="finance-muted">Net Amount Change</small>
                         </div>
                     </div>
                 </div>
@@ -83,10 +82,10 @@
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
                     <div>
                         <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Change Details</h5>
-                        <small class="text-muted">{{ $allDiffs->count() }} total changes across {{ $groupedDiffs->total() }} students</small>
+                        <small class="finance-muted">{{ $allDiffs->count() }} total changes across {{ $groupedDiffs->total() }} students</small>
                     </div>
                     <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
-                        <label class="mb-0 small text-muted">Per Page:</label>
+                        <label class="mb-0 small finance-muted">Per Page:</label>
                         <select class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
                             <option value="25" {{ $perPage == 25 ? 'selected' : '' }}>25</option>
                             <option value="50" {{ $perPage == 50 ? 'selected' : '' }}>50</option>
@@ -98,7 +97,7 @@
             </div>
             <div class="finance-card-body p-0">
                 <div class="table-responsive">
-                    <table class="table finance-table mb-0">
+                    <table class="finance-table mb-0">
                         <thead>
                             <tr>
                                 <th style="width: 25%;">Student</th>
