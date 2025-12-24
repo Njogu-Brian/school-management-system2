@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\{Invoice, InvoiceItem, User};
 
 class DebitNote extends Model
 {
+    use SoftDeletes;
     protected $fillable = [
         'invoice_id',
         'invoice_item_id',
@@ -23,6 +25,7 @@ class DebitNote extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'issued_at' => 'date',
+        'archived_at' => 'datetime',
     ];
 
     protected static function boot()

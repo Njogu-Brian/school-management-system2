@@ -185,8 +185,8 @@
   </div>
 </div>
 
-<div class="modal fade" id="summaryModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+<div class="modal fade summary-modal" id="summaryModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable summary-modal-dialog">
     <div class="modal-content settings-card mb-0">
       <div class="modal-header">
         <h5 class="modal-title">Confirm Attendance Submission</h5>
@@ -194,7 +194,7 @@
       </div>
       <div class="modal-body">
         <p class="mb-3"><strong>Date:</strong> {{ $selectedDate }}</p>
-        <div class="row g-3 mb-3">
+        <div class="row g-3 mb-3 stat-grid">
           <div class="col-md-3">
             <div class="settings-card stat-card border-start border-4 border-success h-100">
               <div class="card-body text-center">
@@ -234,12 +234,64 @@
         </div>
       </div>
       <div class="card-footer d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" id="btnConfirmSubmit" class="btn btn-settings-primary">Confirm & Submit</button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="btnConfirmSubmit" class="btn btn-primary">Confirm & Submit</button>
       </div>
     </div>
   </div>
 </div>
+
+@push('styles')
+<style>
+  .summary-modal .modal-content {
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+  }
+
+  .summary-modal .modal-header,
+  .summary-modal .modal-footer {
+    border-color: var(--bs-border-color);
+  }
+
+  .summary-modal .stat-card {
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+    box-shadow: 0 .125rem .25rem rgba(0, 0, 0, 0.06);
+  }
+
+  [data-bs-theme="dark"] .summary-modal .stat-card {
+    box-shadow: none;
+  }
+
+  .summary-modal #absentList {
+    max-height: 200px;
+    overflow-y: auto;
+    padding-left: 1rem;
+  }
+
+  .summary-modal .summary-modal-dialog {
+    margin: 1.25rem auto;
+    align-items: flex-start;
+  }
+
+  /* Keep modal clear of sticky header */
+  @media (min-width: 576px) {
+    .summary-modal .summary-modal-dialog {
+      margin-top: 5rem;
+    }
+  }
+
+  @media (max-width: 576px) {
+    .summary-modal .summary-modal-dialog {
+      margin: 4rem auto .75rem;
+    }
+    .summary-modal .stat-card .card-body {
+      padding: .75rem;
+    }
+  }
+</style>
+@endpush
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {

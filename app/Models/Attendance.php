@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Student;
 use App\Models\Academics\Subject;
 
 class Attendance extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'attendance';
     
     protected $fillable = [
@@ -25,6 +28,7 @@ class Attendance extends Model
         'marked_at' => 'datetime',
         'consecutive_absence_count' => 'integer',
         'period_number' => 'integer',
+        'archived_at' => 'datetime',
     ];
 
     const STATUS_PRESENT = 'present';

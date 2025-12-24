@@ -12,6 +12,8 @@ use App\Models\TransportRoute;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
+use App\Services\ArchiveStudentService;
+use App\Services\RestoreStudentService;
 use Illuminate\Support\Facades\Mail;
 use App\Models\CommunicationTemplate;
 use App\Mail\GenericMail;
@@ -22,10 +24,18 @@ use App\Models\Setting;
 class StudentController extends Controller
 {
     protected $smsService;
+    protected $archiveService;
+    protected $restoreService;
 
-    public function __construct(SMSService $smsService)
+    public function __construct(
+        SMSService $smsService,
+        ArchiveStudentService $archiveService,
+        RestoreStudentService $restoreService
+    )
     {
         $this->smsService = $smsService;
+        $this->archiveService = $archiveService;
+        $this->restoreService = $restoreService;
     }
 
     /**
@@ -93,6 +103,22 @@ class StudentController extends Controller
         }
 
         return view('students.index', compact('students','classrooms','streams','thisWeekBirthdays'));
+    }
+
+    /**
+     * Archived students listing
+     */
+    public function archived(Request $request)
+    {
+        $perPage = (int) $request->input('per_page', 20);
+        $students = Student::withArchived()
+            ->where('archive', 1)
+            ->with(['parent','classroom','stream','category'])
+            ->orderByDesc('archived_at')
+            ->paginate($perPage)
+            ->withQueryString();
+
+        return view('students.archived', compact('students'));
     }
 
     /**
@@ -432,25 +458,31 @@ class StudentController extends Controller
     /**
      * Archive student
      */
-   public function archive($id)
+    public function archive($id, Request $request)
     {
         $student = Student::withArchived()->findOrFail($id);
-        $student->archive = 1;
-        $student->save();
-
-        return redirect()->route('students.index')->with('success', 'Student archived successfully.');
+        try {
+            $result = $this->archiveService->archive($student, $request->input('reason'), auth()->id());
+            return redirect()->route('students.archived')->with('success', 'Student archived successfully.');
+        } catch (\Throwable $e) {
+            Log::error('Archive failed: '.$e->getMessage(), ['student_id' => $student->id]);
+            return back()->with('error', 'Failed to archive student: '.$e->getMessage());
+        }
     }
 
     /**
      * Restore student
      */
-    public function restore($id)
+    public function restore($id, Request $request)
     {
         $student = Student::withArchived()->findOrFail($id);
-        $student->archive = 0;
-        $student->save();
-
-        return redirect()->route('students.index')->with('success', 'Student restored successfully.');
+        try {
+            $this->restoreService->restore($student, $request->input('reason'), auth()->id());
+            return redirect()->route('students.index')->with('success', 'Student restored successfully.');
+        } catch (\Throwable $e) {
+            Log::error('Restore failed: '.$e->getMessage(), ['student_id' => $student->id]);
+            return back()->with('error', 'Failed to restore student: '.$e->getMessage());
+        }
     }
     /**
      * Generate admission number

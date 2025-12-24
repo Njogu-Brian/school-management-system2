@@ -3,6 +3,7 @@
 namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Builder;
 use App\Models\Student;
 use App\Models\Academics\Homework;
@@ -10,6 +11,8 @@ use App\Models\Academics\LessonPlan;
 
 class HomeworkDiary extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'homework_diary';
 
     protected $fillable = [
@@ -32,6 +35,7 @@ class HomeworkDiary extends Model
         'submitted_at' => 'datetime',
         'score' => 'integer',
         'max_score' => 'integer',
+        'archived_at' => 'datetime',
     ];
 
     /**

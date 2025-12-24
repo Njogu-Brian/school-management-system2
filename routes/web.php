@@ -781,6 +781,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/students/bulk-assign-streams', [StudentController::class, 'processBulkStreamAssignment'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams.process');
 
+    // Archived list must be defined before the resource route to avoid being captured by /students/{student}
+    Route::get('/students/archived', [StudentController::class, 'archived'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.archived');
+
     Route::resource('students', StudentController::class)
         ->except(['destroy'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher');

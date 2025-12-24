@@ -70,6 +70,14 @@ class Homework extends Model
         return $this->hasMany(HomeworkDiary::class, 'homework_id');
     }
 
+    /**
+     * Backward-compatible alias used in some controllers/queries.
+     */
+    public function homeworkDiary()
+    {
+        return $this->homeworkDiaries();
+    }
+
     public function submittedHomework()
     {
         return $this->homeworkDiaries()->whereIn('status', ['submitted', 'marked']);

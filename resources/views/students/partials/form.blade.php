@@ -52,7 +52,7 @@
   <h6 class="text-uppercase text-muted mb-3">Student Information</h6>
   <div class="row g-3">
     <div class="col-md-4">
-      <label class="form-label">First Name</label>
+      <label class="form-label">First Name <span class="text-danger">*</span></label>
       <input type="text" name="first_name" value="{{ old('first_name', $s->first_name ?? '') }}" class="form-control" required>
     </div>
     <div class="col-md-4">
@@ -60,12 +60,12 @@
       <input type="text" name="middle_name" value="{{ old('middle_name', $s->middle_name ?? '') }}" class="form-control">
     </div>
     <div class="col-md-4">
-      <label class="form-label">Last Name</label>
+      <label class="form-label">Last Name <span class="text-danger">*</span></label>
       <input type="text" name="last_name" value="{{ old('last_name', $s->last_name ?? '') }}" class="form-control" required>
     </div>
 
     <div class="col-md-3">
-      <label class="form-label">Gender</label>
+      <label class="form-label">Gender <span class="text-danger">*</span></label>
       <select name="gender" class="form-select" required>
         @php $g = old('gender', $s->gender ?? ''); @endphp
         <option value="">Select</option>

@@ -4,13 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\{Invoice, Votehead, FeePostingRun, PaymentAllocation, CreditNote, DebitNote};
 
 class InvoiceItem extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
     protected $fillable = [
         'invoice_id',
         'votehead_id',
@@ -30,6 +31,7 @@ class InvoiceItem extends Model
         'original_amount' => 'decimal:2',
         'effective_date' => 'date',
         'posted_at' => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function invoice(): BelongsTo

@@ -94,6 +94,18 @@ class Student extends Model
         'previous_student_id',
     ];
 
+    protected $casts = [
+        'dob'               => 'date',
+        'admission_date'    => 'date',
+        'graduation_date'   => 'date',
+        'transfer_date'     => 'date',
+        'status_changed_at' => 'datetime',
+        'alumni_date'       => 'date',
+        'archive'           => 'boolean',
+        'is_readmission'    => 'boolean',
+        'archived_at'       => 'datetime',
+    ];
+
     public function parent()
     {
         return $this->belongsTo(ParentInfo::class, 'parent_id');

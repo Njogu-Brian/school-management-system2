@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -11,7 +12,7 @@ use App\Models\{Student, Family, Invoice, PaymentMethod, User, PaymentAllocation
 
 class Payment extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
     protected $fillable = [
         'transaction_code',
         'public_token',
@@ -43,6 +44,7 @@ class Payment extends Model
         'receipt_date' => 'datetime',
         'reversed' => 'boolean',
         'reversed_at' => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     protected static function boot()

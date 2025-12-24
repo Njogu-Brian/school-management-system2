@@ -4,13 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\{Student, Family, AcademicYear, Term, FeePostingRun, User, InvoiceItem, Payment, CreditNote, DebitNote, FeeConcession, PaymentAllocation};
 
 class Invoice extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
     protected $fillable = [
         'student_id',
         'family_id',
@@ -43,6 +44,7 @@ class Invoice extends Model
         'issued_date' => 'date',
         'reversed_at' => 'datetime',
         'posted_at' => 'datetime',
+        'archived_at' => 'datetime',
     ];
 
     public function student(): BelongsTo
