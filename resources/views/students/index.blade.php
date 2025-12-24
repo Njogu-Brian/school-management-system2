@@ -47,7 +47,7 @@
         <span class="pill-badge pill-secondary">Live query</span>
       </div>
       <div class="card-body">
-        <form class="row g-2">
+        <form class="row g-2" method="GET" action="{{ route('students.index') }}">
           <div class="col-md-3">
             <label class="form-label">Admission #</label>
             <div class="input-group">
