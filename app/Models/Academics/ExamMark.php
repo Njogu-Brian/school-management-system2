@@ -3,11 +3,14 @@
 namespace App\Models\Academics;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\Academics\CBCPerformanceLevel;
 use App\Models\Academics\PortfolioAssessment;
 
 class ExamMark extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'exam_id','student_id','subject_id','teacher_id',
         'score_raw','score_moderated',
@@ -28,6 +31,7 @@ class ExamMark extends Model
         'competency_scores' => 'array',
         'component_scores' => 'array',
         'cat_number' => 'integer',
+        'archived_at' => 'datetime',
     ];
 
     public function exam() { return $this->belongsTo(Exam::class); }

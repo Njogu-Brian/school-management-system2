@@ -92,6 +92,9 @@ class Student extends Model
         'status_changed_at',
         'is_readmission',
         'previous_student_id',
+        'archived_reason',
+        'archived_notes',
+        'archived_by',
     ];
 
     protected $casts = [
@@ -104,6 +107,7 @@ class Student extends Model
         'archive'           => 'boolean',
         'is_readmission'    => 'boolean',
         'archived_at'       => 'datetime',
+        'archived_by'       => 'integer',
     ];
 
     public function parent()

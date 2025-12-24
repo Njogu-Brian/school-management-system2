@@ -242,6 +242,49 @@
 </div>
 @endif
 
+{{-- Hidden archive/restore forms (to avoid nested forms) --}}
+@stack('archive-forms')
+
+{{-- Archive modal --}}
+<div class="modal fade" id="archiveModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form id="archiveConfirmForm" class="modal-content settings-card mb-0" method="POST">
+      @csrf
+      <div class="modal-header">
+        <h5 class="modal-title">Archive Student</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body vstack gap-3">
+        <div class="alert alert-warning small mb-0">
+          <strong>Note:</strong> Invoices/payments remain intact for archived students.
+        </div>
+        <div>
+          <label class="form-label">Student</label>
+          <div class="fw-semibold archive-student-name">—</div>
+        </div>
+        <div>
+          <label class="form-label">Reason</label>
+          <select name="reason" class="form-select" required>
+            <option value="School fees">School fees</option>
+            <option value="Relocating from region">Relocating from region</option>
+            <option value="Unhappy with school">Unhappy with school</option>
+            <option value="Completed learning">Completed learning</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Details</label>
+          <textarea name="archived_notes" class="form-control" rows="3" placeholder="Add brief details" required></textarea>
+        </div>
+      </div>
+      <div class="card-footer d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-settings-primary" type="submit"><i class="bi bi-archive"></i> Archive</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 @push('scripts')
 <script>
   document.getElementById('chk_all')?.addEventListener('change', e=>{
@@ -256,6 +299,31 @@
     container.querySelectorAll('input[name="student_ids[]"]').forEach(el=>el.remove());
     ids.forEach(id=>{
       const i=document.createElement('input'); i.type='hidden'; i.name='student_ids[]'; i.value=id; container.appendChild(i);
+    });
+  });
+
+  // Archive modal handling
+  const archiveModal = document.getElementById('archiveModal');
+  const archiveForm = document.getElementById('archiveConfirmForm');
+  document.querySelectorAll('.archive-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const studentId = btn.getAttribute('data-student-id');
+      const name = btn.getAttribute('data-student-name');
+      archiveForm.action = "{{ url('students') }}/" + studentId + "/archive";
+      archiveModal.querySelector('.archive-student-name').innerText = name;
+      archiveModal.querySelector('select[name=\"reason\"]').value = 'School fees';
+      archiveModal.querySelector('textarea[name=\"archived_notes\"]').value = '';
+      const modal = bootstrap.Modal.getOrCreateInstance(archiveModal);
+      modal.show();
+    });
+  });
+  // Restore buttons
+  document.querySelectorAll('.restore-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const studentId = btn.getAttribute('data-student-id');
+      document.getElementById('restore-form-' + studentId)?.submit();
     });
   });
 </script>

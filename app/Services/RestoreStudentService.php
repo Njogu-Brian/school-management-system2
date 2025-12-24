@@ -36,6 +36,7 @@ class RestoreStudentService
             'credit_notes' => 0,
             'debit_notes' => 0,
             'exam_marks' => 0,
+            'payment_allocations' => 0,
         ];
 
         DB::transaction(function () use ($student, $reason, $actorId, &$counts) {
@@ -49,19 +50,34 @@ class RestoreStudentService
                 ->where('student_id', $student->id)
                 ->restore();
 
-            // Restore exam marks if model exists
+            // Restore exam marks if model supports soft deletes
             if (class_exists(\App\Models\Academics\ExamMark::class)) {
-                $counts['exam_marks'] = \App\Models\Academics\ExamMark::withTrashed()
-                    ->where('student_id', $student->id)
-                    ->restore();
+                $examMarkModel = new \App\Models\Academics\ExamMark;
+                if (method_exists($examMarkModel, 'withTrashed')) {
+                    $counts['exam_marks'] = \App\Models\Academics\ExamMark::withTrashed()
+                        ->where('student_id', $student->id)
+                        ->restore();
+                }
             }
 
             // Restore invoices and related
             $invoices = \App\Models\Invoice::withTrashed()->where('student_id', $student->id)->get();
             foreach ($invoices as $invoice) {
-                $counts['invoice_items'] += $invoice->items()->withTrashed()->restore();
-                $counts['credit_notes'] += $invoice->creditNotes()->withTrashed()->restore();
-                $counts['debit_notes'] += $invoice->debitNotes()->withTrashed()->restore();
+                // Items
+                $itemRelation = $invoice->items();
+                if (method_exists($itemRelation->getRelated(), 'runSoftDelete')) {
+                    $counts['invoice_items'] += $itemRelation->withTrashed()->restore();
+                }
+                // Credit notes
+                $cnRelation = $invoice->creditNotes();
+                if (method_exists($cnRelation->getRelated(), 'runSoftDelete')) {
+                    $counts['credit_notes'] += $cnRelation->withTrashed()->restore();
+                }
+                // Debit notes
+                $dnRelation = $invoice->debitNotes();
+                if (method_exists($dnRelation->getRelated(), 'runSoftDelete')) {
+                    $counts['debit_notes'] += $dnRelation->withTrashed()->restore();
+                }
                 $invoice->restore();
                 $counts['invoices']++;
             }
@@ -69,7 +85,10 @@ class RestoreStudentService
             // Restore payments
             $payments = \App\Models\Payment::withTrashed()->where('student_id', $student->id)->get();
             foreach ($payments as $payment) {
-                $payment->allocations()->withTrashed()->restore();
+                $allocRelation = $payment->allocations();
+                if (method_exists($allocRelation->getRelated(), 'runSoftDelete')) {
+                    $counts['payment_allocations'] += $allocRelation->withTrashed()->restore();
+                }
                 $payment->restore();
                 $counts['payments']++;
             }
@@ -77,6 +96,9 @@ class RestoreStudentService
             // Reactivate student
             $student->archive = 0;
             $student->archived_at = null;
+            $student->archived_reason = null;
+            $student->archived_notes = null;
+            $student->archived_by = null;
             $student->save();
 
             ArchiveAudit::create([

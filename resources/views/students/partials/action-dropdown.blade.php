@@ -11,17 +11,27 @@
   <ul class="dropdown-menu dropdown-menu-end">
     @if ($student->archive)
       <li>
-        <form action="{{ route('students.restore', $student->id) }}" method="POST" onsubmit="return confirm('Restore this student?')">
-          @csrf
-          <button class="dropdown-item" type="submit"><i class="bi bi-arrow-counterclockwise me-1"></i> Restore</button>
-        </form>
+        <button class="dropdown-item restore-btn"
+                data-student-id="{{ $student->id }}"
+                data-student-name="{{ $student->first_name }} {{ $student->last_name }}">
+          <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
+        </button>
       </li>
+      @push('archive-forms')
+        <form id="restore-form-{{ $student->id }}" action="{{ route('students.restore', $student->id) }}" method="POST" class="d-none">
+          @csrf
+        </form>
+      @endpush
     @else
       <li>
-        <form action="{{ route('students.archive', $student->id) }}" method="POST" onsubmit="return confirm('Archive this student?')">
-          @csrf
-          <button class="dropdown-item" type="submit"><i class="bi bi-archive me-1"></i> Archive</button>
-        </form>
+        <button class="dropdown-item archive-btn"
+                type="button"
+                data-student-id="{{ $student->id }}"
+                data-student-name="{{ $student->first_name }} {{ $student->last_name }}"
+                data-bs-toggle="modal"
+                data-bs-target="#archiveModal">
+          <i class="bi bi-archive me-1"></i> Archive
+        </button>
       </li>
     @endif
   </ul>

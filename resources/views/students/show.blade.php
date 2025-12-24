@@ -36,11 +36,11 @@
           <div class="d-flex flex-column gap-1">
             <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="badge bg-light text-dark fw-semibold px-3 py-2">Admission #{{ $student->admission_number }}</span>
-              <span class="pill-badge pill-{{ $student->archive ? 'secondary' : 'success' }}">
+              <span class="pill-badge pill-{{ $student->archive ? 'danger' : 'success' }}">
                 <i class="bi {{ $student->archive ? 'bi-archive' : 'bi-check2-circle' }} me-1"></i>{{ $student->archive ? 'Archived' : 'Active' }}
               </span>
               @if($student->status)
-                <span class="pill-badge pill-info text-capitalize">{{ $student->status }}</span>
+                <span class="pill-badge pill-{{ $student->archive ? 'danger' : 'info' }} text-capitalize">{{ $student->archive ? 'Inactive' : $student->status }}</span>
               @endif
             </div>
             <h2 class="mb-0">{{ $student->first_name }} {{ $student->last_name }}</h2>
@@ -141,7 +141,7 @@
               <div class="col-md-6"><div class="text-muted small">Class</div><div class="fw-semibold">{{ $student->classroom->name ?? '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Stream</div><div class="fw-semibold">{{ $student->stream->name ?? '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Category</div><div class="fw-semibold">{{ $student->category->name ?? '—' }}</div></div>
-              <div class="col-md-6"><div class="text-muted small">Status</div><div class="fw-semibold"><span class="pill-badge pill-{{ $student->status === 'active' ? 'success' : 'secondary' }}">{{ ucfirst($student->status ?? '—') }}</span></div></div>
+              <div class="col-md-6"><div class="text-muted small">Status</div><div class="fw-semibold"><span class="pill-badge pill-{{ $student->archive ? 'danger' : ($student->status === 'active' ? 'success' : 'secondary') }}">{{ $student->archive ? 'Inactive' : ucfirst($student->status ?? '—') }}</span></div></div>
             </div>
           </div>
         </div>
@@ -169,6 +169,34 @@
       </div>
     </div>
 
+    @if($student->archived_reason || $student->archived_notes)
+    <div class="settings-card mb-3">
+      <div class="card-header">
+        <span class="fw-bold">Archive Details</span>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 align-items-center">
+          <div class="col-md-4">
+            <div class="text-muted small">Reason</div>
+            <div class="fw-semibold">{{ $student->archived_reason ?? '—' }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Archived At</div>
+            <div class="fw-semibold">{{ $student->archived_at ? $student->archived_at->format('Y-m-d H:i') : '—' }}</div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-muted small">Archived By</div>
+            <div class="fw-semibold">{{ optional($student->archived_by ? \App\Models\User::find($student->archived_by) : null)->name ?? '—' }}</div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted small">Details</div>
+            <div class="fw-semibold">{{ $student->archived_notes ?? '—' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    @endif
+
     <div class="row g-3 mt-2">
       <div class="col-12">
         <div class="settings-card mb-4">
@@ -191,6 +219,9 @@
               </li>
               <li class="nav-item" role="presentation">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#academic" type="button">Academic History</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#finance" type="button">Financial</button>
               </li>
             </ul>
             <div class="tab-content">
@@ -293,6 +324,16 @@
               <p class="text-muted mb-0">No academic history yet. <a href="{{ route('students.academic-history.create', $student) }}">Add one</a></p>
             @endif
           </div>
+            <div class="tab-pane fade" id="finance" role="tabpanel">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">Financial</h6>
+                <div class="btn-group btn-group-sm">
+                  <a class="btn btn-ghost-strong" href="{{ url('/finance/invoices') }}">Invoices</a>
+                  <a class="btn btn-ghost-strong" href="{{ url('/finance/payments') }}">Payments</a>
+                </div>
+              </div>
+              <p class="text-muted small mb-2">Finance records remain available for archived students. You can collect fees and view invoices/payments in Finance.</p>
+            </div>
         </div>
       </div>
     </div>

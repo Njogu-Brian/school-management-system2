@@ -14,7 +14,7 @@ class ArchiveStudentService
     * Archive a student and all per-student records (soft delete).
     * Does NOT delete shared family/parent data.
     */
-    public function archive(Student $student, ?string $reason = null, ?int $actorId = null): array
+    public function archive(Student $student, ?string $reason = null, ?int $actorId = null, ?string $notes = null): array
     {
         if ($student->archive) {
             return ['skipped' => true, 'message' => 'Student already archived'];
@@ -29,15 +29,10 @@ class ArchiveStudentService
         $counts = [
             'attendance' => 0,
             'homework_diary' => 0,
-            'invoices' => 0,
-            'invoice_items' => 0,
-            'payments' => 0,
-            'credit_notes' => 0,
-            'debit_notes' => 0,
             'exam_marks' => 0,
         ];
 
-        DB::transaction(function () use ($student, $reason, $actorId, $activeSiblings, &$counts) {
+        DB::transaction(function () use ($student, $reason, $actorId, $activeSiblings, &$counts, $notes) {
             // Attendance
             $counts['attendance'] = \App\Models\Attendance::where('student_id', $student->id)->delete();
 
@@ -49,27 +44,12 @@ class ArchiveStudentService
                 $counts['exam_marks'] = \App\Models\Academics\ExamMark::where('student_id', $student->id)->delete();
             }
 
-            // Invoices and related
-            $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-            foreach ($invoices as $invoice) {
-                $counts['invoice_items'] += $invoice->items()->delete();
-                $counts['credit_notes'] += $invoice->creditNotes()->delete();
-                $counts['debit_notes'] += $invoice->debitNotes()->delete();
-                $invoice->delete();
-                $counts['invoices']++;
-            }
-
-            // Payments linked to this student (note: shared payments to family are skipped)
-            $payments = \App\Models\Payment::where('student_id', $student->id)->get();
-            foreach ($payments as $payment) {
-                $payment->allocations()->delete();
-                $payment->delete();
-                $counts['payments']++;
-            }
-
             // Mark student as archived (keep row for restoration)
             $student->archive = 1;
             $student->archived_at = now();
+            $student->archived_reason = $reason;
+            $student->archived_notes = $notes;
+            $student->archived_by = $actorId;
             $student->save();
 
             // Audit

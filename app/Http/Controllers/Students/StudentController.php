@@ -466,7 +466,12 @@ class StudentController extends Controller
     {
         $student = Student::withArchived()->findOrFail($id);
         try {
-            $result = $this->archiveService->archive($student, $request->input('reason'), auth()->id());
+            $result = $this->archiveService->archive(
+                $student,
+                $request->input('reason'),
+                auth()->id(),
+                $request->input('archived_notes')
+            );
             return redirect()->route('students.archived')->with('success', 'Student archived successfully.');
         } catch (\Throwable $e) {
             Log::error('Archive failed: '.$e->getMessage(), ['student_id' => $student->id]);
