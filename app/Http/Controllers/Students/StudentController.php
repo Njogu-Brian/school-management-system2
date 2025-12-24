@@ -150,6 +150,10 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
+        // If this request came from the filters (no student payload), bail early to avoid noisy validation/logs
+        if (!$request->filled('first_name') || !$request->filled('last_name')) {
+            return redirect()->route('students.index');
+        }
         try {
             $request->validate([
                 'first_name' => 'required|string|max:255',
