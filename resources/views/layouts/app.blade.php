@@ -210,7 +210,7 @@
         .app-header {
             position: sticky;
             top: 0;
-            z-index: 1400;
+            z-index: 1200; /* keep below modal layers */
             background: color-mix(in srgb, var(--brand-primary) 6%, #ffffff 94%);
             border: 1px solid var(--brand-border);
             border-radius: 14px;
@@ -218,6 +218,9 @@
             box-shadow: 0 12px 24px rgba(0,0,0,0.06);
             flex-wrap: wrap;
         }
+        /* Ensure modals/backdrops sit above the header */
+        .modal-backdrop { z-index: 1040 !important; }
+        .modal { z-index: 1050 !important; }
         .header-alerts {
             margin-left: auto;
         }
