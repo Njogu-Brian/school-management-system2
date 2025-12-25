@@ -36,7 +36,7 @@
     @endif
 
     <!-- Filters -->
-    <div class="finance-filter-card finance-animate">
+    <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0">
         <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3">
             <div class="col-md-6 col-lg-3">
                 <label class="finance-form-label">Student</label>
@@ -86,9 +86,9 @@
     </div>
 
     <!-- Payments Table -->
-    <div class="finance-table-wrapper finance-animate">
-        <div class="table-responsive">
-            <table class="finance-table">
+    <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
+        <div class="table-responsive px-3 pb-3">
+            <table class="finance-table align-middle">
                 <thead>
                         <tr>
                             <th>Receipt #</th>

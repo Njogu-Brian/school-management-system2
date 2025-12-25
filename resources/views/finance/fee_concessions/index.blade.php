@@ -62,15 +62,18 @@
                     </thead>
                     <tbody>
                         @forelse($concessions as $concession)
+                            @php
+                                $student = $concession->student;
+                            @endphp
                             <tr>
-                                <td>{{ $concession->student->first_name }} {{ $concession->student->last_name }}</td>
+                                <td>{{ $student->first_name ?? 'Unknown' }} {{ $student->last_name ?? '' }}</td>
                                 <td>{{ ucfirst($concession->type) }}</td>
                                 <td>
                                     {{ $concession->type == 'percentage' ? number_format($concession->value, 1) . '%' : 'KES ' . number_format($concession->value, 2) }}
                                 </td>
                                 <td>{{ $concession->votehead->name ?? 'All Voteheads' }}</td>
                                 <td>{{ $concession->reason }}</td>
-                                <td>{{ $concession->start_date->format('M d, Y') }}</td>
+                                <td>{{ $concession->start_date ? $concession->start_date->format('M d, Y') : '—' }}</td>
                                 <td>{{ $concession->end_date ? $concession->end_date->format('M d, Y') : 'No End' }}</td>
                                 <td>
                                     <span class="badge bg-{{ $concession->is_active ? 'success' : 'secondary' }}">

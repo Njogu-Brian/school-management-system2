@@ -8,11 +8,11 @@
         'actions' => ''
     ])
 
-    <div class="finance-card finance-animate">
-        <div class="finance-card-header">
-            <i class="bi bi-search me-2"></i> Search Student
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-search"></i> <span>Search Student</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-4">
             <form method="GET" action="{{ route('finance.student-statements.index') }}" class="row g-3" id="studentStatementForm">
                 <div class="col-md-12">
                     <label class="finance-form-label">Student <span class="text-danger">*</span></label>

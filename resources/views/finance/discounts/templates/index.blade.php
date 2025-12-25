@@ -22,8 +22,8 @@
     <!-- Quick Stats -->
     <div class="row mb-4">
         <div class="col-md-4">
-            <div class="finance-card">
-                <div class="finance-card-body">
+            <div class="finance-card shadow-sm rounded-4 border-0">
+                <div class="finance-card-body p-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-0">Total Templates</h6>
@@ -37,8 +37,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="finance-card">
-                <div class="finance-card-body">
+            <div class="finance-card shadow-sm rounded-4 border-0">
+                <div class="finance-card-body p-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-0">Active Templates</h6>
@@ -52,8 +52,8 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="finance-card">
-                <div class="finance-card-body">
+            <div class="finance-card shadow-sm rounded-4 border-0">
+                <div class="finance-card-body p-4">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="text-muted mb-0">Requires Approval</h6>
@@ -69,13 +69,13 @@
     </div>
 
     <!-- Templates Table -->
-    <div class="finance-card finance-animate">
-        <div class="finance-card-header">
-            <h5 class="mb-0"><i class="bi bi-table"></i> Templates</h5>
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-table"></i> <span>Templates</span>
         </div>
         <div class="finance-card-body p-0">
-            <div class="table-responsive">
-                <table class="finance-table">
+            <div class="table-responsive px-3 pb-3">
+                <table class="finance-table align-middle">
                     <thead>
                         <tr>
                             <th>Name</th>

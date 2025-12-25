@@ -22,11 +22,11 @@
     @endif
 
     {{-- Class selection --}}
-    <div class="finance-card finance-animate mb-4">
-        <div class="finance-card-header">
-            <i class="bi bi-funnel me-2"></i> Select Class
+    <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-funnel"></i> <span>Select Class</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-4">
             <form method="GET" action="{{ route('finance.fee-structures.manage') }}">
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -47,16 +47,16 @@
 
     @if($selectedClassroom)
     {{-- Fee Structure Form --}}
-    <div class="finance-card finance-animate mb-4">
-        <div class="finance-card-header">
-            <i class="bi bi-pencil-square me-2"></i> Fee Structure for {{ $classrooms->firstWhere('id', $selectedClassroom)->name ?? 'Selected Class' }}
+    <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-pencil-square"></i> <span>Fee Structure for {{ $classrooms->firstWhere('id', $selectedClassroom)->name ?? 'Selected Class' }}</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-4">
             <form action="{{ route('finance.fee-structures.save') }}" method="POST">
                 @csrf
 
                 <input type="hidden" name="classroom_id" value="{{ $selectedClassroom }}">
-                <div class="row g-3 mb-4">
+                <div class="row g-4 mb-4">
                     <div class="col-md-4">
                         <label class="finance-form-label">Year <span class="text-danger">*</span></label>
                         <input type="number" name="year" class="finance-form-control" value="{{ $feeStructure->year ?? date('Y') }}" required>
@@ -66,7 +66,7 @@
                 <h5 class="mb-3">Votehead Charges (Ksh)</h5>
                 <div class="finance-table-wrapper">
                     <div class="table-responsive">
-                        <table class="finance-table">
+                        <table class="finance-table align-middle">
                             <thead>
                                 <tr>
                                     <th>Votehead</th>
@@ -104,7 +104,7 @@
                     </div>
                 </div>
                 
-                <div class="mt-4">
+                <div class="mt-4 d-flex gap-3 flex-wrap">
                     <button type="submit" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-check-circle"></i> Save Fee Structure
                     </button>
@@ -115,16 +115,16 @@
 
     {{-- Replication Form --}}
     @if($feeStructure)
-    <div class="finance-card finance-animate">
-        <div class="finance-card-header secondary">
-            <i class="bi bi-copy me-2"></i> Replicate this Fee Structure
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header secondary d-flex align-items-center gap-2">
+            <i class="bi bi-copy"></i> <span>Replicate this Fee Structure</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-4">
             <form method="POST" action="{{ route('finance.fee-structures.replicate') }}">
                 @csrf
                 <input type="hidden" name="source_classroom_id" value="{{ $selectedClassroom }}">
 
-                <div class="row g-3">
+                <div class="row g-4">
                     <div class="col-md-12">
                         <label class="finance-form-label">Select Target Classes (hold Ctrl to select multiple)</label>
                         <select name="target_classroom_ids[]" class="finance-form-select" multiple required style="height: 200px;">
@@ -136,7 +136,7 @@
                     </div>
                 </div>
 
-                <div class="mt-3">
+                <div class="mt-3 d-flex gap-3 flex-wrap">
                     <button type="submit" class="btn btn-finance btn-finance-warning">
                         <i class="bi bi-copy"></i> Replicate to Selected Classes
                     </button>

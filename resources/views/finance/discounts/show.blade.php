@@ -3,22 +3,20 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
-    <div class="finance-card finance-animate mb-3 d-flex justify-content-between align-items-center p-3">
-        <h3 class="mb-0">
-            <i class="bi bi-percent"></i> Discount Details
-        </h3>
-        <a href="{{ route('finance.discounts.index') }}" class="btn btn-finance btn-finance-outline">
-            <i class="bi bi-arrow-left"></i> Back to List
-        </a>
-    </div>
+    @include('finance.partials.header', [
+        'title' => 'Discount Details',
+        'icon' => 'bi bi-percent',
+        'subtitle' => 'Review the allocation and its target',
+        'actions' => '<a href="' . route('finance.discounts.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back to List</a>'
+    ])
 
-    <div class="row">
+    <div class="row g-4">
         <div class="col-md-8">
-            <div class="finance-card finance-animate mb-4">
-                <div class="finance-card-header">
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex align-items-center gap-2">
                     <h5 class="mb-0">Discount Information</h5>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body p-4">
                     <dl class="row mb-0">
                         <dt class="col-sm-4">Discount Type:</dt>
                         <dd class="col-sm-8">
@@ -85,32 +83,32 @@
         </div>
 
         <div class="col-md-4">
-            <div class="finance-card finance-animate mb-4">
-                <div class="finance-card-header">
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex align-items-center gap-2">
                     <h5 class="mb-0">Applied To</h5>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body p-4">
                     @if($discount->student)
-                        <p><strong>Student:</strong><br>
+                        <p class="mb-3"><strong>Student:</strong><br>
                             {{ $discount->student->first_name }} {{ $discount->student->last_name }}<br>
                             <small class="text-muted">{{ $discount->student->admission_number }}</small>
                         </p>
                     @endif
 
                     @if($discount->family)
-                        <p><strong>Family:</strong><br>
+                        <p class="mb-3"><strong>Family:</strong><br>
                             {{ $discount->family->surname ?? 'N/A' }}
                         </p>
                     @endif
 
                     @if($discount->votehead)
-                        <p><strong>Votehead:</strong><br>
+                        <p class="mb-3"><strong>Votehead:</strong><br>
                             {{ $discount->votehead->name }}
                         </p>
                     @endif
 
                     @if($discount->invoice)
-                        <p><strong>Invoice:</strong><br>
+                        <p class="mb-0"><strong>Invoice:</strong><br>
                             {{ $discount->invoice->invoice_number }}
                         </p>
                     @endif

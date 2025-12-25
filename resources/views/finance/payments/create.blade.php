@@ -14,14 +14,14 @@
     <form action="{{ route('finance.payments.store') }}" method="POST" id="paymentForm">
         @csrf
         
-        <div class="row">
+        <div class="row g-4">
             <div class="col-md-8">
-                <div class="finance-card finance-animate">
-                    <div class="finance-card-header">
-                        <i class="bi bi-info-circle me-2"></i> Payment Information
+                <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+                    <div class="finance-card-header d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle"></i> <span>Payment Information</span>
                     </div>
-                    <div class="finance-card-body">
-                        <div class="row g-3">
+                    <div class="finance-card-body p-4">
+                        <div class="row g-4">
                             <div class="col-md-12">
                                 <label class="finance-form-label">Student <span class="text-danger">*</span></label>
                                 <select name="student_id" id="student_id" class="finance-form-select @error('student_id') is-invalid @enderror" required>
@@ -164,21 +164,21 @@
             </div>
 
             <div class="col-md-4">
-                <div class="finance-card finance-animate">
-                    <div class="finance-card-header secondary">
-                        <i class="bi bi-info-circle me-2"></i> Student Balance Info
+                <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+                    <div class="finance-card-header secondary d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle"></i> <span>Student Balance Info</span>
                     </div>
-                    <div class="finance-card-body" id="student_balance_info">
+                    <div class="finance-card-body p-4" id="student_balance_info">
                         <p class="text-muted text-center">Select a student to view balance</p>
                     </div>
                 </div>
 
                 <!-- Siblings Section -->
-                <div class="finance-card finance-animate mt-3" id="siblings_card" style="display: none;">
-                    <div class="finance-card-header secondary">
-                        <i class="bi bi-people me-2"></i> Siblings
+                <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mt-3" id="siblings_card" style="display: none;">
+                    <div class="finance-card-header secondary d-flex align-items-center gap-2">
+                        <i class="bi bi-people"></i> <span>Siblings</span>
                     </div>
-                    <div class="finance-card-body" id="siblings_info">
+                    <div class="finance-card-body p-4" id="siblings_info">
                         <p class="text-muted small">This student has siblings in the system.</p>
                     </div>
                 </div>

@@ -10,45 +10,45 @@
 
     @include('finance.invoices.partials.alerts')
     
-    <div class="finance-card finance-animate mb-3">
-        <div class="finance-card-body">
+    <div class="finance-card finance-animate mb-3 shadow-sm rounded-4 border-0">
+        <div class="finance-card-body p-4">
             @if(isset($summary))
             <div class="row g-3">
                 <div class="col-md-3">
-                    <div class="finance-card">
-                        <div class="finance-card-body text-center">
+                    <div class="finance-card shadow-sm rounded-4 border-0">
+                        <div class="finance-card-body text-center p-3">
                             <h5 class="text-primary">{{ $summary['total'] }}</h5>
                             <small class="finance-muted">Total Changes</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="finance-card">
-                        <div class="finance-card-body text-center">
+                    <div class="finance-card shadow-sm rounded-4 border-0">
+                        <div class="finance-card-body text-center p-3">
                             <h5 class="text-success">{{ $summary['added'] ?? 0 }}</h5>
                             <small class="finance-muted">Added</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="finance-card">
-                        <div class="finance-card-body text-center">
+                    <div class="finance-card shadow-sm rounded-4 border-0">
+                        <div class="finance-card-body text-center p-3">
                             <h5 class="text-warning">{{ $summary['increased'] ?? 0 }}</h5>
                             <small class="finance-muted">Increased</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <div class="finance-card">
-                        <div class="finance-card-body text-center">
+                    <div class="finance-card shadow-sm rounded-4 border-0">
+                        <div class="finance-card-body text-center p-3">
                             <h5 class="text-danger">{{ $summary['decreased'] ?? 0 }}</h5>
                             <small class="finance-muted">Decreased</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="finance-card">
-                        <div class="finance-card-body text-center">
+                    <div class="finance-card shadow-sm rounded-4 border-0">
+                        <div class="finance-card-body text-center p-3">
                             <h5 class="text-info">
                                 Ksh {{ number_format($summary['total_amount_change'] ?? 0, 2) }}
                             </h5>
@@ -77,8 +77,8 @@
             <input type="hidden" name="diffs[{{ $index }}][origin]" value="{{ $diff['origin'] ?? 'structure' }}">
         @endforeach
 
-        <div class="finance-card finance-animate">
-            <div class="finance-card-header">
+        <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+            <div class="finance-card-header d-flex justify-content-between align-items-center flex-wrap">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
                     <div>
                         <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Change Details</h5>
@@ -97,7 +97,7 @@
             </div>
             <div class="finance-card-body p-0">
                 <div class="table-responsive">
-                    <table class="finance-table mb-0">
+                    <table class="finance-table align-middle mb-0">
                         <thead>
                             <tr>
                                 <th style="width: 25%;">Student</th>

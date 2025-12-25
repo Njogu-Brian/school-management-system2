@@ -7,15 +7,15 @@
         'subtitle' => 'Replicate discount allocations across terms and classes'
     ])
 
-    <div class="finance-card finance-animate">
-        <div class="finance-card-header">
-            <i class="bi bi-info-circle me-2"></i> Replication Information
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-info-circle"></i> <span>Replication Information</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-4">
             <form method="POST" action="{{ route('finance.discounts.replicate') }}">
                 @csrf
                 
-                <div class="row g-3">
+                <div class="row g-4">
                     <div class="col-md-6">
                         <label class="finance-form-label">Discount Template <span class="text-danger">*</span></label>
                         <select name="template_id" class="finance-form-select @error('template_id') is-invalid @enderror" required>
@@ -58,7 +58,7 @@
                     <div class="col-md-12">
                         <hr>
                         <h5>Target Years <span class="text-danger">*</span></h5>
-                        <div class="row">
+                        <div class="row g-2">
                             @foreach($academicYears as $year)
                             <div class="col-md-3">
                                 <div class="form-check">
@@ -82,7 +82,7 @@
 
                     <div class="col-md-12">
                         <h5>Target Terms <span class="text-danger">*</span></h5>
-                        <div class="row">
+                        <div class="row g-2">
                             <div class="col-md-4">
                                 <div class="form-check">
                                     <input class="form-check-input" 
@@ -152,7 +152,7 @@
                     </div>
 
                     <div class="col-md-12">
-                        <div class="d-flex justify-content-end gap-2">
+                        <div class="d-flex justify-content-end gap-2 flex-wrap">
                             <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-finance btn-finance-outline">
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>

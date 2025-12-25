@@ -64,6 +64,22 @@
   }
   .finance-card .card-body { padding: 18px; }
 
+  /* Ensure card headers have comfortable breathing room across all finance views */
+  .finance-card-header,
+  .finance-filter-card .card-header {
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    line-height: 1.3;
+    min-height: 52px;
+  }
+
+  /* Extra body padding consistency */
+  .finance-card-body {
+    padding: 18px;
+  }
+
   .finance-stat-card {
     background: var(--fin-surface);
     border: 1px solid var(--fin-border);

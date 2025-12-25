@@ -128,14 +128,17 @@
                             <td>
                                 <strong>{{ $inv->invoice_number }}</strong>
                             </td>
+                            @php
+                                $student = $inv->student;
+                            @endphp
                             <td>
-                                {{ $inv->student->first_name ?? 'Unknown' }} {{ $inv->student->last_name ?? '' }}
-                                <br><small class="text-muted">{{ $inv->student->admission_number ?? '—' }}</small>
+                                {{ $student->first_name ?? 'Unknown' }} {{ $student->last_name ?? '' }}
+                                <br><small class="text-muted">{{ $student->admission_number ?? '—' }}</small>
                             </td>
                             <td>
-                                {{ $inv->student->classroom->name ?? '—' }}
-                                @if($inv->student->stream)
-                                    / {{ $inv->student->stream->name }}
+                                {{ $student?->classroom?->name ?? '—' }}
+                                @if($student && $student->stream)
+                                    / {{ $student->stream->name }}
                                 @endif
                             </td>
                             <td>

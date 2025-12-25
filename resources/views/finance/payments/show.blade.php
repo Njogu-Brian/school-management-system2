@@ -3,31 +3,23 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
-    <div class="finance-card finance-animate mb-3">
-        <div class="finance-card-header d-flex justify-content-between align-items-center">
-            <h3 class="mb-0">
-                <i class="bi bi-cash-stack"></i> Payment #{{ $payment->receipt_number ?? $payment->transaction_code }}
-            </h3>
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary" target="_blank">
-                    <i class="bi bi-printer"></i> Print Receipt
-                </a>
-                <a href="{{ route('finance.payments.index') }}" class="btn btn-finance btn-finance-secondary">
-                    <i class="bi bi-arrow-left"></i> Back
-                </a>
-            </div>
-        </div>
-        <div class="finance-card-body">
+    @include('finance.partials.header', [
+        'title' => 'Payment #' . ($payment->receipt_number ?? $payment->transaction_code),
+        'icon' => 'bi bi-cash-stack',
+        'subtitle' => $payment->student?->first_name ? 'For ' . $payment->student->first_name . ' ' . ($payment->student->last_name ?? '') : 'Payment details',
+        'actions' => '<a href="' . route('finance.payments.receipt', $payment) . '" class="btn btn-finance btn-finance-primary" target="_blank"><i class="bi bi-printer"></i> Print Receipt</a><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+    ])
 
     @include('finance.invoices.partials.alerts')
 
     <div class="row">
         <div class="col-md-8">
-            <div class="finance-card finance-animate mb-4">
-                <div class="finance-card-header">
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Payment Information</h5>
+                    <span class="finance-badge badge-paid">{{ $payment->receipt_number ?? $payment->transaction_code }}</span>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body p-4">
                     <div class="row">
                         <div class="col-md-6">
                             <dl class="row mb-0">
@@ -97,7 +89,7 @@
             </div>
 
             <!-- Payment Allocations -->
-            <div class="finance-card finance-animate mb-4">
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Payment Allocations</h5>
                     @if($payment->unallocated_amount > 0)
@@ -115,8 +107,8 @@
                     @endphp
                     
                     @if($allocations->isNotEmpty())
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
+                    <div class="table-responsive px-3 pb-3">
+                        <table class="finance-table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
                                     <th>Invoice</th>
@@ -172,28 +164,28 @@
         </div>
 
         <div class="col-md-4">
-            <div class="finance-card finance-animate mb-4">
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Quick Actions</h5>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body d-grid gap-2 p-4">
                     <div class="d-grid gap-2">
-                        <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-outline-primary" target="_blank">
+                        <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary" target="_blank">
                             <i class="bi bi-download"></i> Download Receipt PDF
                         </a>
                         @if($payment->student_id)
-                        <a href="{{ route('finance.invoices.index', ['student_id' => $payment->student_id]) }}" class="btn btn-outline-info">
+                        <a href="{{ route('finance.invoices.index', ['student_id' => $payment->student_id]) }}" class="btn btn-finance btn-finance-outline">
                             <i class="bi bi-file-text"></i> View Student Invoices
                         </a>
                         @endif
                         @if(!$payment->reversed)
-                        <button type="button" class="btn btn-outline-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
+                        <button type="button" class="btn btn-finance btn-finance-secondary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
                             <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
                         </button>
                         <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" onsubmit="return confirm('Are you sure you want to reverse this payment? This will remove all allocations and recalculate invoices. This action cannot be undone.')">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="btn btn-outline-danger w-100">
+                            <button type="submit" class="btn btn-danger w-100">
                                 <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
                             </button>
                         </form>
@@ -206,24 +198,26 @@
                 </div>
             </div>
 
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
+            <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+                <div class="finance-card-header">
                     <h5 class="mb-0">Payment Summary</h5>
                 </div>
-                <div class="card-body">
-                    <p class="mb-2">
-                        <strong>Total Paid:</strong><br>
-                        <span class="h5 text-primary">Ksh {{ number_format($payment->amount, 2) }}</span>
-                    </p>
-                    <hr>
-                    <p class="mb-2">
+                <div class="finance-card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <small class="finance-muted d-block">Total Paid</small>
+                            <span class="h5 text-primary mb-0">Ksh {{ number_format($payment->amount, 2) }}</span>
+                        </div>
+                        <span class="finance-badge badge-paid">Paid</span>
+                    </div>
+                    <div class="mb-2">
                         <strong>Allocated:</strong><br>
                         <span class="h6 text-success">Ksh {{ number_format($payment->allocated_amount ?? 0, 2) }}</span>
-                    </p>
-                    <p class="mb-0">
+                    </div>
+                    <div class="mb-0">
                         <strong>Unallocated:</strong><br>
                         <span class="h6 text-warning">Ksh {{ number_format($payment->unallocated_amount ?? $payment->amount, 2) }}</span>
-                    </p>
+                    </div>
                 </div>
             </div>
         </div>

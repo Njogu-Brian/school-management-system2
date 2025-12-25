@@ -59,7 +59,7 @@
     </div>
 
     <!-- Recent Allocations -->
-    <div class="finance-card finance-animate">
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
         <div class="finance-card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-clock-history me-2"></i> Recent Allocations</span>
             <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-sm btn-finance-outline" style="background: rgba(255,255,255,0.2); color: white; border-color: white;">
@@ -67,8 +67,8 @@
             </a>
         </div>
         <div class="finance-table-wrapper">
-            <div class="table-responsive">
-                <table class="finance-table">
+            <div class="table-responsive px-3 pb-3">
+                <table class="finance-table align-middle">
                     <thead>
                                 <tr>
                                     <th>Student</th>

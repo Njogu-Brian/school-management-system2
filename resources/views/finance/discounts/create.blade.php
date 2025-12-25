@@ -3,11 +3,12 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
-    <div class="finance-card finance-animate mb-3 p-3">
-        <h3 class="mb-0">
-            <i class="bi bi-plus-circle"></i> Create Fee Discount
-        </h3>
-    </div>
+    @include('finance.partials.header', [
+        'title' => 'Create Fee Discount',
+        'icon' => 'bi bi-percent',
+        'subtitle' => 'Design a reusable discount template for students',
+        'actions' => '<a href="' . route('finance.discounts.templates.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+    ])
 
     @include('finance.invoices.partials.alerts')
 
@@ -16,11 +17,12 @@
         
         <div class="row">
             <div class="col-md-8">
-                <div class="finance-card finance-animate mb-4">
-                    <div class="finance-card-header">
+                <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                    <div class="finance-card-header d-flex align-items-center justify-content-between">
                         <h5 class="mb-0">Discount Details</h5>
+                        <span class="finance-badge badge-partial">Template</span>
                     </div>
-                    <div class="finance-card-body">
+                    <div class="finance-card-body p-4">
                         <div class="row g-3">
                             <div class="col-md-12">
                                 <label class="form-label">Template Name <span class="text-danger">*</span></label>
@@ -173,25 +175,27 @@
             </div>
 
             <div class="col-md-4">
-                <div class="finance-card finance-animate mb-4">
+                <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                     <div class="finance-card-header">
                         <h5 class="mb-0">Info</h5>
                     </div>
-                    <div class="finance-card-body">
-                        <div class="alert alert-info">
+                    <div class="finance-card-body p-4">
+                        <div class="alert alert-info mb-0">
                             <i class="bi bi-info-circle"></i>
-                            <strong>Note:</strong> This form creates a discount template. To allocate this discount to students, use the "Allocate Discount" option after creating the template.
+                            <strong> Note:</strong> This form creates a discount template. To allocate this discount to students, use the "Allocate Discount" option after creating the template.
                         </div>
                     </div>
                 </div>
 
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-finance btn-finance-primary">
-                        <i class="bi bi-check-circle"></i> Create Template
-                    </button>
-                    <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-finance btn-finance-outline">
-                        <i class="bi bi-arrow-left"></i> Cancel
-                    </a>
+                <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+                    <div class="finance-card-body p-4 d-grid gap-2">
+                        <button type="submit" class="btn btn-finance btn-finance-primary">
+                            <i class="bi bi-check-circle"></i> Create Template
+                        </button>
+                        <a href="{{ route('finance.discounts.templates.index') }}" class="btn btn-finance btn-finance-outline">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

@@ -9,7 +9,7 @@
     ])
 
     {{-- Filters --}}
-    <div class="finance-filter-card finance-animate">
+    <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0">
         <form method="GET" action="{{ route('finance.student-statements.show', $student) }}" class="row g-3">
             <div class="col-md-4">
                 <label class="finance-form-label">Academic Year</label>
@@ -40,11 +40,11 @@
     </div>
 
     {{-- Student Info --}}
-    <div class="finance-card finance-animate">
-        <div class="finance-card-header">
-            <i class="bi bi-person-circle me-2"></i> Student Information
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-person-circle"></i> <span>Student Information</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-4">
             <div class="row">
                 <div class="col-md-3">
                     <strong>Name:</strong> {{ $student->full_name }}
@@ -111,13 +111,13 @@
     </div>
 
     {{-- Transactions --}}
-    <div class="finance-card finance-animate">
-        <div class="finance-card-header">
-            <i class="bi bi-list-ul me-2"></i> Transaction History
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-list-ul"></i> <span>Transaction History</span>
         </div>
-        <div class="finance-card-body">
+        <div class="finance-card-body p-0">
             <div class="finance-table-wrapper">
-                <table class="finance-table">
+                <table class="finance-table align-middle">
                     <thead>
                         <tr>
                             <th>Date</th>

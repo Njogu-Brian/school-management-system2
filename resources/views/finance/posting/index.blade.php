@@ -9,11 +9,11 @@
 
   @includeIf('finance.invoices.partials.alerts')
 
-  <div class="finance-card finance-animate">
-    <div class="finance-card-header">
-      <i class="bi bi-funnel me-2"></i> Select Criteria
+  <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+    <div class="finance-card-header d-flex align-items-center gap-2">
+      <i class="bi bi-funnel"></i> <span>Select Criteria</span>
     </div>
-    <div class="finance-card-body">
+    <div class="finance-card-body p-4">
       <form method="POST" action="{{ route('finance.posting.preview') }}" class="row g-3">
         @csrf
 
@@ -61,7 +61,7 @@
           </select>
         </div>
 
-        <div class="col-12">
+        <div class="col-12 d-flex gap-2 flex-wrap">
           <button type="submit" class="btn btn-finance btn-finance-primary">
             <i class="bi bi-search"></i> Preview
           </button>
@@ -71,13 +71,13 @@
   </div>
 
   @if(isset($runs) && $runs->count() > 0)
-  <div class="finance-card finance-animate">
-    <div class="finance-card-header secondary">
-      <i class="bi bi-clock-history me-2"></i> Previous Posting Runs
+  <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+    <div class="finance-card-header secondary d-flex align-items-center gap-2">
+      <i class="bi bi-clock-history"></i> <span>Previous Posting Runs</span>
     </div>
     <div class="finance-table-wrapper">
-      <div class="table-responsive">
-        <table class="finance-table">
+      <div class="table-responsive px-3 pb-3">
+        <table class="finance-table align-middle">
           <thead>
         <tr>
           <th>Run ID</th>

@@ -12,11 +12,11 @@
 
     <div class="row">
         <div class="col-md-8">
-            <div class="finance-card finance-animate mb-4">
-                <div class="finance-card-header">
-                    <i class="bi bi-info-circle me-2"></i> Bulk Allocation Details
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle"></i> <span>Bulk Allocation Details</span>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body p-4">
                     <div class="alert alert-info" id="template_info_alert">
                         <i class="bi bi-info-circle"></i> 
                         <strong>How it works:</strong> The system will automatically find all families with 2 or more children and apply sibling discounts based on the selected template settings.
@@ -29,7 +29,7 @@
                     <form action="{{ route('finance.discounts.bulk-allocate-sibling.store') }}" method="POST" onsubmit="return confirm('This will allocate discounts to all eligible families. Continue?');">
                         @csrf
                         
-                        <div class="row g-3">
+                        <div class="row g-4">
                             <div class="col-md-12">
                                 <label class="finance-form-label">Sibling Discount Template <span class="text-danger">*</span></label>
                                 <select name="discount_template_id" class="finance-form-select @error('discount_template_id') is-invalid @enderror" required>
@@ -57,8 +57,8 @@
                             </div>
 
                             <div class="col-md-12" id="template_details" style="display: none;">
-                                <div class="card border-info">
-                                    <div class="card-body">
+                                <div class="finance-card shadow-sm rounded-4 border-0">
+                                    <div class="finance-card-body p-3">
                                         <h6 class="card-title">Template Details</h6>
                                         <div id="template_details_content"></div>
                                     </div>
@@ -105,7 +105,7 @@
                             </div>
                         </div>
 
-                        <div class="mt-4">
+                        <div class="mt-4 d-flex gap-3 flex-wrap">
                             <button type="submit" class="btn btn-finance btn-finance-primary">
                                 <i class="bi bi-people-fill"></i> Allocate to All Families
                             </button>
@@ -119,11 +119,11 @@
         </div>
 
         <div class="col-md-4">
-            <div class="finance-card finance-animate mb-4">
-                <div class="finance-card-header secondary">
-                    <i class="bi bi-bar-chart me-2"></i> Statistics
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header secondary d-flex align-items-center gap-2">
+                    <i class="bi bi-bar-chart"></i> <span>Statistics</span>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body p-4">
                     @php
                         $familiesWithSiblings = \App\Models\Family::has('students', '>=', 2)->count();
                         $totalStudents = \App\Models\Student::where('status', 'active')->whereNotNull('family_id')->count();

@@ -89,7 +89,7 @@
     </div>
 
     <!-- Filters -->
-    <div class="finance-filter-card finance-animate mb-4">
+    <div class="finance-filter-card finance-animate mb-4 shadow-sm rounded-4 border-0">
         <form method="GET" action="{{ route('finance.discounts.allocations.index') }}" class="row g-3">
             <div class="col-md-3">
                 <label class="finance-form-label">Student</label>
@@ -136,8 +136,8 @@
     </div>
 
     <!-- Bulk Reject Reason (outside form) -->
-    <div id="bulkRejectReason" class="finance-card finance-animate mb-3" style="display: none;">
-        <div class="finance-card-body">
+    <div id="bulkRejectReason" class="finance-card finance-animate mb-3 shadow-sm rounded-4 border-0" style="display: none;">
+        <div class="finance-card-body p-4">
             <form id="bulkRejectForm" method="POST" action="{{ route('finance.discounts.allocations.bulk-reject') }}">
                 @csrf
                 <label class="finance-form-label">Rejection Reason <span class="text-danger">*</span></label>
@@ -156,7 +156,7 @@
         <div id="bulkCheckboxesContainer" style="display: none;"></div>
 
         <!-- Allocations Table -->
-        <div class="finance-card finance-animate">
+        <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
             <div class="finance-card-header d-flex justify-content-between align-items-center flex-wrap">
                 <span><i class="bi bi-table me-2"></i> Allocations</span>
                 <div id="bulkActions" style="display: none;" class="mt-2 mt-md-0">
@@ -174,8 +174,8 @@
                 </div>
             </div>
             <div class="finance-table-wrapper">
-                <div class="table-responsive">
-                    <table class="finance-table">
+                <div class="table-responsive px-3 pb-3">
+                    <table class="finance-table align-middle">
                         <thead>
                             <tr>
                                 <th width="40">
@@ -257,11 +257,15 @@
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if($allocation->approval_status === 'pending')
-                                            <form action="{{ route('finance.discounts.approve', $allocation) }}" method="POST" class="d-inline approve-form" style="display: inline-block;" onsubmit="return confirm('Approve this discount allocation?');">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-success approve-action"
+                                                    data-action="{{ route('finance.discounts.approve', $allocation) }}"
+                                                    data-fallback="approveForm{{ $allocation->id }}"
+                                                    title="Approve">
+                                                <i class="bi bi-check"></i>
+                                            </button>
+                                            <form id="approveForm{{ $allocation->id }}" action="{{ route('finance.discounts.approve', $allocation) }}" method="POST" class="d-none">
                                                 @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-success" title="Approve">
-                                                    <i class="bi bi-check"></i>
-                                                </button>
                                             </form>
                                             <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ $allocation->id }}" title="Reject">
                                                 <i class="bi bi-x"></i>
@@ -282,19 +286,19 @@
                                     </div>
 
                                     <!-- Reject Modal -->
-                                    <div class="modal fade" id="rejectModal{{ $allocation->id }}" tabindex="-1">
+                                    <div class="modal fade" id="rejectModal{{ $allocation->id }}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                                         <div class="modal-dialog">
                                             <div class="modal-content">
                                                 <div class="modal-header">
                                                     <h5 class="modal-title">Reject Discount Allocation</h5>
                                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                 </div>
-                                                <form action="{{ route('finance.discounts.reject', $allocation) }}" method="POST">
+                                                <form action="{{ route('finance.discounts.reject', $allocation) }}" method="POST" class="reject-form">
                                                     @csrf
                                                     <div class="modal-body">
                                                         <div class="mb-3">
                                                             <label class="form-label">Rejection Reason <span class="text-danger">*</span></label>
-                                                            <textarea name="rejection_reason" class="form-control" rows="3" required></textarea>
+                                                            <textarea name="rejection_reason" class="form-control" rows="3" required autofocus></textarea>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">
@@ -554,6 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Existing allocations page scripts
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const selectAll = document.getElementById('selectAll');
     let checkboxes = document.querySelectorAll('.allocation-checkbox');
     const bulkActions = document.getElementById('bulkActions');
@@ -704,12 +709,77 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Handle individual approve forms - ensure they work even if visually nested
-    document.querySelectorAll('.approve-form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            // Ensure form submits correctly
-            e.stopPropagation();
-            // Form will submit normally
+    // Handle individual approve via fetch to avoid nested form issues
+    document.querySelectorAll('.approve-action').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const url = this.dataset.action;
+            const fallbackId = this.dataset.fallback;
+            if (!url || !csrfToken) {
+                if (fallbackId) document.getElementById(fallbackId)?.submit();
+                return;
+            }
+            if (!confirm('Approve this discount allocation?')) return;
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    if (fallbackId) {
+                        document.getElementById(fallbackId)?.submit();
+                    } else {
+                        alert('Approval failed. Please try again.');
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                if (fallbackId) {
+                    document.getElementById(fallbackId)?.submit();
+                } else {
+                    alert('Approval failed. Please try again.');
+                }
+            }
+        });
+    });
+
+    // Handle reject modal submission via fetch to prevent flicker and nested form issues
+    document.querySelectorAll('.reject-form').forEach(form => {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!csrfToken) return;
+            const url = this.getAttribute('action');
+            const textarea = this.querySelector('textarea[name="rejection_reason"]');
+            const reason = textarea ? textarea.value.trim() : '';
+            if (!reason) {
+                textarea?.focus();
+                return;
+            }
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ rejection_reason: reason })
+                });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Rejection failed. Please try again.');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Rejection failed. Please try again.');
+            }
         });
     });
     

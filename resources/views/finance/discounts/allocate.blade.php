@@ -16,12 +16,12 @@
         
         <div class="row">
             <div class="col-md-8">
-                <div class="finance-card finance-animate">
-                    <div class="finance-card-header">
-                        <i class="bi bi-info-circle me-2"></i> Allocation Details
+                <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+                    <div class="finance-card-header d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle"></i> <span>Allocation Details</span>
                     </div>
-                    <div class="finance-card-body">
-                        <div class="row g-3">
+                    <div class="finance-card-body p-4">
+                        <div class="row g-4">
                             <div class="col-md-12">
                                 <label class="finance-form-label">Discount Template <span class="text-danger">*</span></label>
                                 <select name="discount_template_id" id="discount_template_id" class="finance-form-select @error('discount_template_id') is-invalid @enderror" required>
@@ -138,18 +138,19 @@
             </div>
 
             <div class="col-md-4">
-                <div class="finance-card finance-animate mb-4">
-                    <div class="finance-card-header secondary">
-                        <i class="bi bi-info-circle me-2"></i> Template Info
+                <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                    <div class="finance-card-header secondary d-flex align-items-center gap-2">
+                        <i class="bi bi-info-circle"></i> <span>Template Info</span>
                     </div>
-                    <div class="finance-card-body" id="template_info">
+                    <div class="finance-card-body p-4" id="template_info">
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> Select a template to see details
                         </div>
                     </div>
                 </div>
 
-                <div class="d-grid gap-2">
+                <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+                    <div class="finance-card-body p-4 d-grid gap-2">
                     <button type="submit" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-check-circle"></i> Allocate Discount
                     </button>
@@ -159,6 +160,7 @@
                     <a href="{{ route('finance.discounts.allocations.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Cancel
                     </a>
+                    </div>
                 </div>
             </div>
         </div>

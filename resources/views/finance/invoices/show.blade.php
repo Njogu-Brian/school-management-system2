@@ -3,67 +3,37 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
-    <div class="finance-card finance-animate mb-3">
-        <div class="finance-card-header d-flex justify-content-between align-items-center">
-            <h3 class="mb-0">
-                <i class="bi bi-file-text"></i> Invoice: {{ $invoice->invoice_number }}
-            </h3>
-            <div class="d-flex flex-wrap gap-2">
-                <a href="{{ route('finance.invoices.print_single', $invoice) }}" 
-                   target="_blank" 
-                   class="btn btn-finance btn-finance-outline">
-                   <i class="bi bi-printer"></i> Print PDF
-                </a>
-                <a href="{{ route('finance.invoices.history', $invoice) }}" class="btn btn-finance btn-finance-secondary">
-                    <i class="bi bi-clock-history"></i> History
-                </a>
-                <a href="{{ route('finance.invoices.index') }}" class="btn btn-finance btn-finance-secondary">
-                    <i class="bi bi-arrow-left"></i> Back
-                </a>
-            </div>
-        </div>
-        <div class="finance-card-body">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h3 class="mb-0">
-                    <i class="bi bi-file-text"></i> Invoice: {{ $invoice->invoice_number }}
-                </h3>
-                <div>
-                    <a href="{{ route('finance.invoices.print_single', $invoice) }}" 
-                       target="_blank" 
-                       class="btn btn-outline-secondary">
-                       <i class="bi bi-printer"></i> Print PDF
-                    </a>
-                    <a href="{{ route('finance.invoices.history', $invoice) }}" class="btn btn-outline-info">
-                        <i class="bi bi-clock-history"></i> History
-                    </a>
-                    <a href="{{ route('finance.invoices.index') }}" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left"></i> Back
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+    @include('finance.partials.header', [
+        'title' => 'Invoice: ' . $invoice->invoice_number,
+        'icon' => 'bi bi-file-text',
+        'subtitle' => $invoice->student->first_name ? 'For ' . $invoice->student->first_name . ' ' . ($invoice->student->last_name ?? '') : 'Invoice details',
+        'actions' => '<a href="' . route('finance.invoices.print_single', $invoice) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+    ])
 
+    @php
+        $student = $invoice->student;
+    @endphp
+
+    <div class="finance-card finance-animate mb-4 mt-4 shadow-sm rounded-4 border-0">
+        <div class="finance-card-body p-4">
     @includeIf('finance.invoices.partials.alerts')
 
     <!-- Invoice Header -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
+    <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+        <div class="finance-card-body p-4">
             <div class="row">
                 <div class="col-md-6">
                     <h5 class="mb-3">Student Information</h5>
                     <p class="mb-2">
-                        <strong>Name:</strong> {{ $invoice->student->first_name ?? 'Unknown' }} {{ $invoice->student->last_name ?? '' }}
+                        <strong>Name:</strong> {{ $student->first_name ?? 'Unknown' }} {{ $student->last_name ?? '' }}
                     </p>
                     <p class="mb-2">
-                        <strong>Admission Number:</strong> {{ $invoice->student->admission_number ?? '—' }}
+                        <strong>Admission Number:</strong> {{ $student->admission_number ?? '—' }}
                     </p>
                     <p class="mb-2">
-                        <strong>Class:</strong> {{ $invoice->student->classroom->name ?? '—' }} 
-                        @if($invoice->student->stream)
-                            / {{ $invoice->student->stream->name }}
+                        <strong>Class:</strong> {{ $student?->classroom?->name ?? '—' }} 
+                        @if($student && $student->stream)
+                            / {{ $student->stream->name }}
                         @endif
                     </p>
                 </div>
@@ -76,7 +46,7 @@
                         <strong>Academic Year:</strong> {{ $invoice->academicYear->name ?? $invoice->year ?? '—' }}
                     </p>
                     <p class="mb-2">
-                        <strong>Term:</strong> {{ $invoice->term->name ?? 'Term ' . $invoice->term ?? '—' }}
+                        <strong>Term:</strong> {{ $invoice->term->name ?? ($invoice->term ? 'Term ' . $invoice->term : '—') }}
                     </p>
                     <p class="mb-2">
                         <strong>Issue Date:</strong> {{ $invoice->issued_date ? \Carbon\Carbon::parse($invoice->issued_date)->format('d M Y') : '—' }}
@@ -95,36 +65,36 @@
     </div>
 
     <!-- Invoice Summary Cards -->
-    <div class="row mb-4">
+    <div class="row g-4 mb-4">
         <div class="col-md-3">
-            <div class="finance-card">
-                <div class="finance-card-body text-center">
+            <div class="finance-card finance-animate h-100 shadow-sm rounded-4 border-0">
+                <div class="finance-card-body text-center p-4">
                     <h6 class="finance-muted mb-2">Total Amount</h6>
                     <h4 class="text-primary mb-0">Ksh {{ number_format($invoice->total, 2) }}</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="finance-card">
-                <div class="finance-card-body text-center">
+            <div class="finance-card finance-animate h-100 shadow-sm rounded-4 border-0">
+                <div class="finance-card-body text-center p-4">
                     <h6 class="finance-muted mb-2">Paid Amount</h6>
                     <h4 class="text-success mb-0">Ksh {{ number_format($invoice->paid_amount ?? 0, 2) }}</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="finance-card">
-                <div class="finance-card-body text-center">
+            <div class="finance-card finance-animate h-100 shadow-sm rounded-4 border-0">
+                <div class="finance-card-body text-center p-4">
                     <h6 class="finance-muted mb-2">Balance</h6>
                     <h4 class="text-warning mb-0">Ksh {{ number_format($invoice->balance ?? $invoice->total, 2) }}</h4>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="finance-card">
-                <div class="finance-card-body text-center">
+            <div class="finance-card finance-animate h-100 shadow-sm rounded-4 border-0">
+                <div class="finance-card-body text-center p-4">
                     <h6 class="finance-muted mb-2">Status</h6>
-                    <span class="badge bg-{{ $invoice->status === 'paid' ? 'success' : ($invoice->status === 'partial' ? 'warning' : 'danger') }} fs-6">
+                    <span class="finance-badge badge-{{ $invoice->status === 'paid' ? 'paid' : ($invoice->status === 'partial' ? 'partial' : 'unpaid') }} fs-6">
                         {{ ucfirst($invoice->status) }}
                     </span>
                 </div>
@@ -140,11 +110,19 @@
         $invoiceDiscount = $invoice->discount_amount ?? 0;
         $totalDiscounts = $itemDiscounts + $invoiceDiscount;
     @endphp
-    <div class="card shadow-sm mb-4 {{ $totalDiscounts > 0 ? 'border-success' : 'border-secondary' }}">
-        <div class="card-header {{ $totalDiscounts > 0 ? 'bg-success text-white' : 'bg-secondary text-white' }}">
-            <h5 class="mb-0"><i class="bi bi-percent"></i> Discounts Applied</h5>
+    <div class="finance-card finance-animate mb-4 {{ $totalDiscounts > 0 ? 'border-success' : 'border-secondary' }} shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-{{ $totalDiscounts > 0 ? 'success' : 'secondary' }}">
+                    <i class="bi bi-percent"></i>
+                </span>
+                <h5 class="mb-0">Discounts Applied</h5>
+            </div>
+            <span class="finance-badge badge-{{ $totalDiscounts > 0 ? 'partial' : 'unpaid' }}">
+                {{ $totalDiscounts > 0 ? 'Active' : 'None' }}
+            </span>
         </div>
-        <div class="card-body">
+        <div class="finance-card-body p-4">
             @if(isset($appliedDiscounts) && $appliedDiscounts->isNotEmpty())
             <div class="mb-3">
                 <h6 class="mb-2">Applied Discounts:</h6>
@@ -202,8 +180,8 @@
     </div>
 
     <!-- Invoice Items with Inline Editing -->
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+        <div class="finance-card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Invoice Items, Discounts & Adjustments</h5>
             @if($invoice->balance > 0)
             <a href="{{ route('finance.payments.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) }}" class="btn btn-sm btn-finance btn-finance-primary">
@@ -211,9 +189,9 @@
             </a>
             @endif
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
+        <div class="finance-card-body p-0">
+            <div class="table-responsive px-3 pb-3">
+                <table class="finance-table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>#</th>
@@ -230,7 +208,9 @@
                     </thead>
                     <tbody>
                         @php
-                            $lineNumber = 0;
+                            $itemsPerPage = 10;
+                            $itemsPage = max(1, (int) request()->get('items_page', 1));
+                            $lineNumber = ($itemsPage - 1) * $itemsPerPage;
                             $allLineItems = collect();
                             
                             // Add invoice items
@@ -298,9 +278,15 @@
                                 // Combine sort_order and timestamp for sorting
                                 return $sortKey . $date->timestamp;
                             });
+
+                            $itemsTotal = $allLineItems->count();
+                            $itemsPages = max(1, (int) ceil($itemsTotal / $itemsPerPage));
+                            $itemsPage = min($itemsPage, $itemsPages);
+                            $pagedLineItems = $allLineItems->slice(($itemsPage - 1) * $itemsPerPage, $itemsPerPage);
+                            $query = request()->except('items_page');
                         @endphp
                         
-                        @forelse($allLineItems as $lineItem)
+                        @forelse($pagedLineItems as $lineItem)
                         @php
                             $lineNumber++;
                             $type = $lineItem['type'];
@@ -362,7 +348,7 @@
                             </td>
                             <td>
                                 <button type="button" 
-                                        class="btn btn-sm btn-outline-primary" 
+                                        class="btn btn-sm btn-finance btn-finance-outline" 
                                         data-bs-toggle="modal" 
                                         data-bs-target="#editItemModal{{ $item->id }}">
                                     <i class="bi bi-pencil"></i> Edit
@@ -626,6 +612,24 @@
                     </tfoot>
                 </table>
             </div>
+            @if($itemsPages > 1)
+            <div class="d-flex justify-content-between align-items-center px-4 pb-4 pt-2">
+                <small class="text-muted">
+                    Showing {{ ($itemsPage - 1) * $itemsPerPage + 1 }} -
+                    {{ min($itemsPage * $itemsPerPage, $itemsTotal) }} of {{ $itemsTotal }}
+                </small>
+                <div class="btn-group">
+                    <a class="btn btn-sm btn-finance btn-finance-outline {{ $itemsPage === 1 ? 'disabled' : '' }}"
+                       href="{{ $itemsPage === 1 ? '#' : route('finance.invoices.show', $invoice) . '?' . http_build_query(array_merge($query, ['items_page' => $itemsPage - 1])) }}">
+                        Previous
+                    </a>
+                    <a class="btn btn-sm btn-finance btn-finance-primary {{ $itemsPage === $itemsPages ? 'disabled' : '' }}"
+                       href="{{ $itemsPage === $itemsPages ? '#' : route('finance.invoices.show', $invoice) . '?' . http_build_query(array_merge($query, ['items_page' => $itemsPage + 1])) }}">
+                        Next
+                    </a>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 
@@ -633,13 +637,13 @@
 
     <!-- Payment History -->
     @if($invoice->payments->isNotEmpty())
-    <div class="card shadow-sm">
-        <div class="card-header bg-white">
+    <div class="finance-card finance-animate mb-5 shadow-sm rounded-4 border-0">
+        <div class="finance-card-header">
             <h5 class="mb-0">Payment History</h5>
         </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
+        <div class="finance-card-body p-0">
+            <div class="table-responsive px-3 pb-3">
+                <table class="finance-table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
                             <th>Date</th>
@@ -664,14 +668,14 @@
                             <td>{{ $payment->transaction_code ?? '—' }}</td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-outline-primary" title="View Payment">
+                                    <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-finance btn-finance-outline" title="View Payment">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                     @if(!$payment->reversed)
                                     <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to reverse this payment? This action cannot be undone.')">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Reverse Payment">
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Reverse Payment">
                                             <i class="bi bi-arrow-counterclockwise"></i>
                                         </button>
                                     </form>

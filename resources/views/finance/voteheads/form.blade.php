@@ -1,4 +1,4 @@
-<div class="row g-3">
+<div class="row g-4">
     <div class="col-md-12">
         <label for="name" class="finance-form-label">Name <span class="text-danger">*</span></label>
         <input type="text" name="name" class="finance-form-control" value="{{ old('name', $votehead->name ?? '') }}" required>
@@ -47,7 +47,7 @@
     </div>
 </div>
 
-<div class="mt-4">
+<div class="mt-4 d-flex gap-3 flex-wrap">
     <button type="submit" class="btn btn-finance btn-finance-success">
         <i class="bi bi-check-circle"></i> Save
     </button>
