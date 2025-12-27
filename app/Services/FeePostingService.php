@@ -6,7 +6,7 @@ use App\Models\{
     Student, Votehead, FeeStructure, FeeCharge, OptionalFee, InvoiceItem,
     Invoice, FeePostingRun, PostingDiff, AcademicYear, Term, FeeConcession, User
 };
-use App\Services\{DiscountService, InvoiceService};
+use App\Services\{DiscountService, InvoiceService, TransportFeeService};
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -600,6 +600,55 @@ class FeePostingService
                 return ($diff['new_amount'] ?? 0) - ($diff['old_amount'] ?? 0);
             }),
         ];
+    }
+
+    /**
+     * Charge mandatory fees for a newly admitted student immediately.
+     */
+    public static function chargeFeesForNewStudent(\App\Models\Student $student, ?int $year = null, ?int $term = null): void
+    {
+        [$resolvedYear, $resolvedTerm] = TransportFeeService::resolveYearAndTerm($year, $term);
+
+        $service = new self();
+        $proposed = $service->getProposedItems($student, $resolvedYear, $resolvedTerm, [
+            'year' => $resolvedYear,
+            'term' => $resolvedTerm,
+            'student_id' => $student->id,
+        ]);
+
+        DB::transaction(function () use ($student, $resolvedYear, $resolvedTerm, $proposed) {
+            $invoice = InvoiceService::ensure($student->id, $resolvedYear, $resolvedTerm);
+
+            foreach ($proposed as $item) {
+                $invoiceItem = InvoiceItem::updateOrCreate(
+                    ['invoice_id' => $invoice->id, 'votehead_id' => $item['votehead_id']],
+                    [
+                        'amount' => $item['amount'],
+                        'status' => 'active',
+                        'effective_date' => null,
+                        'source' => $item['origin'] ?? 'structure',
+                        'original_amount' => $item['amount'],
+                        'posted_at' => now(),
+                    ]
+                );
+
+                if ($invoiceItem->wasRecentlyCreated === false && $invoiceItem->original_amount === null) {
+                    $invoiceItem->update(['original_amount' => $invoiceItem->amount]);
+                }
+            }
+
+            // If a transport fee already exists for this term, make sure it is on the invoice
+            $transportFee = \App\Models\TransportFee::where('student_id', $student->id)
+                ->where('year', $resolvedYear)
+                ->where('term', $resolvedTerm)
+                ->first();
+
+            if ($transportFee) {
+                TransportFeeService::syncInvoice($transportFee);
+            }
+
+            InvoiceService::recalc($invoice);
+        });
     }
 }
 

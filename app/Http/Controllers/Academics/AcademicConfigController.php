@@ -8,6 +8,7 @@ use App\Models\Term;
 use App\Models\SchoolDay;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Carbon\Carbon;
 
 class AcademicConfigController extends Controller
@@ -102,11 +103,15 @@ class AcademicConfigController extends Controller
             'name' => 'required|string|max:50',
             'academic_year_id' => 'required|exists:academic_years,id',
             'is_current' => 'nullable|boolean',
-            'opening_date' => 'nullable|date',
-            'closing_date' => 'nullable|date|after:opening_date',
+            'opening_date' => 'required|date',
+            'closing_date' => 'required|date|after:opening_date',
+            'midterm_start_date' => 'nullable|date|after_or_equal:opening_date|before_or_equal:closing_date',
+            'midterm_end_date' => 'nullable|date|after_or_equal:midterm_start_date|before_or_equal:closing_date',
             'expected_school_days' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
         ]);
+
+        $this->validateMidtermPairing($request);
 
         $isCurrent = $request->boolean('is_current');
 
@@ -115,6 +120,12 @@ class AcademicConfigController extends Controller
             Term::where('academic_year_id', $request->academic_year_id)
                 ->update(['is_current' => false]);
         }
+
+        $this->assertTermChronology(
+            Carbon::parse($request->opening_date),
+            Carbon::parse($request->closing_date),
+            (int) $request->academic_year_id
+        );
 
         $term = Term::create([
             'name' => $request->name,
@@ -146,13 +157,15 @@ class AcademicConfigController extends Controller
             'name' => 'required|string|max:50',
             'academic_year_id' => 'required|exists:academic_years,id',
             'is_current' => 'nullable|boolean',
-            'opening_date' => 'nullable|date',
-            'closing_date' => 'nullable|date|after:opening_date',
-            'midterm_start_date' => 'nullable|date|after_or_equal:opening_date',
-            'midterm_end_date' => 'nullable|date|after:midterm_start_date|before:closing_date',
+            'opening_date' => 'required|date',
+            'closing_date' => 'required|date|after:opening_date',
+            'midterm_start_date' => 'nullable|date|after_or_equal:opening_date|before_or_equal:closing_date',
+            'midterm_end_date' => 'nullable|date|after_or_equal:midterm_start_date|before_or_equal:closing_date',
             'expected_school_days' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
         ]);
+
+        $this->validateMidtermPairing($request);
 
         $isCurrent = $request->boolean('is_current');
 
@@ -160,6 +173,13 @@ class AcademicConfigController extends Controller
             // Deactivate ALL terms (across all years)
             Term::query()->update(['is_current' => false]);
         }
+
+        $this->assertTermChronology(
+            Carbon::parse($request->opening_date),
+            Carbon::parse($request->closing_date),
+            (int) $request->academic_year_id,
+            $term->id
+        );
 
         $term->update([
             'name' => $request->name,
@@ -355,5 +375,210 @@ class AcademicConfigController extends Controller
                 'created_by' => auth()->id(),
             ]
         );
+    }
+
+    /**
+     * Ensure midterm dates are provided as a pair and ordered.
+     */
+    private function validateMidtermPairing(Request $request): void
+    {
+        $midtermStart = $request->midterm_start_date ? Carbon::parse($request->midterm_start_date) : null;
+        $midtermEnd = $request->midterm_end_date ? Carbon::parse($request->midterm_end_date) : null;
+
+        if ($midtermStart xor $midtermEnd) {
+            throw ValidationException::withMessages([
+                'midterm_start_date' => 'Provide both midterm start and end dates.',
+                'midterm_end_date' => 'Provide both midterm start and end dates.',
+            ]);
+        }
+
+        if ($midtermStart && $midtermEnd && $midtermEnd->lt($midtermStart)) {
+            throw ValidationException::withMessages([
+                'midterm_end_date' => 'Midterm end date must be on or after the midterm start date.',
+            ]);
+        }
+    }
+
+    /**
+     * Enforce chronological integrity of terms within and across academic years.
+     */
+    private function assertTermChronology(Carbon $opening, Carbon $closing, int $academicYearId, ?int $termId = null): void
+    {
+        // Prevent overlap with existing terms in the same academic year
+        $overlap = Term::where('academic_year_id', $academicYearId)
+            ->when($termId, fn($q) => $q->where('id', '!=', $termId))
+            ->where(function ($q) use ($opening, $closing) {
+                $q->whereBetween('opening_date', [$opening, $closing])
+                  ->orWhereBetween('closing_date', [$opening, $closing])
+                  ->orWhere(function ($sub) use ($opening, $closing) {
+                      $sub->where('opening_date', '<=', $opening)
+                          ->where('closing_date', '>=', $closing);
+                  });
+            })
+            ->exists();
+
+        if ($overlap) {
+            throw ValidationException::withMessages([
+                'opening_date' => 'Term dates overlap with another term in the same academic year.',
+            ]);
+        }
+
+        // Ensure this term starts after the previous term closes
+        $previous = Term::where('academic_year_id', $academicYearId)
+            ->when($termId, fn($q) => $q->where('id', '!=', $termId))
+            ->whereNotNull('closing_date')
+            ->whereDate('closing_date', '<=', $opening)
+            ->orderByDesc('closing_date')
+            ->first();
+
+        if ($previous && Carbon::parse($previous->closing_date)->gte($opening)) {
+            throw ValidationException::withMessages([
+                'opening_date' => 'Opening date must be after the previous term\'s closing date.',
+            ]);
+        }
+
+        // Link with previous academic year's final term to keep holiday gaps consistent
+        $currentYear = AcademicYear::find($academicYearId);
+        if ($currentYear && $currentYear->year) {
+            $previousYear = AcademicYear::where('year', '<', $currentYear->year)
+                ->orderByDesc('year')
+                ->first();
+
+            if ($previousYear) {
+                $previousYearLastTerm = Term::where('academic_year_id', $previousYear->id)
+                    ->whereNotNull('closing_date')
+                    ->orderByDesc('closing_date')
+                    ->first();
+
+                if ($previousYearLastTerm && Carbon::parse($previousYearLastTerm->closing_date)->gte($opening)) {
+                    throw ValidationException::withMessages([
+                        'opening_date' => 'Opening date must be after the last term of the previous academic year.',
+                    ]);
+                }
+            }
+        }
+    }
+
+    // --------- Term Holiday Management ---------
+    public function termHolidays(Request $request)
+    {
+        $academicYears = AcademicYear::with('terms')->orderByDesc('year')->get();
+        $academicYearId = $request->get('academic_year_id', $academicYears->first()?->id);
+        $terms = Term::where('academic_year_id', $academicYearId)->orderBy('opening_date')->get();
+        $termId = $request->get('term_id', $terms->first()?->id);
+        $selectedTerm = $terms->firstWhere('id', $termId);
+
+        $holidays = collect();
+        if ($selectedTerm && $selectedTerm->opening_date && $selectedTerm->closing_date) {
+            $holidays = SchoolDay::whereBetween('date', [
+                Carbon::parse($selectedTerm->opening_date)->toDateString(),
+                Carbon::parse($selectedTerm->closing_date)->toDateString(),
+            ])
+            ->whereIn('type', [
+                SchoolDay::TYPE_HOLIDAY,
+                SchoolDay::TYPE_CUSTOM_OFF_DAY,
+                SchoolDay::TYPE_MIDTERM_BREAK,
+            ])
+            ->orderBy('date')
+            ->get();
+        }
+
+        return view('settings.academic.term_holidays', compact(
+            'academicYears',
+            'academicYearId',
+            'terms',
+            'termId',
+            'selectedTerm',
+            'holidays'
+        ));
+    }
+
+    public function storeTermHoliday(Request $request)
+    {
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'date' => 'required|date',
+            'type' => 'required|in:holiday,custom_off_day,midterm_break',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $term = Term::findOrFail($request->term_id);
+        $this->ensureDateWithinTerm($term, Carbon::parse($request->date));
+
+        SchoolDay::updateOrCreate(
+            ['date' => $date->toDateString()],
+            [
+                'type' => $request->type,
+                'name' => $request->name,
+                'description' => $request->description,
+                'is_custom' => true,
+            ]
+        );
+
+        // Keep events in sync for visibility
+        $this->upsertEvent(
+            $request->name,
+            $date->toDateString(),
+            $date->toDateString(),
+            'holiday',
+            $term->academic_year_id
+        );
+
+        return back()
+            ->with('success', 'Holiday saved for the term.')
+            ->withInput(['academic_year_id' => $request->academic_year_id, 'term_id' => $term->id]);
+    }
+
+    public function updateTermHoliday(Request $request, SchoolDay $schoolDay)
+    {
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'date' => 'required|date',
+            'type' => 'required|in:holiday,custom_off_day,midterm_break',
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        $term = Term::findOrFail($request->term_id);
+        $this->ensureDateWithinTerm($term, Carbon::parse($request->date));
+
+        $schoolDay->update([
+            'date' => Carbon::parse($request->date)->toDateString(),
+            'type' => $request->type,
+            'name' => $request->name,
+            'description' => $request->description,
+            'is_custom' => $schoolDay->is_kenyan_holiday ? false : true,
+        ]);
+
+        // Keep events in sync
+        $this->upsertEvent(
+            $request->name,
+            $schoolDay->date->toDateString(),
+            $schoolDay->date->toDateString(),
+            'holiday',
+            $term->academic_year_id
+        );
+
+        return back()
+            ->with('success', 'Holiday updated for the term.')
+            ->withInput(['academic_year_id' => $request->academic_year_id, 'term_id' => $term->id]);
+    }
+
+    private function ensureDateWithinTerm(Term $term, Carbon $date): void
+    {
+        if (!$term->opening_date || !$term->closing_date) {
+            throw ValidationException::withMessages([
+                'date' => 'Set the term opening and closing dates before managing holidays.',
+            ]);
+        }
+
+        if ($date->lt(Carbon::parse($term->opening_date)) || $date->gt(Carbon::parse($term->closing_date))) {
+            throw ValidationException::withMessages([
+                'date' => 'Holiday must fall within the selected term dates.',
+            ]);
+        }
     }
 }

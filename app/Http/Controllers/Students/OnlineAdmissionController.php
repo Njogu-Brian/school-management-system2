@@ -12,6 +12,7 @@ use App\Models\StudentCategory;
 use App\Models\Route;
 use App\Models\Trip;
 use App\Models\DropOffPoint;
+use App\Services\TransportFeeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -260,6 +261,7 @@ class OnlineAdmissionController extends Controller
             'trip_id' => 'nullable|exists:trips,id',
             'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'drop_off_point_other' => 'nullable|string|max:255',
+            'transport_fee_amount' => 'nullable|numeric|min:0',
             'has_allergies' => 'nullable|boolean',
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
@@ -347,6 +349,17 @@ class OnlineAdmissionController extends Controller
                 'status' => 'active',
                 'admission_date' => now(),
             ]);
+
+            if (!empty($validated['transport_fee_amount'])) {
+                TransportFeeService::upsertFee([
+                    'student_id' => $student->id,
+                    'amount' => $validated['transport_fee_amount'],
+                    'drop_off_point_id' => $validated['drop_off_point_id'] ?? null,
+                    'drop_off_point_name' => $dropOffPointLabel,
+                    'source' => 'online_admission',
+                    'note' => 'Captured during online admission approval',
+                ]);
+            }
 
             // Update admission record
             $admission->update([

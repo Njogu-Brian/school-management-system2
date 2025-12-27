@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
 use App\Services\ArchiveStudentService;
 use App\Services\RestoreStudentService;
+use App\Services\TransportFeeService;
 use Illuminate\Support\Facades\Mail;
 use App\Models\CommunicationTemplate;
 use App\Mail\GenericMail;
@@ -209,6 +210,7 @@ class StudentController extends Controller
                 'preferred_hospital' => 'nullable|string|max:255',
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
+                'transport_fee_amount' => 'nullable|numeric|min:0',
                 // Extended demographics
                 'religion' => 'nullable|string|max:255',
                 'allergies' => 'nullable|string',
@@ -325,6 +327,24 @@ class StudentController extends Controller
                 ]
             ));
             $this->handleParentIdUploads($parent, $request);
+
+            if ($request->boolean('needs_transport') && $request->filled('transport_fee_amount')) {
+                try {
+                    TransportFeeService::upsertFee([
+                        'student_id' => $student->id,
+                        'amount' => $request->transport_fee_amount,
+                        'drop_off_point_id' => $student->drop_off_point_id,
+                        'drop_off_point_name' => $dropOffPointLabel,
+                        'source' => 'admission',
+                        'note' => 'Captured during student creation',
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('Transport fee capture failed during student creation', [
+                        'student_id' => $student->id,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             // Auto-populate family details from parent if family was created
             if ($familyId) {
@@ -924,6 +944,7 @@ class StudentController extends Controller
             'classroom' => $classrooms[0] ?? '',
             'stream' => $streams[0] ?? '',
             'category' => $categories[0] ?? '',
+            'transport_fee_amount' => '0',
             'residential_area' => 'Nairobi',
             'allergies' => '',
             'allergies_notes' => '',
@@ -1035,6 +1056,10 @@ class StudentController extends Controller
                 $rowData['status'] = 'active';
             }
 
+            // Transport fee (optional column)
+            $transportFee = $rowData['transport_fee_amount'] ?? $rowData['transport_fee'] ?? null;
+            $rowData['transport_fee_amount'] = is_numeric($transportFee) ? (float) $transportFee : null;
+
             // Validate required fields
             $rowData['valid'] =
                 !empty($rowData['first_name']) &&
@@ -1139,6 +1164,22 @@ class StudentController extends Controller
                 'status' => $row['status'] ?? 'active',
                 'admission_date' => $row['admission_date'] ?? now()->toDateString(),
             ]);
+
+            if (!empty($row['transport_fee_amount'])) {
+                try {
+                    TransportFeeService::upsertFee([
+                        'student_id' => $student->id,
+                        'amount' => $row['transport_fee_amount'],
+                        'source' => 'bulk_import',
+                        'note' => 'Captured during bulk student import',
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('Transport fee capture failed during bulk import', [
+                        'student_id' => $student->id,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             if ($isNew) {
                 $this->sendAdmissionCommunication($student, $parent);

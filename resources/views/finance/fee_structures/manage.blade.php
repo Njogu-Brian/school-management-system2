@@ -29,7 +29,7 @@
         <div class="finance-card-body p-4">
             <form method="GET" action="{{ route('finance.fee-structures.manage') }}">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="finance-form-label">Select Class</label>
                         <select name="classroom_id" class="finance-form-select" required onchange="this.form.submit()">
                             <option value="">-- Choose Classroom --</option>
@@ -40,7 +40,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="finance-form-label">Student Category <span class="text-danger">*</span></label>
                         <select name="student_category_id" class="finance-form-select" required onchange="this.form.submit()">
                             <option value="">-- Choose Category --</option>
@@ -51,6 +51,17 @@
                             @endforeach
                         </select>
                         <small class="text-muted">Fee structures must be defined per specific category.</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="finance-form-label">Academic Year <span class="text-danger">*</span></label>
+                        <select name="academic_year_id" class="finance-form-select" required onchange="this.form.submit()">
+                            <option value="">-- Choose Year --</option>
+                            @foreach($academicYears as $year)
+                                <option value="{{ $year->id }}" {{ ($selectedAcademicYearId ?? '') == $year->id ? 'selected' : '' }}>
+                                    {{ $year->year }} {{ $year->is_active ? '(Active)' : '' }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
             </form>
@@ -69,14 +80,24 @@
 
                 <input type="hidden" name="classroom_id" value="{{ $selectedClassroom }}">
                 <input type="hidden" name="student_category_id" value="{{ $selectedCategory }}">
+                <input type="hidden" name="academic_year_id" value="{{ $selectedAcademicYearId }}">
+                <input type="hidden" name="year" value="{{ $selectedAcademicYear->year ?? date('Y') }}">
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
-                        <label class="finance-form-label">Year <span class="text-danger">*</span></label>
-                        <input type="number" name="year" class="finance-form-control" value="{{ $feeStructure->year ?? date('Y') }}" required>
+                        <label class="finance-form-label">Academic Year</label>
+                        <div class="form-control-plaintext fw-semibold">
+                            {{ $selectedAcademicYear->year ?? '—' }} {{ $selectedAcademicYear?->is_active ? '(Active)' : '' }}
+                        </div>
                     </div>
                 </div>
 
                 <h5 class="mb-3">Votehead Charges (Ksh)</h5>
+                <div class="alert alert-info d-flex align-items-center gap-2">
+                    <i class="bi bi-info-circle"></i>
+                    <div class="small mb-0">
+                        Transport is managed from Finance → Transport Fees. It is intentionally hidden from fee structures.
+                    </div>
+                </div>
                 <div class="finance-table-wrapper">
                     <div class="table-responsive">
                         <table class="finance-table align-middle">

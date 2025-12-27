@@ -75,6 +75,7 @@ use App\Http\Controllers\Finance\FeeConcessionController;
 use App\Http\Controllers\Finance\DiscountController;
 use App\Http\Controllers\Finance\DocumentSettingsController;
 use App\Http\Controllers\Finance\LegacyFinanceImportController;
+use App\Http\Controllers\Finance\TransportFeeController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -762,6 +763,9 @@ Route::middleware('auth')->group(function () {
         Route::get('academic/term/{term}/edit',   [AcademicConfigController::class, 'editTerm'])->name('academic.term.edit');
         Route::put('academic/term/{term}',        [AcademicConfigController::class, 'updateTerm'])->name('academic.term.update');
         Route::delete('academic/term/{term}',     [AcademicConfigController::class, 'destroyTerm'])->name('academic.term.destroy');
+        Route::get('academic/term-holidays',      [AcademicConfigController::class, 'termHolidays'])->name('academic.term-holidays');
+        Route::post('academic/term-holidays',     [AcademicConfigController::class, 'storeTermHoliday'])->name('academic.term-holidays.store');
+        Route::put('academic/term-holidays/{schoolDay}', [AcademicConfigController::class, 'updateTermHoliday'])->name('academic.term-holidays.update');
     });
 
     // Settings → Placeholders management
@@ -989,6 +993,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('legacy-imports', [LegacyFinanceImportController::class, 'index'])->name('legacy-imports.index');
         Route::post('legacy-imports', [LegacyFinanceImportController::class, 'store'])->name('legacy-imports.store');
         Route::get('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'show'])->name('legacy-imports.show');
+        Route::get('legacy-imports/student-search', [LegacyFinanceImportController::class, 'searchStudent'])->name('legacy-imports.student-search');
+        Route::post('legacy-imports/{batch}/approve', [LegacyFinanceImportController::class, 'approve'])->name('legacy-imports.approve');
+        Route::put('legacy-imports/lines/{line}', [LegacyFinanceImportController::class, 'updateLine'])->name('legacy-imports.lines.update');
+        Route::post('legacy-imports/{batch}/approve-student', [LegacyFinanceImportController::class, 'approveStudent'])->name('legacy-imports.approve-student');
+        Route::post('legacy-imports/{batch}/approve-all', [LegacyFinanceImportController::class, 'approveAll'])->name('legacy-imports.approve-all');
+        Route::post('legacy-imports/{batch}/rerun', [LegacyFinanceImportController::class, 'rerun'])->name('legacy-imports.rerun');
+        Route::delete('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'destroy'])->name('legacy-imports.destroy');
 
         // Invoices
         Route::prefix('invoices')->name('invoices.')->group(function () {
@@ -1021,6 +1032,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/student',        [OptionalFeeController::class, 'studentView'])->name('student_view');
             Route::post('/student/save',  [OptionalFeeController::class, 'saveStudentBilling'])->name('save_student');
         });
+
+        // Transport Fees
+        Route::get('transport-fees', [TransportFeeController::class, 'index'])->name('transport-fees.index');
+        Route::post('transport-fees/bulk-update', [TransportFeeController::class, 'bulkUpdate'])->name('transport-fees.bulk-update');
+        Route::post('transport-fees/import/preview', [TransportFeeController::class, 'importPreview'])->name('transport-fees.import.preview');
+        Route::post('transport-fees/import/commit', [TransportFeeController::class, 'importCommit'])->name('transport-fees.import.commit');
+        Route::get('transport-fees/template', [TransportFeeController::class, 'template'])->name('transport-fees.template');
 
         // Payments
         Route::get('payments', [PaymentController::class, 'index'])->name('payments.index');

@@ -311,6 +311,11 @@
                     </select>
                     <input type="text" class="form-control mt-2" name="drop_off_point_other" id="admin_drop_off_point_other" value="{{ $admission->drop_off_point_other }}" placeholder="Custom drop-off point">
                   </div>
+                  <div class="mb-3">
+                    <label class="form-label">Transport Fee (this term)</label>
+                    <input type="number" step="0.01" name="transport_fee_amount" class="form-control" placeholder="0.00">
+                    <div class="form-text">Added to the student's invoice on approval.</div>
+                  </div>
                   <button type="submit" class="btn btn-success w-100">
                     <i class="bi bi-check-circle"></i> Approve & Enroll
                   </button>

@@ -348,6 +348,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
     <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
+    <a href="{{ route('finance.transport-fees.index') }}"class="{{ Request::is('finance/transport-fees*') ? 'active' : '' }}"><i class="bi bi-bus-front"></i> Transport Fees</a>
     
     {{-- Discounts --}}
     @php
@@ -619,6 +620,7 @@ class="{{ $posActive ? 'parent-active' : '' }}">
 @php $isSettingsActive = Request::is('settings*'); @endphp
 @php 
     $isAcademicConfig = Request::is('settings/academic*') || Request::is('settings/school-days*');
+    $isTermHolidays = Request::is('settings/academic/term-holidays*');
 @endphp
 <a href="#settingsMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isSettingsActive ? 'true' : 'false' }}"
@@ -631,8 +633,12 @@ class="{{ $isSettingsActive ? 'parent-active' : '' }}">
     <i class="bi bi-building"></i> General Info
     </a>
     <a href="{{ route('settings.academic.index') }}" 
-    class="sublink {{ $isAcademicConfig ? 'active' : '' }}">
+    class="sublink {{ ($isAcademicConfig && !$isTermHolidays) ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> Academic Calendar (Years, Terms, Days)
+    </a>
+    <a href="{{ route('settings.academic.term-holidays') }}" 
+    class="sublink {{ $isTermHolidays ? 'active' : '' }}">
+    <i class="bi bi-umbrella"></i> Term Holidays
     </a>
     @if(auth()->user()->hasRole('Super Admin') || auth()->user()->hasRole('Admin'))
     <a href="{{ route('activity-logs.index') }}" 

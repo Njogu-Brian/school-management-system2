@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FeeStructure;
 use App\Models\FeeCharge;
 use App\Services\FeeStructureImportService;
+use App\Services\TransportFeeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
@@ -28,18 +29,28 @@ class FeeStructureController extends Controller
     {
         $classrooms = \App\Models\Academics\Classroom::all();
         $categories = \App\Models\StudentCategory::orderBy('name')->get();
-        $voteheads = \App\Models\Votehead::all();
+        $transportVoteheadId = TransportFeeService::transportVotehead()->id;
+        $voteheads = \App\Models\Votehead::where('id', '!=', $transportVoteheadId)->get();
+        $academicYears = \App\Models\AcademicYear::orderByDesc('year')->get();
 
         $selectedClassroom = $request->query('classroom_id');
         $selectedCategory = $request->query('student_category_id') ?? $categories->first()?->id;
+        $selectedAcademicYearId = $request->query('academic_year_id') ?? $academicYears->firstWhere('is_active', true)?->id ?? $academicYears->first()?->id;
+        $selectedAcademicYear = $academicYears->firstWhere('id', $selectedAcademicYearId);
 
         $feeStructure = null;
         $charges = [];
 
-        if ($selectedClassroom && $selectedCategory) {
+        if ($selectedClassroom && $selectedCategory && $selectedAcademicYearId) {
             $feeStructure = FeeStructure::with('charges')
                 ->where('classroom_id', $selectedClassroom)
                 ->where('student_category_id', $selectedCategory)
+                ->where(function ($q) use ($selectedAcademicYearId, $selectedAcademicYear) {
+                    $q->where('academic_year_id', $selectedAcademicYearId);
+                    if ($selectedAcademicYear) {
+                        $q->orWhere('year', $selectedAcademicYear->year);
+                    }
+                })
                 ->first();
 
             if ($feeStructure) {
@@ -47,7 +58,18 @@ class FeeStructureController extends Controller
             }
         }
 
-        return view('finance.fee_structures.manage', compact('classrooms', 'voteheads', 'selectedClassroom', 'selectedCategory', 'feeStructure', 'charges', 'categories'));
+        return view('finance.fee_structures.manage', compact(
+            'classrooms',
+            'voteheads',
+            'selectedClassroom',
+            'selectedCategory',
+            'selectedAcademicYearId',
+            'selectedAcademicYear',
+            'feeStructure',
+            'charges',
+            'categories',
+            'academicYears'
+        , 'transportVoteheadId'));
     }
 
     public function save(Request $request)
@@ -55,7 +77,8 @@ class FeeStructureController extends Controller
         $validated = $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
             'student_category_id' => 'required|exists:student_categories,id',
-            'year' => 'required|numeric',
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'year' => 'required|digits:4|exists:academic_years,year',
             'charges' => 'required|array',
             'charges.*.votehead_id' => 'required|exists:voteheads,id',
             'charges.*.term_1' => 'nullable|numeric|min:0',
@@ -63,19 +86,31 @@ class FeeStructureController extends Controller
             'charges.*.term_3' => 'nullable|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated) {
+        $transportVoteheadId = TransportFeeService::transportVotehead()->id;
+
+        DB::transaction(function () use ($validated, $transportVoteheadId) {
+            $yearValue = $validated['year'];
+
             $structure = FeeStructure::updateOrCreate(
                 [
                     'classroom_id' => $validated['classroom_id'],
                     'student_category_id' => $validated['student_category_id'],
+                    'academic_year_id' => $validated['academic_year_id'],
                 ],
-                ['year' => $validated['year']]
+                [
+                    'year' => $yearValue,
+                    'academic_year_id' => $validated['academic_year_id'],
+                ]
             );
 
             // Remove old charges
             $structure->charges()->delete();
 
             foreach ($validated['charges'] as $charge) {
+                if ((int) $charge['votehead_id'] === $transportVoteheadId) {
+                    // Transport is managed separately from fee structures
+                    continue;
+                }
                 foreach ([1 => $charge['term_1'], 2 => $charge['term_2'], 3 => $charge['term_3']] as $term => $amount) {
                     if ($amount > 0) {
                         FeeCharge::create([
@@ -143,7 +178,8 @@ class FeeStructureController extends Controller
         $academicYears = \App\Models\AcademicYear::all();
         $terms = \App\Models\Term::all();
         $streams = \App\Models\Academics\Stream::all();
-        $voteheads = \App\Models\Votehead::all();
+        $transportVoteheadId = TransportFeeService::transportVotehead()->id;
+        $voteheads = \App\Models\Votehead::where('id', '!=', $transportVoteheadId)->get();
 
         return view('finance.fee_structures.import', compact('classrooms', 'academicYears', 'terms', 'streams', 'voteheads'));
     }

@@ -236,6 +236,11 @@
       <input type="text" name="drop_off_point_other" id="drop_off_point_other" class="form-control mt-2"
              placeholder="Type drop-off point" value="{{ old('drop_off_point_other', $s->drop_off_point_other ?? '') }}">
     </div>
+    <div class="col-md-4 transport-field">
+      <label class="form-label">Transport Fee (this term)</label>
+      <input type="number" step="0.01" name="transport_fee_amount" class="form-control" value="{{ old('transport_fee_amount') }}" placeholder="0.00">
+      <div class="form-text">Added to this term's invoice alongside other charges.</div>
+    </div>
   </div>
 
   <hr class="my-4">

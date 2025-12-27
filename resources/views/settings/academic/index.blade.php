@@ -14,6 +14,9 @@
                 <p>Keep the school calendar aligned for attendance, billing, and reporting.</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
+                <a href="{{ route('settings.academic.term-holidays') }}" class="btn btn-ghost">
+                    <i class="bi bi-umbrella"></i> Term Holidays
+                </a>
                 <a href="{{ route('settings.academic.year.create') }}" class="btn btn-settings-primary">
                     <i class="bi bi-calendar-plus"></i> Add Academic Year
                 </a>
