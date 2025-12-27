@@ -1217,18 +1217,29 @@ class StudentController extends Controller
             return response()->json([]);
         }
 
-        $searchTerm = '%' . addcslashes($q, '%_\\') . '%';
+        // Normalize for case-insensitive name search and admission search without spaces/punctuation
+        $searchTerm = '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%';
+        $normalizedAdmission = mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8');
+
         $students = Student::query()
             ->with('classroom')
-            ->where(function ($s) use ($searchTerm) {
-                $s->where('first_name', 'like', $searchTerm)
-                  ->orWhere('middle_name', 'like', $searchTerm)
-                  ->orWhere('last_name', 'like', $searchTerm)
-                  ->orWhere('admission_number', 'like', $searchTerm);
+            ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
+                $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
+                  ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
+                  ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm])
+                  ->orWhereRaw('LOWER(admission_number) LIKE ?', [$searchTerm]);
+
+                // Admission number search tolerant of prefixes/suffixes/spaces/dashes/slashes
+                if ($normalizedAdmission !== '') {
+                    $s->orWhereRaw(
+                        'LOWER(REPLACE(REPLACE(REPLACE(admission_number, " ", ""), "-", ""), "/", "")) LIKE ?',
+                        ['%' . $normalizedAdmission . '%']
+                    );
+                }
             })
             ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
             ->orderBy('first_name')
-            ->limit(20)
+            ->limit(25)
             ->get();
 
         return response()->json($students->map(function ($st) {

@@ -24,6 +24,9 @@ class LegacyFinanceImportController extends Controller
 
     public function show(LegacyFinanceImportBatch $batch)
     {
+        // This view can be heavy on large batches; extend execution time just for this action
+        @set_time_limit(180);
+
         $batch->load(['terms' => function ($query) {
             $query->orderBy('student_name');
         }]);
