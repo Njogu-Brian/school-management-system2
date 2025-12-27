@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessLegacyBatchPosting;
 use App\Models\LegacyFinanceImportBatch;
 use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
@@ -126,6 +127,8 @@ class LegacyFinanceImportController extends Controller
             $batch->update(['status' => 'approved']);
         }
 
+        ProcessLegacyBatchPosting::dispatch($batch->id);
+
         return back()->with('success', 'Student terms approved.');
     }
 
@@ -140,6 +143,8 @@ class LegacyFinanceImportController extends Controller
 
         $batch->terms()->update(['status' => 'approved', 'confidence' => 'high']);
         $batch->update(['status' => 'approved']);
+
+        ProcessLegacyBatchPosting::dispatch($batch->id);
 
         return back()->with('success', 'All students approved.');
     }
