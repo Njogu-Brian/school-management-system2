@@ -110,9 +110,9 @@
                                 <label class="form-label">Father Phone</label>
                                 <div class="input-group">
                                     <select name="father_phone_country_code" class="form-select flex-grow-0" style="max-width:140px">
-                                        @foreach($countryCodes as $cc)
-                                            <option value="{{ $cc['code'] }}" @selected(old('father_phone_country_code', $family->students->first()->parent->father_phone_country_code ?? '+254')==$cc['code'])>{{ $cc['label'] }}</option>
-                                        @endforeach
+@foreach($countryCodes as $code => $label)
+    <option value="{{ $code }}" @selected(old('father_phone_country_code', $family->students->first()->parent->father_phone_country_code ?? '+254')==$code)>{{ $label }}</option>
+@endforeach
                                     </select>
                                     <input type="text" name="father_phone" class="form-control" value="{{ old('father_phone', $family->students->first()->parent->father_phone ?? '') }}">
                                 </div>
@@ -141,9 +141,9 @@
                                 <label class="form-label">Mother Phone</label>
                                 <div class="input-group">
                                     <select name="mother_phone_country_code" class="form-select flex-grow-0" style="max-width:140px">
-                                        @foreach($countryCodes as $cc)
-                                            <option value="{{ $cc['code'] }}" @selected(old('mother_phone_country_code', $family->students->first()->parent->mother_phone_country_code ?? '+254')==$cc['code'])>{{ $cc['label'] }}</option>
-                                        @endforeach
+@foreach($countryCodes as $code => $label)
+    <option value="{{ $code }}" @selected(old('mother_phone_country_code', $family->students->first()->parent->mother_phone_country_code ?? '+254')==$code)>{{ $label }}</option>
+@endforeach
                                     </select>
                                     <input type="text" name="mother_phone" class="form-control" value="{{ old('mother_phone', $family->students->first()->parent->mother_phone ?? '') }}">
                                 </div>
@@ -172,9 +172,9 @@
                                 <label class="form-label">Guardian Phone</label>
                                 <div class="input-group">
                                     <select name="guardian_phone_country_code" class="form-select flex-grow-0" style="max-width:140px">
-                                        @foreach($countryCodes as $cc)
-                                            <option value="{{ $cc['code'] }}" @selected(old('guardian_phone_country_code', $family->students->first()->parent->guardian_phone_country_code ?? '+254')==$cc['code'])>{{ $cc['label'] }}</option>
-                                        @endforeach
+@foreach($countryCodes as $code => $label)
+    <option value="{{ $code }}" @selected(old('guardian_phone_country_code', $family->students->first()->parent->guardian_phone_country_code ?? '+254')==$code)>{{ $label }}</option>
+@endforeach
                                     </select>
                                     <input type="text" name="guardian_phone" class="form-control" value="{{ old('guardian_phone', $family->students->first()->parent->guardian_phone ?? '') }}">
                                 </div>

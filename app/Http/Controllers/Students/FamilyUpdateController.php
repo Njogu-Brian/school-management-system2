@@ -307,7 +307,7 @@ class FamilyUpdateController extends Controller
     private function getCountryCodes(): array
     {
         $codes = include resource_path('data/country_codes.php');
-        return collect($codes)->unique('code')->values()->toArray();
+        return is_array($codes) ? $codes : [];
     }
 }
 
