@@ -21,10 +21,10 @@
         </div>
     @endif
 
-    {{-- Class selection --}}
+    {{-- Class & category selection --}}
     <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
         <div class="finance-card-header d-flex align-items-center gap-2">
-            <i class="bi bi-funnel"></i> <span>Select Class</span>
+            <i class="bi bi-funnel"></i> <span>Select Class & Category</span>
         </div>
         <div class="finance-card-body p-4">
             <form method="GET" action="{{ route('finance.fee-structures.manage') }}">
@@ -39,6 +39,18 @@
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="finance-form-label">Student Category <span class="text-danger">*</span></label>
+                        <select name="student_category_id" class="finance-form-select" required onchange="this.form.submit()">
+                            <option value="">-- Choose Category --</option>
+                            @foreach($categories as $category)
+                                <option value="{{ $category->id }}" {{ ($selectedCategory ?? '') == $category->id ? 'selected' : '' }}>
+                                    {{ $category->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Fee structures must be defined per specific category.</small>
                     </div>
                 </div>
             </form>
@@ -56,6 +68,7 @@
                 @csrf
 
                 <input type="hidden" name="classroom_id" value="{{ $selectedClassroom }}">
+                <input type="hidden" name="student_category_id" value="{{ $selectedCategory }}">
                 <div class="row g-4 mb-4">
                     <div class="col-md-4">
                         <label class="finance-form-label">Year <span class="text-danger">*</span></label>
@@ -123,6 +136,7 @@
             <form method="POST" action="{{ route('finance.fee-structures.replicate') }}">
                 @csrf
                 <input type="hidden" name="source_classroom_id" value="{{ $selectedClassroom }}">
+                <input type="hidden" name="student_category_id" value="{{ $selectedCategory }}">
 
                 <div class="row g-4">
                     <div class="col-md-12">

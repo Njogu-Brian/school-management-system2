@@ -329,6 +329,7 @@ class FeePostingService
         return Student::query()
             ->when(!empty($filters['class_id']), fn($q) => $q->where('classroom_id', $filters['class_id']))
             ->when(!empty($filters['stream_id']), fn($q) => $q->where('stream_id', $filters['stream_id']))
+            ->when(!empty($filters['student_category_id']), fn($q) => $q->where('category_id', $filters['student_category_id']))
             ->get();
     }
     
@@ -405,29 +406,21 @@ class FeePostingService
             $structureQuery->where('year', $year);
         }
         
-        // Match student category if set, otherwise match structures with no category
-        if ($student->category_id) {
-            $structureQuery->where(function($q) use ($student) {
-                $q->where('student_category_id', $student->category_id)
-                  ->orWhereNull('student_category_id'); // Also include general structures
-            });
-        } else {
-            $structureQuery->whereNull('student_category_id'); // Only general structures
-        }
+        // Match student category strictly (no general structures)
+        $structureQuery->where('student_category_id', $student->category_id);
         
-        // Match stream if set
+        // Match stream if set; if none, require structures without stream
         if ($student->stream_id) {
             $structureQuery->where(function($q) use ($student) {
                 $q->where('stream_id', $student->stream_id)
-                  ->orWhereNull('stream_id'); // Also include general structures
+                  ->orWhereNull('stream_id'); // allow class-wide structures still
             });
         } else {
-            $structureQuery->whereNull('stream_id'); // Only general structures
+            $structureQuery->whereNull('stream_id');
         }
         
-        // Order by specificity: category-specific > stream-specific > general
-        $structureQuery->orderByRaw('CASE WHEN student_category_id IS NOT NULL THEN 0 ELSE 1 END')
-                       ->orderByRaw('CASE WHEN stream_id IS NOT NULL THEN 0 ELSE 1 END');
+        // Order by specificity: stream-specific > general within the category
+        $structureQuery->orderByRaw('CASE WHEN stream_id IS NOT NULL THEN 0 ELSE 1 END');
         
         $structure = $structureQuery->first();
         

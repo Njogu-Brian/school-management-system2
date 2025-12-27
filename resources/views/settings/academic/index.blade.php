@@ -72,6 +72,51 @@
                                                                             @if($term->midterm_start_date && $term->midterm_end_date)
                                                                                 <div><i class="bi bi-calendar-range"></i> Midterm: {{ $term->midterm_start_date->format('M d') }} - {{ $term->midterm_end_date->format('M d, Y') }}</div>
                                                                             @endif
+                                                                            @php
+                                                                                $holidays = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
+                                                                                    ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
+                                                                                    ->orderBy('date')
+                                                                                    ->limit(3)
+                                                                                    ->get();
+                                                                                $holidayCount = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
+                                                                                    ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
+                                                                                    ->count();
+
+                                                                                // Breaks between this term and the next one (in this academic year)
+                                                                                $nextTerm = $year->terms->first(function($t) use ($term) {
+                                                                                    return $t->opening_date && $term->closing_date && $t->opening_date->gt($term->closing_date);
+                                                                                });
+                                                                                $breaks = collect();
+                                                                                if ($nextTerm && $term->closing_date) {
+                                                                                    $gapStart = $term->closing_date->copy()->addDay();
+                                                                                    $gapEnd = $nextTerm->opening_date->copy()->subDay();
+                                                                                    if ($gapStart->lte($gapEnd)) {
+                                                                                        $breaks->push([
+                                                                                            'start' => $gapStart,
+                                                                                            'end' => $gapEnd,
+                                                                                        ]);
+                                                                                    }
+                                                                                }
+                                                                            @endphp
+                                                                            @if($holidayCount > 0)
+                                                                                <div class="mt-2">
+                                                                                    <div class="fw-semibold small"><i class="bi bi-sun"></i> School & Public Holidays ({{ $holidayCount }})</div>
+                                                                                    @foreach($holidays as $holiday)
+                                                                                        <div class="text-muted small">• {{ $holiday->date->format('M d, Y') }} — {{ $holiday->name ?? 'Holiday' }}</div>
+                                                                                    @endforeach
+                                                                                    @if($holidayCount > $holidays->count())
+                                                                                        <div class="text-muted small">… and {{ $holidayCount - $holidays->count() }} more</div>
+                                                                                    @endif
+                                                                                </div>
+                                                                            @endif
+                                                                            @if($breaks->isNotEmpty())
+                                                                                <div class="mt-2">
+                                                                                    <div class="fw-semibold small"><i class="bi bi-beach"></i> Inter-term Break</div>
+                                                                                    @foreach($breaks as $break)
+                                                                                        <div class="text-muted small">• {{ $break['start']->format('M d, Y') }} – {{ $break['end']->format('M d, Y') }}</div>
+                                                                                    @endforeach
+                                                                                </div>
+                                                                            @endif
                                                                         @else
                                                                             <span class="text-warning">Dates not set</span>
                                                                         @endif

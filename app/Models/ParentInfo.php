@@ -12,7 +12,9 @@ class ParentInfo extends Model
         'father_name', 'father_phone', 'father_whatsapp', 'father_email', 'father_id_number',
         'mother_name', 'mother_phone', 'mother_whatsapp', 'mother_email', 'mother_id_number',
         'guardian_name', 'guardian_phone', 'guardian_whatsapp', 'guardian_email', 'guardian_id_number',
-        'guardian_relationship',
+        'guardian_relationship', 'marital_status',
+        'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
+        'father_id_document', 'mother_id_document',
         // Extended parent info
         'father_occupation', 'father_employer', 'father_work_address', 'father_education_level',
         'mother_occupation', 'mother_employer', 'mother_work_address', 'mother_education_level',

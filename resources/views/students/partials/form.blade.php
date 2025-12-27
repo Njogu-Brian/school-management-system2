@@ -69,15 +69,15 @@
       <select name="gender" class="form-select" required>
         @php $g = old('gender', $s->gender ?? ''); @endphp
         <option value="">Select</option>
-        <option value="male"   @selected($g==='male')>Male</option>
-        <option value="female" @selected($g==='female')>Female</option>
-        <option value="other"  @selected($g==='other')>Other</option>
+    <option value="male"   @selected($g==='male')>Male</option>
+    <option value="female" @selected($g==='female')>Female</option>
+    <option value="other"  @selected($g==='other')>Other</option>
       </select>
     </div>
-    <div class="col-md-3">
-      <label class="form-label">Date of Birth</label>
-      <input type="date" name="dob" value="{{ old('dob', $s && $s->dob ? (\Carbon\Carbon::parse($s->dob)->format('Y-m-d')) : '') }}" class="form-control">
-    </div>
+  <div class="col-md-3">
+    <label class="form-label">Date of Birth <span class="text-danger">*</span></label>
+    <input type="date" name="dob" value="{{ old('dob', $s && $s->dob ? (\Carbon\Carbon::parse($s->dob)->format('Y-m-d')) : '') }}" class="form-control" required>
+  </div>
     <div class="col-md-3">
       <label class="form-label">NEMIS Number</label>
       <input type="text" name="nemis_number" value="{{ old('nemis_number', $s->nemis_number ?? '') }}" class="form-control">
@@ -87,78 +87,75 @@
       <input type="text" name="knec_assessment_number" value="{{ old('knec_assessment_number', $s->knec_assessment_number ?? '') }}" class="form-control">
     </div>
 
-    <div class="col-md-3">
-      <label class="form-label">National ID Number</label>
-      <input type="text" name="national_id_number" value="{{ old('national_id_number', $s->national_id_number ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Passport Number</label>
-      <input type="text" name="passport_number" value="{{ old('passport_number', $s->passport_number ?? '') }}" class="form-control">
-    </div>
   </div>
 
   <hr class="my-4">
 
   {{-- EXTENDED DEMOGRAPHICS --}}
-  <h6 class="text-uppercase text-muted mb-3">Extended Demographics</h6>
-  <div class="row g-3">
-    <div class="col-md-3">
-      <label class="form-label">Religion</label>
-      <input type="text" name="religion" value="{{ old('religion', $s->religion ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Ethnicity</label>
-      <input type="text" name="ethnicity" value="{{ old('ethnicity', $s->ethnicity ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Language Preference</label>
-      <input type="text" name="language_preference" value="{{ old('language_preference', $s->language_preference ?? '') }}" class="form-control" placeholder="e.g., English, Swahili">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Blood Group</label>
-      <select name="blood_group" class="form-select">
-        <option value="">Select</option>
-        <option value="A+" @selected(old('blood_group', $s->blood_group ?? '')=='A+')>A+</option>
-        <option value="A-" @selected(old('blood_group', $s->blood_group ?? '')=='A-')>A-</option>
-        <option value="B+" @selected(old('blood_group', $s->blood_group ?? '')=='B+')>B+</option>
-        <option value="B-" @selected(old('blood_group', $s->blood_group ?? '')=='B-')>B-</option>
-        <option value="AB+" @selected(old('blood_group', $s->blood_group ?? '')=='AB+')>AB+</option>
-        <option value="AB-" @selected(old('blood_group', $s->blood_group ?? '')=='AB-')>AB-</option>
-        <option value="O+" @selected(old('blood_group', $s->blood_group ?? '')=='O+')>O+</option>
-        <option value="O-" @selected(old('blood_group', $s->blood_group ?? '')=='O-')>O-</option>
-      </select>
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Home Address</label>
-      <input type="text" name="home_address" value="{{ old('home_address', $s->home_address ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">City</label>
-      <input type="text" name="home_city" value="{{ old('home_city', $s->home_city ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">County</label>
-      <input type="text" name="home_county" value="{{ old('home_county', $s->home_county ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-3">
-      <label class="form-label">Postal Code</label>
-      <input type="text" name="home_postal_code" value="{{ old('home_postal_code', $s->home_postal_code ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-12">
-      <label class="form-label">Previous Schools</label>
-      <textarea name="previous_schools" class="form-control" rows="2" placeholder="List previous schools (one per line or JSON format)">{{ old('previous_schools', $s->previous_schools ?? '') }}</textarea>
-    </div>
-    <div class="col-md-12">
-      <label class="form-label">Transfer Reason</label>
-      <textarea name="transfer_reason" class="form-control" rows="2">{{ old('transfer_reason', $s->transfer_reason ?? '') }}</textarea>
-    </div>
+<h6 class="text-uppercase text-muted mb-3">Class & Category</h6>
+<div class="row g-3">
+<div class="col-md-4">
+  <label class="form-label">Classroom <span class="text-danger">*</span></label>
+  <select name="classroom_id" class="form-select" required id="classroom_id">
+    <option value="">Select</option>
+    @foreach($classrooms as $c)
+      <option value="{{ $c->id }}" @selected(old('classroom_id', $s->classroom_id ?? '') == $c->id)>{{ $c->name }}</option>
+    @endforeach
+  </select>
+</div>
+<div class="col-md-4">
+  <label class="form-label">Stream</label>
+    <select name="stream_id" class="form-select" id="stream_id">
+    <option value="">Select</option>
+    @foreach($streams as $st)
+      <option value="{{ $st->id }}" data-classroom="{{ $st->classroom_id ?? '' }}" @selected(old('stream_id', $s->stream_id ?? '') == $st->id)>{{ $st->name }}</option>
+    @endforeach
+  </select>
+  <div class="form-text text-muted" id="stream-hint"></div>
+</div>
+  <div class="col-md-4">
+    <label class="form-label">Category <span class="text-danger">*</span></label>
+    <select name="category_id" class="form-select" required>
+      <option value="">Select</option>
+      @foreach($categories as $cat)
+        <option value="{{ $cat->id }}" @selected(old('category_id', $s->category_id ?? '') == $cat->id)>{{ $cat->name }}</option>
+      @endforeach
+    </select>
   </div>
+</div>
 
-  <hr class="my-4">
+<div class="row g-3 mt-2" id="previous-school-section">
+  <div class="col-md-6">
+    <label class="form-label">Previous Schools</label>
+    <textarea name="previous_schools" class="form-control" rows="2" placeholder="List previous schools (one per line or JSON format)">{{ old('previous_schools', $s->previous_schools ?? '') }}</textarea>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Transfer Reason</label>
+    <textarea name="transfer_reason" class="form-control" rows="2">{{ old('transfer_reason', $s->transfer_reason ?? '') }}</textarea>
+  </div>
+  <div class="col-12 text-muted small">Only required for classes above Creche/Foundation (currently shown for all).</div>
+</div>
+
+<hr class="my-4">
 
   {{-- MEDICAL INFORMATION --}}
   <h6 class="text-uppercase text-muted mb-3">Medical Information</h6>
   <div class="row g-3">
+    <div class="col-md-6">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="has_allergies" value="1" id="has_allergies" @checked(old('has_allergies', $s->has_allergies ?? false))>
+        <label class="form-check-label" for="has_allergies">Has allergies?</label>
+      </div>
+      <textarea name="allergies_notes" class="form-control mt-2" rows="2" placeholder="Specify allergies (if any)">{{ old('allergies_notes', $s->allergies_notes ?? '') }}</textarea>
+    </div>
+    <div class="col-md-6">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" name="is_fully_immunized" value="1" id="is_fully_immunized" @checked(old('is_fully_immunized', $s->is_fully_immunized ?? false))>
+        <label class="form-check-label" for="is_fully_immunized">Fully immunized?</label>
+      </div>
+      <label class="form-label mt-3">Preferred Hospital/Facility</label>
+      <input type="text" name="preferred_hospital" value="{{ old('preferred_hospital', $s->preferred_hospital ?? '') }}" class="form-control" placeholder="e.g., ABC Medical Center">
+    </div>
     <div class="col-md-12">
       <label class="form-label">Allergies</label>
       <textarea name="allergies" class="form-control" rows="2" placeholder="List any allergies">{{ old('allergies', $s->allergies ?? '') }}</textarea>
@@ -168,86 +165,48 @@
       <textarea name="chronic_conditions" class="form-control" rows="2" placeholder="List any chronic medical conditions">{{ old('chronic_conditions', $s->chronic_conditions ?? '') }}</textarea>
     </div>
     <div class="col-md-6">
-      <label class="form-label">Medical Insurance Provider</label>
-      <input type="text" name="medical_insurance_provider" value="{{ old('medical_insurance_provider', $s->medical_insurance_provider ?? '') }}" class="form-control">
+      <label class="form-label">Emergency Contact Name</label>
+      <small class="text-muted d-block mb-1">Person we call if parents/guardians cannot be reached.</small>
+      <input type="text" name="emergency_contact_name" value="{{ old('emergency_contact_name', $s->emergency_contact_name ?? '') }}" class="form-control">
     </div>
     <div class="col-md-6">
-      <label class="form-label">Medical Insurance Number</label>
-      <input type="text" name="medical_insurance_number" value="{{ old('medical_insurance_number', $s->medical_insurance_number ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Emergency Medical Contact Name</label>
-      <input type="text" name="emergency_medical_contact_name" value="{{ old('emergency_medical_contact_name', $s->emergency_medical_contact_name ?? '') }}" class="form-control">
-    </div>
-    <div class="col-md-6">
-      <label class="form-label">Emergency Medical Contact Phone</label>
-      <input type="text" name="emergency_medical_contact_phone" value="{{ old('emergency_medical_contact_phone', $s->emergency_medical_contact_phone ?? '') }}" class="form-control">
+      <label class="form-label">Emergency Phone (with country code)</label>
+      <input type="text" name="emergency_contact_phone" value="{{ old('emergency_contact_phone', $s->emergency_contact_phone ?? '') }}" class="form-control" placeholder="+2547XXXXXXXX">
     </div>
   </div>
 
-  <hr class="my-4">
+<hr class="my-4">
 
-  {{-- SPECIAL NEEDS --}}
-  <h6 class="text-uppercase text-muted mb-3">Special Needs</h6>
-  <div class="row g-3">
-    <div class="col-md-6">
-      <div class="form-check">
-        <input class="form-check-input" type="checkbox" name="has_special_needs" value="1" id="has_special_needs" @checked(old('has_special_needs', $s->has_special_needs ?? false))>
-        <label class="form-check-label" for="has_special_needs">Has Special Needs</label>
-      </div>
-    </div>
-    <div class="col-md-12">
-      <label class="form-label">Special Needs Description</label>
-      <textarea name="special_needs_description" class="form-control" rows="2">{{ old('special_needs_description', $s->special_needs_description ?? '') }}</textarea>
-    </div>
-    <div class="col-md-12">
-      <label class="form-label">Learning Disabilities</label>
-      <textarea name="learning_disabilities" class="form-control" rows="2">{{ old('learning_disabilities', $s->learning_disabilities ?? '') }}</textarea>
+{{-- SPECIAL NEEDS --}}
+<h6 class="text-uppercase text-muted mb-3">Special Needs</h6>
+<div class="row g-3">
+  <div class="col-md-6">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="has_special_needs" value="1" id="has_special_needs" @checked(old('has_special_needs', $s->has_special_needs ?? false))>
+      <label class="form-check-label" for="has_special_needs">Has Special Needs</label>
     </div>
   </div>
-
-  <hr class="my-4">
-
-  {{-- CLASS & CATEGORY --}}
-  <h6 class="text-uppercase text-muted mb-3">Class & Category</h6>
-  <div class="row g-3">
-    <div class="col-md-4">
-      <label class="form-label">Class</label>
-      <select name="classroom_id" class="form-select" required>
-        <option value="">Select Class</option>
-        @foreach ($classrooms as $c)
-          <option value="{{ $c->id }}" @selected(old('classroom_id', $s->classroom_id ?? '')==$c->id)>{{ $c->name }}</option>
-        @endforeach
-      </select>
-    </div>
-
-    <div class="col-md-4">
-      <label class="form-label">Stream</label>
-      <select name="stream_id" class="form-select">
-        <option value="">Select Stream</option>
-        @foreach ($streams as $st)
-          <option value="{{ $st->id }}" @selected(old('stream_id', $s->stream_id ?? '')==$st->id)>{{ $st->name }}</option>
-        @endforeach
-      </select>
-    </div>
-
-    <div class="col-md-4">
-      <label class="form-label">Category</label>
-      <select name="category_id" class="form-select">
-        <option value="">Select Category</option>
-        @foreach ($categories as $cat)
-          <option value="{{ $cat->id }}" @selected(old('category_id', $s->category_id ?? '')==$cat->id)>{{ $cat->name }}</option>
-        @endforeach
-      </select>
-    </div>
+  <div class="col-md-12">
+    <label class="form-label">Special Needs Description</label>
+    <textarea name="special_needs_description" class="form-control" rows="2">{{ old('special_needs_description', $s->special_needs_description ?? '') }}</textarea>
   </div>
-
-  <hr class="my-4">
+  <div class="col-md-12">
+    <label class="form-label">Learning Disabilities</label>
+    <textarea name="learning_disabilities" class="form-control" rows="2">{{ old('learning_disabilities', $s->learning_disabilities ?? '') }}</textarea>
+  </div>
+</div>
 
   {{-- TRANSPORT --}}
   <h6 class="text-uppercase text-muted mb-3">Transport</h6>
   <div class="row g-3">
-    <div class="col-md-6">
+    <div class="col-md-12">
+      <div class="form-check form-switch">
+        @php $needsTransport = old('route_id', $s->route_id ?? null) || old('drop_off_point_id', $s->drop_off_point_id ?? null) || old('trip_id', $s->trip_id ?? null); @endphp
+        <input class="form-check-input" type="checkbox" id="needs_transport" name="needs_transport" value="1" @checked($needsTransport)>
+        <label class="form-check-label" for="needs_transport">Student needs school transport</label>
+      </div>
+    </div>
+    <div class="col-md-4 transport-field">
       <label class="form-label">Route</label>
       <select name="route_id" class="form-select">
         <option value="">—</option>
@@ -256,9 +215,26 @@
         @endforeach
       </select>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4 transport-field">
+      <label class="form-label">Trip</label>
+      <select name="trip_id" class="form-select">
+        <option value="">—</option>
+        @foreach (($trips ?? []) as $trip)
+          <option value="{{ $trip->id }}" @selected(old('trip_id', $s->trip_id ?? '')==$trip->id)>{{ $trip->name }}</option>
+        @endforeach
+      </select>
+    </div>
+    <div class="col-md-4 transport-field">
       <label class="form-label">Drop-off Point</label>
-      <input type="text" name="drop_off_point" value="{{ old('drop_off_point', $s->drop_off_point ?? '') }}" class="form-control">
+      <select name="drop_off_point_id" class="form-select" id="drop_off_point_id">
+        <option value="">—</option>
+        @foreach (($dropOffPoints ?? []) as $p)
+          <option value="{{ $p->id }}" @selected(old('drop_off_point_id', $s->drop_off_point_id ?? '')==$p->id)>{{ $p->name }}</option>
+        @endforeach
+        <option value="other">Other (specify)</option>
+      </select>
+      <input type="text" name="drop_off_point_other" id="drop_off_point_other" class="form-control mt-2"
+             placeholder="Type drop-off point" value="{{ old('drop_off_point_other', $s->drop_off_point_other ?? '') }}">
     </div>
   </div>
 
@@ -289,42 +265,89 @@
   <h6 class="text-uppercase text-muted mb-3">Parent / Guardian</h6>
   @php $p = $s->parent ?? null; @endphp
   <div class="row g-3">
+    <div class="col-md-3">
+      <label class="form-label">Marital Status</label>
+      <select name="marital_status" class="form-select">
+        <option value="">Select</option>
+        <option value="married" @selected(old('marital_status', $p->marital_status ?? '')=='married')>Married</option>
+        <option value="single_parent" @selected(old('marital_status', $p->marital_status ?? '')=='single_parent')>Single Parent</option>
+        <option value="co_parenting" @selected(old('marital_status', $p->marital_status ?? '')=='co_parenting')>Co-parenting</option>
+      </select>
+    </div>
     {{-- Father --}}
     <div class="col-12"><div class="fw-semibold mb-1">Father</div></div>
     <div class="col-md-3"><label class="form-label">Name</label>
       <input type="text" name="father_name" value="{{ old('father_name', $p->father_name ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Phone</label>
-      <input type="text" name="father_phone" value="{{ old('father_phone', $p->father_phone ?? '') }}" class="form-control"></div>
+      <div class="input-group">
+        <select name="father_phone_country_code" class="form-select" style="max-width:120px">
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected(old('father_phone_country_code', $p->father_phone_country_code ?? '+254') == $cc['code'])>{{ $cc['code'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="father_phone" value="{{ old('father_phone', $p->father_phone ?? '') }}" class="form-control">
+      </div>
+    </div>
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
       <input type="text" name="father_whatsapp" value="{{ old('father_whatsapp', $p->father_whatsapp ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Email</label>
       <input type="email" name="father_email" value="{{ old('father_email', $p->father_email ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">ID Number</label>
       <input type="text" name="father_id_number" value="{{ old('father_id_number', $p->father_id_number ?? '') }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label">ID Document (upload)</label>
+      <input type="file" name="father_id_document" class="form-control" accept=".pdf,image/*">
+      @if($p?->father_id_document)
+        <div class="small mt-1"><a target="_blank" href="{{ asset('storage/'.$p->father_id_document) }}">Current file</a></div>
+      @endif
+    </div>
 
     {{-- Mother --}}
     <div class="col-12 mt-2"><div class="fw-semibold mb-1">Mother</div></div>
     <div class="col-md-3"><label class="form-label">Name</label>
       <input type="text" name="mother_name" value="{{ old('mother_name', $p->mother_name ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Phone</label>
-      <input type="text" name="mother_phone" value="{{ old('mother_phone', $p->mother_phone ?? '') }}" class="form-control"></div>
+      <div class="input-group">
+        <select name="mother_phone_country_code" class="form-select" style="max-width:120px">
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected(old('mother_phone_country_code', $p->mother_phone_country_code ?? '+254') == $cc['code'])>{{ $cc['code'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="mother_phone" value="{{ old('mother_phone', $p->mother_phone ?? '') }}" class="form-control">
+      </div>
+    </div>
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
       <input type="text" name="mother_whatsapp" value="{{ old('mother_whatsapp', $p->mother_whatsapp ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Email</label>
       <input type="email" name="mother_email" value="{{ old('mother_email', $p->mother_email ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">ID Number</label>
       <input type="text" name="mother_id_number" value="{{ old('mother_id_number', $p->mother_id_number ?? '') }}" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label">ID Document (upload)</label>
+      <input type="file" name="mother_id_document" class="form-control" accept=".pdf,image/*">
+      @if($p?->mother_id_document)
+        <div class="small mt-1"><a target="_blank" href="{{ asset('storage/'.$p->mother_id_document) }}">Current file</a></div>
+      @endif
+    </div>
 
     {{-- Guardian --}}
     <div class="col-12 mt-2"><div class="fw-semibold mb-1">Guardian (optional)</div></div>
     <div class="col-md-3"><label class="form-label">Name</label>
       <input type="text" name="guardian_name" value="{{ old('guardian_name', $p->guardian_name ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Phone</label>
-      <input type="text" name="guardian_phone" value="{{ old('guardian_phone', $p->guardian_phone ?? '') }}" class="form-control"></div>
-    <div class="col-md-3"><label class="form-label">Email</label>
-      <input type="email" name="guardian_email" value="{{ old('guardian_email', $p->guardian_email ?? '') }}" class="form-control"></div>
-    <div class="col-md-3"><label class="form-label">Relationship</label>
-      <input type="text" name="guardian_relationship" value="{{ old('guardian_relationship', $p->guardian_relationship ?? '') }}" class="form-control"></div>
+      <div class="input-group">
+        <select name="guardian_phone_country_code" class="form-select" style="max-width:120px">
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected(old('guardian_phone_country_code', $p->guardian_phone_country_code ?? '+254') == $cc['code'])>{{ $cc['code'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="guardian_phone" value="{{ old('guardian_phone', $p->guardian_phone ?? '') }}" class="form-control">
+      </div>
+    </div>
+  <div class="col-md-3"><label class="form-label">Relationship</label>
+    <input type="text" name="guardian_relationship" value="{{ old('guardian_relationship', $p->guardian_relationship ?? '') }}" class="form-control"></div>
+    <div class="col-md-6">
+      <label class="form-label">Residential Area</label>
+      <input type="text" name="residential_area" value="{{ old('residential_area', $s->residential_area ?? '') }}" class="form-control" placeholder="Estate / Area">
+    </div>
   </div>
 
   {{-- SIBLINGS LIST (edit mode) --}}
@@ -398,6 +421,11 @@
 
 <div class="card-footer d-flex justify-content-end gap-2">
   <a href="{{ $mode==='edit' && $s ? route('students.show',$s->id) : route('students.index') }}" class="btn btn-outline-secondary">Cancel</a>
+  @if($mode==='create')
+    <button type="submit" name="save_add_another" value="1" class="btn btn-secondary">
+      <i class="bi bi-plus-circle"></i> Save & Add Another
+    </button>
+  @endif
   <button type="submit" class="btn btn-{{ $mode==='edit' ? 'primary' : 'success' }}">
     <i class="bi bi-{{ $mode==='edit' ? 'save' : 'check-lg' }}"></i>
     {{ $mode==='edit' ? 'Update' : 'Submit Admission' }}
@@ -457,6 +485,61 @@
     document.getElementById('family_id').value = '';
     document.getElementById('copy_family_from_student_id').value = '';
   });
+
+  // transport visibility + other drop-off input
+  (function(){
+    const toggle = document.getElementById('needs_transport');
+    const fields = document.querySelectorAll('.transport-field');
+    const dropSelect = document.getElementById('drop_off_point_id');
+    const dropOther = document.getElementById('drop_off_point_other');
+
+    function syncFields() {
+      const enabled = toggle?.checked;
+      fields.forEach(f => f.style.display = enabled ? '' : 'none');
+      if (!enabled) {
+        dropOther.value = '';
+        if (dropSelect) dropSelect.value = '';
+      }
+      syncOther();
+    }
+
+    function syncOther() {
+      if (!dropSelect || !dropOther) return;
+      const showOther = dropSelect.value === 'other';
+      dropOther.style.display = showOther ? '' : 'none';
+      if (!showOther) dropOther.value = '';
+    }
+
+    toggle?.addEventListener('change', syncFields);
+    dropSelect?.addEventListener('change', syncOther);
+    syncFields();
+  })();
+
+  // stream required if classroom has streams (based on data-classroom on stream options)
+  (function(){
+    const classroomSelect = document.querySelector('select[name="classroom_id"]');
+    const streamSelect = document.querySelector('select[name="stream_id"]');
+    const hint = document.getElementById('stream-hint');
+    function updateRequirement() {
+      if (!classroomSelect || !streamSelect) return;
+      const cls = classroomSelect.value;
+      let hasStreams = false;
+      streamSelect.querySelectorAll('option').forEach(opt => {
+        if (opt.value && opt.getAttribute('data-classroom') === cls) {
+          hasStreams = true;
+        }
+      });
+      if (hasStreams) {
+        streamSelect.setAttribute('required', 'required');
+        if (hint) hint.textContent = 'Stream is required for the selected classroom.';
+      } else {
+        streamSelect.removeAttribute('required');
+        if (hint) hint.textContent = '';
+      }
+    }
+    classroomSelect?.addEventListener('change', updateRequirement);
+    updateRequirement();
+  })();
 
   // family: search & select
   (function(){

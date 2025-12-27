@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Services\PostingService; // Keep for backward compatibility
 use App\Services\FeePostingService;
 use App\Models\FeePostingRun;
+use App\Models\StudentCategory;
 use Illuminate\Http\Request;
 
 class PostingController extends Controller
@@ -23,13 +24,14 @@ class PostingController extends Controller
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         $streams    = \App\Models\Academics\Stream::orderBy('name')->get();
         $voteheads  = \App\Models\Votehead::orderBy('name')->get();
+        $categories = StudentCategory::orderBy('name')->get();
         
         // Get posting run history
         $runs = FeePostingRun::with(['academicYear', 'term', 'postedBy'])
             ->orderBy('posted_at', 'desc')
             ->paginate(20);
 
-        return view('finance.posting.index', compact('classrooms','streams','voteheads','runs'));
+        return view('finance.posting.index', compact('classrooms','streams','voteheads','categories','runs'));
     }
 
     public function preview(Request $request)
@@ -40,6 +42,7 @@ class PostingController extends Controller
             'class_id'=>'nullable|exists:classrooms,id',
             'stream_id'=>'nullable|exists:streams,id',
             'student_id'=>'nullable|exists:students,id',
+            'student_category_id'=>'nullable|exists:student_categories,id',
             'effective_date'=>'nullable|date'
         ]);
         
@@ -97,7 +100,7 @@ class PostingController extends Controller
             (int)$request->term,
             (bool)$request->activate_now,
             $request->effective_date,
-            $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id'])
+            $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id', 'student_category_id'])
         );
 
         return redirect()

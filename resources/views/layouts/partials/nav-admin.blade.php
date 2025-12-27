@@ -64,7 +64,8 @@
 @php 
 $studentsActive = Request::is('students*')
     || Request::is('online-admissions*')
-    || Request::is('families*');
+    || Request::is('families*')
+    || Request::is('admin/family-update*');
 $studentRecordsActive = Request::is('students/*/medical-records*') || Request::is('students/*/disciplinary-records*') || Request::is('students/*/activities*') || Request::is('students/*/academic-history*');
 @endphp
 <a href="#studentsMenu" data-bs-toggle="collapse" aria-expanded="{{ $studentsActive ? 'true' : 'false' }}" class="{{ $studentsActive ? 'parent-active' : '' }}">
@@ -73,13 +74,16 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
 <div class="collapse {{ $studentsActive ? 'show' : '' }}" id="studentsMenu">
     <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
+    <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') ? 'active' : '' }}">Bulk Upload</a>
     @if(Route::has('students.archived'))
     <a href="{{ route('students.archived') }}" class="{{ Request::is('students/archived*') ? 'active' : '' }}">
         <i class="bi bi-archive"></i> Archived Students
     </a>
     @endif
+    <a href="{{ route('student-categories.index') }}" class="{{ Request::is('student-categories*') ? 'active' : '' }}"><i class="bi bi-collection"></i> Student Categories</a>
     <a href="{{ route('families.index') }}" class="{{ Request::is('families*') ? 'active' : '' }}"><i class="bi bi-people"></i> Families (Siblings)</a>
+    <a href="{{ route('family-update.admin.index') }}" class="{{ Request::is('admin/family-update*') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Profile Update Links</a>
     <a href="{{ route('online-admissions.index') }}" class="{{ Request::is('online-admissions*') && !Request::is('online-admissions/apply*') ? 'active' : '' }}">
         <i class="bi bi-globe"></i> Online Admissions
     </a>

@@ -6,9 +6,19 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\ParentInfo;
 use App\Models\StudentCategory;
+use App\Models\Family;
+use App\Models\FamilyUpdateLink;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\TransportRoute;
+use App\Models\DropOffPoint;
+use App\Models\Trip;
+use App\Models\Route;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\FeeStructure;
+use App\Models\FeeConcession;
+use App\Services\FeePostingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\SMSService;
@@ -20,6 +30,7 @@ use App\Mail\GenericMail;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StudentTemplateExport;
 use App\Models\Setting;
+use Illuminate\Support\Facades\Storage;
 
 class StudentController extends Controller
 {
@@ -129,10 +140,13 @@ class StudentController extends Controller
     public function create()
     {
         $students   = Student::all(); // optional, not needed with modal search
-        $categories = StudentCategory::all();
-        $classrooms = Classroom::all();
-        $streams    = Stream::all();
+        $categories = StudentCategory::orderBy('name')->get();
+        $classrooms = Classroom::orderBy('name')->get();
+        $streams    = Stream::orderBy('name')->get();
         $routes     = TransportRoute::orderBy('name')->get();
+        $dropOffPoints = DropOffPoint::orderBy('name')->get();
+        $trips = Trip::orderBy('trip_name')->get();
+        $countryCodes = $this->getCountryCodes();
 
         return view('students.create', [
             'students' => $students,
@@ -140,6 +154,9 @@ class StudentController extends Controller
             'classrooms' => $classrooms,
             'streams' => $streams,
             'routes' => $routes,
+            'dropOffPoints' => $dropOffPoints,
+            'trips' => $trips,
+            'countryCodes' => $countryCodes,
         ]);
     }
     /**
@@ -154,35 +171,48 @@ class StudentController extends Controller
         if (!$request->filled('first_name') || !$request->filled('last_name')) {
             return redirect()->route('students.index');
         }
+        if ($request->input('drop_off_point_id') === 'other') {
+            $request->merge(['drop_off_point_id' => null]);
+        }
         try {
             $request->validate([
                 'first_name' => 'required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
                 'last_name' => 'required|string|max:255',
                 'gender' => 'required|string',
-                'dob' => 'nullable|date',
-                'classroom_id' => 'nullable|exists:classrooms,id',
+                'dob' => 'required|date',
+                'classroom_id' => 'required|exists:classrooms,id',
                 'stream_id' => 'nullable|exists:streams,id',
-                'category_id' => 'nullable|exists:student_categories,id',
+                'category_id' => 'required|exists:student_categories,id',
+                'route_id' => 'nullable|exists:routes,id',
+                'trip_id' => 'nullable|exists:trips,id',
+                'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
+                'drop_off_point_other' => 'nullable|string|max:255',
+                'father_phone_country_code' => 'nullable|string|max:8',
+                'mother_phone_country_code' => 'nullable|string|max:8',
+                'guardian_phone_country_code' => 'nullable|string|max:8',
+                'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+                'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'father_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'guardian_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'has_allergies' => 'nullable|boolean',
+                'allergies_notes' => 'nullable|string',
+                'is_fully_immunized' => 'nullable|boolean',
+                'emergency_contact_name' => 'nullable|string|max:255',
+                'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'residential_area' => 'nullable|string|max:255',
+                'preferred_hospital' => 'nullable|string|max:255',
                 'nemis_number' => 'nullable|string',
                 'knec_assessment_number' => 'nullable|string',
                 // Extended demographics
-                'national_id_number' => 'nullable|string|max:255',
-                'passport_number' => 'nullable|string|max:255',
                 'religion' => 'nullable|string|max:255',
-                'ethnicity' => 'nullable|string|max:255',
-                'home_address' => 'nullable|string|max:255',
-                'home_city' => 'nullable|string|max:255',
-                'home_county' => 'nullable|string|max:255',
-                'home_postal_code' => 'nullable|string|max:255',
-                'language_preference' => 'nullable|string|max:255',
-                'blood_group' => 'nullable|string|max:10',
                 'allergies' => 'nullable|string',
                 'chronic_conditions' => 'nullable|string',
-                'medical_insurance_provider' => 'nullable|string|max:255',
-                'medical_insurance_number' => 'nullable|string|max:255',
-                'emergency_medical_contact_name' => 'nullable|string|max:255',
-                'emergency_medical_contact_phone' => 'nullable|string|max:255',
                 'previous_schools' => 'nullable|string',
                 'transfer_reason' => 'nullable|string',
                 'has_special_needs' => 'nullable|boolean',
@@ -191,6 +221,21 @@ class StudentController extends Controller
                 'status' => 'nullable|in:active,inactive,graduated,transferred,expelled,suspended',
                 'admission_date' => 'nullable|date',
             ]);
+
+            // Require stream if classroom has streams
+            $classroomId = (int)$request->classroom_id;
+            $streamId = $request->stream_id;
+            $classroomHasStreams = \App\Models\Academics\Classroom::withCount('streams')->find($classroomId)?->streams_count > 0;
+            if ($classroomHasStreams && !$streamId) {
+                return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
+            }
+
+            // Enforce at least one parent/guardian name+phone
+            $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+            $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
+            if (!$parentName || !$parentPhone) {
+                return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
+            }
 
             // Handle family linkage
             $familyId = $request->input('family_id');
@@ -219,31 +264,67 @@ class StudentController extends Controller
                 ]);
                 $familyId = $fam->id;
             }
-            // Create ParentInfo
-            $parent = ParentInfo::create($request->only([
-                'father_name', 'father_phone', 'father_email', 'father_id_number',
-                'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
-                'guardian_name', 'guardian_phone', 'guardian_email'
-            ]));
+            // Create ParentInfo with defaults for country codes and normalized phone numbers
+            $parentData = [
+                'father_name' => $request->father_name,
+                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $request->input('father_phone_country_code', '+254')),
+                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $request->input('father_phone_country_code', '+254')),
+                'father_email' => $request->father_email,
+                'father_id_number' => $request->father_id_number,
+                'mother_name' => $request->mother_name,
+                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $request->input('mother_phone_country_code', '+254')),
+                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $request->input('mother_phone_country_code', '+254')),
+                'mother_email' => $request->mother_email,
+                'mother_id_number' => $request->mother_id_number,
+                'guardian_name' => $request->guardian_name,
+                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $request->input('guardian_phone_country_code', '+254')),
+                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $request->input('guardian_phone_country_code', '+254')),
+                'guardian_email' => $request->guardian_email,
+                'guardian_relationship' => $request->guardian_relationship,
+                'marital_status' => $request->marital_status,
+                'father_phone_country_code' => $request->input('father_phone_country_code', '+254'),
+                'mother_phone_country_code' => $request->input('mother_phone_country_code', '+254'),
+                'guardian_phone_country_code' => $request->input('guardian_phone_country_code', '+254'),
+            ];
+
+            $parent = ParentInfo::create($parentData);
 
             $admission_number = $this->generateNextAdmissionNumber();
+
+            $dropOffPointLabel = null;
+            if ($request->filled('drop_off_point_other')) {
+                $dropOffPointLabel = $request->drop_off_point_other;
+            } elseif ($request->filled('drop_off_point_id')) {
+                $dropOffPointLabel = optional(DropOffPoint::find($request->drop_off_point_id))->name;
+            }
 
             $student = Student::create(array_merge(
                 $request->only([
                     'first_name', 'middle_name', 'last_name', 'gender', 'dob',
                     'classroom_id', 'stream_id', 'category_id',
+                    'route_id', 'trip_id', 'drop_off_point_id', 'drop_off_point_other',
+                    'has_allergies', 'allergies_notes', 'is_fully_immunized',
+                    'emergency_contact_name',
+                    'residential_area', 'preferred_hospital',
                     'nemis_number', 'knec_assessment_number',
-                    'national_id_number', 'passport_number', 'religion', 'ethnicity',
-                    'home_address', 'home_city', 'home_county', 'home_postal_code',
-                    'language_preference', 'blood_group', 'allergies', 'chronic_conditions',
-                    'medical_insurance_provider', 'medical_insurance_number',
-                    'emergency_medical_contact_name', 'emergency_medical_contact_phone',
+                    'religion',
+                    'allergies', 'chronic_conditions',
                     'previous_schools', 'transfer_reason', 'has_special_needs',
                     'special_needs_description', 'learning_disabilities',
                     'status', 'admission_date'
                 ]),
-                ['admission_number' => $admission_number, 'parent_id' => $parent->id, 'family_id' => $familyId]
+                [
+                    'admission_number' => $admission_number,
+                    'parent_id' => $parent->id,
+                    'family_id' => $familyId,
+                    'drop_off_point' => $dropOffPointLabel,
+                    'emergency_contact_phone' => $this->formatPhoneWithCode(
+                        $request->emergency_contact_phone,
+                        $request->input('emergency_contact_country_code', '+254')
+                    ),
+                ]
             ));
+            $this->handleParentIdUploads($parent, $request);
 
             // Auto-populate family details from parent if family was created
             if ($familyId) {
@@ -268,6 +349,10 @@ class StudentController extends Controller
                 ]);
             }
 
+            if ($request->filled('save_add_another')) {
+                return redirect()->route('students.create')->with('success', 'Student created. You can add another now.');
+            }
+
             return redirect()->route('students.index')->with('success', 'Student created successfully.');
         } catch (\Exception $e) {
             Log::error('Student Creation Failed: ' . $e->getMessage(), [
@@ -284,15 +369,18 @@ class StudentController extends Controller
     public function edit($id)
     {
         $student      = Student::withArchived()->with(['parent','classroom','stream','category'])->findOrFail($id);
-        $categories   = StudentCategory::all();
-        $classrooms   = Classroom::all();
-        $streams      = Stream::all();
+        $categories   = StudentCategory::orderBy('name')->get();
+        $classrooms   = Classroom::orderBy('name')->get();
+        $streams      = Stream::orderBy('name')->get();
         $routes       = TransportRoute::orderBy('name')->get();
+        $dropOffPoints = DropOffPoint::orderBy('name')->get();
+        $trips = Trip::orderBy('trip_name')->get();
+        $countryCodes = $this->getCountryCodes();
         $familyMembers = $student->family_id
             ? Student::where('family_id',$student->family_id)->where('id','!=',$student->id)->get()
             : collect();
 
-        return view('students.edit', compact('student','categories','classrooms','streams','routes','familyMembers'));
+        return view('students.edit', compact('student','categories','classrooms','streams','routes','familyMembers','dropOffPoints','trips','countryCodes'));
     }
     /**
      * Update student
@@ -301,13 +389,17 @@ class StudentController extends Controller
     {
         $student = Student::withArchived()->findOrFail($id);
 
+        if ($request->input('drop_off_point_id') === 'other') {
+            $request->merge(['drop_off_point_id' => null]);
+        }
+
         $request->validate([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'gender' => 'required|string',
             'dob' => 'nullable|date',
-            'classroom_id' => 'nullable|exists:classrooms,id',
+            'classroom_id' => 'required|exists:classrooms,id',
             'stream_id' => [
                 'nullable',
                 'exists:streams,id',
@@ -338,26 +430,35 @@ class StudentController extends Controller
                     }
                 },
             ],
-            'category_id' => 'nullable|exists:student_categories,id',
+            'category_id' => 'required|exists:student_categories,id',
+            'route_id' => 'nullable|exists:routes,id',
+            'trip_id' => 'nullable|exists:trips,id',
+            'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
+            'drop_off_point_other' => 'nullable|string|max:255',
+            'father_phone_country_code' => 'nullable|string|max:8',
+            'mother_phone_country_code' => 'nullable|string|max:8',
+            'guardian_phone_country_code' => 'nullable|string|max:8',
+            'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'father_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'guardian_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'has_allergies' => 'nullable|boolean',
+            'allergies_notes' => 'nullable|string',
+            'is_fully_immunized' => 'nullable|boolean',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'residential_area' => 'required|string|max:255',
+            'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
             'knec_assessment_number' => 'nullable|string',
             // Extended demographics
-            'national_id_number' => 'nullable|string|max:255',
-            'passport_number' => 'nullable|string|max:255',
             'religion' => 'nullable|string|max:255',
-            'ethnicity' => 'nullable|string|max:255',
-            'home_address' => 'nullable|string|max:255',
-            'home_city' => 'nullable|string|max:255',
-            'home_county' => 'nullable|string|max:255',
-            'home_postal_code' => 'nullable|string|max:255',
-            'language_preference' => 'nullable|string|max:255',
-            'blood_group' => 'nullable|string|max:10',
             'allergies' => 'nullable|string',
             'chronic_conditions' => 'nullable|string',
-            'medical_insurance_provider' => 'nullable|string|max:255',
-            'medical_insurance_number' => 'nullable|string|max:255',
-            'emergency_medical_contact_name' => 'nullable|string|max:255',
-            'emergency_medical_contact_phone' => 'nullable|string|max:255',
             'previous_schools' => 'nullable|string',
             'transfer_reason' => 'nullable|string',
             'has_special_needs' => 'nullable|boolean',
@@ -372,20 +473,84 @@ class StudentController extends Controller
             'is_readmission' => 'nullable|boolean',
         ]);
 
+        $currentYear = get_current_academic_year();
+        $currentTerm = get_current_term_number();
+        $currentTermModel = get_current_term_model();
+        $oldCategoryId = $student->category_id;
+        $newCategoryId = (int) $request->category_id;
+
+        $hasCurrentInvoice = $currentYear && $currentTerm && Invoice::where('student_id', $student->id)
+            ->where('year', $currentYear)
+            ->where('term', $currentTerm)
+            ->exists();
+        $termOpen = $currentTermModel && $currentTermModel->closing_date
+            ? now()->lte($currentTermModel->closing_date)
+            : true;
+        $shouldRebill = $hasCurrentInvoice && $termOpen;
+
+        if ($oldCategoryId !== $newCategoryId && $shouldRebill && !$request->boolean('confirm_category_change')) {
+            $preview = $this->buildCategoryChangePreview($student, $newCategoryId, $currentYear, $currentTerm);
+
+            return view('students.category_change_preview', [
+                'student' => $student,
+                'oldCategory' => StudentCategory::find($oldCategoryId),
+                'newCategory' => StudentCategory::find($newCategoryId),
+                'existingInvoice' => $preview['existing_invoice'],
+                'diffs' => $preview['diffs'],
+                'beforeTotal' => $preview['before_total'],
+                'afterTotal' => $preview['after_total'],
+                'discountWarning' => $preview['discount_warning'],
+                'payload' => $request->all() + ['confirm_category_change' => 1],
+            ]);
+        }
+
         $updateData = $request->only([
             'first_name', 'middle_name', 'last_name', 'gender', 'dob',
             'classroom_id', 'stream_id', 'category_id',
+            'route_id', 'trip_id', 'drop_off_point_id', 'drop_off_point_other',
+            'has_allergies', 'allergies_notes', 'is_fully_immunized',
+            'emergency_contact_name',
+            'residential_area', 'preferred_hospital',
             'nemis_number', 'knec_assessment_number',
-            'national_id_number', 'passport_number', 'religion', 'ethnicity',
-            'home_address', 'home_city', 'home_county', 'home_postal_code',
-            'language_preference', 'blood_group', 'allergies', 'chronic_conditions',
-            'medical_insurance_provider', 'medical_insurance_number',
-            'emergency_medical_contact_name', 'emergency_medical_contact_phone',
+            'religion',
+            'allergies', 'chronic_conditions',
             'previous_schools', 'transfer_reason', 'has_special_needs',
             'special_needs_description', 'learning_disabilities',
             'status', 'admission_date', 'graduation_date', 'transfer_date',
             'transfer_to_school', 'status_change_reason', 'is_readmission'
         ]);
+        $updateData['emergency_contact_phone'] = $this->formatPhoneWithCode(
+            $request->emergency_contact_phone,
+            '+254'
+        );
+
+        // Enforce at least one parent/guardian name+phone
+        $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+        $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
+        if (!$parentName || !$parentPhone) {
+            return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
+        }
+
+        // Require stream if classroom has streams
+        $classroomId = (int)$request->classroom_id;
+        $streamId = $request->stream_id;
+        $classroomHasStreams = \App\Models\Academics\Classroom::withCount('streams')->find($classroomId)?->streams_count > 0;
+        if ($classroomHasStreams && !$streamId) {
+            return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
+        }
+
+        $dropOffPointLabel = null;
+        if ($request->filled('drop_off_point_other')) {
+            $dropOffPointLabel = $request->drop_off_point_other;
+        } elseif ($request->filled('drop_off_point_id')) {
+            $dropOffPointLabel = optional(DropOffPoint::find($request->drop_off_point_id))->name;
+        }
+        $updateData['drop_off_point'] = $dropOffPointLabel;
+
+        $categoryChanged = $oldCategoryId !== $newCategoryId;
+        if ($categoryChanged && $shouldRebill && $request->boolean('confirm_category_change')) {
+            $this->applyCategoryChangeRebilling($student, $newCategoryId, $currentYear, $currentTerm);
+        }
         
         // If classroom is being changed, validate/clear stream
         if ($request->filled('classroom_id') && $request->classroom_id != $student->classroom_id) {
@@ -439,7 +604,9 @@ class StudentController extends Controller
         } elseif (!$familyId && $request->boolean('create_family_from_parent')) {
             $fam = \App\Models\Family::create([
                 'guardian_name' => $request->guardian_name ?? $request->father_name ?? $request->mother_name ?? 'New Family',
-                'phone'         => $request->guardian_phone ?? $request->father_phone ?? $request->mother_phone,
+                'phone'         => $this->formatPhoneWithCode($request->guardian_phone, $request->input('guardian_phone_country_code', '+254'))
+                    ?? $this->formatPhoneWithCode($request->father_phone, $request->input('father_phone_country_code', '+254'))
+                    ?? $this->formatPhoneWithCode($request->mother_phone, $request->input('mother_phone_country_code', '+254')),
                 'email'         => $request->guardian_email ?? $request->father_email ?? $request->mother_email,
             ]);
             $familyId = $fam->id;
@@ -450,15 +617,241 @@ class StudentController extends Controller
         }
 
         if ($student->parent) {
-            $student->parent->update($request->only([
-                'father_name', 'father_phone', 'father_email', 'father_id_number',
-                'mother_name', 'mother_phone', 'mother_email', 'mother_id_number',
-                'guardian_name', 'guardian_phone', 'guardian_email'
-            ]));
+            $parentUpdateData = [
+                'father_name' => $request->father_name,
+                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $request->input('father_phone_country_code', '+254')),
+                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $request->input('father_phone_country_code', '+254')),
+                'father_email' => $request->father_email,
+                'father_id_number' => $request->father_id_number,
+                'mother_name' => $request->mother_name,
+                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $request->input('mother_phone_country_code', '+254')),
+                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $request->input('mother_phone_country_code', '+254')),
+                'mother_email' => $request->mother_email,
+                'mother_id_number' => $request->mother_id_number,
+                'guardian_name' => $request->guardian_name,
+                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $request->input('guardian_phone_country_code', '+254')),
+                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $request->input('guardian_phone_country_code', '+254')),
+                'guardian_email' => $request->guardian_email,
+                'guardian_relationship' => $request->guardian_relationship,
+                'marital_status' => $request->marital_status,
+                'father_phone_country_code' => $request->input('father_phone_country_code', '+254'),
+                'mother_phone_country_code' => $request->input('mother_phone_country_code', '+254'),
+                'guardian_phone_country_code' => $request->input('guardian_phone_country_code', '+254'),
+            ];
+
+            $student->parent->update($parentUpdateData);
+            $this->handleParentIdUploads($student->parent, $request);
         }
 
         return redirect()->route('students.index')->with('success', 'Student updated successfully.');
     }
+
+    /**
+     * Build preview data for changing student category mid-term.
+     */
+    private function buildCategoryChangePreview(Student $student, int $newCategoryId, int $year, int $term): array
+    {
+        $invoice = Invoice::with(['items.votehead'])
+            ->where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
+
+        $proposed = $this->getProposedItemsForCategory($student, $newCategoryId, $year, $term);
+        $diffs = $this->buildDiffsForInvoice($invoice, $proposed, $student->id);
+
+        $beforeTotal = 0;
+        $discountWarning = false;
+        if ($invoice) {
+            $beforeTotal = $invoice->items
+                ->where('status', 'active')
+                ->sum(fn ($i) => ($i->amount ?? 0) - ($i->discount_amount ?? 0));
+            $beforeTotal -= ($invoice->discount_amount ?? 0);
+            $beforeTotal = max(0, $beforeTotal);
+
+            $discountWarning = ($invoice->discount_amount ?? 0) > 0
+                || $invoice->items->sum('discount_amount') > 0
+                || FeeConcession::where('student_id', $student->id)->where('is_active', true)->exists();
+        }
+
+        $afterTotal = $proposed->sum('amount');
+
+        return [
+            'existing_invoice' => $invoice,
+            'diffs' => $diffs,
+            'before_total' => $beforeTotal,
+            'after_total' => $afterTotal,
+            'discount_warning' => $discountWarning,
+        ];
+    }
+
+    /**
+     * Apply category change: deactivate discounts and repost current-term invoice to new category structure.
+     */
+    private function applyCategoryChangeRebilling(Student $student, int $newCategoryId, int $year, int $term): void
+    {
+        $preview = $this->buildCategoryChangePreview($student, $newCategoryId, $year, $term);
+        $diffs = $preview['diffs'];
+
+        // Deactivate discounts and zero invoice discount amounts for current term
+        FeeConcession::where('student_id', $student->id)->update(['is_active' => false]);
+        if ($preview['existing_invoice']) {
+            $preview['existing_invoice']->items()->update(['discount_amount' => 0]);
+            $preview['existing_invoice']->update(['discount_amount' => 0]);
+        }
+
+        // Update student category before committing
+        $student->update(['category_id' => $newCategoryId]);
+
+        if ($diffs->isNotEmpty()) {
+            $fps = new FeePostingService();
+            $fps->commitWithTracking(
+                $diffs,
+                $year,
+                $term,
+                true,
+                null,
+                ['student_id' => $student->id]
+            );
+        }
+    }
+
+    /**
+     * Handle parent ID document uploads, removing old files when replaced.
+     */
+    private function handleParentIdUploads(ParentInfo $parent, Request $request): void
+    {
+        $updates = [];
+
+        if ($request->hasFile('father_id_document')) {
+            if ($parent->father_id_document) {
+                Storage::disk('private')->delete($parent->father_id_document);
+            }
+            $updates['father_id_document'] = $request->file('father_id_document')->store('parent_ids', 'private');
+        }
+
+        if ($request->hasFile('mother_id_document')) {
+            if ($parent->mother_id_document) {
+                Storage::disk('private')->delete($parent->mother_id_document);
+            }
+            $updates['mother_id_document'] = $request->file('mother_id_document')->store('parent_ids', 'private');
+        }
+
+        if (!empty($updates)) {
+            $parent->update($updates);
+        }
+    }
+
+    /**
+     * Build proposed items for the new category and current class/stream.
+     */
+    private function getProposedItemsForCategory(Student $student, int $categoryId, int $year, int $term): \Illuminate\Support\Collection
+    {
+        $structureQuery = FeeStructure::with('charges.votehead')
+            ->where('classroom_id', $student->classroom_id)
+            ->where('is_active', true)
+            ->where('year', $year)
+            ->where('student_category_id', $categoryId);
+
+        if ($student->stream_id) {
+            $structureQuery->where(function ($q) use ($student) {
+                $q->where('stream_id', $student->stream_id)
+                    ->orWhereNull('stream_id');
+            });
+        } else {
+            $structureQuery->whereNull('stream_id');
+        }
+
+        $structure = $structureQuery->orderByRaw('CASE WHEN stream_id IS NOT NULL THEN 0 ELSE 1 END')->first();
+        if (!$structure) {
+            return collect();
+        }
+
+        $tempStudent = clone $student;
+        $tempStudent->category_id = $categoryId;
+
+        return $structure->charges
+            ->where('term', $term)
+            ->filter(function ($charge) use ($tempStudent, $year, $term) {
+                $votehead = $charge->votehead;
+                if (!$votehead || !$votehead->is_mandatory) {
+                    return false;
+                }
+                return $votehead->canChargeForStudent($tempStudent, $year, $term);
+            })
+            ->map(function ($charge) {
+                return [
+                    'votehead_id' => $charge->votehead_id,
+                    'votehead_name' => optional($charge->votehead)->name,
+                    'amount' => (float) $charge->amount,
+                    'origin' => 'structure',
+                ];
+            })
+            ->values();
+    }
+
+    /**
+     * Build diff collection between current invoice and proposed items.
+     */
+    private function buildDiffsForInvoice(?Invoice $invoice, \Illuminate\Support\Collection $proposed, int $studentId): \Illuminate\Support\Collection
+    {
+        $existingItems = $invoice
+            ? $invoice->items->where('status', 'active')->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'votehead_id' => $item->votehead_id,
+                    'amount' => (float) $item->amount,
+                    'origin' => $item->source ?? 'structure',
+                ];
+            })
+            : collect();
+
+        $diffs = collect();
+
+        foreach ($proposed as $item) {
+            $existing = $existingItems->firstWhere('votehead_id', $item['votehead_id']);
+            if ($existing) {
+                if (round($existing['amount'], 2) !== round($item['amount'], 2)) {
+                    $diffs->push([
+                        'action' => 'updated',
+                        'student_id' => $studentId,
+                        'votehead_id' => $item['votehead_id'],
+                        'old_amount' => $existing['amount'],
+                        'new_amount' => $item['amount'],
+                        'invoice_item_id' => $existing['id'],
+                        'origin' => $item['origin'] ?? 'structure',
+                    ]);
+                }
+            } else {
+                $diffs->push([
+                    'action' => 'added',
+                    'student_id' => $studentId,
+                    'votehead_id' => $item['votehead_id'],
+                    'old_amount' => 0,
+                    'new_amount' => $item['amount'],
+                    'invoice_item_id' => null,
+                    'origin' => $item['origin'] ?? 'structure',
+                ]);
+            }
+        }
+
+        foreach ($existingItems as $existing) {
+            if (!$proposed->contains('votehead_id', $existing['votehead_id'])) {
+                $diffs->push([
+                    'action' => 'removed',
+                    'student_id' => $studentId,
+                    'votehead_id' => $existing['votehead_id'],
+                    'old_amount' => $existing['amount'],
+                    'new_amount' => 0,
+                    'invoice_item_id' => $existing['id'],
+                    'origin' => $existing['origin'] ?? 'structure',
+                ]);
+            }
+        }
+
+        return $diffs;
+    }
+
     /**
      * Archive student
      */
@@ -531,17 +924,33 @@ class StudentController extends Controller
             'classroom' => $classrooms[0] ?? '',
             'stream' => $streams[0] ?? '',
             'category' => $categories[0] ?? '',
+            'residential_area' => 'Nairobi',
+            'allergies' => '',
+            'allergies_notes' => '',
+            'has_allergies' => 'No',
+            'is_fully_immunized' => 'Yes',
+            'preferred_hospital' => 'Nairobi Hospital',
+            'emergency_contact_name' => 'Aunt Jane',
+            'emergency_contact_phone' => '+254712345678',
+            'marital_status' => 'married',
             'father_name' => 'Mr. Smith',
-            'father_phone' => '+2547xxxxxxx',
+            'father_phone_country_code' => '+254',
+            'father_phone' => '712345678',
+            'father_whatsapp' => '712345678',
             'father_email' => 'father@example.com',
             'father_id_number' => '12345678',
             'mother_name' => 'Mrs. Smith',
-            'mother_phone' => '+2547xxxxxxx',
+            'mother_phone_country_code' => '+254',
+            'mother_phone' => '798765432',
+            'mother_whatsapp' => '798765432',
             'mother_email' => 'mother@example.com',
             'mother_id_number' => '87654321',
             'guardian_name' => '',
+            'guardian_phone_country_code' => '+254',
             'guardian_phone' => '',
-            'guardian_email' => ''
+            'guardian_whatsapp' => '',
+            'guardian_email' => '',
+            'guardian_relationship' => ''
         ]];
 
         return Excel::download(new StudentTemplateExport($sample, $classrooms, $streams, $categories), 'students_upload_template.xlsx');
@@ -599,6 +1008,26 @@ class StudentController extends Controller
             // Handle boolean fields
             $rowData['has_special_needs'] = isset($rowData['has_special_needs']) ? 
                 (in_array(strtolower($rowData['has_special_needs']), ['yes', '1', 'true', 'y']) ? 1 : 0) : 0;
+            $rowData['has_allergies'] = isset($rowData['has_allergies']) ? 
+                (in_array(strtolower($rowData['has_allergies']), ['yes', '1', 'true', 'y']) ? 1 : 0) : 0;
+            $rowData['is_fully_immunized'] = isset($rowData['is_fully_immunized']) ? 
+                (in_array(strtolower($rowData['is_fully_immunized']), ['yes', '1', 'true', 'y']) ? 1 : 0) : 0;
+
+            // Normalize country codes
+            $rowData['father_phone_country_code'] = $rowData['father_phone_country_code'] ?? '+254';
+            $rowData['mother_phone_country_code'] = $rowData['mother_phone_country_code'] ?? '+254';
+            $rowData['guardian_phone_country_code'] = $rowData['guardian_phone_country_code'] ?? '+254';
+            $rowData['emergency_contact_country_code'] = $rowData['emergency_contact_country_code'] ?? '+254';
+            $rowData['marital_status'] = $rowData['marital_status'] ?? null;
+
+            // Normalize phones with country codes
+            $rowData['father_phone'] = $this->formatPhoneWithCode($rowData['father_phone'] ?? null, $rowData['father_phone_country_code']);
+            $rowData['father_whatsapp'] = $this->formatPhoneWithCode($rowData['father_whatsapp'] ?? null, $rowData['father_phone_country_code']);
+            $rowData['mother_phone'] = $this->formatPhoneWithCode($rowData['mother_phone'] ?? null, $rowData['mother_phone_country_code']);
+            $rowData['mother_whatsapp'] = $this->formatPhoneWithCode($rowData['mother_whatsapp'] ?? null, $rowData['mother_phone_country_code']);
+            $rowData['guardian_phone'] = $this->formatPhoneWithCode($rowData['guardian_phone'] ?? null, $rowData['guardian_phone_country_code']);
+            $rowData['guardian_whatsapp'] = $this->formatPhoneWithCode($rowData['guardian_whatsapp'] ?? null, $rowData['guardian_phone_country_code']);
+            $rowData['emergency_contact_phone'] = $this->formatPhoneWithCode($rowData['emergency_contact_phone'] ?? null, $rowData['emergency_contact_country_code']);
             
             // Handle status field
             $rowData['status'] = $rowData['status'] ?? 'active';
@@ -611,7 +1040,8 @@ class StudentController extends Controller
                 !empty($rowData['first_name']) &&
                 !empty($rowData['last_name']) &&
                 !empty($rowData['gender']) &&
-                !empty($classroomId);
+                !empty($classroomId) &&
+                !empty($categoryId);
 
             $rowData['existing'] = in_array($rowData['admission_number'], $existingAdNos);
 
@@ -653,15 +1083,23 @@ class StudentController extends Controller
             $parent = ParentInfo::create([
                 'father_name' => $row['father_name'],
                 'father_phone' => $row['father_phone'],
+                'father_whatsapp' => $row['father_whatsapp'] ?? null,
                 'father_email' => $row['father_email'],
                 'father_id_number' => $row['father_id_number'],
+                'father_phone_country_code' => $row['father_phone_country_code'] ?? '+254',
                 'mother_name' => $row['mother_name'],
                 'mother_phone' => $row['mother_phone'],
+                'mother_whatsapp' => $row['mother_whatsapp'] ?? null,
                 'mother_email' => $row['mother_email'],
                 'mother_id_number' => $row['mother_id_number'],
+                'mother_phone_country_code' => $row['mother_phone_country_code'] ?? '+254',
                 'guardian_name' => $row['guardian_name'],
                 'guardian_phone' => $row['guardian_phone'],
+                'guardian_whatsapp' => $row['guardian_whatsapp'] ?? null,
                 'guardian_email' => $row['guardian_email'],
+                'guardian_phone_country_code' => $row['guardian_phone_country_code'] ?? '+254',
+                'guardian_relationship' => $row['guardian_relationship'] ?? null,
+                'marital_status' => $row['marital_status'] ?? null,
             ]);
 
             $student = Student::create([
@@ -678,24 +1116,18 @@ class StudentController extends Controller
                 // Identifiers
                 'nemis_number' => $row['nemis_number'] ?? null,
                 'knec_assessment_number' => $row['knec_assessment_number'] ?? null,
-                'national_id_number' => $row['national_id_number'] ?? null,
-                'passport_number' => $row['passport_number'] ?? null,
                 // Extended Demographics
                 'religion' => $row['religion'] ?? null,
-                'ethnicity' => $row['ethnicity'] ?? null,
-                'language_preference' => $row['language_preference'] ?? null,
-                'blood_group' => $row['blood_group'] ?? null,
-                'home_address' => $row['home_address'] ?? null,
-                'home_city' => $row['home_city'] ?? null,
-                'home_county' => $row['home_county'] ?? null,
-                'home_postal_code' => $row['home_postal_code'] ?? null,
+                'residential_area' => $row['residential_area'] ?? null,
                 // Medical
+                'has_allergies' => isset($row['has_allergies']) ? (bool)$row['has_allergies'] : false,
+                'allergies_notes' => $row['allergies_notes'] ?? null,
+                'is_fully_immunized' => isset($row['is_fully_immunized']) ? (bool)$row['is_fully_immunized'] : false,
                 'allergies' => $row['allergies'] ?? null,
                 'chronic_conditions' => $row['chronic_conditions'] ?? null,
-                'medical_insurance_provider' => $row['medical_insurance_provider'] ?? null,
-                'medical_insurance_number' => $row['medical_insurance_number'] ?? null,
-                'emergency_medical_contact_name' => $row['emergency_medical_contact_name'] ?? null,
-                'emergency_medical_contact_phone' => $row['emergency_medical_contact_phone'] ?? null,
+                'emergency_contact_name' => $row['emergency_contact_name'] ?? null,
+                'emergency_contact_phone' => $row['emergency_contact_phone'] ?? null,
+                'preferred_hospital' => $row['preferred_hospital'] ?? null,
                 // Special Needs
                 'has_special_needs' => isset($row['has_special_needs']) ? (bool)$row['has_special_needs'] : false,
                 'special_needs_description' => $row['special_needs_description'] ?? null,
@@ -820,6 +1252,35 @@ class StudentController extends Controller
             ->with(['parent','classroom','stream','category','family'])
             ->findOrFail($id);
 
+        // Ensure single students also have a family + profile update link
+        if (!$student->family) {
+            $p = $student->parent;
+            $family = Family::create([
+                'guardian_name' => optional($p)->guardian_name
+                    ?? optional($p)->father_name
+                    ?? optional($p)->mother_name
+                    ?? ($student->first_name . ' Family'),
+                'guardian_phone' => optional($p)->guardian_phone
+                    ?? optional($p)->father_phone
+                    ?? optional($p)->mother_phone,
+                'guardian_email' => optional($p)->guardian_email
+                    ?? optional($p)->father_email
+                    ?? optional($p)->mother_email,
+            ]);
+            $student->family_id = $family->id;
+            $student->save();
+            $student->setRelation('family', $family);
+        }
+
+        if ($student->family && !$student->family->updateLink) {
+            FamilyUpdateLink::create([
+                'family_id' => $student->family->id,
+                'token' => FamilyUpdateLink::generateToken(),
+                'is_active' => true,
+            ]);
+            $student->family->load('updateLink');
+        }
+
         return view('students.show', compact('student'));
     }
 
@@ -936,6 +1397,57 @@ class StudentController extends Controller
     }
 
     /**
+     * Show bulk category assignment page
+     */
+    public function bulkAssignCategories(Request $request)
+    {
+        $classrooms = Classroom::orderBy('name')->get();
+        $categories = StudentCategory::orderBy('name')->get();
+
+        $selectedClassroom = null;
+        $students = collect();
+
+        if ($request->filled('classroom_id')) {
+            $selectedClassroom = Classroom::findOrFail($request->classroom_id);
+            $students = Student::where('classroom_id', $selectedClassroom->id)
+                ->where('archive', 0)
+                ->with('category')
+                ->orderBy('first_name')
+                ->get();
+        }
+
+        return view('students.bulk_assign_categories', compact('classrooms', 'categories', 'selectedClassroom', 'students'));
+    }
+
+    /**
+     * Process bulk category assignment
+     */
+    public function processBulkCategoryAssignment(Request $request)
+    {
+        $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'assignments' => 'required|array',
+            'assignments.*' => 'required|exists:student_categories,id',
+        ]);
+
+        $classroom = Classroom::findOrFail($request->classroom_id);
+        $studentIds = array_keys($request->assignments);
+
+        $students = Student::whereIn('id', $studentIds)
+            ->where('classroom_id', $classroom->id)
+            ->get();
+
+        foreach ($students as $student) {
+            $student->update([
+                'category_id' => $request->assignments[$student->id],
+            ]);
+        }
+
+        return redirect()->route('students.bulk.assign-categories', ['classroom_id' => $classroom->id])
+            ->with('success', 'Categories updated for selected students.');
+    }
+
+    /**
      * Process bulk stream assignment
      */
     public function processBulkStreamAssignment(Request $request)
@@ -984,5 +1496,102 @@ class StudentController extends Controller
         $request->validate(['student_ids'=>'required|array']);
         Student::withArchived()->whereIn('id', $request->student_ids)->update(['archive'=>0]);
         return back()->with('success','Selected students restored.');
+    }
+
+    /**
+     * Full international country codes list (dialing) with flag emoji, Kenya default appears first.
+     */
+    private function getCountryCodes(): array
+    {
+        $codes = [
+            ['code' => '+254', 'label' => '🇰🇪 Kenya (+254)'],
+            ['code' => '+1', 'label' => '🇺🇸🇨🇦 United States / Canada (+1)'],
+            ['code' => '+44', 'label' => '🇬🇧 United Kingdom (+44)'],
+            ['code' => '+27', 'label' => '🇿🇦 South Africa (+27)'],
+            ['code' => '+234', 'label' => '🇳🇬 Nigeria (+234)'],
+            ['code' => '+256', 'label' => '🇺🇬 Uganda (+256)'],
+            ['code' => '+255', 'label' => '🇹🇿 Tanzania (+255)'],
+            ['code' => '+91', 'label' => '🇮🇳 India (+91)'],
+            ['code' => '+971', 'label' => '🇦🇪 United Arab Emirates (+971)'],
+            ['code' => '+61', 'label' => '🇦🇺 Australia (+61)'],
+            ['code' => '+64', 'label' => '🇳🇿 New Zealand (+64)'],
+            ['code' => '+81', 'label' => '🇯🇵 Japan (+81)'],
+            ['code' => '+86', 'label' => '🇨🇳 China (+86)'],
+            ['code' => '+49', 'label' => '🇩🇪 Germany (+49)'],
+            ['code' => '+33', 'label' => '🇫🇷 France (+33)'],
+            ['code' => '+39', 'label' => '🇮🇹 Italy (+39)'],
+            ['code' => '+34', 'label' => '🇪🇸 Spain (+34)'],
+            ['code' => '+46', 'label' => '🇸🇪 Sweden (+46)'],
+            ['code' => '+47', 'label' => '🇳🇴 Norway (+47)'],
+            ['code' => '+45', 'label' => '🇩🇰 Denmark (+45)'],
+            ['code' => '+31', 'label' => '🇳🇱 Netherlands (+31)'],
+            ['code' => '+32', 'label' => '🇧🇪 Belgium (+32)'],
+            ['code' => '+41', 'label' => '🇨🇭 Switzerland (+41)'],
+            ['code' => '+52', 'label' => '🇲🇽 Mexico (+52)'],
+            ['code' => '+55', 'label' => '🇧🇷 Brazil (+55)'],
+            ['code' => '+54', 'label' => '🇦🇷 Argentina (+54)'],
+            ['code' => '+51', 'label' => '🇵🇪 Peru (+51)'],
+            ['code' => '+20', 'label' => '🇪🇬 Egypt (+20)'],
+            ['code' => '+212', 'label' => '🇲🇦 Morocco (+212)'],
+            ['code' => '+974', 'label' => '🇶🇦 Qatar (+974)'],
+            ['code' => '+966', 'label' => '🇸🇦 Saudi Arabia (+966)'],
+            ['code' => '+962', 'label' => '🇯🇴 Jordan (+962)'],
+            ['code' => '+961', 'label' => '🇱🇧 Lebanon (+961)'],
+            ['code' => '+90', 'label' => '🇹🇷 Turkey (+90)'],
+            ['code' => '+94', 'label' => '🇱🇰 Sri Lanka (+94)'],
+            ['code' => '+880', 'label' => '🇧🇩 Bangladesh (+880)'],
+            ['code' => '+92', 'label' => '🇵🇰 Pakistan (+92)'],
+            ['code' => '+60', 'label' => '🇲🇾 Malaysia (+60)'],
+            ['code' => '+65', 'label' => '🇸🇬 Singapore (+65)'],
+            ['code' => '+63', 'label' => '🇵🇭 Philippines (+63)'],
+            ['code' => '+62', 'label' => '🇮🇩 Indonesia (+62)'],
+            ['code' => '+82', 'label' => '🇰🇷 South Korea (+82)'],
+            ['code' => '+853', 'label' => '🇲🇴 Macau (+853)'],
+            ['code' => '+852', 'label' => '🇭🇰 Hong Kong (+852)'],
+            ['code' => '+7', 'label' => '🇷🇺 Russia (+7)'],
+            ['code' => '+380', 'label' => '🇺🇦 Ukraine (+380)'],
+            ['code' => '+48', 'label' => '🇵🇱 Poland (+48)'],
+            ['code' => '+420', 'label' => '🇨🇿 Czech Republic (+420)'],
+            ['code' => '+421', 'label' => '🇸🇰 Slovakia (+421)'],
+            ['code' => '+36', 'label' => '🇭🇺 Hungary (+36)'],
+            ['code' => '+40', 'label' => '🇷🇴 Romania (+40)'],
+            ['code' => '+30', 'label' => '🇬🇷 Greece (+30)'],
+            ['code' => '+386', 'label' => '🇸🇮 Slovenia (+386)'],
+            ['code' => '+385', 'label' => '🇭🇷 Croatia (+385)'],
+            ['code' => '+43', 'label' => '🇦🇹 Austria (+43)'],
+            ['code' => '+372', 'label' => '🇪🇪 Estonia (+372)'],
+            ['code' => '+371', 'label' => '🇱🇻 Latvia (+371)'],
+            ['code' => '+370', 'label' => '🇱🇹 Lithuania (+370)'],
+            ['code' => '+56', 'label' => '🇨🇱 Chile (+56)'],
+            ['code' => '+57', 'label' => '🇨🇴 Colombia (+57)'],
+            ['code' => '+58', 'label' => '🇻🇪 Venezuela (+58)'],
+            ['code' => '+507', 'label' => '🇵🇦 Panama (+507)'],
+            ['code' => '+506', 'label' => '🇨🇷 Costa Rica (+506)'],
+            ['code' => '+66', 'label' => '🇹🇭 Thailand (+66)'],
+            ['code' => '+84', 'label' => '🇻🇳 Vietnam (+84)'],
+        ];
+
+        return collect($codes)
+            ->unique('code')
+            ->sortBy('label')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Normalize a phone number by combining country code and local digits.
+     */
+    protected function formatPhoneWithCode(?string $number, ?string $code = '+254'): ?string
+    {
+        if (!$number) {
+            return null;
+        }
+        $cleanCode = ltrim(trim($code ?? '+254'), '+');
+        $cleanNumber = preg_replace('/\D+/', '', $number);
+        $cleanNumber = ltrim($cleanNumber, '0');
+        if ($cleanNumber === '') {
+            return null;
+        }
+        return '+' . $cleanCode . $cleanNumber;
     }
 }

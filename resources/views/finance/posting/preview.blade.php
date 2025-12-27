@@ -67,6 +67,12 @@
         <input type="hidden" name="year" value="{{ $filters['year'] ?? request('year') }}">
         <input type="hidden" name="term" value="{{ $filters['term'] ?? request('term') }}">
         <input type="hidden" name="activate_now" value="1">
+        <input type="hidden" name="votehead_id" value="{{ $filters['votehead_id'] ?? '' }}">
+        <input type="hidden" name="class_id" value="{{ $filters['class_id'] ?? '' }}">
+        <input type="hidden" name="stream_id" value="{{ $filters['stream_id'] ?? '' }}">
+        <input type="hidden" name="student_id" value="{{ $filters['student_id'] ?? '' }}">
+        <input type="hidden" name="student_category_id" value="{{ $filters['student_category_id'] ?? '' }}">
+        <input type="hidden" name="effective_date" value="{{ $filters['effective_date'] ?? '' }}">
         
         @foreach($allDiffs as $index => $diff)
             <input type="hidden" name="diffs[{{ $index }}][student_id]" value="{{ $diff['student_id'] }}">

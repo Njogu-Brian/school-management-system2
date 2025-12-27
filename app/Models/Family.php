@@ -32,4 +32,9 @@ class Family extends Model
     {
         return $this->hasMany(Student::class);
     }
+
+    public function updateLink()
+    {
+        return $this->hasOne(FamilyUpdateLink::class);
+    }
 }

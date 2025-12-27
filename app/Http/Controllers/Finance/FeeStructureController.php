@@ -27,28 +27,34 @@ class FeeStructureController extends Controller
     public function manage(Request $request)
     {
         $classrooms = \App\Models\Academics\Classroom::all();
+        $categories = \App\Models\StudentCategory::orderBy('name')->get();
         $voteheads = \App\Models\Votehead::all();
 
         $selectedClassroom = $request->query('classroom_id');
+        $selectedCategory = $request->query('student_category_id') ?? $categories->first()?->id;
 
         $feeStructure = null;
         $charges = [];
 
-        if ($selectedClassroom) {
-            $feeStructure = FeeStructure::with('charges')->where('classroom_id', $selectedClassroom)->first();
+        if ($selectedClassroom && $selectedCategory) {
+            $feeStructure = FeeStructure::with('charges')
+                ->where('classroom_id', $selectedClassroom)
+                ->where('student_category_id', $selectedCategory)
+                ->first();
 
             if ($feeStructure) {
                 $charges = $feeStructure->charges;
             }
         }
 
-        return view('finance.fee_structures.manage', compact('classrooms', 'voteheads', 'selectedClassroom', 'feeStructure', 'charges'));
+        return view('finance.fee_structures.manage', compact('classrooms', 'voteheads', 'selectedClassroom', 'selectedCategory', 'feeStructure', 'charges', 'categories'));
     }
 
     public function save(Request $request)
     {
         $validated = $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
+            'student_category_id' => 'required|exists:student_categories,id',
             'year' => 'required|numeric',
             'charges' => 'required|array',
             'charges.*.votehead_id' => 'required|exists:voteheads,id',
@@ -59,7 +65,10 @@ class FeeStructureController extends Controller
 
         DB::transaction(function () use ($validated) {
             $structure = FeeStructure::updateOrCreate(
-                ['classroom_id' => $validated['classroom_id']],
+                [
+                    'classroom_id' => $validated['classroom_id'],
+                    'student_category_id' => $validated['student_category_id'],
+                ],
                 ['year' => $validated['year']]
             );
 
@@ -80,7 +89,10 @@ class FeeStructureController extends Controller
             }
         });
 
-        return redirect()->route('finance.fee-structures.manage', ['classroom_id' => $request->classrooms_id])
+        return redirect()->route('finance.fee-structures.manage', [
+            'classroom_id' => $request->classroom_id,
+            'student_category_id' => $request->student_category_id,
+        ])
                         ->with('success', 'Fee structure saved successfully.');
     }
    

@@ -59,13 +59,6 @@
               <div class="fw-semibold">{{ $student->category->name ?? '—' }}</div>
             </div>
           </div>
-          <div class="mini-stat">
-            <i class="bi bi-heart-pulse text-danger"></i>
-            <div>
-              <div class="small text-muted">Blood Group</div>
-              <div class="fw-semibold">{{ $student->blood_group ?? '—' }}</div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -88,6 +81,10 @@
               <div class="text-muted small">Date of Birth</div>
               <div class="fw-semibold">{{ $student->dob ? \Carbon\Carbon::parse($student->dob)->toFormattedDateString() : '—' }}</div>
             </div>
+        <div class="d-flex flex-column gap-2">
+          <div class="text-muted small">Marital Status (Parents)</div>
+          <div class="fw-semibold text-capitalize">{{ $student->parent->marital_status ? str_replace('_',' ', $student->parent->marital_status) : '—' }}</div>
+        </div>
             <div class="d-flex flex-column gap-2">
               <div class="text-muted small">NEMIS</div>
               <div class="fw-semibold">{{ $student->nemis_number ?? '—' }}</div>
@@ -119,10 +116,6 @@
               <span class="fw-semibold">Birth Certificate</span>
               <span>{!! $student->birth_certificate_path ? '<a target="_blank" href="'.asset('storage/'.$student->birth_certificate_path).'">View</a>' : '—' !!}</span>
             </div>
-            <div class="d-flex justify-content-between">
-              <span class="fw-semibold">Parent/Guardian ID</span>
-              <span>{!! $student->parent_id_card ? '<a target="_blank" href="'.asset('storage/'.$student->parent_id_card).'">View</a>' : '—' !!}</span>
-            </div>
           </div>
         </div>
       </div>
@@ -131,6 +124,12 @@
         <div class="settings-card mb-3">
           <div class="card-header d-flex align-items-center justify-content-between">
             <span class="fw-bold">Student Information</span>
+            @if($student->family && $student->family->updateLink)
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-light text-dark">Profile Update Link</span>
+                <button type="button" class="btn btn-sm btn-ghost-strong" onclick="navigator.clipboard.writeText('{{ route('family-update.form', $student->family->updateLink->token) }}'); this.innerText='Copied'; setTimeout(()=>this.innerText='Copy Link',1500);">Copy Link</button>
+              </div>
+            @endif
           </div>
           <div class="card-body">
             <div class="row g-3">

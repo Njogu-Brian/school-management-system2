@@ -51,6 +51,16 @@
           </select>
         </div>
 
+        <div class="col-md-6 col-lg-3">
+          <label class="finance-form-label">Student Category (optional)</label>
+          <select name="student_category_id" class="finance-form-select">
+            <option value="">All</option>
+            @foreach($categories as $cat)
+              <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+            @endforeach
+          </select>
+        </div>
+
         <div class="col-md-6 col-lg-2">
           <label class="finance-form-label">Stream (optional)</label>
           <select name="stream_id" class="finance-form-select">

@@ -10,11 +10,25 @@ class Trip extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
+        'trip_name', // actual column
         'type',
         'route_id',
         'vehicle_id',
     ];
+
+    /**
+     * Backwards-compatibility: allow $trip->name and mass-assigning `name`
+     * even though the database column is `trip_name`.
+     */
+    public function getNameAttribute(): ?string
+    {
+        return $this->trip_name;
+    }
+
+    public function setNameAttribute($value): void
+    {
+        $this->attributes['trip_name'] = $value;
+    }
 
     // Relationship with Route
     public function route()

@@ -18,7 +18,15 @@ class OnlineAdmission extends Model
         'birth_certificate', 'parent_id_card', 'form_status', 'payment_status', 'enrolled',
         'application_status', 'waitlist_position', 'reviewed_by', 'review_notes',
         'application_date', 'review_date', 'classroom_id', 'stream_id',
-        'application_source', 'application_notes'
+        'application_source', 'application_notes',
+        'preferred_classroom_id', 'transport_needed', 'drop_off_point_id', 'drop_off_point_other',
+        'route_id', 'trip_id',
+        'has_allergies', 'allergies_notes', 'is_fully_immunized',
+        'emergency_contact_name', 'emergency_contact_phone',
+        'residential_area', 'preferred_hospital',
+        'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
+        'father_id_document', 'mother_id_document',
+        'previous_school', 'transfer_reason', 'marital_status',
     ];
 
     protected $casts = [
@@ -26,6 +34,7 @@ class OnlineAdmission extends Model
         'review_date' => 'date',
         'dob' => 'date',
         'enrolled' => 'boolean',
+        'transport_needed' => 'boolean',
     ];
 
     public function reviewedBy()

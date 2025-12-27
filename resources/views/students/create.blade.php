@@ -25,6 +25,7 @@
     <form action="{{ route('students.store') }}" method="POST" enctype="multipart/form-data" class="settings-card">
       @include('students.partials.form', [
         'mode' => 'create',
+        'countryCodes' => $countryCodes ?? [],
         // controller should pass these:
         // 'classrooms'=>$classrooms, 'streams'=>$streams, 'categories'=>$categories, 'transportRoutes'=>$routes
       ])

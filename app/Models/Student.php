@@ -28,6 +28,15 @@ class Student extends Model
         
         // Ensure stream belongs to classroom when saving
         static::saving(function ($student) {
+            // Ensure every student has a category (default to "General")
+            if (!$student->category_id) {
+                $defaultCategory = StudentCategory::firstOrCreate(
+                    ['name' => 'General'],
+                    ['description' => 'Default category for students']
+                );
+                $student->category_id = $defaultCategory->id;
+            }
+
             if ($student->stream_id && $student->classroom_id) {
                 $stream = Stream::find($student->stream_id);
                 if ($stream) {
@@ -59,23 +68,17 @@ class Student extends Model
         'archive',
         'is_alumni',
         'alumni_date',
-        // Extended demographics
-        'national_id_number',
-        'passport_number',
+        'route_id',
+        'trip_id',
+        'drop_off_point_id',
+        'drop_off_point_other',
+        'drop_off_point',
+        // Extended demographics (trimmed)
         'religion',
-        'ethnicity',
-        'home_address',
-        'home_city',
-        'home_county',
-        'home_postal_code',
-        'language_preference',
-        'blood_group',
         'allergies',
         'chronic_conditions',
-        'medical_insurance_provider',
-        'medical_insurance_number',
-        'emergency_medical_contact_name',
-        'emergency_medical_contact_phone',
+        'emergency_contact_name',
+        'emergency_contact_phone',
         'previous_schools',
         'transfer_reason',
         'has_special_needs',
@@ -95,6 +98,11 @@ class Student extends Model
         'archived_reason',
         'archived_notes',
         'archived_by',
+        'has_allergies',
+        'allergies_notes',
+        'is_fully_immunized',
+        'residential_area',
+        'preferred_hospital',
     ];
 
     protected $casts = [
@@ -108,6 +116,8 @@ class Student extends Model
         'is_readmission'    => 'boolean',
         'archived_at'       => 'datetime',
         'archived_by'       => 'integer',
+        'has_allergies'     => 'boolean',
+        'is_fully_immunized'=> 'boolean',
     ];
 
     public function parent()

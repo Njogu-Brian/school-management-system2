@@ -35,6 +35,7 @@ use App\Http\Controllers\Settings\SettingController;
 
 // Students & Parents
 use App\Http\Controllers\Students\StudentController;
+use App\Http\Controllers\Students\FamilyUpdateController;
 use App\Http\Controllers\Students\ParentInfoController;
 use App\Http\Controllers\Students\OnlineAdmissionController;
 use App\Http\Controllers\Students\FamilyController;
@@ -43,6 +44,7 @@ use App\Http\Controllers\Students\DisciplinaryRecordController;
 use App\Http\Controllers\Students\ExtracurricularActivityController;
 use App\Http\Controllers\Students\AcademicHistoryController;
 use App\Http\Controllers\Students\StudentCategoryController;
+use App\Http\Controllers\FileDownloadController;
 
 // Communication
 use App\Http\Controllers\CommunicationController;
@@ -167,6 +169,16 @@ Route::post('/webhooks/sms/dlr', [CommunicationController::class, 'smsDeliveryRe
 Route::post('/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
 Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookController::class, 'handleStripe'])->name('payment.webhook.stripe');
 Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
+
+// Public family profile update (no auth)
+Route::get('/family-update/{token}', [FamilyUpdateController::class, 'publicForm'])->name('family-update.form');
+Route::post('/family-update/{token}', [FamilyUpdateController::class, 'submit'])->name('family-update.submit');
+
+// Admin file download for private files
+Route::middleware(['auth', 'role:Super Admin|Admin|Secretary'])->group(function () {
+    Route::get('/admin/files/{model}/{id}/{field}', [FileDownloadController::class, 'show'])
+        ->name('file.download');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -775,6 +787,22 @@ Route::middleware('auth')->group(function () {
     Route::post('/students/bulk-import',  [StudentController::class, 'bulkImport'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.import');
     Route::get('/students/bulk-template', [StudentController::class, 'bulkTemplate'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.template');
     
+    // Bulk category assignment
+    Route::get('/students/bulk-assign-categories', [StudentController::class, 'bulkAssignCategories'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-categories');
+    Route::post('/students/bulk-assign-categories', [StudentController::class, 'processBulkCategoryAssignment'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-categories.process');
+
+// Family update links (admin)
+Route::get('/admin/family-update', [FamilyUpdateController::class, 'adminIndex'])
+    ->middleware('role:Super Admin|Admin|Secretary')->name('family-update.admin.index');
+Route::post('/admin/family-update/reset-all', [FamilyUpdateController::class, 'resetAll'])
+    ->middleware('role:Super Admin|Admin|Secretary')->name('family-update.admin.reset-all');
+Route::post('/families/{family}/update-link/reset', [FamilyUpdateController::class, 'reset'])
+    ->middleware('role:Super Admin|Admin|Secretary')->name('families.update-link.reset');
+Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'showLink'])
+    ->middleware('role:Super Admin|Admin|Secretary')->name('families.update-link.show');
+
     // Bulk stream assignment - MUST be before resource route to avoid conflicts
     Route::get('/students/bulk-assign-streams', [StudentController::class, 'bulkAssignStreams'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams');
@@ -816,6 +844,10 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/students/bulk-restore', [StudentController::class, 'bulkRestore'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.restore');
+
+    // Student Categories management
+    Route::resource('student-categories', StudentCategoryController::class)
+        ->middleware('role:Super Admin|Admin|Secretary');
 
     // Student Records (Medical, Disciplinary, Activities, Academic History)
     Route::prefix('students/{student}')->name('students.')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {

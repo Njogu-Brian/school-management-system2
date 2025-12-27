@@ -47,7 +47,7 @@
 
             <div class="col-md-6">
                         <label for="opening_date" class="form-label fw-semibold">Opening Date <span class="text-danger">*</span></label>
-                <input type="date" name="opening_date" id="opening_date" class="form-control" value="{{ old('opening_date') }}" required>
+                <input type="date" name="opening_date" id="opening_date" class="form-control" value="{{ old('opening_date', $suggestedOpeningDate) }}" required>
             </div>
             <div class="col-md-6">
                         <label for="closing_date" class="form-label fw-semibold">Closing Date <span class="text-danger">*</span></label>

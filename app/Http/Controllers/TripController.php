@@ -29,10 +29,12 @@ class TripController extends Controller
         $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
             'route_id' => 'required|exists:routes,id',
-            'trip_name' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
         ]);
 
-        Trip::create($request->all());
+        $data = $request->only(['vehicle_id','route_id','type']);
+        $data['trip_name'] = $request->input('name');
+        Trip::create($data);
         return redirect()->route('trips.index')->with('success', 'Trip created successfully.');
     }
 
@@ -52,7 +54,12 @@ class TripController extends Controller
             'vehicle_id' => 'required|exists:vehicles,id',
         ]);
     
-        $trip->update($request->all());
+        $trip->update([
+            'trip_name' => $request->input('name'),
+            'type' => $request->input('type'),
+            'route_id' => $request->input('route_id'),
+            'vehicle_id' => $request->input('vehicle_id'),
+        ]);
     
         return redirect()->route('trips.index')->with('success', 'Trip updated successfully!');
     } 

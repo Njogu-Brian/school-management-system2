@@ -38,8 +38,16 @@
               <div class="col-md-4"><label class="form-label small text-muted">Last Name</label><div class="fw-semibold">{{ $admission->last_name }}</div></div>
               <div class="col-md-4"><label class="form-label small text-muted">Date of Birth</label><div>{{ $admission->dob?->format('d M Y') ?? '—' }}</div></div>
               <div class="col-md-4"><label class="form-label small text-muted">Gender</label><div>{{ $admission->gender }}</div></div>
-              <div class="col-md-4"><label class="form-label small text-muted">NEMIS Number</label><div>{{ $admission->nemis_number ?? '—' }}</div></div>
-              <div class="col-md-4"><label class="form-label small text-muted">KNEC Assessment</label><div>{{ $admission->knec_assessment_number ?? '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Has Allergies?</label><div>{{ $admission->has_allergies ? 'Yes' : 'No' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Allergies Notes</label><div>{{ $admission->allergies_notes ?? '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Fully Immunized?</label><div>{{ $admission->is_fully_immunized ? 'Yes' : 'No' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Preferred Hospital</label><div>{{ $admission->preferred_hospital ?? '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Emergency Contact</label><div>{{ $admission->emergency_contact_phone ?? '—' }}<br>{{ $admission->emergency_contact_name ?? '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Residential Area</label><div>{{ $admission->residential_area ?? '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Preferred Classroom</label><div>{{ $admission->preferred_classroom_id ? optional($classrooms->firstWhere('id', $admission->preferred_classroom_id))->name : '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Marital Status</label><div class="text-capitalize">{{ $admission->marital_status ? str_replace('_',' ', $admission->marital_status) : '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Previous School</label><div>{{ $admission->previous_school ?? '—' }}</div></div>
+              <div class="col-md-4"><label class="form-label small text-muted">Transfer Reason</label><div>{{ $admission->transfer_reason ?? '—' }}</div></div>
               <div class="col-md-4"><label class="form-label small text-muted">Application Source</label><div>{{ ucfirst($admission->application_source ?? 'online') }}</div></div>
               <div class="col-md-4"><label class="form-label small text-muted">Application Date</label><div>{{ $admission->application_date?->format('d M Y') ?? '—' }}</div></div>
             </div>
@@ -55,30 +63,36 @@
               <div class="col-md-6">
                 <h6 class="text-muted mb-2">Father</h6>
                 <div><strong>Name:</strong> {{ $admission->father_name ?? '—' }}</div>
-                <div><strong>Phone:</strong> {{ $admission->father_phone ?? '—' }}</div>
+                <div><strong>Phone:</strong> {{ $admission->father_phone_country_code }} {{ $admission->father_phone ?? '—' }}</div>
+                <div><strong>WhatsApp:</strong> {{ $admission->father_whatsapp ?? '—' }}</div>
                 <div><strong>Email:</strong> {{ $admission->father_email ?? '—' }}</div>
                 <div><strong>ID Number:</strong> {{ $admission->father_id_number ?? '—' }}</div>
+                <div><strong>ID Document:</strong> @if($admission->father_id_document)<a href="{{ Storage::url($admission->father_id_document) }}" target="_blank">View</a>@else — @endif</div>
               </div>
               <div class="col-md-6">
                 <h6 class="text-muted mb-2">Mother</h6>
                 <div><strong>Name:</strong> {{ $admission->mother_name ?? '—' }}</div>
-                <div><strong>Phone:</strong> {{ $admission->mother_phone ?? '—' }}</div>
+                <div><strong>Phone:</strong> {{ $admission->mother_phone_country_code }} {{ $admission->mother_phone ?? '—' }}</div>
+                <div><strong>WhatsApp:</strong> {{ $admission->mother_whatsapp ?? '—' }}</div>
                 <div><strong>Email:</strong> {{ $admission->mother_email ?? '—' }}</div>
                 <div><strong>ID Number:</strong> {{ $admission->mother_id_number ?? '—' }}</div>
+                <div><strong>ID Document:</strong> @if($admission->mother_id_document)<a href="{{ Storage::url($admission->mother_id_document) }}" target="_blank">View</a>@else — @endif</div>
               </div>
               <div class="col-md-12">
                 <h6 class="text-muted mb-2">Guardian</h6>
                 <div class="row">
                   <div class="col-md-4"><strong>Name:</strong> {{ $admission->guardian_name ?? '—' }}</div>
-                  <div class="col-md-4"><strong>Phone:</strong> {{ $admission->guardian_phone ?? '—' }}</div>
+                  <div class="col-md-4"><strong>Phone:</strong> {{ $admission->guardian_phone_country_code }} {{ $admission->guardian_phone ?? '—' }}</div>
+                  <div class="col-md-4"><strong>WhatsApp:</strong> {{ $admission->guardian_whatsapp ?? '—' }}</div>
                   <div class="col-md-4"><strong>Email:</strong> {{ $admission->guardian_email ?? '—' }}</div>
+                  <div class="col-md-4"><strong>Relationship:</strong> {{ $admission->guardian_relationship ?? '—' }}</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        @if($admission->passport_photo || $admission->birth_certificate || $admission->parent_id_card)
+        @if($admission->passport_photo || $admission->birth_certificate)
         <div class="settings-card mb-3">
           <div class="card-header">
             <h5 class="mb-0"><i class="bi bi-file-earmark"></i> Documents</h5>
@@ -87,22 +101,15 @@
             <div class="row g-2">
               @if($admission->passport_photo)
               <div class="col-md-4">
-                <a href="{{ Storage::url($admission->passport_photo) }}" target="_blank" class="btn btn-ghost-strong w-100">
+                <a href="{{ route('file.download', ['model'=>'online-admission','id'=>$admission->id,'field'=>'passport_photo']) }}" target="_blank" class="btn btn-ghost-strong w-100">
                   <i class="bi bi-image"></i> Passport Photo
                 </a>
               </div>
               @endif
               @if($admission->birth_certificate)
               <div class="col-md-4">
-                <a href="{{ Storage::url($admission->birth_certificate) }}" target="_blank" class="btn btn-ghost-strong w-100">
+                <a href="{{ route('file.download', ['model'=>'online-admission','id'=>$admission->id,'field'=>'birth_certificate']) }}" target="_blank" class="btn btn-ghost-strong w-100">
                   <i class="bi bi-file-pdf"></i> Birth Certificate
-                </a>
-              </div>
-              @endif
-              @if($admission->parent_id_card)
-              <div class="col-md-4">
-                <a href="{{ Storage::url($admission->parent_id_card) }}" target="_blank" class="btn btn-ghost-strong w-100">
-                  <i class="bi bi-card-text"></i> Parent ID Card
                 </a>
               </div>
               @endif
@@ -205,6 +212,105 @@
               @else
                 <form action="{{ route('online-admissions.approve', $admission) }}" method="POST" onsubmit="return confirm('Approve and enroll this student?')">
                   @csrf
+                  <div class="mb-3">
+                    <label class="form-label">Classroom</label>
+                    <select name="classroom_id" class="form-select" required>
+                      <option value="">Select Classroom</option>
+                      @foreach($classrooms as $classroom)
+                        <option value="{{ $classroom->id }}" @selected($admission->classroom_id==$classroom->id)>{{ $classroom->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Has Allergies?</label>
+                    <select name="has_allergies" class="form-select">
+                      <option value="0" @selected(old('has_allergies', $admission->has_allergies)==0)>No</option>
+                      <option value="1" @selected(old('has_allergies', $admission->has_allergies)==1)>Yes</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Allergies Notes</label>
+                    <textarea name="allergies_notes" class="form-control" rows="2">{{ old('allergies_notes', $admission->allergies_notes) }}</textarea>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Fully Immunized?</label>
+                    <select name="is_fully_immunized" class="form-select">
+                      <option value="0" @selected(old('is_fully_immunized', $admission->is_fully_immunized)==0)>No</option>
+                      <option value="1" @selected(old('is_fully_immunized', $admission->is_fully_immunized)==1)>Yes</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Preferred Hospital / Medical Facility</label>
+                    <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital', $admission->preferred_hospital) }}">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Emergency Contact Name</label>
+                    <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name', $admission->emergency_contact_name) }}">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Emergency Contact Phone</label>
+                    <input type="text" name="emergency_contact_phone" class="form-control" value="{{ old('emergency_contact_phone', $admission->emergency_contact_phone) }}" placeholder="+2547XXXXXXXX">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Marital Status</label>
+                    <select name="marital_status" class="form-select">
+                      <option value="">Select</option>
+                      <option value="married" @selected(old('marital_status', $admission->marital_status)=='married')>Married</option>
+                      <option value="single_parent" @selected(old('marital_status', $admission->marital_status)=='single_parent')>Single Parent</option>
+                      <option value="co_parenting" @selected(old('marital_status', $admission->marital_status)=='co_parenting')>Co-parenting</option>
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Residential Area</label>
+                    <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $admission->residential_area) }}">
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Stream</label>
+                    <select name="stream_id" class="form-select">
+                      <option value="">Select Stream</option>
+                      @foreach($streams as $stream)
+                        <option value="{{ $stream->id }}" @selected($admission->stream_id==$stream->id)>{{ $stream->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Category</label>
+                    <select name="category_id" class="form-select" required>
+                      <option value="">Select Category</option>
+                      @foreach($categories as $category)
+                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Transport Route</label>
+                    <select name="route_id" class="form-select">
+                      <option value="">—</option>
+                      @foreach($routes as $route)
+                        <option value="{{ $route->id }}" @selected($admission->route_id==$route->id)>{{ $route->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Trip</label>
+                    <select name="trip_id" class="form-select">
+                      <option value="">—</option>
+                      @foreach($trips as $trip)
+                        <option value="{{ $trip->id }}" @selected($admission->trip_id==$trip->id)>{{ $trip->name }}</option>
+                      @endforeach
+                    </select>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Drop-off Point</label>
+                    <select name="drop_off_point_id" id="admin_drop_off_point_id" class="form-select">
+                      <option value="">—</option>
+                      @foreach($dropOffPoints as $point)
+                        <option value="{{ $point->id }}" @selected($admission->drop_off_point_id==$point->id)>{{ $point->name }}</option>
+                      @endforeach
+                      <option value="other">Other (specify)</option>
+                    </select>
+                    <input type="text" class="form-control mt-2" name="drop_off_point_other" id="admin_drop_off_point_other" value="{{ $admission->drop_off_point_other }}" placeholder="Custom drop-off point">
+                  </div>
                   <button type="submit" class="btn btn-success w-100">
                     <i class="bi bi-check-circle"></i> Approve & Enroll
                   </button>
@@ -250,3 +356,20 @@
   </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+  (function(){
+    const select = document.getElementById('admin_drop_off_point_id');
+    const other = document.getElementById('admin_drop_off_point_other');
+    function sync() {
+      if (!select || !other) return;
+      const show = select.value === 'other';
+      other.style.display = show ? '' : 'none';
+      if (!show) other.value = '';
+    }
+    select?.addEventListener('change', sync);
+    sync();
+  })();
+</script>
+@endpush

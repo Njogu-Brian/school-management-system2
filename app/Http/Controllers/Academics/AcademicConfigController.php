@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Academics;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Models\SchoolDay;
+use App\Models\Event;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
 
 class AcademicConfigController extends Controller
 {
@@ -83,7 +86,8 @@ class AcademicConfigController extends Controller
     public function createTerm()
     {
         $years = AcademicYear::orderByDesc('year')->get();
-        return view('settings.academic.create_term', compact('years'));
+        $suggestedOpeningDate = $this->getNextSuggestedOpeningDate();
+        return view('settings.academic.create_term', compact('years', 'suggestedOpeningDate'));
     }
 
     public function editTerm(Term $term)
@@ -112,7 +116,7 @@ class AcademicConfigController extends Controller
                 ->update(['is_current' => false]);
         }
 
-        Term::create([
+        $term = Term::create([
             'name' => $request->name,
             'academic_year_id' => $request->academic_year_id,
             'is_current' => $isCurrent,
@@ -123,6 +127,14 @@ class AcademicConfigController extends Controller
             'expected_school_days' => $request->expected_school_days,
             'notes' => $request->notes,
         ]);
+
+        // Generate holidays and inter-term breaks
+        if ($term->opening_date && $term->closing_date) {
+            SchoolDay::generateKenyanHolidays(Carbon::parse($term->opening_date)->year);
+            $this->markInterTermBreaks($term);
+            $this->syncTermEvents($term);
+            $this->syncHolidayEventsForYear((int) Carbon::parse($term->opening_date)->year);
+        }
 
         return redirect()->route('settings.academic.index')
             ->with('success', 'Term created successfully.');
@@ -161,6 +173,13 @@ class AcademicConfigController extends Controller
             'notes' => $request->notes,
         ]);
 
+        if ($term->opening_date && $term->closing_date) {
+            SchoolDay::generateKenyanHolidays(Carbon::parse($term->opening_date)->year);
+            $this->markInterTermBreaks($term);
+            $this->syncTermEvents($term);
+            $this->syncHolidayEventsForYear((int) Carbon::parse($term->opening_date)->year);
+        }
+
         return redirect()->route('settings.academic.index')
             ->with('success', 'Term updated successfully.');
     }
@@ -168,5 +187,173 @@ class AcademicConfigController extends Controller
     {
         $term->delete();
         return redirect()->route('settings.academic.index')->with('success', 'Term deleted.');
+    }
+
+    /**
+     * Suggest next opening date based on latest closing date across terms/years.
+     */
+    private function getNextSuggestedOpeningDate(): ?string
+    {
+        $lastClosing = Term::whereNotNull('closing_date')
+            ->orderByDesc('closing_date')
+            ->value('closing_date');
+
+        if (!$lastClosing) {
+            return null;
+        }
+
+        return Carbon::parse($lastClosing)->addDay()->toDateString();
+    }
+
+    /**
+     * Mark holidays for the gap between adjacent terms.
+     * - Between previous term closing +1 and this term opening -1
+     * - Between this term closing +1 and next term opening -1 (if next exists)
+     */
+    private function markInterTermBreaks(Term $term): void
+    {
+        if (!$term->opening_date || !$term->closing_date) {
+            return;
+        }
+
+        $opening = Carbon::parse($term->opening_date);
+        $closing = Carbon::parse($term->closing_date);
+
+        // Gap from previous term
+        $previous = Term::where('academic_year_id', $term->academic_year_id)
+            ->where('id', '!=', $term->id)
+            ->whereNotNull('closing_date')
+            ->whereDate('closing_date', '<', $opening)
+            ->orderByDesc('closing_date')
+            ->first();
+
+        if ($previous && $previous->closing_date) {
+            $this->markHolidayRange(
+                Carbon::parse($previous->closing_date)->addDay(),
+                $opening->copy()->subDay(),
+                'Term Break',
+                $term->academic_year_id
+            );
+        }
+
+        // Gap to next term
+        $next = Term::where('academic_year_id', $term->academic_year_id)
+            ->where('id', '!=', $term->id)
+            ->whereNotNull('opening_date')
+            ->whereDate('opening_date', '>', $closing)
+            ->orderBy('opening_date')
+            ->first();
+
+        if ($next && $next->opening_date) {
+            $this->markHolidayRange(
+                $closing->copy()->addDay(),
+                Carbon::parse($next->opening_date)->subDay(),
+                'Term Break',
+                $term->academic_year_id
+            );
+        }
+    }
+
+    /**
+     * Mark a date range as holidays in SchoolDay (skips invalid ranges).
+     */
+    private function markHolidayRange(Carbon $start, Carbon $end, string $name, ?int $academicYearId): void
+    {
+        if ($start->gt($end)) {
+            return;
+        }
+
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            SchoolDay::updateOrCreate(
+                ['date' => $cursor->toDateString()],
+                [
+                    'type' => SchoolDay::TYPE_HOLIDAY,
+                    'name' => $name,
+                    'description' => 'Auto-generated between terms',
+                    'is_custom' => true,
+                ]
+            );
+            $this->upsertEvent(
+                $name,
+                $cursor->toDateString(),
+                $cursor->toDateString(),
+                'holiday',
+                $academicYearId
+            );
+            $cursor->addDay();
+        }
+    }
+
+    /**
+     * Ensure term and midterm appear on the calendar.
+     */
+    private function syncTermEvents(Term $term): void
+    {
+        if ($term->opening_date && $term->closing_date) {
+            $this->upsertEvent(
+                $term->name,
+                Carbon::parse($term->opening_date)->toDateString(),
+                Carbon::parse($term->closing_date)->toDateString(),
+                'academic',
+                $term->academic_year_id
+            );
+        }
+
+        if ($term->midterm_start_date && $term->midterm_end_date) {
+            $this->upsertEvent(
+                "Midterm Break ({$term->name})",
+                Carbon::parse($term->midterm_start_date)->toDateString(),
+                Carbon::parse($term->midterm_end_date)->toDateString(),
+                'holiday',
+                $term->academic_year_id
+            );
+        }
+    }
+
+    /**
+     * Sync public/custom holidays to events for a given year.
+     */
+    private function syncHolidayEventsForYear(int $year): void
+    {
+        $holidays = SchoolDay::whereYear('date', $year)
+            ->where('type', SchoolDay::TYPE_HOLIDAY)
+            ->get();
+
+        $ay = AcademicYear::where('year', $year)->first();
+        $ayId = $ay?->id;
+
+        foreach ($holidays as $holiday) {
+            $this->upsertEvent(
+                $holiday->name ?? 'Holiday',
+                $holiday->date->toDateString(),
+                $holiday->date->toDateString(),
+                'holiday',
+                $ayId
+            );
+        }
+    }
+
+    /**
+     * Upsert an event into the calendar.
+     */
+    private function upsertEvent(string $title, string $start, string $end, string $type, ?int $academicYearId): void
+    {
+        Event::updateOrCreate(
+            [
+                'title' => $title,
+                'start_date' => $start,
+                'end_date' => $end,
+                'academic_year_id' => $academicYearId,
+            ],
+            [
+                'type' => $type,
+                'is_all_day' => true,
+                'is_active' => true,
+                'visibility' => 'public',
+                'target_audience' => null,
+                'created_by' => auth()->id(),
+            ]
+        );
     }
 }

@@ -116,6 +116,30 @@
 
 ## 3. FORM SYSTEM
 
+### 3.1 Form Design (Purple Gradient Hero, Clean Cards, Dark Mode)
+- Hero (public forms): Gradient header, logo, title, subtitle, required-note pill.
+- Form container: Single elevated card (`.form-card`), rounded corners, subtle shadow.
+- Sections: `.form-section` with header + icon (`.form-section-icon`), title/subtitle, body padding. Collapsible headers allowed.
+- Grid: `.form-grid` with `.form-grid-2` / `.form-grid-3` responsive columns; `.full-width` to span.
+- Footer: `.form-footer` sticky at bottom of card; stack buttons on mobile.
+- Inputs: `.form-input` base, focus ring uses primary; helper text `.form-helper`, errors `.form-error`.
+- Phone input: `.phone-input-group` with `.country-select` (flag/emoji + code) + `.phone-number`.
+- Uploads: `.upload-zone` with hover/drag states, `.upload-actions`; camera capture on relevant inputs (public admissions, family update).
+- Toggles: Switch styles with optional `.toggle-content.visible` when checked.
+- Dynamic theme: Colors derive from CSS vars (`--brand-*` / finance settings). Dark mode via `body.theme-dark` overrides.
+
+### 3.2 Form CSS Partial
+- Added `resources/css/_form-system.css` and imported in `resources/css/app.css`.
+- Key vars:
+  - `--form-primary` → `--brand-primary` fallback `#5b6bff`
+  - `--form-surface` → `--brand-surface`
+  - `--form-border` → `--brand-border`
+  - `--form-bg` → `--brand-bg`
+  - `--form-muted` → `--brand-muted`
+  - `--form-text` → `--brand-text`
+  - Dark mode: overrides on `body.theme-dark`
+- Utility classes: `.form-card`, `.form-section`, `.form-section-header/body/icon/title/subtitle`, `.form-input`, `.input-group-icon`, `.phone-input-group`, `.country-select`, `.country-code-select`, `.phone-number`, `.upload-zone`, `.upload-icon`, `.upload-actions`, `.form-footer`, `.form-grid`, `.form-grid-2`, `.form-grid-3`, `.full-width`, `.form-helper`, `.form-error`, `.toggle-content`.
+
 ### Input Types
 
 | Input | Features | Validation |

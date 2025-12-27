@@ -263,8 +263,8 @@ if (!function_exists('get_subordinates')) {
 if (!function_exists('get_current_academic_year')) {
     function get_current_academic_year(): ?int
     {
-        $year = \App\Models\AcademicYear::where('is_active', true)->first();
-        return $year ? (int)$year->year : null;
+        $model = get_current_academic_year_model();
+        return $model ? (int) $model->year : null;
     }
 }
 
@@ -274,7 +274,18 @@ if (!function_exists('get_current_academic_year')) {
 if (!function_exists('get_current_academic_year_model')) {
     function get_current_academic_year_model(): ?\App\Models\AcademicYear
     {
-        return \App\Models\AcademicYear::where('is_active', true)->first();
+        // Prefer year tied to the current term; otherwise fall back to manually active, otherwise latest by year
+        $term = get_current_term_model();
+        if ($term && $term->academic_year_id) {
+            return $term->academicYear;
+        }
+
+        $manual = \App\Models\AcademicYear::where('is_active', true)->first();
+        if ($manual) {
+            return $manual;
+        }
+
+        return \App\Models\AcademicYear::orderByDesc('year')->first();
     }
 }
 
@@ -284,16 +295,15 @@ if (!function_exists('get_current_academic_year_model')) {
 if (!function_exists('get_current_term_number')) {
     function get_current_term_number(): ?int
     {
-        $term = \App\Models\Term::where('is_current', true)->first();
+        $term = get_current_term_model();
         if (!$term) {
             return null;
         }
-        
-        // Extract term number from name (e.g., "Term 1" -> 1, "Term 2" -> 2, "Term 3" -> 3)
+
         if (preg_match('/\d+/', $term->name, $matches)) {
-            return (int)$matches[0];
+            return (int) $matches[0];
         }
-        
+
         return null;
     }
 }
@@ -304,7 +314,38 @@ if (!function_exists('get_current_term_number')) {
 if (!function_exists('get_current_term_model')) {
     function get_current_term_model(): ?\App\Models\Term
     {
-        return \App\Models\Term::where('is_current', true)->first();
+        $tz = config('app.timezone', 'UTC');
+        $today = now()->timezone($tz)->toDateString();
+
+        // Prefer date-based determination: opening_date <= today <= closing_date
+        $byDate = \App\Models\Term::whereNotNull('opening_date')
+            ->whereNotNull('closing_date')
+            ->whereDate('opening_date', '<=', $today)
+            ->whereDate('closing_date', '>=', $today)
+            ->orderBy('opening_date')
+            ->first();
+        if ($byDate) {
+            return $byDate;
+        }
+
+        // Fallback to manually flagged current term
+        $manual = \App\Models\Term::where('is_current', true)->first();
+        if ($manual) {
+            return $manual;
+        }
+
+        // Fallback: nearest upcoming term, otherwise latest past term
+        $upcoming = \App\Models\Term::whereNotNull('opening_date')
+            ->whereDate('opening_date', '>', $today)
+            ->orderBy('opening_date')
+            ->first();
+        if ($upcoming) {
+            return $upcoming;
+        }
+
+        return \App\Models\Term::whereNotNull('closing_date')
+            ->orderByDesc('closing_date')
+            ->first();
     }
 }
 

@@ -20,6 +20,39 @@
 
     <div class="row g-3">
       <div class="col-lg-5">
+        <div class="settings-card mb-3">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-bold">Family Profile Update Link</span>
+            @if($family->updateLink)
+              <span class="badge bg-light text-dark">Token: {{ $family->updateLink->token }}</span>
+            @endif
+          </div>
+          <div class="card-body">
+            @if($family->updateLink)
+              <div class="d-flex flex-wrap gap-2 mb-3">
+                <button type="button" class="btn btn-sm btn-ghost-strong" onclick="navigator.clipboard.writeText('{{ route('family-update.form', $family->updateLink->token) }}'); this.innerText='Copied'; setTimeout(()=>this.innerText='Copy Link',1500);">
+                  <i class="bi bi-clipboard"></i> Copy Link
+                </button>
+                <a class="btn btn-sm btn-ghost-strong" target="_blank" href="{{ route('family-update.form', $family->updateLink->token) }}">
+                  <i class="bi bi-box-arrow-up-right"></i> Open Public Form
+                </a>
+                <form action="{{ route('families.update-link.reset', $family) }}" method="POST" onsubmit="return confirm('Reset link? Parents will need the new link to update again.');">
+                  @csrf
+                  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-arrow-counterclockwise"></i> Reset Link</button>
+                </form>
+              </div>
+              <div class="small text-muted">
+                Share this link with the family to let them update student details. Link stays active until reset.
+              </div>
+            @else
+              <form action="{{ route('families.update-link.show', $family) }}" method="GET">
+                <button class="btn btn-sm btn-settings-primary"><i class="bi bi-link-45deg"></i> Generate Link</button>
+              </form>
+              <div class="small text-muted mt-2">No link exists yet. Generate to share with parents.</div>
+            @endif
+          </div>
+        </div>
+
         @if($parentInfo)
         <div class="settings-card mb-3">
           <div class="card-header">Parent/Guardian Information</div>

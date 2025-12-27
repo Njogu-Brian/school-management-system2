@@ -197,13 +197,14 @@ class FamilyController extends Controller
      */
     public function manage(Family $family)
     {
-        $family->load(['students.classroom','students.stream','students.parent']);
+        $family->load(['students.classroom','students.stream','students.parent','updateLink']);
         
         // Auto-populate family details from students' parent info if empty
         $firstStudent = $family->students->first();
         if ($firstStudent && $firstStudent->parent) {
             $this->populateFamilyFromParent($family, $firstStudent->parent);
             $family->refresh(); // Reload to show updated values
+            $family->load(['students.classroom','students.stream','students.parent','updateLink']);
         }
         
         // Get parent info from first student if available

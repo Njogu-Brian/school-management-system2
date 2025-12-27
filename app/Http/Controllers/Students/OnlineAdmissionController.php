@@ -8,6 +8,10 @@ use App\Models\Student;
 use App\Models\ParentInfo;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
+use App\Models\StudentCategory;
+use App\Models\Route;
+use App\Models\Trip;
+use App\Models\DropOffPoint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -45,9 +49,12 @@ class OnlineAdmissionController extends Controller
     public function showPublicForm()
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $streams = Stream::orderBy('name')->get();
+        $dropOffPoints = DropOffPoint::orderBy('name')->get();
+        $countryCodes = $this->getCountryCodes();
+        $crecheId = $classrooms->firstWhere('name', 'like', '%creche%')?->id;
+        $foundationId = $classrooms->firstWhere('name', 'like', '%foundation%')?->id;
         
-        return view('online_admissions.public_form', compact('classrooms', 'streams'));
+        return view('online_admissions.public_form', compact('classrooms', 'dropOffPoints', 'countryCodes','crecheId','foundationId'));
     }
 
     /**
@@ -55,44 +62,111 @@ class OnlineAdmissionController extends Controller
      */
     public function storePublicApplication(Request $request)
     {
+        if ($request->input('drop_off_point_id') === 'other') {
+            $request->merge(['drop_off_point_id' => null]);
+        }
+
         $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
             'dob' => 'required|date',
             'gender' => 'required|in:Male,Female',
-            'classroom_id' => 'nullable|exists:classrooms,id',
-            'stream_id' => 'nullable|exists:streams,id',
+            'preferred_classroom_id' => 'nullable|exists:classrooms,id',
+            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
             'father_name' => 'nullable|string|max:255',
-            'father_phone' => 'nullable|string|max:255',
+            'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'father_phone_country_code' => 'nullable|string|max:8',
             'father_email' => 'nullable|email|max:255',
             'mother_name' => 'nullable|string|max:255',
-            'mother_phone' => 'nullable|string|max:255',
+            'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'mother_phone_country_code' => 'nullable|string|max:8',
             'mother_email' => 'nullable|email|max:255',
+            'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
             'guardian_name' => 'nullable|string|max:255',
-            'guardian_phone' => 'nullable|string|max:255',
-            'guardian_email' => 'nullable|email|max:255',
+            'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'guardian_phone_country_code' => 'nullable|string|max:8',
+            'guardian_relationship' => 'nullable|string|max:255',
             'passport_photo' => 'nullable|image|max:2048',
             'birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'parent_id_card' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'transport_needed' => 'nullable|boolean',
+            'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
+            'drop_off_point_other' => 'nullable|string|max:255',
+            'has_allergies' => 'nullable|boolean',
+            'allergies_notes' => 'nullable|string',
+            'is_fully_immunized' => 'nullable|boolean',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'residential_area' => 'required|string|max:255',
+            'preferred_hospital' => 'nullable|string|max:255',
+            'previous_school' => 'nullable|string|max:255',
+            'transfer_reason' => 'nullable|string|max:255',
         ]);
 
-        $data = $request->all();
+        $data = $request->only([
+            'first_name','middle_name','last_name','dob','gender',
+            'preferred_classroom_id','transport_needed','drop_off_point_id','drop_off_point_other',
+            'has_allergies','allergies_notes','is_fully_immunized',
+            'emergency_contact_name','residential_area','preferred_hospital',
+            'marital_status','guardian_relationship','previous_school','transfer_reason',
+            'father_name','father_email','mother_name','mother_email','guardian_name','guardian_email',
+            'father_phone_country_code','mother_phone_country_code','guardian_phone_country_code'
+        ]);
+        // Default country codes to Kenya
+        $data['father_phone_country_code'] = $data['father_phone_country_code'] ?? '+254';
+        $data['mother_phone_country_code'] = $data['mother_phone_country_code'] ?? '+254';
+        $data['guardian_phone_country_code'] = $data['guardian_phone_country_code'] ?? '+254';
         $data['application_status'] = 'pending';
         $data['application_date'] = now();
         $data['application_source'] = 'online';
+        $data['classroom_id'] = null; // do not assign class from applicant
+        $data['stream_id'] = null;
+
+        // Normalize phones with country codes
+        $data['father_phone'] = $this->formatPhoneWithCode($request->father_phone, $data['father_phone_country_code']);
+        $data['father_whatsapp'] = $this->formatPhoneWithCode($request->mother_whatsapp, $data['father_phone_country_code']);
+        $data['mother_phone'] = $this->formatPhoneWithCode($request->mother_phone, $data['mother_phone_country_code']);
+        $data['mother_whatsapp'] = $this->formatPhoneWithCode($request->mother_whatsapp, $data['mother_phone_country_code']);
+        $data['guardian_phone'] = $this->formatPhoneWithCode($request->guardian_phone, $data['guardian_phone_country_code']);
+        $data['guardian_whatsapp'] = $this->formatPhoneWithCode($request->guardian_whatsapp, $data['guardian_phone_country_code']);
+        $data['emergency_contact_phone'] = $this->formatPhoneWithCode($request->emergency_contact_phone, '+254');
+
+        // Require at least one parent/guardian name + phone
+        $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+        $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
+        if (!$parentName || !$parentPhone) {
+            return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
+        }
+
+        // Stream required if selected classroom has streams
+        if (!empty($data['preferred_classroom_id'])) {
+            $classroomHasStreams = Classroom::withCount('streams')->find($data['preferred_classroom_id'])?->streams_count > 0;
+            if ($classroomHasStreams && empty($request->stream_id)) {
+                return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
+            }
+        }
 
         // Handle file uploads
         if ($request->hasFile('passport_photo')) {
-            $data['passport_photo'] = $request->file('passport_photo')->store('admissions/photos', 'public');
+            $data['passport_photo'] = $request->file('passport_photo')->store('admissions/photos', 'private');
         }
         if ($request->hasFile('birth_certificate')) {
-            $data['birth_certificate'] = $request->file('birth_certificate')->store('admissions/documents', 'public');
+            $data['birth_certificate'] = $request->file('birth_certificate')->store('admissions/documents', 'private');
         }
-        if ($request->hasFile('parent_id_card')) {
-            $data['parent_id_card'] = $request->file('parent_id_card')->store('admissions/documents', 'public');
+        if ($request->hasFile('father_id_document')) {
+            $data['father_id_document'] = $request->file('father_id_document')->store('admissions/documents', 'private');
+        }
+        if ($request->hasFile('mother_id_document')) {
+            $data['mother_id_document'] = $request->file('mother_id_document')->store('admissions/documents', 'private');
         }
 
         OnlineAdmission::create($data);
+
+        if ($request->filled('save_add_another')) {
+            return redirect()->route('online-admissions.public-form')
+                ->with('success', 'Application submitted. You can add another student now.');
+        }
 
         return redirect()->route('online-admissions.public-form')
             ->with('success', 'Your application has been submitted successfully! We will review it and contact you soon.');
@@ -106,8 +180,13 @@ class OnlineAdmissionController extends Controller
         $admission->load(['reviewedBy', 'classroom', 'stream']);
         $classrooms = Classroom::orderBy('name')->get();
         $streams = Stream::orderBy('name')->get();
+        $categories = StudentCategory::orderBy('name')->get();
+        $routes = Route::orderBy('name')->get();
+        $trips = Trip::orderBy('trip_name')->get();
+        $dropOffPoints = DropOffPoint::orderBy('name')->get();
+        $countryCodes = $this->getCountryCodes();
         
-        return view('online_admissions.show', compact('admission', 'classrooms', 'streams'));
+        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'routes', 'trips', 'dropOffPoints', 'countryCodes'));
     }
 
     /**
@@ -163,31 +242,76 @@ class OnlineAdmissionController extends Controller
     /**
      * Approve and create student from admission
      */
-    public function approve(OnlineAdmission $admission)
+    public function approve(Request $request, OnlineAdmission $admission)
     {
         if ($admission->enrolled) {
             return redirect()->back()->with('error', 'This application has already been processed.');
         }
 
-        DB::transaction(function () use ($admission) {
+        if ($request->input('drop_off_point_id') === 'other') {
+            $request->merge(['drop_off_point_id' => null]);
+        }
+
+        $validated = $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'category_id' => 'required|exists:student_categories,id',
+            'route_id' => 'nullable|exists:routes,id',
+            'trip_id' => 'nullable|exists:trips,id',
+            'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
+            'drop_off_point_other' => 'nullable|string|max:255',
+            'has_allergies' => 'nullable|boolean',
+            'allergies_notes' => 'nullable|string',
+            'is_fully_immunized' => 'nullable|boolean',
+            'emergency_contact_name' => 'nullable|string|max:255',
+            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'residential_area' => 'required|string|max:255',
+            'preferred_hospital' => 'nullable|string|max:255',
+            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+        ]);
+
+        DB::transaction(function () use ($admission, $validated) {
+            // Require stream if classroom has streams
+            $classroomHasStreams = Classroom::withCount('streams')->find($validated['classroom_id'])?->streams_count > 0;
+            if ($classroomHasStreams && empty($validated['stream_id'])) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'stream_id' => 'Please select a stream for the chosen classroom.'
+                ]);
+            }
+
             // Create parent info
             $parent = ParentInfo::create([
                 'father_name' => $admission->father_name,
-                'father_phone' => $admission->father_phone,
+                'father_phone' => $this->formatPhoneWithCode($admission->father_phone, $admission->father_phone_country_code ?? '+254'),
+                'father_phone_country_code' => $admission->father_phone_country_code ?? '+254',
+                'father_whatsapp' => $this->formatPhoneWithCode($admission->father_whatsapp, $admission->father_phone_country_code ?? '+254'),
                 'father_email' => $admission->father_email,
                 'father_id_number' => $admission->father_id_number,
+                'father_id_document' => $admission->father_id_document,
                 'mother_name' => $admission->mother_name,
-                'mother_phone' => $admission->mother_phone,
+                'mother_phone' => $this->formatPhoneWithCode($admission->mother_phone, $admission->mother_phone_country_code ?? '+254'),
+                'mother_phone_country_code' => $admission->mother_phone_country_code ?? '+254',
+                'mother_whatsapp' => $this->formatPhoneWithCode($admission->mother_whatsapp, $admission->mother_phone_country_code ?? '+254'),
                 'mother_email' => $admission->mother_email,
                 'mother_id_number' => $admission->mother_id_number,
+                'mother_id_document' => $admission->mother_id_document,
                 'guardian_name' => $admission->guardian_name,
-                'guardian_phone' => $admission->guardian_phone,
-                'guardian_email' => $admission->guardian_email,
+                'guardian_phone' => $this->formatPhoneWithCode($admission->guardian_phone, $admission->guardian_phone_country_code ?? '+254'),
+                'guardian_phone_country_code' => $admission->guardian_phone_country_code ?? '+254',
                 'guardian_id_number' => $admission->guardian_id_number,
+                'guardian_relationship' => $admission->guardian_relationship,
+                'marital_status' => $admission->marital_status,
             ]);
 
             // Generate admission number
             $admissionNumber = $this->generateNextAdmissionNumber();
+
+            $dropOffPointLabel = null;
+            if (!empty($validated['drop_off_point_other'])) {
+                $dropOffPointLabel = $validated['drop_off_point_other'];
+            } elseif (!empty($validated['drop_off_point_id'])) {
+                $dropOffPointLabel = optional(DropOffPoint::find($validated['drop_off_point_id']))->name;
+            }
 
             // Create student
             $student = Student::create([
@@ -197,11 +321,29 @@ class OnlineAdmissionController extends Controller
                 'last_name' => $admission->last_name,
                 'dob' => $admission->dob,
                 'gender' => $admission->gender,
-                'classroom_id' => $admission->classroom_id,
-                'stream_id' => $admission->stream_id,
+                'classroom_id' => $validated['classroom_id'],
+                'stream_id' => $validated['stream_id'] ?? null,
+                'category_id' => $validated['category_id'],
+                'route_id' => $validated['route_id'] ?? null,
+                'trip_id' => $validated['trip_id'] ?? null,
+                'drop_off_point_id' => $validated['drop_off_point_id'] ?? null,
+                'drop_off_point_other' => $validated['drop_off_point_other'] ?? null,
+                'drop_off_point' => $dropOffPointLabel,
                 'parent_id' => $parent->id,
                 'nemis_number' => $admission->nemis_number,
                 'knec_assessment_number' => $admission->knec_assessment_number,
+                'marital_status' => $admission->marital_status,
+                // Medical & emergency
+                'has_allergies' => isset($validated['has_allergies']) ? (bool)$validated['has_allergies'] : (bool)$admission->has_allergies,
+                'allergies_notes' => $validated['allergies_notes'] ?? $admission->allergies_notes,
+                'is_fully_immunized' => isset($validated['is_fully_immunized']) ? (bool)$validated['is_fully_immunized'] : (bool)$admission->is_fully_immunized,
+                'emergency_contact_name' => $validated['emergency_contact_name'] ?? $admission->emergency_contact_name,
+                'emergency_contact_phone' => $this->formatPhoneWithCode(
+                    $validated['emergency_contact_phone'] ?? $admission->emergency_contact_phone,
+                    '+254'
+                ),
+                'preferred_hospital' => $validated['preferred_hospital'] ?? $admission->preferred_hospital,
+                'residential_area' => $validated['residential_area'] ?? $admission->residential_area,
                 'status' => 'active',
                 'admission_date' => now(),
             ]);
@@ -212,6 +354,8 @@ class OnlineAdmissionController extends Controller
                 'application_status' => 'accepted',
                 'reviewed_by' => auth()->id(),
                 'review_date' => now(),
+                'classroom_id' => $validated['classroom_id'],
+                'stream_id' => $validated['stream_id'] ?? null,
             ]);
             
             // Charge fees for newly admitted student
@@ -275,15 +419,11 @@ class OnlineAdmissionController extends Controller
     {
         // Delete uploaded files
         if ($admission->passport_photo) {
-            Storage::disk('public')->delete($admission->passport_photo);
+            Storage::disk('private')->delete($admission->passport_photo);
         }
         if ($admission->birth_certificate) {
-            Storage::disk('public')->delete($admission->birth_certificate);
+            Storage::disk('private')->delete($admission->birth_certificate);
         }
-        if ($admission->parent_id_card) {
-            Storage::disk('public')->delete($admission->parent_id_card);
-        }
-
         $admission->delete();
 
         return redirect()->route('online-admissions.index')
@@ -302,5 +442,102 @@ class OnlineAdmissionController extends Controller
         
         $numericPart = (int) $lastNumber;
         return str_pad((string)($numericPart + 1), 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Full international country codes list (dialing) with flag emoji, Kenya default appears first.
+     */
+    private function getCountryCodes(): array
+    {
+        $codes = [
+            ['code' => '+254', 'label' => '🇰🇪 Kenya (+254)'],
+            ['code' => '+1', 'label' => '🇺🇸🇨🇦 United States / Canada (+1)'],
+            ['code' => '+44', 'label' => '🇬🇧 United Kingdom (+44)'],
+            ['code' => '+27', 'label' => '🇿🇦 South Africa (+27)'],
+            ['code' => '+234', 'label' => '🇳🇬 Nigeria (+234)'],
+            ['code' => '+256', 'label' => '🇺🇬 Uganda (+256)'],
+            ['code' => '+255', 'label' => '🇹🇿 Tanzania (+255)'],
+            ['code' => '+91', 'label' => '🇮🇳 India (+91)'],
+            ['code' => '+971', 'label' => '🇦🇪 United Arab Emirates (+971)'],
+            ['code' => '+61', 'label' => '🇦🇺 Australia (+61)'],
+            ['code' => '+64', 'label' => '🇳🇿 New Zealand (+64)'],
+            ['code' => '+81', 'label' => '🇯🇵 Japan (+81)'],
+            ['code' => '+86', 'label' => '🇨🇳 China (+86)'],
+            ['code' => '+49', 'label' => '🇩🇪 Germany (+49)'],
+            ['code' => '+33', 'label' => '🇫🇷 France (+33)'],
+            ['code' => '+39', 'label' => '🇮🇹 Italy (+39)'],
+            ['code' => '+34', 'label' => '🇪🇸 Spain (+34)'],
+            ['code' => '+46', 'label' => '🇸🇪 Sweden (+46)'],
+            ['code' => '+47', 'label' => '🇳🇴 Norway (+47)'],
+            ['code' => '+45', 'label' => '🇩🇰 Denmark (+45)'],
+            ['code' => '+31', 'label' => '🇳🇱 Netherlands (+31)'],
+            ['code' => '+32', 'label' => '🇧🇪 Belgium (+32)'],
+            ['code' => '+41', 'label' => '🇨🇭 Switzerland (+41)'],
+            ['code' => '+52', 'label' => '🇲🇽 Mexico (+52)'],
+            ['code' => '+55', 'label' => '🇧🇷 Brazil (+55)'],
+            ['code' => '+54', 'label' => '🇦🇷 Argentina (+54)'],
+            ['code' => '+51', 'label' => '🇵🇪 Peru (+51)'],
+            ['code' => '+20', 'label' => '🇪🇬 Egypt (+20)'],
+            ['code' => '+212', 'label' => '🇲🇦 Morocco (+212)'],
+            ['code' => '+974', 'label' => '🇶🇦 Qatar (+974)'],
+            ['code' => '+966', 'label' => '🇸🇦 Saudi Arabia (+966)'],
+            ['code' => '+962', 'label' => '🇯🇴 Jordan (+962)'],
+            ['code' => '+961', 'label' => '🇱🇧 Lebanon (+961)'],
+            ['code' => '+90', 'label' => '🇹🇷 Turkey (+90)'],
+            ['code' => '+94', 'label' => '🇱🇰 Sri Lanka (+94)'],
+            ['code' => '+880', 'label' => '🇧🇩 Bangladesh (+880)'],
+            ['code' => '+92', 'label' => '🇵🇰 Pakistan (+92)'],
+            ['code' => '+60', 'label' => '🇲🇾 Malaysia (+60)'],
+            ['code' => '+65', 'label' => '🇸🇬 Singapore (+65)'],
+            ['code' => '+63', 'label' => '🇵🇭 Philippines (+63)'],
+            ['code' => '+62', 'label' => '🇮🇩 Indonesia (+62)'],
+            ['code' => '+82', 'label' => '🇰🇷 South Korea (+82)'],
+            ['code' => '+853', 'label' => '🇲🇴 Macau (+853)'],
+            ['code' => '+852', 'label' => '🇭🇰 Hong Kong (+852)'],
+            ['code' => '+7', 'label' => '🇷🇺 Russia (+7)'],
+            ['code' => '+380', 'label' => '🇺🇦 Ukraine (+380)'],
+            ['code' => '+48', 'label' => '🇵🇱 Poland (+48)'],
+            ['code' => '+420', 'label' => '🇨🇿 Czech Republic (+420)'],
+            ['code' => '+421', 'label' => '🇸🇰 Slovakia (+421)'],
+            ['code' => '+36', 'label' => '🇭🇺 Hungary (+36)'],
+            ['code' => '+40', 'label' => '🇷🇴 Romania (+40)'],
+            ['code' => '+30', 'label' => '🇬🇷 Greece (+30)'],
+            ['code' => '+386', 'label' => '🇸🇮 Slovenia (+386)'],
+            ['code' => '+385', 'label' => '🇭🇷 Croatia (+385)'],
+            ['code' => '+43', 'label' => '🇦🇹 Austria (+43)'],
+            ['code' => '+372', 'label' => '🇪🇪 Estonia (+372)'],
+            ['code' => '+371', 'label' => '🇱🇻 Latvia (+371)'],
+            ['code' => '+370', 'label' => '🇱🇹 Lithuania (+370)'],
+            ['code' => '+56', 'label' => '🇨🇱 Chile (+56)'],
+            ['code' => '+57', 'label' => '🇨🇴 Colombia (+57)'],
+            ['code' => '+58', 'label' => '🇻🇪 Venezuela (+58)'],
+            ['code' => '+507', 'label' => '🇵🇦 Panama (+507)'],
+            ['code' => '+506', 'label' => '🇨🇷 Costa Rica (+506)'],
+            ['code' => '+66', 'label' => '🇹🇭 Thailand (+66)'],
+            ['code' => '+84', 'label' => '🇻🇳 Vietnam (+84)'],
+        ];
+
+        return collect($codes)
+            ->unique('code')
+            ->sortBy('label')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Normalize a phone number by combining country code and local digits.
+     */
+    protected function formatPhoneWithCode(?string $number, ?string $code = '+254'): ?string
+    {
+        if (!$number) {
+            return null;
+        }
+        $cleanCode = ltrim(trim($code ?? '+254'), '+');
+        $cleanNumber = preg_replace('/\D+/', '', $number);
+        $cleanNumber = ltrim($cleanNumber, '0');
+        if ($cleanNumber === '') {
+            return null;
+        }
+        return '+' . $cleanCode . $cleanNumber;
     }
 }
