@@ -309,5 +309,27 @@ class FamilyUpdateController extends Controller
         $codes = include resource_path('data/country_codes.php');
         return is_array($codes) ? $codes : [];
     }
+
+    private function formatPhoneWithCode(?string $phone, ?string $code = '+254'): ?string
+    {
+        if (!$phone) {
+            return null;
+        }
+
+        $cleanPhone = preg_replace('/\D+/', '', $phone);
+        $code = $code && str_starts_with($code, '+') ? $code : '+' . ltrim((string) $code, '+');
+
+        // If phone already starts with country code (with or without plus), keep as is
+        if (str_starts_with($phone, '+') || str_starts_with($cleanPhone, ltrim($code, '+'))) {
+            return str_starts_with($phone, '+') ? $phone : '+' . $cleanPhone;
+        }
+
+        // If starts with 0, drop it then prepend code
+        if (str_starts_with($cleanPhone, '0')) {
+            $cleanPhone = ltrim($cleanPhone, '0');
+        }
+
+        return $code . $cleanPhone;
+    }
 }
 
