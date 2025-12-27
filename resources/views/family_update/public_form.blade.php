@@ -1,97 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    @php
+        $schoolNameSetting = \App\Models\Setting::where('key', 'school_name')->first();
+        $schoolLogoSetting = \App\Models\Setting::where('key', 'school_logo')->first();
+        $faviconSetting = \App\Models\Setting::where('key', 'favicon')->first();
+        $appName = $schoolNameSetting?->value ?? config('app.name', 'School Management System');
+        $logoSetting = $schoolLogoSetting?->value;
+        $faviconSettingValue = $faviconSetting?->value ?? $logoSetting;
+        $logoUrl = null;
+        if ($logoSetting && \Illuminate\Support\Facades\Storage::disk('public')->exists($logoSetting)) {
+            $logoUrl = \Illuminate\Support\Facades\Storage::url($logoSetting);
+        } elseif ($logoSetting && file_exists(public_path('images/'.$logoSetting))) {
+            $logoUrl = asset('images/'.$logoSetting);
+        } else {
+            $logoUrl = asset('images/logo.png');
+        }
+        $faviconUrl = null;
+        if ($faviconSettingValue && \Illuminate\Support\Facades\Storage::disk('public')->exists($faviconSettingValue)) {
+            $faviconUrl = \Illuminate\Support\Facades\Storage::url($faviconSettingValue);
+        } elseif ($faviconSettingValue && file_exists(public_path('images/'.$faviconSettingValue))) {
+            $faviconUrl = asset('images/'.$faviconSettingValue);
+        } elseif ($logoSetting && file_exists(public_path('images/'.$logoSetting))) {
+            $faviconUrl = asset('images/'.$logoSetting);
+        } else {
+            $faviconUrl = asset('images/logo.png');
+        }
+    @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Details Update</title>
-    @php $hasVite = file_exists(public_path('build/manifest.json')); @endphp
-    @if($hasVite)
-        @vite(['resources/css/app.css','resources/js/app.js'])
-    @elseif(file_exists(public_path('css/app.css')))
-        <link rel="stylesheet" href="{{ asset('css/app.css') }}">
-    @endif
+    <link rel="icon" href="{{ $faviconUrl }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        :root {
+            --brand-primary: {{ setting('finance_primary_color', '#0f766e') }};
+            --brand-accent: {{ setting('finance_secondary_color', '#14b8a6') }};
+            --brand-bg: #f5f7fb;
+            --brand-surface: #ffffff;
+            --brand-border: #e5e7eb;
+            --brand-text: #0f172a;
+            --brand-muted: #6b7280;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--brand-bg);
+            color: var(--brand-text);
+        }
+        .hero {
+            background: linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-accent) 100%);
+            color: #fff;
+            border-radius: 20px;
+            padding: 28px 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        .form-shell {
+            background: var(--brand-surface);
+            border: 1px solid var(--brand-border);
+            border-radius: 16px;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+        }
+        .form-section {
+            border: 1px solid var(--brand-border);
+            border-radius: 14px;
+            padding: 16px;
+            background: #fff;
+        }
+        .section-header {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--brand-muted);
+        }
+        .badge-pill {
+            border-radius: 999px;
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            font-weight: 600;
+        }
+        .form-label {
+            font-weight: 600;
+            color: var(--brand-text);
+        }
+        .form-control, .form-select {
+            border-radius: 10px;
+            border-color: var(--brand-border);
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--brand-primary);
+            box-shadow: 0 0 0 0.2rem rgba(15,118,110,0.15);
+        }
+        .upload-hint {
+            font-size: 0.85rem;
+            color: var(--brand-muted);
+        }
+        @media (max-width: 576px) {
+            .hero {
+                padding: 20px 18px;
+            }
+            .form-shell {
+                padding: 14px;
+            }
+        }
+    </style>
 </head>
-<body class="bg-light">
+<body>
 <div class="container py-4">
     <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card shadow-sm form-card">
-                <div class="card-header bg-primary text-white d-flex justify-content-between">
+        <div class="col-xl-9 col-lg-10">
+            <div class="hero mb-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-3">
+                    <img src="{{ $logoUrl }}" alt="Logo" style="width:56px;height:56px;object-fit:contain;border-radius:12px;background:rgba(255,255,255,0.15);padding:8px;">
                     <div>
-                        <h5 class="mb-0">Student Details Update</h5>
-                        <small>Family ID: {{ $family->id }}</small>
+                        <div class="fw-semibold text-uppercase small" style="letter-spacing:0.6px;">Secure Update</div>
+                        <h4 class="mb-0">Student Details</h4>
+                        <small class="opacity-75">Family ID: {{ $family->id }}</small>
                     </div>
-                    <span class="badge bg-light text-primary">Secure Link</span>
                 </div>
-                <div class="card-body">
-                    @if(session('success'))
-                        <div class="alert alert-success">{{ session('success') }}</div>
-                    @endif
-                    <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data">
-                        @csrf
-                        @foreach($students as $stu)
-                            <h6 class="text-uppercase text-muted mb-3">Student Details</h6>
-                            <div class="border rounded-3 p-3 mb-4">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <div class="fw-semibold">{{ $stu->first_name }} {{ $stu->last_name }}</div>
-                                    <span class="badge bg-light text-dark">Admission #{{ $stu->admission_number }}</span>
+                <span class="badge-pill">Encrypted Link</span>
+            </div>
+
+            <div class="form-shell p-4">
+                @if(session('success'))
+                    <div class="alert alert-success">{{ session('success') }}</div>
+                @endif
+                <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data" novalidate>
+                    @csrf
+                    @foreach($students as $stu)
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="section-header text-uppercase mb-0">Student Details</h6>
+                            <span class="badge bg-light text-dark">Admission #{{ $stu->admission_number }}</span>
+                        </div>
+                        <div class="form-section mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-semibold">{{ $stu->first_name }} {{ $stu->last_name }}</div>
+                            </div>
+                            <input type="hidden" name="students[{{ $stu->id }}][id]" value="{{ $stu->id }}">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" name="students[{{ $stu->id }}][first_name]" class="form-control" value="{{ old('students.'.$stu->id.'.first_name', $stu->first_name) }}" required>
                                 </div>
-                                <input type="hidden" name="students[{{ $stu->id }}][id]" value="{{ $stu->id }}">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <label class="form-label">First Name</label>
-                                        <input type="text" name="students[{{ $stu->id }}][first_name]" class="form-control" value="{{ old('students.'.$stu->id.'.first_name', $stu->first_name) }}" required>
+                                <div class="col-md-4">
+                                    <label class="form-label">Middle Name</label>
+                                    <input type="text" name="students[{{ $stu->id }}][middle_name]" class="form-control" value="{{ old('students.'.$stu->id.'.middle_name', $stu->middle_name) }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" name="students[{{ $stu->id }}][last_name]" class="form-control" value="{{ old('students.'.$stu->id.'.last_name', $stu->last_name) }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Gender</label>
+                                    <select name="students[{{ $stu->id }}][gender]" class="form-select" required>
+                                        <option value="Male" @selected(old('students.'.$stu->id.'.gender', $stu->gender)=='Male')>Male</option>
+                                        <option value="Female" @selected(old('students.'.$stu->id.'.gender', $stu->gender)=='Female')>Female</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Date of Birth</label>
+                                    <input type="date" name="students[{{ $stu->id }}][dob]" class="form-control" value="{{ old('students.'.$stu->id.'.dob', $stu->dob) }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Classroom (view only)</label>
+                                    <input type="text" class="form-control" value="{{ $stu->classroom->name ?? '—' }}" disabled>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="students[{{ $stu->id }}][has_allergies]" value="1" id="has_allergies_{{ $stu->id }}" @checked(old('students.'.$stu->id.'.has_allergies', $stu->has_allergies))>
+                                        <label class="form-check-label" for="has_allergies_{{ $stu->id }}">Has allergies?</label>
                                     </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Middle Name</label>
-                                        <input type="text" name="students[{{ $stu->id }}][middle_name]" class="form-control" value="{{ old('students.'.$stu->id.'.middle_name', $stu->middle_name) }}">
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" name="students[{{ $stu->id }}][is_fully_immunized]" value="1" id="fully_immunized_{{ $stu->id }}" @checked(old('students.'.$stu->id.'.is_fully_immunized', $stu->is_fully_immunized))>
+                                        <label class="form-check-label" for="fully_immunized_{{ $stu->id }}">Fully immunized</label>
                                     </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Last Name</label>
-                                        <input type="text" name="students[{{ $stu->id }}][last_name]" class="form-control" value="{{ old('students.'.$stu->id.'.last_name', $stu->last_name) }}" required>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Gender</label>
-                                        <select name="students[{{ $stu->id }}][gender]" class="form-select" required>
-                                            <option value="Male" @selected(old('students.'.$stu->id.'.gender', $stu->gender)=='Male')>Male</option>
-                                            <option value="Female" @selected(old('students.'.$stu->id.'.gender', $stu->gender)=='Female')>Female</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Date of Birth</label>
-                                        <input type="date" name="students[{{ $stu->id }}][dob]" class="form-control" value="{{ old('students.'.$stu->id.'.dob', $stu->dob) }}">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="form-label">Classroom (view only)</label>
-                                        <input type="text" class="form-control" value="{{ $stu->classroom->name ?? '—' }}" disabled>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" name="students[{{ $stu->id }}][has_allergies]" value="1" id="has_allergies_{{ $stu->id }}" @checked(old('students.'.$stu->id.'.has_allergies', $stu->has_allergies))>
-                                            <label class="form-check-label" for="has_allergies_{{ $stu->id }}">Has allergies?</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" name="students[{{ $stu->id }}][is_fully_immunized]" value="1" id="fully_immunized_{{ $stu->id }}" @checked(old('students.'.$stu->id.'.is_fully_immunized', $stu->is_fully_immunized))>
-                                            <label class="form-check-label" for="fully_immunized_{{ $stu->id }}">Fully immunized</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-12">
-                                        <label class="form-label">Allergies Notes</label>
-                                        <textarea name="students[{{ $stu->id }}][allergies_notes]" class="form-control" rows="2">{{ old('students.'.$stu->id.'.allergies_notes', $stu->allergies_notes) }}</textarea>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Passport Photo</label>
-                                        <input type="file" name="students[{{ $stu->id }}][passport_photo]" class="form-control" accept="image/*" capture="environment">
-                                        @if($stu->photo_path)
-                                            <small class="text-muted d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->photo_path) }}">Current photo</a></small>
-                                        @endif
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Birth Certificate / Notification</label>
-                                        <input type="file" name="students[{{ $stu->id }}][birth_certificate]" class="form-control" accept=".pdf,.jpg,.jpeg,.png" capture="environment">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Allergies Notes</label>
+                                    <textarea name="students[{{ $stu->id }}][allergies_notes]" class="form-control" rows="2">{{ old('students.'.$stu->id.'.allergies_notes', $stu->allergies_notes) }}</textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Passport Photo</label>
+                                    <input type="file" name="students[{{ $stu->id }}][passport_photo]" class="form-control" accept="image/*" capture="environment">
+                                    @if($stu->photo_path)
+                                        <small class="upload-hint d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->photo_path) }}">Current photo</a></small>
+                                    @else
+                                        <small class="upload-hint d-block mt-1">Accepted: JPG/PNG up to 4 MB.</small>
+                                    @endif
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Birth Certificate / Notification</label>
+                                    <input type="file" name="students[{{ $stu->id }}][birth_certificate]" class="form-control" accept=".pdf,.jpg,.jpeg,.png" capture="environment">
+                                    @if($stu->birth_certificate_path)
+                                        <small class="upload-hint d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->birth_certificate_path) }}">Current file</a></small>
+                                    @else
+                                        <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
+                                    @endif
                                         @if($stu->birth_certificate_path)
                                             <small class="text-muted d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->birth_certificate_path) }}">Current file</a></small>
                                         @endif
@@ -106,20 +214,22 @@
                                 <label class="form-label">Father Name</label>
                                 <input type="text" name="father_name" class="form-control" value="{{ old('father_name', $family->students->first()->parent->father_name ?? '') }}">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Father Phone</label>
-                                <div class="input-group">
-                                    <select name="father_phone_country_code" class="form-select flex-grow-0" style="max-width:140px">
-@foreach($countryCodes as $code => $label)
-    <option value="{{ $code }}" @selected(old('father_phone_country_code', $family->students->first()->parent->father_phone_country_code ?? '+254')==$code)>{{ $label }}</option>
-@endforeach
-                                    </select>
-                                    <input type="text" name="father_phone" class="form-control" value="{{ old('father_phone', $family->students->first()->parent->father_phone ?? '') }}">
+                                <div class="col-md-6">
+                                    <label class="form-label">Father Phone</label>
+                                    <div class="input-group phone-input-group">
+                                        <span class="input-group-text phone-flag" id="father_phone_prefix">🇰🇪 +254</span>
+                                        <select name="father_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="father_phone" style="max-width:170px">
+                                            @foreach($countryCodes as $code => $label)
+                                                <option value="{{ $code }}" @selected(old('father_phone_country_code', '+254')==$code)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" name="father_phone" id="father_phone" class="form-control phone-input" value="{{ old('father_phone', $family->students->first()->parent->father_phone ?? '') }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="father_phone_help">
+                                    </div>
+                                    <small class="upload-hint d-block" id="father_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                                 </div>
-                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father WhatsApp</label>
-                        <input type="text" name="father_whatsapp" class="form-control" value="{{ old('father_whatsapp', $family->students->first()->parent->father_whatsapp ?? '') }}" placeholder="Same code as phone">
+                                    <input type="text" name="father_whatsapp" id="father_whatsapp" class="form-control phone-input" value="{{ old('father_whatsapp', $family->students->first()->parent->father_whatsapp ?? '') }}" placeholder="Same code as phone">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father Email</label>
@@ -137,20 +247,22 @@
                                 <label class="form-label">Mother Name</label>
                                 <input type="text" name="mother_name" class="form-control" value="{{ old('mother_name', $family->students->first()->parent->mother_name ?? '') }}">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Mother Phone</label>
-                                <div class="input-group">
-                                    <select name="mother_phone_country_code" class="form-select flex-grow-0" style="max-width:140px">
-@foreach($countryCodes as $code => $label)
-    <option value="{{ $code }}" @selected(old('mother_phone_country_code', $family->students->first()->parent->mother_phone_country_code ?? '+254')==$code)>{{ $label }}</option>
-@endforeach
-                                    </select>
-                                    <input type="text" name="mother_phone" class="form-control" value="{{ old('mother_phone', $family->students->first()->parent->mother_phone ?? '') }}">
+                                <div class="col-md-6">
+                                    <label class="form-label">Mother Phone</label>
+                                    <div class="input-group phone-input-group">
+                                        <span class="input-group-text phone-flag" id="mother_phone_prefix">🇰🇪 +254</span>
+                                        <select name="mother_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="mother_phone" style="max-width:170px">
+                                            @foreach($countryCodes as $code => $label)
+                                                <option value="{{ $code }}" @selected(old('mother_phone_country_code', '+254')==$code)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" name="mother_phone" id="mother_phone" class="form-control phone-input" value="{{ old('mother_phone', $family->students->first()->parent->mother_phone ?? '') }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="mother_phone_help">
+                                    </div>
+                                    <small class="upload-hint d-block" id="mother_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                                 </div>
-                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother WhatsApp</label>
-                        <input type="text" name="mother_whatsapp" class="form-control" value="{{ old('mother_whatsapp', $family->students->first()->parent->mother_whatsapp ?? '') }}" placeholder="Same code as phone">
+                                    <input type="text" name="mother_whatsapp" id="mother_whatsapp" class="form-control phone-input" value="{{ old('mother_whatsapp', $family->students->first()->parent->mother_whatsapp ?? '') }}" placeholder="Same code as phone">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother Email</label>
@@ -168,17 +280,19 @@
                                 <label class="form-label">Guardian Name</label>
                                 <input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name', $family->students->first()->parent->guardian_name ?? '') }}">
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Guardian Phone</label>
-                                <div class="input-group">
-                                    <select name="guardian_phone_country_code" class="form-select flex-grow-0" style="max-width:140px">
-@foreach($countryCodes as $code => $label)
-    <option value="{{ $code }}" @selected(old('guardian_phone_country_code', $family->students->first()->parent->guardian_phone_country_code ?? '+254')==$code)>{{ $label }}</option>
-@endforeach
-                                    </select>
-                                    <input type="text" name="guardian_phone" class="form-control" value="{{ old('guardian_phone', $family->students->first()->parent->guardian_phone ?? '') }}">
+                                <div class="col-md-6">
+                                    <label class="form-label">Guardian Phone</label>
+                                    <div class="input-group phone-input-group">
+                                        <span class="input-group-text phone-flag" id="guardian_phone_prefix">🇰🇪 +254</span>
+                                        <select name="guardian_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="guardian_phone" style="max-width:170px">
+                                            @foreach($countryCodes as $code => $label)
+                                                <option value="{{ $code }}" @selected(old('guardian_phone_country_code', '+254')==$code)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" name="guardian_phone" id="guardian_phone" class="form-control phone-input" value="{{ old('guardian_phone', $family->students->first()->parent->guardian_phone ?? '') }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="guardian_phone_help">
+                                    </div>
+                                    <small class="upload-hint d-block" id="guardian_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                                 </div>
-                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Guardian Relationship</label>
                                 <input type="text" name="guardian_relationship" class="form-control" value="{{ old('guardian_relationship', $family->students->first()->parent->guardian_relationship ?? '') }}">
@@ -203,7 +317,16 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Emergency Contact Phone</label>
-                        <input type="text" name="emergency_contact_phone" class="form-control" value="{{ old('emergency_contact_phone', $family->students->first()->emergency_contact_phone ?? '') }}" placeholder="+2547XXXXXXXX">
+                                <div class="input-group phone-input-group">
+                                    <span class="input-group-text phone-flag" id="emergency_phone_prefix">🇰🇪 +254</span>
+                                    <select name="emergency_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="emergency_contact_phone" style="max-width:170px">
+                                        @foreach($countryCodes as $code => $label)
+                                            <option value="{{ $code }}" @selected(old('emergency_phone_country_code', '+254')==$code)>{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input type="text" name="emergency_contact_phone" id="emergency_contact_phone" class="form-control phone-input" value="{{ old('emergency_contact_phone', $family->students->first()->emergency_contact_phone ?? '') }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="emergency_phone_help">
+                                </div>
+                                <small class="upload-hint d-block" id="emergency_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Preferred Hospital / Medical Facility</label>
@@ -229,6 +352,56 @@
         </div>
     </div>
 </div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const phoneRules = {
+            '+254': {flag: '🇰🇪', placeholder: '7XXXXXXXX', pattern: '(7|1)[0-9]{8}'},
+            '+1':   {flag: '🇺🇸', placeholder: '2XXXXXXXXX', pattern: '[0-9]{9,12}'},
+            '+971': {flag: '🇦🇪', placeholder: '5XXXXXXXX', pattern: '[0-9]{7,10}'},
+            '+974': {flag: '🇶🇦', placeholder: '3XXXXXXX', pattern: '[0-9]{7,10}'},
+            '+86':  {flag: '🇨🇳', placeholder: '1XXXXXXXXXX', pattern: '[0-9]{8,12}'},
+            '+81':  {flag: '🇯🇵', placeholder: '8XXXXXXXX', pattern: '[0-9]{8,12}'},
+            '+61':  {flag: '🇦🇺', placeholder: '4XXXXXXXX', pattern: '[0-9]{8,11}'},
+            '+49':  {flag: '🇩🇪', placeholder: '15XXXXXXX', pattern: '[0-9]{7,12}'},
+            '+358': {flag: '🇫🇮', placeholder: '4XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+44':  {flag: '🇬🇧', placeholder: '7XXXXXXXXX', pattern: '[0-9]{8,12}'},
+            '+27':  {flag: '🇿🇦', placeholder: '6XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+256': {flag: '🇺🇬', placeholder: '7XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+255': {flag: '🇹🇿', placeholder: '7XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+250': {flag: '🇷🇼', placeholder: '7XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+257': {flag: '🇧🇮', placeholder: '7XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+211': {flag: '🇸🇸', placeholder: '9XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+260': {flag: '🇿🇲', placeholder: '9XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+263': {flag: '🇿🇼', placeholder: '7XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+265': {flag: '🇲🇼', placeholder: '9XXXXXXXX', pattern: '[0-9]{7,11}'},
+            '+234': {flag: '🇳🇬', placeholder: '8XXXXXXXX', pattern: '[0-9]{8,12}'},
+        };
+
+        document.querySelectorAll('.phone-code-select').forEach(function (select) {
+            const targetId = select.dataset.target;
+            const input = document.getElementById(targetId);
+            const prefix = document.getElementById(`${targetId}_prefix`);
+            const hint = document.getElementById(`${targetId}_help`);
+
+            const applyRule = () => {
+                const code = select.value;
+                const rule = phoneRules[code] || {flag: '📞', placeholder: 'number', pattern: '[0-9]{6,12}'};
+                if (prefix) prefix.textContent = `${rule.flag} ${code}`;
+                if (input) {
+                    input.placeholder = rule.placeholder;
+                    input.pattern = rule.pattern;
+                }
+                if (hint) {
+                    hint.textContent = code === '+254'
+                        ? 'Kenyan format: starts with 7 or 1 then 8 digits.'
+                        : 'Enter 6-12 digits for selected country.';
+                }
+            };
+
+            select.addEventListener('change', applyRule);
+            applyRule();
+        });
+    });
+</script>
 </body>
 </html>
-

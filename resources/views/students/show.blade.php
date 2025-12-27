@@ -83,7 +83,8 @@
             </div>
         <div class="d-flex flex-column gap-2">
           <div class="text-muted small">Marital Status (Parents)</div>
-          <div class="fw-semibold text-capitalize">{{ $student->parent->marital_status ? str_replace('_',' ', $student->parent->marital_status) : '—' }}</div>
+          @php $marital = optional($student->parent)->marital_status; @endphp
+          <div class="fw-semibold text-capitalize">{{ $marital ? str_replace('_',' ', $marital) : '—' }}</div>
         </div>
             <div class="d-flex flex-column gap-2">
               <div class="text-muted small">NEMIS</div>

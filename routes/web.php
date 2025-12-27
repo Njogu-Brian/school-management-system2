@@ -74,6 +74,7 @@ use App\Http\Controllers\Finance\FeePaymentPlanController;
 use App\Http\Controllers\Finance\FeeConcessionController;
 use App\Http\Controllers\Finance\DiscountController;
 use App\Http\Controllers\Finance\DocumentSettingsController;
+use App\Http\Controllers\Finance\LegacyFinanceImportController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -283,7 +284,7 @@ Route::middleware('auth')->group(function () {
             Route::delete('/{id}',     [AttendanceNotificationController::class, 'destroy'])->name('attendance.notifications.destroy');
 
             Route::get('/notify',      [AttendanceNotificationController::class, 'notifyForm'])->name('attendance.notifications.notify.form');
-            Route::post('/notify',     [AttendanceNotificationController::class, 'notifySend'])->name('attendance.notifications.notify.send');
+            Route::post('/notify',     [AttendanceNotificationController::class, 'sendNotify'])->name('attendance.notifications.notify.send');
         });
 
     // Attendance reason codes (admin only)
@@ -983,6 +984,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('fee-structures/import', [FeeStructureController::class, 'import'])->name('fee-structures.import');
         Route::post('fee-structures/import', [FeeStructureController::class, 'processImport'])->name('fee-structures.process-import');
         Route::get('fee-structures/template/download', [FeeStructureController::class, 'downloadTemplate'])->name('fee-structures.download-template');
+
+        // Legacy finance imports (PDF → staging)
+        Route::get('legacy-imports', [LegacyFinanceImportController::class, 'index'])->name('legacy-imports.index');
+        Route::post('legacy-imports', [LegacyFinanceImportController::class, 'store'])->name('legacy-imports.store');
+        Route::get('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'show'])->name('legacy-imports.show');
 
         // Invoices
         Route::prefix('invoices')->name('invoices.')->group(function () {
