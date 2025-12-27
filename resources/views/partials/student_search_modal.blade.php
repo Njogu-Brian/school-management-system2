@@ -41,7 +41,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const input = modalEl.querySelector('#studentSearchInput');
     const resultsBody = modalEl.querySelector('#studentSearchResults tbody');
-    const searchUrl = `{{ route('api.students.search') }}`;
+    // Use the general students.search route so all finance users can access it
+    const searchUrl = `{{ route('students.search') }}`;
     const debounceMs = 2000; // wait ~2 seconds after typing stops
     let timer = null;
 
