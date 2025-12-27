@@ -9,27 +9,44 @@ use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
-use Smalot\PdfParser\Parser;
+use App\Services\LegacyPdfParser;
 
 class LegacyFinanceImportService
 {
-    public function __construct(private readonly Parser $parser)
+    public function __construct(private readonly LegacyPdfParser $parser)
     {
     }
 
     /**
      * Parse and persist legacy finance statements from a PDF.
      */
-    public function import(string $pdfPath, ?string $classLabel = null, ?int $uploadedBy = null): array
+    public function import(string $pdfPath, ?string $classLabel = null, ?int $uploadedBy = null, ?LegacyFinanceImportBatch $existingBatch = null): array
     {
-        $batch = LegacyFinanceImportBatch::create([
+        $batch = $existingBatch ?: LegacyFinanceImportBatch::create([
             'uploaded_by' => $uploadedBy,
             'file_name' => basename($pdfPath),
             'class_label' => $classLabel,
-            'status' => 'processing',
         ]);
 
-        $lines = $this->prepareLines($pdfPath);
+        $batch->update([
+            'status' => 'running',
+            'total_students' => 0,
+            'imported_students' => 0,
+            'draft_students' => 0,
+            'file_name' => basename($pdfPath),
+            'class_label' => $classLabel ?? $batch->class_label,
+        ]);
+
+        $lines = $this->prepareLines($pdfPath, $batch);
+        if (empty($lines)) {
+            return [
+                'batch_id' => $batch->id,
+                'file' => $batch->file_name,
+                'students_total' => 0,
+                'terms_imported' => 0,
+                'terms_draft' => 0,
+            ];
+        }
 
         $currentStudent = null;
         $currentTerm = null;
@@ -99,7 +116,7 @@ class LegacyFinanceImportService
         $draft = LegacyStatementTerm::where('batch_id', $batch->id)->where('status', 'draft')->count();
 
         $batch->update([
-            'status' => 'completed',
+            'status' => 'pending_review',
             'total_students' => count($studentsSeen),
             'imported_students' => $imported,
             'draft_students' => $draft,
@@ -114,13 +131,14 @@ class LegacyFinanceImportService
         ];
     }
 
-    private function prepareLines(string $pdfPath): array
+    private function prepareLines(string $pdfPath, LegacyFinanceImportBatch $batch): array
     {
-        $pdf = $this->parser->parseFile($pdfPath);
-        $text = $pdf->getText();
-        $normalized = preg_replace('/\r\n|\r/', "\n", $text);
-        $lines = array_map('trim', explode("\n", (string) $normalized));
-        return array_values(array_filter($lines, fn ($l) => $l !== ''));
+        $lines = $this->parser->getLines($pdfPath);
+        if (empty($lines)) {
+            \Log::error('Parser returned no lines', ['pdf' => $pdfPath, 'batch_id' => $batch->id]);
+            $batch->update(['status' => 'failed']);
+        }
+        return array_values(array_filter(array_map('trim', $lines), fn ($l) => $l !== ''));
     }
 
     private function matchStudentHeader(string $line): ?array
@@ -281,7 +299,10 @@ class LegacyFinanceImportService
         $code = $this->extractTxnCode($narration);
 
         $confidence = $txn['confidence'];
-        if ($amountDr === null && $amountCr === null) {
+        // If we have a clear amount on either side, treat as high confidence.
+        if (($amountDr !== null && $amountCr === null) || ($amountCr !== null && $amountDr === null)) {
+            $confidence = 'high';
+        } elseif ($amountDr === null && $amountCr === null) {
             $confidence = 'draft';
         }
 
@@ -325,7 +346,7 @@ class LegacyFinanceImportService
         return count($parts) ? trim($parts[0]) : null;
     }
 
-    private function extractReference(string $narration): ?string
+    public function extractReference(string $narration): ?string
     {
         if (preg_match('/(INV\d+\/\d{4}\/\d+|REC\d+\/\d{4}|CR\/\d+\/\d+\/\d{4}|DR\/\d+\/\d+\/\d{4})/i', $narration, $m)) {
             return $m[1];
@@ -360,7 +381,7 @@ class LegacyFinanceImportService
         return null;
     }
 
-    private function extractTxnCode(string $narration): ?string
+    public function extractTxnCode(string $narration): ?string
     {
         if (preg_match('/\(([A-Z0-9]+)\)/', $narration, $m)) {
             return $m[1];
