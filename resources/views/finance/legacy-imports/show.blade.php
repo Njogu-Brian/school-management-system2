@@ -12,11 +12,11 @@
         <div class="alert alert-success finance-animate">{{ session('success') }}</div>
     @endif
 
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-4">
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-4 legacy-card">
         <div class="row gy-3 align-items-center">
             <div class="col-md-3">
                 <div class="text-muted small">File</div>
-                <div class="fw-semibold">{{ $batch->file_name }}</div>
+                <div class="fw-semibold text-truncate" style="max-width: 100%;">{{ $batch->file_name }}</div>
             </div>
             <div class="col-md-2">
                 <div class="text-muted small">Class</div>
@@ -93,7 +93,7 @@
     </div>
 
     {{-- Votehead mappings + posting status --}}
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3 legacy-card">
         <div class="card-header d-flex justify-content-between align-items-center px-0 pt-0 border-0 bg-white flex-wrap gap-2">
             <div>
                 <div class="fw-semibold">Votehead Mapping & Posting Status</div>
@@ -106,7 +106,7 @@
                 </button>
             </form>
         </div>
-        <div class="card-body px-0">
+        <div class="card-body p-3">
             @if($pendingLabels->isNotEmpty())
                 <div class="alert alert-warning">
                     <i class="bi bi-exclamation-triangle"></i>
@@ -157,7 +157,7 @@
                             </select>
                         </div>
                         <div class="col-12">
-                            <button class="btn btn-settings-primary">Save Mapping</button>
+                            <button class="btn btn-settings-primary w-100">Save Mapping</button>
                         </div>
                     </form>
                 </div>
@@ -201,12 +201,12 @@
     </div>
 
     {{-- Class-by-class processing --}}
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3 legacy-card">
         <div class="card-header px-0 pt-0 border-0 bg-white">
             <div class="fw-semibold">Process by Class</div>
             <div class="text-muted small">Queue posting for one class at a time.</div>
         </div>
-        <div class="card-body px-0">
+        <div class="card-body p-3">
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
@@ -463,5 +463,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 </script>
+@endpush
+
+@push('styles')
+<style>
+    .legacy-card {
+        padding: 1.25rem;
+    }
+</style>
 @endpush
 

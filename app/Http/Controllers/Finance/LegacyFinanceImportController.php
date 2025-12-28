@@ -87,6 +87,10 @@ class LegacyFinanceImportController extends Controller
             ->filter();
         $legacyLabels = $legacyLabelsRaw
             ->map(fn ($v) => $this->normalizeLabel($v))
+            ->reject(function ($v) {
+                $u = strtoupper($v);
+                return str_contains($u, 'DISCOUNT') || str_contains($u, 'REVERSAL') || str_contains($u, 'JV');
+            })
             ->unique()
             ->values();
         $mappings = LegacyVoteheadMapping::whereIn('legacy_label', $legacyLabels)->get()->keyBy('legacy_label');
