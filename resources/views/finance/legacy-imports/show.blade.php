@@ -14,7 +14,7 @@
 
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-4 legacy-card">
         <div class="row gy-3 align-items-center">
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <div class="text-muted small">File</div>
                 <div class="fw-semibold text-truncate" style="max-width: 100%;">{{ $batch->file_name }}</div>
             </div>
@@ -23,54 +23,15 @@
                 <div class="fw-semibold">{{ $batch->class_label ?? '—' }}</div>
             </div>
             <div class="col-md-2">
-                <div class="text-muted small">Status</div>
-                @php
-                    $status = $batch->status;
-                    $badgeClass = match($status) {
-                        'approved' => 'bg-success-subtle text-success',
-                        'pending_review' => 'bg-warning text-dark',
-                        'running' => 'bg-info text-dark',
-                        default => 'bg-secondary-subtle text-secondary'
-                    };
-                @endphp
-                <span class="badge {{ $badgeClass }}">
-                    {{ ucfirst(str_replace('_',' ', $status)) }}
-                </span>
-                @if($status === 'running')
-                    <div class="progress mt-2" style="height: 6px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%;"></div>
-                    </div>
-                    <div class="text-muted small mt-1">Parsing in progress…</div>
-                @endif
-            </div>
-            <div class="col-md-2">
                 <div class="text-muted small">Students</div>
                 <div class="fw-semibold">{{ $batch->total_students }}</div>
             </div>
             <div class="col-md-2">
                 <div class="text-muted small">Drafts</div>
-                @if($batch->draft_students > 0)
-                    <span class="badge bg-warning text-dark">{{ $batch->draft_students }}</span>
-                @else
-                    <span class="text-muted">{{ $batch->draft_students }}</span>
-                @endif
+                <span class="text-muted">{{ $batch->draft_students }}</span>
             </div>
             <div class="col-md-3 mt-2 mt-md-0">
                 <div class="d-flex gap-2 flex-wrap">
-                    <form action="{{ route('finance.legacy-imports.approve', $batch) }}" method="POST" class="d-inline">
-                        @csrf
-                        <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
-                            <i class="bi bi-check2-circle"></i> Approve Batch
-                        </button>
-                    </form>
-                    @if($canApproveAll && $batch->status !== 'approved')
-                        <form action="{{ route('finance.legacy-imports.approve-all', $batch) }}" method="POST" class="d-inline">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-outline-success">
-                                <i class="bi bi-check2-all"></i> Approve All Students
-                            </button>
-                        </form>
-                    @endif
                     <form action="{{ route('finance.legacy-imports.rerun', $batch) }}" method="POST" class="d-inline">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Re-run will delete parsed data for this batch and re-parse the PDF. Continue?')">
@@ -85,165 +46,11 @@
                         </button>
                     </form>
                 </div>
-                @if(!$canApproveAll)
-                    <div class="text-muted small mt-1">Approve all is enabled when all students are mapped and drafts are cleared.</div>
-                @endif
             </div>
         </div>
     </div>
 
-    {{-- Votehead mappings + posting status --}}
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3 legacy-card">
-        <div class="card-header d-flex justify-content-between align-items-center px-0 pt-0 border-0 bg-white flex-wrap gap-2">
-            <div>
-                <div class="fw-semibold">Votehead Mapping & Posting Status</div>
-                <div class="text-muted small">Map legacy voteheads to proceed with posting.</div>
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
-                <a class="btn btn-sm btn-outline-primary" href="{{ route('finance.legacy-imports.report', $batch) }}" target="_blank">
-                    <i class="bi bi-graph-up"></i> View Posting Report
-                </a>
-                <form action="{{ route('finance.legacy-imports.reverse-posting', $batch) }}" method="POST" onsubmit="return confirm('Reverse will delete finance records posted from this batch. Continue?');">
-                    @csrf
-                    <button class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-arrow-counterclockwise"></i> Reverse Finance Posting
-                    </button>
-                </form>
-            </div>
-        </div>
-        <div class="card-body p-3">
-            @if($pendingLabels->isNotEmpty())
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
-                    Pending votehead mappings: {{ implode(', ', $pendingLabels->toArray()) }}
-                </div>
-            @endif
-
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <h6 class="fw-semibold">Resolve Votehead</h6>
-                    <form action="{{ route('finance.legacy-imports.voteheads.resolve', $batch) }}" method="POST" class="row g-2">
-                        @csrf
-                        <div class="col-12">
-                            <label class="form-label">Legacy Label</label>
-                            <select name="legacy_label" class="form-select" required>
-                                @forelse($pendingLabels as $label)
-                                    <option value="{{ $label }}">{{ $label }}</option>
-                                @empty
-                                    <option value="">All voteheads mapped</option>
-                                @endforelse
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">Mode</label>
-                            <select name="mode" class="form-select" id="modeSelect">
-                                <option value="existing">Map to existing</option>
-                                <option value="new">Create new</option>
-                            </select>
-                        </div>
-                        <div class="col-12" id="existingBlock">
-                            <label class="form-label">Existing Votehead</label>
-                            <select name="votehead_id" class="form-select">
-                                <option value="">Select</option>
-                                @foreach($voteheads as $vh)
-                                    <option value="{{ $vh->id }}">{{ $vh->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-12" id="newBlock" style="display:none;">
-                            <label class="form-label">New Votehead Name</label>
-                            <input type="text" name="name" class="form-control" placeholder="Name">
-                            <label class="form-label mt-2">Category</label>
-                            <select name="votehead_category_id" class="form-select">
-                                <option value="">(optional)</option>
-                                @foreach($voteheadCategories as $cat)
-                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <button class="btn btn-settings-primary w-100">Save Mapping</button>
-                        </div>
-                    </form>
-                </div>
-                <div class="col-md-6">
-                    <h6 class="fw-semibold">Posting Summary</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead>
-                                <tr><th>Target</th><th>Status</th><th class="text-end">Count</th></tr>
-                            </thead>
-                            <tbody>
-                                @forelse($postingSummary as $row)
-                                    <tr>
-                                        <td>{{ $row->target_type }}</td>
-                                        <td><span class="badge bg-light text-dark text-uppercase">{{ $row->status }}</span></td>
-                                        <td class="text-end">{{ $row->total }}</td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="3" class="text-muted text-center">No postings yet.</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if($postingErrors->isNotEmpty())
-                        <div class="mt-3">
-                            <h6 class="fw-semibold">Errors / Skips (latest 20)</h6>
-                            <ul class="list-group list-group-flush">
-                                @foreach($postingErrors as $err)
-                                    <li class="list-group-item small">
-                                        <div><strong>{{ $err->target_type }}</strong> — {{ $err->status }}</div>
-                                        <div class="text-muted">{{ $err->error_message ?? 'No message' }}</div>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Class-by-class processing --}}
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3 legacy-card">
-        <div class="card-header px-0 pt-0 border-0 bg-white">
-            <div class="fw-semibold">Process by Class</div>
-            <div class="text-muted small">Queue posting for one class at a time.</div>
-        </div>
-        <div class="card-body p-3">
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Class Label</th>
-                            <th class="text-end">Students</th>
-                            <th class="text-end">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($classGroups as $cg)
-                            <tr>
-                                <td>{{ $cg->class_label ?? 'Unspecified' }}</td>
-                                <td class="text-end">{{ $cg->students_count }}</td>
-                                <td class="text-end">
-                                    <form action="{{ route('finance.legacy-imports.process-class', $batch) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        <input type="hidden" name="class_label" value="{{ $cg->class_label }}">
-                                        <button class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-play"></i> Process Class
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="3" class="text-center text-muted">No class data.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    {{-- Posting UI removed per request --}}
 
     @forelse($grouped as $admission => $student)
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">

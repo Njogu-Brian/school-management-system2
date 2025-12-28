@@ -3,20 +3,13 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\ProcessLegacyBatchPosting;
 use App\Models\LegacyFinanceImportBatch;
-use App\Models\LegacyLedgerPosting;
 use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
-use App\Models\LegacyVoteheadMapping;
 use App\Services\LegacyFinanceImportService;
-use App\Services\LegacyLedgerPostingService;
 use App\Models\Student;
-use App\Models\Votehead;
-use App\Models\VoteheadCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
 
 class LegacyFinanceImportController extends Controller
 {
@@ -75,128 +68,11 @@ class LegacyFinanceImportController extends Controller
             ];
         });
 
-        $hasDrafts = LegacyStatementLine::where('batch_id', $batch->id)->where('confidence', 'draft')->exists();
-        $hasMissingStudents = $batch->terms()->whereNull('student_id')->exists();
-        $canApproveAll = !$hasDrafts && !$hasMissingStudents;
-
-        // Votehead labels for mapping: only invoice lines, normalized, exclude already resolved so UI lists pending only
-        $legacyLabelsRaw = $batch->terms
-            ->flatMap(fn ($t) => $t->lines->where('txn_type', 'invoice')->pluck('votehead'))
-            ->filter()
-            ->map(fn ($v) => trim((string) $v))
-            ->filter();
-        $legacyLabels = $legacyLabelsRaw
-            ->map(fn ($v) => $this->normalizeLabel($v))
-            ->reject(function ($v) {
-                $u = strtoupper($v);
-                return str_contains($u, 'DISCOUNT') || str_contains($u, 'REVERSAL') || str_contains($u, 'JV');
-            })
-            ->unique()
-            ->values();
-        $mappings = LegacyVoteheadMapping::whereIn('legacy_label', $legacyLabels)->get()->keyBy('legacy_label');
-        $pendingLabels = $legacyLabels->filter(fn ($l) => !$mappings->has($l) || $mappings[$l]?->status !== 'resolved');
-
-        $voteheads = Votehead::orderBy('name')->get();
-        $voteheadCategories = VoteheadCategory::orderBy('name')->get();
-        $classGroups = $batch->terms()
-            ->select('class_label', DB::raw('count(distinct admission_number) as students_count'))
-            ->groupBy('class_label')
-            ->orderBy('class_label')
-            ->get();
-
-        $postingSummary = LegacyLedgerPosting::where('batch_id', $batch->id)
-            ->selectRaw('target_type, status, count(*) as total')
-            ->groupBy('target_type', 'status')
-            ->get();
-
-        $postingErrors = LegacyLedgerPosting::where('batch_id', $batch->id)
-            ->whereIn('status', ['error', 'skipped'])
-            ->latest()
-            ->take(20)
-            ->get();
-
         return view('finance.legacy-imports.show', [
             'batch' => $batch,
             'grouped' => $grouped,
             'students' => $students,
-            'canApproveAll' => $canApproveAll,
-            'legacyLabels' => $legacyLabels,
-            'mappings' => $mappings,
-            'pendingLabels' => $pendingLabels,
-            'voteheads' => $voteheads,
-            'voteheadCategories' => $voteheadCategories,
-            'classGroups' => $classGroups,
-            'postingSummary' => $postingSummary,
-            'postingErrors' => $postingErrors,
         ]);
-    }
-
-    public function approve(LegacyFinanceImportBatch $batch)
-    {
-        $batch->update(['status' => 'approved']);
-
-        return redirect()
-            ->route('finance.legacy-imports.show', $batch)
-            ->with('success', 'Batch approved. Parsed transactions are now confirmed.');
-    }
-
-    public function approveStudent(Request $request, LegacyFinanceImportBatch $batch)
-    {
-        $validated = $request->validate([
-            'admission_number' => 'required|string',
-            'student_id' => 'nullable|exists:students,id',
-        ]);
-
-        $terms = $batch->terms()->where('admission_number', $validated['admission_number'])->get();
-        if ($terms->isEmpty()) {
-            return back()->with('error', 'No terms found for that student in this batch.');
-        }
-
-        $termIds = $terms->pluck('id');
-        $draftCount = LegacyStatementLine::whereIn('term_id', $termIds)->where('confidence', 'draft')->count();
-        if ($draftCount > 0) {
-            return back()->with('error', 'Resolve all draft lines for this student before approval.');
-        }
-
-        if (!empty($validated['student_id'])) {
-            $terms->each(function ($term) use ($validated) {
-                $term->update(['student_id' => $validated['student_id']]);
-            });
-        } else {
-            if ($terms->contains(fn($t) => $t->student_id === null)) {
-                return back()->with('error', 'Map the missing student before approval.');
-            }
-        }
-
-        $terms->each(function ($term) {
-            $term->update(['status' => 'approved', 'confidence' => 'high']);
-        });
-
-        $remaining = $batch->terms()->where('status', '!=', 'approved')->count();
-        if ($remaining === 0) {
-            $batch->update(['status' => 'approved']);
-        }
-
-        ProcessLegacyBatchPosting::dispatch($batch->id);
-
-        return back()->with('success', 'Student terms approved.');
-    }
-
-    public function approveAll(LegacyFinanceImportBatch $batch)
-    {
-        $hasDrafts = LegacyStatementLine::where('batch_id', $batch->id)->where('confidence', 'draft')->count();
-        $hasMissing = $batch->terms()->whereNull('student_id')->count();
-
-        if ($hasDrafts > 0 || $hasMissing > 0) {
-            return back()->with('error', 'Resolve drafts and map all students before approving all.');
-        }
-
-        $batch->terms()->update(['status' => 'approved', 'confidence' => 'high']);
-        $batch->update(['status' => 'approved']);
-
-        ProcessLegacyBatchPosting::dispatch($batch->id);
-
-        return back()->with('success', 'All students approved.');
     }
 
     public function processClass(Request $request, LegacyFinanceImportBatch $batch)
