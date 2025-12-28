@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\CreditNote;
 use App\Models\DebitNote;
 use App\Models\FeeConcession;
+use App\Models\LegacyStatementLine;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -114,8 +115,34 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
+        // Legacy transactions (read-only, as parsed) for historical years (pre-2026)
+        $legacyLines = LegacyStatementLine::with('term')
+            ->whereHas('term', function($q) use ($student) {
+                $q->where('student_id', $student->id)
+                  ->where('academic_year', '<', 2026);
+            })
+            ->orderBy('txn_date')
+            ->orderBy('sequence_no')
+            ->get();
+
+        $legacyTransactions = collect();
+        foreach ($legacyLines as $line) {
+            $legacyTransactions->push([
+                'date' => $line->txn_date ?? $line->created_at,
+                'type' => 'Legacy',
+                'description' => $line->narration_raw,
+                'reference' => $line->reference_number ?? $line->txn_code ?? 'Legacy',
+                'votehead' => $line->votehead ?? 'Legacy',
+                'debit' => (float) ($line->amount_dr ?? 0),
+                'credit' => (float) ($line->amount_cr ?? 0),
+                'model_type' => 'LegacyStatementLine',
+                'model_id' => $line->id,
+                'legacy_balance' => $line->running_balance,
+            ]);
+        }
+
         // Build detailed transaction list with votehead-level items
-        $detailedTransactions = collect();
+        $detailedTransactions = collect()->merge($legacyTransactions);
         
         // 1. Add invoice items (each votehead as separate line item)
         foreach ($invoices as $invoice) {
