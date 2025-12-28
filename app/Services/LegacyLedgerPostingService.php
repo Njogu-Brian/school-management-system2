@@ -271,6 +271,9 @@ class LegacyLedgerPostingService
             'paid_amount' => 0,
             'balance' => 0,
             'notes' => 'Imported from legacy batch ' . $term->batch_id,
+            // Backward compatibility fields (non-nullable in some deployments)
+            'year' => $term->academic_year ?? $date->year,
+            'term' => $term->term_number ?? null,
         ]);
 
         $this->recordTermPosting($term, 'invoice', $invoice->id, 'posted', null, 'invoice-'.$term->id);
