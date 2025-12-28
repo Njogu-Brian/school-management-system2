@@ -368,6 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 @endpush
 
+@push('styles')
 <style>
 @media print {
     .finance-header, .finance-filter-card, .btn, .sidebar, .content { margin-left: 0 !important; }
@@ -375,5 +376,6 @@ document.addEventListener('DOMContentLoaded', function() {
     .finance-stat-card { page-break-inside: avoid; }
 }
 </style>
+@endpush
 @endsection
 

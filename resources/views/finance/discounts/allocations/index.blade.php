@@ -93,15 +93,14 @@
         <form method="GET" action="{{ route('finance.discounts.allocations.index') }}" class="row g-3">
             <div class="col-md-3">
                 <label class="finance-form-label">Student</label>
-                <select name="student_id" class="finance-form-select">
-                        <option value="">All Students</option>
-                        @foreach($students as $student)
-                            <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                                {{ $student->first_name }} {{ $student->last_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
+                @include('partials.student_live_search', [
+                    'hiddenInputId' => 'student_id',
+                    'displayInputId' => 'studentFilterSearch',
+                    'resultsId' => 'studentFilterResults',
+                    'placeholder' => 'Type name or admission #',
+                    'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                ])
+            </div>
             <div class="col-md-2">
                 <label class="finance-form-label">Term</label>
                 <select name="term" class="finance-form-select">
@@ -380,14 +379,14 @@
 
                                     <div class="col-md-12">
                                         <label class="finance-form-label">Student <span class="text-danger">*</span></label>
-                                        <select name="student_id" class="finance-form-select @error('student_id') is-invalid @enderror" required>
-                                            <option value="">-- Select Student --</option>
-                                            @foreach($students as $student)
-                                                <option value="{{ $student->id }}" {{ old('student_id') == $student->id ? 'selected' : '' }}>
-                                                    {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})
-                                                </option>
-                                            @endforeach
-                                        </select>
+                                        @include('partials.student_live_search', [
+                                            'hiddenInputId' => 'student_id_modal',
+                                            'displayInputId' => 'studentLiveSearchModal',
+                                            'resultsId' => 'studentLiveResultsModal',
+                                            'placeholder' => 'Type name or admission #',
+                                            'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : '',
+                                            'enableButtonId' => 'saveAllocationBtn'
+                                        ])
                                         @error('student_id')
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror

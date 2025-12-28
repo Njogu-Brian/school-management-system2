@@ -40,14 +40,13 @@
         <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3">
             <div class="col-md-6 col-lg-3">
                 <label class="finance-form-label">Student</label>
-                <select name="student_id" class="finance-form-select">
-                    <option value="">All Students</option>
-                    @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
-                        <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                            {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})
-                        </option>
-                    @endforeach
-                </select>
+                @include('partials.student_live_search', [
+                    'hiddenInputId' => 'student_id',
+                    'displayInputId' => 'studentFilterSearch',
+                    'resultsId' => 'studentFilterResults',
+                    'placeholder' => 'Type name or admission #',
+                    'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                ])
             </div>
             <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">Status</label>
