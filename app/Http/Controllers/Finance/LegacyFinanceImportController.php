@@ -79,9 +79,9 @@ class LegacyFinanceImportController extends Controller
         $hasMissingStudents = $batch->terms()->whereNull('student_id')->exists();
         $canApproveAll = !$hasDrafts && !$hasMissingStudents;
 
-        // Votehead labels in this batch and mapping status
+        // Votehead labels for mapping: only invoice lines, normalized, exclude already resolved so UI lists pending only
         $legacyLabelsRaw = $batch->terms
-            ->flatMap(fn ($t) => $t->lines->pluck('votehead'))
+            ->flatMap(fn ($t) => $t->lines->where('txn_type', 'invoice')->pluck('votehead'))
             ->filter()
             ->map(fn ($v) => trim((string) $v))
             ->filter();

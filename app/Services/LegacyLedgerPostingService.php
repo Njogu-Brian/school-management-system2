@@ -162,7 +162,7 @@ class LegacyLedgerPostingService
 
         // Build invoice lines grouped by votehead
         $invoiceLines = $lines->filter(fn ($l) => $l->txn_type === 'invoice');
-        $discountLines = $lines->filter(fn ($l) => $this->isDiscount($l));
+        $discountLines = $lines->filter(fn ($l) => $this->isDiscount($l) || $l->txn_type === 'discount');
         $creditLines = $lines->filter(fn ($l) => $l->txn_type === 'credit_note' && !$this->isDiscount($l));
         $debitLines = $lines->filter(fn ($l) => $l->txn_type === 'debit_note');
         $receiptLines = $lines->filter(fn ($l) => $l->txn_type === 'receipt');
@@ -216,6 +216,7 @@ class LegacyLedgerPostingService
     protected function normalizeLabel(string $label): string
     {
         $label = preg_replace('/\(.*?\)/', '', $label); // drop parenthetical tags like (JV on ...)
+        $label = preg_replace('/JV\s+ON\s+\d+/i', '', $label);
         $label = preg_replace('/\s+/', ' ', $label);
         $label = trim($label);
         return strtoupper($label);
@@ -230,7 +231,7 @@ class LegacyLedgerPostingService
         $isDebit = ($line->amount_dr ?? 0) > 0;
 
         if (str_contains($text, 'DISCOUNT')) {
-            return 'credit_note';
+            return 'discount';
         }
 
         if (str_contains($text, 'REVERSAL')) {

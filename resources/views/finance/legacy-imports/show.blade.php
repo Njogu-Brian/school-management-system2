@@ -122,9 +122,11 @@
                         <div class="col-12">
                             <label class="form-label">Legacy Label</label>
                             <select name="legacy_label" class="form-select" required>
-                                @foreach($legacyLabels as $label)
+                                @forelse($pendingLabels as $label)
                                     <option value="{{ $label }}">{{ $label }}</option>
-                                @endforeach
+                                @empty
+                                    <option value="">All voteheads mapped</option>
+                                @endforelse
                             </select>
                         </div>
                         <div class="col-12">
