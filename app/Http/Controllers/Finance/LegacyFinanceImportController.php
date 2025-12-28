@@ -92,6 +92,11 @@ class LegacyFinanceImportController extends Controller
 
         $voteheads = Votehead::orderBy('name')->get();
         $voteheadCategories = VoteheadCategory::orderBy('name')->get();
+        $classGroups = $batch->terms()
+            ->select('class_label', DB::raw('count(distinct admission_number) as students_count'))
+            ->groupBy('class_label')
+            ->orderBy('class_label')
+            ->get();
 
         $postingSummary = LegacyLedgerPosting::where('batch_id', $batch->id)
             ->selectRaw('target_type, status, count(*) as total')
@@ -114,6 +119,7 @@ class LegacyFinanceImportController extends Controller
             'pendingLabels' => $pendingLabels,
             'voteheads' => $voteheads,
             'voteheadCategories' => $voteheadCategories,
+            'classGroups' => $classGroups,
             'postingSummary' => $postingSummary,
             'postingErrors' => $postingErrors,
         ]);
@@ -185,6 +191,17 @@ class LegacyFinanceImportController extends Controller
         ProcessLegacyBatchPosting::dispatch($batch->id);
 
         return back()->with('success', 'All students approved.');
+    }
+
+    public function processClass(Request $request, LegacyFinanceImportBatch $batch)
+    {
+        $validated = $request->validate([
+            'class_label' => 'required|string',
+        ]);
+
+        ProcessLegacyBatchPosting::dispatch($batch->id, $validated['class_label']);
+
+        return back()->with('success', 'Class processing queued: '.$validated['class_label']);
     }
 
     public function resolveVotehead(Request $request, LegacyFinanceImportBatch $batch)

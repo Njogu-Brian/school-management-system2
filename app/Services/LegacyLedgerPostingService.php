@@ -24,13 +24,20 @@ class LegacyLedgerPostingService
      * Prepare and post a legacy batch into finance tables.
      * Idempotent via legacy_ledger_postings hash.
      */
-    public function processBatch(int $batchId): void
+    public function processBatch(int $batchId, ?string $classLabel = null): void
     {
-        $batch = LegacyFinanceImportBatch::with(['terms', 'terms.lines'])->find($batchId);
+        $batch = LegacyFinanceImportBatch::find($batchId);
         if (!$batch) {
             Log::warning('Legacy posting skipped: batch not found', ['batch_id' => $batchId]);
             return;
         }
+
+        $termsQuery = $batch->terms()->with('lines');
+        if ($classLabel) {
+            $termsQuery->where('class_label', $classLabel);
+        }
+        $terms = $termsQuery->get();
+        $batch->setRelation('terms', $terms);
 
         $missing = $this->ensureVoteheadMappings($batch);
         if ($missing->isNotEmpty()) {

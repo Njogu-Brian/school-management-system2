@@ -13,13 +13,13 @@ class ProcessLegacyBatchPosting implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public int $batchId)
+    public function __construct(public int $batchId, public ?string $classLabel = null)
     {
     }
 
     public function handle(LegacyLedgerPostingService $service): void
     {
-        $service->processBatch($this->batchId);
+        $service->processBatch($this->batchId, $this->classLabel);
     }
 }
 

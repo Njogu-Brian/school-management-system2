@@ -198,6 +198,46 @@
         </div>
     </div>
 
+    {{-- Class-by-class processing --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">
+        <div class="card-header px-0 pt-0 border-0 bg-white">
+            <div class="fw-semibold">Process by Class</div>
+            <div class="text-muted small">Queue posting for one class at a time.</div>
+        </div>
+        <div class="card-body px-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Class Label</th>
+                            <th class="text-end">Students</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($classGroups as $cg)
+                            <tr>
+                                <td>{{ $cg->class_label ?? 'Unspecified' }}</td>
+                                <td class="text-end">{{ $cg->students_count }}</td>
+                                <td class="text-end">
+                                    <form action="{{ route('finance.legacy-imports.process-class', $batch) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        <input type="hidden" name="class_label" value="{{ $cg->class_label }}">
+                                        <button class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-play"></i> Process Class
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3" class="text-center text-muted">No class data.</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     @forelse($grouped as $admission => $student)
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">
             <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-3 px-0 pt-0 border-0 bg-white">
