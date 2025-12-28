@@ -58,8 +58,9 @@ class LegacyLedgerPostingService
      */
     public function ensureVoteheadMappings(LegacyFinanceImportBatch $batch): Collection
     {
+        // Only require mappings for invoice voteheads (not receipts/credits/JVs/discounts)
         $labels = $batch->terms
-            ->flatMap(fn (LegacyStatementTerm $term) => $term->lines->pluck('votehead'))
+            ->flatMap(fn (LegacyStatementTerm $term) => $term->lines->where('txn_type', 'invoice')->pluck('votehead'))
             ->filter()
             ->map(fn ($v) => $this->normalizeLabel((string) $v))
             ->filter()
