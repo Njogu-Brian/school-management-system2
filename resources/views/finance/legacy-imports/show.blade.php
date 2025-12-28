@@ -102,43 +102,23 @@
                                                     <th class="text-end">Cr</th>
                                                     <th class="text-end">Run Bal</th>
                                                     <th class="text-end">Status</th>
-                                                    <th class="text-end">Save</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 @forelse($termData['lines'] as $line)
-                                                    <form action="{{ route('finance.legacy-imports.lines.update', $line) }}" method="POST">
-                                                        @csrf
-                                                        @method('PUT')
-                                                        <tr class="{{ $line->confidence === 'draft' ? 'table-warning' : '' }}">
-                                                            <td>{{ $line->sequence_no }}</td>
-                                                            <td style="min-width: 140px;">
-                                                                <input type="date" name="txn_date" class="form-control form-control-sm" value="{{ $line->txn_date?->toDateString() }}">
-                                                            </td>
-                                                            <td style="min-width: 480px;">
-                                                                <input type="text" name="narration_raw" class="form-control form-control-sm" value="{{ $line->narration_raw }}">
-                                                            </td>
-                                                            <td style="min-width: 120px;">
-                                                                <input type="number" step="0.01" name="amount_dr" class="form-control form-control-sm text-end" placeholder="Dr" value="{{ $line->amount_dr }}">
-                                                            </td>
-                                                            <td style="min-width: 120px;">
-                                                                <input type="number" step="0.01" name="amount_cr" class="form-control form-control-sm text-end" placeholder="Cr" value="{{ $line->amount_cr }}">
-                                                            </td>
-                                                            <td style="min-width: 140px;">
-                                                                <input type="number" step="0.01" name="running_balance" class="form-control form-control-sm text-end" placeholder="Bal" value="{{ $line->running_balance }}">
-                                                            </td>
-                                                            <td class="text-end" style="min-width: 120px;">
-                                                                <span class="badge {{ $line->confidence === 'draft' ? 'bg-warning text-dark' : 'bg-success-subtle text-success' }}">
-                                                                    {{ ucfirst($line->confidence ?? 'draft') }}
-                                                                </span>
-                                                            </td>
-                                                            <td class="text-end" style="min-width: 120px;">
-                                                                <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
-                                                                    <i class="bi bi-save"></i>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    </form>
+                                                    <tr class="{{ $line->confidence === 'draft' ? 'table-warning' : '' }}">
+                                                        <td>{{ $line->sequence_no }}</td>
+                                                        <td style="min-width: 140px;">{{ $line->txn_date?->toDateString() }}</td>
+                                                        <td style="min-width: 480px;">{{ $line->narration_raw }}</td>
+                                                        <td class="text-end" style="min-width: 120px;">{{ number_format($line->amount_dr, 2) }}</td>
+                                                        <td class="text-end" style="min-width: 120px;">{{ number_format($line->amount_cr, 2) }}</td>
+                                                        <td class="text-end" style="min-width: 140px;">{{ number_format($line->running_balance, 2) }}</td>
+                                                        <td class="text-end" style="min-width: 120px;">
+                                                            <span class="badge {{ $line->confidence === 'draft' ? 'bg-warning text-dark' : 'bg-success-subtle text-success' }}">
+                                                                {{ ucfirst($line->confidence ?? 'draft') }}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
                                                 @empty
                                                     <tr>
                                                         <td colspan="8" class="text-center text-muted py-3">No lines found.</td>
