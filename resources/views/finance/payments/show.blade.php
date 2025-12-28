@@ -178,10 +178,14 @@
                             <i class="bi bi-file-text"></i> View Student Invoices
                         </a>
                         @endif
-                        @if(!$payment->reversed)
+                        @if(!$payment->reversed && $payment->unallocated_amount > 0)
                         <button type="button" class="btn btn-finance btn-finance-secondary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
                             <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
                         </button>
+                        @elseif(!$payment->reversed)
+                        <div class="alert alert-info mb-2">
+                            <small>No unallocated amount to transfer/share.</small>
+                        </div>
                         <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" onsubmit="return confirm('Are you sure you want to reverse this payment? This will remove all allocations and recalculate invoices. This action cannot be undone.')">
                             @csrf
                             @method('DELETE')

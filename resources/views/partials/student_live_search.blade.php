@@ -17,7 +17,8 @@
 <input type="hidden" id="{{ $hiddenInputId }}" name="student_id" value="{{ old('student_id', request('student_id')) }}">
 <input type="text" id="{{ $displayInputId }}" class="form-control"
        value="{{ $initialLabel }}"
-       placeholder="{{ $placeholder }}">
+       placeholder="{{ $placeholder }}"
+       data-search-url="{{ $searchUrl ?? '' }}">
 <div id="{{ $resultsId }}" class="list-group shadow-sm mt-1 d-none" style="max-height: 220px; overflow-y: auto;"></div>
 <small class="text-muted">Start typing; results appear below automatically.</small>
 
@@ -29,6 +30,8 @@
     const hiddenId = document.getElementById('{{ $hiddenInputId }}');
     const enableBtn = {{ $enableButtonId ? 'document.getElementById("'.$enableButtonId.'")' : 'null' }};
     let t=null;
+    const defaultUrl = '{{ route('students.search') }}';
+    const apiFallback = '{{ url('/api/students/search') }}';
 
     const render = (items) => {
         results.innerHTML = '';
@@ -61,14 +64,23 @@
             hiddenId.value = '';
             if (enableBtn) enableBtn.disabled = true;
             if (q.length < 2) { results.classList.add('d-none'); return; }
-            try {
-                const res = await fetch(`{{ route('students.search') }}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' }});
-                if (!res.ok) throw new Error('search failed');
-                const data = await res.json();
-                render(data);
-            } catch (e) {
-                results.classList.add('d-none');
+            const urls = [];
+            const customUrl = input.dataset.searchUrl;
+            if (customUrl) urls.push(customUrl);
+            urls.push(defaultUrl);
+            urls.push(apiFallback);
+            for (const url of urls.filter(Boolean)) {
+                try {
+                    const res = await fetch(`${url}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' }});
+                    if (!res.ok) throw new Error('search failed');
+                    const data = await res.json();
+                    render(data);
+                    return;
+                } catch (e) {
+                    // try next url
+                }
             }
+            results.classList.add('d-none');
         }, 600);
     });
 })();
