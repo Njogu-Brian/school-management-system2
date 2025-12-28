@@ -58,12 +58,16 @@ class LegacyLedgerPostingService
      */
     public function ensureVoteheadMappings(LegacyFinanceImportBatch $batch): Collection
     {
-        // Only require mappings for invoice voteheads (not receipts/credits/JVs/discounts)
+        // Only require mappings for invoice voteheads (not receipts/credits/JVs/discounts/reversals)
         $labels = $batch->terms
             ->flatMap(fn (LegacyStatementTerm $term) => $term->lines->where('txn_type', 'invoice')->pluck('votehead'))
             ->filter()
             ->map(fn ($v) => $this->normalizeLabel((string) $v))
-            ->filter()
+            ->filter(function ($v) {
+                return !str_contains($v, 'DISCOUNT')
+                    && !str_contains($v, 'REVERSAL')
+                    && !str_contains($v, 'JV');
+            })
             ->unique()
             ->values();
 
