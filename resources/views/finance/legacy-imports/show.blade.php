@@ -99,12 +99,17 @@
                 <div class="fw-semibold">Votehead Mapping & Posting Status</div>
                 <div class="text-muted small">Map legacy voteheads to proceed with posting.</div>
             </div>
-            <form action="{{ route('finance.legacy-imports.reverse-posting', $batch) }}" method="POST" onsubmit="return confirm('Reverse will delete finance records posted from this batch. Continue?');">
-                @csrf
-                <button class="btn btn-sm btn-outline-danger">
-                    <i class="bi bi-arrow-counterclockwise"></i> Reverse Finance Posting
-                </button>
-            </form>
+            <div class="d-flex gap-2 flex-wrap">
+                <a class="btn btn-sm btn-outline-primary" href="{{ route('finance.legacy-imports.report', $batch) }}" target="_blank">
+                    <i class="bi bi-graph-up"></i> View Posting Report
+                </a>
+                <form action="{{ route('finance.legacy-imports.reverse-posting', $batch) }}" method="POST" onsubmit="return confirm('Reverse will delete finance records posted from this batch. Continue?');">
+                    @csrf
+                    <button class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reverse Finance Posting
+                    </button>
+                </form>
+            </div>
         </div>
         <div class="card-body p-3">
             @if($pendingLabels->isNotEmpty())
