@@ -999,6 +999,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('legacy-imports/{batch}/approve-student', [LegacyFinanceImportController::class, 'approveStudent'])->name('legacy-imports.approve-student');
         Route::post('legacy-imports/{batch}/approve-all', [LegacyFinanceImportController::class, 'approveAll'])->name('legacy-imports.approve-all');
         Route::post('legacy-imports/{batch}/rerun', [LegacyFinanceImportController::class, 'rerun'])->name('legacy-imports.rerun');
+        Route::post('legacy-imports/{batch}/votehead-mappings', [LegacyFinanceImportController::class, 'storeVoteheadMappings'])->name('legacy-imports.votehead-mappings');
+        Route::post('legacy-imports/{batch}/voteheads/resolve', [LegacyFinanceImportController::class, 'resolveVotehead'])->name('legacy-imports.voteheads.resolve');
+        Route::post('legacy-imports/{batch}/reverse-posting', [LegacyFinanceImportController::class, 'reversePosting'])->name('legacy-imports.reverse-posting');
         Route::delete('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'destroy'])->name('legacy-imports.destroy');
 
         // Invoices

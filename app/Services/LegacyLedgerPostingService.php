@@ -8,6 +8,13 @@ use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
 use App\Models\LegacyVoteheadMapping;
 use App\Models\Votehead;
+use App\Models\Payment;
+use App\Models\PaymentAllocation;
+use App\Models\CreditNote;
+use App\Models\DebitNote;
+use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -175,9 +182,16 @@ class LegacyLedgerPostingService
         foreach ($debitLines as $line) {
             $this->createDebitNote($invoice, $line);
         }
+
+        if ($invoice && $term->ending_balance !== null) {
+            $diff = abs((float)$invoice->balance - (float)$term->ending_balance);
+            if ($diff > 0.01) {
+                $this->recordTermPosting($term, 'invoice_balance', $invoice->id, 'error', 'Out of balance: diff '.$diff, 'invoice-balance-'.$term->id);
+            }
+        }
     }
 
-    protected function determineInvoiceDate(Collection $invoiceLines, Collection $receiptLines, LegacyFinanceImportBatch $batch): \Carbon\Carbon
+    protected function determineInvoiceDate(Collection $invoiceLines, Collection $receiptLines, LegacyFinanceImportBatch $batch): Carbon
     {
         $dates = $invoiceLines->pluck('txn_date')->filter()->sort()->values();
         if ($dates->isEmpty()) {
@@ -192,12 +206,12 @@ class LegacyLedgerPostingService
         return $mapping?->votehead_id;
     }
 
-    protected function createInvoice(LegacyStatementTerm $term, Collection $invoiceLines, \Carbon\Carbon $date)
+    protected function createInvoice(LegacyStatementTerm $term, Collection $invoiceLines, Carbon $date)
     {
         $firstRef = $invoiceLines->firstWhere('reference_number', '!=', null)?->reference_number;
         $number = $this->uniqueInvoiceNumber($firstRef);
 
-        return \App\Models\Invoice::create([
+        $invoice = Invoice::create([
             'student_id' => $term->student_id,
             'invoice_number' => $number,
             'issued_date' => $date,
@@ -208,6 +222,9 @@ class LegacyLedgerPostingService
             'balance' => 0,
             'notes' => 'Imported from legacy batch ' . $term->batch_id,
         ]);
+
+        $this->recordTermPosting($term, 'invoice', $invoice->id, 'posted', null, 'invoice-'.$term->id);
+        return $invoice;
     }
 
     protected function createInvoiceItems($invoice, Collection $invoiceLines): void
@@ -222,7 +239,7 @@ class LegacyLedgerPostingService
             if ($amount <= 0) {
                 continue;
             }
-            \App\Models\InvoiceItem::create([
+            InvoiceItem::create([
                 'invoice_id' => $invoice->id,
                 'votehead_id' => $voteheadId,
                 'amount' => $amount,
@@ -240,7 +257,7 @@ class LegacyLedgerPostingService
         if ($amount === 0) {
             return;
         }
-        \App\Models\InvoiceItem::create([
+        InvoiceItem::create([
             'invoice_id' => $invoice->id,
             'votehead_id' => null,
             'amount' => $amount,
@@ -260,12 +277,12 @@ class LegacyLedgerPostingService
         }
 
         $txnCode = $line->txn_code ?: $line->reference_number ?: null;
-        if ($txnCode && \App\Models\Payment::where('transaction_code', $txnCode)->exists()) {
+        if ($txnCode && Payment::where('transaction_code', $txnCode)->exists()) {
             $this->recordPosting($line, 'payment', null, 'skipped', 'Duplicate transaction_code');
             return;
         }
 
-        $payment = \App\Models\Payment::create([
+        $payment = Payment::create([
             'student_id' => $term->student_id,
             'invoice_id' => $invoice?->id,
             'amount' => (float) ($line->amount_cr ?? 0),
@@ -284,7 +301,7 @@ class LegacyLedgerPostingService
             if ($allocAmount > 0) {
                 $item = $invoice->items()->first();
                 if ($item) {
-                    \App\Models\PaymentAllocation::create([
+                    PaymentAllocation::create([
                         'payment_id' => $payment->id,
                         'invoice_item_id' => $item->id,
                         'amount' => $allocAmount,
@@ -313,7 +330,7 @@ class LegacyLedgerPostingService
         }
 
         $ref = $line->reference_number ?: $line->txn_code;
-        if ($ref && \App\Models\CreditNote::where('credit_note_number', $ref)->exists()) {
+        if ($ref && CreditNote::where('credit_note_number', $ref)->exists()) {
             $this->recordPosting($line, 'credit', null, 'skipped', 'Duplicate credit note number');
             return;
         }
@@ -323,7 +340,7 @@ class LegacyLedgerPostingService
             return;
         }
 
-        $credit = \App\Models\CreditNote::create([
+        $credit = CreditNote::create([
             'invoice_id' => $invoice->id,
             'invoice_item_id' => $invoice->items()->first()?->id,
             'amount' => $amount,
@@ -356,7 +373,7 @@ class LegacyLedgerPostingService
         }
 
         $ref = $line->reference_number ?: $line->txn_code;
-        if ($ref && \App\Models\DebitNote::where('debit_note_number', $ref)->exists()) {
+        if ($ref && DebitNote::where('debit_note_number', $ref)->exists()) {
             $this->recordPosting($line, 'debit', null, 'skipped', 'Duplicate debit note number');
             return;
         }
@@ -366,7 +383,7 @@ class LegacyLedgerPostingService
             return;
         }
 
-        $debit = \App\Models\DebitNote::create([
+        $debit = DebitNote::create([
             'invoice_id' => $invoice->id,
             'invoice_item_id' => $invoice->items()->first()?->id,
             'amount' => $amount,
@@ -418,6 +435,73 @@ class LegacyLedgerPostingService
     protected function isDiscount(LegacyStatementLine $line): bool
     {
         return stripos((string) $line->narration_raw, 'discount') !== false;
+    }
+
+    /**
+     * Record posting without a specific line (term-level).
+     */
+    protected function recordTermPosting(
+        LegacyStatementTerm $term,
+        string $targetType,
+        ?int $targetId,
+        string $status = 'posted',
+        ?string $error = null,
+        ?string $hash = null
+    ): LegacyLedgerPosting {
+        return LegacyLedgerPosting::create([
+            'batch_id' => $term->batch_id,
+            'term_id' => $term->id,
+            'line_id' => null,
+            'target_type' => $targetType,
+            'target_id' => $targetId,
+            'hash' => $hash ?? ('term-'.$term->id.'-'.$targetType),
+            'status' => $status,
+            'error_message' => $error,
+        ]);
+    }
+
+    /**
+     * Reverse all postings for a batch: deletes created finance records.
+     */
+    public function reverseBatch(int $batchId): void
+    {
+        $postings = LegacyLedgerPosting::where('batch_id', $batchId)->get();
+        if ($postings->isEmpty()) {
+            return;
+        }
+
+        // Payments first (allocations), then credits/debits, then invoices
+        $payments = $postings->where('target_type', 'payment');
+        foreach ($payments as $p) {
+            if ($p->target_id) {
+                PaymentAllocation::where('payment_id', $p->target_id)->delete();
+                Payment::where('id', $p->target_id)->forceDelete();
+            }
+        }
+
+        $credits = $postings->where('target_type', 'credit');
+        foreach ($credits as $p) {
+            if ($p->target_id) {
+                CreditNote::where('id', $p->target_id)->forceDelete();
+            }
+        }
+
+        $debits = $postings->where('target_type', 'debit');
+        foreach ($debits as $p) {
+            if ($p->target_id) {
+                DebitNote::where('id', $p->target_id)->forceDelete();
+            }
+        }
+
+        $invoices = $postings->where('target_type', 'invoice');
+        foreach ($invoices as $p) {
+            if ($p->target_id) {
+                InvoiceItem::where('invoice_id', $p->target_id)->forceDelete();
+                Invoice::where('id', $p->target_id)->forceDelete();
+            }
+        }
+
+        LegacyLedgerPosting::where('batch_id', $batchId)->delete();
     }
 }
 

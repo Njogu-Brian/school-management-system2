@@ -5,12 +5,18 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessLegacyBatchPosting;
 use App\Models\LegacyFinanceImportBatch;
+use App\Models\LegacyLedgerPosting;
 use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
+use App\Models\LegacyVoteheadMapping;
 use App\Services\LegacyFinanceImportService;
+use App\Services\LegacyLedgerPostingService;
 use App\Models\Student;
+use App\Models\Votehead;
+use App\Models\VoteheadCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class LegacyFinanceImportController extends Controller
 {
@@ -73,11 +79,43 @@ class LegacyFinanceImportController extends Controller
         $hasMissingStudents = $batch->terms()->whereNull('student_id')->exists();
         $canApproveAll = !$hasDrafts && !$hasMissingStudents;
 
+        // Votehead labels in this batch and mapping status
+        $legacyLabels = $batch->terms
+            ->flatMap(fn ($t) => $t->lines->pluck('votehead'))
+            ->filter()
+            ->map(fn ($v) => trim((string) $v))
+            ->filter()
+            ->unique()
+            ->values();
+        $mappings = LegacyVoteheadMapping::whereIn('legacy_label', $legacyLabels)->get()->keyBy('legacy_label');
+        $pendingLabels = $legacyLabels->filter(fn ($l) => !$mappings->has($l) || $mappings[$l]?->status !== 'resolved');
+
+        $voteheads = Votehead::orderBy('name')->get();
+        $voteheadCategories = VoteheadCategory::orderBy('name')->get();
+
+        $postingSummary = LegacyLedgerPosting::where('batch_id', $batch->id)
+            ->selectRaw('target_type, status, count(*) as total')
+            ->groupBy('target_type', 'status')
+            ->get();
+
+        $postingErrors = LegacyLedgerPosting::where('batch_id', $batch->id)
+            ->whereIn('status', ['error', 'skipped'])
+            ->latest()
+            ->take(20)
+            ->get();
+
         return view('finance.legacy-imports.show', [
             'batch' => $batch,
             'grouped' => $grouped,
             'students' => $students,
             'canApproveAll' => $canApproveAll,
+            'legacyLabels' => $legacyLabels,
+            'mappings' => $mappings,
+            'pendingLabels' => $pendingLabels,
+            'voteheads' => $voteheads,
+            'voteheadCategories' => $voteheadCategories,
+            'postingSummary' => $postingSummary,
+            'postingErrors' => $postingErrors,
         ]);
     }
 
@@ -147,6 +185,50 @@ class LegacyFinanceImportController extends Controller
         ProcessLegacyBatchPosting::dispatch($batch->id);
 
         return back()->with('success', 'All students approved.');
+    }
+
+    public function resolveVotehead(Request $request, LegacyFinanceImportBatch $batch)
+    {
+        $validated = $request->validate([
+            'legacy_label' => 'required|string',
+            'mode' => 'required|in:existing,new',
+            'votehead_id' => 'nullable|exists:voteheads,id',
+            'name' => 'nullable|string',
+            'votehead_category_id' => 'nullable|exists:votehead_categories,id',
+        ]);
+
+        if ($validated['mode'] === 'existing') {
+            if (!$validated['votehead_id']) {
+                return back()->withErrors('Select a votehead to map.');
+            }
+            LegacyVoteheadMapping::updateOrCreate(
+                ['legacy_label' => $validated['legacy_label']],
+                ['votehead_id' => $validated['votehead_id'], 'status' => 'resolved', 'resolved_by' => $request->user()?->id]
+            );
+        } else {
+            if (!$validated['name']) {
+                return back()->withErrors('Provide a votehead name.');
+            }
+            $vh = Votehead::create([
+                'name' => $validated['name'],
+                'code' => strtoupper(substr(preg_replace('/\s+/', '_', $validated['name']), 0, 20)),
+                'votehead_category_id' => $validated['votehead_category_id'],
+                'is_active' => true,
+            ]);
+            LegacyVoteheadMapping::updateOrCreate(
+                ['legacy_label' => $validated['legacy_label']],
+                ['votehead_id' => $vh->id, 'status' => 'resolved', 'resolved_by' => $request->user()?->id]
+            );
+        }
+
+        ProcessLegacyBatchPosting::dispatch($batch->id);
+        return back()->with('success', 'Votehead mapping saved. Posting resumed.');
+    }
+
+    public function reversePosting(LegacyFinanceImportBatch $batch, LegacyLedgerPostingService $service)
+    {
+        $service->reverseBatch($batch->id);
+        return back()->with('success', 'Legacy postings reversed for this batch.');
     }
 
     public function rerun(Request $request, LegacyFinanceImportBatch $batch, LegacyFinanceImportService $service)

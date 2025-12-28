@@ -92,6 +92,112 @@
         </div>
     </div>
 
+    {{-- Votehead mappings + posting status --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">
+        <div class="card-header d-flex justify-content-between align-items-center px-0 pt-0 border-0 bg-white flex-wrap gap-2">
+            <div>
+                <div class="fw-semibold">Votehead Mapping & Posting Status</div>
+                <div class="text-muted small">Map legacy voteheads to proceed with posting.</div>
+            </div>
+            <form action="{{ route('finance.legacy-imports.reverse-posting', $batch) }}" method="POST" onsubmit="return confirm('Reverse will delete finance records posted from this batch. Continue?');">
+                @csrf
+                <button class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-arrow-counterclockwise"></i> Reverse Finance Posting
+                </button>
+            </form>
+        </div>
+        <div class="card-body px-0">
+            @if($pendingLabels->isNotEmpty())
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Pending votehead mappings: {{ implode(', ', $pendingLabels->toArray()) }}
+                </div>
+            @endif
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <h6 class="fw-semibold">Resolve Votehead</h6>
+                    <form action="{{ route('finance.legacy-imports.voteheads.resolve', $batch) }}" method="POST" class="row g-2">
+                        @csrf
+                        <div class="col-12">
+                            <label class="form-label">Legacy Label</label>
+                            <select name="legacy_label" class="form-select" required>
+                                @foreach($legacyLabels as $label)
+                                    <option value="{{ $label }}">{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Mode</label>
+                            <select name="mode" class="form-select" id="modeSelect">
+                                <option value="existing">Map to existing</option>
+                                <option value="new">Create new</option>
+                            </select>
+                        </div>
+                        <div class="col-12" id="existingBlock">
+                            <label class="form-label">Existing Votehead</label>
+                            <select name="votehead_id" class="form-select">
+                                <option value="">Select</option>
+                                @foreach($voteheads as $vh)
+                                    <option value="{{ $vh->id }}">{{ $vh->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12" id="newBlock" style="display:none;">
+                            <label class="form-label">New Votehead Name</label>
+                            <input type="text" name="name" class="form-control" placeholder="Name">
+                            <label class="form-label mt-2">Category</label>
+                            <select name="votehead_category_id" class="form-select">
+                                <option value="">(optional)</option>
+                                @foreach($voteheadCategories as $cat)
+                                    <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-settings-primary">Save Mapping</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-semibold">Posting Summary</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr><th>Target</th><th>Status</th><th class="text-end">Count</th></tr>
+                            </thead>
+                            <tbody>
+                                @forelse($postingSummary as $row)
+                                    <tr>
+                                        <td>{{ $row->target_type }}</td>
+                                        <td><span class="badge bg-light text-dark text-uppercase">{{ $row->status }}</span></td>
+                                        <td class="text-end">{{ $row->total }}</td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="3" class="text-muted text-center">No postings yet.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @if($postingErrors->isNotEmpty())
+                        <div class="mt-3">
+                            <h6 class="fw-semibold">Errors / Skips (latest 20)</h6>
+                            <ul class="list-group list-group-flush">
+                                @foreach($postingErrors as $err)
+                                    <li class="list-group-item small">
+                                        <div><strong>{{ $err->target_type }}</strong> — {{ $err->status }}</div>
+                                        <div class="text-muted">{{ $err->error_message ?? 'No message' }}</div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
     @forelse($grouped as $admission => $student)
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-3">
             <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-3 px-0 pt-0 border-0 bg-white">
@@ -235,6 +341,24 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const modeSelect = document.getElementById('modeSelect');
+    const existingBlock = document.getElementById('existingBlock');
+    const newBlock = document.getElementById('newBlock');
+    if (modeSelect) {
+        const toggleBlocks = () => {
+            const mode = modeSelect.value;
+            if (mode === 'existing') {
+                existingBlock.style.display = '';
+                newBlock.style.display = 'none';
+            } else {
+                existingBlock.style.display = 'none';
+                newBlock.style.display = '';
+            }
+        };
+        modeSelect.addEventListener('change', toggleBlocks);
+        toggleBlocks();
+    }
+
     const containers = document.querySelectorAll('.student-search-input');
     const debounce = (fn, delay = 200) => {
         let t;
