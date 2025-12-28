@@ -64,21 +64,13 @@
                         <div class="text-warning small">Draft lines present. Set to Sure before approval.</div>
                     @endif
                 </div>
-                <div class="d-flex gap-2 flex-wrap">
-                    <form action="{{ route('finance.legacy-imports.approve-student', $batch) }}" method="POST" class="row g-2 align-items-center">
-                        @csrf
-                        <input type="hidden" name="admission_number" value="{{ $admission }}">
-                        <div class="col-12 col-lg-8 position-relative">
-                            <input type="hidden" name="student_id" class="student-id-input" value="{{ $student['student_id'] }}">
-                            <input type="text" class="form-control form-control-sm student-search-input" placeholder="Search student by name or admission" autocomplete="off" data-search-url="{{ route('finance.legacy-imports.student-search') }}">
-                            <div class="student-search-results list-group shadow-sm position-absolute w-100 d-none" style="z-index: 1050; max-height: 220px; overflow-y: auto;"></div>
-                        </div>
-                        <div class="col-12 col-lg-4 d-flex justify-content-end">
-                            <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
-                                <i class="bi bi-check2-circle"></i> Approve Student
-                            </button>
-                        </div>
-                    </form>
+                <div class="d-flex gap-2 flex-wrap align-items-center">
+                    <span class="text-muted small">Approval/posting was removed; legacy data is displayed as-is.</span>
+                    @if($student['student_id'])
+                        <span class="badge bg-success">Mapped to ID {{ $student['student_id'] }}</span>
+                    @else
+                        <span class="badge bg-warning text-dark">Not mapped to a system student</span>
+                    @endif
                 </div>
             </div>
             <div class="card-body">
