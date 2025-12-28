@@ -3,17 +3,14 @@
 <form method="GET" action="{{ route('finance.optional_fees.student_view') }}" class="row g-3 mb-3" id="studentForm">
     <div class="col-md-6">
         <label class="form-label">Student</label>
-        <div class="input-group">
-            <input type="hidden" id="selectedStudentId" name="student_id" value="{{ $student->id ?? '' }}">
-            <input type="text" id="selectedStudentName"
-                   class="form-control" placeholder="Search by name or admission #"
-                   value="{{ isset($student) ? ($student->full_name.' ('.$student->admission_number.')') : '' }}"
-                   readonly>
-            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#studentSearchModal">
-                Search
-            </button>
-            <button class="btn btn-primary" type="submit">Load</button>
-        </div>
+        @include('partials.student_live_search', [
+            'hiddenInputId' => 'selectedStudentId',
+            'displayInputId' => 'selectedStudentName',
+            'resultsId' => 'studentLiveResultsOptionalFees',
+            'placeholder' => 'Type name or admission #',
+            'initialLabel' => isset($student) ? ($student->full_name.' ('.$student->admission_number.')') : ''
+        ])
+        <button class="btn btn-primary mt-2" type="submit">Load</button>
     </div>
 
     <div class="col-md-3">
@@ -131,22 +128,6 @@
     </div>
 @endif
 
-{{-- Student Search Modal (same UX as attendance) --}}
-<div class="modal fade" id="studentSearchModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-light">
-        <h5 class="modal-title">Search Student</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="text" id="studentSearchInput" class="form-control mb-3" placeholder="Type name or admission number...">
-        <ul id="studentSearchResults" class="list-group"></ul>
-      </div>
-    </div>
-  </div>
-</div>
-
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -157,45 +138,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const year = document.getElementById('yearInput');
     function ready(){ return sid.value && term.value && year.value; }
     [term, year].forEach(el => el.addEventListener('change', () => { if (ready()) form.submit(); }));
-
-    // Modal search (identical pattern as attendance)
-    const input = document.getElementById('studentSearchInput');
-    const list  = document.getElementById('studentSearchResults');
-    if (!input) return;
-
-    let timer = null;
-    input.addEventListener('keyup', function () {
-        clearTimeout(timer);
-        const q = this.value.trim();
-        if (q.length < 2) { list.innerHTML = ''; return; }
-
-        list.innerHTML = '<li class="list-group-item">Searching…</li>';
-        timer = setTimeout(() => {
-            fetch("{{ route('students.search') }}?q=" + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-              .then(r => r.json())
-              .then(rows => {
-                  list.innerHTML = rows.length
-                    ? rows.map(s => `
-                        <li class="list-group-item list-group-item-action pick"
-                            data-id="${s.id}"
-                            data-name="${s.full_name}"
-                            data-adm="${s.admission_number}">
-                            ${s.full_name} (${s.admission_number})
-                        </li>`).join('')
-                    : `<li class="list-group-item text-muted">No results</li>`;
-
-                  document.querySelectorAll('#studentSearchResults .pick').forEach(el => {
-                      el.addEventListener('click', () => {
-                          document.getElementById('selectedStudentId').value   = el.dataset.id;
-                          document.getElementById('selectedStudentName').value = `${el.dataset.name} (${el.dataset.adm})`;
-                          bootstrap.Modal.getInstance(document.getElementById('studentSearchModal')).hide();
-
-                          if (ready()) form.submit();
-                      });
-                  });
-              })
-              .catch(() => list.innerHTML = '<li class="list-group-item text-danger">Search failed</li>');
-        }, 350); // debounce
+    
+    // When live-search picks a student, auto-submit if term/year present
+    document.addEventListener('student-selected', () => {
+        if (ready()) form.submit();
     });
 });
 </script>

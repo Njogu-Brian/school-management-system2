@@ -328,13 +328,14 @@
                     <div id="transferSingleStudent" style="display: none;">
                         <div class="mb-3">
                             <label class="form-label">Student <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <input type="hidden" name="target_student_id" id="targetStudentId">
-                                <input type="text" id="targetStudentName" class="form-control" placeholder="Search student..." readonly>
-                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentSearchModalTransfer">
-                                    <i class="bi bi-search"></i> Search
-                                </button>
-                            </div>
+                        @include('partials.student_live_search', [
+                            'hiddenInputId' => 'targetStudentId',
+                            'hiddenInputName' => 'target_student_id',
+                            'displayInputId' => 'targetStudentName',
+                            'resultsId' => 'targetStudentResults',
+                            'placeholder' => 'Type name or admission #',
+                            'inputClass' => 'form-control'
+                        ])
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Amount to Transfer <span class="text-danger">*</span></label>
@@ -350,16 +351,17 @@
                             <label class="form-label">Students to Share With <span class="text-danger">*</span></label>
                             <div id="sharedStudentsList">
                                 <div class="shared-student-item mb-2">
-                                    <div class="input-group">
-                                        <input type="hidden" name="shared_students[]" class="shared-student-id">
-                                        <input type="text" class="form-control shared-student-name" placeholder="Search student..." readonly>
-                                        <button type="button" class="btn btn-outline-primary btn-sm search-student-btn">
-                                            <i class="bi bi-search"></i>
-                                        </button>
-                                        <div class="input-group">
-                                            <span class="input-group-text">Ksh</span>
-                                            <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount">
-                                        </div>
+                                    @include('partials.student_live_search', [
+                                        'hiddenInputId' => 'shared_student_id_0',
+                                        'hiddenInputName' => 'shared_students[]',
+                                        'displayInputId' => 'shared_student_name_0',
+                                        'resultsId' => 'shared_student_results_0',
+                                        'placeholder' => 'Type name or admission #',
+                                        'inputClass' => 'form-control shared-student-name'
+                                    ])
+                                    <div class="input-group mt-2">
+                                        <span class="input-group-text">Ksh</span>
+                                        <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount">
                                         <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
                                             <i class="bi bi-x"></i>
                                         </button>
@@ -389,23 +391,6 @@
     </div>
 </div>
 
-<!-- Student Search Modal for Transfer -->
-<div class="modal fade" id="studentSearchModalTransfer" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Search Student</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="text" id="studentSearchInputTransfer" class="form-control mb-3" placeholder="Search by name or admission number...">
-                <div id="studentSearchResultsTransfer" class="list-group" style="max-height: 400px; overflow-y: auto;">
-                    <!-- Results will be populated here -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
 @endif
 
 @push('scripts')
@@ -451,76 +436,92 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Student search for transfer
-    const studentSearchInput = document.getElementById('studentSearchInputTransfer');
-    if (studentSearchInput) {
-        studentSearchInput.addEventListener('input', function() {
-            const query = this.value.trim();
-            if (query.length < 2) {
-                document.getElementById('studentSearchResultsTransfer').innerHTML = '';
+    // Simple live-search initializer for wrappers in this modal (works for dynamically added rows)
+    function initLiveSearchWrapper(wrapper) {
+        const displayInput = wrapper.querySelector('input[type="text"]');
+        const hiddenInput = wrapper.querySelector('input[type="hidden"]');
+        const resultsList = wrapper.querySelector('.student-search-results');
+        let t = null;
+        const debounceMs = 300;
+        if (!displayInput || !hiddenInput || !resultsList) return;
+
+        const render = (items) => {
+            resultsList.innerHTML = '';
+            if (!items.length) {
+                resultsList.classList.add('d-none');
                 return;
             }
-            
-            fetch(`/students/search?q=${encodeURIComponent(query)}`)
-                .then(response => response.json())
-                .then(data => {
-                    const resultsDiv = document.getElementById('studentSearchResultsTransfer');
-                    resultsDiv.innerHTML = '';
-                    
-                    if (data.students && data.students.length > 0) {
-                        data.students.forEach(student => {
-                            const item = document.createElement('a');
-                            item.href = '#';
-                            item.className = 'list-group-item list-group-item-action';
-                            item.innerHTML = `<strong>${student.first_name} ${student.last_name}</strong><br><small>Admission: ${student.admission_number}</small>`;
-                            item.addEventListener('click', function(e) {
-                                e.preventDefault();
-                                document.getElementById('targetStudentId').value = student.id;
-                                document.getElementById('targetStudentName').value = `${student.first_name} ${student.last_name} (${student.admission_number})`;
-                                bootstrap.Modal.getInstance(document.getElementById('studentSearchModalTransfer')).hide();
-                            });
-                            resultsDiv.appendChild(item);
-                        });
-                    } else {
-                        resultsDiv.innerHTML = '<div class="list-group-item">No students found</div>';
-                    }
+            items.forEach(item => {
+                const a = document.createElement('a');
+                a.href = '#';
+                a.className = 'list-group-item list-group-item-action py-2';
+                a.textContent = `${item.full_name} (${item.admission_number}) - ${item.classroom_name || 'No Class'}`;
+                a.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    displayInput.value = `${item.full_name} (${item.admission_number})`;
+                    hiddenInput.value = item.id;
+                    resultsList.classList.add('d-none');
+                    updateTotalShared();
                 });
+                resultsList.appendChild(a);
+            });
+            resultsList.classList.remove('d-none');
+        };
+
+        displayInput.addEventListener('input', () => {
+            clearTimeout(t);
+            const q = displayInput.value.trim();
+            hiddenInput.value = '';
+            if (q.length < 2) {
+                resultsList.classList.add('d-none');
+                return;
+            }
+            resultsList.innerHTML = '<div class="list-group-item text-center text-muted">Searching...</div>';
+            resultsList.classList.remove('d-none');
+            t = setTimeout(async () => {
+                try {
+                    const res = await fetch(`{{ route('students.search') }}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' } });
+                    const data = await res.json();
+                    render(data);
+                } catch (err) {
+                    console.error('Student search error', err);
+                    resultsList.innerHTML = '<div class="list-group-item text-danger text-center">Search failed</div>';
+                }
+            }, debounceMs);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!wrapper.contains(e.target)) {
+                resultsList.classList.add('d-none');
+            }
         });
     }
+
+    document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
     
-    // Add shared student
+    // Add shared student (clones the first item's markup)
     const addSharedStudentBtn = document.getElementById('addSharedStudent');
     if (addSharedStudentBtn) {
+        let sharedIndex = 1;
+        const list = document.getElementById('sharedStudentsList');
+        const template = list.querySelector('.shared-student-item');
         addSharedStudentBtn.addEventListener('click', function() {
-            const list = document.getElementById('sharedStudentsList');
-            const newItem = document.createElement('div');
-            newItem.className = 'shared-student-item mb-2';
-            newItem.innerHTML = `
-                <div class="input-group">
-                    <input type="hidden" name="shared_students[]" class="shared-student-id">
-                    <input type="text" class="form-control shared-student-name" placeholder="Search student..." readonly>
-                    <button type="button" class="btn btn-outline-primary btn-sm search-student-btn">
-                        <i class="bi bi-search"></i>
-                    </button>
-                    <div class="input-group">
-                        <span class="input-group-text">Ksh</span>
-                        <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount">
-                    </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
-                        <i class="bi bi-x"></i>
-                    </button>
-                </div>
-            `;
-            list.appendChild(newItem);
-            
-            // Add remove functionality
-            newItem.querySelector('.remove-student-btn').addEventListener('click', function() {
-                newItem.remove();
+            const clone = template.cloneNode(true);
+            const newIndex = sharedIndex++;
+            // Update IDs to keep them unique
+            clone.querySelectorAll('[id]').forEach(el => {
+                el.id = el.id.replace('_0', `_${newIndex}`);
+            });
+            clone.querySelectorAll('[name="shared_students[]"]').forEach(el => el.value = '');
+            clone.querySelectorAll('[name="shared_amounts[]"]').forEach(el => el.value = '');
+            list.appendChild(clone);
+            const wrapper = clone.querySelector('.student-live-search-wrapper');
+            initLiveSearchWrapper(wrapper);
+            clone.querySelector('.remove-student-btn')?.addEventListener('click', function() {
+                clone.remove();
                 updateTotalShared();
             });
-            
-            // Add amount change listener
-            newItem.querySelector('.shared-amount').addEventListener('input', updateTotalShared);
+            clone.querySelector('.shared-amount')?.addEventListener('input', updateTotalShared);
         });
     }
     

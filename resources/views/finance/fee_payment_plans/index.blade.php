@@ -21,14 +21,13 @@
         <form method="GET" class="row g-3">
             <div class="col-md-5">
                 <label class="finance-form-label">Student</label>
-                <select name="student_id" class="finance-form-select">
-                    <option value="">All Students</option>
-                    @foreach(\App\Models\Student::orderBy('first_name')->get() as $student)
-                        <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                            {{ $student->first_name }} {{ $student->last_name }}
-                        </option>
-                    @endforeach
-                </select>
+                @include('partials.student_live_search', [
+                    'hiddenInputId' => 'student_id',
+                    'displayInputId' => 'studentFilterSearchFPPIndex',
+                    'resultsId' => 'studentFilterResultsFPPIndex',
+                    'placeholder' => 'Type name or admission #',
+                    'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                ])
             </div>
             <div class="col-md-4">
                 <label class="finance-form-label">Status</label>

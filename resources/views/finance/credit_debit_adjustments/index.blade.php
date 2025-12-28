@@ -17,14 +17,13 @@
         <form method="GET" action="{{ route('finance.journals.index') }}" class="row g-3">
             <div class="col-md-3">
                 <label class="finance-form-label">Student</label>
-                <select name="student_id" class="finance-form-select">
-                    <option value="">All Students</option>
-                    @foreach($students ?? [] as $student)
-                        <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>
-                            {{ $student->full_name }} ({{ $student->admission_number }})
-                        </option>
-                    @endforeach
-                </select>
+                @include('partials.student_live_search', [
+                    'hiddenInputId' => 'student_id',
+                    'displayInputId' => 'studentFilterSearchCDA',
+                    'resultsId' => 'studentFilterResultsCDA',
+                    'placeholder' => 'Type name or admission #',
+                    'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                ])
             </div>
             <div class="col-md-2">
                 <label class="finance-form-label">Type</label>

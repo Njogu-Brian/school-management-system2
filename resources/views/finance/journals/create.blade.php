@@ -18,25 +18,18 @@
             <form method="POST" action="{{ route('finance.journals.store') }}" class="row g-3">
                 @csrf
 
-                {{-- Student picker (uses modal) --}}
+                {{-- Student picker --}}
                 <div class="col-md-12">
                     <label class="finance-form-label">Student <span class="text-danger">*</span></label>
-                    <div class="input-group">
-                        {{-- This hidden input is what the controller reads --}}
-                        <input type="hidden" id="selectedStudentId" name="student_id" value="{{ old('student_id') }}" required>
-
-                        {{-- Readonly display field for name (filled by modal) --}}
-                        <input type="text" id="selectedStudentName" class="finance-form-control"
-                               value="{{ old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : '' }}"
-                               placeholder="Search by name or admission #"
-                               readonly>
-
-                        <button type="button" class="btn btn-finance btn-finance-primary"
-                                data-bs-toggle="modal" data-bs-target="#studentSearchModal">
-                            <i class="bi bi-search"></i> Search
-                        </button>
-                    </div>
-                    <small class="text-muted">Pick a student using the search button</small>
+                    @include('partials.student_live_search', [
+                        'hiddenInputId' => 'selectedStudentId',
+                        'displayInputId' => 'selectedStudentName',
+                        'resultsId' => 'journalStudentResults',
+                        'placeholder' => 'Search by name or admission #',
+                        'inputClass' => 'finance-form-control',
+                        'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : ''
+                    ])
+                    <small class="text-muted">Pick a student using the search box</small>
                 </div>
 
                 <div class="col-md-6 col-lg-4">
@@ -108,9 +101,6 @@
             </form>
         </div>
     </div>
-{{-- Include the student search modal partial --}}
-@include('partials.student_search_modal')
-
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -167,25 +157,13 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    // Listen for student selection (from modal)
-    const studentSearchModal = document.getElementById('studentSearchModal');
-    if (studentSearchModal) {
-        studentSearchModal.addEventListener('shown.bs.modal', function() {
-            // When modal is shown, set up listener for student selection
-            setTimeout(() => {
-                const studentRows = studentSearchModal.querySelectorAll('[data-student-id]');
-                studentRows.forEach(row => {
-                    row.addEventListener('click', function() {
-                        setTimeout(() => {
-                            loadVoteheadsFromInvoice();
-                        }, 500); // Wait for modal to close and input to be set
-                    });
-                });
-            }, 100);
-        });
-    }
-    
-    // Also listen for direct changes to student input (if manually set)
+    // Trigger loading when live search selects a student
+    document.addEventListener('student-selected', (event) => {
+        if (event.detail?.id) {
+            studentIdInput.value = event.detail.id;
+            loadVoteheadsFromInvoice();
+        }
+    });
     studentIdInput.addEventListener('change', loadVoteheadsFromInvoice);
     yearInput.addEventListener('change', loadVoteheadsFromInvoice);
     termSelect.addEventListener('change', loadVoteheadsFromInvoice);

@@ -11,25 +11,17 @@
             <form method="POST" action="{{ route('finance.journals.store') }}" class="row g-3">
                 @csrf
 
-                {{-- Student picker (uses modal) --}}
+                {{-- Student picker --}}
                 <div class="col-md-6">
                     <label class="form-label">Student</label>
-                    <div class="input-group">
-                        {{-- This hidden input is what the controller reads --}}
-                        <input type="hidden" id="selectedStudentId" name="student_id" value="{{ old('student_id') }}" required>
-
-                        {{-- Readonly display field for name (filled by modal) --}}
-                        <input type="text" id="selectedStudentName" class="form-control"
-                               value="{{ old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : '' }}"
-                               placeholder="Search by name or admission #"
-                               readonly>
-
-                        <button type="button" class="btn btn-outline-secondary"
-                                data-bs-toggle="modal" data-bs-target="#studentSearchModal">
-                            Search
-                        </button>
-                    </div>
-                    <div class="form-text">Pick a student using the search button.</div>
+                    @include('partials.student_live_search', [
+                        'hiddenInputId' => 'selectedStudentId',
+                        'displayInputId' => 'selectedStudentName',
+                        'resultsId' => 'studentLiveResultsCDAForm',
+                        'placeholder' => 'Type name or admission #',
+                        'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : ''
+                    ])
+                    <div class="form-text">Start typing to search and select.</div>
                 </div>
 
                 <div class="col-md-3">
@@ -101,6 +93,4 @@
     </div>
 </div>
 
-{{-- Include the student search modal partial --}}
-@include('partials.student_search_modal')
 @endsection

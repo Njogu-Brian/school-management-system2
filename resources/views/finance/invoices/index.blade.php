@@ -56,6 +56,16 @@
                     @endforeach
                 </select>
             </div>
+            <div class="col-md-6 col-lg-4">
+                <label class="finance-form-label">Student</label>
+                @include('partials.student_live_search', [
+                    'hiddenInputId' => 'student_id',
+                    'displayInputId' => 'studentFilterSearchInvoices',
+                    'resultsId' => 'studentFilterResultsInvoices',
+                    'placeholder' => 'Type name or admission #',
+                    'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                ])
+            </div>
             <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">Status</label>
                 <select name="status" class="finance-form-select">

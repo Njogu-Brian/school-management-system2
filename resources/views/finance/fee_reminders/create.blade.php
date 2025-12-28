@@ -18,14 +18,14 @@
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <label class="form-label">Student <span class="text-danger">*</span></label>
-                        <select name="student_id" class="form-select @error('student_id') is-invalid @enderror" required>
-                            <option value="">Select Student</option>
-                            @foreach($students as $student)
-                                <option value="{{ $student->id }}" {{ old('student_id') == $student->id ? 'selected' : '' }}>
-                                    {{ $student->first_name }} {{ $student->last_name }} - {{ $student->classroom->name ?? 'No Class' }}
-                                </option>
-                            @endforeach
-                        </select>
+                        @include('partials.student_live_search', [
+                            'hiddenInputId' => 'student_id',
+                            'displayInputId' => 'feeReminderStudent',
+                            'resultsId' => 'feeReminderStudentResults',
+                            'placeholder' => 'Type name or admission #',
+                            'inputClass' => 'form-control' . ($errors->has('student_id') ? ' is-invalid' : ''),
+                            'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : '',
+                        ])
                         @error('student_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
