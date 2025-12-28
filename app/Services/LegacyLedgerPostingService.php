@@ -61,7 +61,7 @@ class LegacyLedgerPostingService
         $labels = $batch->terms
             ->flatMap(fn (LegacyStatementTerm $term) => $term->lines->pluck('votehead'))
             ->filter()
-            ->map(fn ($v) => trim((string) $v))
+            ->map(fn ($v) => $this->normalizeLabel((string) $v))
             ->filter()
             ->unique()
             ->values();
@@ -154,6 +154,12 @@ class LegacyLedgerPostingService
             return;
         }
 
+        // Normalize / classify txn types (JV, reversal, discount)
+        $lines = $lines->map(function ($l) {
+            $l->txn_type = $this->classifyTxnType($l);
+            return $l;
+        });
+
         // Build invoice lines grouped by votehead
         $invoiceLines = $lines->filter(fn ($l) => $l->txn_type === 'invoice');
         $discountLines = $lines->filter(fn ($l) => $this->isDiscount($l));
@@ -207,9 +213,40 @@ class LegacyLedgerPostingService
         return $dates->first() ?: ($batch->created_at ?? now());
     }
 
+    protected function normalizeLabel(string $label): string
+    {
+        $label = preg_replace('/\(.*?\)/', '', $label); // drop parenthetical tags like (JV on ...)
+        $label = preg_replace('/\s+/', ' ', $label);
+        $label = trim($label);
+        return strtoupper($label);
+    }
+
+    protected function classifyTxnType(LegacyStatementLine $line): string
+    {
+        $base = $line->txn_type;
+        $text = strtoupper(trim(($line->narration_raw ?? '') . ' ' . ($line->votehead ?? '')));
+
+        $isCredit = ($line->amount_cr ?? 0) > 0;
+        $isDebit = ($line->amount_dr ?? 0) > 0;
+
+        if (str_contains($text, 'DISCOUNT')) {
+            return 'credit_note';
+        }
+
+        if (str_contains($text, 'REVERSAL')) {
+            return $isDebit ? 'debit_note' : 'credit_note';
+        }
+
+        if (str_contains($text, 'JV')) {
+            return $isCredit ? 'credit_note' : 'debit_note';
+        }
+
+        return $base;
+    }
+
     protected function resolveVoteheadId(string $label): ?int
     {
-        $mapping = LegacyVoteheadMapping::where('legacy_label', $label)->first();
+        $mapping = LegacyVoteheadMapping::where('legacy_label', $this->normalizeLabel($label))->first();
         return $mapping?->votehead_id;
     }
 
@@ -237,7 +274,7 @@ class LegacyLedgerPostingService
     protected function createInvoiceItems($invoice, Collection $invoiceLines): void
     {
         $groups = $invoiceLines->groupBy(function ($line) {
-            return trim((string) $line->votehead) ?: 'UNSPECIFIED';
+            return $this->normalizeLabel((string) $line->votehead) ?: 'UNSPECIFIED';
         });
 
         foreach ($groups as $label => $lines) {

@@ -80,11 +80,13 @@ class LegacyFinanceImportController extends Controller
         $canApproveAll = !$hasDrafts && !$hasMissingStudents;
 
         // Votehead labels in this batch and mapping status
-        $legacyLabels = $batch->terms
+        $legacyLabelsRaw = $batch->terms
             ->flatMap(fn ($t) => $t->lines->pluck('votehead'))
             ->filter()
             ->map(fn ($v) => trim((string) $v))
-            ->filter()
+            ->filter();
+        $legacyLabels = $legacyLabelsRaw
+            ->map(fn ($v) => $this->normalizeLabel($v))
             ->unique()
             ->values();
         $mappings = LegacyVoteheadMapping::whereIn('legacy_label', $legacyLabels)->get()->keyBy('legacy_label');
@@ -214,12 +216,14 @@ class LegacyFinanceImportController extends Controller
             'votehead_category_id' => 'nullable|exists:votehead_categories,id',
         ]);
 
+        $normalized = $this->normalizeLabel($validated['legacy_label']);
+
         if ($validated['mode'] === 'existing') {
             if (!$validated['votehead_id']) {
                 return back()->withErrors('Select a votehead to map.');
             }
             LegacyVoteheadMapping::updateOrCreate(
-                ['legacy_label' => $validated['legacy_label']],
+                ['legacy_label' => $normalized],
                 ['votehead_id' => $validated['votehead_id'], 'status' => 'resolved', 'resolved_by' => $request->user()?->id]
             );
         } else {
@@ -233,7 +237,7 @@ class LegacyFinanceImportController extends Controller
                 'is_active' => true,
             ]);
             LegacyVoteheadMapping::updateOrCreate(
-                ['legacy_label' => $validated['legacy_label']],
+                ['legacy_label' => $normalized],
                 ['votehead_id' => $vh->id, 'status' => 'resolved', 'resolved_by' => $request->user()?->id]
             );
         }
@@ -246,6 +250,14 @@ class LegacyFinanceImportController extends Controller
     {
         $service->reverseBatch($batch->id);
         return back()->with('success', 'Legacy postings reversed for this batch.');
+    }
+
+    private function normalizeLabel(string $label): string
+    {
+        $label = preg_replace('/\(.*?\)/', '', $label); // drop parenthetical tags like (JV on ...)
+        $label = preg_replace('/\s+/', ' ', $label);
+        $label = trim($label);
+        return strtoupper($label);
     }
 
     public function rerun(Request $request, LegacyFinanceImportBatch $batch, LegacyFinanceImportService $service)
