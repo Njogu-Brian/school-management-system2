@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\LegacyFinanceImportBatch;
 use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
+use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
