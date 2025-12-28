@@ -256,6 +256,22 @@ class LegacyFinanceImportController extends Controller
         return back()->with('success', 'Legacy postings reversed for this batch.');
     }
 
+    /**
+     * JSON report of postings for a batch (optional class filter).
+     */
+    public function report(Request $request, LegacyFinanceImportBatch $batch, \App\Services\LegacyPostingReportService $report)
+    {
+        $class = $request->get('class_label');
+        return response()->json([
+            'summary' => $report->summary($batch->id, $class),
+            'payments' => $report->payments($batch->id, $class),
+            'credits' => $report->credits($batch->id, $class),
+            'debits' => $report->debits($batch->id, $class),
+            'discounts' => $report->discounts($batch->id, $class),
+            'invoices' => $report->invoices($batch->id, $class),
+        ]);
+    }
+
     private function normalizeLabel(string $label): string
     {
         $label = preg_replace('/\(.*?\)/', '', $label); // drop parenthetical tags like (JV on ...)

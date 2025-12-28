@@ -1003,6 +1003,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('legacy-imports/{batch}/votehead-mappings', [LegacyFinanceImportController::class, 'storeVoteheadMappings'])->name('legacy-imports.votehead-mappings');
         Route::post('legacy-imports/{batch}/voteheads/resolve', [LegacyFinanceImportController::class, 'resolveVotehead'])->name('legacy-imports.voteheads.resolve');
         Route::post('legacy-imports/{batch}/reverse-posting', [LegacyFinanceImportController::class, 'reversePosting'])->name('legacy-imports.reverse-posting');
+        Route::get('legacy-imports/{batch}/report', [LegacyFinanceImportController::class, 'report'])->name('legacy-imports.report');
         Route::delete('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'destroy'])->name('legacy-imports.destroy');
 
         // Invoices
