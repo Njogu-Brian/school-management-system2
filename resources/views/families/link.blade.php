@@ -98,21 +98,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 const res = await fetch(`{{ route('api.students.search') }}?q=${encodeURIComponent(query)}`);
                 const data = await res.json();
                 if (data.length === 0) { renderEmpty(resultsA); return; }
+                // Use a single interactive element (button). Avoid nesting <button> inside <a> which is invalid HTML
+                // and can prevent click handlers from firing reliably.
                 resultsA.innerHTML = data.map(stu => `
-                    <a href=\"#\" class=\"list-group-item list-group-item-action selectStudentA\" 
-                       data-id=\"${stu.id}\" data-name=\"${stu.full_name}\" data-adm=\"${stu.admission_number}\">
-                        <div class=\"d-flex justify-content-between align-items-center\">
+                    <button type="button" class="list-group-item list-group-item-action selectStudentA"
+                       data-id="${stu.id}" data-name="${stu.full_name}" data-adm="${stu.admission_number}">
+                        <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <strong>${stu.admission_number}</strong> — ${stu.full_name}
-                                ${stu.classroom_name ? '<br><small class=\"text-muted\">' + stu.classroom_name + '</small>' : ''}
+                                ${stu.classroom_name ? '<br><small class="text-muted">' + stu.classroom_name + '</small>' : ''}
                             </div>
-                            <button class=\"btn btn-sm btn-settings-primary\">Select</button>
+                            <span class="btn btn-sm btn-settings-primary">Select</span>
                         </div>
-                    </a>
+                    </button>
                 `).join('');
                 document.querySelectorAll('.selectStudentA').forEach(btn => {
                     btn.addEventListener('click', function(e) {
-                        e.preventDefault();
                         studentA = { id: this.dataset.id, name: this.dataset.name, adm: this.dataset.adm };
                         selectedA.innerHTML = `
                             <div class=\"alert alert-success mb-0\">
@@ -144,22 +145,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultsB.innerHTML = data.map(stu => {
                     const isStudentA = studentA && parseInt(stu.id) === parseInt(studentA.id);
                     return `
-                        <a href=\"#\" class=\"list-group-item list-group-item-action ${isStudentA ? 'disabled' : 'selectStudentB'}\" 
-                           data-id=\"${stu.id}\" data-name=\"${stu.full_name}\" data-adm=\"${stu.admission_number}\" ${isStudentA ? 'style=\"opacity: 0.5;\"' : ''}>
-                            <div class=\"d-flex justify-content-between align-items-center\">
+                        <button type="button" class="list-group-item list-group-item-action ${isStudentA ? 'disabled' : 'selectStudentB'}"
+                           data-id="${stu.id}" data-name="${stu.full_name}" data-adm="${stu.admission_number}" ${isStudentA ? 'style="opacity: 0.5;" disabled' : ''}>
+                            <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <strong>${stu.admission_number}</strong> — ${stu.full_name}
-                                    ${stu.classroom_name ? '<br><small class=\"text-muted\">' + stu.classroom_name + '</small>' : ''}
-                                    ${isStudentA ? '<br><small class=\"text-danger\">(Already selected as first student)</small>' : ''}
+                                    ${stu.classroom_name ? '<br><small class="text-muted">' + stu.classroom_name + '</small>' : ''}
+                                    ${isStudentA ? '<br><small class="text-danger">(Already selected as first student)</small>' : ''}
                                 </div>
-                                ${!isStudentA ? '<button class=\"btn btn-sm btn-settings-primary\">Select</button>' : ''}
+                                ${!isStudentA ? '<span class="btn btn-sm btn-settings-primary">Select</span>' : ''}
                             </div>
-                        </a>
+                        </button>
                     `;
                 }).join('');
                 document.querySelectorAll('.selectStudentB').forEach(btn => {
                     btn.addEventListener('click', function(e) {
-                        e.preventDefault();
                         studentB = { id: this.dataset.id, name: this.dataset.name, adm: this.dataset.adm };
                         selectedB.innerHTML = `
                             <div class=\"alert alert-success mb-0\">
