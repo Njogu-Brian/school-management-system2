@@ -10,11 +10,33 @@
 <title>Invoice {{ $invoice->invoice_number }}</title>
 <style>
   *{ font-family: DejaVu Sans, sans-serif; }
-  body{ font-size: 11.5px; color:#111; }
+  body{ 
+    font-size: 11.5px; 
+    color:#111;
+    position: relative;
+  }
   @page { 
     size: A4;
     margin: 135px 24px 80px 24px; /* top, right, bottom, left */
   }
+  
+  @if($logo)
+  .watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 400px;
+    height: 400px;
+    background-image: url('{{ $logo }}');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    opacity: 0.08;
+    z-index: -1;
+    pointer-events: none;
+  }
+  @endif
 
   /* Fixed header/footer for DomPDF */
   .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
@@ -52,6 +74,10 @@
 </style>
 </head>
 <body>
+
+@if($logo)
+<div class="watermark"></div>
+@endif
 
 {{-- ============ HEADER ============ --}}
 <div class="header">

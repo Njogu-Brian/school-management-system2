@@ -45,7 +45,26 @@
             padding: 10mm;
             margin: 0 auto;
             background: #fff;
+            position: relative;
         }
+        
+        @if($logo)
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            background-image: url('{{ $logo }}');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0.08;
+            z-index: -1;
+            pointer-events: none;
+        }
+        @endif
         
         @media print {
             body {
@@ -225,6 +244,10 @@
     </style>
 </head>
 <body>
+    @if($logo)
+    <div class="watermark"></div>
+    @endif
+    
     <button class="print-btn no-print" onclick="window.print()">Print</button>
     
     <!-- Header -->
