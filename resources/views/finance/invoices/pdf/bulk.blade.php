@@ -10,7 +10,10 @@
 <style>
   *{ font-family: DejaVu Sans, sans-serif; }
   body{ font-size: 11.5px; color:#111; }
-  @page { margin: 135px 24px 80px 24px; }
+  @page { 
+    size: A4;
+    margin: 135px 24px 80px 24px;
+  }
 
   .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
   .footer{ position: fixed; bottom: -62px; left: 0; right: 0; height: 62px; color:#666; font-size: 10px; }

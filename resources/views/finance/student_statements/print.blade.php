@@ -40,14 +40,25 @@
             font-family: 'DejaVu Sans', Arial, sans-serif;
             font-size: 11px;
             color: #000;
-            padding: 20px;
+            width: 210mm; /* A4 width */
+            min-height: 297mm; /* A4 height */
+            padding: 10mm;
+            margin: 0 auto;
             background: #fff;
         }
         
         @media print {
-            body { padding: 10px; }
+            body {
+                width: 210mm;
+                min-height: 297mm;
+                padding: 10mm;
+                margin: 0;
+            }
             .no-print { display: none !important; }
-            @page { margin: 1cm; }
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
         }
         
         .header {

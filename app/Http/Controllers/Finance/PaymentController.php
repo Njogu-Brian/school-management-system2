@@ -721,19 +721,16 @@ class PaymentController extends Controller
                 ]);
             }
             
-            // Calculate totals
-            $totalBalanceBefore = $receiptItems->sum('balance_before');
-            $totalBalanceAfter = $receiptItems->sum('balance_after');
-            
-            // Calculate total outstanding balance and total invoices
+            // Calculate total outstanding balance (current balance AFTER this payment)
             $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-            $totalOutstandingBalance = 0;
-            $totalInvoices = 0;
+            $currentOutstandingBalance = 0;
             foreach ($invoices as $invoice) {
                 $invoice->recalculate();
-                $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
-                $totalInvoices += $invoice->total ?? 0;
+                $currentOutstandingBalance += max(0, $invoice->balance ?? 0);
             }
+            
+            // Balance before this payment = current balance + payment amount
+            $balanceBeforePayment = $currentOutstandingBalance + $payment->amount;
             
             // Get school settings and branding
             $schoolSettings = $this->getSchoolSettings();
@@ -749,12 +746,9 @@ class PaymentController extends Controller
                 'receipt_number' => $payment->receipt_number,
                 'date' => $payment->payment_date->format('d M Y'),
                 'student' => $student,
-                'allocations' => $receiptItems,
                 'total_amount' => $payment->amount,
-                'total_balance_before' => $totalBalanceBefore,
-                'total_balance_after' => $totalBalanceAfter,
-                'total_outstanding_balance' => $totalOutstandingBalance,
-                'total_invoices' => $totalInvoices,
+                'total_outstanding_balance' => $balanceBeforePayment, // This is the balance BEFORE payment
+                'current_outstanding_balance' => $currentOutstandingBalance, // Balance AFTER payment
                 'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
                 'transaction_code' => $payment->transaction_code,
                 'narration' => $payment->narration,

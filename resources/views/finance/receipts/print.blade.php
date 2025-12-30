@@ -1,9 +1,64 @@
 @php
     $branding = $branding ?? [];
     $logo = $branding['logoBase64'] ?? null;
-    $school = $school ?? [];
+    $schoolName = $branding['name'] ?? ($school['name'] ?? config('app.name', 'School'));
+    $schoolAddress = $branding['address'] ?? ($school['address'] ?? '');
+    $schoolPhone = $branding['phone'] ?? ($school['phone'] ?? '');
+    $schoolEmail = $branding['email'] ?? ($school['email'] ?? '');
+    
     $receiptHeader = $receiptHeader ?? \App\Models\Setting::get('receipt_header', '');
     $receiptFooter = $receiptFooter ?? \App\Models\Setting::get('receipt_footer', '');
+    
+    // Calculate current fee balance (balance before this payment)
+    $currentFeeBalance = $total_outstanding_balance ?? 0; // This is balance BEFORE payment
+    $amountReceived = $payment->amount ?? 0;
+    $balanceCarriedForward = $current_outstanding_balance ?? ($currentFeeBalance - $amountReceived); // Balance AFTER payment
+    
+    // Convert amount to words
+    function numberToWords($number) {
+        $ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 
+                 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+        $tens = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+        
+        $number = (int)$number;
+        if ($number == 0) return 'ZERO';
+        
+        $result = '';
+        
+        if ($number >= 1000000) {
+            $millions = (int)($number / 1000000);
+            $result .= numberToWords($millions) . ' MILLION ';
+            $number %= 1000000;
+        }
+        
+        if ($number >= 1000) {
+            $thousands = (int)($number / 1000);
+            if ($thousands < 20) {
+                $result .= $ones[$thousands] . ' THOUSAND ';
+            } else {
+                $result .= $tens[(int)($thousands / 10)] . ' ' . $ones[$thousands % 10] . ' THOUSAND ';
+            }
+            $number %= 1000;
+        }
+        
+        if ($number >= 100) {
+            $result .= $ones[(int)($number / 100)] . ' HUNDRED ';
+            $number %= 100;
+        }
+        
+        if ($number >= 20) {
+            $result .= $tens[(int)($number / 10)] . ' ';
+            $number %= 10;
+        }
+        
+        if ($number > 0) {
+            $result .= $ones[$number] . ' ';
+        }
+        
+        return trim($result) . ' SHILLINGS ONLY';
+    }
+    
+    $amountInWords = numberToWords($amountReceived);
 @endphp
 <!DOCTYPE html>
 <html>
@@ -11,24 +66,40 @@
     <meta charset="utf-8">
     <title>Receipt {{ $payment->receipt_number }}</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
             font-size: 11px;
-            color: #333;
-            padding: 20px;
+            color: #000;
+            width: 210mm; /* A4 width */
+            min-height: 297mm; /* A4 height */
+            padding: 10mm;
+            margin: 0 auto;
+            background: #fff;
         }
         
         @media print {
-            body { padding: 0; }
+            body {
+                width: 210mm;
+                min-height: 297mm;
+                padding: 10mm;
+                margin: 0;
+            }
             .no-print { display: none !important; }
-            @page { margin: 1cm; }
+            @page {
+                size: A4;
+                margin: 10mm;
+            }
         }
         
         .header {
-            margin-bottom: 20px;
-            border-bottom: 2px solid #3a1a59;
-            padding-bottom: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
         }
         
         .header-table {
@@ -41,159 +112,115 @@
         }
         
         .logo-cell {
-            width: 80px;
+            width: 100px;
         }
         
         .logo-cell img {
-            height: 64px;
+            height: 80px;
             display: block;
         }
         
         .school-name {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             margin-bottom: 6px;
-            color: #3a1a59;
-        }
-        
-        .school-info {
-            font-size: 10px;
-            color: #666;
-            line-height: 1.5;
-        }
-        
-        .date-cell {
-            text-align: right;
-            font-size: 10px;
-            color: #666;
-        }
-        
-        @if(!empty($receiptHeader))
-        .custom-header {
-            margin-bottom: 15px;
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-            font-size: 10px;
-        }
-        @endif
-        
-        .receipt-title {
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-            color: #3a1a59;
-            margin: 20px 0;
             text-transform: uppercase;
         }
         
-        .receipt-details {
-            margin-bottom: 20px;
+        .school-info {
+            font-size: 9px;
+            line-height: 1.4;
         }
         
-        .detail-row {
-            display: table;
-            width: 100%;
-            padding: 6px 0;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .detail-label {
-            display: table-cell;
-            font-weight: bold;
-            color: #555;
-            width: 40%;
-        }
-        
-        .detail-value {
-            display: table-cell;
-            color: #333;
+        .receipt-number-section {
             text-align: right;
-            width: 60%;
+            font-size: 9px;
         }
         
-        .allocations-table {
+        .receipt-number {
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .dates-section {
+            font-size: 8px;
+            line-height: 1.5;
+        }
+        
+        .student-info {
+            margin: 15px 0;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .financial-summary {
+            margin: 20px 0;
             width: 100%;
             border-collapse: collapse;
-            margin: 20px 0;
-            font-size: 10px;
         }
         
-        .allocations-table thead {
-            background-color: #3a1a59;
-            color: white;
-        }
-        
-        .allocations-table th,
-        .allocations-table td {
-            padding: 8px;
-            text-align: left;
-            border: 1px solid #ddd;
-        }
-        
-        .allocations-table th {
-            font-weight: bold;
-        }
-        
-        .allocations-table .text-right {
+        .financial-summary th,
+        .financial-summary td {
+            padding: 10px;
+            border: 1px solid #000;
             text-align: right;
-        }
-        
-        .total-section {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f5f5f5;
-            border: 2px solid #3a1a59;
-            border-radius: 5px;
-        }
-        
-        .total-row {
-            display: table;
-            width: 100%;
-            padding: 6px 0;
             font-size: 11px;
         }
         
-        .total-row span:first-child {
-            display: table-cell;
+        .financial-summary th {
+            background-color: #f5f5f5;
+            font-weight: 700;
+            text-align: left;
             width: 70%;
         }
         
-        .total-row span:last-child {
+        .financial-summary .amount-cell {
+            width: 15%;
+        }
+        
+        .financial-summary .cents-cell {
+            width: 15%;
+        }
+        
+        .amount-in-words {
+            margin: 15px 0;
+            font-size: 10px;
+        }
+        
+        .amount-in-words-label {
+            font-weight: 600;
+        }
+        
+        .payment-details {
+            margin: 15px 0;
+            display: table;
+            width: 100%;
+        }
+        
+        .payment-details-row {
+            display: table-row;
+        }
+        
+        .payment-details-label {
             display: table-cell;
-            width: 30%;
-            text-align: right;
+            width: 40%;
+            font-weight: 600;
+            font-size: 10px;
         }
         
-        .grand-total {
-            border-top: 2px solid #3a1a59;
-            padding-top: 10px;
-            margin-top: 10px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        
-        .narration-box {
-            margin-top: 20px;
-            padding: 12px;
-            background-color: #f9f9f9;
-            border-left: 4px solid #3a1a59;
+        .payment-details-value {
+            display: table-cell;
+            width: 60%;
             font-size: 10px;
         }
         
         .footer {
             margin-top: 30px;
-            text-align: center;
-            font-size: 10px;
-            color: #666;
-            border-top: 1px solid #ddd;
             padding-top: 15px;
-        }
-        
-        .thank-you {
-            font-size: 12px;
-            font-weight: bold;
-            color: #3a1a59;
-            margin-bottom: 8px;
+            border-top: 1px solid #000;
+            font-size: 9px;
+            text-align: center;
+            text-transform: uppercase;
         }
         
         .print-btn {
@@ -203,15 +230,24 @@
             background: #3a1a59;
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 24px;
             border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
             z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
         
         .print-btn:hover {
             background: #2a1539;
+        }
+        
+        .with-thanks {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            text-align: center;
+            min-height: 60px;
         }
     </style>
 </head>
@@ -228,185 +264,100 @@
                     @endif
                 </td>
                 <td>
-                    <div class="school-name">{{ $school['name'] ?? config('app.name', 'Your School') }}</div>
+                    <div class="school-name">{{ $schoolName }}</div>
                     <div class="school-info">
-                        @if(!empty($school['address'])){{ $school['address'] }} | @endif
-                        @if(!empty($school['phone']))CALL US ON: {{ $school['phone'] }} | @endif
-                        @if(!empty($school['email']))EMAIL US ON: {{ $school['email'] }} | @endif
-                        @if(!empty($school['website']))WEBSITE: {{ $school['website'] }}@endif
+                        @if($schoolAddress){{ $schoolAddress }}<br>@endif
+                        @if($schoolPhone){{ $schoolPhone }}<br>@endif
+                        @if($schoolAddress && preg_match('/\d{5}/', $schoolAddress, $matches))
+                            {{ $matches[0] }}@endif
+                        @if($schoolEmail){{ $schoolEmail }}@endif
                     </div>
                 </td>
-                <td class="date-cell">
-                    <div>{{ now()->format('l, F d, Y') }}</div>
+                <td class="receipt-number-section">
+                    <div class="receipt-number">No. {{ $payment->receipt_number }}</div>
+                    <div class="dates-section">
+                        <div>System Entry Date: {{ $payment->created_at->format('d-M-Y') }}</div>
+                        <div>Payment Date: {{ $payment->payment_date->format('d M Y') }}</div>
+                        <div>Print Date: {{ now()->format('d-M-Y') }}</div>
+                    </div>
                 </td>
             </tr>
         </table>
     </div>
     
     @if(!empty($receiptHeader))
-    <div class="custom-header">
+    <div style="margin-bottom: 15px; font-size: 10px;">
         {!! $receiptHeader !!}
     </div>
     @endif
     
-    <!-- Receipt Title -->
-    <div class="receipt-title">
-        Payment Receipt
+    <!-- Student Info -->
+    <div class="student-info">
+        Student Name: {{ $student->admission_number ?? 'N/A' }} - {{ strtoupper($student->full_name) }} - {{ $student->classroom->name ?? 'N/A' }}
     </div>
     
-    <!-- Receipt Details -->
-    <div class="receipt-details">
-        <div class="detail-row">
-            <span class="detail-label">Receipt Number:</span>
-            <span class="detail-value"><strong>{{ $receipt_number ?? $payment->receipt_number }}</strong></span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Date:</span>
-            <span class="detail-value">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Student Name:</span>
-            <span class="detail-value">{{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}</span>
-        </div>
-        @if($student->admission_number)
-        <div class="detail-row">
-            <span class="detail-label">Admission Number:</span>
-            <span class="detail-value">{{ $student->admission_number }}</span>
-        </div>
-        @endif
-        @if($student->classroom)
-        <div class="detail-row">
-            <span class="detail-label">Class:</span>
-            <span class="detail-value">{{ $student->classroom->name ?? 'N/A' }}</span>
-        </div>
-        @endif
-        <div class="detail-row">
-            <span class="detail-label">Payment Method:</span>
-            <span class="detail-value">{{ $payment_method ?? 'Cash' }}</span>
-        </div>
-        @if($transaction_code ?? $payment->transaction_code)
-        <div class="detail-row">
-            <span class="detail-label">Transaction Code:</span>
-            <span class="detail-value">{{ $transaction_code ?? $payment->transaction_code }}</span>
-        </div>
-        @endif
-    </div>
-    
-    <!-- Payment Allocations -->
-    @if(isset($allocations) && $allocations->isNotEmpty())
-    <table class="allocations-table">
+    <!-- Financial Summary -->
+    <table class="financial-summary">
         <thead>
             <tr>
-                <th>#</th>
-                <th>Invoice Number</th>
-                <th>Votehead</th>
-                <th class="text-right">Item Amount</th>
-                <th class="text-right">Discount</th>
-                <th class="text-right">Amount Paid</th>
-                <th class="text-right">Balance Remaining</th>
+                <th></th>
+                <th class="amount-cell">KSHS.</th>
+                <th class="cents-cell">CTS</th>
             </tr>
         </thead>
         <tbody>
-            @foreach($allocations as $index => $itemData)
-            @php
-                $type = is_array($itemData) ? ($itemData['type'] ?? 'paid') : 'paid';
-                $invoice = is_array($itemData) ? ($itemData['invoice'] ?? null) : null;
-                $votehead = is_array($itemData) ? ($itemData['votehead'] ?? null) : null;
-                $itemAmount = is_array($itemData) ? ($itemData['item_amount'] ?? 0) : 0;
-                $discountAmount = is_array($itemData) ? ($itemData['discount_amount'] ?? 0) : 0;
-                $allocatedAmount = is_array($itemData) ? ($itemData['allocated_amount'] ?? 0) : 0;
-                $balanceAfter = is_array($itemData) ? ($itemData['balance_after'] ?? 0) : 0;
-                $isPaid = $type === 'paid' && $allocatedAmount > 0;
-            @endphp
-            <tr style="{{ $isPaid ? '' : 'background-color: #fff3cd;' }}">
-                <td>{{ $loop->iteration }}</td>
-                <td>{{ $invoice->invoice_number ?? 'N/A' }}</td>
-                <td>
-                    {{ $votehead->name ?? 'N/A' }}
-                    @if(!$isPaid)
-                        <span style="color: #856404; font-size: 9px;">(Unpaid)</span>
-                    @endif
-                </td>
-                <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
-                <td class="text-right">@if($discountAmount > 0)Ksh {{ number_format($discountAmount, 2) }}@else-@endif</td>
-                <td class="text-right">
-                    @if($isPaid)
-                        <strong>Ksh {{ number_format($allocatedAmount, 2) }}</strong>
-                    @else
-                        <span style="color: #856404;">-</span>
-                    @endif
-                </td>
-                <td class="text-right">
-                    <strong style="{{ $balanceAfter > 0 ? 'color: #dc3545;' : 'color: #28a745;' }}">
-                        Ksh {{ number_format($balanceAfter, 2) }}
-                    </strong>
-                </td>
+            <tr>
+                <th>Current Fee Balance</th>
+                <td class="amount-cell">{{ number_format($currentFeeBalance, 2, '.', ',') }}</td>
+                <td class="cents-cell">00</td>
             </tr>
-            @endforeach
+            <tr>
+                <th>Amount Received</th>
+                <td class="amount-cell">{{ number_format($amountReceived, 2, '.', ',') }}</td>
+                <td class="cents-cell">00</td>
+            </tr>
+            <tr>
+                <th>Balance c/f</th>
+                <td class="amount-cell">{{ number_format($balanceCarriedForward, 2, '.', ',') }}</td>
+                <td class="cents-cell">00</td>
+            </tr>
         </tbody>
     </table>
-    @endif
     
-    <!-- Total Section -->
-    <div class="total-section">
-        @php
-            $amountPaid = $total_amount ?? $payment->amount;
-            $totalOutstandingBalance = $total_outstanding_balance ?? 0;
-            $totalInvoices = $total_invoices ?? 0;
-            $hasTotalOutstanding = $totalOutstandingBalance > 0;
-        @endphp
-        
-        <div class="total-row">
-            <span>Total Invoices:</span>
-            <span><strong>Ksh {{ number_format($totalInvoices, 2) }}</strong></span>
-        </div>
-        <div class="total-row">
-            <span>Payment Made:</span>
-            <span><strong>Ksh {{ number_format($amountPaid, 2) }}</strong></span>
-        </div>
-        
-        @php
-            $carriedForward = $payment->unallocated_amount ?? 0;
-        @endphp
-        @if($carriedForward > 0)
-        <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 8px; margin-top: 8px;">
-            <span><strong>Carried Forward:</strong></span>
-            <span style="color: #28a745;"><strong>(Ksh {{ number_format($carriedForward, 2) }})</strong></span>
-        </div>
-        @endif
-        @if($hasTotalOutstanding)
-        <div class="total-row grand-total" style="color: #dc3545;">
-            <span>Balance:</span>
-            <span>Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
-        </div>
-        @else
-        <div class="total-row grand-total" style="color: #28a745;">
-            <span>Balance:</span>
-            <span>Ksh 0.00</span>
-        </div>
-        @endif
+    <!-- Amount in Words -->
+    <div class="amount-in-words">
+        <span class="amount-in-words-label">Amount in Words</span> {{ $amountInWords }}
     </div>
     
-    <!-- Narration -->
-    @if($narration ?? $payment->narration)
-    <div class="narration-box">
-        <strong>Narration:</strong><br>
-        {{ $narration ?? $payment->narration }}
+    <!-- Payment Details -->
+    <div class="payment-details">
+        <div class="payment-details-row">
+            <div class="payment-details-label">Mode of Payment.</div>
+            <div class="payment-details-value">
+                {{ strtoupper($payment->paymentMethod->name ?? $payment->payment_method ?? 'CASH') }}
+                @if($payment->transaction_code)
+                    - {{ $payment->transaction_code }}
+                @endif
+                @if($payment->payment_date)
+                    ({{ $payment->payment_date->format('d M Y') }})
+                @endif
+            </div>
+        </div>
     </div>
-    @endif
+    
+    <!-- With Thanks Box -->
+    <div class="with-thanks">
+        <strong>With Thanks</strong>
+    </div>
     
     <!-- Footer -->
     <div class="footer">
-        <div class="thank-you">Thank You for Your Payment!</div>
-        <div>This is a computer-generated receipt. No signature required.</div>
-        <div style="margin-top: 10px;">
-            Generated on: {{ date('d M Y, H:i:s') }}<br>
-            @if(!empty($school['phone'] ?? ''))For inquiries, contact: {{ $school['phone'] }}@endif
-        </div>
         @if(!empty($receiptFooter))
-            <div style="margin-top: 8px;">{!! $receiptFooter !!}</div>
+            {!! $receiptFooter !!}
+        @else
+            <div>SERVED BY: {{ strtoupper($schoolName) }}. MONEY ONCE PAID IS NOT REFUNDABLE.</div>
+            <div style="margin-top: 5px;">{{ strtoupper($schoolName) }}</div>
         @endif
     </div>
 </body>
 </html>
-

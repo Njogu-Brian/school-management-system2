@@ -11,7 +11,10 @@
 <style>
   *{ font-family: DejaVu Sans, sans-serif; }
   body{ font-size: 11.5px; color:#111; }
-  @page { margin: 135px 24px 80px 24px; } /* top, right, bottom, left */
+  @page { 
+    size: A4;
+    margin: 135px 24px 80px 24px; /* top, right, bottom, left */
+  }
 
   /* Fixed header/footer for DomPDF */
   .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
