@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Family;
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Controller for managing student families
@@ -124,7 +125,7 @@ class FamilyController extends Controller
     }
 
     /**
-     * Link two students as siblings (creates family if needed)
+     * Link 2-4 students as siblings (creates family if needed)
      *
      * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
@@ -132,58 +133,73 @@ class FamilyController extends Controller
     public function linkStudents(Request $request)
     {
         $data = $request->validate([
-            'student_a_id' => 'required|exists:students,id',
-            'student_b_id' => 'required|exists:students,id',
+            // New multi-select flow
+            'student_ids' => 'required_without_all:student_a_id,student_b_id|array|min:2|max:4',
+            'student_ids.*' => 'distinct|exists:students,id',
+            // Backward compatibility for old two-field form
+            'student_a_id' => 'required_without:student_ids|exists:students,id',
+            'student_b_id' => 'required_without:student_ids|exists:students,id|different:student_a_id',
         ]);
 
-        $studentA = Student::withArchived()->with('parent')->findOrFail($data['student_a_id']);
-        $studentB = Student::withArchived()->with('parent')->findOrFail($data['student_b_id']);
-
-        // Determine which family to use (prefer existing, or create new)
-        $family = null;
-        
-        if ($studentA->family_id) {
-            $family = Family::find($studentA->family_id);
-        } elseif ($studentB->family_id) {
-            $family = Family::find($studentB->family_id);
+        // Normalize selected student IDs (supports legacy two-field payload)
+        if (!empty($data['student_ids'])) {
+            $studentIds = array_values(array_unique(array_map('intval', $data['student_ids'])));
         } else {
-            // Create new family
-            $family = Family::create([
-                'guardian_name' => 'Family',
-            ]);
-        }
-        
-        // Populate family details from students' parent info
-        $parent = $studentA->parent ?? $studentB->parent;
-        if ($parent) {
-            $this->populateFamilyFromParent($family, $parent);
+            $studentIds = [
+                (int)$data['student_a_id'],
+                (int)$data['student_b_id'],
+            ];
         }
 
-        // Store old family IDs before updating
-        $oldFamilyAId = $studentA->family_id;
-        $oldFamilyBId = $studentB->family_id;
+        // Fetch students with parents (includes archived)
+        $students = Student::withArchived()->with('parent')->whereIn('id', $studentIds)->get();
+        if ($students->count() !== count($studentIds)) {
+            return back()->withErrors(['student_ids' => 'Some selected students could not be found.']);
+        }
 
-        // Link both students to the family
-        $studentA->update(['family_id' => $family->id]);
-        $studentB->update(['family_id' => $family->id]);
+        $family = DB::transaction(function () use ($students) {
+            $family = null;
+            $familiesToMerge = [];
 
-        // If student A had a different family, merge it
-        if ($oldFamilyAId && $oldFamilyAId != $family->id) {
-            $oldFamily = Family::find($oldFamilyAId);
-            if ($oldFamily) {
-                Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
-                $oldFamily->delete();
+            // Decide which family to attach to (reuse if any selected student already has one)
+            foreach ($students as $student) {
+                if ($student->family_id) {
+                    if (!$family) {
+                        $family = Family::find($student->family_id);
+                    }
+                    $familiesToMerge[] = $student->family_id;
+                }
             }
-        }
 
-        // If student B had a different family, merge it
-        if ($oldFamilyBId && $oldFamilyBId != $family->id && $oldFamilyBId != $oldFamilyAId) {
-            $oldFamily = Family::find($oldFamilyBId);
-            if ($oldFamily) {
-                Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
-                $oldFamily->delete();
+            $familiesToMerge = array_unique($familiesToMerge);
+
+            if (!$family) {
+                $family = Family::create(['guardian_name' => 'Family']);
             }
-        }
+
+            // Pick a parent record (if any) to enrich the family details
+            $parentWithData = $students->first(fn ($stu) => $stu->parent);
+            if ($parentWithData && $parentWithData->parent) {
+                $this->populateFamilyFromParent($family, $parentWithData->parent);
+            }
+
+            // Link selected students to the chosen family
+            Student::whereIn('id', $students->pluck('id'))->update(['family_id' => $family->id]);
+
+            // Merge other families into the chosen one
+            foreach ($familiesToMerge as $familyId) {
+                if ($familyId == $family->id) {
+                    continue;
+                }
+                $oldFamily = Family::find($familyId);
+                if ($oldFamily) {
+                    Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
+                    $oldFamily->delete();
+                }
+            }
+
+            return $family;
+        });
 
         return redirect()->route('families.manage', $family)
             ->with('success', 'Students linked as siblings successfully.');

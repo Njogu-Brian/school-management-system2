@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Families</div>
         <h1 class="mb-1">Link Students as Siblings</h1>
-        <p class="text-muted mb-0">Create or extend a family by linking two students.</p>
+        <p class="text-muted mb-0">Create or extend a family by linking 2-4 students (2 required).</p>
       </div>
       <a href="{{ route('families.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
     </div>
@@ -19,39 +19,34 @@
     @include('students.partials.alerts')
 
     <div class="row g-3">
-      <div class="col-lg-6">
+      <div class="col-lg-7">
         <div class="settings-card h-100">
-          <div class="card-header">1. Search First Student</div>
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <span>1. Find students</span>
+            <span class="text-muted small">Select 2-4 students</span>
+          </div>
           <div class="card-body">
             <div class="mb-3">
               <label class="form-label">Search by name or admission number</label>
-              <input type="text" id="studentA_search" class="form-control" placeholder="Type to search...">
+              <input type="text" id="student_search" class="form-control" placeholder="Type to search...">
             </div>
-            <div id="studentA_results" class="list-group"></div>
-            <div id="studentA_selected" class="mt-3"></div>
+            <div id="student_results" class="list-group"></div>
           </div>
         </div>
       </div>
 
-      <div class="col-lg-6">
-        <div class="settings-card h-100">
-          <div class="card-header">2. Search Second Student</div>
-          <div class="card-body">
-            <div class="mb-3">
-              <label class="form-label">Search by name or admission number</label>
-              <input type="text" id="studentB_search" class="form-control" placeholder="Type to search..." disabled>
-            </div>
-            <div id="studentB_results" class="list-group"></div>
-            <div id="studentB_selected" class="mt-3"></div>
-          </div>
-        </div>
-
-        <form action="{{ route('families.link.store') }}" method="POST" id="linkForm" style="display: none;" class="settings-card mt-3">
+      <div class="col-lg-5">
+        <form action="{{ route('families.link.store') }}" method="POST" id="linkForm" class="settings-card h-100">
           @csrf
-          <input type="hidden" name="student_a_id" id="student_a_id">
-          <input type="hidden" name="student_b_id" id="student_b_id">
+          <div class="card-header d-flex align-items-center justify-content-between">
+            <span>2. Selected students</span>
+            <span class="badge text-bg-secondary" id="selected_count">0/4</span>
+          </div>
           <div class="card-body">
-            <button type="submit" class="btn btn-settings-primary w-100">
+            <div class="small text-muted mb-2">Pick at least two students. Up to four can be linked at once.</div>
+            <div id="selected_list" class="vstack gap-2 mb-3"></div>
+            <div id="hidden_inputs"></div>
+            <button type="submit" class="btn btn-settings-primary w-100" id="link_button" disabled>
               <i class="bi bi-link-45deg"></i> Link Students as Siblings
             </button>
           </div>
@@ -70,117 +65,164 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    let studentA = null;
-    let studentB = null;
-    let searchTimeoutA = null;
-    let searchTimeoutB = null;
+    const selectionLimit = 4;
+    const minimumSelection = 2;
+    let searchTimeout = null;
+    let selectedStudents = [];
 
-    const searchA = document.getElementById('studentA_search');
-    const resultsA = document.getElementById('studentA_results');
-    const selectedA = document.getElementById('studentA_selected');
-    const searchB = document.getElementById('studentB_search');
-    const resultsB = document.getElementById('studentB_results');
-    const selectedB = document.getElementById('studentB_selected');
-    const linkForm = document.getElementById('linkForm');
-    const studentAIdInput = document.getElementById('student_a_id');
-    const studentBIdInput = document.getElementById('student_b_id');
+    const searchInput = document.getElementById('student_search');
+    const resultsEl = document.getElementById('student_results');
+    const selectedListEl = document.getElementById('selected_list');
+    const selectedCountEl = document.getElementById('selected_count');
+    const hiddenInputsEl = document.getElementById('hidden_inputs');
+    const linkButton = document.getElementById('link_button');
 
-    function renderSearching(target){ target.innerHTML = '<div class=\"list-group-item text-center\">Searching...</div>'; }
-    function renderEmpty(target){ target.innerHTML = '<div class=\"list-group-item text-center text-muted\">No students found.</div>'; }
+    function renderMessage(target, message) {
+        target.innerHTML = `<div class="list-group-item text-center text-muted">${message}</div>`;
+    }
 
-    searchA.addEventListener('input', function() {
-        clearTimeout(searchTimeoutA);
-        const query = this.value.trim();
-        if (query.length < 2) { resultsA.innerHTML = ''; return; }
-        searchTimeoutA = setTimeout(async () => {
-            renderSearching(resultsA);
-            try {
-                const res = await fetch(`{{ route('api.students.search') }}?q=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                if (data.length === 0) { renderEmpty(resultsA); return; }
-                resultsA.innerHTML = data.map(stu => `
-                    <a href=\"#\" class=\"list-group-item list-group-item-action selectStudentA\" 
-                       data-id=\"${stu.id}\" data-name=\"${stu.full_name}\" data-adm=\"${stu.admission_number}\">
-                        <div class=\"d-flex justify-content-between align-items-center\">
-                            <div>
-                                <strong>${stu.admission_number}</strong> — ${stu.full_name}
-                                ${stu.classroom_name ? '<br><small class=\"text-muted\">' + stu.classroom_name + '</small>' : ''}
-                            </div>
-                            <button class=\"btn btn-sm btn-settings-primary\">Select</button>
-                        </div>
-                    </a>
-                `).join('');
-                document.querySelectorAll('.selectStudentA').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        studentA = { id: this.dataset.id, name: this.dataset.name, adm: this.dataset.adm };
-                        selectedA.innerHTML = `
-                            <div class=\"alert alert-success mb-0\">
-                                <strong>Selected:</strong> ${studentA.adm} — ${studentA.name}
-                                <button type=\"button\" class=\"btn btn-sm btn-ghost-strong float-end\" onclick=\"clearStudentA()\">Clear</button>
-                            </div>
-                        `;
-                        resultsA.innerHTML = '';
-                        searchA.value = '';
-                        searchB.disabled = false;
-                        studentAIdInput.value = studentA.id;
-                        checkFormReady();
-                    });
+    function renderSearching(target) {
+        target.innerHTML = '<div class="list-group-item text-center">Searching...</div>';
+    }
+
+    function updateHiddenInputs() {
+        hiddenInputsEl.innerHTML = '';
+        selectedStudents.forEach(student => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'student_ids[]';
+            input.value = student.id;
+            hiddenInputsEl.appendChild(input);
+        });
+    }
+
+    function updateButtonState() {
+        const count = selectedStudents.length;
+        const validCount = count >= minimumSelection && count <= selectionLimit;
+        linkButton.disabled = !validCount;
+        linkButton.innerHTML = validCount
+            ? '<i class="bi bi-link-45deg"></i> Link Students as Siblings'
+            : `<i class="bi bi-link-45deg"></i> Select ${minimumSelection}-${selectionLimit} students`;
+    }
+
+    function renderSelected() {
+        selectedCountEl.textContent = `${selectedStudents.length}/${selectionLimit}`;
+
+        if (selectedStudents.length === 0) {
+            selectedListEl.innerHTML = '<div class="text-muted small">No students selected yet.</div>';
+            updateHiddenInputs();
+            updateButtonState();
+            return;
+        }
+
+        selectedListEl.innerHTML = selectedStudents.map(student => `
+            <div class="d-flex align-items-center justify-content-between border rounded p-2">
+                <div>
+                    <div class="fw-semibold">${student.adm} — ${student.name}</div>
+                    ${student.classroom ? `<div class="text-muted small">${student.classroom}</div>` : ''}
+                </div>
+                <button type="button" class="btn btn-sm btn-ghost-strong removeSelected" data-id="${student.id}" aria-label="Remove ${student.name}">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        `).join('');
+
+        document.querySelectorAll('.removeSelected').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const idToRemove = this.getAttribute('data-id');
+                selectedStudents = selectedStudents.filter(s => String(s.id) !== String(idToRemove));
+                renderSelected();
+                // Re-render results so removed students become selectable again
+                if (searchInput.value.trim().length >= 2) {
+                    searchStudents(searchInput.value.trim());
+                }
+            });
+        });
+
+        updateHiddenInputs();
+        updateButtonState();
+    }
+
+    function addStudent(student) {
+        const alreadySelected = selectedStudents.some(s => String(s.id) === String(student.id));
+        if (alreadySelected || selectedStudents.length >= selectionLimit) {
+            return;
+        }
+        selectedStudents.push(student);
+        renderSelected();
+        searchInput.value = '';
+        resultsEl.innerHTML = '';
+    }
+
+    function renderResults(data) {
+        if (!data || data.length === 0) {
+            renderMessage(resultsEl, 'No students found.');
+            return;
+        }
+
+        resultsEl.innerHTML = data.map(stu => {
+            const isSelected = selectedStudents.some(s => String(s.id) === String(stu.id));
+            const atLimit = selectedStudents.length >= selectionLimit;
+            const disabled = isSelected || atLimit;
+
+            return `
+                <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ${disabled ? 'disabled' : 'selectResult'}"
+                        data-id="${stu.id}"
+                        data-name="${stu.full_name}"
+                        data-adm="${stu.admission_number}"
+                        data-classroom="${stu.classroom_name || ''}"
+                        ${disabled ? 'disabled' : ''}>
+                    <div>
+                        <strong>${stu.admission_number}</strong> — ${stu.full_name}
+                        ${stu.classroom_name ? '<br><small class="text-muted">' + stu.classroom_name + '</small>' : ''}
+                        ${isSelected ? '<br><small class="text-success">Selected</small>' : ''}
+                        ${(!isSelected && atLimit) ? '<br><small class="text-muted">Maximum selected</small>' : ''}
+                    </div>
+                    <span class="badge text-bg-primary">${isSelected ? 'Added' : 'Select'}</span>
+                </button>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.selectResult').forEach(btn => {
+            btn.addEventListener('click', function() {
+                addStudent({
+                    id: this.dataset.id,
+                    name: this.dataset.name,
+                    adm: this.dataset.adm,
+                    classroom: this.dataset.classroom
                 });
-            } catch (error) { renderEmpty(resultsA); }
-        }, 300);
+                // Re-render results to reflect disabled state when at limit
+                if (searchInput.value.trim().length >= 2) {
+                    searchStudents(searchInput.value.trim());
+                }
+            });
+        });
+    }
+
+    async function searchStudents(query) {
+        renderSearching(resultsEl);
+        try {
+            const res = await fetch(`{{ route('api.students.search') }}?q=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            renderResults(data);
+        } catch (error) {
+            renderMessage(resultsEl, 'Unable to search right now.');
+        }
+    }
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        const query = this.value.trim();
+        if (query.length < 2) {
+            renderMessage(resultsEl, 'Start typing to search students.');
+            return;
+        }
+        searchTimeout = setTimeout(() => searchStudents(query), 300);
     });
 
-    searchB.addEventListener('input', function() {
-        clearTimeout(searchTimeoutB);
-        const query = this.value.trim();
-        if (query.length < 2) { resultsB.innerHTML = ''; return; }
-        searchTimeoutB = setTimeout(async () => {
-            renderSearching(resultsB);
-            try {
-                const res = await fetch(`{{ route('api.students.search') }}?q=${encodeURIComponent(query)}`);
-                const data = await res.json();
-                if (data.length === 0) { renderEmpty(resultsB); return; }
-                resultsB.innerHTML = data.map(stu => {
-                    const isStudentA = studentA && parseInt(stu.id) === parseInt(studentA.id);
-                    return `
-                        <a href=\"#\" class=\"list-group-item list-group-item-action ${isStudentA ? 'disabled' : 'selectStudentB'}\" 
-                           data-id=\"${stu.id}\" data-name=\"${stu.full_name}\" data-adm=\"${stu.admission_number}\" ${isStudentA ? 'style=\"opacity: 0.5;\"' : ''}>
-                            <div class=\"d-flex justify-content-between align-items-center\">
-                                <div>
-                                    <strong>${stu.admission_number}</strong> — ${stu.full_name}
-                                    ${stu.classroom_name ? '<br><small class=\"text-muted\">' + stu.classroom_name + '</small>' : ''}
-                                    ${isStudentA ? '<br><small class=\"text-danger\">(Already selected as first student)</small>' : ''}
-                                </div>
-                                ${!isStudentA ? '<button class=\"btn btn-sm btn-settings-primary\">Select</button>' : ''}
-                            </div>
-                        </a>
-                    `;
-                }).join('');
-                document.querySelectorAll('.selectStudentB').forEach(btn => {
-                    btn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        studentB = { id: this.dataset.id, name: this.dataset.name, adm: this.dataset.adm };
-                        selectedB.innerHTML = `
-                            <div class=\"alert alert-success mb-0\">
-                                <strong>Selected:</strong> ${studentB.adm} — ${studentB.name}
-                                <button type=\"button\" class=\"btn btn-sm btn-ghost-strong float-end\" onclick=\"clearStudentB()\">Clear</button>
-                            </div>
-                        `;
-                        resultsB.innerHTML = '';
-                        searchB.value = '';
-                        studentBIdInput.value = studentB.id;
-                        checkFormReady();
-                    });
-                });
-            } catch (error) { renderEmpty(resultsB); }
-        }, 300);
-    });
-
-    function checkFormReady() { linkForm.style.display = (studentA && studentB) ? 'block' : 'none'; }
-
-    window.clearStudentA = function() { studentA = null; selectedA.innerHTML=''; searchA.value=''; searchB.disabled=true; studentAIdInput.value=''; checkFormReady(); };
-    window.clearStudentB = function() { studentB = null; selectedB.innerHTML=''; searchB.value=''; studentBIdInput.value=''; checkFormReady(); };
+    // Initial state
+    renderMessage(resultsEl, 'Start typing to search students.');
+    renderSelected();
 });
 </script>
 @endpush
