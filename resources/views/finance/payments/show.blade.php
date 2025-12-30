@@ -7,7 +7,7 @@
         'title' => 'Payment #' . ($payment->receipt_number ?? $payment->transaction_code),
         'icon' => 'bi bi-cash-stack',
         'subtitle' => $payment->student?->first_name ? 'For ' . $payment->student->first_name . ' ' . ($payment->student->last_name ?? '') : 'Payment details',
-        'actions' => '<a href="' . route('finance.payments.receipt', $payment) . '" class="btn btn-finance btn-finance-primary" target="_blank"><i class="bi bi-printer"></i> Print Receipt</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'receipt\', [' . $payment->id . '], {channel:\'sms\', message:\'Your receipt is ready. Please find the link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'actions' => '<a href="' . route('finance.payments.receipt', $payment) . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-printer"></i> Print Receipt</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'receipt\', [' . $payment->id . '], {channel:\'sms\', message:\'Your receipt is ready. Please find the link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     @include('finance.invoices.partials.alerts')
@@ -170,8 +170,8 @@
                 </div>
                 <div class="finance-card-body d-grid gap-2 p-4">
                     <div class="d-grid gap-2">
-                        <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary" target="_blank">
-                            <i class="bi bi-download"></i> Download Receipt PDF
+                        <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-finance btn-finance-primary">
+                            <i class="bi bi-download"></i> View/Print Receipt
                         </a>
                         @if($payment->student_id)
                         <a href="{{ route('finance.invoices.index', ['student_id' => $payment->student_id]) }}" class="btn btn-finance btn-finance-outline">

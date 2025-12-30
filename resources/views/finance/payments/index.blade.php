@@ -181,7 +181,7 @@
                                     <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-outline-primary" title="View">
                                         <i class="bi bi-eye"></i>
                                     </a>
-                                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-sm btn-outline-secondary" target="_blank" title="Print Receipt">
+                                    <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-sm btn-outline-secondary" title="Print Receipt">
                                         <i class="bi bi-printer"></i>
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-success" title="Send"

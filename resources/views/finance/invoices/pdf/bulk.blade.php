@@ -19,7 +19,6 @@
     margin: 135px 24px 80px 24px;
   }
   
-  @if($logo)
   .watermark {
     position: fixed;
     top: 50%;
@@ -27,7 +26,6 @@
     transform: translate(-50%, -50%);
     width: 400px;
     height: 400px;
-    background-image: url('{{ $logo }}');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
@@ -35,7 +33,6 @@
     z-index: -1;
     pointer-events: none;
   }
-  @endif
 
   .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
   .footer{ position: fixed; bottom: -62px; left: 0; right: 0; height: 62px; color:#666; font-size: 10px; }
@@ -72,7 +69,7 @@
 <body>
 
 @if($logo)
-<div class="watermark"></div>
+<div class="watermark" style="background-image: url('{{ $logo }}');"></div>
 @endif
 
 {{-- HEADER --}}

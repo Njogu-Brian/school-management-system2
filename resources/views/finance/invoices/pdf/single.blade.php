@@ -20,7 +20,6 @@
     margin: 135px 24px 80px 24px; /* top, right, bottom, left */
   }
   
-  @if($logo)
   .watermark {
     position: fixed;
     top: 50%;
@@ -28,7 +27,6 @@
     transform: translate(-50%, -50%);
     width: 400px;
     height: 400px;
-    background-image: url('{{ $logo }}');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
@@ -36,7 +34,6 @@
     z-index: -1;
     pointer-events: none;
   }
-  @endif
 
   /* Fixed header/footer for DomPDF */
   .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
@@ -76,7 +73,7 @@
 <body>
 
 @if($logo)
-<div class="watermark"></div>
+<div class="watermark" style="background-image: url('{{ $logo }}');"></div>
 @endif
 
 {{-- ============ HEADER ============ --}}

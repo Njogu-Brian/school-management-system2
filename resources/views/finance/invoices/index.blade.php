@@ -219,7 +219,6 @@
                                     </a>
                                     <a href="{{ route('finance.invoices.print_single', $inv) }}" 
                                        class="btn btn-sm btn-outline-secondary" 
-                                       target="_blank"
                                        title="Print">
                                         <i class="bi bi-printer"></i>
                                     </a>

@@ -84,16 +84,13 @@
             position: relative;
         }
         
-        @if($logo)
         .watermark {
-            content: '';
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             width: 400px;
             height: 400px;
-            background-image: url('{{ $logo }}');
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
@@ -101,7 +98,6 @@
             z-index: -1;
             pointer-events: none;
         }
-        @endif
         
         @media print {
             body {
@@ -273,7 +269,7 @@
 </head>
 <body>
     @if($logo)
-    <div class="watermark"></div>
+    <div class="watermark" style="background-image: url('{{ $logo }}');"></div>
     @endif
     
     <button class="print-btn no-print" onclick="window.print()">Print</button>
