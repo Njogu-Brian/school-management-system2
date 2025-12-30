@@ -18,6 +18,7 @@
     $schoolAddress = $branding['address'] ?? ($school['address'] ?? '');
     $schoolPhone = $branding['phone'] ?? ($school['phone'] ?? '');
     $schoolEmail = $branding['email'] ?? ($school['email'] ?? '');
+    $schoolWebsite = $branding['website'] ?? '';
     
     $receiptHeader = $receiptHeader ?? \App\Models\Setting::get('receipt_header', '');
     $receiptFooter = $receiptFooter ?? \App\Models\Setting::get('receipt_footer', '');
@@ -72,340 +73,229 @@
     }
     
     $amountInWords = numberToWords($amountReceived);
+    $printedAt = now();
+    $printedBy = optional(auth()->user())->name ?? 'System';
 @endphp
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Receipt {{ $payment->receipt_number }}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 11px;
-            color: #000;
-            width: 210mm; /* A4 width */
-            min-height: 297mm; /* A4 height */
-            padding: 10mm;
-            margin: 0 auto;
-            background: #fff;
-            position: relative;
-        }
-        
-        .watermark {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 400px;
-            height: 400px;
-            min-width: 400px;
-            min-height: 400px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center center;
-            opacity: 0.2;
-            z-index: 0;
-            pointer-events: none;
-        }
-        
-        body > *:not(.watermark) {
-            position: relative;
-            z-index: 10;
-        }
-        
-        @media print {
-            body {
-                width: 210mm;
-                min-height: 297mm;
-                padding: 10mm;
-                margin: 0;
-            }
-            .no-print { display: none !important; }
-            @page {
-                size: A4;
-                margin: 10mm;
-            }
-        }
-        
-        .header {
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-        }
-        
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .header-table td {
-            vertical-align: top;
-        }
-        
-        .logo-cell {
-            width: 120px;
-        }
-        
-        .logo-cell img {
-            height: 100px;
-            display: block;
-        }
-        
-        .school-name {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-        }
-        
-        .school-info {
-            font-size: 9px;
-            line-height: 1.4;
-        }
-        
-        .receipt-number-section {
-            text-align: right;
-            font-size: 9px;
-        }
-        
-        .receipt-number {
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .dates-section {
-            font-size: 8px;
-            line-height: 1.5;
-        }
-        
-        .student-info {
-            margin: 15px 0;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .financial-summary {
-            margin: 20px 0;
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .financial-summary th,
-        .financial-summary td {
-            padding: 10px;
-            border: 1px solid #000;
-            text-align: right;
-            font-size: 11px;
-        }
-        
-        .financial-summary th {
-            background-color: #f5f5f5;
-            font-weight: 700;
-            text-align: left;
-            width: 70%;
-        }
-        
-        .financial-summary .amount-cell {
-            width: 15%;
-        }
-        
-        .financial-summary .cents-cell {
-            width: 15%;
-        }
-        
-        .amount-in-words {
-            margin: 15px 0;
-            font-size: 10px;
-        }
-        
-        .amount-in-words-label {
-            font-weight: 600;
-        }
-        
-        .payment-details {
-            margin: 15px 0;
-            display: table;
-            width: 100%;
-        }
-        
-        .payment-details-row {
-            display: table-row;
-        }
-        
-        .payment-details-label {
-            display: table-cell;
-            width: 40%;
-            font-weight: 600;
-            font-size: 10px;
-        }
-        
-        .payment-details-value {
-            display: table-cell;
-            width: 60%;
-            font-size: 10px;
-        }
-        
-        .footer {
-            margin-top: 30px;
-            padding-top: 15px;
-            border-top: 1px solid #000;
-            font-size: 9px;
-            text-align: center;
-            text-transform: uppercase;
-        }
-        
-        .print-btn {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            background: #3a1a59;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        }
-        
-        .print-btn:hover {
-            background: #2a1539;
-        }
-        
-        .with-thanks {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #ddd;
-            text-align: center;
-            min-height: 60px;
-        }
-    </style>
+<meta charset="utf-8">
+<title>Receipt {{ $payment->receipt_number }}</title>
+<style>
+  *{ font-family: DejaVu Sans, sans-serif; }
+  body{ 
+    font-size: 11.5px; 
+    color:#111;
+    position: relative;
+  }
+  @page { 
+    size: A4;
+    margin: 135px 24px 80px 24px; /* top, right, bottom, left */
+  }
+  
+  .watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 350px;
+    height: 350px;
+    min-width: 350px;
+    min-height: 350px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center center;
+    opacity: 0.2;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Fixed header/footer for DomPDF */
+  .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
+  .footer{ position: fixed; bottom: -62px; left: 0; right: 0; height: 62px; color:#666; font-size: 10px; }
+
+  .small{ font-size: 10.5px; }
+  .muted{ color:#666; }
+  .h1{ font-size: 20px; font-weight: 700; margin:0; line-height:1.2; }
+
+  .sep{ border:0; border-top:1px solid #ccc; margin:6px 0 0 0; }
+
+  table{ border-collapse: collapse; width:100%; }
+  .hdr td{ vertical-align: top; }
+  .hdr .logo { width: 100px; }
+  .hdr img { height: 80px; display:block; }
+
+  .kv{ margin-top: 6px; table-layout: fixed; }
+  .kv th,
+  .kv td { padding: 6px 8px; border:1px solid #bbb; }
+  .kv th { width: 22%; background:#f5f5f5; text-align:left; white-space:nowrap; }
+  .kv td { width: 28%; word-wrap: break-word; }
+
+  .summary{ margin-top: 10px; }
+  .summary th,
+  .summary td { padding: 7px 8px; border:1px solid #999; }
+  .summary th{ background:#f2f2f2; }
+  .right{ text-align: right; }
+  .center{ text-align: center; }
+
+  .pagenum:before{ content: counter(page) " / " counter(pages); }
+  
+  .print-btn {
+    background: #3a1a59;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-bottom: 15px;
+  }
+  
+  .print-btn:hover {
+    background: #2a1539;
+  }
+  
+  .amount-words {
+    margin: 15px 0;
+    font-size: 10.5px;
+    padding: 8px;
+    background: #f9f9f9;
+  }
+  
+  .payment-mode {
+    margin: 10px 0;
+    font-size: 10.5px;
+  }
+  
+  .with-thanks {
+    margin: 15px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    text-align: center;
+    font-size: 10.5px;
+  }
+</style>
 </head>
 <body>
-    @php
-        // Use the same logo for watermark
-        $watermarkLogo = $logo ?? $branding['logoBase64'] ?? null;
-    @endphp
-    
-    @if($watermarkLogo)
-    <div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
-    @endif
-    
-    <button class="print-btn no-print" onclick="window.print()">Print</button>
-    
-    <!-- Header -->
-    <div class="header">
-        <table class="header-table">
-            <tr>
-                <td class="logo-cell">
-                    @php
-                        $headerLogo = $logo ?? $branding['logoBase64'] ?? null;
-                    @endphp
-                    @if($headerLogo)
-                        <img src="{{ $headerLogo }}" alt="Logo">
-                    @endif
-                </td>
-                <td>
-                    <div class="school-name">{{ $schoolName }}</div>
-                    <div class="school-info">
-                        @if($schoolAddress){{ $schoolAddress }}<br>@endif
-                        @if($schoolPhone){{ $schoolPhone }}<br>@endif
-                        @if($schoolAddress && preg_match('/\d{5}/', $schoolAddress, $matches))
-                            {{ $matches[0] }}@endif
-                        @if($schoolEmail){{ $schoolEmail }}@endif
-                    </div>
-                </td>
-                <td class="receipt-number-section">
-                    <div class="receipt-number">No. {{ $payment->receipt_number }}</div>
-                    <div class="dates-section">
-                        <div>System Entry Date: {{ $payment->created_at->format('d-M-Y') }}</div>
-                        <div>Payment Date: {{ $payment->payment_date->format('d M Y') }}</div>
-                        <div>Print Date: {{ now()->format('d-M-Y') }}</div>
-                    </div>
-                </td>
-            </tr>
-        </table>
-    </div>
-    
-    @if(!empty($receiptHeader))
-    <div style="margin-bottom: 15px; font-size: 10px;">
-        {!! $receiptHeader !!}
-    </div>
-    @endif
-    
-    <!-- Student Info -->
-    <div class="student-info">
-        Student Name: {{ $student->admission_number ?? 'N/A' }} - {{ strtoupper($student->full_name) }} - {{ $student->classroom->name ?? 'N/A' }}
-    </div>
-    
-    <!-- Financial Summary -->
-    <table class="financial-summary">
-        <thead>
-            <tr>
-                <th></th>
-                <th class="amount-cell">KSHS.</th>
-                <th class="cents-cell">CTS</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <th>Current Fee Balance</th>
-                <td class="amount-cell">{{ number_format($currentFeeBalance, 2, '.', ',') }}</td>
-                <td class="cents-cell">00</td>
-            </tr>
-            <tr>
-                <th>Amount Received</th>
-                <td class="amount-cell">{{ number_format($amountReceived, 2, '.', ',') }}</td>
-                <td class="cents-cell">00</td>
-            </tr>
-            <tr>
-                <th>Balance c/f</th>
-                <td class="amount-cell">{{ number_format($balanceCarriedForward, 2, '.', ',') }}</td>
-                <td class="cents-cell">00</td>
-            </tr>
-        </tbody>
-    </table>
-    
-    <!-- Amount in Words -->
-    <div class="amount-in-words">
-        <span class="amount-in-words-label">Amount in Words</span> {{ $amountInWords }}
-    </div>
-    
-    <!-- Payment Details -->
-    <div class="payment-details">
-        <div class="payment-details-row">
-            <div class="payment-details-label">Mode of Payment.</div>
-            <div class="payment-details-value">
-                {{ strtoupper($payment->paymentMethod->name ?? $payment->payment_method ?? 'CASH') }}
-                @if($payment->transaction_code)
-                    - {{ $payment->transaction_code }}
-                @endif
-                @if($payment->payment_date)
-                    ({{ $payment->payment_date->format('d M Y') }})
-                @endif
-            </div>
-        </div>
-    </div>
-    
-    <!-- With Thanks Box -->
-    <div class="with-thanks">
-        <strong>With Thanks</strong>
-    </div>
-    
-    <!-- Footer -->
-    <div class="footer">
-        @if(!empty($receiptFooter))
-            {!! $receiptFooter !!}
-        @else
-            <div>SERVED BY: {{ strtoupper($schoolName) }}. MONEY ONCE PAID IS NOT REFUNDABLE.</div>
-            <div style="margin-top: 5px;">{{ strtoupper($schoolName) }}</div>
+
+@php
+  $watermarkLogo = $logo ?? $branding['logoBase64'] ?? null;
+@endphp
+@if($watermarkLogo)
+<div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
+@endif
+
+{{-- ============ HEADER ============ --}}
+<div class="header">
+  <table class="hdr">
+    <tr>
+      <td class="logo">
+        @if($logo)
+          <img src="{{ $logo }}" alt="Logo">
         @endif
-    </div>
+      </td>
+      <td>
+        <div class="h1">{{ $schoolName }}</div>
+        <div class="small muted">
+          @if(!empty($schoolAddress)) {{ $schoolAddress }} |
+          @endif
+          @if(!empty($schoolEmail)) {{ $schoolEmail }} |
+          @endif
+          @if(!empty($schoolPhone)) Tel: {{ $schoolPhone }} |
+          @endif
+          @if(!empty($schoolWebsite)) {{ $schoolWebsite }} @endif
+        </div>
+        @if(!empty($receiptHeader))
+          <div class="small muted">{!! $receiptHeader !!}</div>
+        @endif
+        <hr class="sep">
+      </td>
+      <td style="width:170px; text-align:right;">
+        <div class="small muted">Date: {{ $printedAt->format('Y-m-d') }}</div>
+        <div class="small muted">Time: {{ $printedAt->format('H:i') }}</div>
+        <div class="small"><strong>Receipt #:</strong> {{ $payment->receipt_number }}</div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+{{-- ============ FOOTER ============ --}}
+<div class="footer">
+  <hr class="sep">
+  <table>
+    <tr>
+      <td>Generated by: <strong>{{ $printedBy }}</strong></td>
+      <td class="center muted">Printed: {{ $printedAt->format('Y-m-d H:i') }}</td>
+      <td class="right muted">Page <span class="pagenum"></span></td>
+    </tr>
+  </table>
+  @if(!empty($receiptFooter))
+    <div class="muted" style="margin-top:4px;">{!! $receiptFooter !!}</div>
+  @endif
+</div>
+
+{{-- ============ BODY ============ --}}
+<button class="print-btn no-print" onclick="window.print()">Print</button>
+
+<table class="kv">
+  <tr>
+    <th>Student</th>
+    <td>{{ $student->full_name ?? 'Unknown' }} (Adm: {{ $student->admission_number ?? '-' }})</td>
+    <th>Class / Stream</th>
+    <td>{{ $student->classroom->name ?? '-' }} / {{ $student->stream->name ?? '-' }}</td>
+  </tr>
+  <tr>
+    <th>System Entry Date</th>
+    <td>{{ $payment->created_at->format('d-M-Y') }}</td>
+    <th>Payment Date</th>
+    <td>{{ $payment->payment_date->format('d M Y') }}</td>
+  </tr>
+</table>
+
+<table class="summary">
+  <thead>
+    <tr>
+      <th></th>
+      <th style="width:16%" class="right">KSHS.</th>
+      <th style="width:16%" class="right">CTS</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Current Fee Balance</th>
+      <td class="right">{{ number_format($currentFeeBalance, 2, '.', ',') }}</td>
+      <td class="right">00</td>
+    </tr>
+    <tr>
+      <th>Amount Received</th>
+      <td class="right">{{ number_format($amountReceived, 2, '.', ',') }}</td>
+      <td class="right">00</td>
+    </tr>
+    <tr>
+      <th>Balance c/f</th>
+      <td class="right">{{ number_format($balanceCarriedForward, 2, '.', ',') }}</td>
+      <td class="right">00</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="amount-words">
+  <strong>Amount in Words</strong> {{ $amountInWords }}
+</div>
+
+<div class="payment-mode">
+  <strong>Mode of Payment.</strong> {{ strtoupper($payment->paymentMethod->name ?? $payment->payment_method ?? 'CASH') }}
+  @if($payment->transaction_code)
+    - {{ $payment->transaction_code }}
+  @endif
+  @if($payment->payment_date)
+    ({{ $payment->payment_date->format('d M Y') }})
+  @endif
+</div>
+
+<div class="with-thanks">
+  <strong>With Thanks</strong>
+</div>
+
 </body>
 </html>
