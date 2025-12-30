@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Page Not Found | 404</title>
     <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
-    <link rel="stylesheet" href="{{ mix('css/app.css') }}">
+    @php
+        $cssUrl = file_exists(public_path('build/manifest.json')) 
+            ? mix('css/app.css') 
+            : (file_exists(public_path('css/app.css')) ? asset('css/app.css') : 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css');
+    @endphp
+    <link rel="stylesheet" href="{{ $cssUrl }}">
     @include('finance.partials.styles')
     <style>
         body { background: var(--fin-bg, #f5f7fb); color: var(--fin-text, #0f172a); }
