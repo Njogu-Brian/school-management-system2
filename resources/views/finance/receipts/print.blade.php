@@ -140,21 +140,6 @@
 
   .pagenum:before{ content: counter(page) " / " counter(pages); }
   
-  .print-btn {
-    background: #3a1a59;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 12px;
-    margin-bottom: 15px;
-  }
-  
-  .print-btn:hover {
-    background: #2a1539;
-  }
-  
   .amount-words {
     margin: 15px 0;
     font-size: 10.5px;
@@ -235,8 +220,6 @@
 </div>
 
 {{-- ============ BODY ============ --}}
-<button class="print-btn no-print" onclick="window.print()">Print</button>
-
 <table class="kv">
   <tr>
     <th>Student</th>

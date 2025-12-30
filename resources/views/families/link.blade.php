@@ -117,15 +117,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
         selectedListEl.innerHTML = selectedStudents.map(student => `
             <div class="d-flex align-items-center justify-content-between border rounded p-2">
-                <div>
+                            <div>
                     <div class="fw-semibold">${student.adm} — ${student.name}</div>
                     ${student.classroom ? `<div class="text-muted small">${student.classroom}</div>` : ''}
-                </div>
+                            </div>
                 <button type="button" class="btn btn-sm btn-ghost-strong removeSelected" data-id="${student.id}" aria-label="Remove ${student.name}">
                     <i class="bi bi-x-lg"></i>
                 </button>
-            </div>
-        `).join('');
+                        </div>
+                `).join('');
 
         document.querySelectorAll('.removeSelected').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -136,8 +136,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (searchInput.value.trim().length >= 2) {
                     searchStudents(searchInput.value.trim());
                 }
-            });
-        });
+                    });
+                });
 
         updateHiddenInputs();
         updateButtonState();
@@ -165,23 +165,23 @@ document.addEventListener('DOMContentLoaded', function() {
             const atLimit = selectedStudents.length >= selectionLimit;
             const disabled = isSelected || atLimit;
 
-            return `
+                    return `
                 <button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ${disabled ? 'disabled' : 'selectResult'}"
                         data-id="${stu.id}"
                         data-name="${stu.full_name}"
                         data-adm="${stu.admission_number}"
                         data-classroom="${stu.classroom_name || ''}"
                         ${disabled ? 'disabled' : ''}>
-                    <div>
-                        <strong>${stu.admission_number}</strong> — ${stu.full_name}
+                                <div>
+                                    <strong>${stu.admission_number}</strong> — ${stu.full_name}
                         ${stu.classroom_name ? '<br><small class="text-muted">' + stu.classroom_name + '</small>' : ''}
                         ${isSelected ? '<br><small class="text-success">Selected</small>' : ''}
                         ${(!isSelected && atLimit) ? '<br><small class="text-muted">Maximum selected</small>' : ''}
-                    </div>
+                                </div>
                     <span class="badge text-bg-primary">${isSelected ? 'Added' : 'Select'}</span>
                 </button>
-            `;
-        }).join('');
+                    `;
+                }).join('');
 
         document.querySelectorAll('.selectResult').forEach(btn => {
             btn.addEventListener('click', function() {

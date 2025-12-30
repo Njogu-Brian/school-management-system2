@@ -150,7 +150,7 @@ class FamilyController extends Controller
                 (int)$data['student_b_id'],
             ];
         }
-
+        
         // Fetch students with parents (includes archived)
         $students = Student::withArchived()->with('parent')->whereIn('id', $studentIds)->get();
         if ($students->count() !== count($studentIds)) {
@@ -192,11 +192,11 @@ class FamilyController extends Controller
                     continue;
                 }
                 $oldFamily = Family::find($familyId);
-                if ($oldFamily) {
-                    Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
-                    $oldFamily->delete();
-                }
+            if ($oldFamily) {
+                Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
+                $oldFamily->delete();
             }
+        }
 
             return $family;
         });

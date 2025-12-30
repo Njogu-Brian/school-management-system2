@@ -1211,46 +1211,56 @@ class StudentController extends Controller
      */
     public function search(Request $request)
     {
-        $q = trim((string) $request->input('q', ''));
+        try {
+            $q = trim((string) $request->input('q', ''));
 
-        if ($q === '') {
-            return response()->json([]);
+            if ($q === '') {
+                return response()->json([]);
+            }
+
+            // Normalize for case-insensitive name search and admission search without spaces/punctuation
+            $searchTerm = '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%';
+            $normalizedAdmission = mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8');
+
+            $students = Student::query()
+                ->where('archive', 0) // Only non-archived students
+                ->with('classroom')
+                ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
+                    $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
+                      ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
+                      ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm])
+                      ->orWhereRaw('LOWER(admission_number) LIKE ?', [$searchTerm]);
+
+                    // Admission number search tolerant of prefixes/suffixes/spaces/dashes/slashes
+                    if ($normalizedAdmission !== '') {
+                        $s->orWhereRaw(
+                            'LOWER(REPLACE(REPLACE(REPLACE(admission_number, " ", ""), "-", ""), "/", "")) LIKE ?',
+                            ['%' . $normalizedAdmission . '%']
+                        );
+                    }
+                })
+                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
+                ->orderBy('first_name')
+                ->limit(25)
+                ->get();
+
+            return response()->json($students->map(function ($st) {
+                $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
+                return [
+                    'id' => $st->id,
+                    'full_name' => $full,
+                    'admission_number' => $st->admission_number ?? '',
+                    'classroom_name' => optional($st->classroom)->name,
+                ];
+            }));
+        } catch (\Exception $e) {
+            \Log::error('Student search failed', [
+                'query' => $request->input('q'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([])->setStatusCode(500);
         }
-
-        // Normalize for case-insensitive name search and admission search without spaces/punctuation
-        $searchTerm = '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%';
-        $normalizedAdmission = mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8');
-
-        $students = Student::query()
-            ->with('classroom')
-            ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
-                $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
-                  ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
-                  ->orWhereRaw('LOWER(last_name) LIKE ?', [$searchTerm])
-                  ->orWhereRaw('LOWER(admission_number) LIKE ?', [$searchTerm]);
-
-                // Admission number search tolerant of prefixes/suffixes/spaces/dashes/slashes
-                if ($normalizedAdmission !== '') {
-                    $s->orWhereRaw(
-                        'LOWER(REPLACE(REPLACE(REPLACE(admission_number, " ", ""), "-", ""), "/", "")) LIKE ?',
-                        ['%' . $normalizedAdmission . '%']
-                    );
-                }
-            })
-            ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
-            ->orderBy('first_name')
-            ->limit(25)
-            ->get();
-
-        return response()->json($students->map(function ($st) {
-            $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
-            return [
-                'id' => $st->id,
-                'full_name' => $full,
-                'admission_number' => $st->admission_number,
-                'classroom_name' => $st->classroom->name ?? null,
-            ];
-        }));
     }
 
     /**
