@@ -66,6 +66,9 @@
           @endif
           @if(!empty($school['website'])) {{ $school['website'] }} @endif
         </div>
+        @if(!empty($invoiceHeader ?? ''))
+          <div class="small muted">{!! $invoiceHeader !!}</div>
+        @endif
         <div class="small muted filters">
           Filters:
           @foreach(['year'=>'Year','term'=>'Term','votehead_id'=>'Votehead ID','class_id'=>'Class','stream_id'=>'Stream','student_id'=>'Student'] as $k=>$l)
@@ -92,6 +95,9 @@
       <td class="right muted">Page <span class="pagenum"></span></td>
     </tr>
   </table>
+  @if(!empty($invoiceFooter ?? ''))
+    <div class="muted" style="margin-top:4px;">{!! $invoiceFooter !!}</div>
+  @endif
 </div>
 
 {{-- BODY --}}

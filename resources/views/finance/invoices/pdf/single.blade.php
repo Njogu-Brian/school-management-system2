@@ -70,6 +70,9 @@
           @endif
           @if(!empty($school['website'])) {{ $school['website'] }} @endif
         </div>
+        @if(!empty($invoiceHeader ?? ''))
+          <div class="small muted">{!! $invoiceHeader !!}</div>
+        @endif
         <hr class="sep">
       </td>
       <td style="width:170px; text-align:right;">
@@ -91,6 +94,9 @@
       <td class="right muted">Page <span class="pagenum"></span></td>
     </tr>
   </table>
+  @if(!empty($invoiceFooter ?? ''))
+    <div class="muted" style="margin-top:4px;">{!! $invoiceFooter !!}</div>
+  @endif
 </div>
 
 {{-- ============ BODY ============ --}}

@@ -539,6 +539,11 @@ class StudentStatementController extends Controller
     {
         // Get terms for display
         $terms = \App\Models\Term::orderBy('name')->get();
+        $branding = $this->branding();
+        $statementHeader = \App\Models\Setting::get('statement_header', '');
+        $statementFooter = \App\Models\Setting::get('statement_footer', '');
+        $printedAt = now();
+        $printedBy = optional(auth()->user())->name ?? 'System';
         
         // For PDF, we'll use the same view but with print styles
         return view('finance.student_statements.print', compact(
@@ -548,7 +553,12 @@ class StudentStatementController extends Controller
             'discounts',
             'year',
             'term',
-            'terms'
+            'terms',
+            'branding',
+            'statementHeader',
+            'statementFooter',
+            'printedAt',
+            'printedBy'
         ));
     }
 
@@ -573,6 +583,44 @@ class StudentStatementController extends Controller
         
         // Use the same logic as show method
         return $this->show($request, $student);
+    }
+
+    private function branding(): array
+    {
+        $kv = \Illuminate\Support\Facades\DB::table('settings')->pluck('value', 'key')->map(fn($v) => trim((string)$v));
+
+        $name    = $kv['school_name']    ?? config('app.name', 'Your School');
+        $email   = $kv['school_email']   ?? '';
+        $phone   = $kv['school_phone']   ?? '';
+        $website = $kv['school_website'] ?? '';
+        $address = $kv['school_address'] ?? '';
+
+        $logoRel = $kv['school_logo_path'] ?? ($kv['school_logo'] ?? 'images/logo.png');
+        $candidates = [
+            public_path($logoRel),
+            public_path('storage/' . $logoRel),
+            storage_path('app/public/' . $logoRel),
+        ];
+
+        $logoBase64 = null;
+        foreach ($candidates as $path) {
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $mime = $ext === 'svg' ? 'image/svg+xml' : (($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : 'image/png');
+
+            if ($mime === 'image/png' && !extension_loaded('gd') && !extension_loaded('imagick')) {
+                $logoBase64 = null;
+                break;
+            }
+
+            $logoBase64 = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+            break;
+        }
+
+        return compact('name', 'email', 'phone', 'website', 'address', 'logoBase64');
     }
 }
 

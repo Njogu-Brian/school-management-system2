@@ -27,8 +27,10 @@ class ReceiptService
             'allocations.invoiceItem.invoice'
         ]);
         
-        // Get school settings
+        // Get school settings and document header/footer
         $schoolSettings = $this->getSchoolSettings();
+        $receiptHeader = \App\Models\Setting::get('receipt_header', '');
+        $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
         
         $student = $payment->student;
         
@@ -144,6 +146,8 @@ class ReceiptService
             'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
             'transaction_code' => $payment->transaction_code,
             'narration' => $payment->narration,
+            'receipt_header' => $receiptHeader,
+            'receipt_footer' => $receiptFooter,
         ];
         
         // Generate PDF

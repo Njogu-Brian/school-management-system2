@@ -184,6 +184,9 @@
                 Registration No: {{ $school['registration_number'] }}
             </div>
             @endif
+            @if(!empty($receipt_header ?? ''))
+            <div class="school-info" style="margin-top: 6px;">{!! $receipt_header !!}</div>
+            @endif
         </div>
 
         <!-- Receipt Title -->
@@ -342,6 +345,9 @@
                 Generated on: {{ date('d M Y, H:i:s') }}<br>
                 @if(!empty($school['phone'] ?? ''))For inquiries, contact: {{ $school['phone'] }}@endif
             </div>
+            @if(!empty($receipt_footer ?? ''))
+                <div style="margin-top: 6px;">{!! $receipt_footer !!}</div>
+            @endif
         </div>
     </div>
 </body>

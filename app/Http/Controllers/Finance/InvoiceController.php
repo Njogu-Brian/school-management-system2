@@ -389,9 +389,11 @@ class InvoiceController extends Controller
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
         $printedAt = now();
+        $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
+        $invoiceFooter = \App\Models\Setting::get('invoice_footer', '');
 
         $pdf = Pdf::loadView('finance.invoices.pdf.bulk', compact(
-            'invoices','filters','branding','printedBy','printedAt'
+            'invoices','filters','branding','printedBy','printedAt','invoiceHeader','invoiceFooter'
         ))->setPaper('A4','portrait');
 
         return $pdf->stream('invoices.pdf');
@@ -404,9 +406,11 @@ class InvoiceController extends Controller
         $branding  = $this->branding();
         $printedBy = optional(auth()->user())->name ?? 'System';
         $printedAt = now();
+        $invoiceHeader = \App\Models\Setting::get('invoice_header', '');
+        $invoiceFooter = \App\Models\Setting::get('invoice_footer', '');
 
         $pdf = Pdf::loadView('finance.invoices.pdf.single', compact(
-            'invoice','branding','printedBy','printedAt'
+            'invoice','branding','printedBy','printedAt','invoiceHeader','invoiceFooter'
         ))->setPaper('A4','portrait');
 
         return $pdf->stream("invoice-{$invoice->invoice_number}.pdf");
