@@ -30,8 +30,9 @@
     const hiddenId = document.getElementById('{{ $hiddenInputId }}');
     const enableBtn = {{ $enableButtonId ? 'document.getElementById("'.$enableButtonId.'")' : 'null' }};
     let t=null;
-    const defaultUrl = '{{ route('students.search') }}';
-    const apiFallback = '{{ url('/api/students/search') }}';
+    // Use relative URLs to avoid CORS when APP_URL points to a different host
+    const defaultUrl = '{{ route('students.search', [], false) }}' || '/students/search';
+    const apiFallback = '/api/students/search';
 
     const render = (items) => {
         results.innerHTML = '';
@@ -64,6 +65,8 @@
             hiddenId.value = '';
             if (enableBtn) enableBtn.disabled = true;
             if (q.length < 2) { results.classList.add('d-none'); return; }
+            results.innerHTML = '<div class="list-group-item text-center text-muted">Searching...</div>';
+            results.classList.remove('d-none');
             const urls = [];
             const customUrl = input.dataset.searchUrl;
             if (customUrl) urls.push(customUrl);
@@ -71,7 +74,7 @@
             urls.push(apiFallback);
             for (const url of urls.filter(Boolean)) {
                 try {
-                    const res = await fetch(`${url}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' }});
+                    const res = await fetch(`${url}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }});
                     if (!res.ok) throw new Error('search failed');
                     const data = await res.json();
                     render(data);
@@ -80,7 +83,8 @@
                     // try next url
                 }
             }
-            results.classList.add('d-none');
+            results.innerHTML = '<div class="list-group-item text-center text-danger">Search failed. Check connection or permissions.</div>';
+            results.classList.remove('d-none');
         }, 600);
     });
 })();
