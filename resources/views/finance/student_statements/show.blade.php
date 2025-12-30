@@ -5,7 +5,7 @@
         'title' => 'Student Fee Statement',
         'icon' => 'bi bi-file-text',
         'subtitle' => $student->full_name . ' (' . $student->admission_number . ')',
-        'actions' => '<a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'pdf']) . '" target="_blank" class="btn btn-finance btn-finance-primary"><i class="bi bi-file-pdf"></i> Export PDF</a><a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'csv']) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-spreadsheet"></i> Export CSV</a><button onclick="window.print()" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print</button>'
+        'actions' => '<a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'pdf']) . '" target="_blank" class="btn btn-finance btn-finance-primary"><i class="bi bi-file-pdf"></i> Export PDF</a><a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'csv']) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-spreadsheet"></i> Export CSV</a><button onclick="window.print()" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print</button><button type=\"button\" class=\"btn btn-finance btn-finance-secondary\" onclick=\"openSendDocument(\'statement\', [' . $student->id . '], {channel:\'sms\', message:\'Your statement is ready. Please find the link below.\'})\"><i class=\"bi bi-send\"></i> Send</button>'
     ])
 
     {{-- Filters --}}
@@ -264,9 +264,8 @@
                     </tfoot>
                 </table>
             </div>
-        </div>
     </div>
-@endsection
+</div>
 
 @push('scripts')
 <script>
@@ -377,5 +376,6 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 </style>
 @endpush
+@include('communication.partials.document-send-modal')
 @endsection
 
