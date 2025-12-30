@@ -1038,10 +1038,29 @@ class PaymentController extends Controller
         $website = $kv['school_website'] ?? '';
         $address = $kv['school_address'] ?? '';
 
-        // Default to your actual file
-        $logoRel = $kv['school_logo_path'] ?? 'images/logo.png';
-
-        $candidates = [ public_path($logoRel), public_path('storage/'.$logoRel), storage_path('app/public/'.$logoRel) ];
+        // Try school_logo first (stored as filename in public/images/)
+        // Then try school_logo_path (full path)
+        $logoFilename = $kv['school_logo'] ?? null;
+        $logoPathSetting = $kv['school_logo_path'] ?? null;
+        
+        $candidates = [];
+        
+        // If school_logo is set, check public/images/ first
+        if ($logoFilename) {
+            $candidates[] = public_path('images/' . $logoFilename);
+        }
+        
+        // If school_logo_path is set, use it directly
+        if ($logoPathSetting) {
+            $candidates[] = public_path($logoPathSetting);
+            $candidates[] = public_path('storage/' . $logoPathSetting);
+            $candidates[] = storage_path('app/public/' . $logoPathSetting);
+        }
+        
+        // Fallback to default
+        if (empty($candidates)) {
+            $candidates[] = public_path('images/logo.png');
+        }
 
         $logoBase64 = null;
         foreach ($candidates as $path) {
