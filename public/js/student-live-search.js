@@ -87,7 +87,17 @@
         input.addEventListener('input', doSearch);
     };
 
-    document.querySelectorAll('.student-live-search').forEach(initOne);
+    // Initialize when DOM is ready
+    function initAll() {
+        document.querySelectorAll('.student-live-search').forEach(initOne);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        // DOM already loaded
+        initAll();
+    }
 
     // In case content is loaded dynamically later
     document.addEventListener('student-live-search:init', (e) => {
