@@ -219,7 +219,8 @@
                                     </a>
                                     <a href="{{ route('finance.invoices.print_single', $inv) }}" 
                                        class="btn btn-sm btn-outline-secondary" 
-                                       title="Print">
+                                       title="Print"
+                                       onclick="window.open('{{ route('finance.invoices.print_single', $inv) }}', 'InvoiceWindow', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'); return false;">
                                         <i class="bi bi-printer"></i>
                                     </a>
                                     <button type="button" class="btn btn-sm btn-outline-success"

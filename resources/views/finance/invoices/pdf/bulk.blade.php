@@ -26,11 +26,13 @@
     transform: translate(-50%, -50%);
     width: 400px;
     height: 400px;
+    min-width: 400px;
+    min-height: 400px;
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
-    opacity: 0.08;
-    z-index: -1;
+    opacity: 0.15;
+    z-index: 0;
     pointer-events: none;
   }
 
@@ -68,8 +70,11 @@
 </head>
 <body>
 
-@if($logo)
-<div class="watermark" style="background-image: url('{{ $logo }}');"></div>
+@php
+  $watermarkLogo = $school['logoBase64'] ?? null;
+@endphp
+@if($watermarkLogo)
+<div class="watermark" style="background-image: url('{{ $watermarkLogo }}');"></div>
 @endif
 
 {{-- HEADER --}}
