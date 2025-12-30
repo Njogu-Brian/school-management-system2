@@ -24,14 +24,14 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 400px;
-    height: 400px;
-    min-width: 400px;
-    min-height: 400px;
+    width: 350px;
+    height: 350px;
+    min-width: 350px;
+    min-height: 350px;
     background-size: contain;
     background-repeat: no-repeat;
-    background-position: center;
-    opacity: 0.15;
+    background-position: center center;
+    opacity: 0.2;
     z-index: 0;
     pointer-events: none;
   }
@@ -46,8 +46,8 @@
 
   table{ border-collapse: collapse; width:100%; }
   .hdr td{ vertical-align: top; }
-  .hdr .logo { width: 82px; }
-  .hdr img { height: 64px; display:block; }
+  .hdr .logo { width: 100px; }
+  .hdr img { height: 80px; display:block; }
 
   .filters{ margin-top: 4px; }
   .kv{ margin-top: 6px; table-layout: fixed; }
@@ -71,10 +71,10 @@
 <body>
 
 @php
-  $watermarkLogo = $school['logoBase64'] ?? null;
+  $watermarkLogo = $school['logoBase64'] ?? $branding['logoBase64'] ?? null;
 @endphp
 @if($watermarkLogo)
-<div class="watermark" style="background-image: url('{{ $watermarkLogo }}');"></div>
+<div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
 @endif
 
 {{-- HEADER --}}

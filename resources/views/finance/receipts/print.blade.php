@@ -1,6 +1,19 @@
 @php
     $branding = $branding ?? [];
+    $school = $school ?? [];
+    
+    // Get logo - prefer branding logoBase64, fallback to school logo, then try to build from filename
     $logo = $branding['logoBase64'] ?? null;
+    if (!$logo && !empty($school['logo'])) {
+        $logoFile = $school['logo'];
+        $logoPath = public_path('images/' . $logoFile);
+        if (file_exists($logoPath)) {
+            $ext = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
+            $mime = $ext === 'svg' ? 'image/svg+xml' : (($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : 'image/png');
+            $logo = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logoPath));
+        }
+    }
+    
     $schoolName = $branding['name'] ?? ($school['name'] ?? config('app.name', 'School'));
     $schoolAddress = $branding['address'] ?? ($school['address'] ?? '');
     $schoolPhone = $branding['phone'] ?? ($school['phone'] ?? '');
@@ -95,15 +108,15 @@
             min-height: 400px;
             background-size: contain;
             background-repeat: no-repeat;
-            background-position: center;
-            opacity: 0.15;
+            background-position: center center;
+            opacity: 0.2;
             z-index: 0;
             pointer-events: none;
         }
         
         body > *:not(.watermark) {
             position: relative;
-            z-index: 1;
+            z-index: 10;
         }
         
         @media print {
@@ -135,11 +148,11 @@
         }
         
         .logo-cell {
-            width: 100px;
+            width: 120px;
         }
         
         .logo-cell img {
-            height: 80px;
+            height: 100px;
             display: block;
         }
         
@@ -249,7 +262,7 @@
         .print-btn {
             position: fixed;
             top: 20px;
-            right: 20px;
+            left: 20px;
             background: #3a1a59;
             color: white;
             border: none;
@@ -276,10 +289,12 @@
 </head>
 <body>
     @php
-        $watermarkLogo = $branding['logoBase64'] ?? null;
+        // Use the same logo for watermark
+        $watermarkLogo = $logo ?? $branding['logoBase64'] ?? null;
     @endphp
+    
     @if($watermarkLogo)
-    <div class="watermark" style="background-image: url('{{ $watermarkLogo }}');"></div>
+    <div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
     @endif
     
     <button class="print-btn no-print" onclick="window.print()">Print</button>
@@ -289,8 +304,11 @@
         <table class="header-table">
             <tr>
                 <td class="logo-cell">
-                    @if($logo)
-                        <img src="{{ $logo }}" alt="Logo">
+                    @php
+                        $headerLogo = $logo ?? $branding['logoBase64'] ?? null;
+                    @endphp
+                    @if($headerLogo)
+                        <img src="{{ $headerLogo }}" alt="Logo">
                     @endif
                 </td>
                 <td>

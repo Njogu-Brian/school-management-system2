@@ -29,6 +29,7 @@ class ReceiptService
         
         // Get school settings and document header/footer
         $schoolSettings = $this->getSchoolSettings();
+        $branding = $this->getBranding();
         $receiptHeader = \App\Models\Setting::get('receipt_header', '');
         $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
         
@@ -134,6 +135,7 @@ class ReceiptService
         $data = [
             'payment' => $payment,
             'school' => $schoolSettings,
+            'branding' => $branding,
             'receipt_number' => $payment->receipt_number,
             'date' => $payment->payment_date->format('d/m/Y'),
             'student' => $student,
@@ -226,6 +228,63 @@ class ReceiptService
             'email' => $settings['school_email'] ?? '',
             'registration_number' => $settings['school_registration_number'] ?? '',
         ];
+    }
+    
+    /**
+     * Get branding information with logo base64
+     */
+    private function getBranding(): array
+    {
+        $kv = DB::table('settings')->pluck('value','key')->map(fn($v) => trim((string)$v));
+
+        $name    = $kv['school_name']    ?? config('app.name', 'Your School');
+        $email   = $kv['school_email']   ?? 'info@example.com';
+        $phone   = $kv['school_phone']   ?? '';
+        $website = $kv['school_website'] ?? '';
+        $address = $kv['school_address'] ?? '';
+
+        // Try school_logo first (stored as filename in public/images/)
+        // Then try school_logo_path (full path)
+        $logoFilename = $kv['school_logo'] ?? null;
+        $logoPathSetting = $kv['school_logo_path'] ?? null;
+        
+        $candidates = [];
+        
+        // If school_logo is set, check public/images/ first
+        if ($logoFilename) {
+            $candidates[] = public_path('images/' . $logoFilename);
+        }
+        
+        // If school_logo_path is set, use it directly
+        if ($logoPathSetting) {
+            $candidates[] = public_path($logoPathSetting);
+            $candidates[] = public_path('storage/' . $logoPathSetting);
+            $candidates[] = storage_path('app/public/' . $logoPathSetting);
+        }
+        
+        // Fallback to default
+        if (empty($candidates)) {
+            $candidates[] = public_path('images/logo.png');
+        }
+
+        $logoBase64 = null;
+        foreach ($candidates as $path) {
+            if (!is_file($path)) continue;
+
+            $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $mime = $ext === 'svg' ? 'image/svg+xml' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : 'image/png');
+
+            // If it's a PNG but neither GD nor Imagick is available, skip embedding to avoid DomPDF fatal
+            if ($mime === 'image/png' && !extension_loaded('gd') && !extension_loaded('imagick')) {
+                $logoBase64 = null;
+                break;
+            }
+
+            $logoBase64 = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($path));
+            break;
+        }
+
+        return compact('name','email','phone','website','address','logoBase64');
     }
     
     /**

@@ -59,15 +59,15 @@
             min-height: 400px;
             background-size: contain;
             background-repeat: no-repeat;
-            background-position: center;
-            opacity: 0.15;
+            background-position: center center;
+            opacity: 0.2;
             z-index: 0;
             pointer-events: none;
         }
         
         body > *:not(.watermark) {
             position: relative;
-            z-index: 1;
+            z-index: 10;
         }
         
         @media print {
@@ -100,11 +100,11 @@
         }
         
         .logo-cell {
-            width: 100px;
+            width: 120px;
         }
         
         .logo-cell img {
-            height: 80px;
+            height: 100px;
             display: block;
         }
         
@@ -230,7 +230,7 @@
         .print-btn {
             position: fixed;
             top: 20px;
-            right: 20px;
+            left: 20px;
             background: #3a1a59;
             color: white;
             border: none;
@@ -252,7 +252,7 @@
         $watermarkLogo = $branding['logoBase64'] ?? null;
     @endphp
     @if($watermarkLogo)
-    <div class="watermark" style="background-image: url('{{ $watermarkLogo }}');"></div>
+    <div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
     @endif
     
     <button class="print-btn no-print" onclick="window.print()">Print</button>
