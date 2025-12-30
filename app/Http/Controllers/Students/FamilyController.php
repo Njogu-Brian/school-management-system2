@@ -124,66 +124,81 @@ class FamilyController extends Controller
     }
 
     /**
-     * Link two students as siblings (creates family if needed)
+     * Link 2–4 students as siblings (creates family if needed)
      *
      * @param Request $request
      * @return \Illuminate\Http\RedirectResponse
      */
     public function linkStudents(Request $request)
     {
-        $data = $request->validate([
-            'student_a_id' => 'required|exists:students,id',
-            'student_b_id' => 'required|exists:students,id',
-        ]);
-
-        $studentA = Student::withArchived()->with('parent')->findOrFail($data['student_a_id']);
-        $studentB = Student::withArchived()->with('parent')->findOrFail($data['student_b_id']);
-
-        // Determine which family to use (prefer existing, or create new)
-        $family = null;
-        
-        if ($studentA->family_id) {
-            $family = Family::find($studentA->family_id);
-        } elseif ($studentB->family_id) {
-            $family = Family::find($studentB->family_id);
+        // New UI posts student_ids[] (2–4). Keep backwards compatibility with old student_a_id/student_b_id.
+        if ($request->filled('student_ids')) {
+            $data = $request->validate([
+                'student_ids' => 'required|array|min:2|max:4',
+                'student_ids.*' => 'required|integer|distinct|exists:students,id',
+            ]);
+            $studentIds = $data['student_ids'];
         } else {
-            // Create new family
+            $data = $request->validate([
+                'student_a_id' => 'required|exists:students,id',
+                'student_b_id' => 'required|exists:students,id',
+            ]);
+            $studentIds = [$data['student_a_id'], $data['student_b_id']];
+        }
+
+        // Ensure uniqueness (extra guard, even with validation)
+        $studentIds = array_values(array_unique(array_map('intval', $studentIds)));
+        if (count($studentIds) < 2) {
+            return back()->withInput()->with('error', 'Please select at least 2 different students.');
+        }
+        if (count($studentIds) > 4) {
+            return back()->withInput()->with('error', 'You can link at most 4 students at once.');
+        }
+
+        $students = Student::withArchived()
+            ->with('parent')
+            ->whereIn('id', $studentIds)
+            ->get();
+
+        if ($students->count() !== count($studentIds)) {
+            return back()->withInput()->with('error', 'One or more selected students could not be found.');
+        }
+
+        // Determine which family to use (prefer an existing family from any selected student, else create new)
+        $family = null;
+        $existingFamilyId = $students->pluck('family_id')->filter()->first();
+        if ($existingFamilyId) {
+            $family = Family::find($existingFamilyId);
+        }
+        if (!$family) {
             $family = Family::create([
                 'guardian_name' => 'Family',
             ]);
         }
-        
-        // Populate family details from students' parent info
-        $parent = $studentA->parent ?? $studentB->parent;
+
+        // Populate family details from any available parent info
+        $parent = $students->pluck('parent')->filter()->first();
         if ($parent) {
             $this->populateFamilyFromParent($family, $parent);
         }
 
-        // Store old family IDs before updating
-        $oldFamilyAId = $studentA->family_id;
-        $oldFamilyBId = $studentB->family_id;
+        // Merge any other families into the target family
+        $oldFamilyIds = $students->pluck('family_id')
+            ->filter()
+            ->unique()
+            ->reject(fn ($id) => (int)$id === (int)$family->id)
+            ->values();
 
-        // Link both students to the family
-        $studentA->update(['family_id' => $family->id]);
-        $studentB->update(['family_id' => $family->id]);
-
-        // If student A had a different family, merge it
-        if ($oldFamilyAId && $oldFamilyAId != $family->id) {
-            $oldFamily = Family::find($oldFamilyAId);
+        foreach ($oldFamilyIds as $oldFamilyId) {
+            $oldFamily = Family::find($oldFamilyId);
             if ($oldFamily) {
                 Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
                 $oldFamily->delete();
             }
         }
 
-        // If student B had a different family, merge it
-        if ($oldFamilyBId && $oldFamilyBId != $family->id && $oldFamilyBId != $oldFamilyAId) {
-            $oldFamily = Family::find($oldFamilyBId);
-            if ($oldFamily) {
-                Student::where('family_id', $oldFamily->id)->update(['family_id' => $family->id]);
-                $oldFamily->delete();
-            }
-        }
+        // Link selected students to the family (idempotent if already linked)
+        Student::withArchived()->whereIn('id', $studentIds)->update(['family_id' => $family->id]);
 
         return redirect()->route('families.manage', $family)
             ->with('success', 'Students linked as siblings successfully.');
