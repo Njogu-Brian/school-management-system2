@@ -31,7 +31,7 @@
     const enableBtn = {{ $enableButtonId ? 'document.getElementById("'.$enableButtonId.'")' : 'null' }};
     let t=null;
     // Use relative URLs to avoid CORS when APP_URL points to a different host
-    const defaultUrl = '{{ route('students.search', [], false) }}' || '/students/search';
+    const defaultUrl = '/students/search';
     const apiFallback = '/api/students/search';
 
     const render = (items) => {
@@ -74,10 +74,23 @@
             urls.push(apiFallback);
             for (const url of urls.filter(Boolean)) {
                 try {
-                    const res = await fetch(`${url}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }});
-                    if (!res.ok) throw new Error('search failed');
-                    const data = await res.json();
-                    render(data);
+                    const res = await fetch(`${url}?q=${encodeURIComponent(q)}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        credentials: 'same-origin'
+                    });
+                    if (!res.ok) throw new Error(`search failed ${res.status}`);
+                    const text = await res.text();
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch (parseErr) {
+                        console.warn('Student search response not JSON', { url, text: text?.slice(0, 200) });
+                        throw parseErr;
+                    }
+                    render(Array.isArray(data) ? data : []);
                     return;
                 } catch (e) {
                     // try next url
