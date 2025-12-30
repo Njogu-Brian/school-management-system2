@@ -423,6 +423,14 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/send-sms*') ? 'active' : '' }}">
     <i class="bi bi-chat"></i> Send SMS
     </a>
+    <a href="{{ route('communication.send.whatsapp') }}" 
+    class="sublink {{ Request::is('communication/send-whatsapp*') ? 'active' : '' }}">
+    <i class="bi bi-whatsapp"></i> Send WhatsApp
+    </a>
+    <a href="{{ route('communication.wasender.sessions') }}" 
+    class="sublink {{ Request::is('communication/whatsapp-sessions*') ? 'active' : '' }}">
+    <i class="bi bi-hdd-network"></i> WhatsApp Sessions
+    </a>
     <a href="{{ route('communication-templates.index') }}" 
     class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
     <i class="bi bi-layer-forward"></i> Templates

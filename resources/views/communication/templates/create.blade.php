@@ -10,7 +10,7 @@
         @include('communication.partials.header', [
             'title' => 'Create Template',
             'icon' => 'bi bi-plus-circle',
-            'subtitle' => 'Build a reusable email/SMS template',
+            'subtitle' => 'Build a reusable email/SMS/WhatsApp template',
             'actions' => '<a href="' . route('communication-templates.index') . '" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>'
         ])
 

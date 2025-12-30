@@ -14,6 +14,7 @@
             @php $currentType = old('type', $template->type ?? 'email'); @endphp
             <option value="email" {{ $currentType === 'email' ? 'selected' : '' }}>Email</option>
             <option value="sms" {{ $currentType === 'sms' ? 'selected' : '' }}>SMS</option>
+            <option value="whatsapp" {{ $currentType === 'whatsapp' ? 'selected' : '' }}>WhatsApp</option>
         </select>
     </div>
 

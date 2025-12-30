@@ -26,7 +26,7 @@ class CommunicationTemplateController extends Controller
         $data = $request->validate([
             'code'       => ['required','string','max:100','unique:communication_templates,code'],
             'title'      => ['required','string','max:255'],
-            'type'       => ['required', Rule::in(['email','sms'])],
+            'type'       => ['required', Rule::in(['email','sms','whatsapp'])],
             'subject'    => ['nullable','string','max:255'],
             'content'    => ['required','string'],
             'attachment' => ['nullable','file','mimes:jpg,jpeg,png,pdf,doc,docx'],
@@ -110,7 +110,7 @@ class CommunicationTemplateController extends Controller
         $data = $request->validate([
             'code'       => ['required','string','max:100', Rule::unique('communication_templates','code')->ignore($template->id)],
             'title'      => ['required','string','max:255'],
-            'type'       => ['required', Rule::in(['email','sms'])],
+            'type'       => ['required', Rule::in(['email','sms','whatsapp'])],
             'subject'    => ['nullable','string','max:255'],
             'content'    => ['required','string'],
             'attachment' => ['nullable','file','mimes:jpg,jpeg,png,pdf,doc,docx'],

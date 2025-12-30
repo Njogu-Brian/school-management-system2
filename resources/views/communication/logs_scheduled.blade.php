@@ -23,6 +23,7 @@
                                 <th>Title</th>
                                 <th>Message</th>
                                 <th>Scheduled At</th>
+                                <th>Status</th>
                                 <th>Channel</th>
                                 <th>Target</th>
                             </tr>
@@ -35,7 +36,12 @@
                                     <td>
                                         <span class="pill-badge">
                                             <i class="bi bi-clock me-1"></i>
-                                            {{ $item->scheduled_at ? $item->scheduled_at->format('M d, Y H:i') : '-' }}
+                                            {{ $item->send_at ? $item->send_at->format('M d, Y H:i') : ($item->scheduled_at ? $item->scheduled_at->format('M d, Y H:i') : '-') }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="pill-badge {{ $item->status === 'sent' ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning' }}">
+                                            {{ ucfirst($item->status ?? 'pending') }}
                                         </span>
                                     </td>
                                     <td><span class="pill-badge">{{ strtoupper($item->type ?? $item->channel) }}</span></td>

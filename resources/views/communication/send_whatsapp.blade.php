@@ -8,9 +8,9 @@
 <div class="settings-page">
     <div class="settings-shell">
         @include('communication.partials.header', [
-            'title' => 'Send SMS',
-            'icon' => 'bi bi-chat-dots',
-            'subtitle' => 'Compose and send an SMS to selected recipients',
+            'title' => 'Send WhatsApp',
+            'icon' => 'bi bi-whatsapp',
+            'subtitle' => 'Send or schedule WhatsApp messages via WasenderAPI',
             'actions' => '<a href="' . route('communication.logs') . '" class="btn btn-ghost-strong"><i class="bi bi-clock-history"></i> Logs</a>'
         ])
 
@@ -18,9 +18,11 @@
 
         <div class="settings-card">
             <div class="card-body">
-                @include('communication.partials.sms-form')
+                @include('communication.partials.whatsapp-form')
             </div>
         </div>
     </div>
 </div>
 @endsection
+
+

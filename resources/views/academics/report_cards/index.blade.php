@@ -19,12 +19,23 @@
       <div class="alert alert-success alert-dismissible fade show">{{ session('success') }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
     @endif
 
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <div class="text-muted small">Select report cards to send via SMS / Email / WhatsApp.</div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-settings-primary"
+          onclick="openSendDocument('report_card', collectCheckedIds('.rc-checkbox'))">
+          <i class="bi bi-send"></i> Send Selected
+        </button>
+      </div>
+    </div>
+
     <div class="settings-card">
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-modern table-hover align-middle mb-0">
             <thead class="table-light">
               <tr>
+                <th style="width:32px;"><input type="checkbox" id="rcCheckAll"></th>
                 <th>Student</th>
                 <th>Class</th>
                 <th>Term</th>
@@ -37,6 +48,7 @@
             <tbody>
               @forelse($report_cards as $rc)
                 <tr>
+                    <td><input type="checkbox" class="form-check-input rc-checkbox" value="{{ $rc->id }}"></td>
                   <td>{{ $rc->student->full_name }}</td>
                   <td>{{ $rc->classroom->name ?? '' }} {{ $rc->stream->name ?? '' }}</td>
                   <td>{{ $rc->term->name ?? '' }}</td>
@@ -61,6 +73,10 @@
                           <button class="btn btn-sm btn-ghost-strong text-danger" title="Delete"><i class="bi bi-trash"></i></button>
                         </form>
                       @endif
+                      <button type="button" class="btn btn-sm btn-ghost-strong text-success" title="Send"
+                        onclick="openSendDocument('report_card', [{{ $rc->id }}])">
+                        <i class="bi bi-send"></i>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -75,4 +91,26 @@
     </div>
   </div>
 </div>
+
+@include('communication.partials.document-send-modal')
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const checkAll = document.getElementById('rcCheckAll');
+  const boxes = document.querySelectorAll('.rc-checkbox');
+  function refresh() {
+    if (checkAll) {
+      const allChecked = boxes.length && Array.from(boxes).every(b => b.checked);
+      checkAll.checked = allChecked;
+    }
+  }
+  checkAll?.addEventListener('change', () => {
+    boxes.forEach(b => b.checked = checkAll.checked);
+  });
+  boxes.forEach(b => b.addEventListener('change', refresh));
+  refresh();
+});
+</script>
+@endpush
 @endsection

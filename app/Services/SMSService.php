@@ -12,6 +12,7 @@ class SMSService
     protected $userId;
     protected $password;
     protected $senderId;
+    protected $financeSenderId;
     protected $balanceUrl;
 
     public function __construct()
@@ -21,6 +22,7 @@ class SMSService
         $this->userId   = env('SMS_USER_ID');
         $this->password = env('SMS_PASSWORD');
         $this->senderId = env('SMS_SENDER_ID', 'ROYAL_KINGS');
+        $this->financeSenderId = env('SMS_SENDER_ID_FINANCE', $this->senderId);
         // HostPinnacle API base URL
         $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
         // Use "Read Account Status" API for balance check (from HostPinnacle documentation)
@@ -479,5 +481,10 @@ class SMSService
     {
         $message = "Your verification code is: {$otpCode}. Valid for 10 minutes. Do not share this code with anyone.";
         return $this->sendSMS($phoneNumber, $message);
+    }
+
+    public function getFinanceSenderId(): string
+    {
+        return $this->financeSenderId ?: $this->senderId;
     }
 }

@@ -65,4 +65,12 @@ return [
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
     ],
 
+    'wasender' => [
+        'base_url' => env('WASENDER_API_BASE', 'https://www.wasenderapi.com/api'),
+        'api_key' => env('WASENDER_API_KEY'),
+        // PAT is required for account-level calls such as creating sessions
+        'personal_access_token' => env('WASENDER_PERSONAL_ACCESS_TOKEN'),
+        'webhook_token' => env('WASENDER_WEBHOOK_TOKEN'),
+    ],
+
 ];

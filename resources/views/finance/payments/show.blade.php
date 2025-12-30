@@ -7,7 +7,7 @@
         'title' => 'Payment #' . ($payment->receipt_number ?? $payment->transaction_code),
         'icon' => 'bi bi-cash-stack',
         'subtitle' => $payment->student?->first_name ? 'For ' . $payment->student->first_name . ' ' . ($payment->student->last_name ?? '') : 'Payment details',
-        'actions' => '<a href="' . route('finance.payments.receipt', $payment) . '" class="btn btn-finance btn-finance-primary" target="_blank"><i class="bi bi-printer"></i> Print Receipt</a><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'actions' => '<a href="' . route('finance.payments.receipt', $payment) . '" class="btn btn-finance btn-finance-primary" target="_blank"><i class="bi bi-printer"></i> Print Receipt</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'receipt\', [' . $payment->id . '], {channel:\'sms\', message:\'Your receipt is ready. Please find the link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     @include('finance.invoices.partials.alerts')
@@ -178,14 +178,10 @@
                             <i class="bi bi-file-text"></i> View Student Invoices
                         </a>
                         @endif
-                        @if(!$payment->reversed && $payment->unallocated_amount > 0)
+                        @if(!$payment->reversed)
                         <button type="button" class="btn btn-finance btn-finance-secondary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
                             <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
                         </button>
-                        @elseif(!$payment->reversed)
-                        <div class="alert alert-info mb-2">
-                            <small>No unallocated amount to transfer/share.</small>
-                        </div>
                         <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" onsubmit="return confirm('Are you sure you want to reverse this payment? This will remove all allocations and recalculate invoices. This action cannot be undone.')">
                             @csrf
                             @method('DELETE')
@@ -305,7 +301,7 @@
 @endif
 
 <!-- Transfer/Share Payment Modal -->
-@if(!$payment->reversed && $payment->unallocated_amount > 0)
+@if(!$payment->reversed)
 <div class="modal fade" id="transferPaymentModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -318,6 +314,9 @@
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <strong>Available to transfer:</strong> Ksh {{ number_format($payment->unallocated_amount, 2) }}
+                        @if($payment->unallocated_amount <= 0)
+                            <div class="small text-warning mt-1">Note: currently no unallocated amount; adjust manually if needed.</div>
+                        @endif
                     </div>
                     
                     <div class="mb-3">

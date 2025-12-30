@@ -7,7 +7,7 @@
         'title' => 'Invoice: ' . $invoice->invoice_number,
         'icon' => 'bi bi-file-text',
         'subtitle' => $invoice->student->first_name ? 'For ' . $invoice->student->first_name . ' ' . ($invoice->student->last_name ?? '') : 'Invoice details',
-        'actions' => '<a href="' . route('finance.invoices.print_single', $invoice) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'actions' => '<a href="' . route('finance.invoices.print_single', $invoice) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     @php

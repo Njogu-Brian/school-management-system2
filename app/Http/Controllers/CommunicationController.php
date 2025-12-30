@@ -10,11 +10,39 @@ use App\Models\Student;
 use App\Models\Staff;
 use App\Models\Academics\Classroom;
 use App\Services\SMSService;
+use App\Services\WhatsAppService;
+use App\Services\CommunicationHelperService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
+use Illuminate\Support\Facades\Storage;
 
 class CommunicationController extends Controller
 {
+    /**
+     * Normalize a phone and ensure it is a Kenyan MSISDN (country code 254).
+     * Returns null if invalid/non-Kenyan.
+     */
+    private function normalizeKenyanPhone(?string $phone): ?string
+    {
+        if (!$phone) return null;
+        // Keep digits and +
+        $clean = preg_replace('/[^\d+]/', '', $phone);
+        $clean = ltrim($clean, '+');
+        // If starts with 0, replace leading 0 with 254
+        if (str_starts_with($clean, '0')) {
+            $clean = '254' . substr($clean, 1);
+        }
+        // If already 254...
+        if (!str_starts_with($clean, '254')) {
+            return null; // non-Kenyan, skip
+        }
+        // Must be digits only now and reasonable length (min 11, max 12)
+        if (!preg_match('/^254\d{8,9}$/', $clean)) {
+            return null;
+        }
+        return $clean;
+    }
+
     /* ========== EMAIL ========== */
     public function createEmail()
     {
@@ -22,13 +50,15 @@ class CommunicationController extends Controller
 
         $templates = CommunicationTemplate::where('type', 'email')->get();
         $classes   = Classroom::with('streams')->get();
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
 
         // Sort by full name at the DB level
         $students = Student::query()
             ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
             ->get();
 
-        return view('communication.send_email', compact('templates', 'classes', 'students'));
+        return view('communication.send_email', compact('templates', 'classes', 'students', 'systemPlaceholders', 'customPlaceholders'));
     }
 
     public function sendEmail(Request $request)
@@ -43,7 +73,7 @@ class CommunicationController extends Controller
             'title'          => 'nullable|string|max:255',
             'classroom_id'   => 'nullable|integer',
             'student_id'     => 'nullable|integer',
-            'attachment'     => 'nullable|file|mimes:jpg,png,pdf,docx,doc',
+            'attachment'     => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,webm|max:20480',
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
         ]);
@@ -59,6 +89,10 @@ class CommunicationController extends Controller
 
         if (!$messageBody) {
             return back()->with('error', 'Message body is required.');
+        }
+
+        if ($request->schedule === 'later' && empty($data['template_id'])) {
+            return back()->with('error', 'Select a template when scheduling email.');
         }
 
         // === HANDLE SCHEDULED EMAIL ===
@@ -79,12 +113,16 @@ class CommunicationController extends Controller
             : null;
 
         $recipients = $this->collectRecipients($data, 'email');
+        $sentCount = 0;
+        $failedCount = 0;
+        $failures = [];
 
         foreach ($recipients as $email => $entity) {
             try {
                 $personalized = replace_placeholders($messageBody, $entity);
                 Mail::to($email)->send(new GenericMail($subject, $personalized, $attachmentPath));
 
+                $sentCount++;
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
                     'recipient_id'   => $entity->id ?? null,
@@ -100,6 +138,8 @@ class CommunicationController extends Controller
                     'sent_at'        => now(),
                 ]);
             } catch (\Throwable $e) {
+                $failedCount++;
+                $failures[] = ['email' => $email, 'reason' => $e->getMessage()];
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
                     'recipient_id'   => $entity->id ?? null,
@@ -116,7 +156,14 @@ class CommunicationController extends Controller
             }
         }
 
-        return redirect()->route('communication.send.email')->with('success', 'Emails sent successfully.');
+        $summary = "Email: sent {$sentCount}, failed {$failedCount}";
+        $flashType = $failedCount > 0 ? 'warning' : 'success';
+        $withData = [$flashType => $summary];
+        if ($failedCount > 0) {
+            $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
+        }
+
+        return redirect()->route('communication.send.email')->with($withData);
     }
 
     /* ========== SMS ========== */
@@ -126,13 +173,15 @@ class CommunicationController extends Controller
 
         $templates = CommunicationTemplate::where('type', 'sms')->get();
         $classes   = Classroom::with('streams')->get();
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
 
         // Same here for the SMS page
         $students = Student::query()
             ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
             ->get();
 
-        return view('communication.send_sms', compact('templates', 'classes', 'students'));
+        return view('communication.send_sms', compact('templates', 'classes', 'students', 'systemPlaceholders', 'customPlaceholders'));
     }
 
     public function sendSMS(Request $request, SMSService $smsService)
@@ -148,6 +197,7 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
+            'sender_id'      => 'nullable|string|in:finance,default,""',
         ]);
 
         $message = $data['message'];
@@ -158,6 +208,10 @@ class CommunicationController extends Controller
 
         if (!$message) {
             return back()->with('error', 'Message content is required.');
+        }
+
+        if ($request->schedule === 'later' && empty($data['template_id'])) {
+            return back()->with('error', 'Select a template when scheduling SMS.');
         }
 
         // === HANDLE SCHEDULED SMS ===
@@ -173,16 +227,46 @@ class CommunicationController extends Controller
             return redirect()->route('communication.send.sms')->with('success', 'SMS scheduled for ' . $data['send_at']);
         }
 
-        $recipients = $this->collectRecipients($data, 'sms');
+        $rawRecipients = $this->collectRecipients($data, 'sms');
+        $chosenSender = null;
+        if ($request->input('sender_id') === 'finance') {
+            $chosenSender = $smsService->getFinanceSenderId();
+        }
+        $recipients = [];
+        $skipped = [];
+        foreach ($rawRecipients as $phone => $entity) {
+            $normalized = $this->normalizeKenyanPhone($phone);
+            if (!$normalized) {
+                $skipped[] = $phone;
+                continue;
+            }
+            $recipients[$normalized] = $entity;
+        }
         $title = 'SMS';
         if (!empty($data['template_id'])) {
             $tpl   = CommunicationTemplate::find($data['template_id']);
             $title = $tpl?->title ?: $title;
         }
+        $sentCount = 0;
+        $failedCount = 0;
+        $failures = [];
         foreach ($recipients as $phone => $entity) {
             try {
                 $personalized = replace_placeholders($message, $entity);
-                $response = $smsService->sendSMS($phone, $personalized);
+                $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
+
+                $status = 'sent';
+                if (strtolower(data_get($response, 'status', 'sent')) !== 'success'
+                    && strtolower(data_get($response, 'status', 'sent')) !== 'sent') {
+                    $status = 'failed';
+                }
+                $status === 'sent' ? $sentCount++ : $failedCount++;
+                if ($status !== 'sent') {
+                    $failures[] = [
+                        'phone' => $phone,
+                        'reason' => $response,
+                    ];
+                }
 
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
@@ -192,7 +276,7 @@ class CommunicationController extends Controller
                     'title'          => $title,
                     'message'        => $personalized,
                     'type'           => 'sms',
-                    'status'         => 'sent',
+                    'status'         => $status,
                     'response'       => $response, // will be cast to array
                     'classroom_id'   => $entity->classroom_id ?? null,
                     'scope'          => 'sms',
@@ -205,6 +289,11 @@ class CommunicationController extends Controller
                     'provider_status'=> strtolower(data_get($response,'status','sent')),
                 ]);
             } catch (\Throwable $e) {
+                $failedCount++;
+                $failures[] = [
+                    'phone' => $phone,
+                    'reason' => $e->getMessage(),
+                ];
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
                     'recipient_id'   => $entity->id ?? null,
@@ -220,7 +309,172 @@ class CommunicationController extends Controller
             }
         }
 
-        return redirect()->route('communication.send.sms')->with('success', 'SMS sent successfully!');
+        $summary = "SMS: sent {$sentCount}, failed {$failedCount}";
+        if ($skipped) {
+            $summary .= '. Skipped non-Kenyan: ' . implode(', ', array_slice($skipped, 0, 3)) . (count($skipped) > 3 ? '…' : '');
+        }
+        $flashType = ($failedCount > 0 || $skipped) ? 'warning' : 'success';
+        $withData = [$flashType => $summary];
+        if ($failedCount > 0) {
+            $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
+        }
+
+        return redirect()->route('communication.send.sms')->with($withData);
+    }
+
+    /* ========== WHATSAPP ========== */
+    public function createWhatsApp()
+    {
+        abort_unless(can_access("communication", "sms", "add"), 403);
+
+        // Allow reusing SMS templates for WhatsApp to avoid duplication
+        $templates = CommunicationTemplate::whereIn('type', ['whatsapp', 'sms'])->get();
+        $classes   = Classroom::with('streams')->get();
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = \App\Models\CustomPlaceholder::all();
+        $students = Student::query()
+            ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
+            ->get();
+
+        return view('communication.send_whatsapp', compact('templates', 'classes', 'students', 'systemPlaceholders', 'customPlaceholders'));
+    }
+
+    public function sendWhatsApp(Request $request, WhatsAppService $whatsAppService)
+    {
+        abort_unless(can_access("communication", "sms", "add"), 403);
+
+        $data = $request->validate([
+            'template_id'    => 'nullable|exists:communication_templates,id',
+            'message'        => 'nullable|string|max:1000',
+            'target'         => 'required|string',
+            'custom_numbers' => 'nullable|string',
+            'classroom_id'   => 'nullable|integer',
+            'student_id'     => 'nullable|integer',
+            'schedule'       => 'nullable|string|in:now,later',
+            'send_at'        => 'nullable|date',
+            'media'          => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,webm|max:20480',
+        ]);
+
+        $message = $data['message'];
+        $title = 'WhatsApp';
+        if ($data['template_id']) {
+            $tpl     = CommunicationTemplate::find($data['template_id']);
+            $message = $tpl->content ?: $message;
+            $title   = $tpl?->title ?: $title;
+        }
+
+        if (!$message) {
+            return back()->with('error', 'Message content is required.');
+        }
+
+        if ($request->schedule === 'later' && empty($data['template_id'])) {
+            return back()->with('error', 'Select a template when scheduling WhatsApp.');
+        }
+
+        // === HANDLE SCHEDULED WHATSAPP ===
+        if ($request->schedule === 'later' && $request->send_at) {
+            if ($request->hasFile('media')) {
+                return back()->with('error', 'Scheduling with media is not supported yet. Please send now.');
+            }
+            ScheduledCommunication::create([
+                'type'         => 'whatsapp',
+                'template_id'  => $data['template_id'] ?? null,
+                'target'       => $data['target'],
+                'classroom_id' => $data['classroom_id'] ?? null,
+                'send_at'      => $data['send_at'],
+                'status'       => 'pending',
+            ]);
+            return redirect()->route('communication.send.whatsapp')->with('success', 'WhatsApp message scheduled for ' . $data['send_at']);
+        }
+
+        $mediaUrl = null;
+        if ($request->hasFile('media')) {
+            $path = $request->file('media')->store('whatsapp_media', 'public');
+            $mediaUrl = Storage::disk('public')->url($path);
+        }
+
+        $recipients = $this->collectRecipients($data, 'whatsapp');
+        $skipped = [];
+        // For WhatsApp, keep numbers but surface invalid format earlier for clarity
+        $normalizedRecipients = [];
+        foreach ($recipients as $phone => $entity) {
+            $normalized = $this->normalizeKenyanPhone($phone);
+            if (!$normalized) {
+                $skipped[] = $phone;
+                continue;
+            }
+            $normalizedRecipients[$normalized] = $entity;
+        }
+        $recipients = $normalizedRecipients;
+        $sentCount = 0;
+        $failedCount = 0;
+        $failures = [];
+        foreach ($recipients as $phone => $entity) {
+            try {
+                $personalized = replace_placeholders($message, $entity);
+                $finalMessage = $mediaUrl ? ($personalized . "\n\nMedia: " . $mediaUrl) : $personalized;
+                $response = $whatsAppService->sendMessage($phone, $finalMessage);
+
+                $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                $status === 'sent' ? $sentCount++ : $failedCount++;
+                if ($status !== 'sent') {
+                    $failures[] = [
+                        'phone' => $phone,
+                        'reason' => data_get($response, 'body') ?? 'unknown',
+                    ];
+                }
+
+                CommunicationLog::create([
+                    'recipient_type' => $data['target'],
+                    'recipient_id'   => $entity->id ?? null,
+                    'contact'        => $phone,
+                    'channel'        => 'whatsapp',
+                    'title'          => $title,
+                    'message'        => $finalMessage,
+                    'type'           => 'whatsapp',
+                    'status'         => $status,
+                    'response'       => $response,
+                    'classroom_id'   => $entity->classroom_id ?? null,
+                    'scope'          => 'whatsapp',
+                    'sent_at'        => now(),
+                    'provider_id'    => data_get($response, 'body.data.id') 
+                                        ?? data_get($response, 'body.data.message.id')
+                                        ?? data_get($response, 'body.messageId')
+                                        ?? data_get($response, 'body.id'),
+                    'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                ]);
+            } catch (\Throwable $e) {
+                $failedCount++;
+                $failures[] = [
+                    'phone' => $phone,
+                    'reason' => $e->getMessage(),
+                ];
+                CommunicationLog::create([
+                    'recipient_type' => $data['target'],
+                    'recipient_id'   => $entity->id ?? null,
+                    'contact'        => $phone,
+                    'channel'        => 'whatsapp',
+                    'message'        => $message,
+                    'type'           => 'whatsapp',
+                    'status'         => 'failed',
+                    'response'       => $e->getMessage(),
+                    'scope'          => 'whatsapp',
+                    'sent_at'        => now(),
+                ]);
+            }
+        }
+
+        $summary = "WhatsApp: sent {$sentCount}, failed {$failedCount}";
+        if ($skipped) {
+            $summary .= '. Skipped invalid/non-Kenyan: ' . implode(', ', array_slice($skipped, 0, 3)) . (count($skipped) > 3 ? '…' : '');
+        }
+        $flashType = ($failedCount > 0 || $skipped) ? 'warning' : 'success';
+        $withData = [$flashType => $summary];
+        if ($failedCount > 0) {
+            $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
+        }
+
+        return redirect()->route('communication.send.whatsapp')->with($withData);
     }
 
     /* ========== LOGS ========== */
@@ -233,70 +487,70 @@ class CommunicationController extends Controller
     public function logsScheduled()
     {
         $scheduled = ScheduledCommunication::latest()->paginate(20);
-        return view('communication.logs_scheduled', compact('scheduled'));
+        // Normalize variable name for the blade view
+        return view('communication.logs_scheduled', [
+            'logs' => $scheduled,
+        ]);
     }
 
     /* ========== RECIPIENT BUILDER ========== */
     private function collectRecipients(array $data, string $type): array
     {
-        $out = [];
-        $target = $data['target'];
-        $custom = $data['custom_emails'] ?? $data['custom_numbers'] ?? null;
+        return CommunicationHelperService::collectRecipients($data, $type);
+    }
 
-        if ($custom) {
-            foreach (array_map('trim', explode(',', $custom)) as $item) {
-                if ($item !== '') $out[$item] = null;
-            }
-        }
+    /**
+     * Shared system placeholders for send screens (mirror template builder)
+     */
+    protected function getSystemPlaceholders(): array
+    {
+        return [
+            // General
+            ['key' => 'school_name',  'value' => setting('school_name') ?? 'School Name'],
+            ['key' => 'school_phone', 'value' => setting('school_phone') ?? 'School Phone'],
+            ['key' => 'school_email', 'value' => setting('school_email') ?? 'School Email'],
+            ['key' => 'date',         'value' => now()->format('d M Y')],
 
-        if ($target === 'student' && !empty($data['student_id'])) {
-            $student = Student::with('parent', 'classroom')->find($data['student_id']);
-            if ($student && $student->parent) {
-                $contacts = $type === 'email'
-                    ? [$student->parent->father_email, $student->parent->mother_email, $student->parent->guardian_email]
-                    : [$student->parent->father_phone, $student->parent->mother_phone, $student->parent->guardian_phone];
-                foreach ($contacts as $c) if ($c) $out[$c] = $student;
-            }
-        }
+            // Student & Parent
+            ['key' => 'student_name', 'value' => "Student's full name"],
+            ['key' => 'admission_number', 'value' => 'Student admission number'],
+            ['key' => 'class_name',   'value' => 'Classroom name'],
+            ['key' => 'parent_name',  'value' => "Parent's full name"],
+            ['key' => 'father_name',  'value' => "Parent's full name"],
 
-        if ($target === 'class' && !empty($data['classroom_id'])) {
-            $students = Student::with('parent')->where('classroom_id', $data['classroom_id'])->get();
-            foreach ($students as $s) {
-                if ($s->parent) {
-                    $contacts = $type === 'email'
-                        ? [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email]
-                        : [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone];
-                    foreach ($contacts as $c) if ($c) $out[$c] = $s;
-                }
-            }
-        }
+            // Staff
+            ['key' => 'staff_name',   'value' => 'Staff full name'],
 
-        if ($target === 'parents') {
-            Student::with('parent')->get()->each(function ($s) use (&$out, $type) {
-                if ($s->parent) {
-                    $contacts = $type === 'email'
-                        ? [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email]
-                        : [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone];
-                    foreach ($contacts as $c) if ($c) $out[$c] = $s;
-                }
-            });
-        }
+            // Receipts
+            ['key' => 'receipt_number', 'value' => 'Receipt number (e.g., RCPT-2024-001)'],
+            ['key' => 'transaction_code', 'value' => 'Transaction code (e.g., TXN-20241217-ABC123)'],
+            ['key' => 'payment_date', 'value' => 'Payment date (e.g., 17 Dec 2024)'],
+            ['key' => 'amount', 'value' => 'Payment amount (e.g., 5,000.00)'],
+            ['key' => 'receipt_link', 'value' => 'Public receipt link (10-char token)'],
+            ['key' => 'carried_forward', 'value' => 'Carried forward amount (unallocated payment)'],
 
-        if ($target === 'students') {
-            Student::all()->each(function ($s) use (&$out, $type) {
-                $contact = $type === 'email' ? $s->email : $s->phone_number;
-                if ($contact) $out[$contact] = $s;
-            });
-        }
+            // Invoices & Reminders
+            ['key' => 'invoice_number', 'value' => 'Invoice number (e.g., INV-2024-001)'],
+            ['key' => 'total_amount', 'value' => 'Total invoice amount'],
+            ['key' => 'due_date', 'value' => 'Due date'],
+            ['key' => 'outstanding_amount', 'value' => 'Outstanding balance amount'],
+            ['key' => 'status', 'value' => 'Invoice status (paid, partial, unpaid)'],
+            ['key' => 'invoice_link', 'value' => 'Public invoice link (10-char hash)'],
+            ['key' => 'days_overdue', 'value' => 'Number of days overdue'],
 
-        if ($target === 'staff') {
-            Staff::all()->each(function ($st) use (&$out, $type) {
-                $contact = $type === 'email' ? $st->email : $st->phone_number;
-                if ($contact) $out[$contact] = $st;
-            });
-        }
+            // Payment Plans
+            ['key' => 'installment_count', 'value' => 'Number of installments'],
+            ['key' => 'installment_amount', 'value' => 'Amount per installment'],
+            ['key' => 'installment_number', 'value' => 'Current installment number'],
+            ['key' => 'start_date', 'value' => 'Payment plan start date'],
+            ['key' => 'end_date', 'value' => 'Payment plan end date'],
+            ['key' => 'remaining_installments', 'value' => 'Remaining installments'],
+            ['key' => 'payment_plan_link', 'value' => 'Public payment plan link (10-char hash)'],
 
-        return $out;
+            // Custom Finance
+            ['key' => 'custom_message', 'value' => 'Custom message content'],
+            ['key' => 'custom_subject', 'value' => 'Custom email subject'],
+        ];
     }
 
     /**

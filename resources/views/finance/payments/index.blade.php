@@ -84,12 +84,25 @@
         </form>
     </div>
 
+    <!-- Bulk send toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+        <div class="text-muted small">Select receipts to send via SMS / Email / WhatsApp.</div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-finance btn-finance-secondary"
+                onclick="openSendDocument('receipt', collectCheckedIds('.receipt-checkbox'))">
+                <i class="bi bi-send"></i> Send Selected
+            </button>
+            <a href="{{ route('finance.payments.create') }}" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Record Payment</a>
+        </div>
+    </div>
+
     <!-- Payments Table -->
     <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
         <div class="table-responsive px-3 pb-3">
             <table class="finance-table align-middle">
                 <thead>
                         <tr>
+                            <th style="width:32px;"><input type="checkbox" id="receiptCheckAll"></th>
                             <th>Receipt #</th>
                             <th>Student</th>
                             <th>Payment Date</th>
@@ -105,6 +118,9 @@
                     <tbody>
                         @forelse($payments as $payment)
                         <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input receipt-checkbox" value="{{ $payment->id }}">
+                            </td>
                             <td>
                                 <strong>{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
                             </td>
@@ -168,6 +184,10 @@
                                     <a href="{{ route('finance.payments.receipt', $payment) }}" class="btn btn-sm btn-outline-secondary" target="_blank" title="Print Receipt">
                                         <i class="bi bi-printer"></i>
                                     </a>
+                                    <button type="button" class="btn btn-sm btn-outline-success" title="Send"
+                                        onclick="openSendDocument('receipt', [{{ $payment->id }}])">
+                                        <i class="bi bi-send"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -207,4 +227,26 @@
         </div>
         @endif
     </div>
+
+@include('communication.partials.document-send-modal')
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const checkAll = document.getElementById('receiptCheckAll');
+    const boxes = document.querySelectorAll('.receipt-checkbox');
+    function refresh() {
+        if (checkAll) {
+            const allChecked = boxes.length && Array.from(boxes).every(b => b.checked);
+            checkAll.checked = allChecked;
+        }
+    }
+    checkAll?.addEventListener('change', () => {
+        boxes.forEach(b => b.checked = checkAll.checked);
+    });
+    boxes.forEach(b => b.addEventListener('change', refresh));
+    refresh();
+});
+</script>
+@endpush
 @endsection

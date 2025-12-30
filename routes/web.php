@@ -51,6 +51,9 @@ use App\Http\Controllers\CommunicationController;
 use App\Http\Controllers\CommunicationTemplateController;
 use App\Http\Controllers\CommunicationAnnouncementController;
 use App\Http\Controllers\PlaceholderController;
+use App\Http\Controllers\WhatsAppWebhookController;
+use App\Http\Controllers\WasenderSessionController;
+use App\Http\Controllers\CommunicationDocumentController;
 
 // Finance
 use App\Http\Controllers\Finance\VoteheadController;
@@ -166,6 +169,7 @@ Route::get('payment-plan/{hash}', [\App\Http\Controllers\Finance\FeePaymentPlanC
 
 // SMS Delivery Report Webhook
 Route::post('/webhooks/sms/dlr', [CommunicationController::class, 'smsDeliveryReport'])->name('webhooks.sms.dlr');
+Route::post('/webhooks/whatsapp/wasender', [WhatsAppWebhookController::class, 'handle'])->name('webhooks.whatsapp.wasender');
 
 // Payment Webhooks (public, no auth required)
 Route::post('/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
@@ -953,6 +957,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
         Route::get('send-sms',   [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
         Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
+        Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
+        Route::post('send-whatsapp', [CommunicationController::class, 'sendWhatsApp'])->name('communication.send.whatsapp.submit');
+        Route::post('send-document', [CommunicationDocumentController::class, 'send'])->name('communication.send.document');
+        Route::get('whatsapp-sessions', [WasenderSessionController::class, 'index'])->name('communication.wasender.sessions');
+        Route::post('whatsapp-sessions', [WasenderSessionController::class, 'store'])->name('communication.wasender.sessions.store');
+        Route::post('whatsapp-sessions/{id}/connect', [WasenderSessionController::class, 'connect'])->name('communication.wasender.sessions.connect');
+        Route::post('whatsapp-sessions/{id}/restart', [WasenderSessionController::class, 'restart'])->name('communication.wasender.sessions.restart');
+        Route::delete('whatsapp-sessions/{id}', [WasenderSessionController::class, 'destroy'])->name('communication.wasender.sessions.destroy');
 
         // Logs
         Route::get('logs',           [CommunicationController::class, 'logs'])->name('communication.logs');
@@ -1061,6 +1073,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Student Statements
         Route::get('student-statements', [StudentStatementController::class, 'index'])->name('student-statements.index');
         Route::get('student-statements/{student}', [StudentStatementController::class, 'show'])->name('student-statements.show');
+        Route::get('student-statements/{student}/print', [StudentStatementController::class, 'print'])->name('student-statements.print');
         Route::get('student-statements/{student}/export', [StudentStatementController::class, 'export'])->name('student-statements.export');
         
         // Online Payments

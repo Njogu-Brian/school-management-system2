@@ -417,6 +417,214 @@ class StudentStatementController extends Controller
         ));
     }
 
+    public function print(Request $request, Student $student)
+    {
+        $year = $request->get('year', now()->year);
+        $term = $request->get('term');
+        
+        // Get all invoices for the student with detailed items
+        $invoicesQuery = Invoice::where('student_id', $student->id)
+            ->where('year', $year)
+            ->with([
+                'items.votehead', 
+                'items.creditNotes', 
+                'items.debitNotes',
+                'items.allocations.payment',
+                'term', 
+                'academicYear'
+            ]);
+            
+        if ($term) {
+            $invoicesQuery->whereHas('term', function($q) use ($term) {
+                $q->where('name', 'like', "%Term {$term}%")
+                  ->orWhere('id', $term);
+            });
+        }
+        
+        $invoices = $invoicesQuery->orderBy('created_at')->get();
+        
+        // Get all payments with allocations
+        $paymentsQuery = Payment::where('student_id', $student->id)
+            ->whereYear('payment_date', $year)
+            ->with(['allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice', 'paymentMethod']);
+            
+        if ($term) {
+            $paymentsQuery->whereHas('invoice', function($q) use ($term) {
+                $q->whereHas('term', function($q2) use ($term) {
+                    $q2->where('name', 'like', "%Term {$term}%")
+                       ->orWhere('id', $term);
+                });
+            })->orWhereNull('invoice_id');
+        }
+        
+        $payments = $paymentsQuery->orderBy('payment_date')->get();
+        
+        $creditNotes = CreditNote::whereHas('invoiceItem.invoice', function($q) use ($student, $year) {
+            $q->where('student_id', $student->id)->where('year', $year);
+        })->with(['invoiceItem.votehead', 'invoiceItem.invoice'])->orderBy('created_at')->get();
+        
+        $debitNotes = DebitNote::whereHas('invoiceItem.invoice', function($q) use ($student, $year) {
+            $q->where('student_id', $student->id)->where('year', $year);
+        })->with(['invoiceItem.votehead', 'invoiceItem.invoice'])->orderBy('created_at')->get();
+        
+        $discounts = FeeConcession::where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('approval_status', 'approved')
+            ->with('discountTemplate')
+            ->orderBy('created_at')
+            ->get();
+        
+        // Recalculate all invoices
+        foreach ($invoices as $invoice) {
+            $invoice->recalculate();
+        }
+        
+        // Build detailed transactions - reuse logic from show method
+        $detailedTransactions = collect();
+        
+        // Add invoice items
+        foreach ($invoices as $invoice) {
+            foreach ($invoice->items as $item) {
+                $itemDate = $item->posted_at ?? $item->effective_date ?? $item->created_at ?? $invoice->created_at;
+                $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+                $itemAmount = $item->amount ?? 0;
+                $discountAmount = $item->discount_amount ?? 0;
+                $netAmount = $itemAmount - $discountAmount;
+                
+                if ($netAmount > 0) {
+                    $detailedTransactions->push([
+                        'date' => $itemDate,
+                        'type' => 'Invoice',
+                        'narration' => $voteheadName . ' - ' . ($invoice->invoice_number ?? 'N/A'),
+                        'reference' => $invoice->invoice_number ?? 'N/A',
+                        'votehead' => $voteheadName,
+                        'term_name' => $invoice->term->name ?? '',
+                        'term_name' => '',
+                        'term_year' => $year,
+                        'grade' => $student->currentClass->name ?? '',
+                        'debit' => $netAmount,
+                        'credit' => 0,
+                    ]);
+                }
+                
+                // Add item-level discounts
+                if ($discountAmount > 0) {
+                    $detailedTransactions->push([
+                        'date' => $itemDate,
+                        'type' => 'Discount',
+                        'narration' => 'DISCOUNT - ' . $voteheadName,
+                        'reference' => $invoice->invoice_number ?? 'N/A',
+                        'votehead' => $voteheadName,
+                        'term_name' => $invoice->term->name ?? '',
+                        'term_name' => '',
+                        'term_year' => $year,
+                        'grade' => $student->currentClass->name ?? '',
+                        'debit' => 0,
+                        'credit' => $discountAmount,
+                    ]);
+                }
+            }
+        }
+        
+        // Add payments
+        foreach ($payments as $payment) {
+            if (!$payment->reversed) {
+                if ($payment->allocations->isEmpty()) {
+                    $detailedTransactions->push([
+                        'date' => $payment->payment_date,
+                        'type' => 'Payment',
+                        'narration' => 'RECEIPT - ' . ($payment->receipt_number ?? 'N/A') . ' - ' . ($payment->paymentMethod->name ?? 'CASH'),
+                        'reference' => $payment->receipt_number ?? 'N/A',
+                        'votehead' => 'Unallocated',
+                        'term_name' => '',
+                        'term_year' => $year,
+                        'grade' => $student->currentClass->name ?? '',
+                        'debit' => 0,
+                        'credit' => $payment->amount,
+                    ]);
+                } else {
+                    foreach ($payment->allocations as $allocation) {
+                        $item = $allocation->invoiceItem;
+                        $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+                        $detailedTransactions->push([
+                            'date' => $payment->payment_date,
+                            'type' => 'Payment',
+                            'narration' => 'RECEIPT - ' . ($payment->receipt_number ?? 'N/A') . ' - ' . ($payment->paymentMethod->name ?? 'CASH'),
+                            'reference' => $payment->receipt_number ?? 'N/A',
+                            'votehead' => $voteheadName,
+                            'term_year' => $year,
+                            'grade' => $student->currentClass->name ?? '',
+                            'debit' => 0,
+                            'credit' => $allocation->amount,
+                        ]);
+                    }
+                }
+            }
+        }
+        
+        // Add credit notes
+        foreach ($creditNotes as $note) {
+            $item = $note->invoiceItem;
+            $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            $detailedTransactions->push([
+                'date' => $note->created_at,
+                'type' => 'Credit Note',
+                'narration' => 'CREDIT NOTE - ' . $voteheadName . ' - ' . ($note->credit_note_number ?? 'CN-' . $note->id),
+                'reference' => $note->credit_note_number ?? 'CN-' . $note->id,
+                'votehead' => $voteheadName,
+                'term_year' => $year,
+                'grade' => $student->currentClass->name ?? '',
+                'debit' => 0,
+                'credit' => $note->amount,
+            ]);
+        }
+        
+        // Add debit notes
+        foreach ($debitNotes as $note) {
+            $item = $note->invoiceItem;
+            $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            $detailedTransactions->push([
+                'date' => $note->created_at,
+                'type' => 'Debit Note',
+                'narration' => 'DEBIT NOTE - ' . $voteheadName . ' - ' . ($note->debit_note_number ?? 'DN-' . $note->id),
+                'reference' => $note->debit_note_number ?? 'DN-' . $note->id,
+                'votehead' => $voteheadName,
+                'term_year' => $year,
+                'grade' => $student->currentClass->name ?? '',
+                'debit' => $note->amount,
+                'credit' => 0,
+            ]);
+        }
+        
+        // Sort by date
+        $detailedTransactions = $detailedTransactions->sortBy('date')->values();
+        
+        // Calculate totals
+        $totalDebit = $detailedTransactions->sum('debit');
+        $totalCredit = $detailedTransactions->sum('credit');
+        $finalBalance = $totalDebit - $totalCredit;
+        
+        // Get terms for display
+        $terms = \App\Models\Term::orderBy('name')->get();
+        $branding = $this->branding();
+        $statementHeader = \App\Models\Setting::get('statement_header', '');
+        $statementFooter = \App\Models\Setting::get('statement_footer', '');
+        
+        return view('finance.student_statements.print', compact(
+            'student',
+            'detailedTransactions',
+            'year',
+            'term',
+            'terms',
+            'branding',
+            'statementHeader',
+            'statementFooter',
+            'totalDebit',
+            'totalCredit',
+            'finalBalance'
+        ));
+    }
+    
     public function export(Request $request, Student $student)
     {
         $year = $request->get('year', now()->year);
