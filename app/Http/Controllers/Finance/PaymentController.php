@@ -648,21 +648,128 @@ class PaymentController extends Controller
     public function printReceipt(Payment $payment)
     {
         try {
-            $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
-            $pdf = $this->receiptService->generateReceipt($payment, ['save' => false]);
-            
-            // Return PDF in new window
-            return response($pdf, 200, [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="Receipt_' . $payment->receipt_number . '.pdf"',
+            $payment->load([
+                'student.classroom', 
+                'invoice', 
+                'paymentMethod', 
+                'allocations.invoiceItem.votehead',
+                'allocations.invoiceItem.invoice'
             ]);
+            
+            $student = $payment->student;
+            
+            // Get ALL unpaid invoice items for the student
+            $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
+                $q->where('student_id', $student->id);
+            })
+            ->where('status', 'active')
+            ->with(['invoice', 'votehead', 'allocations'])
+            ->get()
+            ->filter(function($item) {
+                return $item->getBalance() > 0;
+            });
+            
+            // Get payment allocations for this specific payment
+            $paymentAllocations = $payment->allocations;
+            
+            // Build comprehensive receipt items
+            $receiptItems = collect();
+            
+            // First, add items that received payment
+            foreach ($paymentAllocations as $allocation) {
+                $item = $allocation->invoiceItem;
+                $itemAmount = $item->amount ?? 0;
+                $discountAmount = $item->discount_amount ?? 0;
+                $allocatedAmount = $allocation->amount;
+                $balanceBefore = $item->getBalance() + $allocatedAmount;
+                $balanceAfter = $item->getBalance();
+                
+                $receiptItems->push([
+                    'type' => 'paid',
+                    'allocation' => $allocation,
+                    'invoice' => $item->invoice ?? null,
+                    'votehead' => $item->votehead ?? null,
+                    'item_amount' => $itemAmount,
+                    'discount_amount' => $discountAmount,
+                    'allocated_amount' => $allocatedAmount,
+                    'balance_before' => $balanceBefore,
+                    'balance_after' => $balanceAfter,
+                ]);
+            }
+            
+            // Then, add all other unpaid items
+            $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
+            foreach ($allUnpaidItems as $item) {
+                if (in_array($item->id, $paidItemIds)) {
+                    continue;
+                }
+                
+                $itemAmount = $item->amount ?? 0;
+                $discountAmount = $item->discount_amount ?? 0;
+                $balance = $item->getBalance();
+                
+                $receiptItems->push([
+                    'type' => 'unpaid',
+                    'allocation' => null,
+                    'invoice' => $item->invoice ?? null,
+                    'votehead' => $item->votehead ?? null,
+                    'item_amount' => $itemAmount,
+                    'discount_amount' => $discountAmount,
+                    'allocated_amount' => 0,
+                    'balance_before' => $balance,
+                    'balance_after' => $balance,
+                ]);
+            }
+            
+            // Calculate totals
+            $totalBalanceBefore = $receiptItems->sum('balance_before');
+            $totalBalanceAfter = $receiptItems->sum('balance_after');
+            
+            // Calculate total outstanding balance and total invoices
+            $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+            $totalOutstandingBalance = 0;
+            $totalInvoices = 0;
+            foreach ($invoices as $invoice) {
+                $invoice->recalculate();
+                $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
+                $totalInvoices += $invoice->total ?? 0;
+            }
+            
+            // Get school settings and branding
+            $schoolSettings = $this->getSchoolSettings();
+            $branding = $this->branding();
+            $receiptHeader = \App\Models\Setting::get('receipt_header', '');
+            $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
+            
+            // Prepare data for print view
+            $data = [
+                'payment' => $payment,
+                'school' => $schoolSettings,
+                'branding' => $branding,
+                'receipt_number' => $payment->receipt_number,
+                'date' => $payment->payment_date->format('d M Y'),
+                'student' => $student,
+                'allocations' => $receiptItems,
+                'total_amount' => $payment->amount,
+                'total_balance_before' => $totalBalanceBefore,
+                'total_balance_after' => $totalBalanceAfter,
+                'total_outstanding_balance' => $totalOutstandingBalance,
+                'total_invoices' => $totalInvoices,
+                'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
+                'transaction_code' => $payment->transaction_code,
+                'narration' => $payment->narration,
+                'receiptHeader' => $receiptHeader,
+                'receiptFooter' => $receiptFooter,
+            ];
+            
+            return view('finance.receipts.print', $data);
         } catch (\Exception $e) {
-            \Log::error('Receipt generation failed', [
+            \Log::error('Receipt print view failed', [
                 'payment_id' => $payment->id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return back()->with('error', 'Receipt generation failed: ' . $e->getMessage());
+            return back()->with('error', 'Receipt print view failed: ' . $e->getMessage());
         }
     }
 
@@ -922,6 +1029,44 @@ class PaymentController extends Controller
             'email' => $settings['school_email'] ?? '',
             'registration_number' => $settings['school_registration_number'] ?? '',
         ];
+    }
+    
+    /**
+     * Get branding information (logo, name, address, etc.)
+     */
+    private function branding(): array
+    {
+        $kv = \Illuminate\Support\Facades\DB::table('settings')->pluck('value','key')->map(fn($v) => trim((string)$v));
+
+        $name    = $kv['school_name']    ?? config('app.name', 'Your School');
+        $email   = $kv['school_email']   ?? 'info@example.com';
+        $phone   = $kv['school_phone']   ?? '';
+        $website = $kv['school_website'] ?? '';
+        $address = $kv['school_address'] ?? '';
+
+        // Default to your actual file
+        $logoRel = $kv['school_logo_path'] ?? 'images/logo.png';
+
+        $candidates = [ public_path($logoRel), public_path('storage/'.$logoRel), storage_path('app/public/'.$logoRel) ];
+
+        $logoBase64 = null;
+        foreach ($candidates as $path) {
+            if (!is_file($path)) continue;
+
+            $ext  = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $mime = $ext === 'svg' ? 'image/svg+xml' : ($ext === 'jpg' || $ext === 'jpeg' ? 'image/jpeg' : 'image/png');
+
+            // If it's a PNG but neither GD nor Imagick is available, skip embedding to avoid DomPDF fatal
+            if ($mime === 'image/png' && !extension_loaded('gd') && !extension_loaded('imagick')) {
+                $logoBase64 = null;
+                break;
+            }
+
+            $logoBase64 = 'data:'.$mime.';base64,'.base64_encode(file_get_contents($path));
+            break;
+        }
+
+        return compact('name','email','phone','website','address','logoBase64');
     }
 
     /**
