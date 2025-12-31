@@ -249,15 +249,20 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             credentials: 'same-origin'
         })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 currentStudentData = data;
                 siblings = data.siblings || [];
                 
                 // Update balance info
-                const balance = parseFloat(data.balance.total_balance || 0);
-                const invoiceBalance = parseFloat(data.balance.invoice_balance || 0);
-                const balanceBroughtForward = parseFloat(data.balance.balance_brought_forward || 0);
+                const balance = parseFloat(data.balance?.total_balance || 0);
+                const invoiceBalance = parseFloat(data.balance?.invoice_balance || 0);
+                const balanceBroughtForward = parseFloat(data.balance?.balance_brought_forward || 0);
                 
                 let balanceHtml = `
                     <p><strong>Total Outstanding:</strong></p>
@@ -333,6 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 balanceInfo.innerHTML = `
                     <p class="text-danger"><i class="bi bi-exclamation-triangle"></i> Unable to load balance info</p>
                     <small class="text-muted">Error: ${error.message || 'Unknown error'}</small>
+                    <br><small class="text-muted">Please refresh the page or try selecting the student again.</small>
                 `;
                 siblingsCard.style.display = 'none';
             });
@@ -353,10 +359,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Initialize balance if student is pre-selected (from old() or URL parameter)
-    const preSelectedStudentId = document.getElementById('student_id').value;
-    if (preSelectedStudentId) {
-        loadStudentBalance(preSelectedStudentId);
-    }
+    // Use setTimeout to ensure this runs after all scripts are initialized
+    setTimeout(function() {
+        const preSelectedStudentId = document.getElementById('student_id')?.value;
+        if (preSelectedStudentId) {
+            loadStudentBalance(preSelectedStudentId);
+        }
+    }, 100);
 
     paymentAmount.addEventListener('input', function() {
         checkOverpayment();

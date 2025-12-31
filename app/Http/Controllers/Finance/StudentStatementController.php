@@ -22,6 +22,9 @@ class StudentStatementController extends Controller
 
     public function show(Request $request, Student $student)
     {
+        // Eager load classroom and stream relationships
+        $student->load(['classroom', 'stream']);
+        
         $year = $request->get('year', now()->year);
         $term = $request->get('term');
         

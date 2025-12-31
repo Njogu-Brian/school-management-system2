@@ -46,16 +46,19 @@
         </div>
         <div class="finance-card-body p-4">
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <strong>Name:</strong> {{ $student->full_name }}
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <strong>Admission Number:</strong> {{ $student->admission_number }}
                 </div>
-                <div class="col-md-3">
-                    <strong>Class:</strong> {{ $student->currentClass->name ?? 'N/A' }}
+                <div class="col-md-2">
+                    <strong>Class:</strong> {{ $student->classroom->name ?? 'N/A' }}
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <strong>Stream:</strong> {{ $student->stream->name ?? 'N/A' }}
+                </div>
+                <div class="col-md-4">
                     <strong>Year:</strong> {{ $year }} @if($term) | <strong>Term:</strong> {{ $terms->find($term)->name ?? "Term {$term}" }} @endif
                 </div>
             </div>
