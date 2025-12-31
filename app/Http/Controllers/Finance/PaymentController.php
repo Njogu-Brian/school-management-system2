@@ -58,19 +58,23 @@ class PaymentController extends Controller
         $studentId = $student->id;
         $invoices = Invoice::where('student_id', $studentId)->get();
         
-        $totalBalance = $invoices->sum('balance');
+        // Get total outstanding balance including balance brought forward
+        $totalBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        $invoiceBalance = $invoices->sum('balance');
+        $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+        
         $unpaidInvoices = $invoices->where('balance', '>', 0)->count();
         $partialInvoices = $invoices->where('balance', '>', 0)->where('balance', '<', $invoices->sum('total'))->count();
         
         // Get siblings (excluding current student)
         $siblings = $student->family 
             ? $student->family->students()->where('id', '!=', $studentId)->get()->map(function($sibling) {
-                $siblingInvoices = Invoice::where('student_id', $sibling->id)->get();
+                $siblingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($sibling);
                 return [
                     'id' => $sibling->id,
                     'name' => $sibling->first_name . ' ' . $sibling->last_name,
                     'admission_number' => $sibling->admission_number,
-                    'balance' => $siblingInvoices->sum('balance'),
+                    'balance' => $siblingBalance,
                 ];
             })
             : collect();
@@ -83,6 +87,8 @@ class PaymentController extends Controller
             ],
             'balance' => [
                 'total_balance' => $totalBalance,
+                'invoice_balance' => $invoiceBalance,
+                'balance_brought_forward' => $balanceBroughtForward,
                 'unpaid_invoices' => $unpaidInvoices,
                 'partial_invoices' => $partialInvoices,
             ],
@@ -117,9 +123,13 @@ class PaymentController extends Controller
         // Check for overpayment warning
         $invoice = isset($validated['invoice_id']) && $validated['invoice_id'] ? \App\Models\Invoice::find($validated['invoice_id']) : null;
         
-        // Calculate student balance from invoices
+        // Calculate student balance from invoices including balance brought forward
         $studentInvoices = Invoice::where('student_id', $student->id)->get();
-        $balance = $invoice ? $invoice->balance : $studentInvoices->sum('balance');
+        $invoiceBalance = $invoice ? $invoice->balance : $studentInvoices->sum('balance');
+        
+        // Get total outstanding balance including balance brought forward
+        $balance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        
         $isOverpayment = $validated['amount'] > $balance;
         
         if ($isOverpayment && !($request->has('confirm_overpayment') && $request->confirm_overpayment)) {
@@ -412,8 +422,8 @@ class PaymentController extends Controller
             $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
         }
         
-        // Calculate total outstanding balance after payment
-        $outstandingBalance = $studentInvoices->sum('balance');
+        // Calculate total outstanding balance after payment (including balance brought forward)
+        $outstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
         
         // Refresh payment to get latest unallocated_amount
         $payment->refresh();

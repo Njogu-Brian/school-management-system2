@@ -272,6 +272,36 @@ class Student extends Model
     {
         return (new static)->newQueryWithoutScope('active');
     }
+
+    /**
+     * Get total outstanding balance including balance brought forward from legacy data.
+     * 
+     * @return float Total outstanding balance
+     */
+    public function getTotalOutstandingBalance(): float
+    {
+        return \App\Services\StudentBalanceService::getTotalOutstandingBalance($this);
+    }
+
+    /**
+     * Get balance brought forward from legacy data.
+     * 
+     * @return float Balance brought forward (0 if none)
+     */
+    public function getBalanceBroughtForward(): float
+    {
+        return \App\Services\StudentBalanceService::getBalanceBroughtForward($this);
+    }
+
+    /**
+     * Get balance from invoices only (excluding balance brought forward).
+     * 
+     * @return float Invoice balance
+     */
+    public function getInvoiceBalance(): float
+    {
+        return \App\Services\StudentBalanceService::getInvoiceBalance($this);
+    }
     public function getNameAttribute()
     {
         return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");

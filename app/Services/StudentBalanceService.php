@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Student;
+use App\Models\Invoice;
+use App\Models\LegacyStatementTerm;
+
+class StudentBalanceService
+{
+    /**
+     * Get total outstanding balance for a student including balance brought forward from legacy data.
+     * 
+     * @param Student|int $student Student model or ID
+     * @return float Total outstanding balance (invoices balance + balance brought forward)
+     */
+    public static function getTotalOutstandingBalance($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
+        
+        // Get balance from all invoices
+        $invoiceBalance = Invoice::where('student_id', $studentModel->id)
+            ->where('status', '!=', 'reversed')
+            ->sum('balance');
+        
+        // Get balance brought forward from legacy data (only if we're in 2026 or later)
+        $balanceBroughtForward = 0;
+        if (now()->year >= 2026) {
+            $broughtForward = LegacyStatementTerm::getBalanceBroughtForward($studentModel);
+            if ($broughtForward !== null && $broughtForward > 0) {
+                $balanceBroughtForward = $broughtForward;
+            }
+        }
+        
+        return max(0, $invoiceBalance + $balanceBroughtForward);
+    }
+
+    /**
+     * Get balance brought forward from legacy data for a student.
+     * 
+     * @param Student|int $student Student model or ID
+     * @return float Balance brought forward (0 if none)
+     */
+    public static function getBalanceBroughtForward($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
+        
+        if (now()->year < 2026) {
+            return 0; // Balance brought forward only relevant for 2026 onwards
+        }
+        
+        $broughtForward = LegacyStatementTerm::getBalanceBroughtForward($studentModel);
+        return $broughtForward !== null && $broughtForward > 0 ? $broughtForward : 0;
+    }
+
+    /**
+     * Get balance from invoices only (excluding balance brought forward).
+     * 
+     * @param Student|int $student Student model or ID
+     * @return float Invoice balance
+     */
+    public static function getInvoiceBalance($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
+        
+        return (float) Invoice::where('student_id', $studentModel->id)
+            ->where('status', '!=', 'reversed')
+            ->sum('balance');
+    }
+}
+

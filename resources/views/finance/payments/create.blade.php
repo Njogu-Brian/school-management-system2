@@ -249,15 +249,36 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Update balance info
                     const balance = parseFloat(data.balance.total_balance || 0);
-                    balanceInfo.innerHTML = `
+                    const invoiceBalance = parseFloat(data.balance.invoice_balance || 0);
+                    const balanceBroughtForward = parseFloat(data.balance.balance_brought_forward || 0);
+                    
+                    let balanceHtml = `
                         <p><strong>Total Outstanding:</strong></p>
                         <h4 class="text-danger">Ksh ${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h4>
-                        <hr>
+                    `;
+                    
+                    if (balanceBroughtForward > 0) {
+                        balanceHtml += `
+                            <hr>
+                            <small class="text-muted">
+                                <div><strong>Breakdown:</strong></div>
+                                <div>Invoice Balance: Ksh ${invoiceBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                                <div>Balance Brought Forward: Ksh ${balanceBroughtForward.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            </small>
+                            <hr>
+                        `;
+                    } else {
+                        balanceHtml += '<hr>';
+                    }
+                    
+                    balanceHtml += `
                         <small class="text-muted">
                             Unpaid Invoices: ${data.balance.unpaid_invoices || 0}<br>
                             Partial Payments: ${data.balance.partial_invoices || 0}
                         </small>
                     `;
+                    
+                    balanceInfo.innerHTML = balanceHtml;
                     
                     // Show siblings if they exist
                     if (siblings.length > 0) {

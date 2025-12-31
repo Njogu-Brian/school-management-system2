@@ -105,28 +105,15 @@ class ReceiptService
         $totalBalanceBefore = $receiptItems->sum('balance_before');
         $totalBalanceAfter = $receiptItems->sum('balance_after');
         
-        // Calculate TOTAL outstanding balance and total invoices across ALL voteheads for the student
-        // Optimize: Use direct queries instead of recalculating each invoice
+        // Calculate TOTAL outstanding balance including balance brought forward
+        $totalOutstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        
+        // Calculate total invoices for receipt display
         $invoices = \App\Models\Invoice::where('student_id', $student->id)
             ->with('items') // Eager load items to avoid N+1
             ->get();
         
-        $totalOutstandingBalance = 0;
-        $totalInvoices = 0;
-        
-        // Calculate totals without recalculating each invoice (use existing balance if accurate)
-        foreach ($invoices as $invoice) {
-            // Use existing balance if invoice was recently updated, otherwise recalculate
-            if ($invoice->updated_at && $invoice->updated_at->gt(now()->subMinutes(5))) {
-                // Recently updated, use existing balance
-                $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
-            } else {
-                // Recalculate only if needed
-                $invoice->recalculate();
-                $totalOutstandingBalance += max(0, $invoice->balance ?? 0);
-            }
-            $totalInvoices += $invoice->total ?? 0;
-        }
+        $totalInvoices = $invoices->sum('total');
         
         // Use receiptItems instead of allocations for template
         $allocations = $receiptItems;

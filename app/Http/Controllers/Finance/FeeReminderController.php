@@ -178,26 +178,19 @@ class FeeReminderController extends Controller
     }
 
     /**
-     * Calculate outstanding amount
+     * Calculate outstanding amount (including balance brought forward)
      */
     protected function calculateOutstanding(Student $student, ?int $invoiceId = null)
     {
         if ($invoiceId) {
+            // For specific invoice, return invoice balance (balance brought forward is already in invoice if applicable)
             $invoice = Invoice::findOrFail($invoiceId);
-            $paid = $invoice->payments()->sum('amount');
-            return max(0, $invoice->total - $paid);
+            $invoice->recalculate();
+            return max(0, $invoice->balance);
         }
 
-        // Calculate total outstanding for student
-        $totalInvoiced = Invoice::where('student_id', $student->id)
-            ->where('status', '!=', 'reversed')
-            ->sum('total');
-        
-        $totalPaid = \App\Models\Payment::whereHas('invoice', function($q) use ($student) {
-            $q->where('student_id', $student->id);
-        })->sum('amount');
-
-        return max(0, $totalInvoiced - $totalPaid);
+        // Calculate total outstanding for student including balance brought forward
+        return \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
     }
 
     /**

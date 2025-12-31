@@ -114,6 +114,7 @@ class FeePostingService
                 }
                 
                 $invoice = InvoiceService::ensure($diff['student_id'], $year, $term);
+                // Note: Balance brought forward is automatically added in InvoiceService::ensure() for first term of 2026
                 
                 $item = InvoiceItem::updateOrCreate(
                     ['invoice_id' => $invoice->id, 'votehead_id' => $diff['votehead_id']],

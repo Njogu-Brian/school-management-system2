@@ -23,7 +23,7 @@ class InvoiceService
             ->where('name', 'like', "%Term {$term}%")
             ->first();
         
-        return Invoice::firstOrCreate(
+        $invoice = Invoice::firstOrCreate(
             [
                 'student_id' => $studentId,
                 'year' => $year, // Keep for backward compatibility
@@ -41,6 +41,58 @@ class InvoiceService
                 'issued_date' => now(),
             ]
         );
+        
+        // Add balance brought forward for first term of 2026 (only if invoice was just created)
+        // For existing invoices, balance brought forward should already be there if it was added
+        if ($invoice->wasRecentlyCreated && $year >= 2026 && $term == 1) {
+            self::addBalanceBroughtForward($invoice, $student);
+        }
+        
+        return $invoice;
+    }
+    
+    /**
+     * Add balance brought forward as an invoice item for the first term of 2026
+     */
+    public static function addBalanceBroughtForward(Invoice $invoice, Student $student): void
+    {
+        $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+        
+        if ($balanceBroughtForward <= 0) {
+            return; // No balance to bring forward
+        }
+        
+        // Find or create a votehead for "Balance Brought Forward"
+        $votehead = Votehead::firstOrCreate(
+            [
+                'code' => 'BAL_BF',
+            ],
+            [
+                'name' => 'Balance Brought Forward',
+                'is_active' => true,
+            ]
+        );
+        
+        // Check if balance brought forward item already exists
+        $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+            ->where('votehead_id', $votehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->first();
+        
+        if (!$existingItem) {
+            InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'votehead_id' => $votehead->id,
+                'amount' => $balanceBroughtForward,
+                'discount_amount' => 0,
+                'status' => 'active',
+                'source' => 'balance_brought_forward',
+                'effective_date' => $invoice->issued_date ?? now(),
+            ]);
+            
+            // Recalculate invoice to include the new item
+            self::recalc($invoice);
+        }
     }
 
     /**

@@ -386,7 +386,13 @@ class StudentStatementController extends Controller
         $totalDebitNotes = $debitNotes->sum('amount');
         
         // Calculate balance: Charges - Discounts - Payments + Debit Notes - Credit Notes
-        $balance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
+        $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
+        
+        // Get balance brought forward from legacy data (for 2026 and onwards)
+        $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+        
+        // Total balance including balance brought forward
+        $balance = $invoiceBalance + $balanceBroughtForward;
         
         // Get all terms and years for filter
         $terms = \App\Models\Term::orderBy('name')->get();
@@ -409,6 +415,8 @@ class StudentStatementController extends Controller
             'totalCreditNotes',
             'totalDebitNotes',
             'balance',
+            'balanceBroughtForward',
+            'invoiceBalance',
             'year',
             'term',
             'terms',
