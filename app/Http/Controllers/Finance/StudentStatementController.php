@@ -388,11 +388,26 @@ class StudentStatementController extends Controller
         // Calculate balance: Charges - Discounts - Payments + Debit Notes - Credit Notes
         $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
         
-        // Get balance brought forward from legacy data (for 2026 and onwards)
-        $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
-        
-        // Total balance including balance brought forward
-        $balance = $invoiceBalance + $balanceBroughtForward;
+        // For legacy years (pre-2026), calculate balance from legacy statement ending_balance
+        // For 2026+, use invoice balance + balance brought forward
+        if ($year < 2026) {
+            // Get the ending_balance from the last term of this year in legacy data
+            $lastLegacyTerm = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+                ->where('academic_year', $year)
+                ->orderByDesc('term_number')
+                ->first();
+            
+            // For legacy years, use the last term's ending balance for this year
+            // Note: We can't easily map Term IDs to term_number for legacy statements,
+            // so we always use the last term's ending balance regardless of term filter
+            $balance = $lastLegacyTerm->ending_balance ?? 0;
+            
+            $balanceBroughtForward = 0; // Not applicable for legacy years
+        } else {
+            // For 2026+, include balance brought forward from legacy data
+            $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+            $balance = $invoiceBalance + $balanceBroughtForward;
+        }
         
         // Get all terms and years for filter
         $terms = \App\Models\Term::orderBy('name')->get();

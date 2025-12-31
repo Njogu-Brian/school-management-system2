@@ -232,110 +232,131 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentStudentData = null;
     let siblings = [];
 
-    studentSelect.addEventListener('change', function() {
-        const studentId = this.value;
-        if (studentId) {
-            fetch(`{{ route('finance.payments.student-info', ['student' => '__ID__']) }}`.replace('__ID__', studentId), {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                },
-                credentials: 'same-origin'
-            })
-                .then(response => response.json())
-                .then(data => {
-                    currentStudentData = data;
-                    siblings = data.siblings || [];
-                    
-                    // Update balance info
-                    const balance = parseFloat(data.balance.total_balance || 0);
-                    const invoiceBalance = parseFloat(data.balance.invoice_balance || 0);
-                    const balanceBroughtForward = parseFloat(data.balance.balance_brought_forward || 0);
-                    
-                    let balanceHtml = `
-                        <p><strong>Total Outstanding:</strong></p>
-                        <h4 class="text-danger">Ksh ${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h4>
-                    `;
-                    
-                    if (balanceBroughtForward > 0) {
-                        balanceHtml += `
-                            <hr>
-                            <small class="text-muted">
-                                <div><strong>Breakdown:</strong></div>
-                                <div>Invoice Balance: Ksh ${invoiceBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                                <div>Balance Brought Forward: Ksh ${balanceBroughtForward.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
-                            </small>
-                            <hr>
-                        `;
-                    } else {
-                        balanceHtml += '<hr>';
-                    }
-                    
-                    balanceHtml += `
-                        <small class="text-muted">
-                            Unpaid Invoices: ${data.balance.unpaid_invoices || 0}<br>
-                            Partial Payments: ${data.balance.partial_invoices || 0}
-                        </small>
-                    `;
-                    
-                    balanceInfo.innerHTML = balanceHtml;
-                    
-                    // Show siblings if they exist
-                    if (siblings.length > 0) {
-                        let siblingsHtml = '<div class="list-group">';
-                        siblings.forEach(sibling => {
-                            siblingsHtml += `
-                                <div class="list-group-item" style="opacity: 0.6; background: #f8f9fa;">
-                                    <div class="d-flex justify-content-between">
-                                        <div>
-                                            <strong>${sibling.name}</strong><br>
-                                            <small class="text-muted">${sibling.admission_number}</small>
-                                        </div>
-                                        <div class="text-end">
-                                            <small class="text-muted">Balance:</small><br>
-                                            <strong class="text-danger">Ksh ${parseFloat(sibling.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        siblingsHtml += '</div>';
-                        siblingsInfo.innerHTML = siblingsHtml;
-                        siblingsCard.style.display = 'block';
-                        
-                        // Add share payment button
-                        if (!document.getElementById('share_payment_btn')) {
-                            const shareBtn = document.createElement('button');
-                            shareBtn.type = 'button';
-                            shareBtn.className = 'btn btn-sm btn-finance btn-finance-success mt-2';
-                            shareBtn.id = 'share_payment_btn';
-                            shareBtn.innerHTML = '<i class="bi bi-share"></i> Share Payment';
-                            shareBtn.onclick = function() {
-                                showPaymentSharing();
-                            };
-                            siblingsInfo.appendChild(shareBtn);
-                        }
-                    } else {
-                        siblingsCard.style.display = 'none';
-                    }
-                    
-                    checkOverpayment();
-                })
-                .catch(error => {
-                    console.error('Error loading balance info:', error);
-                    balanceInfo.innerHTML = `
-                        <p class="text-danger"><i class="bi bi-exclamation-triangle"></i> Unable to load balance info</p>
-                        <small class="text-muted">Error: ${error.message || 'Unknown error'}</small>
-                    `;
-                    siblingsCard.style.display = 'none';
-                });
-        } else {
+    // Function to load student balance info
+    function loadStudentBalance(studentId) {
+        if (!studentId) {
             balanceInfo.innerHTML = '<p class="text-muted text-center">Select a student to view balance</p>';
             siblingsCard.style.display = 'none';
             paymentSharingSection.style.display = 'none';
             overpaymentWarning.style.display = 'none';
+            return;
+        }
+
+        fetch(`{{ route('finance.payments.student-info', ['student' => '__ID__']) }}`.replace('__ID__', studentId), {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json',
+            },
+            credentials: 'same-origin'
+        })
+            .then(response => response.json())
+            .then(data => {
+                currentStudentData = data;
+                siblings = data.siblings || [];
+                
+                // Update balance info
+                const balance = parseFloat(data.balance.total_balance || 0);
+                const invoiceBalance = parseFloat(data.balance.invoice_balance || 0);
+                const balanceBroughtForward = parseFloat(data.balance.balance_brought_forward || 0);
+                
+                let balanceHtml = `
+                    <p><strong>Total Outstanding:</strong></p>
+                    <h4 class="text-danger">Ksh ${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</h4>
+                `;
+                
+                if (balanceBroughtForward > 0) {
+                    balanceHtml += `
+                        <hr>
+                        <small class="text-muted">
+                            <div><strong>Breakdown:</strong></div>
+                            <div>Invoice Balance: Ksh ${invoiceBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                            <div>Balance Brought Forward: Ksh ${balanceBroughtForward.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                        </small>
+                        <hr>
+                    `;
+                } else {
+                    balanceHtml += '<hr>';
+                }
+                
+                balanceHtml += `
+                    <small class="text-muted">
+                        Unpaid Invoices: ${data.balance.unpaid_invoices || 0}<br>
+                        Partial Payments: ${data.balance.partial_invoices || 0}
+                    </small>
+                `;
+                
+                balanceInfo.innerHTML = balanceHtml;
+                
+                // Show siblings if they exist
+                if (siblings.length > 0) {
+                    let siblingsHtml = '<div class="list-group">';
+                    siblings.forEach(sibling => {
+                        siblingsHtml += `
+                            <div class="list-group-item" style="opacity: 0.6; background: #f8f9fa;">
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <strong>${sibling.name}</strong><br>
+                                        <small class="text-muted">${sibling.admission_number}</small>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">Balance:</small><br>
+                                        <strong class="text-danger">Ksh ${parseFloat(sibling.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    siblingsHtml += '</div>';
+                    siblingsInfo.innerHTML = siblingsHtml;
+                    siblingsCard.style.display = 'block';
+                    
+                    // Add share payment button
+                    if (!document.getElementById('share_payment_btn')) {
+                        const shareBtn = document.createElement('button');
+                        shareBtn.type = 'button';
+                        shareBtn.className = 'btn btn-sm btn-finance btn-finance-success mt-2';
+                        shareBtn.id = 'share_payment_btn';
+                        shareBtn.innerHTML = '<i class="bi bi-share"></i> Share Payment';
+                        shareBtn.onclick = function() {
+                            showPaymentSharing();
+                        };
+                        siblingsInfo.appendChild(shareBtn);
+                    }
+                } else {
+                    siblingsCard.style.display = 'none';
+                }
+                
+                checkOverpayment();
+            })
+            .catch(error => {
+                console.error('Error loading balance info:', error);
+                balanceInfo.innerHTML = `
+                    <p class="text-danger"><i class="bi bi-exclamation-triangle"></i> Unable to load balance info</p>
+                    <small class="text-muted">Error: ${error.message || 'Unknown error'}</small>
+                `;
+                siblingsCard.style.display = 'none';
+            });
+    }
+
+    studentSelect.addEventListener('change', function() {
+        const studentId = this.value;
+        loadStudentBalance(studentId);
+    });
+
+    // Listen for student-selected event (from student-live-search.js)
+    window.addEventListener('student-selected', function(event) {
+        const student = event.detail;
+        if (student && student.id) {
+            document.getElementById('student_id').value = student.id;
+            loadStudentBalance(student.id);
         }
     });
+
+    // Initialize balance if student is pre-selected (from old() or URL parameter)
+    const preSelectedStudentId = document.getElementById('student_id').value;
+    if (preSelectedStudentId) {
+        loadStudentBalance(preSelectedStudentId);
+    }
 
     paymentAmount.addEventListener('input', function() {
         checkOverpayment();

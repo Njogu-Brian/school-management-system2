@@ -23,20 +23,15 @@ class StudentBalanceService
             ->where('status', '!=', 'reversed')
             ->sum('balance');
         
-        // Get balance brought forward from legacy data (only if we're in 2026 or later)
-        $balanceBroughtForward = 0;
-        if (now()->year >= 2026) {
-            $broughtForward = LegacyStatementTerm::getBalanceBroughtForward($studentModel);
-            if ($broughtForward !== null && $broughtForward > 0) {
-                $balanceBroughtForward = $broughtForward;
-            }
-        }
+        // Get balance brought forward from legacy data (ending_balance from last term before 2026)
+        $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
         
         return max(0, $invoiceBalance + $balanceBroughtForward);
     }
 
     /**
      * Get balance brought forward from legacy data for a student.
+     * This is the ending_balance from the last term before 2026.
      * 
      * @param Student|int $student Student model or ID
      * @return float Balance brought forward (0 if none)
@@ -44,10 +39,6 @@ class StudentBalanceService
     public static function getBalanceBroughtForward($student): float
     {
         $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
-        
-        if (now()->year < 2026) {
-            return 0; // Balance brought forward only relevant for 2026 onwards
-        }
         
         $broughtForward = LegacyStatementTerm::getBalanceBroughtForward($studentModel);
         return $broughtForward !== null && $broughtForward > 0 ? $broughtForward : 0;
