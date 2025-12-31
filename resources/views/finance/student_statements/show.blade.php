@@ -53,10 +53,10 @@
                     <strong>Admission Number:</strong> {{ $student->admission_number }}
                 </div>
                 <div class="col-md-2">
-                    <strong>Class:</strong> {{ $student->classroom->name ?? 'N/A' }}
+                    <strong>Class:</strong> {{ optional($student->classroom)->name ?? 'N/A' }}
                 </div>
                 <div class="col-md-2">
-                    <strong>Stream:</strong> {{ $student->stream->name ?? 'N/A' }}
+                    <strong>Stream:</strong> {{ optional($student->stream)->name ?? 'N/A' }}
                 </div>
                 <div class="col-md-4">
                     <strong>Year:</strong> {{ $year }} @if($term) | <strong>Term:</strong> {{ $terms->find($term)->name ?? "Term {$term}" }} @endif
