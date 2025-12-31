@@ -52,21 +52,79 @@ class LegacyFinanceImportService
         $currentTerm = null;
         $sequence = 1;
         $studentsSeen = [];
+        $termCompleted = false; // Track if we've seen CURRENT BALANCE for the current term
 
         foreach ($lines as $line) {
+            // Check for CURRENT BALANCE first (this is the final line for a student's statement)
+            // Even if it appears before a student header on a new page, it belongs to the current term
+            if ($this->isCurrentBalanceLine($line) && $currentTerm) {
+                $amount = $this->extractAmountFromBalanceLine($line);
+                if ($amount !== null) {
+                    $currentTerm->ending_balance = $amount;
+                    $currentTerm->save();
+                    $termCompleted = true;
+                }
+                continue;
+            }
+
+            // Fees summary line can also set ending balance
+            if (stripos($line, 'Fees as at statement date') !== false && $currentTerm) {
+                $amount = $this->extractTrailingAmount($line);
+                if ($amount !== null) {
+                    $currentTerm->ending_balance = $amount;
+                    $currentTerm->save();
+                    $termCompleted = true;
+                }
+                continue;
+            }
+
             // Detect student header
             if ($student = $this->matchStudentHeader($line)) {
-                $currentStudent = $student;
-                $currentTerm = null;
-                $sequence = 1;
-                $studentsSeen[$student['admission_number']] = true;
-                continue;
+                // Check if this is the same student (continuation on next page)
+                if ($currentStudent && $currentStudent['admission_number'] === $student['admission_number']) {
+                    // Same student continuing on next page - don't reset term, continue processing
+                    // Don't reset termCompleted flag because we're continuing the same statement
+                    if (!isset($studentsSeen[$student['admission_number']])) {
+                        $studentsSeen[$student['admission_number']] = true;
+                    }
+                    continue; // Skip this header line, continue with current term
+                } else {
+                    // New student - reset everything
+                    $currentStudent = $student;
+                    $currentTerm = null;
+                    $sequence = 1;
+                    $termCompleted = false;
+                    $studentsSeen[$student['admission_number']] = true;
+                    continue;
+                }
             }
 
             // Term header
             if ($termHeader = $this->matchTermHeader($line)) {
-                $currentTerm = $this->storeTerm($batch, $currentStudent, $termHeader, $classLabel);
-                $sequence = 1;
+                // Check if we already have a term for this student/year/term
+                $existingTerm = null;
+                if ($currentStudent) {
+                    $existingTerm = LegacyStatementTerm::where('batch_id', $batch->id)
+                        ->where('admission_number', $currentStudent['admission_number'])
+                        ->where('academic_year', $termHeader['academic_year'])
+                        ->where('term_name', $termHeader['term_name'])
+                        ->first();
+                }
+                
+                if ($existingTerm) {
+                    // Term already exists - continuing on next page, resume sequence
+                    $currentTerm = $existingTerm;
+                    $maxSequence = LegacyStatementLine::where('term_id', $currentTerm->id)
+                        ->max('sequence_no') ?? 0;
+                    $sequence = $maxSequence + 1;
+                    // Reset completion flag since we're continuing - CURRENT BALANCE hasn't appeared yet
+                    $termCompleted = false;
+                } else {
+                    // New term - create it
+                    $currentTerm = $this->storeTerm($batch, $currentStudent, $termHeader, $classLabel);
+                    $sequence = 1;
+                    $termCompleted = false;
+                }
                 continue;
             }
 
@@ -74,23 +132,10 @@ class LegacyFinanceImportService
                 continue; // ignore content until both are known
             }
 
-            // Current balance closes the term
-            if ($this->isCurrentBalanceLine($line)) {
-                $amount = $this->extractAmountFromBalanceLine($line);
-                if ($amount !== null) {
-                    $currentTerm->ending_balance = $amount;
-                    $currentTerm->save();
-                }
-                continue;
-            }
-
-            // Fees summary line can also set ending balance
-            if (stripos($line, 'Fees as at statement date') !== false) {
-                $amount = $this->extractTrailingAmount($line);
-                if ($amount !== null) {
-                    $currentTerm->ending_balance = $amount;
-                    $currentTerm->save();
-                }
+            // Skip processing new transactions if term is already completed (we've seen CURRENT BALANCE)
+            // CURRENT BALANCE and "Fees as at statement date" are already handled above
+            // Only skip transaction lines if term is completed
+            if ($termCompleted) {
                 continue;
             }
 
