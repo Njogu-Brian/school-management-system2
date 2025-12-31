@@ -109,8 +109,18 @@ class LegacyFinanceImportService
                     $currentTerm->status = 'draft';
                     $currentTerm->save();
                 }
+
+                // Update ending_balance from the last transaction's running balance if not explicitly set
+                if ($lineModel->running_balance !== null && $currentTerm->ending_balance === null) {
+                    $currentTerm->ending_balance = $lineModel->running_balance;
+                    $currentTerm->save();
+                }
             }
         }
+
+        // Finalize ending balances for all terms in the batch
+        // For terms that don't have an ending_balance set, use the running_balance from the last line
+        $this->finalizeTermEndingBalances($batch->id);
 
         $imported = LegacyStatementTerm::where('batch_id', $batch->id)->where('status', 'imported')->count();
         $draft = LegacyStatementTerm::where('batch_id', $batch->id)->where('status', 'draft')->count();
@@ -412,6 +422,33 @@ class LegacyFinanceImportService
 
         $normalized = str_replace(',', '', $trimmed);
         return is_numeric($normalized) ? (float) $normalized : null;
+    }
+
+    /**
+     * Finalize ending balances for all terms in the batch.
+     * For terms without an explicit ending_balance, use the running_balance from the last transaction line.
+     */
+    private function finalizeTermEndingBalances(int $batchId): void
+    {
+        $terms = LegacyStatementTerm::where('batch_id', $batchId)->get();
+
+        foreach ($terms as $term) {
+            // If ending_balance is already set, skip
+            if ($term->ending_balance !== null) {
+                continue;
+            }
+
+            // Get the last transaction line for this term (highest sequence_no)
+            $lastLine = LegacyStatementLine::where('term_id', $term->id)
+                ->whereNotNull('running_balance')
+                ->orderBy('sequence_no', 'desc')
+                ->first();
+
+            if ($lastLine && $lastLine->running_balance !== null) {
+                $term->ending_balance = $lastLine->running_balance;
+                $term->save();
+            }
+        }
     }
 }
 

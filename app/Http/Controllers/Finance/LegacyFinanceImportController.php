@@ -75,86 +75,6 @@ class LegacyFinanceImportController extends Controller
         ]);
     }
 
-    public function processClass(Request $request, LegacyFinanceImportBatch $batch)
-    {
-        $validated = $request->validate([
-            'class_label' => 'required|string',
-        ]);
-
-        ProcessLegacyBatchPosting::dispatch($batch->id, $validated['class_label']);
-
-        return back()->with('success', 'Class processing queued: '.$validated['class_label']);
-    }
-
-    public function resolveVotehead(Request $request, LegacyFinanceImportBatch $batch)
-    {
-        $validated = $request->validate([
-            'legacy_label' => 'required|string',
-            'mode' => 'required|in:existing,new',
-            'votehead_id' => 'nullable|exists:voteheads,id',
-            'name' => 'nullable|string',
-            'votehead_category_id' => 'nullable|exists:votehead_categories,id',
-        ]);
-
-        $normalized = $this->normalizeLabel($validated['legacy_label']);
-
-        if ($validated['mode'] === 'existing') {
-            if (!$validated['votehead_id']) {
-                return back()->withErrors('Select a votehead to map.');
-            }
-            LegacyVoteheadMapping::updateOrCreate(
-                ['legacy_label' => $normalized],
-                ['votehead_id' => $validated['votehead_id'], 'status' => 'resolved', 'resolved_by' => $request->user()?->id]
-            );
-        } else {
-            if (!$validated['name']) {
-                return back()->withErrors('Provide a votehead name.');
-            }
-            $vh = Votehead::create([
-                'name' => $validated['name'],
-                'code' => strtoupper(substr(preg_replace('/\s+/', '_', $validated['name']), 0, 20)),
-                'votehead_category_id' => $validated['votehead_category_id'],
-                'is_active' => true,
-            ]);
-            LegacyVoteheadMapping::updateOrCreate(
-                ['legacy_label' => $normalized],
-                ['votehead_id' => $vh->id, 'status' => 'resolved', 'resolved_by' => $request->user()?->id]
-            );
-        }
-
-        ProcessLegacyBatchPosting::dispatch($batch->id);
-        return back()->with('success', 'Votehead mapping saved. Posting resumed.');
-    }
-
-    public function reversePosting(LegacyFinanceImportBatch $batch, LegacyLedgerPostingService $service)
-    {
-        $service->reverseBatch($batch->id);
-        return back()->with('success', 'Legacy postings reversed for this batch.');
-    }
-
-    /**
-     * JSON report of postings for a batch (optional class filter).
-     */
-    public function report(Request $request, LegacyFinanceImportBatch $batch, \App\Services\LegacyPostingReportService $report)
-    {
-        $class = $request->get('class_label');
-        return response()->json([
-            'summary' => $report->summary($batch->id, $class),
-            'payments' => $report->payments($batch->id, $class),
-            'credits' => $report->credits($batch->id, $class),
-            'debits' => $report->debits($batch->id, $class),
-            'discounts' => $report->discounts($batch->id, $class),
-            'invoices' => $report->invoices($batch->id, $class),
-        ]);
-    }
-
-    private function normalizeLabel(string $label): string
-    {
-        $label = preg_replace('/\(.*?\)/', '', $label); // drop parenthetical tags like (JV on ...)
-        $label = preg_replace('/\s+/', ' ', $label);
-        $label = trim($label);
-        return strtoupper($label);
-    }
 
     public function rerun(Request $request, LegacyFinanceImportBatch $batch, LegacyFinanceImportService $service)
     {
@@ -213,7 +133,7 @@ class LegacyFinanceImportController extends Controller
         $reference = $line->reference_number;
         $txnCode = $line->txn_code;
         if ($narration !== $line->narration_raw) {
-            $service = app(LegacyFinanceImportService::class);
+            $service = app(\App\Services\LegacyFinanceImportService::class);
             $reference = $service->extractReference($narration);
             $txnCode = $service->extractTxnCode($narration);
         }
