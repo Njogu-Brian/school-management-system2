@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Redirect root domain to /login
+    RewriteCond %{REQUEST_URI} ^/$
+    RewriteRule ^$ /login [L,R=302]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -17,10 +21,6 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
-
-    # Serve static files directly (don't route through Laravel)
-    RewriteCond %{REQUEST_FILENAME} -f
-    RewriteRule ^ - [L]
 
     # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
