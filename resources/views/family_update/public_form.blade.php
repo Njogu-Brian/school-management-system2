@@ -349,6 +349,13 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Emergency Contact Phone</label>
+                                @php
+                                    $emergencyPhone = old('emergency_contact_phone', $family->students->first()->emergency_contact_phone ?? '');
+                                    $emergencyCountryCode = old('emergency_phone_country_code', '+254');
+                                    // Normalize +KE to +254
+                                    $emergencyCountryCode = strtolower($emergencyCountryCode) === '+ke' || strtolower($emergencyCountryCode) === 'ke' ? '+254' : $emergencyCountryCode;
+                                    $emergencyLocalPhone = extract_local_phone($emergencyPhone, $emergencyCountryCode);
+                                @endphp
                                 <div class="input-group phone-input-group">
                                     <span class="input-group-text phone-flag" id="emergency_phone_prefix">+254</span>
                                     <select name="emergency_phone_country_code" class="form-select flex-grow-0 phone-code-select" data-target="emergency_contact_phone" style="max-width:170px">
@@ -356,13 +363,6 @@
                                             <option value="{{ $code }}" @selected($emergencyCountryCode==$code)>{{ $label }}</option>
                                         @endforeach
                                     </select>
-                                    @php
-                                        $emergencyPhone = old('emergency_contact_phone', $family->students->first()->emergency_contact_phone ?? '');
-                                        $emergencyCountryCode = old('emergency_phone_country_code', '+254');
-                                        // Normalize +KE to +254
-                                        $emergencyCountryCode = strtolower($emergencyCountryCode) === '+ke' || strtolower($emergencyCountryCode) === 'ke' ? '+254' : $emergencyCountryCode;
-                                        $emergencyLocalPhone = extract_local_phone($emergencyPhone, $emergencyCountryCode);
-                                    @endphp
                                     <input type="text" name="emergency_contact_phone" id="emergency_contact_phone" class="form-control phone-input" value="{{ $emergencyLocalPhone }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="emergency_phone_help">
                                 </div>
                                 <small class="upload-hint d-block" id="emergency_phone_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
