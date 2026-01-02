@@ -18,15 +18,43 @@ class StudentBalanceService
     {
         $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
         
+        // Get balance brought forward from legacy data (ending_balance from last term before 2026)
+        $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
+        
+        // Check if balance brought forward is already included in invoices as an invoice item
+        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardInInvoice = 0;
+        
+        if ($balanceBroughtForwardVotehead && $balanceBroughtForward > 0) {
+            // Get all unpaid balance brought forward items from invoices
+            $balanceBroughtForwardInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($studentModel) {
+                $q->where('student_id', $studentModel->id)
+                  ->where('status', '!=', 'reversed');
+            })
+            ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->get()
+            ->sum(function($item) {
+                // Calculate unpaid portion of balance brought forward item
+                $paid = $item->allocations()->sum('amount');
+                return max(0, $item->amount - $paid);
+            });
+        }
+        
         // Get balance from all invoices
         $invoiceBalance = Invoice::where('student_id', $studentModel->id)
             ->where('status', '!=', 'reversed')
             ->sum('balance');
         
-        // Get balance brought forward from legacy data (ending_balance from last term before 2026)
-        $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
-        
-        return max(0, $invoiceBalance + $balanceBroughtForward);
+        // If balance brought forward is already in invoices, don't add it again
+        // Otherwise, add the balance brought forward from legacy data
+        if ($balanceBroughtForwardInInvoice > 0) {
+            // Balance brought forward is already included in invoice balance
+            return max(0, $invoiceBalance);
+        } else {
+            // Balance brought forward is not in invoices, add it separately
+            return max(0, $invoiceBalance + $balanceBroughtForward);
+        }
     }
 
     /**

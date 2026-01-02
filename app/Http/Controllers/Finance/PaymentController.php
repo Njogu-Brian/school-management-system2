@@ -49,11 +49,30 @@ class PaymentController extends Controller
         return view('finance.payments.index', compact('payments'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
         $bankAccounts = \App\Models\BankAccount::active()->get();
         $paymentMethods = \App\Models\PaymentMethod::active()->get();
-        return view('finance.payments.create', compact('bankAccounts', 'paymentMethods'));
+        
+        // Handle student_id and invoice_id from query parameters (when coming from invoice page)
+        $studentId = $request->query('student_id');
+        $invoiceId = $request->query('invoice_id');
+        $student = null;
+        $invoice = null;
+        
+        if ($studentId) {
+            $student = Student::withAlumni()->find($studentId);
+        }
+        
+        if ($invoiceId) {
+            $invoice = \App\Models\Invoice::find($invoiceId);
+            // If student not set but invoice exists, get student from invoice
+            if (!$student && $invoice) {
+                $student = $invoice->student;
+            }
+        }
+        
+        return view('finance.payments.create', compact('bankAccounts', 'paymentMethods', 'student', 'invoice'));
     }
 
     public function getStudentBalanceAndSiblings(Student $student)
@@ -61,10 +80,35 @@ class PaymentController extends Controller
         $studentId = $student->id;
         $invoices = Invoice::where('student_id', $studentId)->get();
         
-        // Get total outstanding balance including balance brought forward
+        // Get total outstanding balance (already handles balance brought forward correctly)
         $totalBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        
+        // Get invoice balance (excluding balance brought forward items to show accurate breakdown)
+        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
         $invoiceBalance = $invoices->sum('balance');
+        
+        // Check if balance brought forward is in invoices
+        $balanceBroughtForwardInInvoice = 0;
+        if ($balanceBroughtForwardVotehead) {
+            $balanceBroughtForwardInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($studentId) {
+                $q->where('student_id', $studentId)
+                  ->where('status', '!=', 'reversed');
+            })
+            ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->get()
+            ->sum(function($item) {
+                $paid = $item->allocations()->sum('amount');
+                return max(0, $item->amount - $paid);
+            });
+        }
+        
+        // Get balance brought forward from legacy data
         $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+        
+        // If balance brought forward is in invoices, show it separately in breakdown
+        // Otherwise, it's already included in total but not in invoice balance
+        $displayBalanceBroughtForward = $balanceBroughtForwardInInvoice > 0 ? $balanceBroughtForwardInInvoice : $balanceBroughtForward;
         
         $unpaidInvoices = $invoices->where('balance', '>', 0)->count();
         $partialInvoices = $invoices->where('balance', '>', 0)->where('balance', '<', $invoices->sum('total'))->count();
@@ -91,7 +135,7 @@ class PaymentController extends Controller
             'balance' => [
                 'total_balance' => $totalBalance,
                 'invoice_balance' => $invoiceBalance,
-                'balance_brought_forward' => $balanceBroughtForward,
+                'balance_brought_forward' => $displayBalanceBroughtForward,
                 'unpaid_invoices' => $unpaidInvoices,
                 'partial_invoices' => $partialInvoices,
             ],

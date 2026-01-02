@@ -29,8 +29,13 @@
                                     'displayInputId' => 'studentLiveSearch',
                                     'resultsId' => 'studentLiveResults',
                                     'placeholder' => 'Type student name or admission #',
-                                    'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : ''
+                                    'initialLabel' => old('student_id') 
+                                        ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') 
+                                        : ($student ? $student->full_name . ' (' . $student->admission_number . ')' : '')
                                 ])
+                                @if($invoice)
+                                    <input type="hidden" name="invoice_id" value="{{ $invoice->id }}">
+                                @endif
                                 @error('student_id')
                                     <div class="invalid-feedback">{{ $message }}</div>
                                 @enderror
@@ -231,6 +236,24 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let currentStudentData = null;
     let siblings = [];
+
+    // Auto-load student balance if student is pre-selected (from invoice page)
+    @if($student)
+        const preSelectedStudentId = {{ $student->id }};
+        const hiddenStudentInput = document.getElementById('student_id');
+        const displayStudentInput = document.getElementById('studentLiveSearch');
+        
+        if (hiddenStudentInput && preSelectedStudentId) {
+            hiddenStudentInput.value = preSelectedStudentId;
+            if (displayStudentInput) {
+                displayStudentInput.value = '{{ $student->full_name }} ({{ $student->admission_number }})';
+            }
+            // Trigger balance load
+            setTimeout(() => {
+                loadStudentBalance(preSelectedStudentId);
+            }, 100);
+        }
+    @endif
 
     // Function to load student balance info
     function loadStudentBalance(studentId) {
