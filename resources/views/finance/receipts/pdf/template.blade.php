@@ -82,13 +82,13 @@
             font-weight: bold;
             color: #555;
             text-align: left;
-            width: 45%;
+            width: 25%;
         }
         
         .receipt-details-table .detail-value {
             color: #333;
-            text-align: right;
-            width: 55%;
+            text-align: left;
+            width: 25%;
         }
         
         .allocations-table {
