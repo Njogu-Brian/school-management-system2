@@ -49,7 +49,9 @@ class ExamMarkController extends Controller
             
             if (!empty($assignedClassroomIds)) {
                 $query->whereHas('student', function($q) use ($assignedClassroomIds) {
-                    $q->whereIn('classroom_id', $assignedClassroomIds);
+                    $q->whereIn('classroom_id', $assignedClassroomIds)
+                      ->where('archive', 0)
+                      ->where('is_alumni', false);
                 });
             } else {
                 $query->whereRaw('1 = 0'); // No access
@@ -274,7 +276,10 @@ class ExamMarkController extends Controller
         $subject = Subject::findOrFail($subjectId);
 
         // Enforce single-exam workflow: marks are per (exam, student, subject)
+        // Exclude alumni and archived students
         $students = Student::where('classroom_id',$class->id)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->when($exam->stream_id, fn($q)=>$q->where('stream_id',$exam->stream_id))
             ->orderBy('last_name')->get();
 
@@ -359,6 +364,12 @@ class ExamMarkController extends Controller
         }
 
         foreach ($data['rows'] as $row) {
+            // Validate student is not alumni or archived
+            $student = Student::withAlumni()->find($row['student_id']);
+            if ($student && ($student->is_alumni || $student->archive)) {
+                continue; // Skip alumni/archived students
+            }
+            
             $mark = ExamMark::firstOrNew([
                 'exam_id'    => $exam->id,
                 'student_id' => $row['student_id'],

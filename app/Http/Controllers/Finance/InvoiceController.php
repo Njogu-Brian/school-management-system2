@@ -23,8 +23,8 @@ class InvoiceController extends Controller
         $q = Invoice::with(['student.classroom','student.stream', 'items', 'term', 'academicYear'])
             ->when($request->filled('year'), fn($qq)=>$qq->where('year',$request->year))
             ->when($request->filled('term'), fn($qq)=>$qq->where('term',$request->term))
-            ->when($request->filled('class_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('classroom_id',$request->class_id)))
-            ->when($request->filled('stream_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('stream_id',$request->stream_id)))
+            ->when($request->filled('class_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('classroom_id',$request->class_id)->where('archive', 0)->where('is_alumni', false)))
+            ->when($request->filled('stream_id'), fn($qq)=>$qq->whereHas('student', fn($s)=>$s->where('stream_id',$request->stream_id)->where('archive', 0)->where('is_alumni', false)))
             ->when($request->filled('votehead_id'), fn($qq)=>$qq->whereHas('items', fn($ii)=>$ii->where('votehead_id',$request->votehead_id)))
             ->when($request->filled('status'), fn($qq)=>$qq->where('status',$request->status))
             ->latest();
@@ -61,7 +61,10 @@ class InvoiceController extends Controller
             return back()->with('error', 'Fee structure not found for selected class and year.');
         }
 
-        $students = Student::where('classroom_id', $request->classroom_id)->get();
+        $students = Student::where('classroom_id', $request->classroom_id)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->get();
         $invoicesGenerated = 0;
 
         DB::transaction(function () use ($students, $structure, $request, &$invoicesGenerated) {
@@ -335,10 +338,10 @@ class InvoiceController extends Controller
                 $q->whereHas('items', fn($i) => $i->where('votehead_id', request('votehead_id')))
             )
             ->when($request->filled('class_id'), fn($q) =>
-                $q->whereHas('student', fn($s) => $s->where('classroom_id', request('class_id')))
+                $q->whereHas('student', fn($s) => $s->where('classroom_id', request('class_id'))->where('archive', 0)->where('is_alumni', false))
             )
             ->when($request->filled('stream_id'), fn($q) =>
-                $q->whereHas('student', fn($s) => $s->where('stream_id', request('stream_id')))
+                $q->whereHas('student', fn($s) => $s->where('stream_id', request('stream_id'))->where('archive', 0)->where('is_alumni', false))
             )
             ->orderByDesc('year')->orderByDesc('term')->orderBy('student_id');
     }

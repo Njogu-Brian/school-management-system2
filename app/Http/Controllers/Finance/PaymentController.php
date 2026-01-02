@@ -40,6 +40,9 @@ class PaymentController extends Controller
     public function index()
     {
         $payments = Payment::with(['student', 'paymentMethod', 'invoice'])
+            ->whereHas('student', function($q) {
+                $q->where('archive', 0)->where('is_alumni', false);
+            })
             ->latest('payment_date')
             ->paginate(20);
         
@@ -118,7 +121,7 @@ class PaymentController extends Controller
             'shared_amounts' => 'nullable|array', // Array of amounts for each student
         ]);
 
-        $student = Student::findOrFail($validated['student_id']);
+        $student = Student::withAlumni()->findOrFail($validated['student_id']);
 
         // Check for overpayment warning
         $invoice = isset($validated['invoice_id']) && $validated['invoice_id'] ? \App\Models\Invoice::find($validated['invoice_id']) : null;
@@ -130,7 +133,15 @@ class PaymentController extends Controller
         // Get total outstanding balance including balance brought forward
         $balance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
         
+        // For alumni or archived students, enforce balance limit (no overpayment allowed)
+        $isAlumniOrArchived = $student->is_alumni || $student->archive;
         $isOverpayment = $validated['amount'] > $balance;
+        
+        if ($isAlumniOrArchived && $isOverpayment) {
+            return back()
+                ->withInput()
+                ->with('error', "Cannot accept overpayment for " . ($student->is_alumni ? 'alumni' : 'archived') . " students. Maximum payment allowed is Ksh " . number_format($balance, 2) . " (outstanding balance).");
+        }
         
         if ($isOverpayment && !($request->has('confirm_overpayment') && $request->confirm_overpayment)) {
             return back()
@@ -590,8 +601,17 @@ class PaymentController extends Controller
         return DB::transaction(function () use ($request, $payment) {
             if ($request->transfer_type === 'transfer') {
                 // Single student transfer
-                $targetStudent = Student::findOrFail($request->target_student_id);
+                $targetStudent = Student::withAlumni()->findOrFail($request->target_student_id);
                 $transferAmount = (float)$request->transfer_amount;
+                
+                // For alumni or archived students, enforce balance limit
+                $isAlumniOrArchived = $targetStudent->is_alumni || $targetStudent->archive;
+                if ($isAlumniOrArchived) {
+                    $targetBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($targetStudent);
+                    if ($transferAmount > $targetBalance) {
+                        return back()->with('error', "Cannot transfer more than outstanding balance for " . ($targetStudent->is_alumni ? 'alumni' : 'archived') . " student. Maximum: Ksh " . number_format($targetBalance, 2));
+                    }
+                }
                 
                 // Create new payment for target student
                 $newPayment = Payment::create([
@@ -624,8 +644,17 @@ class PaymentController extends Controller
                 }
                 
                 foreach ($sharedStudents as $index => $studentId) {
-                    $student = Student::findOrFail($studentId);
+                    $student = Student::withAlumni()->findOrFail($studentId);
                     $amount = (float)($sharedAmounts[$index] ?? 0);
+                    
+                    // For alumni or archived students, enforce balance limit
+                    $isAlumniOrArchived = $student->is_alumni || $student->archive;
+                    if ($isAlumniOrArchived && $amount > 0) {
+                        $studentBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+                        if ($amount > $studentBalance) {
+                            return back()->with('error', "Cannot share payment to " . ($student->is_alumni ? 'alumni' : 'archived') . " student {$student->full_name}. Amount (Ksh " . number_format($amount, 2) . ") exceeds balance (Ksh " . number_format($studentBalance, 2) . ").");
+                        }
+                    }
                     
                     if ($amount > 0) {
                         $newPayment = Payment::create([

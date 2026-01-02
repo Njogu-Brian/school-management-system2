@@ -337,7 +337,10 @@
         <div class="tab-pane fade {{ request('tab') == 'allocate' ? 'show active' : '' }}" id="allocate" role="tabpanel">
             @php
                 $templates = \App\Models\DiscountTemplate::where('is_active', true)->orderBy('name')->get();
-                $students = \App\Models\Student::orderBy('first_name')->get();
+                $students = \App\Models\Student::where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->orderBy('first_name')
+                    ->get();
                 $voteheads = \App\Models\Votehead::orderBy('name')->get();
                 $academicYears = \App\Models\AcademicYear::orderByDesc('year')->get();
                 $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();

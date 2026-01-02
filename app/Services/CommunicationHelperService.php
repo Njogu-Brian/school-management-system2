@@ -26,9 +26,12 @@ class CommunicationHelperService
             }
         }
 
-        // Single student
+        // Single student (exclude alumni and archived)
         if ($target === 'student' && !empty($data['student_id'])) {
-            $student = Student::with('parent', 'classroom')->find($data['student_id']);
+            $student = Student::with('parent', 'classroom')
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->find($data['student_id']);
             if ($student && $student->parent) {
                 $contacts = match ($type) {
                     'email' => [$student->parent->father_email, $student->parent->mother_email, $student->parent->guardian_email],
@@ -43,9 +46,13 @@ class CommunicationHelperService
             }
         }
 
-        // Entire class
+        // Entire class (exclude alumni and archived)
         if ($target === 'class' && !empty($data['classroom_id'])) {
-            Student::with('parent')->where('classroom_id', $data['classroom_id'])->get()
+            Student::with('parent')
+                ->where('classroom_id', $data['classroom_id'])
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
                         $contacts = match ($type) {
@@ -62,22 +69,26 @@ class CommunicationHelperService
                 });
         }
 
-        // All parents
+        // All parents (exclude alumni and archived)
         if ($target === 'parents') {
-            Student::with('parent')->get()->each(function ($s) use (&$out, $type) {
-                if ($s->parent) {
-                    $contacts = match ($type) {
-                        'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
-                        'whatsapp' => [
-                            $s->parent->father_whatsapp ?? $s->parent->father_phone,
-                            $s->parent->mother_whatsapp ?? $s->parent->mother_phone,
-                            $s->parent->guardian_whatsapp ?? $s->parent->guardian_phone,
-                        ],
-                        default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
-                    };
-                    foreach ($contacts as $c) if ($c) $out[$c] = $s;
-                }
-            });
+            Student::with('parent')
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->get()
+                ->each(function ($s) use (&$out, $type) {
+                    if ($s->parent) {
+                        $contacts = match ($type) {
+                            'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
+                            'whatsapp' => [
+                                $s->parent->father_whatsapp ?? $s->parent->father_phone,
+                                $s->parent->mother_whatsapp ?? $s->parent->mother_phone,
+                                $s->parent->guardian_whatsapp ?? $s->parent->guardian_phone,
+                            ],
+                            default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
+                        };
+                        foreach ($contacts as $c) if ($c) $out[$c] = $s;
+                    }
+                });
         }
 
         // All students

@@ -23,6 +23,7 @@ class StudentBehaviourController extends Controller
             
             if (!empty($assignedClassroomIds)) {
                 $query->whereHas('student', function($q) use ($assignedClassroomIds) {
+                    $q->where('archive', 0)->where('is_alumni', false);
                     $q->whereIn('classroom_id', $assignedClassroomIds);
                 });
             } else {
@@ -68,9 +69,16 @@ class StudentBehaviourController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
+        // Validate student is not alumni or archived
+        $student = Student::withAlumni()->findOrFail($data['student_id']);
+        if ($student->is_alumni || $student->archive) {
+            return back()
+                ->withInput()
+                ->with('error', 'Cannot record behavior for alumni or archived students.');
+        }
+        
         // Validate teacher has access to student's class
         if (Auth::user()->hasRole('Teacher')) {
-            $student = Student::findOrFail($data['student_id']);
             $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
             
             if (!in_array($student->classroom_id, $assignedClassroomIds)) {

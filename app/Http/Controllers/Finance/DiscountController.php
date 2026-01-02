@@ -234,7 +234,10 @@ class DiscountController extends Controller
             });
 
         $allocations = $query->latest()->paginate(20)->withQueryString();
-        $students = Student::orderBy('first_name')->get();
+        $students = Student::where('archive', 0)
+            ->where('is_alumni', false)
+            ->orderBy('first_name')
+            ->get();
         
         return view('finance.discounts.allocations.index', compact('allocations', 'students'));
     }

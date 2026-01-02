@@ -28,7 +28,11 @@ class FeeConcessionController extends Controller
 
     public function create()
     {
-        $students = Student::with('classroom')->orderBy('first_name')->get();
+        $students = Student::with('classroom')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->orderBy('first_name')
+            ->get();
         $voteheads = Votehead::orderBy('name')->get();
         return view('finance.fee_concessions.create', compact('students', 'voteheads'));
     }

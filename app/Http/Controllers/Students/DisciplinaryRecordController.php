@@ -36,6 +36,14 @@ class DisciplinaryRecordController extends Controller
      */
     public function store(StoreDisciplinaryRecordRequest $request, Student $student)
     {
+        // Validate student is not alumni or archived
+        $student = Student::withAlumni()->findOrFail($student->id);
+        if ($student->is_alumni || $student->archive) {
+            return back()
+                ->withInput()
+                ->with('error', 'Cannot create disciplinary records for alumni or archived students.');
+        }
+        
         $data = $request->validated();
         $data['student_id'] = $student->id;
         $data['reported_by'] = auth()->id();

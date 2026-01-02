@@ -1224,6 +1224,7 @@ class StudentController extends Controller
 
             $students = Student::query()
                 ->where('archive', 0) // Only non-archived students
+                ->where('is_alumni', false) // Exclude alumni students
                 ->with('classroom')
                 ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
                     $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])

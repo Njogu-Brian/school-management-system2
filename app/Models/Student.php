@@ -259,7 +259,8 @@ class Student extends Model
     protected static function booted()
     {
         static::addGlobalScope('active', function (Builder $builder) {
-            $builder->where('archive', 0);
+            $builder->where('archive', 0)
+                    ->where('is_alumni', false);
         });
 
         static::created(function (self $student) {
@@ -271,6 +272,16 @@ class Student extends Model
     public static function withArchived()
     {
         return (new static)->newQueryWithoutScope('active');
+    }
+    
+    public static function withAlumni()
+    {
+        return (new static)->newQueryWithoutScope('active');
+    }
+    
+    public static function activeOnly()
+    {
+        return static::where('archive', 0)->where('is_alumni', false);
     }
 
     /**

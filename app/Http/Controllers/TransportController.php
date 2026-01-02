@@ -15,7 +15,7 @@ class TransportController extends Controller
 {
     public function index()
     {
-        $students = Student::count();
+        $students = Student::where('archive', 0)->where('is_alumni', false)->count();
         $vehicles = Vehicle::count();
         $routes = TransportRoute::count();
         $trips = Trip::count();

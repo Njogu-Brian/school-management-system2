@@ -322,12 +322,18 @@ class FeePostingService
     {
         // If student_id is explicitly provided, ONLY return that student
         // This ensures optional fees are only applied to the selected student
+        // But still exclude alumni/archived students
         if (!empty($filters['student_id'])) {
-            return Student::where('id', $filters['student_id'])->get();
+            return Student::where('id', $filters['student_id'])
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->get();
         }
         
-        // Otherwise, apply class/stream filters
+        // Otherwise, apply class/stream filters (exclude alumni/archived)
         return Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->when(!empty($filters['class_id']), fn($q) => $q->where('classroom_id', $filters['class_id']))
             ->when(!empty($filters['stream_id']), fn($q) => $q->where('stream_id', $filters['stream_id']))
             ->when(!empty($filters['student_category_id']), fn($q) => $q->where('category_id', $filters['student_category_id']))

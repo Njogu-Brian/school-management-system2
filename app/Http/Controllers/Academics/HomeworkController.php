@@ -113,7 +113,9 @@ class HomeworkController extends Controller
         }
 
         // Filter students based on assigned classrooms/streams for teachers
-        $studentsQuery = Student::orderBy('last_name')->orderBy('first_name');
+        $studentsQuery = Student::where('archive', 0)
+            ->where('is_alumni', false)
+            ->orderBy('last_name')->orderBy('first_name');
         if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
             $streamAssignments = $user->getStreamAssignments();
             $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassroomIds);

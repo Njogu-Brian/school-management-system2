@@ -20,7 +20,7 @@ class StudentAssignmentController extends Controller
 
     public function create()
     {
-        $students = Student::all();
+        $students = Student::where('archive', 0)->where('is_alumni', false)->get();
         $routes = Route::all();
         $vehicles = Vehicle::all();
         $trips = Trip::all();
@@ -58,7 +58,7 @@ class StudentAssignmentController extends Controller
 
     public function edit(StudentAssignment $assignment)
     {
-        $students = Student::all();
+        $students = Student::where('archive', 0)->where('is_alumni', false)->get();
         $routes = Route::all();
         $vehicles = Vehicle::all();
         $trips = Trip::all();

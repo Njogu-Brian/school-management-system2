@@ -63,6 +63,12 @@ class StudentSkillGradeController extends Controller
         ]);
 
         foreach ($data['rows'] as $row) {
+            // Validate student is not alumni or archived
+            $student = \App\Models\Student::withAlumni()->find($row['student_id']);
+            if ($student && ($student->is_alumni || $student->archive)) {
+                continue; // Skip alumni/archived students
+            }
+            
             foreach ($row['skills'] as $sg) {
                 $grade = StudentSkillGrade::firstOrNew([
                     'student_id' => $row['student_id'],

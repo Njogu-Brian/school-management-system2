@@ -133,7 +133,11 @@
             <select name="student_ids[]" id="student_ids" class="form-select" multiple style="min-height: 150px;">
               @php
                 $selectedStudents = old('student_ids', $extra_curricular_activity->student_ids ?? []);
-                $allStudents = \App\Models\Student::with('classroom')->orderBy('first_name')->get();
+                $allStudents = \App\Models\Student::with('classroom')
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->orderBy('first_name')
+                    ->get();
               @endphp
               @foreach($allStudents as $student)
                 <option value="{{ $student->id }}" data-name="{{ strtolower($student->first_name . ' ' . $student->last_name) }}" data-admission="{{ strtolower($student->admission_number ?? '') }}" data-class="{{ strtolower($student->classroom->name ?? '') }}" {{ in_array($student->id, $selectedStudents) ? 'selected' : '' }}>

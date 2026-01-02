@@ -76,7 +76,9 @@ class AttendanceController extends Controller
                 : collect();
         }
 
-        $studentsQuery = Student::query();
+        $studentsQuery = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false);
         
         // For teachers, apply stream-aware filtering
         if ($user->hasRole('teacher') || $user->hasRole('Teacher')) {

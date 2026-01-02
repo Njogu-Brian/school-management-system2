@@ -70,6 +70,12 @@ class ExamResultController extends Controller
             ?? GradingScheme::where('is_default',1)->value('id');
 
         foreach ($data['rows'] as $row) {
+            // Validate student is not alumni or archived
+            $student = \App\Models\Student::withAlumni()->find($row['student_id']);
+            if ($student && ($student->is_alumni || $student->archive)) {
+                continue; // Skip alumni/archived students
+            }
+            
             $score = ($row['score'] === '' ? null : $row['score']);
 
             $band = null;

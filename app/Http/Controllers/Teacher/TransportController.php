@@ -22,8 +22,10 @@ class TransportController extends Controller
         $user = Auth::user();
         $assignedClassroomIds = $user->getAssignedClassroomIds();
         
-        // Get students from assigned classes who have transport assignments
+        // Get students from assigned classes who have transport assignments (exclude alumni)
         $query = Student::whereIn('classroom_id', $assignedClassroomIds)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->whereHas('assignments')
             ->with(['classroom', 'assignments.morningTrip', 'assignments.eveningTrip', 
                    'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint',

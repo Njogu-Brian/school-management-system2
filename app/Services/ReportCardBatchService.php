@@ -21,6 +21,8 @@ class ReportCardBatchService
     public function generateForClass($academicYearId, $termId, $classroomId, $streamId = null): void
     {
         $students = \App\Models\Student::where('classroom_id', $classroomId)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
             ->get();
 

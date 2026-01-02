@@ -75,7 +75,10 @@ class JournalController extends Controller
         
         // Load students efficiently - only load a reasonable number for dropdown
         // Use a simple query without complex joins to prevent timeout
+        // Exclude alumni and archived students
         $students = \App\Models\Student::select('id', 'first_name', 'last_name', 'admission_number')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->orderBy('first_name')
             ->limit(500) // Limit to prevent timeout on large datasets
             ->get();

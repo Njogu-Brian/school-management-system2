@@ -64,6 +64,7 @@ class ReportCardController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->whereHas('student', function($q) use ($search) {
+                $q->where('archive', 0)->where('is_alumni', false);
                 $q->where('first_name', 'like', "%{$search}%")
                   ->orWhere('last_name', 'like', "%{$search}%")
                   ->orWhere('admission_number', 'like', "%{$search}%");
@@ -128,7 +129,11 @@ class ReportCardController extends Controller
     public function create()
     {
         return view('academics.report_cards.create', [
-            'students' => Student::with('classroom','stream')->orderBy('last_name')->get(),
+            'students' => Student::with('classroom','stream')
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->orderBy('last_name')
+                ->get(),
             'years'    => AcademicYear::orderByDesc('year')->get(),
             'terms'    => Term::orderBy('name')->get(),
         ]);
@@ -144,6 +149,14 @@ class ReportCardController extends Controller
             'stream_id'        => 'nullable|exists:streams,id',
         ]);
 
+        // Validate student is not alumni or archived
+        $student = Student::withAlumni()->findOrFail($v['student_id']);
+        if ($student->is_alumni || $student->archive) {
+            return back()
+                ->withInput()
+                ->with('error', 'Cannot create report cards for alumni or archived students.');
+        }
+        
         // Check if teacher has access to classroom
         if (Auth::user()->hasRole('Teacher')) {
             $staff = Auth::user()->staff;

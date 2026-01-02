@@ -83,7 +83,10 @@
               <div class="mt-3" id="student_selection" style="display: none;">
                 <label class="form-label">Select Students</label>
                 <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
-                  @php $students = \App\Models\Student::where('classroom_id', $lesson_plan->classroom_id)->get(); @endphp
+                  @php $students = \App\Models\Student::where('classroom_id', $lesson_plan->classroom_id)
+                      ->where('archive', 0)
+                      ->where('is_alumni', false)
+                      ->get(); @endphp
                   @foreach($students as $student)
                   <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="student_ids[]" value="{{ $student->id }}" id="student_{{ $student->id }}">

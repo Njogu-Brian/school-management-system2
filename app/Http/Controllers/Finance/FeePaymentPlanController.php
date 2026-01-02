@@ -31,7 +31,11 @@ class FeePaymentPlanController extends Controller
 
     public function create()
     {
-        $students = Student::with('classroom')->orderBy('first_name')->get();
+        $students = Student::with('classroom')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->orderBy('first_name')
+            ->get();
         return view('finance.fee_payment_plans.create', compact('students'));
     }
 

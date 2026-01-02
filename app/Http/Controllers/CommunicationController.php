@@ -53,8 +53,10 @@ class CommunicationController extends Controller
         $systemPlaceholders = $this->getSystemPlaceholders();
         $customPlaceholders = \App\Models\CustomPlaceholder::all();
 
-        // Sort by full name at the DB level
+        // Sort by full name at the DB level (exclude alumni and archived)
         $students = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
             ->get();
 
@@ -176,8 +178,10 @@ class CommunicationController extends Controller
         $systemPlaceholders = $this->getSystemPlaceholders();
         $customPlaceholders = \App\Models\CustomPlaceholder::all();
 
-        // Same here for the SMS page
+        // Same here for the SMS page (exclude alumni and archived)
         $students = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
             ->get();
 
@@ -333,6 +337,8 @@ class CommunicationController extends Controller
         $systemPlaceholders = $this->getSystemPlaceholders();
         $customPlaceholders = \App\Models\CustomPlaceholder::all();
         $students = Student::query()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
             ->get();
 

@@ -32,8 +32,10 @@ class StudentPromotionController extends Controller
         $currentYear = AcademicYear::where('is_active', true)->first();
         $currentTerm = Term::where('is_current', true)->first();
         
-        // Get students in this class with their streams
-        $allStudents = Student::where('classroom_id', $classroom->id)
+        // Get students in this class with their streams (exclude alumni)
+        $allStudents = Student::withAlumni()
+            ->where('classroom_id', $classroom->id)
+            ->where('is_alumni', false) // Explicitly exclude alumni
             ->with('stream')
             ->orderBy('admission_number')
             ->get();
@@ -68,6 +70,14 @@ class StudentPromotionController extends Controller
                 return false;
             }
             
+            // If next class is alumni and student is already in that class, exclude them
+            if ($classroom->nextClass && $classroom->nextClass->is_alumni) {
+                // Check if student is already marked as alumni or in alumni class
+                if ($student->is_alumni || $student->classroom_id === $classroom->nextClass->id) {
+                    return false;
+                }
+            }
+            
             return true;
         });
         
@@ -88,6 +98,19 @@ class StudentPromotionController extends Controller
             return back()->with('error', 'This class does not have a next class mapped. Please set the next class in class settings.');
         }
 
+        // If next class is alumni, check if students are already in that alumni class
+        if ($classroom->nextClass && $classroom->nextClass->is_alumni) {
+            $studentsInAlumniClass = Student::withAlumni()
+                ->whereIn('id', $request->student_ids)
+                ->where('classroom_id', $classroom->nextClass->id)
+                ->orWhere('is_alumni', true)
+                ->count();
+            
+            if ($studentsInAlumniClass > 0) {
+                return back()->with('error', 'Some selected students are already in the alumni class or marked as alumni. They cannot be promoted again.');
+            }
+        }
+
         // Check if this class has already been promoted in this academic year
         $alreadyPromoted = \App\Models\StudentAcademicHistory::where('classroom_id', $classroom->id)
             ->where('academic_year_id', $request->academic_year_id)
@@ -106,6 +129,18 @@ class StudentPromotionController extends Controller
 
             // Filter out students who have already been promoted in this academic year
             $validStudents = $students->filter(function($student) use ($request, $classroom) {
+                // Check if student is already alumni or in alumni class
+                if ($student->is_alumni) {
+                    return false;
+                }
+                
+                // If next class is alumni, check if student is already in that class
+                if ($classroom->nextClass && $classroom->nextClass->is_alumni) {
+                    if ($student->classroom_id === $classroom->nextClass->id) {
+                        return false;
+                    }
+                }
+                
                 // Check if student was already promoted in this academic year
                 $alreadyPromoted = \App\Models\StudentAcademicHistory::where('student_id', $student->id)
                     ->where('academic_year_id', $request->academic_year_id)
@@ -356,8 +391,11 @@ class StudentPromotionController extends Controller
                 ->with('error', 'This class has already been promoted in the selected academic year. Each class can only be promoted once per academic year.');
         }
 
-        // Get all students in this class
-        $allStudents = Student::where('classroom_id', $classroom->id)->get();
+        // Get all students in this class (exclude alumni)
+        $allStudents = Student::withAlumni()
+            ->where('classroom_id', $classroom->id)
+            ->where('is_alumni', false) // Explicitly exclude alumni
+            ->get();
 
         // Filter out students who were just promoted to this class in the current academic year
         // or have already been promoted this year
