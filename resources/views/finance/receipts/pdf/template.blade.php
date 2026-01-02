@@ -362,6 +362,10 @@
                 <span><strong>Ksh {{ number_format($amountPaid, 2) }}</strong></span>
             </div>
             
+            <div class="payment-info">
+                Payment Method: {{ $payment_method ?? 'Cash' }}@if($reference ?? $payment->reference), Reference: {{ $reference ?? $payment->reference }}@endif
+            </div>
+            
             @php
                 $carriedForward = $payment->unallocated_amount ?? 0;
             @endphp
