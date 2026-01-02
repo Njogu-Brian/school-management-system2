@@ -127,6 +127,36 @@
             text-align: right;
         }
         
+        /* Compact column widths for allocations table */
+        .allocations-table th:nth-child(1),
+        .allocations-table td:nth-child(1) {
+            width: 3%;
+        }
+        .allocations-table th:nth-child(2),
+        .allocations-table td:nth-child(2) {
+            width: 12%;
+        }
+        .allocations-table th:nth-child(3),
+        .allocations-table td:nth-child(3) {
+            width: 25%;
+        }
+        .allocations-table th:nth-child(4),
+        .allocations-table td:nth-child(4) {
+            width: 12%;
+        }
+        .allocations-table th:nth-child(5),
+        .allocations-table td:nth-child(5) {
+            width: 10%;
+        }
+        .allocations-table th:nth-child(6),
+        .allocations-table td:nth-child(6) {
+            width: 13%;
+        }
+        .allocations-table th:nth-child(7),
+        .allocations-table td:nth-child(7) {
+            width: 15%;
+        }
+        
         .total-section {
             margin-top: 6px;
             padding: 4px 6px;
