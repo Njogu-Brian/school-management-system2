@@ -46,6 +46,12 @@
       </div>
     @endif
 
+    @if($currentYear)
+      <div class="alert alert-info alert-soft border-0">
+        <i class="bi bi-info-circle"></i> Only students who have been in {{ $classroom->name }} since the start of the academic year ({{ $currentYear->year }}) are shown. Students who were just promoted to this class in the current year are excluded to prevent double promotion.
+      </div>
+    @endif
+
     <form action="{{ route('academics.promotions.promote', $classroom) }}" method="POST" id="promotionForm" class="settings-card">
       @csrf
       <div class="card-body">

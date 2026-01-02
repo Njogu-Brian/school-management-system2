@@ -13,6 +13,11 @@
         <h1 class="mb-1">Student Promotions</h1>
         <p class="text-muted mb-0">Promote students to mapped classes or mark as alumni.</p>
       </div>
+      <div class="d-flex gap-2">
+        <a href="{{ route('academics.promotions.alumni') }}" class="btn btn-ghost-strong">
+          <i class="bi bi-trophy"></i> View Alumni
+        </a>
+      </div>
     </div>
 
     @if(session('success'))

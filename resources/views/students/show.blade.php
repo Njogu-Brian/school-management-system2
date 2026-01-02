@@ -17,6 +17,11 @@
       </div>
       <div class="d-flex gap-2 flex-wrap">
         <a href="{{ url()->previous() ?: route('students.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
+        @if(!$student->is_alumni && $student->classroom_id)
+          <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#demoteStudentModal">
+            <i class="bi bi-arrow-down-circle"></i> Demote
+          </button>
+        @endif
         <a href="{{ route('students.edit', $student->id) }}" class="btn btn-settings-primary"><i class="bi bi-pencil-square"></i> Edit</a>
       </div>
     </div>
@@ -339,4 +344,120 @@
     </div>
   </div>
 </div>
+
+{{-- Demote Student Modal --}}
+@if(!$student->is_alumni && $student->classroom_id)
+<div class="modal fade" id="demoteStudentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form action="{{ route('academics.promotions.demote', $student) }}" method="POST">
+        @csrf
+        <div class="modal-header">
+          <h5 class="modal-title">Demote Student</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> This will move <strong>{{ $student->full_name }}</strong> to a different class. This action will be recorded in the academic history.
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Select Class <span class="text-danger">*</span></label>
+            <select name="classroom_id" class="form-select" required id="demoteClassroomSelect">
+              <option value="">-- Select Class --</option>
+              @foreach(\App\Models\Academics\Classroom::orderBy('name')->get() as $classroom)
+                <option value="{{ $classroom->id }}" {{ $classroom->id == $student->classroom_id ? 'disabled' : '' }}>
+                  {{ $classroom->name }}
+                </option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Select Stream (Optional)</label>
+            <select name="stream_id" class="form-select" id="demoteStreamSelect">
+              <option value="">-- No Stream --</option>
+            </select>
+            <small class="text-muted">Select a stream after choosing a class</small>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Academic Year <span class="text-danger">*</span></label>
+            <select name="academic_year_id" class="form-select" required>
+              @foreach(\App\Models\AcademicYear::orderBy('year', 'desc')->get() as $year)
+                <option value="{{ $year->id }}" {{ $year->is_active ? 'selected' : '' }}>{{ $year->year }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Term <span class="text-danger">*</span></label>
+            <select name="term_id" class="form-select" required>
+              @foreach(\App\Models\Term::orderBy('name')->get() as $term)
+                <option value="{{ $term->id }}" {{ $term->is_current ? 'selected' : '' }}>{{ $term->name }}</option>
+              @endforeach
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Demotion Date <span class="text-danger">*</span></label>
+            <input type="date" name="demotion_date" class="form-control" value="{{ date('Y-m-d') }}" required>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Reason for Demotion <span class="text-danger">*</span></label>
+            <textarea name="reason" class="form-control" rows="3" required placeholder="Enter the reason for demoting this student..."></textarea>
+            <small class="text-muted">This reason will be recorded in the academic history.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-warning">
+            <i class="bi bi-arrow-down-circle"></i> Demote Student
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const classroomSelect = document.getElementById('demoteClassroomSelect');
+  const streamSelect = document.getElementById('demoteStreamSelect');
+
+  if (classroomSelect && streamSelect) {
+    classroomSelect.addEventListener('change', function() {
+      const classroomId = this.value;
+      streamSelect.innerHTML = '<option value="">-- No Stream --</option>';
+
+      if (classroomId) {
+        fetch(`/students/streams?classroom_id=${classroomId}`, {
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data && data.length > 0) {
+            data.forEach(stream => {
+              const option = document.createElement('option');
+              option.value = stream.id;
+              option.textContent = stream.name;
+              streamSelect.appendChild(option);
+            });
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching streams:', error);
+        });
+      }
+    });
+  }
+});
+</script>
+@endpush
+@endif
 @endsection
