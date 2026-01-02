@@ -156,8 +156,9 @@
                                                             <button type="button" 
                                                                     class="btn btn-sm btn-primary save-line-btn" 
                                                                     data-line-id="{{ $line->id }}"
-                                                                    style="display: none;">
-                                                                <i class="bi bi-save"></i> Save
+                                                                    style="display: none;"
+                                                                    title="Save changes to this transaction">
+                                                                <i class="bi bi-save"></i> Save Changes
                                                             </button>
                                                         </td>
                                                     </tr>
@@ -223,33 +224,38 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Show save button when field is edited
     editableFields.forEach(field => {
-        const originalValue = field.value;
+        // Store original value as default
+        field.defaultValue = field.value;
         
         field.addEventListener('input', function() {
             const lineId = this.dataset.lineId;
             const row = this.closest('tr');
             const saveBtn = row.querySelector('.save-line-btn');
             
-            // Show save button if value changed
-            if (this.value !== originalValue) {
+            // Check if any field in the row has changed
+            const allFields = row.querySelectorAll('.editable-field');
+            let hasChanges = false;
+            
+            allFields.forEach(f => {
+                const currentValue = f.value || '';
+                const defaultValue = f.defaultValue || '';
+                if (currentValue !== defaultValue) {
+                    hasChanges = true;
+                }
+            });
+            
+            // Show or hide save button based on changes
+            if (hasChanges) {
                 pendingSaves.add(lineId);
                 if (saveBtn) {
                     saveBtn.style.display = 'inline-block';
+                    saveBtn.classList.add('btn-warning');
+                    saveBtn.classList.remove('btn-primary');
                 }
             } else {
-                // Check if all fields in row are back to original
-                const allFields = row.querySelectorAll('.editable-field');
-                let hasChanges = false;
-                allFields.forEach(f => {
-                    if (f.value !== f.defaultValue) {
-                        hasChanges = true;
-                    }
-                });
-                if (!hasChanges) {
-                    pendingSaves.delete(lineId);
-                    if (saveBtn) {
-                        saveBtn.style.display = 'none';
-                    }
+                pendingSaves.delete(lineId);
+                if (saveBtn) {
+                    saveBtn.style.display = 'none';
                 }
             }
             
@@ -260,14 +266,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (this.dataset.field === 'amount_dr' && this.value && crField.value) {
                     crField.value = '';
+                    crField.defaultValue = '';
                 } else if (this.dataset.field === 'amount_cr' && this.value && drField.value) {
                     drField.value = '';
+                    drField.defaultValue = '';
                 }
             }
         });
         
-        // Store original value
-        field.defaultValue = field.value;
+        // Also check on blur (when field loses focus)
+        field.addEventListener('blur', function() {
+            const lineId = this.dataset.lineId;
+            const row = this.closest('tr');
+            const saveBtn = row.querySelector('.save-line-btn');
+            
+            // Check if any field in the row has changed
+            const allFields = row.querySelectorAll('.editable-field');
+            let hasChanges = false;
+            
+            allFields.forEach(f => {
+                const currentValue = f.value || '';
+                const defaultValue = f.defaultValue || '';
+                if (currentValue !== defaultValue) {
+                    hasChanges = true;
+                }
+            });
+            
+            if (hasChanges && saveBtn) {
+                saveBtn.style.display = 'inline-block';
+                saveBtn.classList.add('btn-warning');
+                saveBtn.classList.remove('btn-primary');
+            }
+        });
     });
     
     // Handle save button clicks
@@ -356,10 +386,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         saveBtn.style.display = 'none';
                         saveBtn.disabled = false;
                         saveBtn.innerHTML = '<i class="bi bi-save"></i> Save';
+                        saveBtn.classList.remove('btn-warning');
+                        saveBtn.classList.add('btn-primary');
                     }
-                    // Update default values
+                    // Update default values to reflect saved state
                     row.querySelectorAll('.editable-field').forEach(field => {
-                        field.defaultValue = field.value;
+                        field.defaultValue = field.value || '';
                     });
                 }
             } else {
