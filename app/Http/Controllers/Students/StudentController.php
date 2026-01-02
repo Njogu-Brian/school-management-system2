@@ -266,27 +266,32 @@ class StudentController extends Controller
                 ]);
                 $familyId = $fam->id;
             }
+            // Normalize country codes
+            $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
+            $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
+            $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+            
             // Create ParentInfo with defaults for country codes and normalized phone numbers
             $parentData = [
                 'father_name' => $request->father_name,
-                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $request->input('father_phone_country_code', '+254')),
-                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $request->input('father_phone_country_code', '+254')),
+                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode),
+                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode),
                 'father_email' => $request->father_email,
                 'father_id_number' => $request->father_id_number,
                 'mother_name' => $request->mother_name,
-                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $request->input('mother_phone_country_code', '+254')),
-                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $request->input('mother_phone_country_code', '+254')),
+                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode),
+                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode),
                 'mother_email' => $request->mother_email,
                 'mother_id_number' => $request->mother_id_number,
                 'guardian_name' => $request->guardian_name,
-                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $request->input('guardian_phone_country_code', '+254')),
-                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $request->input('guardian_phone_country_code', '+254')),
+                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode),
+                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode),
                 'guardian_email' => $request->guardian_email,
                 'guardian_relationship' => $request->guardian_relationship,
                 'marital_status' => $request->marital_status,
-                'father_phone_country_code' => $request->input('father_phone_country_code', '+254'),
-                'mother_phone_country_code' => $request->input('mother_phone_country_code', '+254'),
-                'guardian_phone_country_code' => $request->input('guardian_phone_country_code', '+254'),
+                'father_phone_country_code' => $fatherCountryCode,
+                'mother_phone_country_code' => $motherCountryCode,
+                'guardian_phone_country_code' => $guardianCountryCode,
             ];
 
             $parent = ParentInfo::create($parentData);
@@ -637,26 +642,31 @@ class StudentController extends Controller
         }
 
         if ($student->parent) {
+            // Normalize country codes
+            $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
+            $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
+            $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+            
             $parentUpdateData = [
                 'father_name' => $request->father_name,
-                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $request->input('father_phone_country_code', '+254')),
-                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $request->input('father_phone_country_code', '+254')),
+                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode),
+                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode),
                 'father_email' => $request->father_email,
                 'father_id_number' => $request->father_id_number,
                 'mother_name' => $request->mother_name,
-                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $request->input('mother_phone_country_code', '+254')),
-                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $request->input('mother_phone_country_code', '+254')),
+                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode),
+                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode),
                 'mother_email' => $request->mother_email,
                 'mother_id_number' => $request->mother_id_number,
                 'guardian_name' => $request->guardian_name,
-                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $request->input('guardian_phone_country_code', '+254')),
-                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $request->input('guardian_phone_country_code', '+254')),
+                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode),
+                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode),
                 'guardian_email' => $request->guardian_email,
                 'guardian_relationship' => $request->guardian_relationship,
                 'marital_status' => $request->marital_status,
-                'father_phone_country_code' => $request->input('father_phone_country_code', '+254'),
-                'mother_phone_country_code' => $request->input('mother_phone_country_code', '+254'),
-                'guardian_phone_country_code' => $request->input('guardian_phone_country_code', '+254'),
+                'father_phone_country_code' => $fatherCountryCode,
+                'mother_phone_country_code' => $motherCountryCode,
+                'guardian_phone_country_code' => $guardianCountryCode,
             ];
 
             $student->parent->update($parentUpdateData);
@@ -1034,11 +1044,11 @@ class StudentController extends Controller
             $rowData['is_fully_immunized'] = isset($rowData['is_fully_immunized']) ? 
                 (in_array(strtolower($rowData['is_fully_immunized']), ['yes', '1', 'true', 'y']) ? 1 : 0) : 0;
 
-            // Normalize country codes
-            $rowData['father_phone_country_code'] = $rowData['father_phone_country_code'] ?? '+254';
-            $rowData['mother_phone_country_code'] = $rowData['mother_phone_country_code'] ?? '+254';
-            $rowData['guardian_phone_country_code'] = $rowData['guardian_phone_country_code'] ?? '+254';
-            $rowData['emergency_contact_country_code'] = $rowData['emergency_contact_country_code'] ?? '+254';
+            // Normalize country codes (handle +ke or ke)
+            $rowData['father_phone_country_code'] = $this->normalizeCountryCode($rowData['father_phone_country_code'] ?? '+254');
+            $rowData['mother_phone_country_code'] = $this->normalizeCountryCode($rowData['mother_phone_country_code'] ?? '+254');
+            $rowData['guardian_phone_country_code'] = $this->normalizeCountryCode($rowData['guardian_phone_country_code'] ?? '+254');
+            $rowData['emergency_contact_country_code'] = $this->normalizeCountryCode($rowData['emergency_contact_country_code'] ?? '+254');
             $rowData['marital_status'] = $rowData['marital_status'] ?? null;
 
             // Normalize phones with country codes
@@ -1269,40 +1279,93 @@ class StudentController extends Controller
      */
     protected function sendAdmissionCommunication($student, $parent)
     {
-        $className = optional($student->classrooms)->name ?? '';
-        $fullName = $student->getFullNameAttribute();
-
-        // SMS
-        $smsTemplate = CommunicationTemplate::where('type', 'sms')
-            ->where('code', 'student_admission')
-            ->first();
-
-        $smsMessage = $smsTemplate
-            ? str_replace(['{name}', '{class}'], [$fullName, $className], $smsTemplate->content)
-            : "Dear Parent, your child {$fullName} has been admitted to class {$className}.";
-
-        foreach ([$parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
-            if ($phone) {
-                $this->smsService->sendSMS($phone, $smsMessage);
+        // Use templates from CommunicationTemplateSeeder
+        // Template codes: admissions_welcome_sms, admissions_welcome_email, admissions_welcome_whatsapp
+        $smsTemplate = CommunicationTemplate::where('code', 'admissions_welcome_sms')->first();
+        $emailTemplate = CommunicationTemplate::where('code', 'admissions_welcome_email')->first();
+        $whatsappTemplate = CommunicationTemplate::where('code', 'admissions_welcome_whatsapp')->first();
+        
+        // Fallback: create templates if seeder hasn't run yet
+        if (!$smsTemplate) {
+            $smsTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'admissions_welcome_sms'],
+                [
+                    'title' => 'Welcome Student (SMS/WA)',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! 🎉\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nWe look forward to partnering with you in nurturing your child's growth and success.\n\nWarm regards,\n{{school_name}}",
+                ]
+            );
+        }
+        
+        if (!$emailTemplate) {
+            $emailTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'admissions_welcome_email'],
+                [
+                    'title' => 'Welcome Student (Email)',
+                    'type' => 'email',
+                    'subject' => 'Welcome to {{school_name}} – Admission Confirmation',
+                    'content' => "Dear {{parent_name}},\n\nWe are pleased to welcome you and your child, {{student_name}}, to the {{school_name}} family.\n\nStudent Name: {{student_name}}\nAdmission Number: {{admission_number}}\nClass & Stream: {{class_name}} {{stream_name}}\n\nYou may update your profile or access student information using the link below:\n{{profile_update_link}}\n\nFor any assistance, contact us at {{school_phone}} or {{school_email}}.\n\nWarm regards,\n{{school_name}} Administration",
+                ]
+            );
+        }
+        
+        // Get school settings
+        $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+        $schoolPhone = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_phone')->value('value') ?? '';
+        $schoolEmail = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_email')->value('value') ?? '';
+        
+        // Prepare template variables
+        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent';
+        $className = optional($student->classroom)->name ?? '';
+        $streamName = optional($student->stream)->name ?? '';
+        $fullName = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
+        
+        $variables = [
+            'parent_name' => $parentName,
+            'student_name' => $fullName,
+            'admission_number' => $student->admission_number ?? '',
+            'class_name' => $className,
+            'stream_name' => $streamName,
+            'school_name' => $schoolName,
+            'school_phone' => $schoolPhone,
+            'school_email' => $schoolEmail,
+            'profile_update_link' => url('/parent/profile'),
+        ];
+        
+        // Replace placeholders
+        $replacePlaceholders = function($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', $value, $text);
+            }
+            return $text;
+        };
+        
+        // Send SMS
+        if ($smsTemplate) {
+            $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+            foreach ([$parent->primary_contact_phone ?? $parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
+                if ($phone) {
+                    try {
+                        $this->smsService->sendSMS($phone, $smsMessage);
+                    } catch (\Throwable $e) {
+                        Log::error("Admission SMS sending failed to $phone: " . $e->getMessage());
+                    }
+                }
             }
         }
-
-        // Email
-        $emailTemplate = CommunicationTemplate::where('code', 'student_admission')->first();
+        
+        // Send Email
         if ($emailTemplate) {
-            $subject = $emailTemplate->title;
-            $body = str_replace(
-                ['{name}', '{class}'],
-                [$fullName, $className],
-                $emailTemplate->message
-            );
-
-            foreach ([$parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
+            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+            $body = $replacePlaceholders($emailTemplate->content, $variables);
+            
+            foreach ([$parent->primary_contact_email ?? $parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
                 if ($email) {
                     try {
                         Mail::to($email)->send(new GenericMail($subject, $body));
                     } catch (\Throwable $e) {
-                        Log::error("Email sending failed to $email: " . $e->getMessage());
+                        Log::error("Admission email sending failed to $email: " . $e->getMessage());
                     }
                 }
             }
@@ -1634,11 +1697,14 @@ class StudentController extends Controller
             ['code' => '+84', 'label' => '🇻🇳 Vietnam (+84)'],
         ];
 
-        return collect($codes)
-            ->unique('code')
+        // Separate Kenya from the rest, then sort the rest alphabetically
+        $kenya = collect($codes)->firstWhere('code', '+254');
+        $others = collect($codes)->reject(fn($item) => $item['code'] === '+254')
             ->sortBy('label')
             ->values()
             ->all();
+
+        return $kenya ? array_merge([$kenya], $others) : $others;
     }
 
     /**
@@ -1649,6 +1715,8 @@ class StudentController extends Controller
         if (!$number) {
             return null;
         }
+        // Ensure code is properly formatted (handle +ke or ke to +254)
+        $code = $this->normalizeCountryCode($code);
         $cleanCode = ltrim(trim($code ?? '+254'), '+');
         $cleanNumber = preg_replace('/\D+/', '', $number);
         $cleanNumber = ltrim($cleanNumber, '0');
@@ -1656,5 +1724,49 @@ class StudentController extends Controller
             return null;
         }
         return '+' . $cleanCode . $cleanNumber;
+    }
+
+    /**
+     * Normalize country code (e.g., +ke, ke -> +254)
+     */
+    protected function normalizeCountryCode(?string $code): string
+    {
+        if (!$code) {
+            return '+254';
+        }
+        $code = trim($code);
+        // Handle +ke or ke
+        if (strtolower($code) === '+ke' || strtolower($code) === 'ke') {
+            return '+254';
+        }
+        // Ensure it starts with +
+        if (!str_starts_with($code, '+')) {
+            return '+' . ltrim($code, '+');
+        }
+        return $code;
+    }
+
+    /**
+     * Extract local phone number from stored full international format.
+     * Removes the country code prefix to show only the local number.
+     */
+    protected function extractLocalPhone(?string $fullPhone, ?string $countryCode = '+254'): ?string
+    {
+        if (!$fullPhone) {
+            return null;
+        }
+        $countryCode = $this->normalizeCountryCode($countryCode);
+        $cleanCode = ltrim($countryCode, '+');
+        
+        // Remove all non-digits from full phone
+        $digits = preg_replace('/\D+/', '', $fullPhone);
+        
+        // If phone starts with country code, remove it
+        if (str_starts_with($digits, $cleanCode)) {
+            return substr($digits, strlen($cleanCode));
+        }
+        
+        // If it's already just local digits, return as is
+        return $digits;
     }
 }

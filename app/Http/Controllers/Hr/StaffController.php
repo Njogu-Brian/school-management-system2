@@ -229,8 +229,35 @@ class StaffController extends Controller
             'staff_id' => $staff->staff_id,
         ];
 
-        $emailTpl = CommunicationTemplate::where('code','welcome_staff')->where('type','email')->first();
-        $smsTpl   = CommunicationTemplate::where('code','welcome_staff')->where('type','sms')->first();
+        // Use templates from CommunicationTemplateSeeder
+        // Template codes: staff_welcome_sms, staff_welcome_email, staff_welcome_whatsapp
+        $emailTpl = CommunicationTemplate::where('code', 'staff_welcome_email')->first();
+        $smsTpl   = CommunicationTemplate::where('code', 'staff_welcome_sms')->first();
+        
+        // Fallback: create templates if seeder hasn't run yet
+        if (!$emailTpl) {
+            $emailTpl = CommunicationTemplate::firstOrCreate(
+                ['code' => 'staff_welcome_email'],
+                [
+                    'title' => 'Welcome Staff (Email)',
+                    'type' => 'email',
+                    'subject' => 'Welcome to {{school_name}} – Staff Account Details',
+                    'content' => "Dear {{staff_name}},\n\nWelcome to the {{school_name}} team!\n\nYour staff account has been set up. Below are your login details:\nLogin URL: {{app_url}}\nEmail: {{login_email}}\nTemporary Password: {{temporary_password}}\n\nPlease log in and update your profile.\n\nWe wish you success as {{staff_role}}.\n\nWarm regards,\n{{school_name}} Management",
+                ]
+            );
+        }
+        
+        if (!$smsTpl) {
+            $smsTpl = CommunicationTemplate::firstOrCreate(
+                ['code' => 'staff_welcome_sms'],
+                [
+                    'title' => 'Welcome Staff (SMS/WA)',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "Dear {{staff_name}},\n\nWelcome to {{school_name}}!\nYour staff account has been created successfully.\n\nLogin URL: {{app_url}}\nEmail: {{login_email}}\n\nWe are excited to have you join our team.\n\nRegards,\n{{school_name}}",
+                ]
+            );
+        }
 
         // Send email notification
         if ($emailTpl && $user->email) {
@@ -706,17 +733,28 @@ class StaffController extends Controller
             // Password is the staff's ID number
             $passwordPlain = $staff->id_number;
 
-            // Prepare template variables
+            // Get school settings for templates
+            $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+            $appUrl = config('app.url');
+            
+            // Prepare template variables matching CommunicationTemplateSeeder placeholders
             $vars = [
+                'staff_name' => $user->name,
+                'school_name' => $schoolName,
+                'app_url' => $appUrl,
+                'login_email' => $user->email,
+                'temporary_password' => $passwordPlain,
+                'staff_role' => $staff->jobTitle->name ?? $staff->category->name ?? 'Staff Member',
+                // Legacy support for old template format
                 'name'     => $user->name,
                 'login'    => $user->email,
                 'password' => $passwordPlain,
                 'staff_id' => $staff->staff_id,
             ];
 
-            // Get welcome templates
-            $emailTpl = CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'email')->first();
-            $smsTpl   = CommunicationTemplate::where('code', 'welcome_staff')->where('type', 'sms')->first();
+            // Use templates from CommunicationTemplateSeeder
+            $emailTpl = CommunicationTemplate::where('code', 'staff_welcome_email')->first();
+            $smsTpl   = CommunicationTemplate::where('code', 'staff_welcome_sms')->first();
 
             $sent = false;
             $errors = [];
@@ -961,10 +999,15 @@ class StaffController extends Controller
 
     private function fillTemplate(string $content, array $vars): string
     {
-        // supports {key} placeholders
-        $search  = array_map(fn($k)=>'{'.$k.'}', array_keys($vars));
-        $replace = array_values($vars);
-        return str_replace($search, $replace, $content);
+        // supports both {key} and {{key}} placeholders (for seeder compatibility)
+        $result = $content;
+        foreach ($vars as $key => $value) {
+            // Replace {{key}} format (seeder style)
+            $result = str_replace('{{' . $key . '}}', $value, $result);
+            // Replace {key} format (legacy style)
+            $result = str_replace('{' . $key . '}', $value, $result);
+        }
+        return $result;
     }
 
     /**

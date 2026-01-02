@@ -385,6 +385,36 @@ if (!function_exists('is_my_subordinate')) {
 /**
  * Get classroom IDs for classes assigned to subordinates
  */
+/**
+ * Extract local phone number from stored full international format.
+ * Removes the country code prefix to show only the local number.
+ */
+if (!function_exists('extract_local_phone')) {
+    function extract_local_phone(?string $fullPhone, ?string $countryCode = '+254'): ?string
+    {
+        if (!$fullPhone) {
+            return null;
+        }
+        
+        // Normalize country code (handle +ke or ke to +254)
+        if (strtolower($countryCode) === '+ke' || strtolower($countryCode) === 'ke') {
+            $countryCode = '+254';
+        }
+        $cleanCode = ltrim($countryCode, '+');
+        
+        // Remove all non-digits from full phone
+        $digits = preg_replace('/\D+/', '', $fullPhone);
+        
+        // If phone starts with country code, remove it
+        if (str_starts_with($digits, $cleanCode)) {
+            return substr($digits, strlen($cleanCode));
+        }
+        
+        // If it's already just local digits, return as is
+        return $digits;
+    }
+}
+
 if (!function_exists('get_subordinate_classroom_ids')) {
     function get_subordinate_classroom_ids(): array
     {

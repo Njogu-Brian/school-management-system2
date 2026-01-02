@@ -126,7 +126,7 @@ class OnlineAdmissionController extends Controller
 
         // Normalize phones with country codes
         $data['father_phone'] = $this->formatPhoneWithCode($request->father_phone, $data['father_phone_country_code']);
-        $data['father_whatsapp'] = $this->formatPhoneWithCode($request->mother_whatsapp, $data['father_phone_country_code']);
+        $data['father_whatsapp'] = $this->formatPhoneWithCode($request->father_whatsapp, $data['father_phone_country_code']);
         $data['mother_phone'] = $this->formatPhoneWithCode($request->mother_phone, $data['mother_phone_country_code']);
         $data['mother_whatsapp'] = $this->formatPhoneWithCode($request->mother_whatsapp, $data['mother_phone_country_code']);
         $data['guardian_phone'] = $this->formatPhoneWithCode($request->guardian_phone, $data['guardian_phone_country_code']);
@@ -530,11 +530,34 @@ class OnlineAdmissionController extends Controller
             ['code' => '+84', 'label' => '🇻🇳 Vietnam (+84)'],
         ];
 
-        return collect($codes)
-            ->unique('code')
+        // Separate Kenya from the rest, then sort the rest alphabetically
+        $kenya = collect($codes)->firstWhere('code', '+254');
+        $others = collect($codes)->reject(fn($item) => $item['code'] === '+254')
             ->sortBy('label')
             ->values()
             ->all();
+
+        return $kenya ? array_merge([$kenya], $others) : $others;
+    }
+
+    /**
+     * Normalize country code (e.g., +ke, ke -> +254)
+     */
+    protected function normalizeCountryCode(?string $code): string
+    {
+        if (!$code) {
+            return '+254';
+        }
+        $code = trim($code);
+        // Handle +ke or ke
+        if (strtolower($code) === '+ke' || strtolower($code) === 'ke') {
+            return '+254';
+        }
+        // Ensure it starts with +
+        if (!str_starts_with($code, '+')) {
+            return '+' . ltrim($code, '+');
+        }
+        return $code;
     }
 
     /**
@@ -545,6 +568,8 @@ class OnlineAdmissionController extends Controller
         if (!$number) {
             return null;
         }
+        // Ensure code is properly formatted (handle +ke or ke to +254)
+        $code = $this->normalizeCountryCode($code);
         $cleanCode = ltrim(trim($code ?? '+254'), '+');
         $cleanNumber = preg_replace('/\D+/', '', $number);
         $cleanNumber = ltrim($cleanNumber, '0');

@@ -160,11 +160,33 @@
           </div>
           <div class="card-body">
             @if($student->parent)
+              @php $p = $student->parent; @endphp
               <div class="row g-3">
-                <div class="col-md-6"><div class="text-muted small">Father</div><div class="fw-semibold">{{ $student->parent->father_name ?? '—' }}</div></div>
-                <div class="col-md-6"><div class="text-muted small">Mother</div><div class="fw-semibold">{{ $student->parent->mother_name ?? '—' }}</div></div>
-                <div class="col-md-6"><div class="text-muted small">Guardian</div><div class="fw-semibold">{{ $student->parent->guardian_name ?? '—' }}</div></div>
-                <div class="col-md-6"><div class="text-muted small">Primary Phone</div><div class="fw-semibold">{{ $student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? '—' }}</div></div>
+                {{-- Father Section --}}
+                <div class="col-12"><h6 class="fw-bold text-uppercase text-muted small mb-2">Father</h6></div>
+                <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->father_name ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">ID Number</div><div class="fw-semibold">{{ $p->father_id_number ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Phone</div><div class="fw-semibold">{{ $p->father_phone ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">WhatsApp</div><div class="fw-semibold">{{ $p->father_whatsapp ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ $p->father_email ?? '—' }}</div></div>
+
+                {{-- Mother Section --}}
+                <div class="col-12 mt-3"><h6 class="fw-bold text-uppercase text-muted small mb-2">Mother</h6></div>
+                <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->mother_name ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">ID Number</div><div class="fw-semibold">{{ $p->mother_id_number ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Phone</div><div class="fw-semibold">{{ $p->mother_phone ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">WhatsApp</div><div class="fw-semibold">{{ $p->mother_whatsapp ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ $p->mother_email ?? '—' }}</div></div>
+
+                {{-- Guardian Section --}}
+                @if($p->guardian_name)
+                <div class="col-12 mt-3"><h6 class="fw-bold text-uppercase text-muted small mb-2">Guardian</h6></div>
+                <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->guardian_name ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Relationship</div><div class="fw-semibold">{{ $p->guardian_relationship ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Phone</div><div class="fw-semibold">{{ $p->guardian_phone ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">WhatsApp</div><div class="fw-semibold">{{ $p->guardian_whatsapp ?? '—' }}</div></div>
+                <div class="col-md-6"><div class="text-muted small">Email</div><div class="fw-semibold">{{ $p->guardian_email ?? '—' }}</div></div>
+                @endif
               </div>
             @else
               <div class="text-muted">No parent/guardian information available.</div>

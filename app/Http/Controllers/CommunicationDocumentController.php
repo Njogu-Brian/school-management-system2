@@ -16,6 +16,7 @@ use App\Services\CommunicationHelperService;
 use App\Services\SMSService;
 use App\Services\WhatsAppService;
 use App\Models\CommunicationLog;
+use App\Models\CommunicationTemplate;
 
 class CommunicationDocumentController extends Controller
 {
@@ -60,9 +61,79 @@ class CommunicationDocumentController extends Controller
                 continue;
             }
 
-            $body = trim($message . "\n\n" . $link);
+            // Use templates from CommunicationTemplateSeeder for finance documents
+            $template = null;
+            if (in_array($type, ['invoice', 'receipt', 'statement'])) {
+                if ($channel === 'sms') {
+                    $template = CommunicationTemplate::where('code', 'finance_share_link_sms')->first();
+                } elseif ($channel === 'email') {
+                    $template = CommunicationTemplate::where('code', 'finance_share_link_email')->first();
+                }
+            } elseif ($type === 'report_card') {
+                if ($channel === 'sms') {
+                    $template = CommunicationTemplate::where('code', 'academics_report_sms')->first();
+                } elseif ($channel === 'email') {
+                    $template = CommunicationTemplate::where('code', 'academics_report_email')->first();
+                }
+            }
+            
+            // Fallback: create templates if seeder hasn't run yet
+            if (!$template && in_array($type, ['invoice', 'receipt', 'statement']) && $channel === 'sms') {
+                $template = CommunicationTemplate::firstOrCreate(
+                    ['code' => 'finance_share_link_sms'],
+                    [
+                        'title' => 'Share Finance Link (SMS)',
+                        'type' => 'sms',
+                        'subject' => null,
+                        'content' => "Dear {{parent_name}},\n\nYou can view and download {{student_name}}'s invoices, receipts, and fee statement using the link below:\n\n{{finance_portal_link}}\n\nThank you,\n{{school_name}}",
+                    ]
+                );
+            }
+            
+            if (!$template && in_array($type, ['invoice', 'receipt', 'statement']) && $channel === 'email') {
+                $template = CommunicationTemplate::firstOrCreate(
+                    ['code' => 'finance_share_link_email'],
+                    [
+                        'title' => 'Share Finance Link (Email)',
+                        'type' => 'email',
+                        'subject' => 'Financial Document – {{student_name}}',
+                        'content' => "Dear {{parent_name}},\n\nPlease find the requested financial document for {{student_name}} attached.\nYou can also access all financial records anytime via:\n{{finance_portal_link}}\n\nWe are always happy to assist.\n\nWarm regards,\n{{school_name}} Finance Team",
+                    ]
+                );
+            }
+            
+            // Prepare base variables for template
+            $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+            $studentName = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
+            $useTemplate = $template !== null;
 
             foreach ($recipients as $contact => $entity) {
+                // Prepare personalized body for each recipient
+                if ($useTemplate) {
+                    $parentName = $entity['name'] ?? 'Parent';
+                    
+                    $variables = [
+                        'parent_name' => $parentName,
+                        'student_name' => $studentName,
+                        'finance_portal_link' => $link,
+                        'school_name' => $schoolName,
+                    ];
+                    
+                    // Replace placeholders in template content (create a copy to avoid modifying original)
+                    $templateContent = $template->content;
+                    $templateSubject = $template->subject ?? $subject;
+                    foreach ($variables as $key => $value) {
+                        $templateContent = str_replace('{{' . $key . '}}', $value, $templateContent);
+                        $templateSubject = str_replace('{{' . $key . '}}', $value, $templateSubject);
+                    }
+                    
+                    $body = $templateContent . "\n\n" . $link;
+                    if ($channel === 'email') {
+                        $subject = $templateSubject;
+                    }
+                } else {
+                    $body = trim($message . "\n\n" . $link);
+                }
                 try {
                     $response = null;
                     $status   = 'sent';
@@ -76,7 +147,7 @@ class CommunicationDocumentController extends Controller
                     } elseif ($channel === 'whatsapp') {
                         $response = $whatsAppService->sendMessage($contact, $body);
                     } else {
-                        $this->sendEmailWithOptionalPdf($contact, $subject, $message, $link);
+                        $this->sendEmailWithOptionalPdf($contact, $subject, $body, $link);
                         $response = ['status' => 'sent'];
                     }
 

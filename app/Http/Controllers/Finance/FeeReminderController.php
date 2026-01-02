@@ -7,6 +7,7 @@ use App\Models\FeeReminder;
 use App\Models\Invoice;
 use App\Models\Student;
 use App\Services\SMSService;
+use App\Models\CommunicationTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
@@ -111,20 +112,84 @@ class FeeReminderController extends Controller
         $student = $reminder->student;
         $parent = $student->parent ?? null;
 
-        $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
+        // Use templates from CommunicationTemplateSeeder if no custom message
+        $smsTemplate = null;
+        $emailTemplate = null;
+        
+        if (!$reminder->message) {
+            // Use finance_fee_reminder_sms for SMS
+            $smsTemplate = \App\Models\CommunicationTemplate::where('code', 'finance_fee_reminder_sms')->first();
+            
+            // Use finance_fee_plan_email for Email
+            $emailTemplate = \App\Models\CommunicationTemplate::where('code', 'finance_fee_plan_email')->first();
+            
+            // Fallback: create templates if seeder hasn't run yet
+            if (!$smsTemplate) {
+                $smsTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                    ['code' => 'finance_fee_reminder_sms'],
+                    [
+                        'title' => 'Fee Reminder (SMS)',
+                        'type' => 'sms',
+                        'subject' => null,
+                        'content' => "Dear {{parent_name}},\n\nFriendly reminder: there is an outstanding fee balance for {{student_name}} for {{term_name}}, {{academic_year}}.\nPlease review details here:\n{{finance_portal_link}}\n\nThank you for your cooperation.\n{{school_name}}",
+                    ]
+                );
+            }
+            
+            if (!$emailTemplate) {
+                $emailTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                    ['code' => 'finance_fee_plan_email'],
+                    [
+                        'title' => 'Fee Payment Plan (Email)',
+                        'type' => 'email',
+                        'subject' => 'Fee Payment Update – {{student_name}}',
+                        'content' => "Dear {{parent_name}},\n\nSchool fees for {{student_name}} remain pending for {{term_name}}, {{academic_year}}.\nIf you are on a payment plan or need assistance, kindly reach out.\n\nView the full statement here:\n{{finance_portal_link}}\n\nWe appreciate your continued partnership.\n\nWarm regards,\n{{school_name}} Accounts Office",
+                    ]
+                );
+            }
+        }
+
+        // Prepare template variables
+        $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+        $parentName = $parent ? ($parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent') : 'Parent';
+        $currentTerm = \App\Models\Term::where('is_current', true)->first();
+        $currentYear = \App\Models\AcademicYear::where('is_active', true)->first();
+        $financePortalLink = url('/finance/student-statements/' . $student->id);
+        
+        $variables = [
+            'parent_name' => $parentName,
+            'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
+            'term_name' => $currentTerm->name ?? 'Current Term',
+            'academic_year' => $currentYear->year ?? date('Y'),
+            'finance_portal_link' => $financePortalLink,
+            'school_name' => $schoolName,
+        ];
+        
+        // Replace placeholders
+        $replacePlaceholders = function($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', $value, $text);
+            }
+            return $text;
+        };
 
         if ($reminder->channel === 'email' || $reminder->channel === 'both') {
             $email = null;
             if ($parent) {
-                $email = $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                $email = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
             }
             
             if ($email) {
                 try {
-                    Mail::to($email)->send(new GenericMail(
-                        'Fee Payment Reminder',
-                        $message
-                    ));
+                    if ($emailTemplate && !$reminder->message) {
+                        $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+                        $message = $replacePlaceholders($emailTemplate->content, $variables);
+                    } else {
+                        $subject = 'Fee Payment Reminder';
+                        $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
+                    }
+                    
+                    Mail::to($email)->send(new GenericMail($subject, $message));
                 } catch (\Exception $e) {
                     $reminder->update([
                         'status' => 'failed',
@@ -138,12 +203,18 @@ class FeeReminderController extends Controller
         if ($reminder->channel === 'sms' || $reminder->channel === 'both') {
             $phone = null;
             if ($parent) {
-                $phone = $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                $phone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
             }
             $phone = $phone ?? $student->phone_number ?? null;
             
             if ($phone) {
                 try {
+                    if ($smsTemplate && !$reminder->message) {
+                        $message = $replacePlaceholders($smsTemplate->content, $variables);
+                    } else {
+                        $message = $reminder->message ?? $this->generateDefaultMessage($reminder);
+                    }
+                    
                     $this->smsService->sendSMS($phone, $message);
                 } catch (\Exception $e) {
                     $reminder->update([

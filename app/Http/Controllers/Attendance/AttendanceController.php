@@ -289,14 +289,37 @@ public function mark(Request $request)
 // -------------------- TEMPLATE NOTIFY --------------------
 private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $reason = null)
 {
-    $tpl = CommunicationTemplate::whereRaw('LOWER(code) = ?', [strtolower($code)])->first();
+    // Map old codes to new seeder template codes
+    $templateCodeMap = [
+        'attendance_absent' => 'attendance_absent_sms',
+        'attendance_late' => 'attendance_absent_sms', // Use same template
+        'attendance_corrected' => 'attendance_status_email', // Use email template for corrections
+    ];
+    
+    $templateCode = $templateCodeMap[strtolower($code)] ?? 'attendance_absent_sms';
+    
+    // Use templates from CommunicationTemplateSeeder
+    $tpl = CommunicationTemplate::where('code', $templateCode)->first();
+    
+    // Fallback: create template if seeder hasn't run yet
+    if (!$tpl && $templateCode === 'attendance_absent_sms') {
+        $tpl = CommunicationTemplate::firstOrCreate(
+            ['code' => 'attendance_absent_sms'],
+            [
+                'title' => 'Attendance: Absent (SMS)',
+                'type' => 'sms',
+                'subject' => null,
+                'content' => "Dear {{parent_name}},\n\n{{student_name}} was marked {{attendance_status}} on {{attendance_date}}.\nIf clarification is needed, kindly contact the school.\n\nRegards,\n{{school_name}}",
+            ]
+        );
+    }
 
     $message = $tpl
         ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $reason)
         : "Your child {$student->full_name} attendance update for {$humanDate}. Reason: {$reason}";
 
     $phones = array_filter([
-        $student->parent->father_phone ?? null,
+        $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
         $student->parent->mother_phone ?? null,
         $student->parent->guardian_phone ?? null,
     ]);
@@ -338,19 +361,37 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
 
 private function applyPlaceholders(string $content, Student $student, string $humanDate, ?string $reason = null): string
 {
+    // Get school name
+    $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+    
+    $parentName = $student->parent->primary_contact_name 
+        ?? $student->parent->father_name
+        ?? $student->parent->mother_name
+        ?? $student->parent->guardian_name
+        ?? 'Parent';
+    
+    // Support both {key} and {{key}} placeholders
     $replacements = [
+        // Seeder format ({{key}})
+        '{{student_name}}' => $student->full_name,
+        '{{attendance_status}}' => $reason ?? 'absent',
+        '{{attendance_date}}' => $humanDate,
+        '{{parent_name}}' => $parentName,
+        '{{school_name}}' => $schoolName,
+        // Legacy format ({key})
         '{student_name}' => $student->full_name,
-        '{class}'        => $student->classrooms->name ?? '',
+        '{class}' => $student->classroom->name ?? '',
         '{admission_no}' => $student->admission_number ?? '',
-        '{date}'         => $humanDate,
-        '{parent_name}'  => $student->parent->father_name
-            ?? $student->parent->mother_name
-            ?? $student->parent->guardian_name
-            ?? '',
-        '{reason}'       => $reason ?? '',
+        '{date}' => $humanDate,
+        '{parent_name}' => $parentName,
+        '{reason}' => $reason ?? '',
     ];
 
-    return str_replace(array_keys($replacements), array_values($replacements), $content);
+    $result = $content;
+    foreach ($replacements as $key => $value) {
+        $result = str_replace($key, $value, $result);
+    }
+    return $result;
 }
 
 
@@ -717,10 +758,38 @@ private function applyPlaceholders(string $content, Student $student, string $hu
             $consecutive = $item['consecutive_absences'];
 
             if ($student->parent) {
-                $message = "Alert: {$student->full_name} has been absent for {$consecutive} consecutive day(s). Please contact the school.";
+                // Use template from CommunicationTemplateSeeder
+                $template = CommunicationTemplate::where('code', 'attendance_consecutive_absence_sms')->first();
+                
+                // Fallback: create template if seeder hasn't run yet
+                if (!$template) {
+                    $template = CommunicationTemplate::firstOrCreate(
+                        ['code' => 'attendance_consecutive_absence_sms'],
+                        [
+                            'title' => 'Consecutive Absence Alert (SMS)',
+                            'type' => 'sms',
+                            'subject' => null,
+                            'content' => "Dear {{parent_name}},\n\n{{student_name}} has missed multiple days. Please contact the school to provide a reason or update attendance.\n\n{{school_name}}",
+                        ]
+                    );
+                }
+                
+                // Get school name
+                $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+                $parentName = $student->parent->primary_contact_name 
+                    ?? $student->parent->father_name
+                    ?? $student->parent->mother_name
+                    ?? $student->parent->guardian_name
+                    ?? 'Parent';
+                
+                // Replace placeholders
+                $message = $template->content ?? "Alert: {$student->full_name} has been absent for {$consecutive} consecutive day(s). Please contact the school.";
+                $message = str_replace('{{parent_name}}', $parentName, $message);
+                $message = str_replace('{{student_name}}', $student->full_name, $message);
+                $message = str_replace('{{school_name}}', $schoolName, $message);
                 
                 $phones = array_filter([
-                    $student->parent->father_phone ?? null,
+                    $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
                     $student->parent->mother_phone ?? null,
                     $student->parent->guardian_phone ?? null,
                 ]);

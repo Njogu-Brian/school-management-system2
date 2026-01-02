@@ -285,16 +285,31 @@
       <input type="text" name="father_name" value="{{ old('father_name', $p->father_name ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
-        <select name="father_phone_country_code" class="form-select" style="max-width:120px">
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
-            <option value="{{ $cc['code'] }}" @selected(old('father_phone_country_code', $p->father_phone_country_code ?? '+254') == $cc['code'])>{{ $cc['code'] }}</option>
+        <select name="father_phone_country_code" class="form-select" style="max-width:170px">
+          @php
+            $fatherCountryCode = old('father_phone_country_code', $p->father_phone_country_code ?? '+254');
+            // Normalize country code
+            $fatherCountryCode = strtolower($fatherCountryCode) === '+ke' || strtolower($fatherCountryCode) === 'ke' ? '+254' : $fatherCountryCode;
+            $fatherLocalPhone = extract_local_phone($p->father_phone ?? '', $fatherCountryCode);
+          @endphp
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($fatherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
-        <input type="text" name="father_phone" value="{{ old('father_phone', $p->father_phone ?? '') }}" class="form-control">
+        <input type="text" name="father_phone" value="{{ old('father_phone', $fatherLocalPhone) }}" class="form-control" placeholder="7XXXXXXXX">
       </div>
     </div>
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
-      <input type="text" name="father_whatsapp" value="{{ old('father_whatsapp', $p->father_whatsapp ?? '') }}" class="form-control"></div>
+      <div class="input-group">
+        <select name="father_whatsapp_country_code" class="form-select" style="max-width:170px" disabled>
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($fatherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="father_whatsapp" value="{{ old('father_whatsapp', extract_local_phone($p->father_whatsapp ?? '', $fatherCountryCode)) }}" class="form-control" placeholder="Same code as phone">
+      </div>
+      <small class="text-muted">Uses same country code as phone</small>
+    </div>
     <div class="col-md-3"><label class="form-label">Email</label>
       <input type="email" name="father_email" value="{{ old('father_email', $p->father_email ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">ID Number</label>
@@ -312,16 +327,31 @@
       <input type="text" name="mother_name" value="{{ old('mother_name', $p->mother_name ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
-        <select name="mother_phone_country_code" class="form-select" style="max-width:120px">
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
-            <option value="{{ $cc['code'] }}" @selected(old('mother_phone_country_code', $p->mother_phone_country_code ?? '+254') == $cc['code'])>{{ $cc['code'] }}</option>
+        <select name="mother_phone_country_code" class="form-select" style="max-width:170px">
+          @php
+            $motherCountryCode = old('mother_phone_country_code', $p->mother_phone_country_code ?? '+254');
+            // Normalize country code
+            $motherCountryCode = strtolower($motherCountryCode) === '+ke' || strtolower($motherCountryCode) === 'ke' ? '+254' : $motherCountryCode;
+            $motherLocalPhone = extract_local_phone($p->mother_phone ?? '', $motherCountryCode);
+          @endphp
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($motherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
-        <input type="text" name="mother_phone" value="{{ old('mother_phone', $p->mother_phone ?? '') }}" class="form-control">
+        <input type="text" name="mother_phone" value="{{ old('mother_phone', $motherLocalPhone) }}" class="form-control" placeholder="7XXXXXXXX">
       </div>
     </div>
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
-      <input type="text" name="mother_whatsapp" value="{{ old('mother_whatsapp', $p->mother_whatsapp ?? '') }}" class="form-control"></div>
+      <div class="input-group">
+        <select name="mother_whatsapp_country_code" class="form-select" style="max-width:170px" disabled>
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($motherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="mother_whatsapp" value="{{ old('mother_whatsapp', extract_local_phone($p->mother_whatsapp ?? '', $motherCountryCode)) }}" class="form-control" placeholder="Same code as phone">
+      </div>
+      <small class="text-muted">Uses same country code as phone</small>
+    </div>
     <div class="col-md-3"><label class="form-label">Email</label>
       <input type="email" name="mother_email" value="{{ old('mother_email', $p->mother_email ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">ID Number</label>
@@ -339,13 +369,30 @@
       <input type="text" name="guardian_name" value="{{ old('guardian_name', $p->guardian_name ?? '') }}" class="form-control"></div>
     <div class="col-md-3"><label class="form-label">Phone</label>
       <div class="input-group">
-        <select name="guardian_phone_country_code" class="form-select" style="max-width:120px">
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
-            <option value="{{ $cc['code'] }}" @selected(old('guardian_phone_country_code', $p->guardian_phone_country_code ?? '+254') == $cc['code'])>{{ $cc['code'] }}</option>
+        <select name="guardian_phone_country_code" class="form-select" style="max-width:170px">
+          @php
+            $guardianCountryCode = old('guardian_phone_country_code', $p->guardian_phone_country_code ?? '+254');
+            // Normalize country code
+            $guardianCountryCode = strtolower($guardianCountryCode) === '+ke' || strtolower($guardianCountryCode) === 'ke' ? '+254' : $guardianCountryCode;
+            $guardianLocalPhone = extract_local_phone($p->guardian_phone ?? '', $guardianCountryCode);
+          @endphp
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($guardianCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
-        <input type="text" name="guardian_phone" value="{{ old('guardian_phone', $p->guardian_phone ?? '') }}" class="form-control">
+        <input type="text" name="guardian_phone" value="{{ old('guardian_phone', $guardianLocalPhone) }}" class="form-control" placeholder="7XXXXXXXX">
       </div>
+    </div>
+    <div class="col-md-3"><label class="form-label">WhatsApp</label>
+      <div class="input-group">
+        <select name="guardian_whatsapp_country_code" class="form-select" style="max-width:170px" disabled>
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+            <option value="{{ $cc['code'] }}" @selected($guardianCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
+          @endforeach
+        </select>
+        <input type="text" name="guardian_whatsapp" value="{{ old('guardian_whatsapp', extract_local_phone($p->guardian_whatsapp ?? '', $guardianCountryCode)) }}" class="form-control" placeholder="Same code as phone">
+      </div>
+      <small class="text-muted">Uses same country code as phone</small>
     </div>
   <div class="col-md-3"><label class="form-label">Relationship</label>
     <input type="text" name="guardian_relationship" value="{{ old('guardian_relationship', $p->guardian_relationship ?? '') }}" class="form-control"></div>
