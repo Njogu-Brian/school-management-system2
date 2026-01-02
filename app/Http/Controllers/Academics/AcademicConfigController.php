@@ -143,6 +143,7 @@ class AcademicConfigController extends Controller
         if ($term->opening_date && $term->closing_date) {
             SchoolDay::generateKenyanHolidays(Carbon::parse($term->opening_date)->year);
             $this->markInterTermBreaks($term);
+            $this->markMidtermBreaks($term);
             $this->syncTermEvents($term);
             $this->syncHolidayEventsForYear((int) Carbon::parse($term->opening_date)->year);
         }
@@ -196,6 +197,7 @@ class AcademicConfigController extends Controller
         if ($term->opening_date && $term->closing_date) {
             SchoolDay::generateKenyanHolidays(Carbon::parse($term->opening_date)->year);
             $this->markInterTermBreaks($term);
+            $this->markMidtermBreaks($term);
             $this->syncTermEvents($term);
             $this->syncHolidayEventsForYear((int) Carbon::parse($term->opening_date)->year);
         }
@@ -275,7 +277,35 @@ class AcademicConfigController extends Controller
     }
 
     /**
+     * Mark midterm break dates in SchoolDay.
+     */
+    private function markMidtermBreaks(Term $term): void
+    {
+        if (!$term->midterm_start_date || !$term->midterm_end_date) {
+            return;
+        }
+
+        $start = Carbon::parse($term->midterm_start_date);
+        $end = Carbon::parse($term->midterm_end_date);
+
+        $cursor = $start->copy();
+        while ($cursor->lte($end)) {
+            SchoolDay::updateOrCreate(
+                ['date' => $cursor->toDateString()],
+                [
+                    'type' => SchoolDay::TYPE_MIDTERM_BREAK,
+                    'name' => "Midterm Break ({$term->name})",
+                    'description' => 'Auto-generated midterm break',
+                    'is_custom' => false,
+                ]
+            );
+            $cursor->addDay();
+        }
+    }
+
+    /**
      * Mark a date range as holidays in SchoolDay (skips invalid ranges).
+     * Note: This should only be used for inter-term breaks, not dates within terms.
      */
     private function markHolidayRange(Carbon $start, Carbon $end, string $name, ?int $academicYearId): void
     {
@@ -285,6 +315,16 @@ class AcademicConfigController extends Controller
 
         $cursor = $start->copy();
         while ($cursor->lte($end)) {
+            // Only update if the date is not already marked as a school day or midterm break
+            // This prevents overwriting existing school days within terms
+            $existing = SchoolDay::where('date', $cursor->toDateString())->first();
+            if ($existing && $existing->type === SchoolDay::TYPE_SCHOOL_DAY) {
+                // Don't overwrite school days - this shouldn't happen for inter-term breaks
+                // but adding as a safeguard
+                $cursor->addDay();
+                continue;
+            }
+
             SchoolDay::updateOrCreate(
                 ['date' => $cursor->toDateString()],
                 [

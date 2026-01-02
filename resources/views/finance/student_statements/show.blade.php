@@ -56,10 +56,12 @@
                     <strong>Class:</strong> {{ optional($student->classroom)->name ?? 'N/A' }}
                 </div>
                 <div class="col-md-2">
-                    <strong>Stream:</strong> {{ optional($student->stream)->name ?? 'N/A' }}
-                </div>
-                <div class="col-md-4">
-                    <strong>Year:</strong> {{ $year }} @if($term) | <strong>Term:</strong> {{ $terms->find($term)->name ?? "Term {$term}" }} @endif
+                    <strong>Stream:</strong> 
+                    @if($student->stream_id && $student->stream)
+                        {{ $student->stream->name }}
+                    @else
+                        N/A
+                    @endif
                 </div>
             </div>
         </div>

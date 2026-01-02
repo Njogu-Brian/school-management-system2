@@ -76,13 +76,17 @@
                                                                                 <div><i class="bi bi-calendar-range"></i> Midterm: {{ $term->midterm_start_date->format('M d') }} - {{ $term->midterm_end_date->format('M d, Y') }}</div>
                                                                             @endif
                                                                             @php
+                                                                                // Count only actual holidays (exclude weekends and midterm breaks)
+                                                                                // Weekends should not be counted as holidays
                                                                                 $holidays = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
                                                                                     ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
+                                                                                    ->whereRaw('DAYOFWEEK(date) NOT IN (1, 7)') // Exclude Sundays (1) and Saturdays (7)
                                                                                     ->orderBy('date')
                                                                                     ->limit(3)
                                                                                     ->get();
                                                                                 $holidayCount = \App\Models\SchoolDay::whereBetween('date', [$term->opening_date, $term->closing_date])
                                                                                     ->where('type', \App\Models\SchoolDay::TYPE_HOLIDAY)
+                                                                                    ->whereRaw('DAYOFWEEK(date) NOT IN (1, 7)') // Exclude weekends from holiday count
                                                                                     ->count();
 
                                                                                 // Breaks between this term and the next one (in this academic year)

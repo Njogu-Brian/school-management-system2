@@ -439,7 +439,7 @@ class StudentStatementController extends Controller
         }
         
         // Get all terms and years for filter
-        // Get years from both invoices and legacy data
+        // Get years from invoices, legacy data, and academic years table
         $invoiceYears = Invoice::where('student_id', $student->id)
             ->distinct()
             ->pluck('year');
@@ -448,7 +448,12 @@ class StudentStatementController extends Controller
             ->distinct()
             ->pluck('academic_year');
         
+        // Also include all academic years from the academic_years table
+        $academicYears = \App\Models\AcademicYear::distinct()
+            ->pluck('year');
+        
         $years = $invoiceYears->merge($legacyYears)
+            ->merge($academicYears)
             ->unique()
             ->sort()
             ->reverse()
