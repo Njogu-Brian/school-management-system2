@@ -150,6 +150,7 @@ class FeeStructureController extends Controller
             $source = FeeStructure::with('charges')
                 ->where('classroom_id', $request->source_classroom_id)
                 ->where('is_active', true)
+                ->latest()
                 ->first();
         } else {
             return back()->with('error', 'Please specify either source structure or source classroom.');
@@ -159,14 +160,26 @@ class FeeStructureController extends Controller
             return back()->with('error', 'Source fee structure not found.');
         }
 
-        $replicated = $source->replicateTo(
-            $request->target_classroom_ids,
-            $request->academic_year_id,
-            $request->term_id,
-            $request->student_category_id
-        );
+        if ($source->charges->isEmpty()) {
+            return back()->with('error', 'Source fee structure has no charges to replicate.');
+        }
 
-        return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s).");
+        try {
+            $replicated = $source->replicateTo(
+                $request->target_classroom_ids,
+                $request->academic_year_id,
+                $request->term_id,
+                $request->student_category_id
+            );
+
+            return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s).");
+        } catch (\Exception $e) {
+            \Log::error('Fee structure replication failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'Failed to replicate fee structure: ' . $e->getMessage());
+        }
     }
 
     /**

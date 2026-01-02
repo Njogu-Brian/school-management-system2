@@ -127,30 +127,41 @@ class FeeStructure extends Model
     {
         $replicated = [];
         
+        // Ensure charges are loaded
+        $this->load('charges');
+        
         foreach ($classroomIds as $classroomId) {
-            $newStructure = $this->replicate();
-            $newStructure->classroom_id = $classroomId;
-            $newStructure->parent_structure_id = $this->id;
-            $newStructure->version = 1;
-            $newStructure->is_active = true;
+            // Use updateOrCreate to handle existing structures (due to unique constraint)
+            $newStructure = static::updateOrCreate(
+                [
+                    'classroom_id' => $classroomId,
+                    'academic_year_id' => $academicYearId ?? $this->academic_year_id,
+                    'term_id' => $termId ?? $this->term_id,
+                    'stream_id' => $this->stream_id, // Keep same stream or null
+                    'student_category_id' => $studentCategoryId ?? $this->student_category_id,
+                    'is_active' => true,
+                ],
+                [
+                    'name' => $this->name ?? ($this->classroom->name ?? 'Fee Structure'),
+                    'parent_structure_id' => $this->id,
+                    'version' => 1,
+                    'is_active' => true,
+                    'created_by' => auth()->id() ?? $this->created_by,
+                    'year' => $this->year ?? ($academicYearId ? \App\Models\AcademicYear::find($academicYearId)?->year : null),
+                ]
+            );
             
-            if ($academicYearId) {
-                $newStructure->academic_year_id = $academicYearId;
-            }
-            if ($termId) {
-                $newStructure->term_id = $termId;
-            }
-            if ($studentCategoryId !== null) {
-                $newStructure->student_category_id = $studentCategoryId;
-            }
-            
-            $newStructure->save();
+            // Delete existing charges for this structure to avoid duplicates
+            $newStructure->charges()->delete();
             
             // Replicate charges
             foreach ($this->charges as $charge) {
-                $newCharge = $charge->replicate();
-                $newCharge->fee_structure_id = $newStructure->id;
-                $newCharge->save();
+                FeeCharge::create([
+                    'fee_structure_id' => $newStructure->id,
+                    'votehead_id' => $charge->votehead_id,
+                    'term' => $charge->term,
+                    'amount' => $charge->amount,
+                ]);
             }
             
             $replicated[] = $newStructure;
