@@ -158,8 +158,8 @@
         }
         
         .total-section {
-            margin-top: 6px;
-            padding: 4px 6px;
+            margin-top: 10px;
+            padding: 8px 10px;
             background-color: #f5f5f5;
             border: 1px solid #3a1a59;
             border-radius: 3px;
@@ -168,33 +168,33 @@
         .total-row {
             display: flex;
             justify-content: space-between;
-            padding: 1.5px 0;
-            font-size: 7.5px;
+            padding: 4px 0;
+            font-size: 10px;
         }
         
         .total-row.grand-total {
-            font-size: 9px;
+            font-size: 12px;
             font-weight: bold;
             color: #3a1a59;
             border-top: 1px solid #3a1a59;
-            padding-top: 3px;
-            margin-top: 3px;
+            padding-top: 6px;
+            margin-top: 6px;
         }
         
         .footer {
-            margin-top: 6px;
+            margin-top: 10px;
             text-align: center;
-            font-size: 6.5px;
+            font-size: 9px;
             color: #666;
             border-top: 1px solid #ddd;
-            padding-top: 4px;
+            padding-top: 8px;
         }
         
         .footer .thank-you {
-            font-size: 7.5px;
+            font-size: 11px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
         }
         
         .watermark {
