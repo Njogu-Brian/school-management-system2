@@ -11,7 +11,19 @@
         @media print {
             .no-print { display: none !important; }
         }
-        .receipt-card { border-radius: 16px; box-shadow: 0 12px 30px rgba(15,23,42,0.1); border: 1px solid var(--fin-border, #e5e7eb); }
+        .receipt-card { 
+            border-radius: 16px; 
+            box-shadow: 0 12px 30px rgba(15,23,42,0.1); 
+            border: 1px solid var(--fin-border, #e5e7eb);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .finance-shell {
+            padding: 20px !important;
+        }
+        .finance-card-body {
+            padding: 20px !important;
+        }
     </style>
 </head>
 <body>

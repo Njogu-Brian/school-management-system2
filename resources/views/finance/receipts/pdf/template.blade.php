@@ -18,7 +18,7 @@
         
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 11px;
+            font-size: 13px;
             color: #333;
             background: #fff;
         }
@@ -29,7 +29,7 @@
             height: 50%;
             min-height: 148mm;
             max-height: 148mm;
-            padding: 10px 15px;
+            padding: 12px 18px;
             page-break-after: always;
             page-break-inside: avoid;
             margin: 0 auto;
@@ -38,44 +38,44 @@
         .header {
             text-align: center;
             border-bottom: 2px solid #3a1a59;
-            padding-bottom: 6px;
-            margin-bottom: 8px;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
         }
         
         .header h1 {
-            font-size: 16px;
+            font-size: 19px;
             color: #3a1a59;
-            margin-bottom: 3px;
+            margin-bottom: 4px;
             font-weight: bold;
         }
         
         .header .school-info {
-            font-size: 9px;
+            font-size: 11px;
             color: #666;
             line-height: 1.3;
         }
         
         .receipt-title {
             text-align: center;
-            font-size: 13px;
+            font-size: 16px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         
         .receipt-details-table {
             width: 100%;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             border-collapse: collapse;
-            font-size: 10px;
+            font-size: 12px;
         }
         
         .receipt-details-table td {
-            padding: 3px 5px;
+            padding: 4px 6px;
             border: none;
-            line-height: 1.4;
+            line-height: 1.5;
         }
         
         .receipt-details-table .detail-label {
@@ -93,9 +93,9 @@
         
         .allocations-table {
             width: 100%;
-            margin: 10px 0;
+            margin: 12px 0;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 11px;
         }
         
         .allocations-table thead {
@@ -105,18 +105,18 @@
         
         .allocations-table th,
         .allocations-table td {
-            padding: 5px 6px;
+            padding: 6px 7px;
             text-align: left;
             border: 1px solid #ddd;
         }
         
         .allocations-table th {
             font-weight: bold;
-            font-size: 9px;
+            font-size: 11px;
         }
         
         .allocations-table td {
-            font-size: 9px;
+            font-size: 11px;
         }
         
         .allocations-table tbody tr:nth-child(even) {
@@ -259,37 +259,30 @@
         <!-- Receipt Details -->
         <table class="receipt-details-table">
             <tr>
-                <td class="detail-label">Receipt Number:</td>
-                <td class="detail-value"><strong>{{ $receipt_number ?? $payment->receipt_number }}</strong></td>
-            </tr>
-            <tr>
-                <td class="detail-label">Date:</td>
-                <td class="detail-value">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</td>
-            </tr>
-            <tr>
                 <td class="detail-label">Student Name:</td>
                 <td class="detail-value">{{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}</td>
+                <td class="detail-label" style="text-align: right; width: 25%;">Receipt Number:</td>
+                <td class="detail-value" style="text-align: right; width: 25%;"><strong>{{ $receipt_number ?? $payment->receipt_number }}</strong></td>
             </tr>
             @if($student->admission_number)
             <tr>
                 <td class="detail-label">Admission Number:</td>
                 <td class="detail-value">{{ $student->admission_number }}</td>
+                <td class="detail-label" style="text-align: right; width: 25%;">Date:</td>
+                <td class="detail-value" style="text-align: right; width: 25%;">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</td>
+            </tr>
+            @else
+            <tr>
+                <td colspan="2"></td>
+                <td class="detail-label" style="text-align: right; width: 25%;">Date:</td>
+                <td class="detail-value" style="text-align: right; width: 25%;">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</td>
             </tr>
             @endif
             @if($student->classroom)
             <tr>
                 <td class="detail-label">Class:</td>
                 <td class="detail-value">{{ $student->classroom->name ?? 'N/A' }}</td>
-            </tr>
-            @endif
-            <tr>
-                <td class="detail-label">Payment Method:</td>
-                <td class="detail-value">{{ $payment_method ?? 'Cash' }}</td>
-            </tr>
-            @if($reference ?? $payment->reference)
-            <tr>
-                <td class="detail-label">Reference:</td>
-                <td class="detail-value">{{ $reference ?? $payment->reference }}</td>
+                <td colspan="2"></td>
             </tr>
             @endif
         </table>
