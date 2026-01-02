@@ -105,6 +105,7 @@
                                                     <th class="text-end">Cr</th>
                                                     <th class="text-end">Run Bal</th>
                                                     <th class="text-end">Status</th>
+                                                    <th class="text-end">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -151,10 +152,18 @@
                                                                 {{ ucfirst($line->confidence ?? 'draft') }}
                                                             </span>
                                                         </td>
+                                                        <td class="text-end" style="min-width: 100px;">
+                                                            <button type="button" 
+                                                                    class="btn btn-sm btn-primary save-line-btn" 
+                                                                    data-line-id="{{ $line->id }}"
+                                                                    style="display: none;">
+                                                                <i class="bi bi-save"></i> Save
+                                                            </button>
+                                                        </td>
                                                     </tr>
                                                 @empty
                                                     <tr>
-                                                        <td colspan="8" class="text-center text-muted py-3">No lines found.</td>
+                                                        <td colspan="9" class="text-center text-muted py-3">No lines found.</td>
                                                     </tr>
                                                 @endforelse
                                             </tbody>
@@ -208,27 +217,44 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Legacy transaction inline editing
     const editableFields = document.querySelectorAll('.editable-field');
+    const saveButtons = document.querySelectorAll('.save-line-btn');
     let saveTimeout;
+    let pendingSaves = new Set(); // Track which lines have unsaved changes
     
+    // Show save button when field is edited
     editableFields.forEach(field => {
-        field.addEventListener('change', function() {
-            const lineId = this.dataset.lineId;
-            const fieldName = this.dataset.field;
-            const value = this.value;
-            
-            // Clear previous timeout
-            clearTimeout(saveTimeout);
-            
-            // Debounce save
-            saveTimeout = setTimeout(() => {
-                saveLineField(lineId, fieldName, value);
-            }, 500);
-        });
+        const originalValue = field.value;
         
-        // Prevent both dr and cr from being set
-        if (field.dataset.field === 'amount_dr' || field.dataset.field === 'amount_cr') {
-            field.addEventListener('input', function() {
-                const row = this.closest('tr');
+        field.addEventListener('input', function() {
+            const lineId = this.dataset.lineId;
+            const row = this.closest('tr');
+            const saveBtn = row.querySelector('.save-line-btn');
+            
+            // Show save button if value changed
+            if (this.value !== originalValue) {
+                pendingSaves.add(lineId);
+                if (saveBtn) {
+                    saveBtn.style.display = 'inline-block';
+                }
+            } else {
+                // Check if all fields in row are back to original
+                const allFields = row.querySelectorAll('.editable-field');
+                let hasChanges = false;
+                allFields.forEach(f => {
+                    if (f.value !== f.defaultValue) {
+                        hasChanges = true;
+                    }
+                });
+                if (!hasChanges) {
+                    pendingSaves.delete(lineId);
+                    if (saveBtn) {
+                        saveBtn.style.display = 'none';
+                    }
+                }
+            }
+            
+            // Prevent both dr and cr from being set
+            if (this.dataset.field === 'amount_dr' || this.dataset.field === 'amount_cr') {
                 const drField = row.querySelector('[data-field="amount_dr"]');
                 const crField = row.querySelector('[data-field="amount_cr"]');
                 
@@ -237,19 +263,55 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (this.dataset.field === 'amount_cr' && this.value && drField.value) {
                     drField.value = '';
                 }
-            });
-        }
+            }
+        });
+        
+        // Store original value
+        field.defaultValue = field.value;
     });
     
-    function saveLineField(lineId, fieldName, value) {
+    // Handle save button clicks
+    saveButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const lineId = this.dataset.lineId;
+            const row = document.querySelector(`tr[data-line-id="${lineId}"]`);
+            
+            if (row) {
+                const txnDate = row.querySelector('[data-field="txn_date"]').value;
+                const narration = row.querySelector('[data-field="narration_raw"]').value;
+                const amountDr = row.querySelector('[data-field="amount_dr"]').value;
+                const amountCr = row.querySelector('[data-field="amount_cr"]').value;
+                
+                saveLineField(lineId, null, null, {
+                    txn_date: txnDate || '',
+                    narration_raw: narration,
+                    amount_dr: amountDr || '',
+                    amount_cr: amountCr || '',
+                    confidence: 'high'
+                });
+            }
+        });
+    });
+    
+    function saveLineField(lineId, fieldName, value, allFields = null) {
         const formData = new FormData();
         formData.append('_token', '{{ csrf_token() }}');
         formData.append('_method', 'PUT');
-        formData.append(fieldName, value);
         
         // Get all current field values from the row
         const row = document.querySelector(`tr[data-line-id="${lineId}"]`);
-        if (row) {
+        const saveBtn = row ? row.querySelector('.save-line-btn') : null;
+        
+        if (allFields) {
+            // Manual save with all fields
+            Object.keys(allFields).forEach(key => {
+                formData.append(key, allFields[key]);
+            });
+        } else if (row) {
+            // Auto-save with single field change
+            if (fieldName) {
+                formData.append(fieldName, value);
+            }
             const txnDate = row.querySelector('[data-field="txn_date"]').value;
             const narration = row.querySelector('[data-field="narration_raw"]').value;
             const amountDr = row.querySelector('[data-field="amount_dr"]').value;
@@ -260,6 +322,12 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('amount_dr', amountDr || '');
             formData.append('amount_cr', amountCr || '');
             formData.append('confidence', 'high');
+        }
+        
+        // Disable save button and show loading
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
         }
         
         // Construct URL using base path and line ID
@@ -280,13 +348,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateRunningBalances(lineId);
                 // Show success message
                 showNotification('Transaction updated successfully', 'success');
+                
+                // Hide save button and update original values
+                if (row) {
+                    pendingSaves.delete(lineId);
+                    if (saveBtn) {
+                        saveBtn.style.display = 'none';
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '<i class="bi bi-save"></i> Save';
+                    }
+                    // Update default values
+                    row.querySelectorAll('.editable-field').forEach(field => {
+                        field.defaultValue = field.value;
+                    });
+                }
             } else {
                 showNotification(data.message || 'Error updating transaction', 'error');
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="bi bi-save"></i> Save';
+                }
             }
         })
         .catch(error => {
             console.error('Error:', error);
             showNotification('Error updating transaction', 'error');
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-save"></i> Save';
+            }
         });
     }
     

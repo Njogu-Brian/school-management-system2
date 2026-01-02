@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LegacyStatementLineEditHistory extends Model
 {
+    protected $table = 'legacy_statement_line_edit_history';
+
     protected $fillable = [
         'line_id',
         'batch_id',
