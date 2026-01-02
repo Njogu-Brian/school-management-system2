@@ -274,13 +274,13 @@ class FamilyUpdateController extends Controller
                     'has_allergies' => isset($stuData['has_allergies']) ? (bool)$stuData['has_allergies'] : false,
                     'allergies_notes' => !empty($stuData['allergies_notes']) ? $stuData['allergies_notes'] : null,
                     'is_fully_immunized' => isset($stuData['is_fully_immunized']) ? (bool)$stuData['is_fully_immunized'] : false,
-                    'residential_area' => !empty($validated['residential_area']) ? $validated['residential_area'] : $student->residential_area,
-                    'preferred_hospital' => !empty($validated['preferred_hospital']) ? $validated['preferred_hospital'] : $student->preferred_hospital,
-                    'emergency_contact_name' => !empty($validated['emergency_contact_name']) ? $validated['emergency_contact_name'] : $student->emergency_contact_name,
+                    'residential_area' => isset($validated['residential_area']) ? ($validated['residential_area'] ?: null) : ($student->residential_area ?? null),
+                    'preferred_hospital' => isset($validated['preferred_hospital']) ? ($validated['preferred_hospital'] ?: null) : ($student->preferred_hospital ?? null),
+                    'emergency_contact_name' => isset($validated['emergency_contact_name']) ? ($validated['emergency_contact_name'] ?: null) : ($student->emergency_contact_name ?? null),
                     'emergency_contact_phone' => !empty($validated['emergency_contact_phone']) ? $this->formatPhoneWithCode(
                         $validated['emergency_contact_phone'],
-                        '+254'
-                    ) : $student->emergency_contact_phone,
+                        $this->normalizeCountryCode($validated['emergency_phone_country_code'] ?? '+254')
+                    ) : ($student->emergency_contact_phone ?? null),
                 ]);
 
                 $student->refresh();
