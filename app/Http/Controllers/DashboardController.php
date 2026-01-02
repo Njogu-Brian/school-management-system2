@@ -66,9 +66,12 @@ class DashboardController extends Controller
     private function buildDashboardData(Request $request, string $role = 'admin', array $assignedClassroomIds = null, array $streamAssignments = null): array
     {
         // ---- Filters
+        $defaultYearId = AcademicYear::latest('id')->value('id') ?? AcademicYear::orderBy('id', 'desc')->value('id') ?? null;
+        $defaultTermId = Term::latest('id')->value('id') ?? Term::orderBy('id', 'desc')->value('id') ?? null;
+        
         $filters = [
-            'year_id'      => (int)($request->get('year_id') ?? AcademicYear::latest('id')->value('id')),
-            'term_id'      => (int)($request->get('term_id') ?? Term::latest('id')->value('id')),
+            'year_id'      => (int)($request->get('year_id') ?? $defaultYearId ?? 0),
+            'term_id'      => (int)($request->get('term_id') ?? $defaultTermId ?? 0),
             'from'         => $request->get('from') ?? now()->subDays(30)->toDateString(),
             'to'           => $request->get('to') ?? now()->toDateString(),
             'classroom_id' => $request->get('classroom_id'),
@@ -596,8 +599,8 @@ class DashboardController extends Controller
             ];
         }
 
-        $currentYear = AcademicYear::latest('id')->first();
-        $currentTerm = Term::latest('id')->first();
+        $currentYear = AcademicYear::latest('id')->first() ?? AcademicYear::orderBy('id', 'desc')->first();
+        $currentTerm = Term::latest('id')->first() ?? Term::orderBy('id', 'desc')->first();
         
         // Get assigned classes and subjects from classroom_subjects
         $assignments = \App\Models\Academics\ClassroomSubject::where('staff_id', $staff->id)

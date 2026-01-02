@@ -93,6 +93,12 @@ class AuthController extends Controller
             $user = auth()->user();
             $user->load('roles'); // Ensure roles are loaded
 
+            // Check for intended redirect first
+            $intended = $request->session()->pull('url.intended');
+            if ($intended && str_starts_with($intended, url('/'))) {
+                return redirect($intended);
+            }
+
             if ($user->hasRole('admin') || $user->hasRole('Admin') || $user->hasRole('Super Admin')) {
                 return redirect()->route('admin.dashboard');
             } elseif ($user->hasRole('teacher') || $user->hasRole('Teacher')) {
