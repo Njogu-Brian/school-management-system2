@@ -119,11 +119,37 @@ class StudentStatementController extends Controller
         }
         
         // Legacy transactions (read-only, as parsed) for historical years (pre-2026)
-        $legacyLines = LegacyStatementLine::with('term')
-            ->whereHas('term', function($q) use ($student) {
+        $legacyLinesQuery = LegacyStatementLine::with('term')
+            ->whereHas('term', function($q) use ($student, $year) {
                 $q->where('student_id', $student->id)
                   ->where('academic_year', '<', 2026);
-            })
+                
+                // Filter by year if specified
+                if ($year < 2026) {
+                    $q->where('academic_year', $year);
+                }
+            });
+        
+        // Filter by term if specified and year is legacy
+        if ($term && $year < 2026) {
+            $termModel = \App\Models\Term::find($term);
+            if ($termModel) {
+                // Try to match term by name pattern (e.g., "Term 1" -> term_number 1)
+                $termNumber = null;
+                if (preg_match('/term\s*(\d+)/i', $termModel->name, $matches)) {
+                    $termNumber = (int)$matches[1];
+                }
+                
+                if ($termNumber) {
+                    $legacyLinesQuery->whereHas('term', function($q) use ($year, $termNumber) {
+                        $q->where('academic_year', $year)
+                          ->where('term_number', $termNumber);
+                    });
+                }
+            }
+        }
+        
+        $legacyLines = $legacyLinesQuery
             ->orderBy('txn_date')
             ->orderBy('sequence_no')
             ->get();
@@ -413,12 +439,42 @@ class StudentStatementController extends Controller
         }
         
         // Get all terms and years for filter
-        $terms = \App\Models\Term::orderBy('name')->get();
-        $years = Invoice::where('student_id', $student->id)
+        // Get years from both invoices and legacy data
+        $invoiceYears = Invoice::where('student_id', $student->id)
             ->distinct()
-            ->pluck('year')
+            ->pluck('year');
+        
+        $legacyYears = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+            ->distinct()
+            ->pluck('academic_year');
+        
+        $years = $invoiceYears->merge($legacyYears)
+            ->unique()
             ->sort()
-            ->reverse();
+            ->reverse()
+            ->values();
+        
+        // Get terms - if year is selected, filter terms by that year's academic year
+        $academicYearId = null;
+        if ($year) {
+            $academicYear = \App\Models\AcademicYear::where('year', $year)->first();
+            $academicYearId = $academicYear->id ?? null;
+        }
+        
+        $termsQuery = \App\Models\Term::query();
+        if ($academicYearId) {
+            $termsQuery->where('academic_year_id', $academicYearId);
+        }
+        $terms = $termsQuery->orderBy('name')->get();
+        
+        // If AJAX request for terms only
+        if ($request->ajax() && $request->get('get_terms')) {
+            return response()->json([
+                'terms' => $terms->map(function($t) {
+                    return ['id' => $t->id, 'name' => $t->name];
+                })
+            ]);
+        }
         
         return view('finance.student_statements.show', compact(
             'student',
@@ -505,8 +561,60 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
+        // Get legacy transactions (read-only, as parsed) for historical years (pre-2026)
+        $legacyLinesQuery = LegacyStatementLine::with('term')
+            ->whereHas('term', function($q) use ($student, $year) {
+                $q->where('student_id', $student->id)
+                  ->where('academic_year', '<', 2026);
+                
+                // Filter by year if specified
+                if ($year < 2026) {
+                    $q->where('academic_year', $year);
+                }
+            });
+        
+        // Filter by term if specified and year is legacy
+        if ($term && $year < 2026) {
+            $termModel = \App\Models\Term::find($term);
+            if ($termModel) {
+                // Try to match term by name pattern (e.g., "Term 1" -> term_number 1)
+                $termNumber = null;
+                if (preg_match('/term\s*(\d+)/i', $termModel->name, $matches)) {
+                    $termNumber = (int)$matches[1];
+                }
+                
+                if ($termNumber) {
+                    $legacyLinesQuery->whereHas('term', function($q) use ($year, $termNumber) {
+                        $q->where('academic_year', $year)
+                          ->where('term_number', $termNumber);
+                    });
+                }
+            }
+        }
+        
+        $legacyLines = $legacyLinesQuery
+            ->orderBy('txn_date')
+            ->orderBy('sequence_no')
+            ->get();
+
+        $legacyTransactions = collect();
+        foreach ($legacyLines as $line) {
+            $legacyTransactions->push([
+                'date' => $line->txn_date ?? $line->created_at,
+                'type' => 'Legacy',
+                'narration' => $line->narration_raw,
+                'reference' => $line->reference_number ?? $line->txn_code ?? 'Legacy',
+                'votehead' => $line->votehead ?? 'Legacy',
+                'term_name' => $line->term->term_name ?? '',
+                'term_year' => $line->term->academic_year ?? $year,
+                'grade' => $student->classroom->name ?? '',
+                'debit' => (float) ($line->amount_dr ?? 0),
+                'credit' => (float) ($line->amount_cr ?? 0),
+            ]);
+        }
+        
         // Build detailed transactions - reuse logic from show method
-        $detailedTransactions = collect();
+        $detailedTransactions = collect()->merge($legacyTransactions);
         
         // Add invoice items
         foreach ($invoices as $invoice) {
@@ -628,7 +736,30 @@ class StudentStatementController extends Controller
         // Calculate totals
         $totalDebit = $detailedTransactions->sum('debit');
         $totalCredit = $detailedTransactions->sum('credit');
-        $finalBalance = $totalDebit - $totalCredit;
+        
+        // Calculate balance properly
+        // For legacy years (pre-2026), use ending_balance from last term
+        // For 2026+, use invoice balance + balance brought forward
+        if ($year < 2026) {
+            $lastLegacyTerm = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+                ->where('academic_year', $year)
+                ->orderByDesc('term_number')
+                ->first();
+            $finalBalance = $lastLegacyTerm->ending_balance ?? 0;
+        } else {
+            $totalCharges = $invoices->sum(function($inv) {
+                return $inv->items->sum('amount') ?? 0;
+            });
+            $totalDiscounts = $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
+                return $inv->items->sum('discount_amount') ?? 0;
+            });
+            $totalPayments = $payments->where('reversed', false)->sum('amount');
+            $totalCreditNotes = $creditNotes->sum('amount');
+            $totalDebitNotes = $debitNotes->sum('amount');
+            $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
+            $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+            $finalBalance = $invoiceBalance + $balanceBroughtForward;
+        }
         
         // Get terms for display
         $terms = \App\Models\Term::orderBy('name')->get();

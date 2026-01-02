@@ -98,7 +98,14 @@ class LegacyFinanceImportController extends Controller
 
     public function destroy(LegacyFinanceImportBatch $batch)
     {
-        // Delete parsed data
+        // Get all term IDs for this batch before deletion
+        $termIds = LegacyStatementTerm::where('batch_id', $batch->id)->pluck('id');
+        
+        // Delete edit history for all lines in this batch
+        $lineIds = LegacyStatementLine::where('batch_id', $batch->id)->pluck('id');
+        LegacyStatementLineEditHistory::whereIn('line_id', $lineIds)->delete();
+        
+        // Delete parsed data (cascade will handle related data)
         LegacyStatementLine::where('batch_id', $batch->id)->delete();
         LegacyStatementTerm::where('batch_id', $batch->id)->delete();
 
@@ -107,12 +114,18 @@ class LegacyFinanceImportController extends Controller
         if (is_file($path)) {
             @unlink($path);
         }
+        
+        // Also check alternative path
+        $altPath = storage_path('app/legacy-imports/' . $batch->file_name);
+        if (is_file($altPath)) {
+            @unlink($altPath);
+        }
 
         $batch->delete();
 
         return redirect()
             ->route('finance.legacy-imports.index')
-            ->with('success', 'Legacy import batch and PDF deleted.');
+            ->with('success', 'Legacy import batch, all transactions, and PDF deleted. All related data has been removed from student statements.');
     }
 
     public function updateLine(Request $request, LegacyStatementLine $line)
@@ -252,9 +265,15 @@ class LegacyFinanceImportController extends Controller
             $request->user()?->id
         );
 
+        $message = 'Legacy statements imported. Review draft lines and confirm.';
+        if (isset($result['duplicates_skipped']) && $result['duplicates_skipped'] > 0) {
+            $message .= ' ' . $result['duplicates_skipped'] . ' duplicate transaction(s) were skipped.';
+        }
+
         return redirect()
             ->route('finance.legacy-imports.show', $result['batch_id'])
-            ->with('success', 'Legacy statements imported. Review draft lines and confirm.');
+            ->with('success', $message)
+            ->with('duplicates_skipped', $result['duplicates_skipped'] ?? 0);
     }
 
     public function editHistory(LegacyFinanceImportBatch $batch)

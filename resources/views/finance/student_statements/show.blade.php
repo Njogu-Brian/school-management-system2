@@ -10,10 +10,10 @@
 
     {{-- Filters --}}
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0">
-        <form method="GET" action="{{ route('finance.student-statements.show', $student) }}" class="row g-3">
+        <form method="GET" action="{{ route('finance.student-statements.show', $student) }}" class="row g-3" id="statementFilterForm">
             <div class="col-md-4">
                 <label class="finance-form-label">Academic Year</label>
-                <select name="year" class="finance-form-select" onchange="this.form.submit()">
+                <select name="year" id="yearSelect" class="finance-form-select">
                     @foreach($years as $y)
                         <option value="{{ $y }}" {{ $year == $y ? 'selected' : '' }}>{{ $y }}</option>
                     @endforeach
@@ -21,7 +21,7 @@
             </div>
             <div class="col-md-4">
                 <label class="finance-form-label">Term</label>
-                <select name="term" class="finance-form-select" onchange="this.form.submit()">
+                <select name="term" id="termSelect" class="finance-form-select">
                     <option value="">All Terms</option>
                     @foreach($terms as $t)
                         <option value="{{ $t->id }}" {{ $term == $t->id ? 'selected' : '' }}>{{ $t->name }}</option>
@@ -136,8 +136,23 @@
                     </thead>
                     <tbody>
                         @php
+                            // Calculate starting balance
                             $runningBalance = 0;
                             $finalBalance = 0;
+                            
+                            // For legacy years, start from the first term's starting balance
+                            // For 2026+, start from balance brought forward
+                            if ($year < 2026) {
+                                // Get starting balance from first term of the year
+                                $firstTerm = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+                                    ->where('academic_year', $year)
+                                    ->orderBy('term_number')
+                                    ->first();
+                                $runningBalance = $firstTerm->starting_balance ?? 0;
+                            } else {
+                                // For 2026+, start from balance brought forward
+                                $runningBalance = $balanceBroughtForward ?? 0;
+                            }
                         @endphp
                         
                         @forelse($detailedTransactions ?? collect() as $transaction)
@@ -273,6 +288,42 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Update terms when academic year changes
+    const yearSelect = document.getElementById('yearSelect');
+    const termSelect = document.getElementById('termSelect');
+    const form = document.getElementById('statementFilterForm');
+    
+    if (yearSelect && termSelect) {
+        yearSelect.addEventListener('change', function() {
+            const selectedYear = this.value;
+            
+            // Fetch terms for the selected year
+            fetch(`{{ route('finance.student-statements.show', $student) }}?year=${selectedYear}&get_terms=1`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.terms) {
+                    termSelect.innerHTML = '<option value="">All Terms</option>';
+                    data.terms.forEach(term => {
+                        const option = document.createElement('option');
+                        option.value = term.id;
+                        option.textContent = term.name;
+                        termSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching terms:', error);
+                // Fallback: submit form to reload with new year
+                form.submit();
+            });
+        });
+    }
+    
     // Inline editing for invoice items
     document.querySelectorAll('.editable-amount').forEach(element => {
         element.addEventListener('click', function() {

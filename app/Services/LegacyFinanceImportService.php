@@ -53,6 +53,7 @@ class LegacyFinanceImportService
         $sequence = 1;
         $studentsSeen = [];
         $termCompleted = false; // Track if we've seen CURRENT BALANCE for the current term
+        $duplicateCount = 0; // Track number of duplicates skipped
 
         foreach ($lines as $line) {
             // Check for CURRENT BALANCE first (this is the final line for a student's statement)
@@ -143,6 +144,13 @@ class LegacyFinanceImportService
             if ($txn = $this->matchTransactionLine($line)) {
                 // Check for duplicate transaction before storing
                 if ($this->isDuplicateTransaction($batch, $currentTerm, $txn)) {
+                    $duplicateCount++;
+                    \Illuminate\Support\Facades\Log::info('Duplicate transaction skipped', [
+                        'batch_id' => $batch->id,
+                        'term_id' => $currentTerm->id,
+                        'narration' => $txn['narration'],
+                        'date' => $txn['date'],
+                    ]);
                     continue; // Skip duplicate
                 }
                 
@@ -188,6 +196,7 @@ class LegacyFinanceImportService
             'students_total' => count($studentsSeen),
             'terms_imported' => $imported,
             'terms_draft' => $draft,
+            'duplicates_skipped' => $duplicateCount,
         ];
     }
 

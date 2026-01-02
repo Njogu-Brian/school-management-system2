@@ -11,6 +11,13 @@
     @if (session('success'))
         <div class="alert alert-success finance-animate">{{ session('success') }}</div>
     @endif
+    
+    @if (session('duplicates_skipped') && session('duplicates_skipped') > 0)
+        <div class="alert alert-warning finance-animate">
+            <i class="bi bi-exclamation-triangle"></i> 
+            <strong>Note:</strong> {{ session('duplicates_skipped') }} duplicate transaction(s) were detected and skipped during import.
+        </div>
+    @endif
 
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4 p-4 legacy-card">
         <div class="row gy-3 align-items-center">
