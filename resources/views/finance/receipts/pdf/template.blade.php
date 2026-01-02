@@ -229,8 +229,8 @@
                 }
             @endphp
             @if($logo)
-            <div style="text-align: center; margin-bottom: 3px;">
-                <img src="{{ $logo }}" alt="School Logo" style="max-height: 40px; max-width: 120px;">
+            <div style="text-align: center; margin-bottom: 4px;">
+                <img src="{{ $logo }}" alt="School Logo" style="max-height: 50px; max-width: 140px;">
             </div>
             @endif
             <h1>{{ $school['name'] ?? ($branding['name'] ?? 'SCHOOL NAME') }}</h1>
@@ -326,7 +326,7 @@
                     <td>
                         {{ $votehead->name ?? 'N/A' }}
                         @if(!$isPaid)
-                            <span style="color: #856404; font-size: 6px;">(Unpaid)</span>
+                            <span style="color: #856404; font-size: 8px;">(Unpaid)</span>
                         @endif
                     </td>
                     <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
@@ -373,20 +373,20 @@
                 $carriedForward = $payment->unallocated_amount ?? 0;
             @endphp
             @if($carriedForward > 0)
-            <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 3px; margin-top: 3px;">
+            <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 5px; margin-top: 5px;">
                 <span><strong>Carried Forward:</strong></span>
                 <span style="color: #28a745;"><strong>(Ksh {{ number_format($carriedForward, 2) }})</strong></span>
             </div>
             @endif
             @if($hasTotalOutstanding)
-            <div class="total-row grand-total" style="border-top: 1px solid #3a1a59; padding-top: 4px; margin-top: 4px; color: #dc3545;">
-                <span style="font-size: 10px; font-weight: bold;">Balance:</span>
-                <span style="font-size: 10px; font-weight: bold;">Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
+            <div class="total-row grand-total" style="border-top: 1px solid #3a1a59; padding-top: 6px; margin-top: 6px; color: #dc3545;">
+                <span style="font-size: 12px; font-weight: bold;">Balance:</span>
+                <span style="font-size: 12px; font-weight: bold;">Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
             </div>
             @else
-            <div class="total-row grand-total" style="border-top: 1px solid #3a1a59; padding-top: 4px; margin-top: 4px; color: #28a745;">
-                <span style="font-size: 10px; font-weight: bold;">Balance:</span>
-                <span style="font-size: 10px; font-weight: bold;">Ksh 0.00</span>
+            <div class="total-row grand-total" style="border-top: 1px solid #3a1a59; padding-top: 6px; margin-top: 6px; color: #28a745;">
+                <span style="font-size: 12px; font-weight: bold;">Balance:</span>
+                <span style="font-size: 12px; font-weight: bold;">Ksh 0.00</span>
             </div>
             @endif
         </div>
