@@ -393,7 +393,7 @@
 
         <!-- Narration -->
         @if($narration ?? $payment->narration)
-        <div style="margin-top: 6px; padding: 4px; background-color: #f9f9f9; border-left: 2px solid #3a1a59; font-size: 7px;">
+        <div style="margin-top: 8px; padding: 6px; background-color: #f9f9f9; border-left: 2px solid #3a1a59; font-size: 9px;">
             <strong>Narration:</strong> {{ $narration ?? $payment->narration }}
         </div>
         @endif
