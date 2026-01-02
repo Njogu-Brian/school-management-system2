@@ -11,76 +11,88 @@
             box-sizing: border-box;
         }
         
+        @page {
+            size: A4;
+            margin: 0;
+        }
+        
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 12px;
+            font-size: 9px;
             color: #333;
             background: #fff;
         }
         
         .receipt-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+            width: 50%;
+            max-width: 297mm;
+            height: 50vh;
+            min-height: 148mm;
+            padding: 8px;
+            page-break-after: always;
+            page-break-inside: avoid;
         }
         
         .header {
             text-align: center;
-            border-bottom: 3px solid #3a1a59;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
+            border-bottom: 2px solid #3a1a59;
+            padding-bottom: 5px;
+            margin-bottom: 8px;
         }
         
         .header h1 {
-            font-size: 24px;
+            font-size: 14px;
             color: #3a1a59;
-            margin-bottom: 10px;
+            margin-bottom: 3px;
             font-weight: bold;
         }
         
         .header .school-info {
-            font-size: 11px;
+            font-size: 7px;
             color: #666;
-            line-height: 1.6;
+            line-height: 1.3;
         }
         
         .receipt-title {
             text-align: center;
-            font-size: 18px;
+            font-size: 11px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 30px;
+            margin-bottom: 8px;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
         
-        .receipt-details {
-            margin-bottom: 30px;
+        .receipt-details-table {
+            width: 100%;
+            margin-bottom: 8px;
+            border-collapse: collapse;
+            font-size: 8px;
         }
         
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
+        .receipt-details-table td {
+            padding: 2px 4px;
+            border: none;
         }
         
-        .detail-label {
+        .receipt-details-table .detail-label {
             font-weight: bold;
             color: #555;
-            width: 40%;
+            text-align: left;
+            width: 45%;
         }
         
-        .detail-value {
+        .receipt-details-table .detail-value {
             color: #333;
-            width: 60%;
             text-align: right;
+            width: 55%;
         }
         
         .allocations-table {
             width: 100%;
-            margin: 30px 0;
+            margin: 8px 0;
             border-collapse: collapse;
+            font-size: 7px;
         }
         
         .allocations-table thead {
@@ -90,18 +102,18 @@
         
         .allocations-table th,
         .allocations-table td {
-            padding: 12px;
+            padding: 3px 4px;
             text-align: left;
             border: 1px solid #ddd;
         }
         
         .allocations-table th {
             font-weight: bold;
-            font-size: 11px;
+            font-size: 7px;
         }
         
         .allocations-table td {
-            font-size: 11px;
+            font-size: 7px;
         }
         
         .allocations-table tbody tr:nth-child(even) {
@@ -113,43 +125,43 @@
         }
         
         .total-section {
-            margin-top: 30px;
-            padding: 20px;
+            margin-top: 8px;
+            padding: 6px;
             background-color: #f5f5f5;
-            border: 2px solid #3a1a59;
-            border-radius: 5px;
+            border: 1px solid #3a1a59;
+            border-radius: 3px;
         }
         
         .total-row {
             display: flex;
             justify-content: space-between;
-            padding: 8px 0;
-            font-size: 14px;
+            padding: 2px 0;
+            font-size: 8px;
         }
         
         .total-row.grand-total {
-            font-size: 18px;
+            font-size: 10px;
             font-weight: bold;
             color: #3a1a59;
-            border-top: 2px solid #3a1a59;
-            padding-top: 15px;
-            margin-top: 10px;
+            border-top: 1px solid #3a1a59;
+            padding-top: 4px;
+            margin-top: 4px;
         }
         
         .footer {
-            margin-top: 50px;
+            margin-top: 8px;
             text-align: center;
-            font-size: 10px;
+            font-size: 7px;
             color: #666;
             border-top: 1px solid #ddd;
-            padding-top: 20px;
+            padding-top: 5px;
         }
         
         .footer .thank-you {
-            font-size: 12px;
+            font-size: 8px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 10px;
+            margin-bottom: 3px;
         }
         
         .watermark {
@@ -184,8 +196,8 @@
                 }
             @endphp
             @if($logo)
-            <div style="text-align: center; margin-bottom: 15px;">
-                <img src="{{ $logo }}" alt="School Logo" style="max-height: 80px; max-width: 200px;">
+            <div style="text-align: center; margin-bottom: 3px;">
+                <img src="{{ $logo }}" alt="School Logo" style="max-height: 40px; max-width: 120px;">
             </div>
             @endif
             <h1>{{ $school['name'] ?? ($branding['name'] ?? 'SCHOOL NAME') }}</h1>
@@ -212,42 +224,42 @@
         </div>
 
         <!-- Receipt Details -->
-        <div class="receipt-details">
-            <div class="detail-row">
-                <span class="detail-label">Receipt Number:</span>
-                <span class="detail-value"><strong>{{ $receipt_number ?? $payment->receipt_number }}</strong></span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Date:</span>
-                <span class="detail-value">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</span>
-            </div>
-            <div class="detail-row">
-                <span class="detail-label">Student Name:</span>
-                <span class="detail-value">{{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}</span>
-            </div>
+        <table class="receipt-details-table">
+            <tr>
+                <td class="detail-label">Receipt Number:</td>
+                <td class="detail-value"><strong>{{ $receipt_number ?? $payment->receipt_number }}</strong></td>
+            </tr>
+            <tr>
+                <td class="detail-label">Date:</td>
+                <td class="detail-value">{{ $date ?? ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : date('d M Y')) }}</td>
+            </tr>
+            <tr>
+                <td class="detail-label">Student Name:</td>
+                <td class="detail-value">{{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}</td>
+            </tr>
             @if($student->admission_number)
-            <div class="detail-row">
-                <span class="detail-label">Admission Number:</span>
-                <span class="detail-value">{{ $student->admission_number }}</span>
-            </div>
+            <tr>
+                <td class="detail-label">Admission Number:</td>
+                <td class="detail-value">{{ $student->admission_number }}</td>
+            </tr>
             @endif
             @if($student->classroom)
-            <div class="detail-row">
-                <span class="detail-label">Class:</span>
-                <span class="detail-value">{{ $student->classroom->name ?? 'N/A' }}</span>
-            </div>
+            <tr>
+                <td class="detail-label">Class:</td>
+                <td class="detail-value">{{ $student->classroom->name ?? 'N/A' }}</td>
+            </tr>
             @endif
-            <div class="detail-row">
-                <span class="detail-label">Payment Method:</span>
-                <span class="detail-value">{{ $payment_method ?? 'Cash' }}</span>
-            </div>
+            <tr>
+                <td class="detail-label">Payment Method:</td>
+                <td class="detail-value">{{ $payment_method ?? 'Cash' }}</td>
+            </tr>
             @if($reference ?? $payment->reference)
-            <div class="detail-row">
-                <span class="detail-label">Reference Number:</span>
-                <span class="detail-value">{{ $reference ?? $payment->reference }}</span>
-            </div>
+            <tr>
+                <td class="detail-label">Reference:</td>
+                <td class="detail-value">{{ $reference ?? $payment->reference }}</td>
+            </tr>
             @endif
-        </div>
+        </table>
 
         <!-- Payment Allocations and Unpaid Voteheads -->
         @if(isset($allocations) && $allocations->isNotEmpty())
@@ -328,29 +340,28 @@
                 $carriedForward = $payment->unallocated_amount ?? 0;
             @endphp
             @if($carriedForward > 0)
-            <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+            <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 3px; margin-top: 3px;">
                 <span><strong>Carried Forward:</strong></span>
                 <span style="color: #28a745;"><strong>(Ksh {{ number_format($carriedForward, 2) }})</strong></span>
             </div>
             @endif
             @if($hasTotalOutstanding)
-            <div class="total-row grand-total" style="border-top: 2px solid #3a1a59; padding-top: 10px; margin-top: 10px; color: #dc3545;">
-                <span style="font-size: 16px; font-weight: bold;">Balance:</span>
-                <span style="font-size: 16px; font-weight: bold;">Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
+            <div class="total-row grand-total" style="border-top: 1px solid #3a1a59; padding-top: 4px; margin-top: 4px; color: #dc3545;">
+                <span style="font-size: 10px; font-weight: bold;">Balance:</span>
+                <span style="font-size: 10px; font-weight: bold;">Ksh {{ number_format($totalOutstandingBalance, 2) }}</span>
             </div>
             @else
-            <div class="total-row grand-total" style="border-top: 2px solid #3a1a59; padding-top: 10px; margin-top: 10px; color: #28a745;">
-                <span style="font-size: 16px; font-weight: bold;">Balance:</span>
-                <span style="font-size: 16px; font-weight: bold;">Ksh 0.00</span>
+            <div class="total-row grand-total" style="border-top: 1px solid #3a1a59; padding-top: 4px; margin-top: 4px; color: #28a745;">
+                <span style="font-size: 10px; font-weight: bold;">Balance:</span>
+                <span style="font-size: 10px; font-weight: bold;">Ksh 0.00</span>
             </div>
             @endif
         </div>
 
         <!-- Narration -->
         @if($narration ?? $payment->narration)
-        <div style="margin-top: 30px; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #3a1a59;">
-            <strong>Narration:</strong><br>
-            {{ $narration ?? $payment->narration }}
+        <div style="margin-top: 6px; padding: 4px; background-color: #f9f9f9; border-left: 2px solid #3a1a59; font-size: 7px;">
+            <strong>Narration:</strong> {{ $narration ?? $payment->narration }}
         </div>
         @endif
 
