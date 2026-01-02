@@ -18,7 +18,7 @@
         
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 9px;
+            font-size: 11px;
             color: #333;
             background: #fff;
         }
@@ -29,7 +29,7 @@
             height: 50%;
             min-height: 148mm;
             max-height: 148mm;
-            padding: 6px 10px;
+            padding: 10px 15px;
             page-break-after: always;
             page-break-inside: avoid;
             margin: 0 auto;
@@ -38,44 +38,44 @@
         .header {
             text-align: center;
             border-bottom: 2px solid #3a1a59;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
         }
         
         .header h1 {
-            font-size: 13px;
+            font-size: 16px;
             color: #3a1a59;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
             font-weight: bold;
         }
         
         .header .school-info {
-            font-size: 6.5px;
+            font-size: 9px;
             color: #666;
-            line-height: 1.2;
+            line-height: 1.3;
         }
         
         .receipt-title {
             text-align: center;
-            font-size: 10px;
+            font-size: 13px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         
         .receipt-details-table {
             width: 100%;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             border-collapse: collapse;
-            font-size: 7.5px;
+            font-size: 10px;
         }
         
         .receipt-details-table td {
-            padding: 1px 3px;
+            padding: 3px 5px;
             border: none;
-            line-height: 1.3;
+            line-height: 1.4;
         }
         
         .receipt-details-table .detail-label {
@@ -93,9 +93,9 @@
         
         .allocations-table {
             width: 100%;
-            margin: 8px 0;
+            margin: 10px 0;
             border-collapse: collapse;
-            font-size: 7px;
+            font-size: 9px;
         }
         
         .allocations-table thead {
@@ -105,18 +105,18 @@
         
         .allocations-table th,
         .allocations-table td {
-            padding: 3px 4px;
+            padding: 5px 6px;
             text-align: left;
             border: 1px solid #ddd;
         }
         
         .allocations-table th {
             font-weight: bold;
-            font-size: 7px;
+            font-size: 9px;
         }
         
         .allocations-table td {
-            font-size: 7px;
+            font-size: 9px;
         }
         
         .allocations-table tbody tr:nth-child(even) {
