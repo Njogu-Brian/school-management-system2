@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class LegacyStatementLine extends Model
 {
@@ -45,6 +46,11 @@ class LegacyStatementLine extends Model
     public function term(): BelongsTo
     {
         return $this->belongsTo(LegacyStatementTerm::class, 'term_id');
+    }
+
+    public function editHistory(): HasMany
+    {
+        return $this->hasMany(LegacyStatementLineEditHistory::class, 'line_id');
     }
 }
 

@@ -141,6 +141,11 @@ class LegacyFinanceImportService
 
             // Transaction rows (date first)
             if ($txn = $this->matchTransactionLine($line)) {
+                // Check for duplicate transaction before storing
+                if ($this->isDuplicateTransaction($batch, $currentTerm, $txn)) {
+                    continue; // Skip duplicate
+                }
+                
                 $lineModel = $this->storeTransaction($batch, $currentTerm, $txn, $sequence);
                 $sequence++;
 
@@ -171,7 +176,7 @@ class LegacyFinanceImportService
         $draft = LegacyStatementTerm::where('batch_id', $batch->id)->where('status', 'draft')->count();
 
         $batch->update([
-            'status' => 'pending_review',
+            'status' => 'approved',
             'total_students' => count($studentsSeen),
             'imported_students' => $imported,
             'draft_students' => $draft,
@@ -467,6 +472,53 @@ class LegacyFinanceImportService
 
         $normalized = str_replace(',', '', $trimmed);
         return is_numeric($normalized) ? (float) $normalized : null;
+    }
+
+    /**
+     * Check if a transaction is a duplicate based on date, narration, amount (dr/cr), and running balance.
+     * 
+     * @param LegacyFinanceImportBatch $batch
+     * @param LegacyStatementTerm $term
+     * @param array $txn Transaction data from matchTransactionLine
+     * @return bool True if duplicate found
+     */
+    private function isDuplicateTransaction(LegacyFinanceImportBatch $batch, LegacyStatementTerm $term, array $txn): bool
+    {
+        $date = $txn['date'] ? $this->parseDate($txn['date']) : null;
+        $narration = trim($txn['narration']);
+        $amountDr = $txn['amounts']['dr'];
+        $amountCr = $txn['amounts']['cr'];
+        $runningBalance = $txn['amounts']['rb'];
+        
+        // Build query to check for existing transaction with same characteristics
+        $query = LegacyStatementLine::where('batch_id', $batch->id)
+            ->where('term_id', $term->id)
+            ->where('narration_raw', $narration);
+        
+        // Match date if available
+        if ($date) {
+            $query->where('txn_date', $date->toDateString());
+        } else {
+            $query->whereNull('txn_date');
+        }
+        
+        // Match amount (dr or cr)
+        if ($amountDr !== null) {
+            $query->where('amount_dr', $amountDr)->whereNull('amount_cr');
+        } elseif ($amountCr !== null) {
+            $query->where('amount_cr', $amountCr)->whereNull('amount_dr');
+        } else {
+            $query->whereNull('amount_dr')->whereNull('amount_cr');
+        }
+        
+        // Match running balance if available
+        if ($runningBalance !== null) {
+            $query->where('running_balance', $runningBalance);
+        } else {
+            $query->whereNull('running_balance');
+        }
+        
+        return $query->exists();
     }
 
     /**

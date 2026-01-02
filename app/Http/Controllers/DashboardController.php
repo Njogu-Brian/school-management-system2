@@ -181,12 +181,31 @@ class DashboardController extends Controller
         // ---- Finance KPIs
         $feesCollected = Payment::whereBetween('payment_date', [$filters['from'], $filters['to']])->sum('amount');
 
-        // outstanding = total - sum(payments.amount) for unpaid|partial
+        // outstanding = total - sum(payments.amount) for unpaid|partial + balance brought forward from legacy imports
         $paidSub = Payment::selectRaw('invoice_id, SUM(amount) as paid')->groupBy('invoice_id');
-        $feesOutstanding = Invoice::leftJoinSub($paidSub, 'p', 'p.invoice_id', '=', 'invoices.id')
+        $invoiceOutstanding = Invoice::leftJoinSub($paidSub, 'p', 'p.invoice_id', '=', 'invoices.id')
             ->whereIn('invoices.status', ['unpaid', 'partial'])
             ->selectRaw('SUM(GREATEST(invoices.total - COALESCE(p.paid, 0), 0)) as outstanding')
             ->value('outstanding') ?? 0;
+        
+        // Add balance brought forward from legacy imports (ending_balance from last term before 2026)
+        // Get all students with legacy data and sum their balance brought forward
+        $studentsWithLegacy = \App\Models\LegacyStatementTerm::where('academic_year', '<', 2026)
+            ->whereNotNull('ending_balance')
+            ->whereNotNull('student_id')
+            ->select('student_id')
+            ->distinct()
+            ->pluck('student_id');
+        
+        $balanceBroughtForward = 0;
+        foreach ($studentsWithLegacy as $studentId) {
+            $bf = \App\Services\StudentBalanceService::getBalanceBroughtForward($studentId);
+            if ($bf > 0) {
+                $balanceBroughtForward += $bf;
+            }
+        }
+        
+        $feesOutstanding = $invoiceOutstanding + $balanceBroughtForward;
 
         $teachersOnLeave = class_exists('\App\Models\Staff\Leave')
             ? \App\Models\Staff\Leave::whereDate('start', '<=', $today)->whereDate('end', '>=', $today)->count()
@@ -198,8 +217,8 @@ class DashboardController extends Controller
             'present_today'     => $presentToday,
             'absent_today'      => $absentToday,
             'attendance_delta'  => 0.0,
-            'fees_collected'    => $role === 'admin' ? $feesCollected : 0,
-            'fees_outstanding'  => $role === 'admin' ? $feesOutstanding : 0,
+            'fees_collected'    => in_array($role, ['admin', 'finance']) ? $feesCollected : 0,
+            'fees_outstanding'  => in_array($role, ['admin', 'finance']) ? $feesOutstanding : 0,
             'fees_delta'        => 0.0,
             'teachers_on_leave' => $teachersOnLeave,
         ];

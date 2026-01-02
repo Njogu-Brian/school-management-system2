@@ -32,6 +32,9 @@
             </div>
             <div class="col-md-3 mt-2 mt-md-0">
                 <div class="d-flex gap-2 flex-wrap">
+                    <a href="{{ route('finance.legacy-imports.edit-history', $batch) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-clock-history"></i> View Edit History
+                    </a>
                     <form action="{{ route('finance.legacy-imports.rerun', $batch) }}" method="POST" class="d-inline">
                         @csrf
                         <button type="submit" class="btn btn-sm btn-outline-secondary" onclick="return confirm('Re-run will delete parsed data for this batch and re-parse the PDF. Continue?')">
@@ -106,13 +109,43 @@
                                             </thead>
                                             <tbody>
                                                 @forelse($termData['lines'] as $line)
-                                                    <tr class="{{ $line->confidence === 'draft' ? 'table-warning' : '' }}">
+                                                    <tr class="{{ $line->confidence === 'draft' ? 'table-warning' : '' }}" data-line-id="{{ $line->id }}">
                                                         <td>{{ $line->sequence_no }}</td>
-                                                        <td style="min-width: 140px;">{{ $line->txn_date?->toDateString() }}</td>
-                                                        <td style="min-width: 480px;">{{ $line->narration_raw }}</td>
-                                                        <td class="text-end" style="min-width: 120px;">{{ number_format($line->amount_dr, 2) }}</td>
-                                                        <td class="text-end" style="min-width: 120px;">{{ number_format($line->amount_cr, 2) }}</td>
-                                                        <td class="text-end" style="min-width: 140px;">{{ number_format($line->running_balance, 2) }}</td>
+                                                        <td style="min-width: 140px;">
+                                                            <input type="date" 
+                                                                   class="form-control form-control-sm editable-field" 
+                                                                   value="{{ $line->txn_date?->toDateString() }}" 
+                                                                   data-field="txn_date"
+                                                                   data-line-id="{{ $line->id }}">
+                                                        </td>
+                                                        <td style="min-width: 480px;">
+                                                            <input type="text" 
+                                                                   class="form-control form-control-sm editable-field" 
+                                                                   value="{{ $line->narration_raw }}" 
+                                                                   data-field="narration_raw"
+                                                                   data-line-id="{{ $line->id }}">
+                                                        </td>
+                                                        <td class="text-end" style="min-width: 120px;">
+                                                            <input type="number" 
+                                                                   step="0.01" 
+                                                                   class="form-control form-control-sm editable-field text-end" 
+                                                                   value="{{ $line->amount_dr ?? '' }}" 
+                                                                   data-field="amount_dr"
+                                                                   data-line-id="{{ $line->id }}"
+                                                                   placeholder="0.00">
+                                                        </td>
+                                                        <td class="text-end" style="min-width: 120px;">
+                                                            <input type="number" 
+                                                                   step="0.01" 
+                                                                   class="form-control form-control-sm editable-field text-end" 
+                                                                   value="{{ $line->amount_cr ?? '' }}" 
+                                                                   data-field="amount_cr"
+                                                                   data-line-id="{{ $line->id }}"
+                                                                   placeholder="0.00">
+                                                        </td>
+                                                        <td class="text-end running-balance" style="min-width: 140px;" data-line-id="{{ $line->id }}">
+                                                            {{ number_format($line->running_balance ?? 0, 2) }}
+                                                        </td>
                                                         <td class="text-end" style="min-width: 120px;">
                                                             <span class="badge {{ $line->confidence === 'draft' ? 'bg-warning text-dark' : 'bg-success-subtle text-success' }}">
                                                                 {{ ucfirst($line->confidence ?? 'draft') }}
@@ -137,19 +170,25 @@
                         $studentTotalCr = $studentLines->sum('amount_cr');
                         $studentBalance = $studentTotalDr - $studentTotalCr;
                         $studentDrafts = $studentLines->where('confidence', 'draft')->count();
+                        // Get the last term's ending balance (current balance)
+                        $lastTerm = $student['terms']->last();
+                        $currentBalance = $lastTerm ? ($lastTerm['lines']->last()->running_balance ?? 0) : 0;
                     @endphp
                     <div class="col-12">
                         <div class="alert alert-info d-flex justify-content-between align-items-center mb-0">
                             <div>
                                 <strong>Student Totals:</strong>
-                                Dr: {{ number_format($studentTotalDr, 2) }},
-                                Cr: {{ number_format($studentTotalCr, 2) }},
-                                Balance: {{ number_format($studentBalance, 2) }}
+                                Dr: <span class="student-total-dr">{{ number_format($studentTotalDr, 2) }}</span>,
+                                Cr: <span class="student-total-cr">{{ number_format($studentTotalCr, 2) }}</span>,
+                                Balance: <span class="student-balance">{{ number_format($studentBalance, 2) }}</span>
                                 @if($studentDrafts > 0)
                                     <span class="badge bg-warning text-dark ms-2">{{ $studentDrafts }} draft line(s)</span>
                                 @else
                                     <span class="badge bg-success-subtle text-success ms-2">All sure</span>
                                 @endif
+                            </div>
+                            <div>
+                                <strong>Current Balance:</strong> <span class="student-current-balance">{{ number_format($currentBalance, 2) }}</span>
                             </div>
                         </div>
                     </div>
@@ -167,6 +206,108 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    // Legacy transaction inline editing
+    const editableFields = document.querySelectorAll('.editable-field');
+    let saveTimeout;
+    
+    editableFields.forEach(field => {
+        field.addEventListener('change', function() {
+            const lineId = this.dataset.lineId;
+            const fieldName = this.dataset.field;
+            const value = this.value;
+            
+            // Clear previous timeout
+            clearTimeout(saveTimeout);
+            
+            // Debounce save
+            saveTimeout = setTimeout(() => {
+                saveLineField(lineId, fieldName, value);
+            }, 500);
+        });
+        
+        // Prevent both dr and cr from being set
+        if (field.dataset.field === 'amount_dr' || field.dataset.field === 'amount_cr') {
+            field.addEventListener('input', function() {
+                const row = this.closest('tr');
+                const drField = row.querySelector('[data-field="amount_dr"]');
+                const crField = row.querySelector('[data-field="amount_cr"]');
+                
+                if (this.dataset.field === 'amount_dr' && this.value && crField.value) {
+                    crField.value = '';
+                } else if (this.dataset.field === 'amount_cr' && this.value && drField.value) {
+                    drField.value = '';
+                }
+            });
+        }
+    });
+    
+    function saveLineField(lineId, fieldName, value) {
+        const formData = new FormData();
+        formData.append('_token', '{{ csrf_token() }}');
+        formData.append('_method', 'PUT');
+        formData.append(fieldName, value);
+        
+        // Get all current field values from the row
+        const row = document.querySelector(`tr[data-line-id="${lineId}"]`);
+        if (row) {
+            const txnDate = row.querySelector('[data-field="txn_date"]').value;
+            const narration = row.querySelector('[data-field="narration_raw"]').value;
+            const amountDr = row.querySelector('[data-field="amount_dr"]').value;
+            const amountCr = row.querySelector('[data-field="amount_cr"]').value;
+            
+            formData.append('txn_date', txnDate || '');
+            formData.append('narration_raw', narration);
+            formData.append('amount_dr', amountDr || '');
+            formData.append('amount_cr', amountCr || '');
+            formData.append('confidence', 'high');
+        }
+        
+        fetch(`{{ route('finance.legacy-imports.lines.update', '') }}/${lineId}`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update running balances in the UI
+                updateRunningBalances(lineId);
+                // Show success message
+                showNotification('Transaction updated successfully', 'success');
+            } else {
+                showNotification(data.message || 'Error updating transaction', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error updating transaction', 'error');
+        });
+    }
+    
+    function updateRunningBalances(editedLineId) {
+        // Reload the page to show updated running balances
+        // Alternatively, we could fetch updated data via AJAX
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    }
+    
+    function showNotification(message, type) {
+        // Simple notification - you can enhance this
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+        alert.style.position = 'fixed';
+        alert.style.top = '20px';
+        alert.style.right = '20px';
+        alert.style.zIndex = '9999';
+        alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 3000);
+    }
+    
     const modeSelect = document.getElementById('modeSelect');
     const existingBlock = document.getElementById('existingBlock');
     const newBlock = document.getElementById('newBlock');

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LegacyFinanceImportBatch;
 use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
+use App\Models\LegacyStatementLineEditHistory;
 use App\Services\LegacyFinanceImportService;
 use App\Models\Student;
 use Illuminate\Http\Request;
@@ -129,6 +130,18 @@ class LegacyFinanceImportController extends Controller
             return back()->withErrors(['amount_cr' => 'Dr and Cr cannot both be set.'])->withInput();
         }
 
+        // Capture before values for edit history
+        $beforeValues = [
+            'txn_date' => $line->txn_date?->toDateString(),
+            'narration_raw' => $line->narration_raw,
+            'amount_dr' => $line->amount_dr,
+            'amount_cr' => $line->amount_cr,
+            'running_balance' => $line->running_balance,
+            'confidence' => $line->confidence,
+            'reference_number' => $line->reference_number,
+            'txn_code' => $line->txn_code,
+        ];
+
         $narration = $validated['narration_raw'];
         $reference = $line->reference_number;
         $txnCode = $line->txn_code;
@@ -149,14 +162,47 @@ class LegacyFinanceImportController extends Controller
             'txn_code' => $txnCode,
         ]);
 
+        // Capture after values and determine changed fields
+        $afterValues = [
+            'txn_date' => $line->txn_date?->toDateString(),
+            'narration_raw' => $line->narration_raw,
+            'amount_dr' => $line->amount_dr,
+            'amount_cr' => $line->amount_cr,
+            'running_balance' => $line->running_balance,
+            'confidence' => $line->confidence,
+            'reference_number' => $line->reference_number,
+            'txn_code' => $line->txn_code,
+        ];
+
+        // Determine which fields changed
+        $changedFields = [];
+        foreach ($beforeValues as $field => $beforeValue) {
+            $afterValue = $afterValues[$field] ?? null;
+            if ($beforeValue != $afterValue) {
+                $changedFields[] = $field;
+            }
+        }
+
+        // Store edit history if any fields changed
+        if (!empty($changedFields)) {
+            LegacyStatementLineEditHistory::create([
+                'line_id' => $line->id,
+                'batch_id' => $line->batch_id,
+                'edited_by' => auth()->id(),
+                'before_values' => $beforeValues,
+                'after_values' => $afterValues,
+                'changed_fields' => $changedFields,
+            ]);
+        }
+
         // Auto-set confidence to high if amounts are clear and date present
         if ($line->amount_dr !== null || $line->amount_cr !== null) {
             $line->confidence = 'high';
             $line->save();
         }
 
-        // Recalculate running balances for the term
-        $this->recalculateTermRunningBalance($line->term_id);
+        // Recalculate running balances for all subsequent transactions (including across terms)
+        $this->recalculateRunningBalancesFromLine($line);
 
         if ($validated['confidence'] === 'high' && $line->term) {
             $remainingDrafts = LegacyStatementLine::where('term_id', $line->term_id)
@@ -173,6 +219,15 @@ class LegacyFinanceImportController extends Controller
         if ($line->term) {
             $this->autoPromoteIfBalanced($line->term_id);
             $this->autoPromoteStudentIfBalanced($line->term);
+        }
+
+        // Return JSON response for AJAX requests
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Line updated successfully',
+                'running_balance' => $line->running_balance,
+            ]);
         }
 
         return back()->with('success', 'Line updated.');
@@ -197,6 +252,19 @@ class LegacyFinanceImportController extends Controller
         return redirect()
             ->route('finance.legacy-imports.show', $result['batch_id'])
             ->with('success', 'Legacy statements imported. Review draft lines and confirm.');
+    }
+
+    public function editHistory(LegacyFinanceImportBatch $batch)
+    {
+        $editHistory = LegacyStatementLineEditHistory::where('batch_id', $batch->id)
+            ->with(['line.term', 'editedBy'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(50);
+
+        return view('finance.legacy-imports.edit-history', [
+            'batch' => $batch,
+            'editHistory' => $editHistory,
+        ]);
     }
 
     public function searchStudent(Request $request)
@@ -255,6 +323,101 @@ class LegacyFinanceImportController extends Controller
             $running += ($dr - $cr);
             $l->running_balance = $running;
             $l->save();
+        }
+    }
+
+    /**
+     * Recalculate running balances for all transactions from the edited line onwards,
+     * including all subsequent transactions in the same term and all subsequent terms for the same student.
+     * If editing a transaction in the first term, recalculate all subsequent transactions including in later terms.
+     */
+    private function recalculateRunningBalancesFromLine(LegacyStatementLine $line): void
+    {
+        $term = $line->term;
+        if (!$term) {
+            return;
+        }
+
+        // Get all terms for this student in this batch, ordered by academic year and term number
+        $allTerms = LegacyStatementTerm::where('batch_id', $term->batch_id)
+            ->where('admission_number', $term->admission_number)
+            ->orderBy('academic_year')
+            ->orderBy('term_number')
+            ->get();
+
+        // Determine starting balance and whether to recalculate from start of term
+        $startingBalance = 0;
+        $isFirstTerm = ($term->term_number == 1);
+        $recalculateFromStartOfTerm = $isFirstTerm;
+        
+        if ($recalculateFromStartOfTerm) {
+            // For first term, use the term's starting_balance
+            $startingBalance = (float) ($term->starting_balance ?? 0);
+        } else {
+            // For subsequent terms, get ending balance from previous term
+            $previousTerm = $allTerms->where('academic_year', $term->academic_year)
+                ->where('term_number', $term->term_number - 1)
+                ->first();
+            
+            if ($previousTerm) {
+                // Get the last line of previous term to get its running balance
+                $lastLineOfPreviousTerm = LegacyStatementLine::where('term_id', $previousTerm->id)
+                    ->orderBy('sequence_no', 'desc')
+                    ->first();
+                
+                if ($lastLineOfPreviousTerm && $lastLineOfPreviousTerm->running_balance !== null) {
+                    $startingBalance = (float) $lastLineOfPreviousTerm->running_balance;
+                } elseif ($previousTerm->ending_balance !== null) {
+                    $startingBalance = (float) $previousTerm->ending_balance;
+                }
+            }
+        }
+
+        $currentRunningBalance = $startingBalance;
+        $foundEditedLine = false;
+
+        foreach ($allTerms as $t) {
+            $termLines = LegacyStatementLine::where('term_id', $t->id)
+                ->orderBy('sequence_no')
+                ->get();
+
+            // If we're recalculating from start of term and this is the term with the edited line
+            if ($recalculateFromStartOfTerm && $t->id === $term->id) {
+                // Recalculate all lines in this term from the start
+                foreach ($termLines as $l) {
+                    $dr = (float) ($l->amount_dr ?? 0);
+                    $cr = (float) ($l->amount_cr ?? 0);
+                    $currentRunningBalance += ($dr - $cr);
+                    $l->running_balance = $currentRunningBalance;
+                    $l->save();
+                }
+            } else {
+                // For other terms or if not recalculating from start
+                foreach ($termLines as $l) {
+                    // If we've reached the edited line, start recalculating from here
+                    if ($l->id === $line->id) {
+                        $foundEditedLine = true;
+                    }
+
+                    if ($foundEditedLine) {
+                        $dr = (float) ($l->amount_dr ?? 0);
+                        $cr = (float) ($l->amount_cr ?? 0);
+                        $currentRunningBalance += ($dr - $cr);
+                        $l->running_balance = $currentRunningBalance;
+                        $l->save();
+                    } else {
+                        // Use existing running balance for lines before the edited one
+                        $currentRunningBalance = (float) ($l->running_balance ?? $currentRunningBalance);
+                    }
+                }
+            }
+
+            // Update term ending balance
+            if ($termLines->isNotEmpty()) {
+                $lastLine = $termLines->last();
+                $t->ending_balance = $lastLine->running_balance;
+                $t->save();
+            }
         }
     }
 
