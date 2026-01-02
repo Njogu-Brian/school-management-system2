@@ -52,6 +52,22 @@ class StaffProfileController extends Controller
         ];
         $data = $request->validate($rules);
 
+        // Normalize empty strings to null for nullable fields
+        $data['date_of_birth'] = !empty($data['date_of_birth']) ? $data['date_of_birth'] : null;
+        $data['gender'] = !empty($data['gender']) ? strtolower(trim($data['gender'])) : null;
+        $data['marital_status'] = !empty($data['marital_status']) ? $data['marital_status'] : null;
+        $data['personal_email'] = !empty($data['personal_email']) ? $data['personal_email'] : null;
+        $data['residential_address'] = !empty($data['residential_address']) ? $data['residential_address'] : null;
+        $data['emergency_contact_name'] = !empty($data['emergency_contact_name']) ? $data['emergency_contact_name'] : null;
+        $data['emergency_contact_relationship'] = !empty($data['emergency_contact_relationship']) ? $data['emergency_contact_relationship'] : null;
+        $data['emergency_contact_phone'] = !empty($data['emergency_contact_phone']) ? $data['emergency_contact_phone'] : null;
+        $data['kra_pin'] = !empty($data['kra_pin']) ? $data['kra_pin'] : null;
+        $data['nssf'] = !empty($data['nssf']) ? $data['nssf'] : null;
+        $data['nhif'] = !empty($data['nhif']) ? $data['nhif'] : null;
+        $data['bank_name'] = !empty($data['bank_name']) ? $data['bank_name'] : null;
+        $data['bank_branch'] = !empty($data['bank_branch']) ? $data['bank_branch'] : null;
+        $data['bank_account'] = !empty($data['bank_account']) ? $data['bank_account'] : null;
+
         // Handle photo upload separately (apply immediately, no approval needed)
         $photoUpdated = false;
         if ($request->hasFile('photo')) {
@@ -73,7 +89,20 @@ class StaffProfileController extends Controller
         foreach ($interesting as $field) {
             $old = $staff->{$field};
             $new = $data[$field] ?? null;
-            // normalize empties
+            
+            // Normalize dates for comparison
+            if ($field === 'date_of_birth') {
+                $old = $old ? ($old instanceof \Carbon\Carbon ? $old->format('Y-m-d') : $old) : null;
+                $new = $new ? (is_string($new) ? $new : ($new instanceof \Carbon\Carbon ? $new->format('Y-m-d') : $new)) : null;
+            }
+            
+            // Normalize gender for comparison (lowercase)
+            if ($field === 'gender') {
+                $old = $old ? strtolower(trim($old)) : null;
+                $new = $new ? strtolower(trim($new)) : null;
+            }
+            
+            // Compare normalized values
             if (($old ?? null) != ($new ?? null)) {
                 $changes[$field] = ['old' => $old, 'new' => $new];
             }

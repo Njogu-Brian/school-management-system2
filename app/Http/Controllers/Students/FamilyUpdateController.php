@@ -224,6 +224,16 @@ class FamilyUpdateController extends Controller
                 if (!$student) {
                     continue;
                 }
+                
+                // Normalize gender to lowercase (form uses Male/Female, but we store as lowercase)
+                if (isset($stuData['gender'])) {
+                    $stuData['gender'] = strtolower(trim($stuData['gender']));
+                }
+                
+                // Normalize DOB - empty string to null
+                if (isset($stuData['dob']) && empty($stuData['dob'])) {
+                    $stuData['dob'] = null;
+                }
 
                 $fieldsToCheck = [
                     'first_name',

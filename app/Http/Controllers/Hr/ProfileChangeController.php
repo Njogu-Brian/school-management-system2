@@ -63,6 +63,19 @@ class ProfileChangeController extends Controller
                     }
                 }
 
+                // Normalize empty strings to null for nullable fields
+                foreach ($validated as $field => $value) {
+                    if (in_array($field, ['date_of_birth', 'gender', 'marital_status', 'personal_email', 'residential_address', 
+                        'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone', 
+                        'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account'])) {
+                        $validated[$field] = !empty($value) ? $value : null;
+                    }
+                    // Normalize gender to lowercase
+                    if ($field === 'gender' && $value) {
+                        $validated[$field] = strtolower(trim($value));
+                    }
+                }
+                
                 // Apply all validated fields to Staff
                 foreach ($validated as $field => $value) {
                     $staff->{$field} = $value;
@@ -156,6 +169,19 @@ class ProfileChangeController extends Controller
                         }
                     }
 
+                    // Normalize empty strings to null for nullable fields
+                    foreach ($validated as $field => $value) {
+                        if (in_array($field, ['date_of_birth', 'gender', 'marital_status', 'personal_email', 'residential_address', 
+                            'emergency_contact_name', 'emergency_contact_relationship', 'emergency_contact_phone', 
+                            'kra_pin', 'nssf', 'nhif', 'bank_name', 'bank_branch', 'bank_account'])) {
+                            $validated[$field] = !empty($value) ? $value : null;
+                        }
+                        // Normalize gender to lowercase
+                        if ($field === 'gender' && $value) {
+                            $validated[$field] = strtolower(trim($value));
+                        }
+                    }
+                    
                     // Apply all validated fields to Staff
                     foreach ($validated as $field => $value) {
                         $staff->{$field} = $value;

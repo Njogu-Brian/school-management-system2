@@ -292,7 +292,7 @@
             $fatherCountryCode = strtolower($fatherCountryCode) === '+ke' || strtolower($fatherCountryCode) === 'ke' ? '+254' : $fatherCountryCode;
             $fatherLocalPhone = extract_local_phone($p->father_phone ?? '', $fatherCountryCode);
           @endphp
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
             <option value="{{ $cc['code'] }}" @selected($fatherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
@@ -302,7 +302,7 @@
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
       <div class="input-group">
         <select name="father_whatsapp_country_code" class="form-select" style="max-width:170px" disabled>
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
             <option value="{{ $cc['code'] }}" @selected($fatherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
@@ -334,7 +334,7 @@
             $motherCountryCode = strtolower($motherCountryCode) === '+ke' || strtolower($motherCountryCode) === 'ke' ? '+254' : $motherCountryCode;
             $motherLocalPhone = extract_local_phone($p->mother_phone ?? '', $motherCountryCode);
           @endphp
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
             <option value="{{ $cc['code'] }}" @selected($motherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
@@ -344,7 +344,7 @@
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
       <div class="input-group">
         <select name="mother_whatsapp_country_code" class="form-select" style="max-width:170px" disabled>
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
             <option value="{{ $cc['code'] }}" @selected($motherCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
@@ -376,7 +376,7 @@
             $guardianCountryCode = strtolower($guardianCountryCode) === '+ke' || strtolower($guardianCountryCode) === 'ke' ? '+254' : $guardianCountryCode;
             $guardianLocalPhone = extract_local_phone($p->guardian_phone ?? '', $guardianCountryCode);
           @endphp
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
             <option value="{{ $cc['code'] }}" @selected($guardianCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
@@ -386,7 +386,7 @@
     <div class="col-md-3"><label class="form-label">WhatsApp</label>
       <div class="input-group">
         <select name="guardian_whatsapp_country_code" class="form-select" style="max-width:170px" disabled>
-          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'🇰🇪 Kenya (+254)']]) as $cc)
+          @foreach(($countryCodes ?? [['code'=>'+254','label'=>'Kenya (+254)']]) as $cc)
             <option value="{{ $cc['code'] }}" @selected($guardianCountryCode == $cc['code'])>{{ $cc['label'] }}</option>
           @endforeach
         </select>
