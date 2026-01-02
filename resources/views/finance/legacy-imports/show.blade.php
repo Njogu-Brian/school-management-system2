@@ -262,7 +262,10 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('confidence', 'high');
         }
         
-        fetch(`{{ route('finance.legacy-imports.lines.update', '') }}/${lineId}`, {
+        // Construct URL using base path and line ID
+        const baseUrl = '{{ url("/") }}';
+        const updateUrl = `${baseUrl}/finance/legacy-imports/lines/${lineId}`;
+        fetch(updateUrl, {
             method: 'POST',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
