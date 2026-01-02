@@ -388,7 +388,7 @@ class PaymentController extends Controller
         $smsTemplate = CommunicationTemplate::where('code', 'finance_payment_received_sms')->first();
         $emailTemplate = CommunicationTemplate::where('code', 'finance_payment_received_email')->first();
         
-        // Fallback: create templates if seeder hasn't run yet
+        // Fallback: create templates if seeder hasn't run yet (matching CommunicationTemplateSeeder exactly)
         if (!$smsTemplate) {
             $smsTemplate = CommunicationTemplate::firstOrCreate(
                 ['code' => 'finance_payment_received_sms'],
@@ -396,7 +396,7 @@ class PaymentController extends Controller
                     'title' => 'Payment Received (SMS)',
                     'type' => 'sms',
                     'subject' => null,
-                    'content' => "Dear {{parent_name}},\n\nWe have received a payment of {{amount}} for {{student_name}} on {{payment_date}}.\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                    'content' => "Dear {{parent_name}},\n\nWe have received a payment of {{amount}} for {{student_name}} on {{payment_date}}.\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
                 ]
             );
         }
@@ -408,7 +408,7 @@ class PaymentController extends Controller
                     'title' => 'Payment Received (Email)',
                     'type' => 'email',
                     'subject' => 'Payment Receipt – {{student_name}}',
-                    'content' => "Dear {{parent_name}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{receipt_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                    'content' => "Dear {{parent_name}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
                 ]
             );
         }
