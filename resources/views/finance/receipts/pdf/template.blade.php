@@ -12,7 +12,7 @@
         }
         
         @page {
-            size: A4;
+            size: A4 portrait;
             margin: 0;
         }
         
@@ -24,55 +24,58 @@
         }
         
         .receipt-container {
-            width: 50%;
-            max-width: 297mm;
-            height: 50vh;
+            width: 100%;
+            max-width: 210mm;
+            height: 50%;
             min-height: 148mm;
-            padding: 8px;
+            max-height: 148mm;
+            padding: 6px 10px;
             page-break-after: always;
             page-break-inside: avoid;
+            margin: 0 auto;
         }
         
         .header {
             text-align: center;
             border-bottom: 2px solid #3a1a59;
-            padding-bottom: 5px;
-            margin-bottom: 8px;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
         }
         
         .header h1 {
-            font-size: 14px;
+            font-size: 13px;
             color: #3a1a59;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
             font-weight: bold;
         }
         
         .header .school-info {
-            font-size: 7px;
+            font-size: 6.5px;
             color: #666;
-            line-height: 1.3;
+            line-height: 1.2;
         }
         
         .receipt-title {
             text-align: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
         
         .receipt-details-table {
             width: 100%;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             border-collapse: collapse;
-            font-size: 8px;
+            font-size: 7.5px;
         }
         
         .receipt-details-table td {
-            padding: 2px 4px;
+            padding: 1px 3px;
             border: none;
+            line-height: 1.3;
         }
         
         .receipt-details-table .detail-label {
@@ -125,8 +128,8 @@
         }
         
         .total-section {
-            margin-top: 8px;
-            padding: 6px;
+            margin-top: 6px;
+            padding: 4px 6px;
             background-color: #f5f5f5;
             border: 1px solid #3a1a59;
             border-radius: 3px;
@@ -135,33 +138,33 @@
         .total-row {
             display: flex;
             justify-content: space-between;
-            padding: 2px 0;
-            font-size: 8px;
+            padding: 1.5px 0;
+            font-size: 7.5px;
         }
         
         .total-row.grand-total {
-            font-size: 10px;
+            font-size: 9px;
             font-weight: bold;
             color: #3a1a59;
             border-top: 1px solid #3a1a59;
-            padding-top: 4px;
-            margin-top: 4px;
+            padding-top: 3px;
+            margin-top: 3px;
         }
         
         .footer {
-            margin-top: 8px;
+            margin-top: 6px;
             text-align: center;
-            font-size: 7px;
+            font-size: 6.5px;
             color: #666;
             border-top: 1px solid #ddd;
-            padding-top: 5px;
+            padding-top: 4px;
         }
         
         .footer .thank-you {
-            font-size: 8px;
+            font-size: 7.5px;
             font-weight: bold;
             color: #3a1a59;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
         
         .watermark {
@@ -293,7 +296,7 @@
                     <td>
                         {{ $votehead->name ?? 'N/A' }}
                         @if(!$isPaid)
-                            <span style="color: #856404; font-size: 10px;">(Unpaid)</span>
+                            <span style="color: #856404; font-size: 6px;">(Unpaid)</span>
                         @endif
                     </td>
                     <td class="text-right">Ksh {{ number_format($itemAmount, 2) }}</td>
