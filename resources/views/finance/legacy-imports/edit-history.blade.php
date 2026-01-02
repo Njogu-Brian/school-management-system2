@@ -49,6 +49,7 @@
                                 <th>Changed Fields</th>
                                 <th>Before</th>
                                 <th>After</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -124,10 +125,14 @@
                                                         } catch (\Exception $e) {
                                                             $displayValue = $afterValue;
                                                         }
-                                                    } elseif (in_array($field, ['amount_dr', 'amount_cr', 'running_balance']) && $afterValue !== null) {
-                                                        $displayValue = number_format((float)$afterValue, 2);
+                                                    } elseif (in_array($field, ['amount_dr', 'amount_cr', 'running_balance'])) {
+                                                        if ($afterValue !== null && $afterValue !== '') {
+                                                            $displayValue = number_format((float)$afterValue, 2);
+                                                        } else {
+                                                            $displayValue = '0.00';
+                                                        }
                                                     } elseif ($field === 'narration_raw') {
-                                                        $displayValue = \Illuminate\Support\Str::limit($afterValue, 50);
+                                                        $displayValue = $afterValue ? \Illuminate\Support\Str::limit($afterValue, 50) : 'N/A';
                                                     }
                                                 @endphp
                                                 <div class="mb-2">
@@ -136,6 +141,14 @@
                                                 </div>
                                             @endforeach
                                         </div>
+                                    </td>
+                                    <td>
+                                        <form action="{{ route('finance.legacy-imports.edit-history.revert', $edit) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to revert this edit? This will restore the original values and create a new edit history entry.');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Revert this edit">
+                                                <i class="bi bi-arrow-counterclockwise"></i> Revert
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             @endforeach

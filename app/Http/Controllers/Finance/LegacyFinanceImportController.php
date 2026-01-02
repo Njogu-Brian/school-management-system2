@@ -162,7 +162,19 @@ class LegacyFinanceImportController extends Controller
             'txn_code' => $txnCode,
         ]);
 
-        // Capture after values and determine changed fields
+        // Auto-set confidence to high if amounts are clear and date present
+        if ($line->amount_dr !== null || $line->amount_cr !== null) {
+            $line->confidence = 'high';
+            $line->save();
+        }
+
+        // Recalculate running balances for all subsequent transactions (including across terms)
+        $this->recalculateRunningBalancesFromLine($line);
+        
+        // Refresh the line to get the updated running balance after recalculation
+        $line->refresh();
+
+        // Capture after values AFTER recalculation to get the correct running balance
         $afterValues = [
             'txn_date' => $line->txn_date?->toDateString(),
             'narration_raw' => $line->narration_raw,
@@ -194,15 +206,6 @@ class LegacyFinanceImportController extends Controller
                 'changed_fields' => $changedFields,
             ]);
         }
-
-        // Auto-set confidence to high if amounts are clear and date present
-        if ($line->amount_dr !== null || $line->amount_cr !== null) {
-            $line->confidence = 'high';
-            $line->save();
-        }
-
-        // Recalculate running balances for all subsequent transactions (including across terms)
-        $this->recalculateRunningBalancesFromLine($line);
 
         if ($validated['confidence'] === 'high' && $line->term) {
             $remainingDrafts = LegacyStatementLine::where('term_id', $line->term_id)
@@ -265,6 +268,91 @@ class LegacyFinanceImportController extends Controller
             'batch' => $batch,
             'editHistory' => $editHistory,
         ]);
+    }
+
+    public function revertEdit(Request $request, LegacyStatementLineEditHistory $editHistory)
+    {
+        $line = $editHistory->line;
+        if (!$line) {
+            return back()->withErrors(['error' => 'Transaction line not found.']);
+        }
+
+        // Capture current values as new "before" for the revert
+        $currentValues = [
+            'txn_date' => $line->txn_date?->toDateString(),
+            'narration_raw' => $line->narration_raw,
+            'amount_dr' => $line->amount_dr,
+            'amount_cr' => $line->amount_cr,
+            'running_balance' => $line->running_balance,
+            'confidence' => $line->confidence,
+            'reference_number' => $line->reference_number,
+            'txn_code' => $line->txn_code,
+        ];
+
+        // Get the original values from before_values (what we're reverting to)
+        $revertValues = $editHistory->before_values;
+
+        // Update the line with the original values
+        $narration = $revertValues['narration_raw'] ?? $line->narration_raw;
+        $reference = $revertValues['reference_number'] ?? $line->reference_number;
+        $txnCode = $revertValues['txn_code'] ?? $line->txn_code;
+        
+        if ($narration !== $line->narration_raw) {
+            $service = app(\App\Services\LegacyFinanceImportService::class);
+            $reference = $service->extractReference($narration);
+            $txnCode = $service->extractTxnCode($narration);
+        }
+
+        $line->update([
+            'txn_date' => $revertValues['txn_date'] ? \Carbon\Carbon::parse($revertValues['txn_date']) : null,
+            'narration_raw' => $narration,
+            'amount_dr' => $revertValues['amount_dr'] ?? null,
+            'amount_cr' => $revertValues['amount_cr'] ?? null,
+            'running_balance' => $revertValues['running_balance'] ?? null,
+            'confidence' => $revertValues['confidence'] ?? $line->confidence,
+            'reference_number' => $reference,
+            'txn_code' => $txnCode,
+        ]);
+
+        // Recalculate running balances after revert
+        $this->recalculateRunningBalancesFromLine($line);
+        $line->refresh();
+
+        // Capture the reverted values
+        $revertedValues = [
+            'txn_date' => $line->txn_date?->toDateString(),
+            'narration_raw' => $line->narration_raw,
+            'amount_dr' => $line->amount_dr,
+            'amount_cr' => $line->amount_cr,
+            'running_balance' => $line->running_balance,
+            'confidence' => $line->confidence,
+            'reference_number' => $line->reference_number,
+            'txn_code' => $line->txn_code,
+        ];
+
+        // Determine which fields changed in the revert
+        $revertChangedFields = [];
+        foreach ($currentValues as $field => $currentValue) {
+            $revertedValue = $revertedValues[$field] ?? null;
+            if ($currentValue != $revertedValue) {
+                $revertChangedFields[] = $field;
+            }
+        }
+
+        // Create a new edit history entry for the revert
+        if (!empty($revertChangedFields)) {
+            LegacyStatementLineEditHistory::create([
+                'line_id' => $line->id,
+                'batch_id' => $line->batch_id,
+                'edited_by' => auth()->id(),
+                'before_values' => $currentValues,
+                'after_values' => $revertedValues,
+                'changed_fields' => $revertChangedFields,
+                'notes' => 'Reverted from edit history #' . $editHistory->id,
+            ]);
+        }
+
+        return back()->with('success', 'Edit reverted successfully.');
     }
 
     public function searchStudent(Request $request)

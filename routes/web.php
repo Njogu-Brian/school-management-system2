@@ -1006,6 +1006,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('legacy-imports', [LegacyFinanceImportController::class, 'store'])->name('legacy-imports.store');
         Route::get('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'show'])->name('legacy-imports.show');
         Route::get('legacy-imports/{batch}/edit-history', [LegacyFinanceImportController::class, 'editHistory'])->name('legacy-imports.edit-history');
+        Route::post('legacy-imports/edit-history/{editHistory}/revert', [LegacyFinanceImportController::class, 'revertEdit'])->name('legacy-imports.edit-history.revert');
         Route::get('legacy-imports/student-search', [LegacyFinanceImportController::class, 'searchStudent'])->name('legacy-imports.student-search');
         Route::post('legacy-imports/{batch}/rerun', [LegacyFinanceImportController::class, 'rerun'])->name('legacy-imports.rerun');
         Route::delete('legacy-imports/{batch}', [LegacyFinanceImportController::class, 'destroy'])->name('legacy-imports.destroy');
