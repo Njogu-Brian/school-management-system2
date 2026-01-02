@@ -16,7 +16,10 @@ class StudentBalanceService
      */
     public static function getTotalOutstandingBalance($student): float
     {
-        $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
         
         // Get balance brought forward from legacy data (ending_balance from last term before 2026)
         $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
@@ -62,11 +65,14 @@ class StudentBalanceService
      * This is the ending_balance from the last term before 2026.
      * 
      * @param Student|int $student Student model or ID
-     * @return float Balance brought forward (0 if none)
+     * @return float Balance brought forward (0 if none or student doesn't exist)
      */
     public static function getBalanceBroughtForward($student): float
     {
-        $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
         
         $broughtForward = LegacyStatementTerm::getBalanceBroughtForward($studentModel);
         return $broughtForward !== null && $broughtForward > 0 ? $broughtForward : 0;
@@ -80,7 +86,10 @@ class StudentBalanceService
      */
     public static function getInvoiceBalance($student): float
     {
-        $studentModel = $student instanceof Student ? $student : Student::findOrFail($student);
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
         
         return (float) Invoice::where('student_id', $studentModel->id)
             ->where('status', '!=', 'reversed')

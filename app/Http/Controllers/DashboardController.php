@@ -206,13 +206,23 @@ class DashboardController extends Controller
             ->whereNotNull('student_id')
             ->select('student_id')
             ->distinct()
-            ->pluck('student_id');
+            ->pluck('student_id')
+            ->filter(function($studentId) {
+                // Only include student IDs that actually exist in the students table
+                return Student::where('id', $studentId)->exists();
+            });
         
         $balanceBroughtForward = 0;
         foreach ($studentsWithLegacy as $studentId) {
-            $bf = \App\Services\StudentBalanceService::getBalanceBroughtForward($studentId);
-            if ($bf > 0) {
-                $balanceBroughtForward += $bf;
+            try {
+                $bf = \App\Services\StudentBalanceService::getBalanceBroughtForward($studentId);
+                if ($bf > 0) {
+                    $balanceBroughtForward += $bf;
+                }
+            } catch (\Exception $e) {
+                // Log but continue processing other students
+                \Log::warning("Failed to get balance brought forward for student {$studentId}: " . $e->getMessage());
+                continue;
             }
         }
         
