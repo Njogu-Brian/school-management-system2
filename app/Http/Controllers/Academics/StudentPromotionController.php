@@ -105,7 +105,7 @@ class StudentPromotionController extends Controller
                 ->get();
 
             // Filter out students who have already been promoted in this academic year
-            $validStudents = $students->filter(function($student) use ($request) {
+            $validStudents = $students->filter(function($student) use ($request, $classroom) {
                 // Check if student was already promoted in this academic year
                 $alreadyPromoted = \App\Models\StudentAcademicHistory::where('student_id', $student->id)
                     ->where('academic_year_id', $request->academic_year_id)
