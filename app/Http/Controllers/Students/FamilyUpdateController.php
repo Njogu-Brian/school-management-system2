@@ -144,7 +144,9 @@ class FamilyUpdateController extends Controller
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
             'emergency_contact_name' => 'nullable|string|max:255',
             'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'emergency_phone_country_code' => 'nullable|string|max:8',
             'preferred_hospital' => 'nullable|string|max:255',
+            'residential_area' => 'nullable|string|max:255',
             'students' => 'required|array|min:1',
             'students.*.id' => 'required|integer|in:' . implode(',', $studentIds),
             'students.*.first_name' => 'required|string|max:255',
@@ -171,22 +173,27 @@ class FamilyUpdateController extends Controller
             foreach ($students as $stu) {
                 if ($stu->parent) {
                     $parent = $stu->parent;
+                    // Normalize country codes before using them
+                    $fatherCountryCode = $this->normalizeCountryCode($validated['father_phone_country_code'] ?? $parent->father_phone_country_code ?? '+254');
+                    $motherCountryCode = $this->normalizeCountryCode($validated['mother_phone_country_code'] ?? $parent->mother_phone_country_code ?? '+254');
+                    $guardianCountryCode = $this->normalizeCountryCode($validated['guardian_phone_country_code'] ?? $parent->guardian_phone_country_code ?? '+254');
+                    
                     $parentData = [
-                        'father_name' => $validated['father_name'] ?? $parent->father_name,
-                        'father_phone' => $this->formatPhoneWithCode($validated['father_phone'] ?? $parent->father_phone, $validated['father_phone_country_code'] ?? $parent->father_phone_country_code ?? '+254'),
-                        'father_phone_country_code' => $validated['father_phone_country_code'] ?? $parent->father_phone_country_code ?? '+254',
-                        'father_whatsapp' => $this->formatPhoneWithCode($validated['father_whatsapp'] ?? $parent->father_whatsapp, $validated['father_phone_country_code'] ?? $parent->father_phone_country_code ?? '+254'),
-                        'father_email' => $validated['father_email'] ?? $parent->father_email,
-                        'mother_name' => $validated['mother_name'] ?? $parent->mother_name,
-                        'mother_phone' => $this->formatPhoneWithCode($validated['mother_phone'] ?? $parent->mother_phone, $validated['mother_phone_country_code'] ?? $parent->mother_phone_country_code ?? '+254'),
-                        'mother_phone_country_code' => $validated['mother_phone_country_code'] ?? $parent->mother_phone_country_code ?? '+254',
-                        'mother_whatsapp' => $this->formatPhoneWithCode($validated['mother_whatsapp'] ?? $parent->mother_whatsapp, $validated['mother_phone_country_code'] ?? $parent->mother_phone_country_code ?? '+254'),
-                        'mother_email' => $validated['mother_email'] ?? $parent->mother_email,
-                        'guardian_name' => $validated['guardian_name'] ?? $parent->guardian_name,
-                        'guardian_phone' => $this->formatPhoneWithCode($validated['guardian_phone'] ?? $parent->guardian_phone, $validated['guardian_phone_country_code'] ?? $parent->guardian_phone_country_code ?? '+254'),
-                        'guardian_phone_country_code' => $validated['guardian_phone_country_code'] ?? $parent->guardian_phone_country_code ?? '+254',
-                        'guardian_relationship' => $validated['guardian_relationship'] ?? $parent->guardian_relationship,
-                        'marital_status' => $validated['marital_status'] ?? $parent->marital_status,
+                        'father_name' => !empty($validated['father_name']) ? $validated['father_name'] : $parent->father_name,
+                        'father_phone' => !empty($validated['father_phone']) ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) : $parent->father_phone,
+                        'father_phone_country_code' => $fatherCountryCode,
+                        'father_whatsapp' => !empty($validated['father_whatsapp']) ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) : $parent->father_whatsapp,
+                        'father_email' => !empty($validated['father_email']) ? $validated['father_email'] : $parent->father_email,
+                        'mother_name' => !empty($validated['mother_name']) ? $validated['mother_name'] : $parent->mother_name,
+                        'mother_phone' => !empty($validated['mother_phone']) ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) : $parent->mother_phone,
+                        'mother_phone_country_code' => $motherCountryCode,
+                        'mother_whatsapp' => !empty($validated['mother_whatsapp']) ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) : $parent->mother_whatsapp,
+                        'mother_email' => !empty($validated['mother_email']) ? $validated['mother_email'] : $parent->mother_email,
+                        'guardian_name' => !empty($validated['guardian_name']) ? $validated['guardian_name'] : $parent->guardian_name,
+                        'guardian_phone' => !empty($validated['guardian_phone']) ? $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode) : $parent->guardian_phone,
+                        'guardian_phone_country_code' => $guardianCountryCode,
+                        'guardian_relationship' => !empty($validated['guardian_relationship']) ? $validated['guardian_relationship'] : $parent->guardian_relationship,
+                        'marital_status' => !empty($validated['marital_status']) ? $validated['marital_status'] : $parent->marital_status,
                     ];
 
                     foreach ($parentData as $field => $value) {
@@ -252,22 +259,28 @@ class FamilyUpdateController extends Controller
 
                 $beforeSnapshot = $student->only($fieldsToCheck);
 
+                // Normalize gender to lowercase (form uses Male/Female, but we store as lowercase)
+                $gender = isset($stuData['gender']) ? strtolower(trim($stuData['gender'])) : $student->gender;
+                
+                // Normalize DOB - empty string to null
+                $dob = !empty($stuData['dob']) ? $stuData['dob'] : null;
+                
                 $student->update([
                     'first_name' => $stuData['first_name'],
                     'middle_name' => $stuData['middle_name'] ?? null,
                     'last_name' => $stuData['last_name'],
-                    'gender' => $stuData['gender'],
-                    'dob' => $stuData['dob'] ?? null,
-                    'has_allergies' => $stuData['has_allergies'] ?? false,
-                    'allergies_notes' => $stuData['allergies_notes'] ?? null,
-                    'is_fully_immunized' => $stuData['is_fully_immunized'] ?? false,
-                    'residential_area' => $validated['residential_area'] ?? $student->residential_area,
-                    'preferred_hospital' => $validated['preferred_hospital'] ?? $student->preferred_hospital,
-                    'emergency_contact_name' => $validated['emergency_contact_name'] ?? $student->emergency_contact_name,
-                    'emergency_contact_phone' => $this->formatPhoneWithCode(
-                        $validated['emergency_contact_phone'] ?? $student->emergency_contact_phone,
+                    'gender' => $gender,
+                    'dob' => $dob,
+                    'has_allergies' => isset($stuData['has_allergies']) ? (bool)$stuData['has_allergies'] : false,
+                    'allergies_notes' => !empty($stuData['allergies_notes']) ? $stuData['allergies_notes'] : null,
+                    'is_fully_immunized' => isset($stuData['is_fully_immunized']) ? (bool)$stuData['is_fully_immunized'] : false,
+                    'residential_area' => !empty($validated['residential_area']) ? $validated['residential_area'] : $student->residential_area,
+                    'preferred_hospital' => !empty($validated['preferred_hospital']) ? $validated['preferred_hospital'] : $student->preferred_hospital,
+                    'emergency_contact_name' => !empty($validated['emergency_contact_name']) ? $validated['emergency_contact_name'] : $student->emergency_contact_name,
+                    'emergency_contact_phone' => !empty($validated['emergency_contact_phone']) ? $this->formatPhoneWithCode(
+                        $validated['emergency_contact_phone'],
                         '+254'
-                    ),
+                    ) : $student->emergency_contact_phone,
                 ]);
 
                 $student->refresh();
@@ -320,18 +333,51 @@ class FamilyUpdateController extends Controller
         return is_array($codes) ? $codes : [];
     }
 
+    /**
+     * Normalize country code (e.g., +ke, ke, KE -> +254)
+     */
+    private function normalizeCountryCode(?string $code): string
+    {
+        if (!$code) {
+            return '+254';
+        }
+        $code = trim($code);
+        // Handle +ke, ke, KE, +KE
+        $codeLower = strtolower($code);
+        if ($codeLower === '+ke' || $codeLower === 'ke') {
+            return '+254';
+        }
+        // Ensure it starts with +
+        if (!str_starts_with($code, '+')) {
+            return '+' . ltrim($code, '+');
+        }
+        return $code;
+    }
+
     private function formatPhoneWithCode(?string $phone, ?string $code = '+254'): ?string
     {
         if (!$phone) {
             return null;
         }
 
+        // Normalize country code first (convert +KE to +254)
+        $code = $this->normalizeCountryCode($code);
+        
+        // Check if phone already contains +KE and replace it
+        if (stripos($phone, '+KE') !== false) {
+            $phone = str_ireplace('+KE', '', $phone);
+        }
+        
         $cleanPhone = preg_replace('/\D+/', '', $phone);
-        $code = $code && str_starts_with($code, '+') ? $code : '+' . ltrim((string) $code, '+');
+        $cleanCode = ltrim($code, '+');
 
         // If phone already starts with country code (with or without plus), keep as is
-        if (str_starts_with($phone, '+') || str_starts_with($cleanPhone, ltrim($code, '+'))) {
-            return str_starts_with($phone, '+') ? $phone : '+' . $cleanPhone;
+        if (str_starts_with($phone, '+') && str_starts_with($phone, '+' . $cleanCode)) {
+            return $phone;
+        }
+        
+        if (str_starts_with($cleanPhone, $cleanCode)) {
+            return '+' . $cleanPhone;
         }
 
         // If starts with 0, drop it then prepend code

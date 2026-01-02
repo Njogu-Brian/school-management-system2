@@ -80,7 +80,7 @@
           <div class="card-body vstack gap-3">
             <div class="d-flex flex-column gap-2">
               <div class="text-muted small">Gender</div>
-              <div class="fw-semibold text-capitalize">{{ $student->gender ?? '—' }}</div>
+              <div class="fw-semibold">{{ $student->gender ? ucfirst($student->gender) : '—' }}</div>
             </div>
             <div class="d-flex flex-column gap-2">
               <div class="text-muted small">Date of Birth</div>
@@ -140,7 +140,7 @@
           <div class="card-body">
             <div class="row g-3">
               <div class="col-md-6"><div class="text-muted small">Admission No.</div><div class="fw-semibold">{{ $student->admission_number }}</div></div>
-              <div class="col-md-6"><div class="text-muted small">Gender</div><div class="fw-semibold text-capitalize">{{ $student->gender ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Gender</div><div class="fw-semibold">{{ $student->gender ? ucfirst($student->gender) : '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Date of Birth</div><div class="fw-semibold">{{ $student->dob ? \Carbon\Carbon::parse($student->dob)->toFormattedDateString() : '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Admission Date</div><div class="fw-semibold">{{ $student->admission_date ? \Carbon\Carbon::parse($student->admission_date)->format('M d, Y') : '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Class</div><div class="fw-semibold">{{ $student->classroom->name ?? '—' }}</div></div>
