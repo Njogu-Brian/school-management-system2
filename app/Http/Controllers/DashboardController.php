@@ -31,8 +31,16 @@ class DashboardController extends Controller
 {
     public function adminDashboard(Request $request)
     {
-        $data = $this->buildDashboardData($request, 'admin', null, null);
-        return view('dashboard.admin', $data);
+        try {
+            $data = $this->buildDashboardData($request, 'admin', null, null);
+            return view('dashboard.admin', $data);
+        } catch (\Exception $e) {
+            \Log::error('Admin dashboard error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => auth()->id(),
+            ]);
+            return redirect()->route('home')->with('error', 'Unable to load dashboard. Please try again.');
+        }
     }
 
     public function teacherDashboard(Request $request)
