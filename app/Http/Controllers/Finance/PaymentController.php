@@ -383,33 +383,35 @@ class PaymentController extends Controller
             return;
         }
         
-        // Get or create payment receipt template
-        // Include public receipt link in SMS
-        $smsTemplate = CommunicationTemplate::firstOrCreate(
-            ['code' => 'payment_receipt_sms'],
-            [
-                'title' => 'Payment Receipt SMS',
-                'type' => 'sms',
-                'subject' => 'Payment Receipt',
-                'content' => 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}',
-            ]
-        );
+        // Use templates from CommunicationTemplateSeeder
+        // Template codes: finance_payment_received_sms and finance_payment_received_email
+        $smsTemplate = CommunicationTemplate::where('code', 'finance_payment_received_sms')->first();
+        $emailTemplate = CommunicationTemplate::where('code', 'finance_payment_received_email')->first();
         
-        // Update existing template to include receipt link if it doesn't have it
-        if (strpos($smsTemplate->content, '{{receipt_link}}') === false) {
-            $smsTemplate->content = 'Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}';
-            $smsTemplate->save();
+        // Fallback: create templates if seeder hasn't run yet
+        if (!$smsTemplate) {
+            $smsTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'finance_payment_received_sms'],
+                [
+                    'title' => 'Payment Received (SMS)',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "Dear {{parent_name}},\n\nWe have received a payment of {{amount}} for {{student_name}} on {{payment_date}}.\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                ]
+            );
         }
         
-        $emailTemplate = CommunicationTemplate::firstOrCreate(
-            ['code' => 'payment_receipt_email'],
-            [
-                'title' => 'Payment Receipt Email',
-                'type' => 'email',
-                'subject' => 'Payment Receipt - {{receipt_number}}',
-                'content' => '<p>Dear {{parent_name}},</p><p>Payment of <strong>Ksh {{amount}}</strong> has been received for <strong>{{student_name}}</strong> (Admission: {{admission_number}}).</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}<br><strong>Payment Date:</strong> {{payment_date}}</p><p>Please find the receipt attached.</p><p><a href="{{receipt_link}}">View Receipt Online</a></p>',
-            ]
-        );
+        if (!$emailTemplate) {
+            $emailTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'finance_payment_received_email'],
+                [
+                    'title' => 'Payment Received (Email)',
+                    'type' => 'email',
+                    'subject' => 'Payment Receipt – {{student_name}}',
+                    'content' => "Dear {{parent_name}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{receipt_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                ]
+            );
+        }
         
         // Prepare template variables
         // Use public receipt link (token-based, no ID in URL)
@@ -484,17 +486,22 @@ class PaymentController extends Controller
         $payment->refresh();
         $carriedForward = $payment->unallocated_amount ?? 0;
         
+        // Get school name for template
+        $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+        
         $variables = [
             'parent_name' => $parentName,
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
-            'amount' => number_format($payment->amount, 2),
+            'amount' => 'Ksh ' . number_format($payment->amount, 2),
             'receipt_number' => $payment->receipt_number,
             'transaction_code' => $payment->transaction_code,
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
-            'outstanding_amount' => number_format($outstandingBalance, 2),
+            'finance_portal_link' => $receiptLink, // Alias for seeder template compatibility
+            'outstanding_amount' => 'Ksh ' . number_format($outstandingBalance, 2),
             'carried_forward' => number_format($carriedForward, 2),
+            'school_name' => $schoolName,
         ];
         
         // Replace placeholders
@@ -509,7 +516,15 @@ class PaymentController extends Controller
         if ($parentPhone) {
             try {
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                Log::info('Attempting to send payment SMS', [
+                    'payment_id' => $payment->id,
+                    'phone' => $parentPhone,
+                    'template_code' => $smsTemplate->code,
+                    'message_length' => strlen($smsMessage)
+                ]);
+                
                 $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title);
+                
                 Log::info('Payment SMS sent successfully', [
                     'payment_id' => $payment->id, 
                     'phone' => $parentPhone,
@@ -520,10 +535,13 @@ class PaymentController extends Controller
                     'error' => $e->getMessage(), 
                     'payment_id' => $payment->id, 
                     'phone' => $parentPhone,
+                    'template_code' => $smsTemplate->code ?? 'unknown',
                     'trace' => $e->getTraceAsString()
                 ]);
                 // Don't throw - allow email to still be sent
             }
+        } else {
+            Log::info('Payment SMS skipped - no parent phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
         
         // Send Email with PDF attachment (queue PDF generation for better performance)
@@ -532,16 +550,35 @@ class PaymentController extends Controller
                 $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
                 
+                Log::info('Attempting to send payment email', [
+                    'payment_id' => $payment->id,
+                    'email' => $parentEmail,
+                    'template_code' => $emailTemplate->code
+                ]);
+                
                 // Generate PDF receipt (this is still synchronous but optimized)
                 // TODO: Consider queuing PDF generation for bulk operations
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
                 
                 // Use CommunicationService to send email (handles logging automatically)
                 $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
-                Log::info('Payment email sent successfully', ['payment_id' => $payment->id, 'email' => $parentEmail]);
+                
+                Log::info('Payment email sent successfully', [
+                    'payment_id' => $payment->id, 
+                    'email' => $parentEmail,
+                    'pdf_path' => $pdfPath
+                ]);
             } catch (\Exception $e) {
-                Log::error('Email sending failed', ['error' => $e->getMessage(), 'payment_id' => $payment->id, 'trace' => $e->getTraceAsString()]);
+                Log::error('Payment email sending failed', [
+                    'error' => $e->getMessage(), 
+                    'payment_id' => $payment->id, 
+                    'email' => $parentEmail,
+                    'template_code' => $emailTemplate->code ?? 'unknown',
+                    'trace' => $e->getTraceAsString()
+                ]);
             }
+        } else {
+            Log::info('Payment email skipped - no parent email', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
     }
     
@@ -939,12 +976,14 @@ class PaymentController extends Controller
             $totalInvoices += $invoice->total ?? 0;
         }
         
-        // Get school settings
+        // Get school settings and branding (including logo)
         $schoolSettings = $this->getSchoolSettings();
+        $branding = $this->branding();
         
         return view('finance.receipts.view', compact(
             'payment',
             'schoolSettings',
+            'branding',
             'totalBalanceBefore',
             'totalBalanceAfter',
             'totalOutstandingBalance',
@@ -1054,12 +1093,14 @@ class PaymentController extends Controller
             $totalInvoices += $invoice->total ?? 0;
         }
         
-        // Get school settings for receipt
+        // Get school settings and branding for receipt
         $schoolSettings = $this->getSchoolSettings();
+        $branding = $this->branding();
         
         return view('finance.receipts.public', compact(
             'payment', 
             'schoolSettings',
+            'branding',
             'totalBalanceBefore',
             'totalBalanceAfter',
             'totalOutstandingBalance',

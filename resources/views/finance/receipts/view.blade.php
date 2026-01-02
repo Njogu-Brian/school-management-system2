@@ -39,6 +39,7 @@
                     @include('finance.receipts.pdf.template', [
                         'payment' => $payment,
                         'school' => $schoolSettings ?? [],
+                        'branding' => $branding ?? [],
                         'receipt_number' => $payment->receipt_number,
                         'date' => $payment->receipt_date ? \Carbon\Carbon::parse($payment->receipt_date)->format('d/m/Y') : ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') : date('d/m/Y')),
                         'student' => $payment->student,

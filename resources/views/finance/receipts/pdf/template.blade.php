@@ -170,8 +170,25 @@
         <div class="header">
             @php
                 $school = $school ?? [];
+                $branding = $branding ?? [];
+                // Get logo - prefer branding logoBase64, fallback to school logo
+                $logo = $branding['logoBase64'] ?? null;
+                if (!$logo && !empty($school['logo'])) {
+                    $logoFile = $school['logo'];
+                    $logoPath = public_path('images/' . $logoFile);
+                    if (file_exists($logoPath)) {
+                        $ext = strtolower(pathinfo($logoPath, PATHINFO_EXTENSION));
+                        $mime = $ext === 'svg' ? 'image/svg+xml' : (($ext === 'jpg' || $ext === 'jpeg') ? 'image/jpeg' : 'image/png');
+                        $logo = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($logoPath));
+                    }
+                }
             @endphp
-            <h1>{{ $school['name'] ?? 'SCHOOL NAME' }}</h1>
+            @if($logo)
+            <div style="text-align: center; margin-bottom: 15px;">
+                <img src="{{ $logo }}" alt="School Logo" style="max-height: 80px; max-width: 200px;">
+            </div>
+            @endif
+            <h1>{{ $school['name'] ?? ($branding['name'] ?? 'SCHOOL NAME') }}</h1>
             @if(!empty($school['address'] ?? ''))
             <div class="school-info">
                 {{ $school['address'] ?? '' }}<br>
