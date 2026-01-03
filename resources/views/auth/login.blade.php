@@ -9,13 +9,12 @@
     // Try to use background image from settings, then fallback to existing images
     $bgImage = null;
     if ($loginBg) {
-        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($loginBg)) {
-            $bgImage = \Illuminate\Support\Facades\Storage::url($loginBg);
-        } else {
+        // Check public/images/ first (where files are saved)
         $bgPath = public_path('images/' . $loginBg);
         if (file_exists($bgPath)) {
             $bgImage = asset('images/' . $loginBg);
-            }
+        } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($loginBg)) {
+            $bgImage = \Illuminate\Support\Facades\Storage::url($loginBg);
         }
     }
     

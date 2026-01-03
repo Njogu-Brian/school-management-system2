@@ -160,7 +160,7 @@ class OnlineAdmissionController extends Controller
 
         // Handle file uploads
         if ($request->hasFile('passport_photo')) {
-            $data['passport_photo'] = $request->file('passport_photo')->store('admissions/photos', 'private');
+            $data['passport_photo'] = $request->file('passport_photo')->store('admissions/photos', 'public');
         }
         if ($request->hasFile('birth_certificate')) {
             $data['birth_certificate'] = $request->file('birth_certificate')->store('admissions/documents', 'private');
@@ -325,6 +325,19 @@ class OnlineAdmissionController extends Controller
                 $dropOffPointLabel = optional(DropOffPoint::find($validated['drop_off_point_id']))->name;
             }
 
+            // Copy passport photo from admissions to students/photos if it exists
+            $photoPath = null;
+            if ($admission->passport_photo && Storage::disk('public')->exists($admission->passport_photo)) {
+                // Copy the file to students/photos directory
+                $newPath = 'students/photos/' . basename($admission->passport_photo);
+                if (Storage::disk('public')->copy($admission->passport_photo, $newPath)) {
+                    $photoPath = $newPath;
+                } else {
+                    // If copy fails, try to move it
+                    $photoPath = $admission->passport_photo;
+                }
+            }
+
             // Create student
             $student = Student::create([
                 'admission_number' => $admissionNumber,
@@ -345,6 +358,7 @@ class OnlineAdmissionController extends Controller
                 'nemis_number' => $admission->nemis_number,
                 'knec_assessment_number' => $admission->knec_assessment_number,
                 'marital_status' => $admission->marital_status,
+                'photo_path' => $photoPath,
                 // Medical & emergency
                 'has_allergies' => isset($validated['has_allergies']) ? (bool)$validated['has_allergies'] : (bool)$admission->has_allergies,
                 'allergies_notes' => $validated['allergies_notes'] ?? $admission->allergies_notes,
@@ -442,7 +456,7 @@ class OnlineAdmissionController extends Controller
     {
         // Delete uploaded files
         if ($admission->passport_photo) {
-            Storage::disk('private')->delete($admission->passport_photo);
+            Storage::disk('public')->delete($admission->passport_photo);
         }
         if ($admission->birth_certificate) {
             Storage::disk('private')->delete($admission->birth_certificate);

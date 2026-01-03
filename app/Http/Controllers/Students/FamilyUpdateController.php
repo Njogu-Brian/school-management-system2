@@ -309,9 +309,9 @@ class FamilyUpdateController extends Controller
                 $fileKeyCert = "students.{$student->id}.birth_certificate";
                 if (request()->hasFile($fileKeyPhoto)) {
                     if ($student->photo_path) {
-                        Storage::disk('private')->delete($student->photo_path);
+                        Storage::disk('public')->delete($student->photo_path);
                     }
-                    $student->photo_path = request()->file($fileKeyPhoto)->store('students/photos', 'private');
+                    $student->photo_path = request()->file($fileKeyPhoto)->store('students/photos', 'public');
                 }
                 if (request()->hasFile($fileKeyCert)) {
                     if ($student->birth_certificate_path) {

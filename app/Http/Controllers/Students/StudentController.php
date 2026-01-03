@@ -343,6 +343,16 @@ class StudentController extends Controller
                     ),
                 ]
             ));
+            
+            // Handle photo upload
+            if ($request->hasFile('photo')) {
+                if ($student->photo_path) {
+                    Storage::disk('public')->delete($student->photo_path);
+                }
+                $student->photo_path = $request->file('photo')->store('students/photos', 'public');
+                $student->save();
+            }
+            
             $this->handleParentIdUploads($parent, $request);
 
             if ($request->boolean('needs_transport') && $request->filled('transport_fee_amount')) {
@@ -632,6 +642,16 @@ class StudentController extends Controller
         }
         
         $student->update($updateData);
+        
+        // Handle photo upload
+        if ($request->hasFile('photo')) {
+            if ($student->photo_path) {
+                Storage::disk('public')->delete($student->photo_path);
+            }
+            $student->photo_path = $request->file('photo')->store('students/photos', 'public');
+            $student->save();
+        }
+        
         // Family mapping on update
         $familyId = $request->input('family_id');
 

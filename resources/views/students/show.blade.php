@@ -406,7 +406,7 @@
             <div class="tab-pane fade" id="finance" role="tabpanel">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">Financial Information</h6>
-                <a href="{{ route('student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
+                <a href="{{ route('finance.student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
               </div>
               
               @php

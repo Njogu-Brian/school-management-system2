@@ -17,6 +17,7 @@ use App\Models\Trip;
 use App\Models\Vehicle;
 use App\Models\Family;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 
 
 class Student extends Model
@@ -324,11 +325,33 @@ class Student extends Model
         $path = $this->photo_path ?? $this->photo ?? null;
 
         if ($path) {
-            // Use the public disk; make sure "php artisan storage:link" is done
-            return asset('storage/' . ltrim($path, '/'));
+            // Normalize path separators and trim
+            $path = str_replace('\\', '/', trim($path));
+            $path = ltrim($path, '/');
+            
+            // Check if file exists on public disk
+            if (Storage::disk('public')->exists($path)) {
+                return Storage::disk('public')->url($path);
+            }
+            
+            // Fallback: try direct asset() approach
+            try {
+                $fullPath = storage_path('app/public/' . $path);
+                if (file_exists($fullPath)) {
+                    return asset('storage/' . $path);
+                }
+                
+                // Also check public/storage (symlink target)
+                $publicPath = public_path('storage/' . $path);
+                if (file_exists($publicPath)) {
+                    return asset('storage/' . $path);
+                }
+            } catch (\Exception $e) {
+                // Fall through to fallback
+            }
         }
 
-        // Nice initials fallback (no “av” weirdness)
+        // Nice initials fallback (no "av" weirdness)
         $name = trim($this->first_name . ' ' . $this->last_name);
         return 'https://ui-avatars.com/api/?name=' . urlencode($name) . '&background=6c63ff&color=fff&size=128&rounded=true';
     }
