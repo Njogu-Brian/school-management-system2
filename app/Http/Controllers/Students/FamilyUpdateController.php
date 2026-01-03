@@ -128,11 +128,13 @@ class FamilyUpdateController extends Controller
         $validated = $request->validate([
             'residential_area' => 'nullable|string|max:255',
             'father_name' => 'nullable|string|max:255',
+            'father_id_number' => 'nullable|string|max:255',
             'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
             'father_phone_country_code' => 'nullable|string|max:8',
             'father_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
             'father_email' => 'nullable|email|max:255',
             'mother_name' => 'nullable|string|max:255',
+            'mother_id_number' => 'nullable|string|max:255',
             'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
             'mother_phone_country_code' => 'nullable|string|max:8',
             'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
@@ -180,11 +182,13 @@ class FamilyUpdateController extends Controller
                     
                     $parentData = [
                         'father_name' => !empty($validated['father_name']) ? $validated['father_name'] : $parent->father_name,
+                        'father_id_number' => isset($validated['father_id_number']) ? $validated['father_id_number'] : $parent->father_id_number,
                         'father_phone' => !empty($validated['father_phone']) ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) : $parent->father_phone,
                         'father_phone_country_code' => $fatherCountryCode,
                         'father_whatsapp' => !empty($validated['father_whatsapp']) ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) : $parent->father_whatsapp,
                         'father_email' => !empty($validated['father_email']) ? $validated['father_email'] : $parent->father_email,
                         'mother_name' => !empty($validated['mother_name']) ? $validated['mother_name'] : $parent->mother_name,
+                        'mother_id_number' => isset($validated['mother_id_number']) ? $validated['mother_id_number'] : $parent->mother_id_number,
                         'mother_phone' => !empty($validated['mother_phone']) ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) : $parent->mother_phone,
                         'mother_phone_country_code' => $motherCountryCode,
                         'mother_whatsapp' => !empty($validated['mother_whatsapp']) ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) : $parent->mother_whatsapp,

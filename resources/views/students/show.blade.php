@@ -70,50 +70,13 @@
 
     <div class="row g-3">
       <div class="col-lg-4">
-        <div class="settings-card h-100">
-          <div class="card-header">
-            <div class="d-flex align-items-center justify-content-between">
-              <span class="fw-bold">Profile Snapshot</span>
-              <span class="badge bg-light text-dark">ID {{ $student->id }}</span>
-            </div>
-          </div>
-          <div class="card-body vstack gap-3">
-            <div class="d-flex flex-column gap-2">
-              <div class="text-muted small">Gender</div>
-              <div class="fw-semibold">{{ $student->gender ? ucfirst($student->gender) : '—' }}</div>
-            </div>
-            <div class="d-flex flex-column gap-2">
-              <div class="text-muted small">Date of Birth</div>
-              <div class="fw-semibold">{{ $student->dob ? \Carbon\Carbon::parse($student->dob)->toFormattedDateString() : '—' }}</div>
-            </div>
-        <div class="d-flex flex-column gap-2">
-          <div class="text-muted small">Marital Status (Parents)</div>
-          @php $marital = optional($student->parent)->marital_status; @endphp
-          <div class="fw-semibold text-capitalize">{{ $marital ? str_replace('_',' ', $marital) : '—' }}</div>
-        </div>
-            <div class="d-flex flex-column gap-2">
-              <div class="text-muted small">NEMIS</div>
-              <div class="fw-semibold">{{ $student->nemis_number ?? '—' }}</div>
-            </div>
-            <div class="d-flex flex-column gap-2">
-              <div class="text-muted small">KNEC Assessment</div>
-              <div class="fw-semibold">{{ $student->knec_assessment_number ?? '—' }}</div>
-            </div>
-            @if($student->allergies)
-            <div class="d-flex flex-column gap-2">
-              <div class="text-muted small">Allergies</div>
-              <div class="fw-semibold">{{ $student->allergies }}</div>
-            </div>
-            @endif
-          </div>
-        </div>
-
         <div class="settings-card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span class="fw-bold">Documents</span>
             <a class="btn btn-sm btn-ghost-strong" href="{{ route('students.edit', $student->id) }}"><i class="bi bi-upload"></i> Manage</a>
           </div>
           <div class="card-body small vstack gap-2">
+            <div class="fw-semibold text-muted mb-2">Student Documents</div>
             <div class="d-flex justify-content-between">
               <span class="fw-semibold">Passport Photo</span>
               <span>{!! $student->photo_path ? '<a target="_blank" href="'.asset('storage/'.$student->photo_path).'">View</a>' : '—' !!}</span>
@@ -122,6 +85,21 @@
               <span class="fw-semibold">Birth Certificate</span>
               <span>{!! $student->birth_certificate_path ? '<a target="_blank" href="'.asset('storage/'.$student->birth_certificate_path).'">View</a>' : '—' !!}</span>
             </div>
+            @if($student->parent)
+              <div class="fw-semibold text-muted mb-2 mt-3">Parent Documents</div>
+              @if(optional($student->parent)->father_id_document)
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">Father ID Document</span>
+                  <span><a target="_blank" href="{{ asset('storage/'.$student->parent->father_id_document) }}">View</a></span>
+                </div>
+              @endif
+              @if(optional($student->parent)->mother_id_document)
+                <div class="d-flex justify-content-between">
+                  <span class="fw-semibold">Mother ID Document</span>
+                  <span><a target="_blank" href="{{ asset('storage/'.$student->parent->mother_id_document) }}">View</a></span>
+                </div>
+              @endif
+            @endif
           </div>
         </div>
       </div>
@@ -130,12 +108,13 @@
         <div class="settings-card mb-3">
           <div class="card-header d-flex align-items-center justify-content-between">
             <span class="fw-bold">Student Information</span>
-            @if($student->family && $student->family->updateLink)
-              <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge bg-light text-dark">ID {{ $student->id }}</span>
+              @if($student->family && $student->family->updateLink)
                 <span class="badge bg-light text-dark">Profile Update Link</span>
                 <button type="button" class="btn btn-sm btn-ghost-strong" onclick="navigator.clipboard.writeText('{{ route('family-update.form', $student->family->updateLink->token) }}'); this.innerText='Copied'; setTimeout(()=>this.innerText='Copy Link',1500);">Copy Link</button>
-              </div>
-            @endif
+              @endif
+            </div>
           </div>
           <div class="card-body">
             <div class="row g-3">
@@ -147,6 +126,11 @@
               <div class="col-md-6"><div class="text-muted small">Stream</div><div class="fw-semibold">{{ $student->stream->name ?? '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Category</div><div class="fw-semibold">{{ $student->category->name ?? '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Status</div><div class="fw-semibold"><span class="pill-badge pill-{{ $student->archive ? 'danger' : ($student->status === 'active' ? 'success' : 'secondary') }}">{{ $student->archive ? 'Inactive' : ucfirst($student->status ?? '—') }}</span></div></div>
+              <div class="col-md-6"><div class="text-muted small">NEMIS</div><div class="fw-semibold">{{ $student->nemis_number ?? '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">KNEC Assessment</div><div class="fw-semibold">{{ $student->knec_assessment_number ?? '—' }}</div></div>
+              @if($student->allergies)
+              <div class="col-md-6"><div class="text-muted small">Allergies</div><div class="fw-semibold">{{ $student->allergies }}</div></div>
+              @endif
             </div>
           </div>
         </div>
@@ -162,6 +146,11 @@
             @if($student->parent)
               @php $p = $student->parent; @endphp
               <div class="row g-3">
+                {{-- Marital Status at top --}}
+                <div class="col-12 mb-2">
+                  <div class="text-muted small">Marital Status</div>
+                  <div class="fw-semibold text-capitalize">{{ $p->marital_status ? str_replace('_',' ', $p->marital_status) : '—' }}</div>
+                </div>
                 {{-- Father Section --}}
                 <div class="col-12"><h6 class="fw-bold text-uppercase text-muted small mb-2">Father</h6></div>
                 <div class="col-md-6"><div class="text-muted small">Name</div><div class="fw-semibold">{{ $p->father_name ?? '—' }}</div></div>
@@ -254,27 +243,90 @@
             <div class="tab-content">
           <div class="tab-pane fade show active" id="medical" role="tabpanel">
             <div class="d-flex justify-content-between align-items-center mb-3">
-              <h6 class="mb-0">Medical Records</h6>
-              <a href="{{ route('students.medical-records.index', $student) }}" class="btn btn-sm btn-ghost-strong">View All <i class="bi bi-arrow-right"></i></a>
+              <h6 class="mb-0">Medical & Emergency Information</h6>
+              <a href="{{ route('students.medical-records.index', $student) }}" class="btn btn-sm btn-ghost-strong">View All Records <i class="bi bi-arrow-right"></i></a>
             </div>
-            @php $medicalRecords = $student->medicalRecords()->latest('record_date')->limit(5)->get(); @endphp
-            @if($medicalRecords->count() > 0)
-              <div class="list-group">
-                @foreach($medicalRecords as $record)
-                  <div class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-start">
-                      <div>
-                        <h6 class="mb-1">{{ $record->title }}</h6>
-                        <p class="mb-1 text-muted small">{{ $record->record_date->format('M d, Y') }} · <span class="pill-badge pill-info">{{ ucfirst($record->record_type) }}</span></p>
-                      </div>
-                      <a href="{{ route('students.medical-records.show', [$student, $record]) }}" class="btn btn-sm btn-ghost-strong">View</a>
-                    </div>
-                  </div>
-                @endforeach
+            
+            {{-- Medical Information --}}
+            <div class="mb-4">
+              <h6 class="fw-semibold mb-3">Medical Information</h6>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <div class="text-muted small">Has Allergies</div>
+                  <div class="fw-semibold">{{ $student->has_allergies ? 'Yes' : ($student->has_allergies === false ? 'No' : '—') }}</div>
+                </div>
+                @if($student->allergies_notes)
+                <div class="col-md-6">
+                  <div class="text-muted small">Allergies Details</div>
+                  <div class="fw-semibold">{{ $student->allergies_notes }}</div>
+                </div>
+                @endif
+                @if($student->allergies)
+                <div class="col-md-6">
+                  <div class="text-muted small">Allergies</div>
+                  <div class="fw-semibold">{{ $student->allergies }}</div>
+                </div>
+                @endif
+                <div class="col-md-6">
+                  <div class="text-muted small">Fully Immunized</div>
+                  <div class="fw-semibold">{{ $student->is_fully_immunized ? 'Yes' : ($student->is_fully_immunized === false ? 'No' : '—') }}</div>
+                </div>
+                @if($student->preferred_hospital)
+                <div class="col-md-6">
+                  <div class="text-muted small">Preferred Hospital</div>
+                  <div class="fw-semibold">{{ $student->preferred_hospital }}</div>
+                </div>
+                @endif
+                @if($student->residential_area)
+                <div class="col-md-6">
+                  <div class="text-muted small">Residential Area</div>
+                  <div class="fw-semibold">{{ $student->residential_area }}</div>
+                </div>
+                @endif
               </div>
-            @else
-              <p class="text-muted mb-0">No medical records yet. <a href="{{ route('students.medical-records.create', $student) }}">Add one</a></p>
-            @endif
+            </div>
+
+            {{-- Emergency Contact --}}
+            <div class="mb-4">
+              <h6 class="fw-semibold mb-3">Emergency Contact</h6>
+              <div class="row g-3">
+                @if($student->emergency_contact_name)
+                <div class="col-md-6">
+                  <div class="text-muted small">Emergency Contact Name</div>
+                  <div class="fw-semibold">{{ $student->emergency_contact_name }}</div>
+                </div>
+                @endif
+                @if($student->emergency_contact_phone)
+                <div class="col-md-6">
+                  <div class="text-muted small">Emergency Contact Phone</div>
+                  <div class="fw-semibold">{{ $student->emergency_contact_phone }}</div>
+                </div>
+                @endif
+              </div>
+            </div>
+
+            {{-- Medical Records List --}}
+            <div>
+              <h6 class="fw-semibold mb-3">Recent Medical Records</h6>
+              @php $medicalRecords = $student->medicalRecords()->latest('record_date')->limit(5)->get(); @endphp
+              @if($medicalRecords->count() > 0)
+                <div class="list-group">
+                  @foreach($medicalRecords as $record)
+                    <div class="list-group-item">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                          <h6 class="mb-1">{{ $record->title }}</h6>
+                          <p class="mb-1 text-muted small">{{ $record->record_date->format('M d, Y') }} · <span class="pill-badge pill-info">{{ ucfirst($record->record_type) }}</span></p>
+                        </div>
+                        <a href="{{ route('students.medical-records.show', [$student, $record]) }}" class="btn btn-sm btn-ghost-strong">View</a>
+                      </div>
+                    </div>
+                  @endforeach
+                </div>
+              @else
+                <p class="text-muted mb-0">No medical records yet. <a href="{{ route('students.medical-records.create', $student) }}">Add one</a></p>
+              @endif
+            </div>
           </div>
 
           <div class="tab-pane fade" id="disciplinary" role="tabpanel">
@@ -353,13 +405,91 @@
           </div>
             <div class="tab-pane fade" id="finance" role="tabpanel">
               <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="mb-0">Financial</h6>
-                <div class="btn-group btn-group-sm">
-                  <a class="btn btn-ghost-strong" href="{{ url('/finance/invoices') }}">Invoices</a>
-                  <a class="btn btn-ghost-strong" href="{{ url('/finance/payments') }}">Payments</a>
+                <h6 class="mb-0">Financial Information</h6>
+                <a href="{{ route('student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
+              </div>
+              
+              @php
+                $totalOutstanding = $student->getTotalOutstandingBalance();
+                $invoiceBalance = $student->getInvoiceBalance();
+                $balanceBroughtForward = $student->getBalanceBroughtForward();
+                $recentInvoices = \App\Models\Invoice::where('student_id', $student->id)->latest()->limit(5)->get();
+                $recentPayments = \App\Models\Payment::where('student_id', $student->id)->latest()->limit(5)->get();
+              @endphp
+              
+              <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                  <div class="settings-card">
+                    <div class="card-body">
+                      <div class="text-muted small">Total Outstanding</div>
+                      <div class="fw-bold fs-4">{{ number_format($totalOutstanding, 2) }} Ksh</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-4">
+                  <div class="settings-card">
+                    <div class="card-body">
+                      <div class="text-muted small">Invoice Balance</div>
+                      <div class="fw-bold fs-4">{{ number_format($invoiceBalance, 2) }} Ksh</div>
+                    </div>
+                  </div>
+                </div>
+                @if($balanceBroughtForward > 0)
+                <div class="col-md-4">
+                  <div class="settings-card">
+                    <div class="card-body">
+                      <div class="text-muted small">Balance Brought Forward</div>
+                      <div class="fw-bold fs-4">{{ number_format($balanceBroughtForward, 2) }} Ksh</div>
+                    </div>
+                  </div>
+                </div>
+                @endif
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <h6 class="fw-semibold mb-3">Recent Invoices</h6>
+                  @if($recentInvoices->count() > 0)
+                    <div class="list-group">
+                      @foreach($recentInvoices as $invoice)
+                        <div class="list-group-item">
+                          <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                              <h6 class="mb-1">{{ $invoice->invoice_number }}</h6>
+                              <p class="mb-1 text-muted small">{{ $invoice->created_at->format('M d, Y') }} · <span class="pill-badge pill-{{ $invoice->status === 'paid' ? 'success' : ($invoice->status === 'partial' ? 'warning' : 'danger') }}">{{ ucfirst($invoice->status) }}</span></p>
+                              <p class="mb-0 small">Total: {{ number_format($invoice->total, 2) }} Ksh · Balance: {{ number_format($invoice->balance, 2) }} Ksh</p>
+                            </div>
+                            <a href="{{ route('invoices.show', $invoice->id) }}" class="btn btn-sm btn-ghost-strong">View</a>
+                          </div>
+                        </div>
+                      @endforeach
+                    </div>
+                  @else
+                    <p class="text-muted mb-0">No invoices yet.</p>
+                  @endif
+                </div>
+                <div class="col-md-6">
+                  <h6 class="fw-semibold mb-3">Recent Payments</h6>
+                  @if($recentPayments->count() > 0)
+                    <div class="list-group">
+                      @foreach($recentPayments as $payment)
+                        <div class="list-group-item">
+                          <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                              <h6 class="mb-1">{{ $payment->receipt_number ?? 'Payment #'.$payment->id }}</h6>
+                              <p class="mb-1 text-muted small">{{ $payment->payment_date->format('M d, Y') }} · <span class="pill-badge pill-success">{{ $payment->payment_method }}</span></p>
+                              <p class="mb-0 small">Amount: {{ number_format($payment->amount, 2) }} Ksh</p>
+                            </div>
+                            <a href="{{ route('payments.receipt.view', $payment->id) }}" class="btn btn-sm btn-ghost-strong">View</a>
+                          </div>
+                        </div>
+                      @endforeach
+                    </div>
+                  @else
+                    <p class="text-muted mb-0">No payments yet.</p>
+                  @endif
                 </div>
               </div>
-              <p class="text-muted small mb-2">Finance records remain available for archived students. You can collect fees and view invoices/payments in Finance.</p>
             </div>
         </div>
       </div>

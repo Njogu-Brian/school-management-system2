@@ -214,8 +214,21 @@
                         <h6 class="text-uppercase text-muted mb-3">Parent / Guardian</h6>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
+                                <label class="form-label">Marital Status</label>
+                                <select name="marital_status" class="form-select">
+                                    <option value="">Select</option>
+                                    <option value="married" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='married')>Married</option>
+                                    <option value="single_parent" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='single_parent')>Single Parent</option>
+                                    <option value="co_parenting" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
                                 <label class="form-label">Father Name</label>
                                 <input type="text" name="father_name" class="form-control" value="{{ old('father_name', $family->students->first()->parent->father_name ?? '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Father ID Number</label>
+                                <input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number', $family->students->first()->parent->father_id_number ?? '') }}">
                             </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Father Phone</label>
@@ -260,6 +273,10 @@
                             <div class="col-md-6">
                                 <label class="form-label">Mother Name</label>
                                 <input type="text" name="mother_name" class="form-control" value="{{ old('mother_name', $family->students->first()->parent->mother_name ?? '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Mother ID Number</label>
+                                <input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number', $family->students->first()->parent->mother_id_number ?? '') }}">
                             </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Mother Phone</label>
@@ -329,15 +346,6 @@
                                 <label class="form-label">Guardian Relationship</label>
                                 <input type="text" name="guardian_relationship" class="form-control" value="{{ old('guardian_relationship', $family->students->first()->parent->guardian_relationship ?? '') }}">
                             </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Marital Status</label>
-                        <select name="marital_status" class="form-select">
-                            <option value="">Select</option>
-                            <option value="married" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='married')>Married</option>
-                            <option value="single_parent" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='single_parent')>Single Parent</option>
-                            <option value="co_parenting" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
-                        </select>
-                    </div>
                         </div>
 
                         <h6 class="text-uppercase text-muted mb-3">Emergency & Medical</h6>
