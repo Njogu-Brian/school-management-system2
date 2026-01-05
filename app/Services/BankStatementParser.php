@@ -630,24 +630,12 @@ class BankStatementParser
     }
     
     /**
-     * Extract student name from description
+     * Extract student name from description (legacy method - uses extractStudentNames)
      */
     protected function extractStudentName(string $description): ?string
     {
-        // Look for common name patterns (2-3 words, capitalized)
-        if (preg_match('/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/', $description, $matches)) {
-            $name = $matches[1];
-            // Filter out common words that aren't names
-            $exclude = ['MPESA', 'PAYBILL', 'SENT', 'RECEIVED', 'FROM', 'TO', 'KES', 'SCHOOL', 'FEES'];
-            $words = explode(' ', $name);
-            $filtered = array_filter($words, fn($w) => !in_array(strtoupper($w), $exclude));
-            
-            if (count($filtered) >= 2) {
-                return implode(' ', $filtered);
-            }
-        }
-        
-        return null;
+        $names = $this->extractStudentNames($description);
+        return $names[0] ?? null;
     }
     
     /**
