@@ -521,6 +521,7 @@ class BankStatementController extends Controller
         $validated = $request->validate([
             'transaction_ids' => 'nullable|array',
             'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+            'auto_confirm' => 'nullable|boolean', // Option to auto-confirm high-confidence matches
         ]);
 
         $query = BankStatementTransaction::where('match_status', 'unmatched')
@@ -533,13 +534,98 @@ class BankStatementController extends Controller
 
         $transactions = $query->get();
         $matched = 0;
+        $confirmed = 0;
         $errors = [];
+        $autoConfirm = $validated['auto_confirm'] ?? true; // Default to true for auto-confirmation
 
         foreach ($transactions as $transaction) {
             try {
                 $result = $this->parser->matchTransaction($transaction);
                 if ($result['matched']) {
                     $matched++;
+                    
+                    // Refresh transaction to get updated match_confidence
+                    $transaction->refresh();
+                    
+                    // Auto-confirm high-confidence matches (>= 0.85) if enabled
+                    if ($autoConfirm && $transaction->match_confidence >= 0.85 && $transaction->student_id) {
+                        try {
+                            DB::transaction(function () use ($transaction) {
+                                // Confirm the transaction
+                                $transaction->confirm();
+                                
+                                // Create payment if not already created
+                                if (!$transaction->payment_created) {
+                                    $payment = $this->parser->createPaymentFromTransaction($transaction);
+                                    
+                                    // Generate receipt for the payment
+                                    try {
+                                        $receiptService = app(\App\Services\ReceiptService::class);
+                                        $receiptService->generateReceipt($payment, ['save' => true]);
+                                    } catch (\Exception $e) {
+                                        Log::warning('Receipt generation failed for auto-assigned payment', [
+                                            'payment_id' => $payment->id ?? null,
+                                            'transaction_id' => $transaction->id,
+                                            'error' => $e->getMessage()
+                                        ]);
+                                    }
+                                    
+                                    // Send payment notifications (SMS, Email, WhatsApp)
+                                    try {
+                                        $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
+                                        $paymentController->sendPaymentNotifications($payment);
+                                    } catch (\Exception $e) {
+                                        Log::warning('Payment notification failed for auto-assigned payment', [
+                                            'payment_id' => $payment->id ?? null,
+                                            'transaction_id' => $transaction->id,
+                                            'error' => $e->getMessage()
+                                        ]);
+                                        // Don't fail the process if notifications fail
+                                    }
+                                    
+                                    // If shared payment, handle sibling payments
+                                    if ($transaction->is_shared && $transaction->shared_allocations) {
+                                        foreach ($transaction->shared_allocations as $allocation) {
+                                            $siblingPayment = \App\Models\Payment::where('student_id', $allocation['student_id'])
+                                                ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                                                ->where('id', '!=', $payment->id)
+                                                ->first();
+                                            
+                                            if ($siblingPayment) {
+                                                try {
+                                                    $receiptService->generateReceipt($siblingPayment, ['save' => true]);
+                                                    
+                                                    // Send notifications for sibling payment
+                                                    try {
+                                                        $paymentController->sendPaymentNotifications($siblingPayment);
+                                                    } catch (\Exception $e) {
+                                                        Log::warning('Payment notification failed for sibling payment', [
+                                                            'payment_id' => $siblingPayment->id,
+                                                            'error' => $e->getMessage()
+                                                        ]);
+                                                    }
+                                                } catch (\Exception $e) {
+                                                    Log::warning('Receipt generation failed for sibling payment', [
+                                                        'payment_id' => $siblingPayment->id,
+                                                        'error' => $e->getMessage()
+                                                    ]);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    $confirmed++;
+                                }
+                            });
+                        } catch (\Exception $e) {
+                            $errors[] = "Transaction #{$transaction->id} (auto-confirm): " . $e->getMessage();
+                            Log::error('Auto-confirm failed for transaction', [
+                                'transaction_id' => $transaction->id,
+                                'error' => $e->getMessage(),
+                                'trace' => $e->getTraceAsString()
+                            ]);
+                        }
+                    }
                 }
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
@@ -547,8 +633,14 @@ class BankStatementController extends Controller
         }
 
         $message = "Auto-assigned {$matched} out of {$transactions->count()} transactions.";
+        if ($confirmed > 0) {
+            $message .= " {$confirmed} payment(s) created, receipts generated, and notifications sent.";
+        }
         if (!empty($errors)) {
-            $message .= " Errors: " . implode(', ', $errors);
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5)); // Limit error display
+            if (count($errors) > 5) {
+                $message .= " (and " . (count($errors) - 5) . " more)";
+            }
         }
 
         return redirect()

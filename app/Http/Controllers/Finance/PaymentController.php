@@ -427,7 +427,11 @@ class PaymentController extends Controller
         }
     }
     
-    protected function sendPaymentNotifications(Payment $payment)
+    /**
+     * Send payment notifications (SMS, Email, WhatsApp)
+     * Made public so it can be called from other controllers (e.g., BankStatementController)
+     */
+    public function sendPaymentNotifications(Payment $payment)
     {
         $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
