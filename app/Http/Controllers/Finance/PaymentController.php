@@ -208,7 +208,11 @@ class PaymentController extends Controller
                     throw new \Exception('Total shared amounts must equal payment amount.');
                 }
                 
+                // Generate same receipt number for all sibling payments
+                $sharedReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                
                 // Create payments for each sibling
+                $createdPayments = [];
                 foreach ($sharedStudents as $index => $siblingId) {
                     $sibling = Student::findOrFail($siblingId);
                     $siblingAmount = $sharedAmounts[$index] ?? 0;
@@ -227,6 +231,7 @@ class PaymentController extends Controller
                             'payer_type' => $validated['payer_type'],
                             'narration' => $validated['narration'],
                             'transaction_code' => $transactionCode,
+                            'receipt_number' => $sharedReceiptNumber, // Same receipt number for all siblings
                             'payment_date' => $validated['payment_date'],
                             // receipt_date is set automatically in Payment model
                         ]);
@@ -241,7 +246,29 @@ class PaymentController extends Controller
                             // Continue - payment is still created
                         }
                         
-                        // Store first payment for notifications
+                        // Generate receipt for this sibling payment
+                        try {
+                            $this->receiptService->generateReceipt($payment, ['save' => true]);
+                        } catch (\Exception $e) {
+                            Log::warning('Receipt generation failed for sibling payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                        
+                        // Send notification for this sibling payment
+                        try {
+                            $this->sendPaymentNotifications($payment);
+                        } catch (\Exception $e) {
+                            Log::warning('Notification failed for sibling payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                        
+                        $createdPayments[] = $payment;
+                        
+                        // Store first payment for return value
                         if ($index === 0) {
                             $createdPayment = $payment;
                         }

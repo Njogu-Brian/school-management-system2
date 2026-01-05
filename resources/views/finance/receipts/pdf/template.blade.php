@@ -26,9 +26,6 @@
         .receipt-container {
             width: 100%;
             max-width: 210mm;
-            height: 50%;
-            min-height: 148mm;
-            max-height: 148mm;
             padding: 12px 18px;
             page-break-after: always;
             page-break-inside: avoid;

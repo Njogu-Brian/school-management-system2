@@ -338,13 +338,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     siblingsInfo.innerHTML = siblingsHtml;
                     siblingsCard.style.display = 'block';
                     
-                    // Add share payment button
+                    // Add share payment toggle button
                     if (!document.getElementById('share_payment_btn')) {
                         const shareBtn = document.createElement('button');
                         shareBtn.type = 'button';
-                        shareBtn.className = 'btn btn-sm btn-finance btn-finance-success mt-2';
+                        shareBtn.className = 'btn btn-sm btn-finance btn-finance-success mt-2 w-100';
                         shareBtn.id = 'share_payment_btn';
-                        shareBtn.innerHTML = '<i class="bi bi-share"></i> Share Payment';
+                        shareBtn.innerHTML = '<i class="bi bi-share"></i> Enable Payment Sharing';
                         shareBtn.onclick = function() {
                             showPaymentSharing();
                         };

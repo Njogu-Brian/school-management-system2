@@ -78,6 +78,7 @@ use App\Http\Controllers\Finance\DiscountController;
 use App\Http\Controllers\Finance\DocumentSettingsController;
 use App\Http\Controllers\Finance\LegacyFinanceImportController;
 use App\Http\Controllers\Finance\TransportFeeController;
+use App\Http\Controllers\Finance\BankStatementController;
 
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
@@ -1096,6 +1097,25 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         // Payment Methods
         Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
+        
+        // Bank Statements
+        Route::prefix('bank-statements')->name('bank-statements.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'index'])->name('index');
+            Route::get('/create', [\App\Http\Controllers\Finance\BankStatementController::class, 'create'])->name('create');
+            Route::post('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'store'])->name('store');
+            Route::get('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'show'])->name('show');
+            Route::get('/{bankStatement}/edit', [\App\Http\Controllers\Finance\BankStatementController::class, 'edit'])->name('edit');
+            Route::put('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'update'])->name('update');
+            Route::delete('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'destroy'])->name('destroy');
+            Route::post('/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm'])->name('confirm');
+            Route::post('/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject'])->name('reject');
+            Route::post('/{bankStatement}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share'])->name('share');
+            Route::get('/{bankStatement}/view-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'viewPdf'])->name('view-pdf');
+            Route::get('/{bankStatement}/download-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'downloadPdf'])->name('download-pdf');
+            Route::post('/bulk-confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkConfirm'])->name('bulk-confirm');
+            Route::post('/{bankStatement}/archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'archive'])->name('archive');
+            Route::post('/{bankStatement}/unarchive', [\App\Http\Controllers\Finance\BankStatementController::class, 'unarchive'])->name('unarchive');
+        });
         
         // Document Settings
         Route::get('document-settings', [DocumentSettingsController::class, 'index'])->name('document-settings.index');
