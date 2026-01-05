@@ -208,9 +208,16 @@ class JournalController extends Controller
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
-        $sheet = Excel::toCollection(null, $request->file('file'))->first();
-        if (!$sheet || $sheet->count() === 0) {
+        $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
+        if (empty($sheet)) {
             return back()->with('error', 'The uploaded file appears to be empty.');
+        }
+
+        // Get headers from first row
+        $headerRow = array_shift($sheet);
+        $headers = [];
+        foreach ($headerRow as $index => $header) {
+            $headers[$index] = Str::of((string)$header)->lower()->snake()->toString();
         }
 
         $success = 0;
@@ -218,11 +225,11 @@ class JournalController extends Controller
         $rowsOut = [];
 
         foreach ($sheet as $idx => $row) {
-            // normalize keys to lowercase snake
+            // Map row data to headers
             $rowArr = [];
-            foreach ($row->toArray() as $k => $v) {
-                $key = Str::of((string)$k)->lower()->snake()->toString();
-                $rowArr[$key] = is_string($v) ? trim($v) : $v;
+            foreach ($headers as $colIndex => $headerName) {
+                $value = $row[$colIndex] ?? null;
+                $rowArr[$headerName] = is_string($value) ? trim($value) : $value;
             }
 
             $line = $idx + 2; // 1-based + heading row
