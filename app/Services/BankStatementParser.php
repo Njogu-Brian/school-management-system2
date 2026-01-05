@@ -114,7 +114,7 @@ class BankStatementParser
     }
     
     /**
-     * Match transaction to student by admission number or phone number
+     * Match transaction to student by admission number, phone number, parent name, and student name
      */
     public function matchTransaction(BankStatementTransaction $transaction): array
     {
@@ -123,49 +123,122 @@ class BankStatementParser
         
         $matches = [];
         
-        // Try to match by admission number in description
-        $admissionNumber = $this->extractAdmissionNumber($description);
-        if ($admissionNumber) {
+        // Parse MPESA paybill format: "Pay Bill from 25471****156 - FRANCISCAH WAMBUGU Acc. Trevor Osairi"
+        $parsedData = $this->parseMpesaPaybillDescription($description);
+        
+        // Try to match by admission number(s) in description
+        $admissionNumbers = $this->extractAdmissionNumbers($description);
+        foreach ($admissionNumbers as $admissionNumber) {
             $student = Student::where('admission_number', $admissionNumber)->first();
             if ($student) {
+                $confidence = 0.95;
+                // Increase confidence if parent name also matches
+                if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
+                    $confidence = 0.98;
+                }
+                // Increase confidence if partial phone matches
+                if ($parsedData['partial_phone'] && $this->matchesPartialPhone($student, $parsedData['partial_phone'])) {
+                    $confidence = min(0.99, $confidence + 0.02);
+                }
+                
                 $matches[] = [
                     'student' => $student,
                     'match_type' => 'admission_number',
-                    'confidence' => 0.95,
+                    'confidence' => $confidence,
                     'matched_value' => $admissionNumber,
                 ];
             }
         }
         
-        // Try to match by student name in description
-        $studentName = $this->extractStudentName($description);
-        if ($studentName) {
+        // Try to match by student name(s) - handle siblings
+        $studentNames = $this->extractStudentNames($description);
+        foreach ($studentNames as $studentName) {
             $nameMatches = Student::where(function($q) use ($studentName) {
                 $q->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$studentName}%"])
-                  ->orWhereRaw("CONCAT(first_name, ' ', middle_name, ' ', last_name) LIKE ?", ["%{$studentName}%"]);
+                  ->orWhereRaw("CONCAT(first_name, ' ', middle_name, ' ', last_name) LIKE ?", ["%{$studentName}%"])
+                  ->orWhere('first_name', 'LIKE', "%{$studentName}%")
+                  ->orWhere('last_name', 'LIKE', "%{$studentName}%");
             })->get();
             
             foreach ($nameMatches as $student) {
+                $confidence = 0.70;
+                // Increase confidence if parent name also matches
+                if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
+                    $confidence = 0.90;
+                }
+                // Increase confidence if partial phone matches
+                if ($parsedData['partial_phone'] && $this->matchesPartialPhone($student, $parsedData['partial_phone'])) {
+                    $confidence = min(0.95, $confidence + 0.10);
+                }
+                
                 $matches[] = [
                     'student' => $student,
                     'match_type' => 'name',
-                    'confidence' => 0.70,
+                    'confidence' => $confidence,
                     'matched_value' => $studentName,
                 ];
             }
         }
         
-        // Try to match by phone number (parent/guardian)
+        // Try to match by partial phone number (first 3 and last 3 digits)
+        if ($parsedData['partial_phone']) {
+            $phoneMatches = $this->findStudentsByPartialPhone($parsedData['partial_phone']);
+            foreach ($phoneMatches as $student) {
+                $confidence = 0.80;
+                // Increase confidence if parent name also matches
+                if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
+                    $confidence = 0.92;
+                }
+                // Increase confidence if student name also matches
+                if (count($studentNames) > 0) {
+                    $studentFullName = $student->first_name . ' ' . $student->last_name;
+                    foreach ($studentNames as $name) {
+                        if (stripos($studentFullName, $name) !== false) {
+                            $confidence = 0.95;
+                            break;
+                        }
+                    }
+                }
+                
+                $matches[] = [
+                    'student' => $student,
+                    'match_type' => 'partial_phone',
+                    'confidence' => $confidence,
+                    'matched_value' => $parsedData['partial_phone'],
+                ];
+            }
+        }
+        
+        // Try to match by full phone number (parent/guardian)
         if ($phoneNumber) {
             $normalizedPhone = $this->normalizePhone($phoneNumber);
             $phoneMatches = $this->findStudentsByPhone($normalizedPhone);
             
             foreach ($phoneMatches as $student) {
+                $confidence = 0.85;
+                // Increase confidence if parent name also matches
+                if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
+                    $confidence = 0.95;
+                }
+                
                 $matches[] = [
                     'student' => $student,
                     'match_type' => 'phone',
-                    'confidence' => 0.85,
+                    'confidence' => $confidence,
                     'matched_value' => $normalizedPhone,
+                ];
+            }
+        }
+        
+        // Try to match by parent name only (if no other matches found)
+        if (empty($matches) && $parsedData['parent_name']) {
+            $parentMatches = $this->findStudentsByParentName($parsedData['parent_name']);
+            foreach ($parentMatches as $student) {
+                $matches[] = [
+                    'student' => $student,
+                    'match_type' => 'parent_name',
+                    'confidence' => 0.60,
+                    'matched_value' => $parsedData['parent_name'],
                 ];
             }
         }
@@ -221,25 +294,254 @@ class BankStatementParser
     }
     
     /**
-     * Extract admission number from description
+     * Parse MPESA paybill description format
+     * Format: "Pay Bill from 25471****156 - FRANCISCAH WAMBUGU Acc. Trevor Osairi"
+     * Returns: ['partial_phone' => '25471...156', 'parent_name' => 'FRANCISCAH WAMBUGU', 'child_name' => 'Trevor Osairi']
      */
-    protected function extractAdmissionNumber(string $description): ?string
+    protected function parseMpesaPaybillDescription(string $description): array
     {
-        // Common patterns: ADM123, ADM-123, 123/2024, etc.
+        $result = [
+            'partial_phone' => null,
+            'parent_name' => null,
+            'child_name' => null,
+        ];
+        
+        // Extract partial phone: 25471****156 (first 3 and last 3 digits)
+        if (preg_match('/(\d{3,5})\*+(\d{3})/', $description, $phoneMatches)) {
+            $result['partial_phone'] = $phoneMatches[1] . '...' . $phoneMatches[2];
+        }
+        
+        // Extract parent name: Between "from" and "Acc." or "-"
+        // Pattern: "Pay Bill from 25471****156 - FRANCISCAH WAMBUGU Acc. Trevor Osairi"
+        if (preg_match('/from\s+\d+\*+[^\s]+\s*-\s*([A-Z][A-Z\s]+?)(?:\s+Acc\.|$)/i', $description, $parentMatches)) {
+            $result['parent_name'] = trim($parentMatches[1]);
+        } elseif (preg_match('/-\s*([A-Z][A-Z\s]{3,30}?)(?:\s+Acc\.|$)/i', $description, $parentMatches)) {
+            $result['parent_name'] = trim($parentMatches[1]);
+        }
+        
+        // Extract child name: After "Acc."
+        if (preg_match('/Acc\.\s*([A-Z][A-Za-z\s&]+?)(?:\s|$)/i', $description, $childMatches)) {
+            $result['child_name'] = trim($childMatches[1]);
+        }
+        
+        return $result;
+    }
+    
+    /**
+     * Extract admission numbers from description (handles multiple: RKS000 RKS001, RKS000 & RKS001)
+     */
+    protected function extractAdmissionNumbers(string $description): array
+    {
+        $admissionNumbers = [];
+        
+        // Patterns: RKS000, RKS 000, RKS000 RKS001, RKS000 & RKS001
         $patterns = [
-            '/ADM[-\s]?(\d+)/i',
+            '/RKS\s*(\d{3,})/i',  // RKS000 or RKS 000
+            '/ADM[-\s]?(\d+)/i',   // ADM123, ADM-123
             '/(\d{3,})\/(\d{4})/', // Format: 123/2024
-            '/ADMISSION[-\s]?(\d+)/i',
-            '/ADM[:\s]+(\d+)/i',
         ];
         
         foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $description, $matches)) {
-                return $matches[1] ?? $matches[0];
+            if (preg_match_all($pattern, $description, $matches, PREG_SET_ORDER)) {
+                foreach ($matches as $match) {
+                    $admissionNumbers[] = $match[1];
+                }
             }
         }
         
-        return null;
+        return array_unique($admissionNumbers);
+    }
+    
+    /**
+     * Extract student names from description (handles siblings: Trevor Susan, trevor and susan, Trevor & Susan)
+     */
+    protected function extractStudentNames(string $description): array
+    {
+        $names = [];
+        
+        // Extract from "Acc." pattern: "Acc. Trevor Osairi" or "Acc. Trevor Susan"
+        if (preg_match('/Acc\.\s*([A-Z][A-Za-z\s&]+?)(?:\s|$)/i', $description, $matches)) {
+            $nameString = trim($matches[1]);
+            // Split by "and", "&", or space
+            $nameParts = preg_split('/\s+(?:and|&)\s+|\s+/i', $nameString);
+            foreach ($nameParts as $part) {
+                $part = trim($part);
+                if (strlen($part) > 2 && preg_match('/^[A-Z][a-z]+/', $part)) {
+                    $names[] = $part;
+                }
+            }
+        }
+        
+        // Also try to extract capitalized names (2-3 words) that look like student names
+        if (preg_match_all('/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/', $description, $nameMatches)) {
+            foreach ($nameMatches[1] as $name) {
+                // Exclude common words
+                $exclude = ['Pay', 'Bill', 'From', 'Acc', 'Online', 'MPESA', 'Bank', 'Transfer'];
+                if (!in_array($name, $exclude) && strlen($name) > 3) {
+                    $names[] = $name;
+                }
+            }
+        }
+        
+        return array_unique($names);
+    }
+    
+    /**
+     * Find students by partial phone (first 3 and last 3 digits)
+     */
+    protected function findStudentsByPartialPhone(string $partialPhone): array
+    {
+        // Format: "25471...156" or "25471****156"
+        $parts = preg_split('/\.\.\.|\*+/', $partialPhone);
+        if (count($parts) !== 2) {
+            return [];
+        }
+        
+        $prefix = $parts[0]; // First 3-5 digits
+        $suffix = $parts[1]; // Last 3 digits
+        
+        $students = [];
+        
+        // Search in parent_info table
+        $parents = ParentInfo::where(function($q) use ($prefix, $suffix) {
+            $q->where('father_phone', 'LIKE', "{$prefix}%{$suffix}")
+              ->orWhere('mother_phone', 'LIKE', "{$prefix}%{$suffix}")
+              ->orWhere('guardian_phone', 'LIKE', "{$prefix}%{$suffix}")
+              ->orWhere('father_whatsapp', 'LIKE', "{$prefix}%{$suffix}")
+              ->orWhere('mother_whatsapp', 'LIKE', "{$prefix}%{$suffix}")
+              ->orWhere('guardian_whatsapp', 'LIKE', "{$prefix}%{$suffix}");
+        })->get();
+        
+        foreach ($parents as $parent) {
+            $students = array_merge($students, $parent->students->all());
+        }
+        
+        return $students;
+    }
+    
+    /**
+     * Find students by parent name
+     */
+    protected function findStudentsByParentName(string $parentName): array
+    {
+        $students = [];
+        
+        // Split parent name into parts
+        $nameParts = explode(' ', trim($parentName));
+        if (count($nameParts) < 2) {
+            return [];
+        }
+        
+        $firstName = $nameParts[0];
+        $lastName = end($nameParts);
+        
+        // Search in parent_info table
+        $parents = ParentInfo::where(function($q) use ($firstName, $lastName, $parentName) {
+            $q->where(function($q2) use ($firstName, $lastName) {
+                $q2->where('father_first_name', 'LIKE', "%{$firstName}%")
+                   ->where('father_last_name', 'LIKE', "%{$lastName}%");
+            })->orWhere(function($q2) use ($firstName, $lastName) {
+                $q2->where('mother_first_name', 'LIKE', "%{$firstName}%")
+                   ->where('mother_last_name', 'LIKE', "%{$lastName}%");
+            })->orWhere(function($q2) use ($firstName, $lastName) {
+                $q2->where('guardian_first_name', 'LIKE', "%{$firstName}%")
+                   ->where('guardian_last_name', 'LIKE', "%{$lastName}%");
+            })->orWhere('father_full_name', 'LIKE', "%{$parentName}%")
+              ->orWhere('mother_full_name', 'LIKE', "%{$parentName}%")
+              ->orWhere('guardian_full_name', 'LIKE', "%{$parentName}%");
+        })->get();
+        
+        foreach ($parents as $parent) {
+            $students = array_merge($students, $parent->students->all());
+        }
+        
+        return $students;
+    }
+    
+    /**
+     * Check if student's parent name matches
+     */
+    protected function matchesParentName(Student $student, string $parentName): bool
+    {
+        if (!$student->parentInfo) {
+            return false;
+        }
+        
+        $parent = $student->parentInfo;
+        $nameParts = explode(' ', trim($parentName));
+        $firstName = $nameParts[0] ?? '';
+        $lastName = end($nameParts);
+        
+        // Check father
+        if ($parent->father_first_name && $parent->father_last_name) {
+            if (stripos($parent->father_first_name, $firstName) !== false && 
+                stripos($parent->father_last_name, $lastName) !== false) {
+                return true;
+            }
+        }
+        
+        // Check mother
+        if ($parent->mother_first_name && $parent->mother_last_name) {
+            if (stripos($parent->mother_first_name, $firstName) !== false && 
+                stripos($parent->mother_last_name, $lastName) !== false) {
+                return true;
+            }
+        }
+        
+        // Check guardian
+        if ($parent->guardian_first_name && $parent->guardian_last_name) {
+            if (stripos($parent->guardian_first_name, $firstName) !== false && 
+                stripos($parent->guardian_last_name, $lastName) !== false) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if student's parent phone matches partial phone
+     */
+    protected function matchesPartialPhone(Student $student, string $partialPhone): bool
+    {
+        if (!$student->parentInfo) {
+            return false;
+        }
+        
+        $parts = preg_split('/\.\.\.|\*+/', $partialPhone);
+        if (count($parts) !== 2) {
+            return false;
+        }
+        
+        $prefix = $parts[0];
+        $suffix = $parts[1];
+        
+        $parent = $student->parentInfo;
+        $phones = [
+            $parent->father_phone,
+            $parent->mother_phone,
+            $parent->guardian_phone,
+            $parent->father_whatsapp,
+            $parent->mother_whatsapp,
+            $parent->guardian_whatsapp,
+        ];
+        
+        foreach ($phones as $phone) {
+            if ($phone && preg_match("/^{$prefix}.*{$suffix}$/", $phone)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Extract admission number from description (legacy method for single admission)
+     */
+    protected function extractAdmissionNumber(string $description): ?string
+    {
+        $admissionNumbers = $this->extractAdmissionNumbers($description);
+        return $admissionNumbers[0] ?? null;
     }
     
     /**

@@ -10,6 +10,22 @@
 
     @include('finance.invoices.partials.alerts')
 
+    <!-- Summary Card -->
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="mb-0">Total Parsed Amount</h5>
+                    <p class="text-muted mb-0">Total for {{ $totalCount ?? 0 }} transaction(s)</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <h3 class="mb-0 text-success">Ksh {{ number_format($totalAmount ?? 0, 2) }}</h3>
+                    <small class="text-muted">Compare with statement total</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- View Tabs -->
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="card-body p-0">

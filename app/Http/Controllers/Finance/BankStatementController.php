@@ -99,6 +99,10 @@ class BankStatementController extends Controller
         $transactions = $query->paginate(25)->withQueryString();
         $bankAccounts = BankAccount::where('is_active', true)->get();
 
+        // Calculate total amount for current filtered results
+        $totalAmount = (clone $query)->sum('amount');
+        $totalCount = (clone $query)->count();
+
         // Get counts for each view
         $counts = [
             'all' => BankStatementTransaction::where('is_archived', false)->count(),
@@ -117,7 +121,7 @@ class BankStatementController extends Controller
             'archived' => BankStatementTransaction::where('is_archived', true)->count(),
         ];
 
-        return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts'));
+        return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount'));
     }
 
     /**
