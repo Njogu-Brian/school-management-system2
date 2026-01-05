@@ -42,14 +42,27 @@ class BankStatementParser
         $duplicates = 0;
         
         foreach ($transactions as $txnData) {
-            // Extract payer name from description
-            $payerName = $this->extractPayerName($txnData['description'] ?? '');
+            // Map parser output to our format
+            // Parser returns: tran_date, particulars, credit, debit, transaction_code
+            $transactionDate = $txnData['tran_date'] ?? null;
+            $particulars = $txnData['particulars'] ?? '';
+            $credit = $txnData['credit'] ?? 0;
+            $debit = $txnData['debit'] ?? 0;
+            $transactionCode = $txnData['transaction_code'] ?? null;
             
-            // Check for duplicate using transaction_code (reference_number)
+            // Determine amount and type (use credit if available, otherwise debit)
+            $amount = $credit > 0 ? $credit : $debit;
+            $transactionType = $credit > 0 ? 'credit' : 'debit';
+            
+            // Extract payer name and phone from particulars
+            $payerName = $this->extractPayerName($particulars);
+            $phoneNumber = $this->extractPhoneNumber($particulars);
+            
+            // Check for duplicate using transaction_code
             $isDuplicate = false;
             $duplicatePayment = null;
-            if ($txnData['reference_number']) {
-                $existingPayment = Payment::where('transaction_code', $txnData['reference_number'])->first();
+            if ($transactionCode) {
+                $existingPayment = Payment::where('transaction_code', $transactionCode)->first();
                 if ($existingPayment) {
                     $isDuplicate = true;
                     $duplicatePayment = $existingPayment;
@@ -60,12 +73,12 @@ class BankStatementParser
                 'bank_account_id' => $bankAccountId,
                 'statement_file_path' => $pdfPath,
                 'bank_type' => $bankType,
-                'transaction_date' => $txnData['transaction_date'],
-                'amount' => $txnData['amount'],
-                'transaction_type' => $txnData['transaction_type'],
-                'reference_number' => $txnData['reference_number'] ?? null,
-                'description' => $txnData['description'] ?? null,
-                'phone_number' => $txnData['phone_number'] ?? null,
+                'transaction_date' => $transactionDate,
+                'amount' => $amount,
+                'transaction_type' => $transactionType,
+                'reference_number' => $transactionCode,
+                'description' => $particulars,
+                'phone_number' => $phoneNumber,
                 'payer_name' => $payerName,
                 'status' => 'draft',
                 'is_duplicate' => $isDuplicate,
@@ -278,6 +291,43 @@ class BankStatementParser
     }
     
     /**
+     * Extract phone number from description
+     */
+    protected function extractPhoneNumber(string $description): ?string
+    {
+        if (empty($description)) {
+            return null;
+        }
+        
+        // Kenyan phone number patterns: 254XXXXXXXXX, 07XXXXXXXX, +254XXXXXXXXX
+        $patterns = [
+            '/254\d{9}/',           // 254XXXXXXXXX
+            '/\+254\d{9}/',         // +254XXXXXXXXX
+            '/0[17]\d{8}/',          // 07XXXXXXXX or 01XXXXXXXX
+            '/\b(\d{10,12})\b/',     // 10-12 digit numbers (fallback)
+        ];
+        
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $description, $matches)) {
+                $phone = $matches[0];
+                // Normalize to 254 format
+                if (strpos($phone, '0') === 0 && strlen($phone) === 10) {
+                    $phone = '254' . substr($phone, 1);
+                } elseif (strpos($phone, '+') === 0) {
+                    $phone = substr($phone, 1);
+                }
+                
+                // Validate it's a reasonable phone number (9-12 digits after country code)
+                if (preg_match('/^254\d{9}$/', $phone)) {
+                    return $phone;
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
      * Extract student name from description
      */
     protected function extractStudentName(string $description): ?string
@@ -353,7 +403,8 @@ class BankStatementParser
     protected function callPythonParser(string $pdfPath, string $bankType): array
     {
         $script = base_path('app/Services/python/bank_statement_parser.py');
-        $cmd = ['python', $script, $pdfPath, $bankType];
+        // The parser from reference project only needs PDF path, it auto-detects MPESA vs Bank
+        $cmd = ['python', $script, $pdfPath];
         
         $process = new Process($cmd, base_path());
         $process->setTimeout(300); // 5 minutes timeout
