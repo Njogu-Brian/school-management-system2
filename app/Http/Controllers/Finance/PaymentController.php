@@ -453,32 +453,35 @@ class PaymentController extends Controller
             return;
         }
         
-        // Use templates from CommunicationTemplateSeeder
-        // Template codes: finance_payment_received_sms and finance_payment_received_email
-        $smsTemplate = CommunicationTemplate::where('code', 'finance_payment_received_sms')->first();
-        $emailTemplate = CommunicationTemplate::where('code', 'finance_payment_received_email')->first();
+        // Use templates - try both old and new template codes for compatibility
+        $smsTemplate = CommunicationTemplate::where('code', 'payment_receipt_sms')
+            ->orWhere('code', 'finance_payment_received_sms')
+            ->first();
+        $emailTemplate = CommunicationTemplate::where('code', 'payment_receipt_email')
+            ->orWhere('code', 'finance_payment_received_email')
+            ->first();
         
-        // Fallback: create templates if seeder hasn't run yet (matching CommunicationTemplateSeeder exactly)
+        // Fallback: create templates if they don't exist
         if (!$smsTemplate) {
             $smsTemplate = CommunicationTemplate::firstOrCreate(
-                ['code' => 'finance_payment_received_sms'],
+                ['code' => 'payment_receipt_sms'],
                 [
-                    'title' => 'Payment Received (SMS)',
+                    'title' => 'Payment Receipt SMS',
                     'type' => 'sms',
                     'subject' => null,
-                    'content' => "Dear {{parent_name}},\n\nWe have received a payment of {{amount}} for {{student_name}} on {{payment_date}}.\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                    'content' => "Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}",
                 ]
             );
         }
         
         if (!$emailTemplate) {
             $emailTemplate = CommunicationTemplate::firstOrCreate(
-                ['code' => 'finance_payment_received_email'],
+                ['code' => 'payment_receipt_email'],
                 [
-                    'title' => 'Payment Received (Email)',
+                    'title' => 'Payment Receipt Email',
                     'type' => 'email',
-                    'subject' => 'Payment Receipt – {{student_name}}',
-                    'content' => "Dear {{parent_name}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                    'subject' => 'Payment Receipt - {{receipt_number}}',
+                    'content' => "<p>Dear {{parent_name}},</p><p>Payment of <strong>Ksh {{amount}}</strong> has been received for <strong>{{student_name}}</strong> (Admission: {{admission_number}}).</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}<br><strong>Payment Date:</strong> {{payment_date}}</p><p>Please find the receipt attached.</p><p><a href=\"{{receipt_link}}\">View Receipt Online</a></p>",
                 ]
             );
         }
