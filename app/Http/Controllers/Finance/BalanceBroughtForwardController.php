@@ -102,9 +102,17 @@ class BalanceBroughtForwardController extends Controller
             });
 
         // Get latest import batch for reversal
-        $latestImport = BalanceBroughtForwardImport::where('is_reversed', false)
-            ->orderBy('created_at', 'desc')
-            ->first();
+        $latestImport = null;
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('balance_brought_forward_imports')) {
+                $latestImport = BalanceBroughtForwardImport::where('is_reversed', false)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+            }
+        } catch (\Exception $e) {
+            // Table doesn't exist or other error - ignore and continue
+            Log::warning('Could not fetch latest balance brought forward import: ' . $e->getMessage());
+        }
 
         return view('finance.balance_brought_forward.index', [
             'students' => $students,
