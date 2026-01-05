@@ -53,12 +53,24 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
             
+            // Payer name (added in second migration but included here for reference)
+            // $table->string('payer_name')->nullable();
+            
+            // Duplicate and archive fields (added in second migration but included here for reference)
+            // $table->boolean('is_duplicate')->default(false);
+            // $table->foreignId('duplicate_of_payment_id')->nullable()->constrained('payments')->onDelete('set null');
+            // $table->boolean('is_archived')->default(false);
+            // $table->timestamp('archived_at')->nullable();
+            // $table->foreignId('archived_by')->nullable()->constrained('users')->onDelete('set null');
+            
             $table->index('transaction_date');
             $table->index('status');
             $table->index('match_status');
             $table->index('student_id');
             $table->index('bank_account_id');
             $table->index('reference_number');
+            
+            $table->timestamps();
         });
     }
 
