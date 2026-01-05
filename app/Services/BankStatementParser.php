@@ -404,7 +404,9 @@ class BankStatementParser
     {
         $script = base_path('app/Services/python/bank_statement_parser.py');
         // The parser from reference project only needs PDF path, it auto-detects MPESA vs Bank
-        $cmd = ['python', $script, $pdfPath];
+        // Try python3 first, fallback to python (for compatibility)
+        $pythonCmd = $this->getPythonCommand();
+        $cmd = [$pythonCmd, $script, $pdfPath];
         
         $process = new Process($cmd, base_path());
         $process->setTimeout(300); // 5 minutes timeout
