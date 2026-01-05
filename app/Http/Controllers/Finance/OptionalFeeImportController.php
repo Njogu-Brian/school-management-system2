@@ -35,76 +35,108 @@ class OptionalFeeImportController extends Controller
         }
 
         $headerRow = array_shift($sheet);
-        $headers = [];
-        foreach ($headerRow as $index => $header) {
-            $headers[$index] = Str::slug(Str::lower(trim((string) $header)), '_');
-        }
-
+        
+        // Get all optional voteheads and create a mapping by name (case-insensitive)
         $voteheads = Votehead::where('is_mandatory', false)->get()->keyBy(function($v) {
             return Str::lower($v->name);
         });
+        
+        // Normalize header row - expect: Name, Admission Number, then votehead names
+        $normalizedHeaders = [];
+        foreach ($headerRow as $index => $header) {
+            $normalizedHeaders[$index] = trim((string) $header);
+        }
+        
+        // Identify votehead columns (skip first two: Name and Admission Number)
+        $voteheadColumns = [];
+        for ($i = 2; $i < count($normalizedHeaders); $i++) {
+            $headerName = $normalizedHeaders[$i];
+            if (empty($headerName)) {
+                continue;
+            }
+            
+            // Try to find matching votehead
+            $votehead = $voteheads->get(Str::lower($headerName));
+            if ($votehead) {
+                $voteheadColumns[$i] = [
+                    'votehead_id' => $votehead->id,
+                    'votehead_name' => $votehead->name,
+                    'header_name' => $headerName,
+                ];
+            } else {
+                $voteheadColumns[$i] = [
+                    'votehead_id' => null,
+                    'votehead_name' => null,
+                    'header_name' => $headerName,
+                ];
+            }
+        }
         
         $preview = [];
         $totalAmount = 0;
         $missingVoteheads = [];
 
-        foreach ($sheet as $row) {
-            $assoc = [];
-            foreach ($headers as $i => $key) {
-                $assoc[$key] = $row[$i] ?? null;
+        // Process each row (each row is a student)
+        foreach ($sheet as $rowIndex => $row) {
+            // Get student name (first column)
+            $studentName = trim((string) ($row[0] ?? ''));
+            
+            // Get admission number (second column)
+            $admission = trim((string) ($row[1] ?? ''));
+            
+            // Find student
+            $student = null;
+            if ($admission) {
+                $student = Student::where('admission_number', $admission)->first();
             }
-
-            $admission = trim((string) ($assoc['admission_number'] ?? $assoc['admission_no'] ?? $assoc['adm_no'] ?? ''));
-            $student = $admission
-                ? Student::where('admission_number', $admission)->first()
-                : null;
-
-            if (!$student) {
-                $studentName = trim((string) ($assoc['name'] ?? $assoc['student_name'] ?? ''));
-                if ($studentName !== '') {
-                    $student = Student::whereRaw('LOWER(CONCAT(first_name," ",last_name)) = ?', [Str::lower($studentName)])->first();
+            
+            if (!$student && $studentName) {
+                $student = Student::whereRaw('LOWER(CONCAT(first_name," ",last_name)) = ?', [Str::lower($studentName)])->first();
+            }
+            
+            // Process each votehead column (starting from column 2)
+            foreach ($voteheadColumns as $colIndex => $voteheadInfo) {
+                $amountValue = $row[$colIndex] ?? null;
+                $amount = null;
+                
+                // Try to parse amount
+                if ($amountValue !== null && $amountValue !== '') {
+                    // Remove any formatting and convert to float
+                    $cleaned = preg_replace('/[^\d.-]/', '', (string) $amountValue);
+                    $amount = is_numeric($cleaned) ? (float) $cleaned : null;
                 }
-            }
-
-            $voteheadName = trim((string) ($assoc['votehead_name'] ?? $assoc['votehead'] ?? ''));
-            $votehead = null;
-            if ($voteheadName) {
-                $votehead = $voteheads->get(Str::lower($voteheadName));
-                if (!$votehead) {
-                    $missingVoteheads[] = $voteheadName;
+                
+                // Skip if no amount or votehead not found
+                if ($amount === null || $amount <= 0) {
+                    continue; // Skip empty amounts
                 }
+                
+                if (!$voteheadInfo['votehead_id']) {
+                    $missingVoteheads[] = $voteheadInfo['header_name'];
+                    continue;
+                }
+                
+                $status = 'ok';
+                $message = null;
+                
+                if (!$student) {
+                    $status = 'missing_student';
+                    $message = 'Student not found';
+                } else {
+                    $totalAmount += $amount;
+                }
+                
+                $preview[] = [
+                    'student_id' => $student?->id,
+                    'student_name' => $student?->full_name ?? $studentName,
+                    'admission_number' => $admission ?: ($student?->admission_number ?? null),
+                    'votehead_id' => $voteheadInfo['votehead_id'],
+                    'votehead_name' => $voteheadInfo['votehead_name'],
+                    'amount' => $amount,
+                    'status' => $status,
+                    'message' => $message,
+                ];
             }
-
-            $amountField = $assoc['amount'] ?? null;
-            $amount = is_numeric($amountField) ? (float) $amountField : null;
-
-            $status = 'ok';
-            $message = null;
-            if (!$student) {
-                $status = 'missing_student';
-                $message = 'Student not found';
-            } elseif (!$votehead) {
-                $status = 'missing_votehead';
-                $message = 'Votehead not found or not optional';
-            } elseif ($amount === null || $amount <= 0) {
-                $status = 'invalid_amount';
-                $message = 'Amount is missing or invalid';
-            }
-
-            if ($status === 'ok') {
-                $totalAmount += $amount;
-            }
-
-            $preview[] = [
-                'student_id' => $student?->id,
-                'student_name' => $student?->full_name ?? ($assoc['name'] ?? $assoc['student_name'] ?? null),
-                'admission_number' => $admission ?: ($student?->admission_number ?? null),
-                'votehead_id' => $votehead?->id,
-                'votehead_name' => $voteheadName,
-                'amount' => $amount,
-                'status' => $status,
-                'message' => $message,
-            ];
         }
 
         $missingVoteheads = collect($missingVoteheads)->filter()->unique()->values();
@@ -222,10 +254,19 @@ class OptionalFeeImportController extends Controller
 
     public function template()
     {
-        $headers = ['Admission Number', 'Name', 'Votehead Name', 'Amount'];
+        // Get all optional voteheads
+        $voteheads = Votehead::where('is_mandatory', false)->orderBy('name')->get();
+        
+        // Build headers: Name, Admission Number, then all votehead names
+        $headers = ['Name', 'Admission Number'];
+        foreach ($voteheads as $votehead) {
+            $headers[] = $votehead->name;
+        }
+        
+        // Create sample data with empty amounts for voteheads
         $sample = [
-            ['RKS001', 'John Doe', 'Sports Fee', 5000],
-            ['RKS002', 'Jane Smith', 'Library Fee', 3000],
+            array_merge(['John Doe', 'RKS001'], array_fill(0, $voteheads->count(), '')),
+            array_merge(['Jane Smith', 'RKS002'], array_fill(0, $voteheads->count(), '')),
         ];
 
         return Excel::download(new ArrayExport($sample, $headers), 'optional_fees_template.xlsx');

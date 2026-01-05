@@ -120,7 +120,7 @@
                     <span>Import Optional Fees</span>
                 </div>
                 <div class="finance-card-body p-4">
-                    <p class="text-muted">Upload an Excel file with columns: Admission Number, Name, Votehead Name, Amount.</p>
+                    <p class="text-muted">Upload an Excel file with columns: Name, Admission Number, then individual votehead names (e.g., Yorghut, Skating, Ballet, etc.). Each row represents a student, and amounts are entered in the corresponding votehead columns.</p>
                     <form method="POST" action="{{ route('finance.optional-fees.import.preview') }}" enctype="multipart/form-data">
                         @csrf
                         <div class="row g-3">
