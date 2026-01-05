@@ -22,7 +22,11 @@
     <div class="finance-card-body p-4">
       <p class="text-muted mb-3">
         Year {{ $year }}, Term {{ $term }} — Total upload amount:
-        <strong>{{ number_format($total, 2) }}</strong>. Review the rows below and resolve any drop-off point mappings.
+        <strong>{{ number_format($total, 2) }}</strong>. 
+        @if($total == 0)
+          <span class="text-warning"><i class="bi bi-exclamation-triangle"></i> Warning: Total amount is 0.00. Please verify that your Excel file has amounts in the "Transport Fee" column.</span>
+        @endif
+        Review the rows below and resolve any drop-off point mappings.
       </p>
 
       <form method="POST" action="{{ route('finance.transport-fees.import.commit') }}">
