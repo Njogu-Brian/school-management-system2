@@ -196,7 +196,30 @@ class BankStatementController extends Controller
             $siblings = $student->siblings;
         }
 
-        return view('finance.bank-statements.show', compact('bankStatement', 'siblings'));
+        // Get possible matches if transaction has multiple matches or is unmatched
+        $possibleMatches = [];
+        if (($bankStatement->match_status === 'multiple_matches' || $bankStatement->match_status === 'unmatched') && !$bankStatement->student_id) {
+            try {
+                // Re-run matching to get current possible matches
+                // This will update the transaction status, but that's okay since we're viewing details
+                $matchResult = $this->parser->matchTransaction($bankStatement);
+                
+                // Refresh to get updated status
+                $bankStatement->refresh();
+                
+                // Get matches from result
+                if (isset($matchResult['matches']) && is_array($matchResult['matches'])) {
+                    $possibleMatches = $matchResult['matches'];
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to get possible matches for transaction', [
+                    'transaction_id' => $bankStatement->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return view('finance.bank-statements.show', compact('bankStatement', 'siblings', 'possibleMatches'));
     }
 
     /**

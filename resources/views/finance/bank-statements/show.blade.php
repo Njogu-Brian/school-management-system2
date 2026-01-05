@@ -93,6 +93,69 @@
                 </div>
             </div>
 
+            <!-- Possible Matches -->
+            @if(count($possibleMatches ?? []) > 0 && !$bankStatement->student_id)
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header">
+                    <h5 class="mb-0">Possible Matches</h5>
+                    <span class="badge bg-warning">{{ count($possibleMatches) }} found</span>
+                </div>
+                <div class="finance-card-body p-4">
+                    <p class="text-muted mb-3">Select a student to assign this transaction to:</p>
+                    <div class="list-group">
+                        @foreach($possibleMatches as $index => $match)
+                            @php
+                                $student = $match['student'];
+                                $confidence = $match['confidence'] ?? 0;
+                                $matchType = $match['match_type'] ?? 'unknown';
+                                $matchedValue = $match['matched_value'] ?? '';
+                            @endphp
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">
+                                            <a href="{{ route('students.show', $student) }}" target="_blank">
+                                                {{ $student->first_name }} {{ $student->last_name }}
+                                            </a>
+                                        </h6>
+                                        <p class="text-muted mb-1 small">
+                                            Admission: <code>{{ $student->admission_number }}</code>
+                                            @if($student->classroom)
+                                                | Class: {{ $student->classroom->name }}
+                                            @endif
+                                            @if($student->stream)
+                                                | Stream: {{ $student->stream->name }}
+                                            @endif
+                                        </p>
+                                        <div class="small">
+                                            <span class="badge bg-info">{{ ucfirst(str_replace('_', ' ', $matchType)) }}</span>
+                                            @if($matchedValue)
+                                                <span class="text-muted">Matched: {{ $matchedValue }}</span>
+                                            @endif
+                                            <span class="badge bg-{{ $confidence >= 0.9 ? 'success' : ($confidence >= 0.8 ? 'warning' : 'secondary') }}">
+                                                {{ number_format($confidence * 100, 0) }}% confidence
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-3">
+                                        <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}" class="d-inline">
+                                            @csrf
+                                            @method('PUT')
+                                            <input type="hidden" name="student_id" value="{{ $student->id }}">
+                                            <input type="hidden" name="match_notes" value="Selected from {{ count($possibleMatches) }} possible matches ({{ $matchType }}, {{ number_format($confidence * 100, 0) }}% confidence)">
+                                            <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
+                                                <i class="bi bi-check-circle"></i> Select
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Student Assignment -->
             @if($bankStatement->student)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
