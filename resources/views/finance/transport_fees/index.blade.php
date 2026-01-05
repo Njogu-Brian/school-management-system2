@@ -221,7 +221,7 @@
                   <td>{{ $import->imported_at ? $import->imported_at->format('M d, Y H:i') : '—' }}</td>
                   <td>{{ $import->importedBy->name ?? '—' }}</td>
                   <td class="text-end">{{ number_format($import->fees_imported_count) }}</td>
-                  <td class="text-end">KES {{ number_format($import->total_amount_imported, 2) }}</td>
+                  <td class="text-end">KES {{ number_format($import->total_amount ?? $import->total_amount_imported ?? 0, 2) }}</td>
                   <td>
                     @if($import->is_reversed)
                       <span class="badge bg-secondary">Reversed</span>
