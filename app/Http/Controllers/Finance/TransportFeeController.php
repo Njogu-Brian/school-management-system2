@@ -55,6 +55,13 @@ class TransportFeeController extends Controller
                 ->keyBy('student_id');
 
         $totalAmount = $feeMap->sum('amount');
+        
+        // Get transport fee imports for this term/year
+        $imports = \App\Models\TransportFeeImport::with('importedBy', 'reversedBy')
+            ->where('year', $year)
+            ->where('term', $term)
+            ->orderBy('imported_at', 'desc')
+            ->get();
 
         return view('finance.transport_fees.index', [
             'classrooms' => $classrooms,
@@ -67,6 +74,7 @@ class TransportFeeController extends Controller
             'term' => $term,
             'academicYearId' => $academicYearId,
             'totalAmount' => $totalAmount,
+            'imports' => $imports,
         ]);
     }
 

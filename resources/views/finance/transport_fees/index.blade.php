@@ -194,6 +194,65 @@
           </div>
         </div>
       </div>
+      
+      {{-- Import History --}}
+      @if(isset($imports) && $imports->count() > 0)
+      <div class="finance-card shadow-sm rounded-4 border-0 mt-4">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+          <i class="bi bi-clock-history"></i>
+          <span>Import History</span>
+        </div>
+        <div class="finance-card-body p-4">
+          <div class="table-responsive">
+            <table class="finance-table align-middle">
+              <thead>
+                <tr>
+                  <th>Import Date</th>
+                  <th>Imported By</th>
+                  <th class="text-end">Records</th>
+                  <th class="text-end">Total Amount</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @foreach($imports as $import)
+                <tr>
+                  <td>{{ $import->imported_at ? $import->imported_at->format('M d, Y H:i') : '—' }}</td>
+                  <td>{{ $import->importedBy->name ?? '—' }}</td>
+                  <td class="text-end">{{ number_format($import->fees_imported_count) }}</td>
+                  <td class="text-end">KES {{ number_format($import->total_amount_imported, 2) }}</td>
+                  <td>
+                    @if($import->is_reversed)
+                      <span class="badge bg-secondary">Reversed</span>
+                      @if($import->reversed_at)
+                        <br><small class="text-muted">{{ $import->reversed_at->format('M d, Y') }}</small>
+                      @endif
+                    @else
+                      <span class="badge bg-success">Active</span>
+                    @endif
+                  </td>
+                  <td>
+                    @if(!$import->is_reversed)
+                      <form method="POST" action="{{ route('finance.transport-fees.import.reverse', $import) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to reverse this import? This will delete all invoice line items and drop-off point assignments created by this import. Drop-off points will be retained.');">
+                        @csrf
+                        @method('POST')
+                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                          <i class="bi bi-arrow-counterclockwise"></i> Reverse
+                        </button>
+                      </form>
+                    @else
+                      <span class="text-muted small">—</span>
+                    @endif
+                  </td>
+                </tr>
+                @endforeach
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      @endif
     </div>
   </div>
 @endsection
