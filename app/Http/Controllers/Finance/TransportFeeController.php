@@ -307,7 +307,11 @@ class TransportFeeController extends Controller
             $dropName = $row['drop_off_point_name'] ?? null;
             $dropId = $row['drop_off_point_id'] ?? null;
             $isOwnMeans = $row['is_own_means'] ?? false;
-            $amount = $row['amount'] ?? null;
+            
+            // Get amount and ensure it's a float (can be null, but if present, convert to float)
+            $amount = isset($row['amount']) && $row['amount'] !== null && $row['amount'] !== '' 
+                ? (float) $row['amount'] 
+                : null;
 
             // Resolve drop-off point (unless it's own means)
             if (!$dropId && $dropName && !$isOwnMeans) {
@@ -330,9 +334,10 @@ class TransportFeeController extends Controller
 
             try {
                 // For own means or missing amounts, create drop-off point info but skip invoice
+                $finalAmount = $isOwnMeans ? 0 : ($amount ?? 0);
                 TransportFeeService::upsertFee([
                     'student_id' => $row['student_id'],
-                    'amount' => $isOwnMeans ? 0 : ($amount ?? 0),
+                    'amount' => $finalAmount,
                     'year' => $year,
                     'term' => $term,
                     'drop_off_point_id' => $dropId,
@@ -342,7 +347,7 @@ class TransportFeeController extends Controller
                     'skip_invoice' => $isOwnMeans || $amount === null, // Skip invoice for own means or missing amounts
                 ]);
                 $createdOrUpdated++;
-                if ($amount && $amount > 0) {
+                if ($amount !== null && $amount > 0) {
                     $totalAmount += $amount;
                 }
             } catch (\Throwable $e) {
