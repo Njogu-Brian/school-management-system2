@@ -9,6 +9,28 @@
         'subtitle' => 'View and manage balance brought forward from legacy imports or previous terms'
     ])
 
+    @if(session('import_batch_id') || ($latestImport ?? null))
+      @php
+        $import = $latestImport ?? \App\Models\BalanceBroughtForwardImport::find(session('import_batch_id'));
+      @endphp
+      @if($import && !$import->is_reversed)
+        <div class="alert alert-info alert-dismissible fade show finance-animate" role="alert">
+          <div class="d-flex align-items-center justify-content-between">
+            <div>
+              <strong><i class="bi bi-info-circle"></i> Latest Import:</strong>
+              Import #{{ $import->id }} - {{ $import->balances_updated_count }} updated, {{ $import->balances_deleted_count }} deleted on {{ $import->imported_at->format('M d, Y H:i') }}
+            </div>
+            <form method="POST" action="{{ route('finance.balance-brought-forward.import.reverse', $import) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to reverse this import? This will restore all balances to their previous values.');">
+              @csrf
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-arrow-counterclockwise"></i> Reverse Import
+              </button>
+            </form>
+          </div>
+        </div>
+      @endif
+    @endif
+
     @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show finance-animate" role="alert">
         {{ session('success') }}
