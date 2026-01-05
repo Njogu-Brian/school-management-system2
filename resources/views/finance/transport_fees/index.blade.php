@@ -64,7 +64,9 @@
                     <tr>
                       <th>Student</th>
                       <th>Class</th>
-                      <th>Drop-off point</th>
+                      <th>Morning Drop-off</th>
+                      <th>Evening Drop-off</th>
+                      <th>Drop-off point<br><small class="text-muted">(Legacy)</small></th>
                       <th class="text-end">Amount (KES)</th>
                     </tr>
                   </thead>
@@ -72,7 +74,9 @@
                     @forelse($students as $student)
                       @php
                         $fee = $feeMap[$student->id] ?? null;
+                        $assignment = $assignmentMap[$student->id] ?? null;
                         $amount = old("fees.{$student->id}.amount", $fee?->amount);
+                        $amount = $amount !== null ? $amount : '';
                       @endphp
                       <tr>
                         <td>
@@ -80,7 +84,27 @@
                           <div class="text-muted small">Adm: {{ $student->admission_number }}</div>
                         </td>
                         <td>{{ $student->classroom?->name ?? '—' }}</td>
-                        <td style="min-width: 240px;">
+                        <td style="min-width: 200px;">
+                          <select name="fees[{{ $student->id }}][morning_drop_off_point_id]" class="finance-form-select">
+                            <option value="">—</option>
+                            @foreach($dropOffPoints as $point)
+                              <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.morning_drop_off_point_id", $assignment?->morning_drop_off_point_id) == $point->id)>
+                                {{ $point->name }}
+                              </option>
+                            @endforeach
+                          </select>
+                        </td>
+                        <td style="min-width: 200px;">
+                          <select name="fees[{{ $student->id }}][evening_drop_off_point_id]" class="finance-form-select">
+                            <option value="">—</option>
+                            @foreach($dropOffPoints as $point)
+                              <option value="{{ $point->id }}" @selected(old("fees.{$student->id}.evening_drop_off_point_id", $assignment?->evening_drop_off_point_id) == $point->id)>
+                                {{ $point->name }}
+                              </option>
+                            @endforeach
+                          </select>
+                        </td>
+                        <td style="min-width: 200px;">
                           <select name="fees[{{ $student->id }}][drop_off_point_id]" class="finance-form-select">
                             <option value="">—</option>
                             @foreach($dropOffPoints as $point)
@@ -92,19 +116,20 @@
                           <input type="text" name="fees[{{ $student->id }}][drop_off_point_name]" class="finance-form-control mt-2" placeholder="Other / custom" value="{{ old("fees.{$student->id}.drop_off_point_name", $fee?->drop_off_point_name) }}">
                         </td>
                         <td class="text-end">
-                          <input type="number" step="0.01" name="fees[{{ $student->id }}][amount]" class="finance-form-control text-end" value="{{ $amount }}">
+                          <input type="number" step="0.01" name="fees[{{ $student->id }}][amount]" class="finance-form-control text-end" placeholder="0.00" value="{{ $amount }}">
+                          <small class="text-muted d-block mt-1">Leave empty for drop-off only</small>
                         </td>
                       </tr>
                     @empty
                       <tr>
-                        <td colspan="4" class="text-center text-muted">No students with transport assignments found for this filter.</td>
+                        <td colspan="6" class="text-center text-muted">No students with transport assignments found for this filter.</td>
                       </tr>
                     @endforelse
                   </tbody>
                   @if($students->count())
                   <tfoot>
                     <tr>
-                      <th colspan="3" class="text-end">Current total</th>
+                      <th colspan="5" class="text-end">Current total</th>
                       <th class="text-end">{{ number_format($totalAmount, 2) }}</th>
                     </tr>
                   </tfoot>

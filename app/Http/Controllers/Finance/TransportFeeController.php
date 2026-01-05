@@ -25,21 +25,32 @@ class TransportFeeController extends Controller
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $feeStudentIds = TransportFee::where('year', $year)->where('term', $term)->pluck('student_id');
 
-        $students = Student::with(['classroom', 'stream', 'dropOffPoint'])
+        $students = Student::with(['classroom', 'stream', 'dropOffPoint', 'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint'])
             ->when($classroomId, fn($q) => $q->where('classroom_id', $classroomId))
             ->where(function ($q) use ($feeStudentIds) {
                 $q->whereNotNull('drop_off_point_id')
                     ->orWhereNotNull('trip_id')
-                    ->orWhereIn('id', $feeStudentIds);
+                    ->orWhereIn('id', $feeStudentIds)
+                    ->orWhereHas('assignments');
             })
             ->orderBy('first_name')
             ->get();
 
-        $feeMap = TransportFee::where('year', $year)
-            ->where('term', $term)
-            ->whereIn('student_id', $students->pluck('id'))
-            ->get()
-            ->keyBy('student_id');
+        $studentIds = $students->pluck('id');
+        $feeMap = $studentIds->isEmpty() 
+            ? collect() 
+            : TransportFee::where('year', $year)
+                ->where('term', $term)
+                ->whereIn('student_id', $studentIds)
+                ->get()
+                ->keyBy('student_id');
+            
+        // Get student assignments for morning/evening drop-off points
+        $assignmentMap = $studentIds->isEmpty()
+            ? collect()
+            : \App\Models\StudentAssignment::whereIn('student_id', $studentIds)
+                ->get()
+                ->keyBy('student_id');
 
         $totalAmount = $feeMap->sum('amount');
 
@@ -48,6 +59,7 @@ class TransportFeeController extends Controller
             'classroomId' => $classroomId,
             'students' => $students,
             'feeMap' => $feeMap,
+            'assignmentMap' => $assignmentMap,
             'dropOffPoints' => $dropOffPoints,
             'year' => $year,
             'term' => $term,
@@ -68,29 +80,48 @@ class TransportFeeController extends Controller
         $updated = 0;
 
         foreach ($request->input('fees', []) as $studentId => $row) {
-            if (!array_key_exists('amount', $row)) {
-                continue;
-            }
-
-            $amount = $row['amount'];
-            if ($amount === '' || $amount === null || !is_numeric($amount)) {
-                continue;
-            }
+            $amount = $row['amount'] ?? null;
+            $amount = ($amount === '' || $amount === null) ? null : (is_numeric($amount) ? (float) $amount : null);
 
             $dropOffPointId = $row['drop_off_point_id'] ?? null;
             $dropOffPointName = $row['drop_off_point_name'] ?? null;
+            
+            // Handle morning and evening drop-off points
+            $morningDropOffPointId = $row['morning_drop_off_point_id'] ?? null;
+            $eveningDropOffPointId = $row['evening_drop_off_point_id'] ?? null;
 
             try {
-                TransportFeeService::upsertFee([
-                    'student_id' => $studentId,
-                    'amount' => $amount,
-                    'year' => $year,
-                    'term' => $term,
-                    'drop_off_point_id' => $dropOffPointId ?: null,
-                    'drop_off_point_name' => $dropOffPointName,
-                    'source' => 'manual',
-                    'note' => 'Updated from transport fee class view',
-                ]);
+                // Update transport fee (even if amount is null - will create drop-off point only)
+                if ($dropOffPointId || $dropOffPointName || $amount !== null) {
+                    TransportFeeService::upsertFee([
+                        'student_id' => $studentId,
+                        'amount' => $amount ?? 0,
+                        'year' => $year,
+                        'term' => $term,
+                        'drop_off_point_id' => $dropOffPointId ?: null,
+                        'drop_off_point_name' => $dropOffPointName,
+                        'source' => 'manual',
+                        'note' => 'Updated from transport fee class view',
+                        'skip_invoice' => $amount === null || $amount == 0,
+                    ]);
+                }
+                
+                // Update student assignment for morning/evening drop-off points
+                $assignment = \App\Models\StudentAssignment::where('student_id', $studentId)->first();
+                if ($assignment) {
+                    $assignment->update([
+                        'morning_drop_off_point_id' => $morningDropOffPointId ?: null,
+                        'evening_drop_off_point_id' => $eveningDropOffPointId ?: null,
+                    ]);
+                } elseif ($morningDropOffPointId || $eveningDropOffPointId) {
+                    // Create assignment if it doesn't exist but we have drop-off points
+                    \App\Models\StudentAssignment::create([
+                        'student_id' => $studentId,
+                        'morning_drop_off_point_id' => $morningDropOffPointId ?: null,
+                        'evening_drop_off_point_id' => $eveningDropOffPointId ?: null,
+                    ]);
+                }
+                
                 $updated++;
             } catch (\Throwable $e) {
                 Log::warning('Transport fee update failed', [
@@ -100,7 +131,7 @@ class TransportFeeController extends Controller
             }
         }
 
-        return back()->with('success', "{$updated} transport fee(s) updated for Term {$term}, {$year}.");
+        return back()->with('success', "{$updated} transport fee(s) and drop-off point(s) updated for Term {$term}, {$year}.");
     }
 
     public function importPreview(Request $request)

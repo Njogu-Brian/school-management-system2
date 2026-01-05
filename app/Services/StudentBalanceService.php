@@ -95,5 +95,91 @@ class StudentBalanceService
             ->where('status', '!=', 'reversed')
             ->sum('balance');
     }
+
+    /**
+     * Calculate total outstanding fees for all students (for dashboard).
+     * This includes:
+     * - All invoice balances (which already account for payments, discounts, credit/debit notes)
+     * - Balance brought forward from legacy imports (only if not already in invoices)
+     * - All voteheads including transport
+     * 
+     * @return float Total outstanding fees
+     */
+    public static function getTotalOutstandingFees(): float
+    {
+        // Sum all invoice balances (unpaid and partial only)
+        // invoice.balance already accounts for:
+        // - Payments (via paid_amount)
+        // - Discounts (item-level and invoice-level, already subtracted in total)
+        // - Credit/debit notes (they modify item amounts directly, included in total)
+        // - All voteheads including transport
+        $invoiceOutstanding = Invoice::whereIn('status', ['unpaid', 'partial'])
+            ->where('status', '!=', 'reversed')
+            ->sum('balance') ?? 0;
+
+        // Check if balance brought forward is already included in invoices
+        // Balance brought forward is stored as BAL_BF votehead items
+        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardInInvoices = 0;
+        
+        if ($balanceBroughtForwardVotehead) {
+            // Calculate unpaid balance brought forward from invoice items
+            $balanceBroughtForwardInInvoices = \App\Models\InvoiceItem::whereHas('invoice', function($q) {
+                $q->whereIn('status', ['unpaid', 'partial'])
+                  ->where('status', '!=', 'reversed');
+            })
+            ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->where('status', 'active')
+            ->get()
+            ->sum(function($item) {
+                // Calculate unpaid portion: amount - discount - allocations
+                $allocated = $item->allocations()->sum('amount');
+                return max(0, $item->amount - ($item->discount_amount ?? 0) - $allocated);
+            });
+        }
+
+        // Get balance brought forward from legacy data (only for students where it's NOT in invoices)
+        $balanceBroughtForwardFromLegacy = 0;
+        $studentsWithLegacy = \App\Models\LegacyStatementTerm::where('academic_year', '<', 2026)
+            ->whereNotNull('ending_balance')
+            ->whereNotNull('student_id')
+            ->select('student_id')
+            ->distinct()
+            ->pluck('student_id')
+            ->filter(function($studentId) {
+                return Student::where('id', $studentId)->exists();
+            });
+
+        foreach ($studentsWithLegacy as $studentId) {
+            try {
+                $bf = self::getBalanceBroughtForward($studentId);
+                if ($bf > 0) {
+                    // Check if this student has BAL_BF items in their invoices
+                    $studentHasBfInInvoice = false;
+                    if ($balanceBroughtForwardVotehead) {
+                        $studentHasBfInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($studentId) {
+                            $q->where('student_id', $studentId)
+                              ->where('status', '!=', 'reversed');
+                        })
+                        ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+                        ->where('source', 'balance_brought_forward')
+                        ->exists();
+                    }
+                    
+                    // Only add if not already in invoices
+                    if (!$studentHasBfInInvoice) {
+                        $balanceBroughtForwardFromLegacy += $bf;
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Failed to get balance brought forward for student {$studentId}: " . $e->getMessage());
+                continue;
+            }
+        }
+
+        // Total outstanding = invoice balances + balance brought forward (only if not already in invoices)
+        return max(0, $invoiceOutstanding + $balanceBroughtForwardFromLegacy);
+    }
 }
 

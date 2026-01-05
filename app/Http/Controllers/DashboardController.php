@@ -192,41 +192,12 @@ class DashboardController extends Controller
         // ---- Finance KPIs
         $feesCollected = Payment::whereBetween('payment_date', [$filters['from'], $filters['to']])->sum('amount');
 
-        // outstanding = total - sum(payments.amount) for unpaid|partial + balance brought forward from legacy imports
-        $paidSub = Payment::selectRaw('invoice_id, SUM(amount) as paid')->groupBy('invoice_id');
-        $invoiceOutstanding = Invoice::leftJoinSub($paidSub, 'p', 'p.invoice_id', '=', 'invoices.id')
-            ->whereIn('invoices.status', ['unpaid', 'partial'])
-            ->selectRaw('SUM(GREATEST(invoices.total - COALESCE(p.paid, 0), 0)) as outstanding')
-            ->value('outstanding') ?? 0;
-        
-        // Add balance brought forward from legacy imports (ending_balance from last term before 2026)
-        // Get all students with legacy data and sum their balance brought forward
-        $studentsWithLegacy = \App\Models\LegacyStatementTerm::where('academic_year', '<', 2026)
-            ->whereNotNull('ending_balance')
-            ->whereNotNull('student_id')
-            ->select('student_id')
-            ->distinct()
-            ->pluck('student_id')
-            ->filter(function($studentId) {
-                // Only include student IDs that actually exist in the students table
-                return Student::where('id', $studentId)->exists();
-            });
-        
-        $balanceBroughtForward = 0;
-        foreach ($studentsWithLegacy as $studentId) {
-            try {
-                $bf = \App\Services\StudentBalanceService::getBalanceBroughtForward($studentId);
-                if ($bf > 0) {
-                    $balanceBroughtForward += $bf;
-                }
-            } catch (\Exception $e) {
-                // Log but continue processing other students
-                \Log::warning("Failed to get balance brought forward for student {$studentId}: " . $e->getMessage());
-                continue;
-            }
-        }
-        
-        $feesOutstanding = $invoiceOutstanding + $balanceBroughtForward;
+        // Use centralized service to calculate outstanding fees
+        // This properly accounts for:
+        // - All invoice balances (includes payments, discounts, credit/debit notes)
+        // - Balance brought forward from legacy (only if not already in invoices)
+        // - All voteheads including transport (already in invoice items)
+        $feesOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingFees();
 
         $teachersOnLeave = class_exists('\App\Models\Staff\Leave')
             ? \App\Models\Staff\Leave::whereDate('start', '<=', $today)->whereDate('end', '>=', $today)->count()
