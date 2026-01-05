@@ -26,6 +26,8 @@ class TransportFeeController extends Controller
         $feeStudentIds = TransportFee::where('year', $year)->where('term', $term)->pluck('student_id');
 
         $students = Student::with(['classroom', 'stream', 'dropOffPoint', 'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint'])
+            ->where('archive', 0)
+            ->where('is_alumni', false)
             ->when($classroomId, fn($q) => $q->where('classroom_id', $classroomId))
             ->where(function ($q) use ($feeStudentIds) {
                 $q->whereNotNull('drop_off_point_id')
