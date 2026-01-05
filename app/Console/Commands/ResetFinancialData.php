@@ -62,9 +62,9 @@ class ResetFinancialData extends Command
         $this->info('Starting financial data reset...');
         $this->newLine();
 
-        DB::beginTransaction();
         try {
             // Disable foreign key checks temporarily
+            // Note: TRUNCATE auto-commits, so we don't use transactions
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
             // 1. Delete payment allocations first (they reference payments and invoice items)
@@ -181,18 +181,16 @@ class ResetFinancialData extends Command
             // Re-enable foreign key checks
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
 
-            DB::commit();
-
             $this->newLine();
             $this->info('✅ Financial data reset completed successfully!');
             $this->info('All tables have been truncated and auto-increment IDs have been reset.');
 
             return 0;
         } catch (\Exception $e) {
-            DB::rollBack();
+            // Re-enable foreign key checks in case of error
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
             $this->error('❌ Error during reset: ' . $e->getMessage());
-            $this->error('Transaction rolled back. No data was deleted.');
+            $this->error('Some data may have been deleted before the error occurred.');
             return 1;
         }
     }
