@@ -186,7 +186,22 @@ class TransportFeeController extends Controller
             }
 
             $amountField = $assoc['transport_fee'] ?? $assoc['fee'] ?? $assoc['amount'] ?? null;
-            $amount = is_numeric($amountField) ? (float) $amountField : null;
+            
+            // Parse amount - handle formatted numbers (currency symbols, commas, whitespace)
+            $amount = null;
+            if ($amountField !== null && $amountField !== '') {
+                // Remove currency symbols, commas, whitespace
+                $cleaned = trim((string) $amountField);
+                $cleaned = preg_replace('/[^\d.-]/', '', $cleaned); // Remove everything except digits, dots, and minus
+                
+                if ($cleaned !== '' && is_numeric($cleaned)) {
+                    $amount = (float) $cleaned;
+                    // Ensure amount is not negative (fees shouldn't be negative)
+                    if ($amount < 0) {
+                        $amount = null;
+                    }
+                }
+            }
 
             $dropName = $assoc['drop_off_point'] ?? $assoc['dropoff_point'] ?? $assoc['drop_point'] ?? null;
             $dropName = $dropName ? trim((string) $dropName) : null;
