@@ -1,8 +1,8 @@
-# Required dependencies
+# Required dependency for text-based PDF parsing
 pdfplumber>=0.10.0
 
 # Optional OCR dependencies (only needed for scanned PDFs)
-# If you don't need OCR, you can skip these:
+# Uncomment these lines if you need OCR support:
 # pytesseract>=0.3.10
 # pdf2image>=1.16.3
 # Pillow>=10.0.0
