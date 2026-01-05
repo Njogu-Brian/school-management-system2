@@ -304,14 +304,28 @@ class TransportFeeController extends Controller
                 continue;
             }
 
+            $status = $row['status'] ?? '';
             $dropName = $row['drop_off_point_name'] ?? null;
             $dropId = $row['drop_off_point_id'] ?? null;
             $isOwnMeans = $row['is_own_means'] ?? false;
             
-            // Get amount and ensure it's a float (can be null, but if present, convert to float)
-            $amount = isset($row['amount']) && $row['amount'] !== null && $row['amount'] !== '' 
-                ? (float) $row['amount'] 
-                : null;
+            // Get amount - handle numeric values properly (may come as string or number from JSON)
+            $amount = null;
+            if (isset($row['amount'])) {
+                $amountValue = $row['amount'];
+                // Handle string numbers, null, empty strings
+                if ($amountValue !== null && $amountValue !== '') {
+                    // Convert to string, remove formatting, then to float
+                    $cleaned = preg_replace('/[^\d.-]/', '', (string) $amountValue);
+                    if ($cleaned !== '' && is_numeric($cleaned)) {
+                        $amount = (float) $cleaned;
+                        // Ensure amount is not negative
+                        if ($amount < 0) {
+                            $amount = null;
+                        }
+                    }
+                }
+            }
 
             // Resolve drop-off point (unless it's own means)
             if (!$dropId && $dropName && !$isOwnMeans) {
@@ -333,8 +347,21 @@ class TransportFeeController extends Controller
             }
 
             try {
-                // For own means or missing amounts, create drop-off point info but skip invoice
+                // Determine if we should skip invoice creation
+                // Only create invoice items for rows with status 'ok' AND valid amount > 0
+                // Skip invoice for: own means, missing amounts, or any status other than 'ok'
+                $shouldSkipInvoice = $isOwnMeans 
+                    || $status === 'missing_amount' 
+                    || $status === 'own_means' 
+                    || $status !== 'ok'  // Only 'ok' status should create invoice items
+                    || $amount === null 
+                    || $amount <= 0;
+                
+                // For own means, set amount to 0
+                // For missing amounts, also set to 0 but skip invoice
+                // For valid amounts (status 'ok'), use the actual amount
                 $finalAmount = $isOwnMeans ? 0 : ($amount ?? 0);
+                
                 TransportFeeService::upsertFee([
                     'student_id' => $row['student_id'],
                     'amount' => $finalAmount,
@@ -343,16 +370,20 @@ class TransportFeeController extends Controller
                     'drop_off_point_id' => $dropId,
                     'drop_off_point_name' => $isOwnMeans ? 'OWN MEANS' : $dropName,
                     'source' => 'import',
-                    'note' => $isOwnMeans ? 'Own means transport (no fee)' : ($amount === null ? 'Imported from transport fee upload - amount missing, drop-off point only' : 'Imported from transport fee upload'),
-                    'skip_invoice' => $isOwnMeans || $amount === null, // Skip invoice for own means or missing amounts
+                    'note' => $isOwnMeans ? 'Own means transport (no fee)' : ($amount === null || $status === 'missing_amount' ? 'Imported from transport fee upload - amount missing, drop-off point only' : 'Imported from transport fee upload'),
+                    'skip_invoice' => $shouldSkipInvoice,
                 ]);
                 $createdOrUpdated++;
-                if ($amount !== null && $amount > 0) {
+                
+                // Only count amount for valid fees (status 'ok' with amount > 0)
+                if ($status === 'ok' && $amount !== null && $amount > 0) {
                     $totalAmount += $amount;
                 }
             } catch (\Throwable $e) {
                 Log::warning('Transport fee import failed', [
                     'student_id' => $row['student_id'],
+                    'status' => $status,
+                    'amount' => $amount,
                     'message' => $e->getMessage(),
                 ]);
             }
