@@ -296,7 +296,7 @@ class FeePostingService
                     $deletedInvoiceCount++;
                 } else {
                     // Recalculate invoice if it still has other items from other posting runs
-                    InvoiceService::recalc($invoice);
+                InvoiceService::recalc($invoice);
                 }
             }
             
