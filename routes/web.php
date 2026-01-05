@@ -1111,6 +1111,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('balance-brought-forward', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'index'])->name('balance-brought-forward.index');
         Route::post('balance-brought-forward/import/preview', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'importPreview'])->name('balance-brought-forward.import.preview');
         Route::post('balance-brought-forward/import/commit', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'importCommit'])->name('balance-brought-forward.import.commit');
+        Route::post('balance-brought-forward/import/{import}/reverse', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'reverse'])->name('balance-brought-forward.import.reverse');
         Route::put('balance-brought-forward/{student}', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'update'])->name('balance-brought-forward.update');
         Route::post('balance-brought-forward/add', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'add'])->name('balance-brought-forward.add');
         Route::get('balance-brought-forward/import/template', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'template'])->name('balance-brought-forward.import.template');

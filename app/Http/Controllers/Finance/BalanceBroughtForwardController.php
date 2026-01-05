@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\LegacyStatementTerm;
 use App\Models\InvoiceItem;
 use App\Models\Votehead;
+use App\Models\BalanceBroughtForwardImport;
 use App\Services\StudentBalanceService;
 use App\Services\InvoiceService;
 use Illuminate\Http\Request;
@@ -273,40 +274,55 @@ class BalanceBroughtForwardController extends Controller
             ]
         );
 
-        $updated = 0;
-        $errors = [];
+        // Get current academic year and term
+        $academicYear = \App\Models\AcademicYear::where('is_active', true)->first();
+        $term = \App\Models\Term::where('is_current', true)->first();
+        
+        if (!$academicYear || !$term) {
+            return back()->with('error', 'No active academic year or term found');
+        }
 
-        foreach ($request->rows as $encoded) {
-            $row = json_decode(base64_decode($encoded), true);
-            
-            if (!$row || empty($row['student_id']) || !isset($row['import_balance'])) {
-                continue;
+        $year = $academicYear->year;
+        $termNumber = (int) preg_replace('/[^0-9]/', '', $term->name) ?: 1;
+
+        return DB::transaction(function () use ($request, $balanceBroughtForwardVotehead, $academicYear, $term, $year, $termNumber) {
+            // Step 1: Create snapshot of current balances BEFORE import
+            $snapshot = $this->createSnapshot($balanceBroughtForwardVotehead, $year, $termNumber);
+
+            // Step 2: Parse import rows
+            $importStudentIds = [];
+            $importData = [];
+            foreach ($request->rows as $encoded) {
+                $row = json_decode(base64_decode($encoded), true);
+                
+                if (!$row || empty($row['student_id']) || !isset($row['import_balance'])) {
+                    continue;
+                }
+
+                $studentId = $row['student_id'];
+                $importBalance = (float) ($row['import_balance'] ?? 0);
+
+                if ($importBalance > 0) {
+                    $importStudentIds[] = $studentId;
+                    $importData[$studentId] = $importBalance;
+                }
             }
 
-            $studentId = $row['student_id'];
-            $importBalance = (float) ($row['import_balance'] ?? 0);
+            // Step 3: Delete balances for students NOT in import
+            $deletedCount = $this->deleteBalancesNotInImport($balanceBroughtForwardVotehead, $year, $termNumber, $importStudentIds);
 
-            if ($importBalance <= 0) {
-                continue; // Skip zero or negative balances
-            }
+            // Step 4: Update/create balances for students IN import
+            $updated = 0;
+            $errors = [];
+            $totalAmount = 0;
 
-            try {
-                DB::transaction(function () use ($studentId, $importBalance, $balanceBroughtForwardVotehead, &$updated) {
+            foreach ($importData as $studentId => $importBalance) {
+                try {
                     $student = Student::find($studentId);
                     if (!$student) {
-                        throw new \Exception("Student not found: {$studentId}");
+                        $errors[] = "Student ID {$studentId}: Student not found";
+                        continue;
                     }
-
-                    // Get current academic year and term
-                    $academicYear = \App\Models\AcademicYear::where('is_active', true)->first();
-                    $term = \App\Models\Term::where('is_current', true)->first();
-                    
-                    if (!$academicYear || !$term) {
-                        throw new \Exception("No active academic year or term found");
-                    }
-
-                    $year = $academicYear->year;
-                    $termNumber = (int) preg_replace('/[^0-9]/', '', $term->name) ?: 1;
 
                     // Ensure invoice exists
                     $invoice = InvoiceService::ensure($studentId, $year, $termNumber);
@@ -318,14 +334,12 @@ class BalanceBroughtForwardController extends Controller
                         'source' => 'balance_brought_forward',
                     ]);
 
-                    // Update the amount
-                    $oldAmount = $invoiceItem->exists ? (float) $invoiceItem->amount : 0;
                     $invoiceItem->amount = $importBalance;
                     $invoiceItem->status = 'active';
                     $invoiceItem->effective_date = $invoice->issued_date ?? now();
                     
-                    if (!$invoiceItem->original_amount && $oldAmount > 0) {
-                        $invoiceItem->original_amount = $oldAmount;
+                    if (!$invoiceItem->original_amount && $invoiceItem->exists) {
+                        $invoiceItem->original_amount = $invoiceItem->amount;
                     }
                     
                     $invoiceItem->save();
@@ -333,25 +347,204 @@ class BalanceBroughtForwardController extends Controller
                     // Recalculate invoice
                     InvoiceService::recalc($invoice);
                     $updated++;
-                });
-            } catch (\Exception $e) {
-                Log::error('Balance brought forward import error', [
-                    'student_id' => $studentId,
-                    'error' => $e->getMessage(),
-                ]);
-                $errors[] = "Student ID {$studentId}: " . $e->getMessage();
+                    $totalAmount += $importBalance;
+                } catch (\Exception $e) {
+                    Log::error('Balance brought forward import error', [
+                        'student_id' => $studentId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $errors[] = "Student ID {$studentId}: " . $e->getMessage();
+                }
+            }
+
+            // Step 5: Create import batch record
+            $importBatch = BalanceBroughtForwardImport::create([
+                'year' => $year,
+                'term' => $termNumber,
+                'academic_year_id' => $academicYear->id,
+                'term_id' => $term->id,
+                'balances_updated_count' => $updated,
+                'balances_deleted_count' => $deletedCount,
+                'total_amount' => $totalAmount,
+                'snapshot_before' => $snapshot,
+                'imported_by' => auth()->id(),
+                'imported_at' => now(),
+                'is_reversed' => false,
+            ]);
+
+            $message = "{$updated} balance(s) updated and {$deletedCount} balance(s) deleted successfully.";
+            if (!empty($errors)) {
+                $message .= " " . count($errors) . " error(s) occurred.";
+            }
+
+            return redirect()
+                ->route('finance.balance-brought-forward.index')
+                ->with('success', $message)
+                ->with('import_batch_id', $importBatch->id)
+                ->with('errors', $errors);
+        });
+    }
+
+    /**
+     * Create snapshot of current balances before import
+     */
+    private function createSnapshot($votehead, $year, $termNumber): array
+    {
+        $snapshot = [];
+
+        // Get all students with balance brought forward (from invoices)
+        $invoiceItems = InvoiceItem::whereHas('invoice', function($q) use ($year, $termNumber) {
+            $q->where('year', $year)
+              ->where('term', $termNumber)
+              ->where('status', '!=', 'reversed');
+        })
+        ->where('votehead_id', $votehead->id)
+        ->where('source', 'balance_brought_forward')
+        ->with('invoice.student')
+        ->get();
+
+        foreach ($invoiceItems as $item) {
+            $student = $item->invoice->student;
+            if ($student) {
+                $snapshot[$student->id] = [
+                    'student_id' => $student->id,
+                    'admission_number' => $student->admission_number,
+                    'invoice_id' => $item->invoice_id,
+                    'invoice_item_id' => $item->id,
+                    'amount' => (float) $item->amount,
+                ];
             }
         }
 
-        $message = "{$updated} balance(s) brought forward updated successfully.";
-        if (!empty($errors)) {
-            $message .= " " . count($errors) . " error(s) occurred.";
+        return $snapshot;
+    }
+
+    /**
+     * Delete balances for students NOT in the import list
+     */
+    private function deleteBalancesNotInImport($votehead, $year, $termNumber, array $importStudentIds): int
+    {
+        // Get all invoices for this year/term
+        $invoices = \App\Models\Invoice::where('year', $year)
+            ->where('term', $termNumber)
+            ->where('status', '!=', 'reversed')
+            ->whereNotIn('student_id', $importStudentIds)
+            ->pluck('id');
+
+        if ($invoices->isEmpty()) {
+            return 0;
         }
 
-        return redirect()
-            ->route('finance.balance-brought-forward.index')
-            ->with('success', $message)
-            ->with('errors', $errors);
+        // Delete invoice items for BAL_BF votehead that are not in import
+        $deleted = InvoiceItem::whereIn('invoice_id', $invoices)
+            ->where('votehead_id', $votehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->delete();
+
+        // Recalculate affected invoices
+        foreach ($invoices as $invoiceId) {
+            $invoice = \App\Models\Invoice::find($invoiceId);
+            if ($invoice) {
+                InvoiceService::recalc($invoice);
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * Reverse an import
+     */
+    public function reverse(BalanceBroughtForwardImport $import)
+    {
+        try {
+            if ($import->is_reversed) {
+                return back()->with('error', 'This import has already been reversed.');
+            }
+
+            return DB::transaction(function () use ($import) {
+                $snapshot = $import->snapshot_before ?? [];
+                $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
+                
+                if (!$balanceBroughtForwardVotehead) {
+                    throw new \Exception('BAL_BF votehead not found');
+                }
+
+                // Get all current invoice items for this year/term
+                $currentItems = InvoiceItem::whereHas('invoice', function($q) use ($import) {
+                    $q->where('year', $import->year)
+                      ->where('term', $import->term)
+                      ->where('status', '!=', 'reversed');
+                })
+                ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+                ->where('source', 'balance_brought_forward')
+                ->get();
+
+                // Delete all current items (they were created/updated by the import)
+                $invoiceIds = [];
+                foreach ($currentItems as $item) {
+                    $invoiceIds[] = $item->invoice_id;
+                    $item->delete();
+                }
+
+                // Restore balances from snapshot
+                $restored = 0;
+                foreach ($snapshot as $studentData) {
+                    try {
+                        $student = Student::find($studentData['student_id']);
+                        if (!$student) {
+                            continue;
+                        }
+
+                        $invoice = InvoiceService::ensure($studentData['student_id'], $import->year, $import->term);
+                        
+                        // Restore the invoice item
+                        $invoiceItem = InvoiceItem::create([
+                            'invoice_id' => $invoice->id,
+                            'votehead_id' => $balanceBroughtForwardVotehead->id,
+                            'source' => 'balance_brought_forward',
+                            'amount' => $studentData['amount'],
+                            'status' => 'active',
+                            'effective_date' => $invoice->issued_date ?? now(),
+                        ]);
+
+                        $invoiceIds[] = $invoice->id;
+                        InvoiceService::recalc($invoice);
+                        $restored++;
+                    } catch (\Exception $e) {
+                        Log::error('Balance brought forward reversal error', [
+                            'student_id' => $studentData['student_id'] ?? null,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                // Recalculate all affected invoices
+                foreach (array_unique($invoiceIds) as $invoiceId) {
+                    $invoice = \App\Models\Invoice::find($invoiceId);
+                    if ($invoice) {
+                        InvoiceService::recalc($invoice);
+                    }
+                }
+
+                // Mark import as reversed
+                $import->update([
+                    'is_reversed' => true,
+                    'reversed_by' => auth()->id(),
+                    'reversed_at' => now(),
+                ]);
+
+                return redirect()
+                    ->route('finance.balance-brought-forward.index')
+                    ->with('success', "Import #{$import->id} reversed successfully. {$restored} balance(s) restored.");
+            });
+        } catch (\Exception $e) {
+            Log::error('Balance brought forward reversal failed', [
+                'import_id' => $import->id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Failed to reverse import: ' . $e->getMessage());
+        }
     }
 
     /**
