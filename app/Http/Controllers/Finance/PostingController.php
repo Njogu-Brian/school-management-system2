@@ -36,15 +36,38 @@ class PostingController extends Controller
 
     public function preview(Request $request)
     {
-        $request->validate([
-            'year'=>'required|integer', 'term'=>'required|in:1,2,3',
-            'votehead_id'=>'nullable|exists:voteheads,id',
-            'class_id'=>'nullable|exists:classrooms,id',
-            'stream_id'=>'nullable|exists:streams,id',
-            'student_id'=>'nullable|exists:students,id',
-            'student_category_id'=>'nullable|exists:student_categories,id',
-            'effective_date'=>'nullable|date'
-        ]);
+        // For POST requests (initial form submission), require year and term
+        // For GET requests (pagination), make them optional but use defaults if missing
+        if ($request->isMethod('post')) {
+            $request->validate([
+                'year'=>'required|integer', 
+                'term'=>'required|in:1,2,3',
+                'votehead_id'=>'nullable|exists:voteheads,id',
+                'class_id'=>'nullable|exists:classrooms,id',
+                'stream_id'=>'nullable|exists:streams,id',
+                'student_id'=>'nullable|exists:students,id',
+                'student_category_id'=>'nullable|exists:student_categories,id',
+                'effective_date'=>'nullable|date'
+            ]);
+        } else {
+            // For GET requests (pagination), validate but don't require year/term
+            $request->validate([
+                'year'=>'nullable|integer', 
+                'term'=>'nullable|in:1,2,3',
+                'votehead_id'=>'nullable|exists:voteheads,id',
+                'class_id'=>'nullable|exists:classrooms,id',
+                'stream_id'=>'nullable|exists:streams,id',
+                'student_id'=>'nullable|exists:students,id',
+                'student_category_id'=>'nullable|exists:student_categories,id',
+                'effective_date'=>'nullable|date'
+            ]);
+            
+            // If year/term are missing from GET request, redirect back to index
+            if (!$request->has('year') || !$request->has('term')) {
+                return redirect()->route('finance.posting.index')
+                    ->with('error', 'Please select year and term to preview.');
+            }
+        }
         
         // Use enhanced service with diffs
         $result = $this->postingService->previewWithDiffs($request->all());
