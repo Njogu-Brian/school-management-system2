@@ -310,13 +310,23 @@ class TransportFeeController extends Controller
             $isOwnMeans = $row['is_own_means'] ?? false;
             
             // Get amount - handle numeric values properly (may come as string or number from JSON)
+            // JSON decode should preserve float values, but handle both cases
             $amount = null;
-            if (isset($row['amount'])) {
+            if (isset($row['amount']) && $row['amount'] !== null && $row['amount'] !== '') {
                 $amountValue = $row['amount'];
-                // Handle string numbers, null, empty strings
-                if ($amountValue !== null && $amountValue !== '') {
-                    // Convert to string, remove formatting, then to float
-                    $cleaned = preg_replace('/[^\d.-]/', '', (string) $amountValue);
+                
+                // If it's already a numeric type (int or float), use it directly
+                if (is_numeric($amountValue)) {
+                    $amount = (float) $amountValue;
+                    // Ensure amount is not negative
+                    if ($amount < 0) {
+                        $amount = null;
+                    }
+                } 
+                // If it's a string, try to parse it
+                elseif (is_string($amountValue)) {
+                    // Remove formatting (commas, currency symbols, etc.)
+                    $cleaned = preg_replace('/[^\d.-]/', '', $amountValue);
                     if ($cleaned !== '' && is_numeric($cleaned)) {
                         $amount = (float) $cleaned;
                         // Ensure amount is not negative
@@ -362,6 +372,18 @@ class TransportFeeController extends Controller
                 // For valid amounts (status 'ok'), use the actual amount
                 $finalAmount = $isOwnMeans ? 0 : ($amount ?? 0);
                 
+                // Log for debugging (only for status 'ok' to see what's happening)
+                if ($status === 'ok') {
+                    Log::info('Transport fee import processing', [
+                        'student_id' => $row['student_id'],
+                        'status' => $status,
+                        'raw_amount' => $row['amount'] ?? 'not set',
+                        'parsed_amount' => $amount,
+                        'final_amount' => $finalAmount,
+                        'skip_invoice' => $shouldSkipInvoice,
+                    ]);
+                }
+                
                 TransportFeeService::upsertFee([
                     'student_id' => $row['student_id'],
                     'amount' => $finalAmount,
@@ -384,7 +406,9 @@ class TransportFeeController extends Controller
                     'student_id' => $row['student_id'],
                     'status' => $status,
                     'amount' => $amount,
+                    'raw_amount' => $row['amount'] ?? 'not set',
                     'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         }
