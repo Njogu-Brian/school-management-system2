@@ -23,20 +23,16 @@ class TransportFeeController extends Controller
         $classroomId = $request->input('classroom_id');
         $classrooms = Classroom::orderBy('name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
-        $feeStudentIds = TransportFee::where('year', $year)->where('term', $term)->pluck('student_id');
-
+        // Get all active students (not just those with existing transport fees)
+        // This allows viewing and assigning transport fees to any student
         $students = Student::with(['classroom', 'stream', 'dropOffPoint', 'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint'])
             ->where('archive', 0)
             ->where('is_alumni', false)
             ->when($classroomId, fn($q) => $q->where('classroom_id', $classroomId))
-            ->where(function ($q) use ($feeStudentIds) {
-                $q->whereNotNull('drop_off_point_id')
-                    ->orWhereNotNull('trip_id')
-                    ->orWhereIn('id', $feeStudentIds)
-                    ->orWhereHas('assignments');
-            })
             ->orderBy('first_name')
             ->get();
+            
+        $feeStudentIds = TransportFee::where('year', $year)->where('term', $term)->pluck('student_id');
 
         $studentIds = $students->pluck('id');
         $feeMap = $studentIds->isEmpty() 
