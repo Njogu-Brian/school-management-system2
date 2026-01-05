@@ -398,6 +398,29 @@ class BankStatementParser
     }
     
     /**
+     * Get Python command (python3 or python)
+     */
+    protected function getPythonCommand(): string
+    {
+        // Check if python3 is available
+        $process = new Process(['python3', '--version'], base_path());
+        $process->run();
+        if ($process->isSuccessful()) {
+            return 'python3';
+        }
+        
+        // Fallback to python
+        $process = new Process(['python', '--version'], base_path());
+        $process->run();
+        if ($process->isSuccessful()) {
+            return 'python';
+        }
+        
+        // Default to python3 (most common on Linux)
+        return 'python3';
+    }
+    
+    /**
      * Call Python parser
      */
     protected function callPythonParser(string $pdfPath, string $bankType): array
