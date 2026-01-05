@@ -4,9 +4,13 @@ This directory contains the Python parser for bank statements (MPESA and Equity 
 
 ## Prerequisites
 
-### System Dependencies
+### Required Dependencies
 
-**Tesseract OCR** (required for OCR fallback on scanned PDFs):
+- **pdfplumber** - For extracting text from PDFs (installed via pip)
+
+### Optional Dependencies (Only if you need OCR for scanned PDFs)
+
+**Tesseract OCR** (optional - only needed for OCR fallback on scanned PDFs):
 
 - **Windows**: Download and install from https://github.com/UB-Mannheim/tesseract/wiki
   - Add Tesseract to PATH or set `TESSDATA_PREFIX` environment variable
@@ -14,7 +18,7 @@ This directory contains the Python parser for bank statements (MPESA and Equity 
 - **Linux (Ubuntu/Debian)**: `sudo apt-get install tesseract-ocr`
 - **Linux (CentOS/RHEL)**: `sudo yum install tesseract`
 
-**Poppler** (required for pdf2image):
+**Poppler** (optional - only needed for pdf2image/OCR):
 
 - **Windows**: Download from https://github.com/oschwartz10612/poppler-windows/releases
   - Extract and add `bin` folder to PATH
@@ -51,6 +55,10 @@ Python 3.9 or higher is required.
 
 4. **Install Python dependencies**:
    ```bash
+   # Install only required dependencies (for text-based PDFs)
+   pip install pdfplumber
+   
+   # OR install all including OCR (only if you need scanned PDF support)
    pip install -r requirements.txt
    ```
 
@@ -85,6 +93,10 @@ Python 3.9 or higher is required.
 3. **Install Python packages globally** (or use virtualenv):
    ```bash
    cd /path/to/school-management-system2/app/Services/python
+   # For text-based PDFs only (recommended):
+   sudo pip3 install pdfplumber
+   
+   # OR for full OCR support (only if needed):
    sudo pip3 install -r requirements.txt
    ```
 

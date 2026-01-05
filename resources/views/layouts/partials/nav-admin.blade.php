@@ -367,6 +367,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.journals.index') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
     <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    <a href="{{ route('finance.bank-statements.index') }}"class="{{ Request::is('finance/bank-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
     <a href="{{ route('finance.student-statements.index') }}"class="{{ Request::is('finance/student-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Student Statements</a>
     <a href="{{ route('finance.balance-brought-forward.index') }}"class="{{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
     <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>
