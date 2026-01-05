@@ -103,41 +103,6 @@
                             </button>
                           </td>
                         </tr>
-
-                        <!-- Edit Modal -->
-                        <div class="modal fade" id="editModal{{ $student->id }}" tabindex="-1">
-                          <div class="modal-dialog">
-                            <div class="modal-content">
-                              <form method="POST" action="{{ route('finance.balance-brought-forward.update', $student) }}">
-                                @csrf
-                                @method('PUT')
-                                <div class="modal-header">
-                                  <h5 class="modal-title">Update Balance Brought Forward</h5>
-                                  <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                  <div class="mb-3">
-                                    <label class="form-label">Student</label>
-                                    <input type="text" class="form-control" value="{{ $student->full_name }} ({{ $student->admission_number }})" readonly>
-                                  </div>
-                                  <div class="mb-3">
-                                    <label class="form-label">Current Balance Brought Forward</label>
-                                    <input type="text" class="form-control" value="KES {{ number_format($balance, 2) }}" readonly>
-                                  </div>
-                                  <div class="mb-3">
-                                    <label class="form-label">New Balance Brought Forward <span class="text-danger">*</span></label>
-                                    <input type="number" name="balance" class="form-control" step="0.01" min="0" value="{{ $balance }}" required>
-                                    <small class="text-muted">Enter the new balance brought forward amount</small>
-                                  </div>
-                                </div>
-                                <div class="modal-footer">
-                                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                  <button type="submit" class="btn btn-primary">Update</button>
-                                </div>
-                              </form>
-                            </div>
-                          </div>
-                        </div>
                       @endforeach
                     </tbody>
                     @if($students->count() > 0)
@@ -152,6 +117,47 @@
                   </table>
                 </div>
               </div>
+
+              <!-- Edit Modals (placed outside table for proper rendering) -->
+              @foreach($students as $item)
+                @php
+                  $student = $item['student'];
+                  $balance = $item['balance_brought_forward'];
+                @endphp
+                <div class="modal fade" id="editModal{{ $student->id }}" tabindex="-1" aria-labelledby="editModalLabel{{ $student->id }}" aria-hidden="true">
+                  <div class="modal-dialog">
+                    <div class="modal-content">
+                      <form method="POST" action="{{ route('finance.balance-brought-forward.update', $student) }}">
+                        @csrf
+                        @method('PUT')
+                        <div class="modal-header">
+                          <h5 class="modal-title" id="editModalLabel{{ $student->id }}">Update Balance Brought Forward</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                          <div class="mb-3">
+                            <label class="form-label">Student</label>
+                            <input type="text" class="form-control" value="{{ $student->full_name }} ({{ $student->admission_number }})" readonly>
+                          </div>
+                          <div class="mb-3">
+                            <label class="form-label">Current Balance Brought Forward</label>
+                            <input type="text" class="form-control" value="KES {{ number_format($balance, 2) }}" readonly>
+                          </div>
+                          <div class="mb-3">
+                            <label class="form-label">New Balance Brought Forward <span class="text-danger">*</span></label>
+                            <input type="number" name="balance" class="form-control" step="0.01" min="0" value="{{ $balance }}" required>
+                            <small class="text-muted">Enter the new balance brought forward amount</small>
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                          <button type="submit" class="btn btn-primary">Update</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              @endforeach
             @else
               <div class="text-center text-muted py-5">
                 <i class="bi bi-inbox" style="font-size: 3rem;"></i>
