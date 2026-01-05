@@ -170,11 +170,13 @@ class TransportFeeService
             if ($amount > 0 && !$skipInvoice) {
                 self::syncInvoice($fee, self::transportVotehead());
             } else {
-                // If there's an existing invoice item for this transport fee, remove it
+                // If amount is 0 or skipped, ensure no invoice item exists for this transport fee
+                // But only delete if we're updating from an existing fee with amount > 0
                 if ($amount == 0 || $skipInvoice) {
                     $votehead = self::transportVotehead();
-                    DB::transaction(function () use ($fee, $votehead) {
+                    DB::transaction(function () use ($fee, $votehead, $existing) {
                         $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+                        // Only delete transport items with source='transport' - this is safe as it only affects transport items
                         \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
                             ->where('votehead_id', $votehead->id)
                             ->where('source', 'transport')
@@ -198,8 +200,11 @@ class TransportFeeService
         DB::transaction(function () use ($fee, $votehead) {
             $invoice = InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
 
+            // Only find existing transport invoice items (by source = 'transport')
+            // This prevents accidentally replacing non-transport items
             $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
                 ->where('votehead_id', $votehead->id)
+                ->where('source', 'transport')
                 ->first();
 
             $payload = [
@@ -216,8 +221,13 @@ class TransportFeeService
                 $payload['original_amount'] = $fee->amount;
             }
 
+            // Only update/create items with source = 'transport' to avoid affecting other items
             $item = InvoiceItem::updateOrCreate(
-                ['invoice_id' => $invoice->id, 'votehead_id' => $votehead->id],
+                [
+                    'invoice_id' => $invoice->id, 
+                    'votehead_id' => $votehead->id,
+                    'source' => 'transport'
+                ],
                 $payload
             );
 
@@ -254,6 +264,95 @@ class TransportFeeService
         return DropOffPoint::create([
             'name' => $clean,
         ]);
+    }
+
+    /**
+     * Reverse a transport fee import - deletes invoice items and drop-off assignments
+     * but keeps the created drop-off points
+     */
+    public static function reverseImport(\App\Models\TransportFeeImport $import): array
+    {
+        return DB::transaction(function () use ($import) {
+            // Find all transport fees created by this import
+            $transportFees = TransportFee::where('year', $import->year)
+                ->where('term', $import->term)
+                ->where('source', 'import')
+                ->where('created_at', '>=', $import->imported_at->startOfDay())
+                ->where('created_at', '<=', $import->imported_at->endOfDay())
+                ->get();
+
+            $itemsDeleted = 0;
+            $assignmentsDeleted = 0;
+            $votehead = self::transportVotehead();
+            $invoiceIds = collect();
+
+            foreach ($transportFees as $fee) {
+                // Delete invoice items for this transport fee
+                $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+                $invoiceIds->push($invoice->id);
+
+                $deleted = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                    ->where('votehead_id', $votehead->id)
+                    ->where('source', 'transport')
+                    ->delete();
+                
+                $itemsDeleted += $deleted;
+
+                // Delete drop-off point assignments (student assignments)
+                $assignment = \App\Models\StudentAssignment::where('student_id', $fee->student_id)->first();
+                if ($assignment) {
+                    // Only remove if it matches the import
+                    if ($assignment->morning_drop_off_point_id == $fee->drop_off_point_id ||
+                        $assignment->evening_drop_off_point_id == $fee->drop_off_point_id) {
+                        $updated = false;
+                        if ($assignment->morning_drop_off_point_id == $fee->drop_off_point_id) {
+                            $assignment->morning_drop_off_point_id = null;
+                            $updated = true;
+                        }
+                        if ($assignment->evening_drop_off_point_id == $fee->drop_off_point_id) {
+                            $assignment->evening_drop_off_point_id = null;
+                            $updated = true;
+                        }
+                        if ($updated) {
+                            $assignment->save();
+                            $assignmentsDeleted++;
+                        }
+                    }
+                }
+
+                // Clear student drop-off point info if it matches
+                $student = \App\Models\Student::find($fee->student_id);
+                if ($student && $student->drop_off_point_id == $fee->drop_off_point_id) {
+                    $student->update([
+                        'drop_off_point_id' => null,
+                        'drop_off_point_other' => null,
+                    ]);
+                }
+
+                // Delete the transport fee record
+                $fee->delete();
+            }
+
+            // Recalculate affected invoices
+            foreach ($invoiceIds->unique() as $invoiceId) {
+                $invoice = \App\Models\Invoice::find($invoiceId);
+                if ($invoice) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+            }
+
+            // Mark import as reversed
+            $import->update([
+                'is_reversed' => true,
+                'reversed_by' => auth()->id(),
+                'reversed_at' => now(),
+            ]);
+
+            return [
+                'items_deleted' => $itemsDeleted,
+                'assignments_deleted' => $assignmentsDeleted,
+            ];
+        });
     }
 }
 

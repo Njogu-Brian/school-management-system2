@@ -247,13 +247,25 @@ class TransportFeeController extends Controller
             'term' => 'required|integer|in:1,2,3',
         ]);
 
-        [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
+        [$year, $term, $academicYearId] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
         $map = $request->input('dropoff_map', []);
         $createdOrUpdated = 0;
+        $dropOffPointsCreated = 0;
+        $totalAmount = 0;
 
         $dropCache = DropOffPoint::orderBy('name')->get()->keyBy(function ($p) {
             return Str::lower($p->name);
         });
+        
+        // Create import batch record
+        $importBatch = \App\Models\TransportFeeImport::create([
+            'year' => $year,
+            'term' => $term,
+            'academic_year_id' => $academicYearId,
+            'imported_by' => auth()->id(),
+            'imported_at' => now(),
+            'is_reversed' => false,
+        ]);
 
         foreach ($request->rows as $encoded) {
             $row = json_decode(base64_decode($encoded), true);
@@ -283,6 +295,7 @@ class TransportFeeController extends Controller
                     $dropId = $created?->id;
                     if ($created) {
                         $dropCache[$key] = $created;
+                        $dropOffPointsCreated++;
                     }
                 } elseif ($selection && is_numeric($selection)) {
                     $dropId = (int) $selection;
@@ -305,6 +318,9 @@ class TransportFeeController extends Controller
                     'skip_invoice' => $isOwnMeans || $amount === null, // Skip invoice for own means or missing amounts
                 ]);
                 $createdOrUpdated++;
+                if ($amount && $amount > 0) {
+                    $totalAmount += $amount;
+                }
             } catch (\Throwable $e) {
                 Log::warning('Transport fee import failed', [
                     'student_id' => $row['student_id'],
@@ -313,9 +329,34 @@ class TransportFeeController extends Controller
             }
         }
 
+        // Update import batch with final counts
+        $importBatch->update([
+            'fees_imported_count' => $createdOrUpdated,
+            'drop_off_points_created_count' => $dropOffPointsCreated,
+            'total_amount' => $totalAmount,
+        ]);
+
         return redirect()
             ->route('finance.transport-fees.index', ['term' => $term, 'year' => $year])
-            ->with('success', "{$createdOrUpdated} transport fee(s) and drop-off point(s) applied for Term {$term}, {$year}.");
+            ->with('success', "{$createdOrUpdated} transport fee(s) and drop-off point(s) applied for Term {$term}, {$year}.")
+            ->with('import_batch_id', $importBatch->id);
+    }
+    
+    public function reverseImport(\App\Models\TransportFeeImport $import)
+    {
+        try {
+            if ($import->is_reversed) {
+                return back()->with('error', 'This import has already been reversed.');
+            }
+
+            $result = TransportFeeService::reverseImport($import);
+
+            return redirect()
+                ->route('finance.transport-fees.index', ['term' => $import->term, 'year' => $import->year])
+                ->with('success', "Transport fee import #{$import->id} reversed successfully. {$result['items_deleted']} invoice items deleted and {$result['assignments_deleted']} drop-off point assignments removed.");
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to reverse import: ' . $e->getMessage());
+        }
     }
 
     /**

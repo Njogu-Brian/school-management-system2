@@ -1072,6 +1072,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('transport-fees/bulk-update', [TransportFeeController::class, 'bulkUpdate'])->name('transport-fees.bulk-update');
         Route::post('transport-fees/import/preview', [TransportFeeController::class, 'importPreview'])->name('transport-fees.import.preview');
         Route::post('transport-fees/import/commit', [TransportFeeController::class, 'importCommit'])->name('transport-fees.import.commit');
+        Route::post('transport-fees/import/{import}/reverse', [TransportFeeController::class, 'reverseImport'])->name('transport-fees.import.reverse');
         Route::get('transport-fees/template', [TransportFeeController::class, 'template'])->name('transport-fees.template');
 
         // Payments

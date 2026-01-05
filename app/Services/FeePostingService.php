@@ -270,10 +270,48 @@ class FeePostingService
                 }
             }
             
-            // Recalculate affected invoices
+            // Delete all invoices affected by this posting run
+            // Since items are already deleted above, we check remaining items on each invoice
             $invoices = Invoice::whereIn('id', $invoiceIds->unique())->get();
+            $deletedInvoiceCount = 0;
+            
             foreach ($invoices as $invoice) {
-                InvoiceService::recalc($invoice);
+                // Refresh to get updated item count after deletions
+                $invoice->refresh();
+                
+                // Check remaining items (items that weren't deleted - from other posting runs or manual)
+                $remainingItems = $invoice->items()->count();
+                
+                // Delete invoice if:
+                // 1. It was created by this posting run, OR
+                // 2. It has no remaining items after deleting items from this posting run
+                if ($invoice->posting_run_id === $run->id || $remainingItems === 0) {
+                    // Delete related records first
+                    $invoice->creditNotes()->delete();
+                    $invoice->debitNotes()->delete();
+                    $invoice->feeConcessions()->delete();
+                    
+                    // Delete the invoice itself
+                    $invoice->delete();
+                    $deletedInvoiceCount++;
+                } else {
+                    // Recalculate invoice if it still has other items from other posting runs
+                    InvoiceService::recalc($invoice);
+                }
+            }
+            
+            // Also find and delete any invoices directly linked to this posting run
+            // (in case they weren't picked up in the items loop above)
+            $directInvoices = Invoice::where('posting_run_id', $run->id)
+                ->whereNotIn('id', $invoiceIds->unique())
+                ->get();
+                
+            foreach ($directInvoices as $invoice) {
+                $invoice->creditNotes()->delete();
+                $invoice->debitNotes()->delete();
+                $invoice->feeConcessions()->delete();
+                $invoice->delete();
+                $deletedInvoiceCount++;
             }
             
             // Create reversal run
@@ -288,11 +326,15 @@ class FeePostingService
                 'items_posted_count' => $items->count(),
             ]);
             
-            // Prepare notes with payment count if applicable
+            // Prepare notes with payment count and invoice deletion info
             $notes = $run->notes;
             if ($affectedPaymentCount > 0) {
                 $notes = ($notes ? $notes . "\n" : '') . 
                         "Reversal freed {$affectedPaymentCount} payment(s) for carry forward.";
+            }
+            if ($deletedInvoiceCount > 0) {
+                $notes = ($notes ? $notes . "\n" : '') . 
+                        "Deleted {$deletedInvoiceCount} invoice(s) that were created by this posting run.";
             }
             
             $run->update([
