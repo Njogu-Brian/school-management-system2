@@ -153,8 +153,12 @@ class TransportFeeController extends Controller
 
             $dropName = $assoc['drop_off_point'] ?? $assoc['dropoff_point'] ?? $assoc['drop_point'] ?? null;
             $dropName = $dropName ? trim((string) $dropName) : null;
+            
+            // Check if drop-off point indicates "own means" transport
+            $isOwnMeans = self::isOwnMeans($dropName);
+            
             $matchedDrop = null;
-            if ($dropName) {
+            if ($dropName && !$isOwnMeans) {
                 $matchedDrop = $dropOffPoints->first(fn($p) => Str::lower($p->name) === Str::lower($dropName));
                 if (!$matchedDrop) {
                     $missingDropOffs[] = $dropName;
@@ -166,9 +170,12 @@ class TransportFeeController extends Controller
             if (!$student) {
                 $status = 'missing_student';
                 $message = 'Student not found by admission number';
+            } elseif ($isOwnMeans) {
+                $status = 'own_means';
+                $message = 'Own means transport (no fee)';
             } elseif ($amount === null) {
                 $status = 'missing_amount';
-                $message = 'Amount is missing or invalid';
+                $message = 'Amount is missing or invalid (will create drop-off point only)';
             }
 
             if ($status === 'ok') {
@@ -182,6 +189,7 @@ class TransportFeeController extends Controller
                 'amount' => $amount,
                 'drop_off_point_id' => $matchedDrop?->id,
                 'drop_off_point_name' => $dropName,
+                'is_own_means' => $isOwnMeans,
                 'status' => $status,
                 'message' => $message,
             ];
@@ -218,14 +226,24 @@ class TransportFeeController extends Controller
 
         foreach ($request->rows as $encoded) {
             $row = json_decode(base64_decode($encoded), true);
-            if (!$row || ($row['status'] ?? '') !== 'ok' || empty($row['student_id'])) {
+            
+            // Skip rows without valid student
+            if (!$row || empty($row['student_id'])) {
+                continue;
+            }
+
+            // Skip rows where student is not found
+            if (($row['status'] ?? '') === 'missing_student') {
                 continue;
             }
 
             $dropName = $row['drop_off_point_name'] ?? null;
             $dropId = $row['drop_off_point_id'] ?? null;
+            $isOwnMeans = $row['is_own_means'] ?? false;
+            $amount = $row['amount'] ?? null;
 
-            if (!$dropId && $dropName) {
+            // Resolve drop-off point (unless it's own means)
+            if (!$dropId && $dropName && !$isOwnMeans) {
                 $key = Str::lower($dropName);
                 $selection = $map[$key] ?? null;
 
@@ -243,15 +261,17 @@ class TransportFeeController extends Controller
             }
 
             try {
+                // For own means or missing amounts, create drop-off point info but skip invoice
                 TransportFeeService::upsertFee([
                     'student_id' => $row['student_id'],
-                    'amount' => $row['amount'],
+                    'amount' => $isOwnMeans ? 0 : ($amount ?? 0),
                     'year' => $year,
                     'term' => $term,
                     'drop_off_point_id' => $dropId,
-                    'drop_off_point_name' => $dropName,
+                    'drop_off_point_name' => $isOwnMeans ? 'OWN MEANS' : $dropName,
                     'source' => 'import',
-                    'note' => 'Imported from transport fee upload',
+                    'note' => $isOwnMeans ? 'Own means transport (no fee)' : ($amount === null ? 'Imported from transport fee upload - amount missing, drop-off point only' : 'Imported from transport fee upload'),
+                    'skip_invoice' => $isOwnMeans || $amount === null, // Skip invoice for own means or missing amounts
                 ]);
                 $createdOrUpdated++;
             } catch (\Throwable $e) {
@@ -264,7 +284,23 @@ class TransportFeeController extends Controller
 
         return redirect()
             ->route('finance.transport-fees.index', ['term' => $term, 'year' => $year])
-            ->with('success', "{$createdOrUpdated} transport fee(s) applied for Term {$term}, {$year}.");
+            ->with('success', "{$createdOrUpdated} transport fee(s) and drop-off point(s) applied for Term {$term}, {$year}.");
+    }
+
+    /**
+     * Check if a drop-off point name indicates "own means" transport.
+     */
+    private static function isOwnMeans(?string $dropName): bool
+    {
+        if (!$dropName) {
+            return false;
+        }
+
+        $normalized = Str::upper(trim($dropName));
+        $ownMeansVariants = ['OWN', 'OWNMEANS', 'OWN MEANS', 'OWN MEAN', 'OWN TRANSPORT'];
+
+        return in_array($normalized, $ownMeansVariants) || 
+               Str::startsWith($normalized, 'OWN') && Str::contains($normalized, 'MEAN');
     }
 
     /**

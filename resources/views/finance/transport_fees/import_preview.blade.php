@@ -53,6 +53,8 @@
                     <td>
                       @if($isOk)
                         <span class="badge bg-success">Ready</span>
+                      @elseif($row['status'] === 'own_means')
+                        <span class="badge bg-info">Own Means (No Fee)</span>
                       @else
                         <span class="badge bg-warning text-dark">{{ $row['message'] ?? 'Needs attention' }}</span>
                       @endif

@@ -71,6 +71,7 @@ class TransportFeeService
         $source = $data['source'] ?? 'manual';
         $userId = $data['user_id'] ?? auth()->id();
         $note = $data['note'] ?? null;
+        $skipInvoice = $data['skip_invoice'] ?? false;
 
         if (!$dropOffPointName && $dropOffPointId) {
             $dropOffPointName = optional(DropOffPoint::find($dropOffPointId))->name;
@@ -165,7 +166,23 @@ class TransportFeeService
                 ]);
             }
 
-            self::syncInvoice($fee, self::transportVotehead());
+            // Only create/update invoice item if amount > 0 and not explicitly skipped
+            if ($amount > 0 && !$skipInvoice) {
+                self::syncInvoice($fee, self::transportVotehead());
+            } else {
+                // If there's an existing invoice item for this transport fee, remove it
+                if ($amount == 0 || $skipInvoice) {
+                    $votehead = self::transportVotehead();
+                    DB::transaction(function () use ($fee, $votehead) {
+                        $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+                        \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                            ->where('votehead_id', $votehead->id)
+                            ->where('source', 'transport')
+                            ->delete();
+                        \App\Services\InvoiceService::recalc($invoice);
+                    });
+                }
+            }
 
             return $fee;
         });
