@@ -22,11 +22,11 @@ return new class extends Migration
             $dropForeignKey = function($tableName, $columnName) {
                 // Query for foreign keys using REFERENTIAL_CONSTRAINTS for more reliable results
                 $foreignKeys = DB::select(
-                    "SELECT CONSTRAINT_NAME 
+                    "SELECT rc.CONSTRAINT_NAME 
                      FROM information_schema.REFERENTIAL_CONSTRAINTS rc
                      JOIN information_schema.KEY_COLUMN_USAGE kcu 
                          ON rc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME 
-                         AND rc.CONSTRAINT_SCHEMA = kcu.TABLE_SCHEMA
+                         AND rc.CONSTRAINT_SCHEMA = kcu.CONSTRAINT_SCHEMA
                      WHERE rc.CONSTRAINT_SCHEMA = DATABASE() 
                      AND kcu.TABLE_NAME = ? 
                      AND kcu.COLUMN_NAME = ?
