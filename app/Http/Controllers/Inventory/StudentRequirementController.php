@@ -9,6 +9,7 @@ use App\Models\InventoryItem;
 use App\Models\InventoryTransaction;
 use App\Models\ItemReceipt;
 use App\Models\ActivityLog;
+use App\Models\CommunicationLog;
 use App\Models\Student;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
@@ -17,15 +18,19 @@ use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Services\CommunicationService;
+use App\Services\WhatsAppService;
 
 class StudentRequirementController extends Controller
 {
     protected $comm;
+    protected $whatsappService;
 
-    public function __construct(CommunicationService $comm)
+    public function __construct(CommunicationService $comm, WhatsAppService $whatsappService)
     {
         $this->comm = $comm;
+        $this->whatsappService = $whatsappService;
     }
 
     public function index(Request $request)
@@ -438,6 +443,7 @@ class StudentRequirementController extends Controller
             return;
         }
 
+        $parent = $student->parent;
         $currentYear = AcademicYear::where('is_active', true)->first();
         $currentTerm = Term::where('is_current', true)->first();
 
@@ -447,39 +453,127 @@ class StudentRequirementController extends Controller
             ->with('requirementTemplate.requirementType')
             ->get();
 
-        $allCollected = $requirements->every(fn($r) => $r->status === 'complete');
-        $missingItems = $requirements->filter(fn($r) => $r->status !== 'complete');
+        if ($requirements->isEmpty()) {
+            return;
+        }
 
-        $message = "Dear Parent,\n\n";
-        $message .= "Requirements collection update for {$student->first_name} {$student->last_name}:\n\n";
+        $studentName = "{$student->first_name} {$student->last_name}";
+        $yearTerm = "{$currentYear->year} / {$currentTerm->name}";
 
-        if ($allCollected) {
-            $message .= "✅ All requirements have been collected successfully.\n\n";
-        } else {
-            $message .= "⚠️ Some requirements are missing:\n\n";
-            foreach ($missingItems as $req) {
-                $missing = $req->quantity_required - $req->quantity_collected;
-                $message .= "- {$req->requirementTemplate->requirementType->name}: Missing {$missing} {$req->requirementTemplate->unit}\n";
+        // Build detailed message for WhatsApp and Email
+        $detailedMessage = "Dear Parent,\n\n";
+        $detailedMessage .= "REQUIREMENTS COLLECTION UPDATE\n";
+        $detailedMessage .= "Student: {$studentName}\n";
+        $detailedMessage .= "Academic Period: {$yearTerm}\n\n";
+        
+        $collectedItems = [];
+        $missingItems = [];
+        
+        foreach ($requirements as $req) {
+            $template = $req->requirementTemplate;
+            $typeName = $template->requirementType->name;
+            $brand = $template->brand ?? 'Any brand';
+            $collected = $req->quantity_collected ?? 0;
+            $required = $req->quantity_required ?? 0;
+            $unit = $template->unit ?? 'piece';
+            
+            if ($collected > 0) {
+                $collectedItems[] = "✅ {$typeName} - {$collected} {$unit} ({$brand})";
             }
-            $message .= "\nPlease provide the missing items.\n\n";
+            
+            if ($collected < $required) {
+                $missing = $required - $collected;
+                $missingItems[] = "⚠️ {$typeName} - Collected: {$collected}/{$required} {$unit} (Missing: {$missing} {$unit})";
+            }
         }
 
-        $message .= "Thank you.";
-
-        // Send SMS
-        if ($student->parent->phone) {
-            $this->comm->sendSMS('parent', $student->parent->id, $student->parent->phone, $message);
+        if (!empty($collectedItems)) {
+            $detailedMessage .= "COLLECTED ITEMS:\n";
+            $detailedMessage .= implode("\n", $collectedItems) . "\n\n";
         }
 
-        // Send Email
-        if ($student->parent->email) {
-            $this->comm->sendEmail(
-                'parent',
-                $student->parent->id,
-                $student->parent->email,
-                'Requirements Collection Update',
-                nl2br($message)
-            );
+        if (!empty($missingItems)) {
+            $detailedMessage .= "PENDING ITEMS:\n";
+            $detailedMessage .= implode("\n", $missingItems) . "\n\n";
+            $detailedMessage .= "Please provide the missing items.\n\n";
+        }
+
+        $detailedMessage .= "Thank you.";
+
+        // Simple SMS message
+        $smsMessage = "Dear Parent, we have received requirements for {$studentName} ({$yearTerm}). ";
+        if (empty($missingItems)) {
+            $smsMessage .= "All items collected. Thank you.";
+        } else {
+            $smsMessage .= "Some items pending. Check WhatsApp/Email for details. Thank you.";
+        }
+
+        // Send SMS - simple notification
+        if ($parent->getPrimaryContactPhoneAttribute()) {
+            try {
+                $this->comm->sendSMS(
+                    'parent',
+                    $parent->id,
+                    $parent->getPrimaryContactPhoneAttribute(),
+                    $smsMessage,
+                    'Requirements Received'
+                );
+            } catch (\Exception $e) {
+                Log::error('Failed to send SMS for requirements', [
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Send WhatsApp - detailed message
+        $whatsappNumber = $parent->father_whatsapp 
+            ?? $parent->mother_whatsapp 
+            ?? $parent->guardian_whatsapp 
+            ?? null;
+            
+        if ($whatsappNumber) {
+            try {
+                $result = $this->whatsappService->sendMessage($whatsappNumber, $detailedMessage);
+                
+                // Log WhatsApp communication
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id' => $parent->id,
+                    'contact' => $whatsappNumber,
+                    'channel' => 'whatsapp',
+                    'title' => 'Requirements Collection Update',
+                    'message' => $detailedMessage,
+                    'type' => 'requirements',
+                    'status' => ($result['status'] ?? 'error') === 'success' ? 'sent' : 'failed',
+                    'response' => $result,
+                    'scope' => 'requirements',
+                    'sent_at' => now(),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send WhatsApp for requirements', [
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Send Email - detailed message
+        if ($parent->getPrimaryContactEmailAttribute()) {
+            try {
+                $this->comm->sendEmail(
+                    'parent',
+                    $parent->id,
+                    $parent->getPrimaryContactEmailAttribute(),
+                    'Requirements Collection Update',
+                    nl2br($detailedMessage)
+                );
+            } catch (\Exception $e) {
+                Log::error('Failed to send Email for requirements', [
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
         }
 
         // Mark as notified
