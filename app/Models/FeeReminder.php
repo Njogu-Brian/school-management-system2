@@ -9,12 +9,15 @@ class FeeReminder extends Model
     protected $fillable = [
         'student_id',
         'invoice_id',
+        'payment_plan_id',
+        'payment_plan_installment_id',
         'hashed_id',
         'channel',
         'status',
         'outstanding_amount',
         'due_date',
         'days_before_due',
+        'reminder_rule',
         'sent_at',
         'message',
         'error_message',
@@ -34,6 +37,16 @@ class FeeReminder extends Model
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function paymentPlan()
+    {
+        return $this->belongsTo(FeePaymentPlan::class);
+    }
+
+    public function paymentPlanInstallment()
+    {
+        return $this->belongsTo(FeePaymentPlanInstallment::class);
     }
 
     /**

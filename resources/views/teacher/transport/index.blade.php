@@ -23,15 +23,6 @@
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label">Route</label>
-          <select name="route_id" class="form-select">
-            <option value="">All Routes</option>
-            @foreach($routes as $route)
-              <option value="{{ $route->id }}" @selected(request('route_id') == $route->id)>{{ $route->name }}</option>
-            @endforeach
-          </select>
-        </div>
-        <div class="col-md-4">
           <button type="submit" class="btn btn-primary w-100">
             <i class="bi bi-search"></i> Filter
           </button>

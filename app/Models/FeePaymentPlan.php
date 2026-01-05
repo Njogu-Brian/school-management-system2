@@ -9,20 +9,25 @@ class FeePaymentPlan extends Model
     protected $fillable = [
         'student_id',
         'invoice_id',
+        'term_id',
+        'academic_year_id',
         'hashed_id',
         'total_amount',
         'installment_count',
         'installment_amount',
         'start_date',
         'end_date',
+        'final_clearance_deadline',
         'status',
         'notes',
         'created_by',
+        'updated_by',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'final_clearance_deadline' => 'date',
         'total_amount' => 'decimal:2',
         'installment_amount' => 'decimal:2',
     ];
@@ -37,6 +42,16 @@ class FeePaymentPlan extends Model
         return $this->belongsTo(Invoice::class);
     }
 
+    public function term()
+    {
+        return $this->belongsTo(Term::class);
+    }
+
+    public function academicYear()
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
+
     public function installments()
     {
         return $this->hasMany(FeePaymentPlanInstallment::class, 'payment_plan_id');
@@ -45,6 +60,11 @@ class FeePaymentPlan extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updater()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 
     /**

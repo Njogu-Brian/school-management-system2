@@ -11,7 +11,7 @@
             <div>
                 <p class="eyebrow text-muted mb-1">Transport</p>
                 <h1 class="mb-1">Trips</h1>
-                <p class="text-muted mb-0">Manage trips and assign vehicles to routes.</p>
+                <p class="text-muted mb-0">Manage trips and assign vehicles.</p>
             </div>
             <div class="d-flex gap-2">
                 <a href="{{ route('transport.trips.create') }}" class="btn btn-settings-primary">
@@ -39,8 +39,9 @@
                             <tr>
                                 <th>Trip Name</th>
                                 <th>Type</th>
-                                <th>Route</th>
                                 <th>Vehicle</th>
+                                <th>Driver</th>
+                                <th>Direction</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -48,9 +49,22 @@
                             @forelse ($trips as $trip)
                                 <tr>
                                     <td class="fw-semibold">{{ $trip->name }}</td>
-                                    <td><span class="pill-badge">{{ $trip->type }}</span></td>
-                                    <td>{{ $trip->route->name ?? 'N/A' }}</td>
+                                    <td><span class="pill-badge">{{ $trip->type ?? 'N/A' }}</span></td>
                                     <td>{{ $trip->vehicle->vehicle_number ?? 'N/A' }}</td>
+                                    <td>
+                                        @if($trip->driver)
+                                            {{ $trip->driver->user->name ?? ($trip->driver->first_name . ' ' . $trip->driver->last_name) }}
+                                        @else
+                                            <span class="text-muted">N/A</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($trip->direction)
+                                            <span class="badge bg-info">{{ ucfirst($trip->direction) }}</span>
+                                        @else
+                                            <span class="text-muted">All</span>
+                                        @endif
+                                    </td>
                                     <td class="text-end d-flex justify-content-end gap-2">
                                         <a href="{{ route('transport.trips.edit', $trip->id) }}" class="btn btn-sm btn-ghost-strong">
                                             <i class="bi bi-pencil"></i>
@@ -67,7 +81,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">No trips found.</td>
+                                    <td colspan="6" class="text-center text-muted py-4">No trips found.</td>
                                 </tr>
                             @endforelse
                         </tbody>

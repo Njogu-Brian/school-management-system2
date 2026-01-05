@@ -105,6 +105,11 @@ class FeePostingService
                     continue;
                 }
                 
+                // Skip if votehead_id is missing
+                if (!isset($diff['votehead_id']) || empty($diff['votehead_id'])) {
+                    continue;
+                }
+                
                 // Idempotency check: skip if item already exists and is active
                 if (isset($diff['invoice_item_id']) && $diff['invoice_item_id']) {
                     $existingItem = InvoiceItem::find($diff['invoice_item_id']);

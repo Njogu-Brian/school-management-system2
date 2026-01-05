@@ -11,10 +11,13 @@
             <div>
                 <p class="eyebrow text-muted mb-1">Transport</p>
                 <h1 class="mb-1">Student Assignments</h1>
-                <p class="text-muted mb-0">Manage which students belong to routes, trips, and vehicles.</p>
+                <p class="text-muted mb-0">Manage which students are assigned to trips. Drop-off points are set during transport fee import.</p>
             </div>
             <div class="d-flex gap-2">
-                <a href="{{ route('transport.student-assignments.create') }}" class="btn btn-settings-primary">
+                <a href="{{ route('transport.student-assignments.bulk-assign') }}" class="btn btn-settings-primary">
+                    <i class="bi bi-people"></i> Bulk Assign
+                </a>
+                <a href="{{ route('transport.student-assignments.create') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-plus-circle"></i> Assign Student
                 </a>
             </div>
@@ -34,21 +37,43 @@
                         <thead class="table-light">
                             <tr>
                                 <th>Student</th>
-                                <th>Route</th>
-                                <th>Trip</th>
-                                <th>Vehicle</th>
                                 <th>Drop-Off Point</th>
+                                <th>Morning Trip</th>
+                                <th>Evening Trip</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($assignments as $assignment)
                                 <tr>
-                                    <td class="fw-semibold">{{ $assignment->student->full_name ?? ($assignment->student->first_name.' '.$assignment->student->last_name) }}</td>
-                                    <td>{{ $assignment->route->name ?? 'N/A' }}</td>
-                                    <td>{{ $assignment->trip->name ?? 'N/A' }}</td>
-                                    <td>{{ $assignment->vehicle->vehicle_number ?? 'N/A' }}</td>
-                                    <td>{{ $assignment->dropOffPoint->name ?? 'N/A' }}</td>
+                                    <td class="fw-semibold">
+                                        {{ $assignment->student->full_name ?? ($assignment->student->first_name.' '.$assignment->student->last_name) }}
+                                        <br>
+                                        <small class="text-muted">{{ $assignment->student->admission_number ?? 'N/A' }} | {{ optional($assignment->student->classroom)->name ?? 'N/A' }}</small>
+                                    </td>
+                                    <td>
+                                        @if($assignment->student->dropOffPoint)
+                                            {{ $assignment->student->dropOffPoint->name }}
+                                        @elseif($assignment->student->drop_off_point_other)
+                                            {{ $assignment->student->drop_off_point_other }}
+                                        @else
+                                            <span class="text-muted">Not set</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($assignment->morningTrip)
+                                            <span class="badge bg-primary">{{ optional($assignment->morningTrip->vehicle)->vehicle_number ?? 'N/A' }} - {{ $assignment->morningTrip->name }}</span>
+                                        @else
+                                            <span class="text-muted">N/A</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @if($assignment->eveningTrip)
+                                            <span class="badge bg-info">{{ optional($assignment->eveningTrip->vehicle)->vehicle_number ?? 'N/A' }} - {{ $assignment->eveningTrip->name }}</span>
+                                        @else
+                                            <span class="text-muted">N/A</span>
+                                        @endif
+                                    </td>
                                     <td class="text-end d-flex justify-content-end gap-2">
                                         <a href="{{ route('transport.student-assignments.edit', $assignment->id) }}" class="btn btn-sm btn-ghost-strong">
                                             <i class="bi bi-pencil"></i>
@@ -63,7 +88,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="text-center text-muted py-4">No assignments found.</td></tr>
+                                <tr><td colspan="5" class="text-center text-muted py-4">No assignments found.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

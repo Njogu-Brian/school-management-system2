@@ -37,7 +37,8 @@ class PublicShopController extends Controller
         $classroom = $link->classroom ?? ($student ? $student->classroom : null);
 
         // Get products based on link settings
-        $query = Product::active();
+        // For public shop, show only publicly visible products
+        $query = Product::active()->publiclyVisible();
 
         if ($link->show_requirements_only && $classroom) {
             // Show only products linked to requirements for this class
@@ -107,7 +108,12 @@ class PublicShopController extends Controller
 
         $product = Product::findOrFail($validated['product_id']);
 
-        // Check stock
+        // Check if product is publicly visible
+        if (!$product->is_publicly_visible) {
+            return response()->json(['error' => 'This product is not available for public purchase'], 403);
+        }
+
+        // Check stock and overselling
         if ($product->track_stock) {
             $availableStock = $product->stock_quantity;
             if ($validated['variant_id']) {
@@ -117,8 +123,18 @@ class PublicShopController extends Controller
                 }
             }
 
-            if ($availableStock < $validated['quantity'] && !$product->allow_backorders) {
-                return response()->json(['error' => 'Insufficient stock available'], 400);
+            // Check if purchase is allowed
+            if (!$product->canPurchase($validated['quantity'])) {
+                return response()->json([
+                    'error' => 'Insufficient stock available',
+                    'available_stock' => $availableStock,
+                    'allow_overselling' => $product->allow_overselling
+                ], 400);
+            }
+
+            // Record oversell if applicable
+            if ($availableStock < $validated['quantity'] && $product->allow_overselling) {
+                $product->recordOversell($validated['quantity']);
             }
         }
 

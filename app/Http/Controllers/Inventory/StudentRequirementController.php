@@ -7,6 +7,7 @@ use App\Models\StudentRequirement;
 use App\Models\RequirementTemplate;
 use App\Models\InventoryItem;
 use App\Models\InventoryTransaction;
+use App\Models\ItemReceipt;
 use App\Models\ActivityLog;
 use App\Models\Student;
 use App\Models\Academics\Classroom;
@@ -89,7 +90,13 @@ class StudentRequirementController extends Controller
         $students = $query->orderBy('first_name')->get();
 
         // Get requirement templates for these classes
-        $templates = RequirementTemplate::whereIn('classroom_id', $assignedClassroomIds)
+        // Support both single classroom_id and multi-class via pivot table
+        $templates = RequirementTemplate::where(function($q) use ($assignedClassroomIds) {
+                $q->whereIn('classroom_id', $assignedClassroomIds)
+                  ->orWhereHas('classrooms', function($q2) use ($assignedClassroomIds) {
+                      $q2->whereIn('classrooms.id', $assignedClassroomIds);
+                  });
+            })
             ->when($currentYear, fn($q) => $q->where('academic_year_id', $currentYear->id))
             ->when($currentTerm, fn($q) => $q->where('term_id', $currentTerm->id))
             ->where('is_active', true)
@@ -110,6 +117,7 @@ class StudentRequirementController extends Controller
             'requirements' => 'required|array',
             'requirements.*.template_id' => 'required|exists:requirement_templates,id',
             'requirements.*.quantity_collected' => 'required|numeric|min:0',
+            'requirements.*.receipt_status' => 'nullable|in:fully_received,partially_received,not_received',
             'requirements.*.notes' => 'nullable|string',
         ]);
 
@@ -141,45 +149,60 @@ class StudentRequirementController extends Controller
                     ],
                     [
                         'quantity_required' => $template->quantity_per_student,
+                        'expected_quantity' => $template->quantity_per_student,
                         'quantity_collected' => 0,
                         'quantity_missing' => $template->quantity_per_student,
+                        'balance_pending' => $template->quantity_per_student,
                         'status' => 'pending',
+                        'can_update_receipt' => true,
                     ]
                 );
 
-                $studentRequirement->quantity_collected += $reqData['quantity_collected'];
-                $studentRequirement->collected_by = $user->id;
-                $studentRequirement->collected_at = now();
-                if ($reqData['notes']) {
-                    $studentRequirement->notes = ($studentRequirement->notes ? $studentRequirement->notes . "\n" : '') . $reqData['notes'];
+                // Check payment status before allowing collection
+                $paymentCheck = $studentRequirement->canReceiveItems();
+                if (!$paymentCheck['allowed']) {
+                    DB::rollBack();
+                    return back()->with('error', "Cannot collect items for {$student->first_name} {$student->last_name}: {$paymentCheck['reason']}");
                 }
-                $studentRequirement->updateStatus();
 
-                // If item should be left with teacher, add to inventory
-                if ($template->leave_with_teacher && $reqData['quantity_collected'] > 0) {
-                    $inventoryItem = InventoryItem::firstOrCreate(
-                        [
-                            'name' => $template->requirementType->name,
-                            'brand' => $template->brand,
-                        ],
-                        [
-                            'category' => $template->requirementType->category ?? 'stationery',
-                            'unit' => $template->unit,
-                            'quantity' => 0,
-                            'min_stock_level' => 0,
-                        ]
+                // Determine receipt status
+                $quantity = $reqData['quantity_collected'] ?? 0;
+                $receiptStatus = $reqData['receipt_status'] ?? 'fully_received';
+                
+                if ($quantity == 0) {
+                    $receiptStatus = 'not_received';
+                } elseif ($quantity < ($studentRequirement->expected_quantity ?? $studentRequirement->quantity_required)) {
+                    $receiptStatus = 'partially_received';
+                } else {
+                    $receiptStatus = 'fully_received';
+                }
+
+                // Record receipt using the new method
+                if ($quantity > 0) {
+                    $studentRequirement->recordReceipt(
+                        $quantity,
+                        $user->id,
+                        $receiptStatus,
+                        $reqData['notes'] ?? null
                     );
-
-                    InventoryTransaction::create([
-                        'inventory_item_id' => $inventoryItem->id,
-                        'user_id' => $user->id,
+                } else {
+                    // Record as not received
+                    ItemReceipt::create([
                         'student_requirement_id' => $studentRequirement->id,
-                        'type' => 'in',
-                        'quantity' => $reqData['quantity_collected'],
-                        'notes' => "Collected from {$student->first_name} {$student->last_name}",
+                        'student_id' => $student->id,
+                        'classroom_id' => $student->classroom_id,
+                        'received_by' => $user->id,
+                        'quantity_received' => 0,
+                        'receipt_status' => 'not_received',
+                        'notes' => $reqData['notes'] ?? 'Items not received',
+                        'received_at' => now(),
                     ]);
+                }
 
-                    $inventoryItem->refresh();
+                // Update collected_by and collected_at if first collection
+                if (!$studentRequirement->collected_by) {
+                    $studentRequirement->collected_by = $user->id;
+                    $studentRequirement->collected_at = now();
                 }
             }
 
@@ -194,6 +217,53 @@ class StudentRequirementController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error collecting requirements: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update an existing receipt (for partial receipts)
+     */
+    public function updateReceipt(Request $request, StudentRequirement $requirement)
+    {
+        $validated = $request->validate([
+            'quantity_received' => 'required|numeric|min:0',
+            'receipt_status' => 'required|in:fully_received,partially_received,not_received',
+            'notes' => 'nullable|string',
+        ]);
+
+        $user = Auth::user();
+        $student = $requirement->student;
+
+        // Verify teacher has access
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!in_array($student->classroom_id, $assignedClassroomIds)) {
+                return back()->with('error', 'You do not have access to update requirements for this student.');
+            }
+        }
+
+        if (!$requirement->can_update_receipt) {
+            return back()->with('error', 'This receipt cannot be updated.');
+        }
+
+        DB::beginTransaction();
+        try {
+            $quantity = $validated['quantity_received'];
+            
+            if ($quantity > 0) {
+                $requirement->recordReceipt(
+                    $quantity,
+                    $user->id,
+                    $validated['receipt_status'],
+                    $validated['notes'] ?? null
+                );
+            }
+
+            DB::commit();
+            return back()->with('success', 'Receipt updated successfully.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Error updating receipt: ' . $e->getMessage());
         }
     }
 
@@ -255,7 +325,26 @@ class StudentRequirementController extends Controller
 
     public function show(StudentRequirement $requirement)
     {
-        $requirement->load(['student.classroom', 'requirementTemplate.requirementType', 'collectedBy']);
-        return view('inventory.student-requirements.show', compact('requirement'));
+        $user = Auth::user();
+        
+        // Verify teacher has access
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!in_array($requirement->student->classroom_id, $assignedClassroomIds)) {
+                abort(403, 'You do not have access to view this requirement.');
+            }
+        }
+
+        $requirement->load([
+            'student.classroom', 
+            'requirementTemplate.requirementType', 
+            'collectedBy',
+            'receipts.receivedBy'
+        ]);
+        
+        // Check payment status
+        $paymentCheck = $requirement->canReceiveItems();
+        
+        return view('inventory.student-requirements.show', compact('requirement', 'paymentCheck'));
     }
 }

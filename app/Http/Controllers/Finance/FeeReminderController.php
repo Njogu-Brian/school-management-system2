@@ -164,6 +164,19 @@ class FeeReminderController extends Controller
             'finance_portal_link' => $financePortalLink,
             'school_name' => $schoolName,
         ];
+
+        // Add installment-specific variables if this is an installment reminder
+        if ($reminder->payment_plan_installment_id) {
+            $installment = $reminder->paymentPlanInstallment;
+            $plan = $reminder->paymentPlan;
+            $remainingBalance = $plan->total_amount - $plan->installments()->sum('paid_amount');
+            
+            $variables['installment_amount'] = number_format($installment->amount, 2);
+            $variables['installment_number'] = $installment->installment_number;
+            $variables['due_date'] = $installment->due_date->format('F d, Y');
+            $variables['remaining_balance'] = number_format($remainingBalance, 2);
+            $variables['payment_plan_link'] = url('/payment-plans/' . $plan->hashed_id);
+        }
         
         // Replace placeholders
         $replacePlaceholders = function($text, $vars) {
@@ -226,6 +239,39 @@ class FeeReminderController extends Controller
             }
         }
 
+        // Handle WhatsApp channel
+        if ($reminder->channel === 'whatsapp' || $reminder->channel === 'both') {
+            $whatsappPhone = null;
+            if ($parent) {
+                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp 
+                    ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            }
+            $whatsappPhone = $whatsappPhone ?? $student->phone_number ?? null;
+            
+            if ($whatsappPhone) {
+                try {
+                    $whatsappService = app(\App\Services\WhatsAppService::class);
+                    
+                    if ($reminder->message) {
+                        $message = $reminder->message;
+                    } else {
+                        $message = $this->generateDefaultMessage($reminder);
+                    }
+                    
+                    // Replace placeholders for WhatsApp
+                    $message = $replacePlaceholders($message, $variables);
+                    
+                    $whatsappService->sendMessage($whatsappPhone, $message);
+                } catch (\Exception $e) {
+                    // Don't fail the entire reminder if WhatsApp fails
+                    \Log::warning('WhatsApp reminder failed', [
+                        'reminder_id' => $reminder->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
         $reminder->update([
             'status' => 'sent',
             'sent_at' => now(),
@@ -241,6 +287,29 @@ class FeeReminderController extends Controller
         $amount = number_format($reminder->outstanding_amount, 2);
         $dueDate = Carbon::parse($reminder->due_date)->format('F d, Y');
 
+        // If this is an installment reminder, include installment-specific details
+        if ($reminder->payment_plan_installment_id) {
+            $installment = $reminder->paymentPlanInstallment;
+            $plan = $reminder->paymentPlan;
+            $remainingBalance = $plan->total_amount - $plan->installments()->sum('paid_amount');
+            $remainingBalanceFormatted = number_format($remainingBalance, 2);
+            
+            $message = "Dear Parent/Guardian,\n\n" .
+                      "This is a reminder that installment #{$installment->installment_number} " .
+                      "for {$student->first_name} {$student->last_name} " .
+                      "amounting to KES {$amount} is due on {$dueDate}.\n\n";
+            
+            if ($remainingBalance > 0) {
+                $message .= "Remaining balance on payment plan: KES {$remainingBalanceFormatted}.\n\n";
+            }
+            
+            $message .= "Please make payment at your earliest convenience.\n\n" .
+                       "Thank you.";
+            
+            return $message;
+        }
+
+        // Default invoice reminder
         return "Dear Parent/Guardian,\n\n" .
                "This is a reminder that your child {$student->first_name} {$student->last_name} " .
                "has an outstanding fee balance of KES {$amount} due on {$dueDate}.\n\n" .
@@ -265,12 +334,14 @@ class FeeReminderController extends Controller
     }
 
     /**
-     * Automated reminder job - send reminders for due fees
+     * Automated reminder job - send reminders for due fees and installments
      */
     public function sendAutomatedReminders()
     {
-        $daysBeforeDue = [7, 3, 1, 0]; // Remind 7 days, 3 days, 1 day, and on due date
+        $daysBeforeDue = [7, 3, 1]; // Remind 7 days, 3 days, 1 day before due
+        $daysAfterOverdue = [1, 3, 7]; // Remind 1, 3, 7 days after overdue
 
+        // Process invoice-based reminders
         foreach ($daysBeforeDue as $days) {
             $dueDate = now()->addDays($days)->format('Y-m-d');
 
@@ -295,6 +366,7 @@ class FeeReminderController extends Controller
                 $existing = FeeReminder::where('student_id', $student->id)
                     ->where('invoice_id', $invoice->id)
                     ->where('days_before_due', $days)
+                    ->where('reminder_rule', 'before_due')
                     ->where('status', 'sent')
                     ->exists();
 
@@ -306,6 +378,135 @@ class FeeReminderController extends Controller
                         'outstanding_amount' => $outstanding,
                         'due_date' => $dueDate,
                         'days_before_due' => $days,
+                        'reminder_rule' => 'before_due',
+                        'status' => 'pending',
+                    ]);
+
+                    $this->sendReminder($reminder);
+                }
+            }
+        }
+
+        // Process installment-based reminders (before due)
+        foreach ($daysBeforeDue as $days) {
+            $dueDate = now()->addDays($days)->format('Y-m-d');
+
+            $installments = \App\Models\FeePaymentPlanInstallment::where('due_date', $dueDate)
+                ->whereIn('status', ['pending', 'partial'])
+                ->whereHas('paymentPlan.student', function($q) {
+                    $q->whereNotNull('parent_id');
+                })
+                ->with(['paymentPlan.student.parent', 'paymentPlan'])
+                ->get();
+
+            foreach ($installments as $installment) {
+                $plan = $installment->paymentPlan;
+                $student = $plan->student;
+                $outstanding = $installment->amount - $installment->paid_amount;
+
+                // Check if reminder already sent for this installment and rule
+                $existing = FeeReminder::where('student_id', $student->id)
+                    ->where('payment_plan_installment_id', $installment->id)
+                    ->where('days_before_due', $days)
+                    ->where('reminder_rule', 'before_due')
+                    ->where('status', 'sent')
+                    ->exists();
+
+                if (!$existing && $outstanding > 0) {
+                    $reminder = FeeReminder::create([
+                        'student_id' => $student->id,
+                        'payment_plan_id' => $plan->id,
+                        'payment_plan_installment_id' => $installment->id,
+                        'channel' => 'both',
+                        'outstanding_amount' => $outstanding,
+                        'due_date' => $dueDate,
+                        'days_before_due' => $days,
+                        'reminder_rule' => 'before_due',
+                        'status' => 'pending',
+                    ]);
+
+                    $this->sendReminder($reminder);
+                }
+            }
+        }
+
+        // Process installment reminders on due date
+        $today = now()->format('Y-m-d');
+        $installmentsDueToday = \App\Models\FeePaymentPlanInstallment::where('due_date', $today)
+            ->whereIn('status', ['pending', 'partial'])
+            ->whereHas('paymentPlan.student', function($q) {
+                $q->whereNotNull('parent_id');
+            })
+            ->with(['paymentPlan.student.parent', 'paymentPlan'])
+            ->get();
+
+        foreach ($installmentsDueToday as $installment) {
+            $plan = $installment->paymentPlan;
+            $student = $plan->student;
+            $outstanding = $installment->amount - $installment->paid_amount;
+
+            // Check if reminder already sent for this installment on due date
+            $existing = FeeReminder::where('student_id', $student->id)
+                ->where('payment_plan_installment_id', $installment->id)
+                ->where('reminder_rule', 'on_due')
+                ->where('status', 'sent')
+                ->exists();
+
+            if (!$existing && $outstanding > 0) {
+                $reminder = FeeReminder::create([
+                    'student_id' => $student->id,
+                    'payment_plan_id' => $plan->id,
+                    'payment_plan_installment_id' => $installment->id,
+                    'channel' => 'both',
+                    'outstanding_amount' => $outstanding,
+                    'due_date' => $today,
+                    'days_before_due' => 0,
+                    'reminder_rule' => 'on_due',
+                    'status' => 'pending',
+                ]);
+
+                $this->sendReminder($reminder);
+            }
+        }
+
+        // Process overdue installment reminders
+        foreach ($daysAfterOverdue as $days) {
+            $overdueDate = now()->subDays($days)->format('Y-m-d');
+
+            $overdueInstallments = \App\Models\FeePaymentPlanInstallment::where('due_date', $overdueDate)
+                ->whereIn('status', ['overdue', 'partial'])
+                ->whereHas('paymentPlan.student', function($q) {
+                    $q->whereNotNull('parent_id');
+                })
+                ->with(['paymentPlan.student.parent', 'paymentPlan'])
+                ->get()
+                ->filter(function($installment) {
+                    return ($installment->amount - $installment->paid_amount) > 0;
+                });
+
+            foreach ($overdueInstallments as $installment) {
+                $plan = $installment->paymentPlan;
+                $student = $plan->student;
+                $outstanding = $installment->amount - $installment->paid_amount;
+
+                // Check if reminder already sent for this installment and days after
+                $existing = FeeReminder::where('student_id', $student->id)
+                    ->where('payment_plan_installment_id', $installment->id)
+                    ->where('days_before_due', $days)
+                    ->where('reminder_rule', 'after_overdue')
+                    ->where('status', 'sent')
+                    ->exists();
+
+                if (!$existing && $outstanding > 0) {
+                    $reminder = FeeReminder::create([
+                        'student_id' => $student->id,
+                        'payment_plan_id' => $plan->id,
+                        'payment_plan_installment_id' => $installment->id,
+                        'channel' => 'both',
+                        'outstanding_amount' => $outstanding,
+                        'due_date' => $installment->due_date->format('Y-m-d'),
+                        'days_before_due' => $days,
+                        'reminder_rule' => 'after_overdue',
                         'status' => 'pending',
                     ]);
 

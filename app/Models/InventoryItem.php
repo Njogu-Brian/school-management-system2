@@ -10,7 +10,7 @@ class InventoryItem extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'name', 'category', 'brand', 'description', 'unit',
+        'name', 'category', 'inventory_type_id', 'brand', 'description', 'unit',
         'quantity', 'min_stock_level', 'unit_cost', 'location', 'is_active'
     ];
 
@@ -29,6 +29,11 @@ class InventoryItem extends Model
     public function requisitionItems()
     {
         return $this->hasMany(RequisitionItem::class);
+    }
+
+    public function inventoryType()
+    {
+        return $this->belongsTo(InventoryType::class);
     }
 
     public function isLowStock()

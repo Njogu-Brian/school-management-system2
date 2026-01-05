@@ -52,7 +52,7 @@
 
                     <div class="col-md-4">
                         <label class="form-label">Start Date <span class="text-danger">*</span></label>
-                        <input type="date" name="start_date" class="form-control @error('start_date') is-invalid @enderror" 
+                        <input type="date" name="start_date" id="start_date" class="form-control @error('start_date') is-invalid @enderror" 
                                value="{{ old('start_date') }}" required>
                         @error('start_date')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -61,8 +61,9 @@
 
                     <div class="col-md-4">
                         <label class="form-label">End Date <span class="text-danger">*</span></label>
-                        <input type="date" name="end_date" class="form-control @error('end_date') is-invalid @enderror" 
-                               value="{{ old('end_date') }}" required>
+                        <input type="date" name="end_date" id="end_date" class="form-control @error('end_date') is-invalid @enderror" 
+                               value="{{ old('end_date') }}" required readonly>
+                        <small class="form-text text-muted">Automatically calculated based on start date and installments</small>
                         @error('end_date')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -83,5 +84,42 @@
     </div>
   </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const startDateInput = document.getElementById('start_date');
+    const installmentCountInput = document.querySelector('input[name="installment_count"]');
+    const endDateInput = document.getElementById('end_date');
+
+    function calculateEndDate() {
+        const startDate = startDateInput.value;
+        const installmentCount = parseInt(installmentCountInput.value) || 3;
+
+        if (startDate && installmentCount >= 2) {
+            // Calculate end date: start date + (installment_count - 1) months
+            const start = new Date(startDate);
+            const end = new Date(start);
+            end.setMonth(end.getMonth() + (installmentCount - 1));
+            
+            // Format as YYYY-MM-DD
+            const year = end.getFullYear();
+            const month = String(end.getMonth() + 1).padStart(2, '0');
+            const day = String(end.getDate()).padStart(2, '0');
+            
+            endDateInput.value = `${year}-${month}-${day}`;
+        }
+    }
+
+    startDateInput.addEventListener('change', calculateEndDate);
+    installmentCountInput.addEventListener('input', calculateEndDate);
+    
+    // Calculate on page load if values exist
+    if (startDateInput.value) {
+        calculateEndDate();
+    }
+});
+</script>
+@endpush
 @endsection
 

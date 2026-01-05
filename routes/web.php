@@ -18,7 +18,6 @@ use App\Http\Controllers\Attendance\AttendanceReasonCodeController;
 
 // Transport
 use App\Http\Controllers\TransportController;
-use App\Http\Controllers\RouteController as SchoolRouteController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\TripController;
 use App\Http\Controllers\DropOffPointController;
@@ -508,29 +507,51 @@ Route::middleware('auth')->group(function () {
 
             Route::get('/', [TransportController::class, 'index'])->name('index');
 
-            // AJAX/data helpers
-            Route::get('/routes/{route}/data',            [TransportController::class, 'getRouteData'])->name('routes.data');
-            Route::get('/routes/{route}/dropoff-points',  [TransportController::class, 'getDropOffPoints'])->name('routes.dropoffs');
-            Route::get('/routes/{route}/vehicles',        [TransportController::class, 'getVehicles'])->name('routes.vehicles');
-
             // Actions
             Route::post('/assign-driver',                       [TransportController::class, 'assignDriver'])->name('assign.driver');
-            Route::post('/assign-student',                      [TransportController::class, 'assignStudentToRoute'])->name('assign.student');
-            Route::post('/routes/{route}/assign-vehicle',       [SchoolRouteController::class, 'assignVehicle'])->name('routes.assignVehicle');
 
             // Resources
-            Route::resource('routes',  SchoolRouteController::class)->except(['show']);
             Route::resource('vehicles',VehicleController::class)->except(['show']);
             Route::resource('trips',   TripController::class);
             Route::resource('dropoffpoints', DropOffPointController::class);
             Route::resource('student-assignments', StudentAssignmentController::class)
                 ->parameters(['student-assignments' => 'student_assignment']);
+            Route::get('student-assignments/bulk/assign', [StudentAssignmentController::class, 'bulkAssign'])->name('student-assignments.bulk-assign');
+            Route::post('student-assignments/bulk/assign', [StudentAssignmentController::class, 'bulkAssignStore'])->name('student-assignments.bulk-assign.store');
 
             // Import & Template for dropoff points
             Route::get('dropoffpoints/import',   [DropOffPointController::class, 'importForm'])->name('dropoffpoints.import.form');
             Route::post('dropoffpoints/import',  [DropOffPointController::class, 'import'])->name('dropoffpoints.import');
             Route::get('dropoffpoints/template', [DropOffPointController::class, 'template'])->name('dropoffpoints.template');
+
+            // Trip Attendance
+            Route::get('trips/{trip}/attendance', [\App\Http\Controllers\Transport\TripAttendanceController::class, 'create'])->name('trip-attendance.create');
+            Route::post('trips/{trip}/attendance', [\App\Http\Controllers\Transport\TripAttendanceController::class, 'store'])->name('trip-attendance.store');
+            Route::get('trips/{trip}/attendance/history', [\App\Http\Controllers\Transport\TripAttendanceController::class, 'index'])->name('trip-attendance.index');
+
+            // Driver Change Requests
+            Route::resource('driver-change-requests', \App\Http\Controllers\Transport\DriverChangeRequestController::class)
+                ->parameters(['driver-change-requests' => 'driverChangeRequest']);
+            Route::post('driver-change-requests/{driverChangeRequest}/approve', [\App\Http\Controllers\Transport\DriverChangeRequestController::class, 'approve'])->name('driver-change-requests.approve');
+            Route::post('driver-change-requests/{driverChangeRequest}/reject', [\App\Http\Controllers\Transport\DriverChangeRequestController::class, 'reject'])->name('driver-change-requests.reject');
+
+            // Special Assignments
+            Route::resource('special-assignments', \App\Http\Controllers\Transport\TransportSpecialAssignmentController::class)
+                ->parameters(['special-assignments' => 'transportSpecialAssignment']);
+            Route::post('special-assignments/{transportSpecialAssignment}/approve', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'approve'])->name('special-assignments.approve');
+            Route::post('special-assignments/{transportSpecialAssignment}/reject', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'reject'])->name('special-assignments.reject');
+            Route::post('special-assignments/{transportSpecialAssignment}/cancel', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'cancel'])->name('special-assignments.cancel');
         });
+
+        // Driver-specific routes
+        Route::prefix('driver')->name('driver.')
+            ->middleware('role:Driver')
+            ->group(function () {
+                Route::get('/', [\App\Http\Controllers\Driver\DriverController::class, 'index'])->name('index');
+                Route::get('trips/{trip}', [\App\Http\Controllers\Driver\DriverController::class, 'showTrip'])->name('trips.show');
+                Route::get('transport-sheet', [\App\Http\Controllers\Driver\DriverController::class, 'transportSheet'])->name('transport-sheet');
+                Route::get('transport-sheet/trip/{trip}', [\App\Http\Controllers\Driver\DriverController::class, 'transportSheet'])->name('transport-sheet.trip');
+            });
 
     /*
     |----------------------------------------------------------------------
@@ -1107,6 +1128,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::resource('fee-reminders', FeeReminderController::class)->parameters(['fee-reminders' => 'feeReminder']);
         Route::post('fee-reminders/{feeReminder}/send', [FeeReminderController::class, 'send'])->name('fee-reminders.send');
         Route::post('fee-reminders/automated/send', [FeeReminderController::class, 'sendAutomatedReminders'])->name('fee-reminders.automated');
+
+        // Accountant Dashboard
+        Route::prefix('accountant-dashboard')->name('accountant-dashboard.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Finance\AccountantDashboardController::class, 'index'])->name('index');
+            Route::get('settings', [\App\Http\Controllers\Finance\AccountantDashboardController::class, 'settings'])->name('settings');
+            Route::post('settings', [\App\Http\Controllers\Finance\AccountantDashboardController::class, 'updateSettings'])->name('settings.update');
+            Route::get('students/{student}/history', [\App\Http\Controllers\Finance\AccountantDashboardController::class, 'studentHistory'])->name('student-history');
+        });
 
         // Posting (Pending → Active)
         Route::prefix('posting')->name('posting.')->group(function(){

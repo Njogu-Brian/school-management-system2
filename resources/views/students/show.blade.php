@@ -406,7 +406,10 @@
             <div class="tab-pane fade" id="finance" role="tabpanel">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="mb-0">Financial Information</h6>
-                <a href="{{ route('finance.student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
+                <div class="d-flex gap-2">
+                  <a href="{{ route('finance.accountant-dashboard.student-history', $student) }}" class="btn btn-sm btn-ghost-strong">Payment Plan History <i class="bi bi-calendar-check"></i></a>
+                  <a href="{{ route('finance.student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
+                </div>
               </div>
               
               @php
@@ -459,7 +462,7 @@
                               <p class="mb-1 text-muted small">{{ $invoice->created_at->format('M d, Y') }} · <span class="pill-badge pill-{{ $invoice->status === 'paid' ? 'success' : ($invoice->status === 'partial' ? 'warning' : 'danger') }}">{{ ucfirst($invoice->status) }}</span></p>
                               <p class="mb-0 small">Total: {{ number_format($invoice->total, 2) }} Ksh · Balance: {{ number_format($invoice->balance, 2) }} Ksh</p>
                             </div>
-                            <a href="{{ route('invoices.show', $invoice->id) }}" class="btn btn-sm btn-ghost-strong">View</a>
+                            <a href="{{ route('finance.invoices.show', $invoice->id) }}" class="btn btn-sm btn-ghost-strong">View</a>
                           </div>
                         </div>
                       @endforeach
@@ -480,7 +483,7 @@
                               <p class="mb-1 text-muted small">{{ $payment->payment_date->format('M d, Y') }} · <span class="pill-badge pill-success">{{ $payment->payment_method }}</span></p>
                               <p class="mb-0 small">Amount: {{ number_format($payment->amount, 2) }} Ksh</p>
                             </div>
-                            <a href="{{ route('payments.receipt.view', $payment->id) }}" class="btn btn-sm btn-ghost-strong">View</a>
+                            <a href="{{ route('finance.payments.receipt.view', $payment->id) }}" class="btn btn-sm btn-ghost-strong">View</a>
                           </div>
                         </div>
                       @endforeach

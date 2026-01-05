@@ -1,10 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    @php
+        $settings = \App\Models\Setting::whereIn('key', ['school_name', 'school_logo', 'favicon'])->pluck('value', 'key');
+        $appName = $settings['school_name'] ?? config('app.name', 'School Management System');
+        $logoSetting = $settings['school_logo'] ?? null;
+        $faviconSetting = $settings['favicon'] ?? $logoSetting;
+
+        $resolveImage = function ($filename) {
+            if (!$filename) return null;
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($filename)) {
+                return \Illuminate\Support\Facades\Storage::url($filename);
+            }
+            if (file_exists(public_path('images/'.$filename))) {
+                return asset('images/'.$filename);
+            }
+            return null;
+        };
+
+        $logoUrl = $resolveImage($logoSetting) ?? asset('images/logo.png');
+        $faviconUrl = $resolveImage($faviconSetting) ?? $logoUrl;
+    @endphp
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Page Not Found | 404</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
+    <title>Page Not Found | 404 | {{ $appName }}</title>
+    <link rel="icon" type="image/png" href="{{ $faviconUrl }}">
     @php
         $cssUrl = file_exists(public_path('build/manifest.json')) 
             ? mix('css/app.css') 
@@ -31,7 +51,7 @@
                 </h3>
                 <p class="mb-0">The page you were looking for could not be found.</p>
             </div>
-            <img src="{{ asset('images/logo.png') }}" alt="Logo" style="height: 48px; width: auto;">
+            <img src="{{ $logoUrl }}" alt="Logo" style="height: 48px; width: auto;">
         </div>
 
         <div class="error-card">

@@ -8,9 +8,9 @@ use Illuminate\Support\Str;
 class Requisition extends Model
 {
     protected $fillable = [
-        'requisition_number', 'requested_by', 'approved_by', 'type',
+        'requisition_number', 'requested_by', 'approved_by', 'issued_by', 'type',
         'purpose', 'status', 'rejection_reason',
-        'requested_at', 'approved_at', 'fulfilled_at'
+        'requested_at', 'approved_at', 'fulfilled_at', 'issued_at'
     ];
 
     protected $casts = [
@@ -37,6 +37,11 @@ class Requisition extends Model
     public function approvedBy()
     {
         return $this->belongsTo(\App\Models\User::class, 'approved_by');
+    }
+
+    public function issuedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'issued_by');
     }
 
     public function items()

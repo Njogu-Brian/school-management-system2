@@ -212,14 +212,36 @@ class PosService
                     $this->linkOrderToRequirement($order, $orderItem, $item['requirement_template_id'], $order->student_id);
                 }
 
-                // Update stock if not allowing backorders
-                if ($product->track_stock && !$product->allow_backorders) {
+                // Update stock and handle overselling
+                if ($product->track_stock) {
+                    $availableStock = $product->stock_quantity;
                     if ($variant) {
-                        $variant->stock_quantity = max(0, $variant->stock_quantity - $item['quantity']);
-                        $variant->save();
-                    } else {
-                        $product->stock_quantity = max(0, $product->stock_quantity - $item['quantity']);
-                        $product->save();
+                        $availableStock = $variant->stock_quantity;
+                    }
+
+                    if ($availableStock >= $item['quantity']) {
+                        // Sufficient stock - deduct normally
+                        if ($variant) {
+                            $variant->stock_quantity = max(0, $variant->stock_quantity - $item['quantity']);
+                            $variant->save();
+                        } else {
+                            $product->stock_quantity = max(0, $product->stock_quantity - $item['quantity']);
+                            $product->save();
+                        }
+                    } elseif ($product->allow_overselling) {
+                        // Overselling allowed - record it
+                        $product->recordOversell($item['quantity']);
+                        // Still deduct what's available (goes to negative)
+                        if ($variant) {
+                            $variant->stock_quantity = $variant->stock_quantity - $item['quantity'];
+                            $variant->save();
+                        } else {
+                            $product->stock_quantity = $product->stock_quantity - $item['quantity'];
+                            $product->save();
+                        }
+                    } elseif (!$product->allow_backorders) {
+                        // No overselling or backorders - should not reach here (checked earlier)
+                        throw new \Exception("Insufficient stock for {$product->name}");
                     }
                 }
             }

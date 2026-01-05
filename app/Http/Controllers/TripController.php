@@ -4,22 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Models\Trip;
 use App\Models\Vehicle;
-use App\Models\Route;
+use App\Models\Staff;
 use Illuminate\Http\Request;
 
 class TripController extends Controller
 {
     public function index()
     {
-        $trips = Trip::with(['vehicle', 'route'])->get();
+        $trips = Trip::with(['vehicle', 'driver.user'])->orderBy('trip_name')->get();
         return view('trips.index', compact('trips'));
     }
 
     public function create()
     {
-        $routes = Route::all();
-        $vehicles = Vehicle::all();
-        return view('trips.create', compact('vehicles', 'routes'));
+        $vehicles = Vehicle::orderBy('vehicle_number')->get();
+        return view('trips.create', compact('vehicles'));
     }
 
     
@@ -28,50 +27,72 @@ class TripController extends Controller
     {
         $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
-            'route_id' => 'required|exists:routes,id',
             'name' => 'required|string|max:255',
+            'day_of_week' => 'nullable|array',
+            'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
         ]);
 
-        $data = $request->only(['vehicle_id','route_id','type']);
+        $data = $request->only(['vehicle_id', 'type', 'driver_id', 'direction']);
         $data['trip_name'] = $request->input('name');
+        
+        // Handle day_of_week array - convert to integers and store as JSON
+        $dayOfWeek = $request->input('day_of_week');
+        if (is_array($dayOfWeek) && !empty($dayOfWeek)) {
+            $data['day_of_week'] = array_map('intval', $dayOfWeek);
+        } else {
+            $data['day_of_week'] = null;
+        }
+        
         Trip::create($data);
-        return redirect()->route('trips.index')->with('success', 'Trip created successfully.');
+        return redirect()->route('transport.trips.index')->with('success', 'Trip created successfully.');
     }
 
     public function edit(Trip $trip)
     {
-        $routes = Route::all();
-        $vehicles = Vehicle::all();
-        return view('trips.edit', compact('trip', 'vehicles', 'routes'));
+        $vehicles = Vehicle::orderBy('vehicle_number')->get();
+        $trip->load(['vehicle', 'driver.user']);
+        return view('trips.edit', compact('trip', 'vehicles'));
     }
 
     public function update(Request $request, Trip $trip)
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'required|in:Morning,Evening',
-            'route_id' => 'required|exists:routes,id',
+            'type' => 'nullable|string',
             'vehicle_id' => 'required|exists:vehicles,id',
+            'day_of_week' => 'nullable|array',
+            'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
         ]);
     
-        $trip->update([
+        $data = [
             'trip_name' => $request->input('name'),
             'type' => $request->input('type'),
-            'route_id' => $request->input('route_id'),
             'vehicle_id' => $request->input('vehicle_id'),
-        ]);
+            'driver_id' => $request->input('driver_id'),
+            'direction' => $request->input('direction'),
+        ];
+        
+        // Handle day_of_week array - convert to integers and store as JSON
+        $dayOfWeek = $request->input('day_of_week');
+        if (is_array($dayOfWeek) && !empty($dayOfWeek)) {
+            $data['day_of_week'] = array_map('intval', $dayOfWeek);
+        } else {
+            $data['day_of_week'] = null;
+        }
     
-        return redirect()->route('trips.index')->with('success', 'Trip updated successfully!');
+        $trip->update($data);
+    
+        return redirect()->route('transport.trips.index')->with('success', 'Trip updated successfully!');
     } 
 
     public function destroy(Trip $trip)
     {
         if ($trip->assignments()->exists()) {
-            return redirect()->route('trips.index')->with('error', 'Cannot delete a trip with assigned students.');
+            return redirect()->route('transport.trips.index')->with('error', 'Cannot delete a trip with assigned students.');
         }
         
         $trip->delete();
-        return redirect()->route('trips.index')->with('success', 'Trip deleted successfully.');
+        return redirect()->route('transport.trips.index')->with('success', 'Trip deleted successfully.');
     }
 
 }

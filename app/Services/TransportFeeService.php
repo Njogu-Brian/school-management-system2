@@ -216,7 +216,7 @@ class TransportFeeService
     /**
      * Helper: find or create drop-off by name (case-insensitive).
      */
-    public static function resolveDropOffPoint(?string $name, ?int $routeId = null): ?DropOffPoint
+    public static function resolveDropOffPoint(?string $name): ?DropOffPoint
     {
         if (!$name) {
             return null;
@@ -228,7 +228,6 @@ class TransportFeeService
         }
 
         $existing = DropOffPoint::whereRaw('LOWER(name) = ?', [Str::lower($clean)])
-            ->when($routeId, fn($q) => $q->where('route_id', $routeId))
             ->first();
 
         if ($existing) {
@@ -237,7 +236,6 @@ class TransportFeeService
 
         return DropOffPoint::create([
             'name' => $clean,
-            'route_id' => $routeId,
         ]);
     }
 }

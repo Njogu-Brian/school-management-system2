@@ -27,7 +27,7 @@
         'mode' => 'create',
         'countryCodes' => $countryCodes ?? [],
         // controller should pass these:
-        // 'classrooms'=>$classrooms, 'streams'=>$streams, 'categories'=>$categories, 'transportRoutes'=>$routes
+        // 'classrooms'=>$classrooms, 'streams'=>$streams, 'categories'=>$categories, 'trips'=>$trips, 'dropOffPoints'=>$dropOffPoints
       ])
     </form>
   </div>

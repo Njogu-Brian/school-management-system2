@@ -47,9 +47,15 @@ class FeePaymentPlanController extends Controller
             'total_amount' => 'required|numeric|min:0',
             'installment_count' => 'required|integer|min:2|max:12',
             'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
+            'end_date' => 'nullable|date|after:start_date',
             'notes' => 'nullable|string',
         ]);
+
+        // Calculate end date dynamically if not provided (start date + (installment_count - 1) months)
+        if (empty($validated['end_date'])) {
+            $startDate = Carbon::parse($validated['start_date']);
+            $validated['end_date'] = $startDate->copy()->addMonths($validated['installment_count'] - 1)->format('Y-m-d');
+        }
 
         DB::beginTransaction();
         try {

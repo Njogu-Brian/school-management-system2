@@ -1,6 +1,6 @@
 @php
   // $mode = 'create' | 'edit'
-  // expects: $classrooms, $streams, $categories, $transportRoutes (optional)
+  // expects: $classrooms, $streams, $categories, $trips, $dropOffPoints
   // optional: $student, $familyMembers (only on edit)
   $s = $student ?? null;
 @endphp
@@ -201,21 +201,12 @@
   <div class="row g-3">
     <div class="col-md-12">
       <div class="form-check form-switch">
-        @php $needsTransport = old('route_id', $s->route_id ?? null) || old('drop_off_point_id', $s->drop_off_point_id ?? null) || old('trip_id', $s->trip_id ?? null); @endphp
+        @php $needsTransport = old('drop_off_point_id', $s->drop_off_point_id ?? null) || old('trip_id', $s->trip_id ?? null); @endphp
         <input class="form-check-input" type="checkbox" id="needs_transport" name="needs_transport" value="1" @checked($needsTransport)>
         <label class="form-check-label" for="needs_transport">Student needs school transport</label>
       </div>
     </div>
-    <div class="col-md-4 transport-field">
-      <label class="form-label">Route</label>
-      <select name="route_id" class="form-select">
-        <option value="">—</option>
-        @foreach (($transportRoutes ?? []) as $r)
-          <option value="{{ $r->id }}" @selected(old('route_id', $s->route_id ?? '')==$r->id)>{{ $r->name }}</option>
-        @endforeach
-      </select>
-    </div>
-    <div class="col-md-4 transport-field">
+    <div class="col-md-6 transport-field">
       <label class="form-label">Trip</label>
       <select name="trip_id" class="form-select">
         <option value="">—</option>

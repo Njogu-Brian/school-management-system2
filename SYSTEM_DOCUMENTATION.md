@@ -1,7 +1,7 @@
 # School Management System - Comprehensive Documentation
 
-**Last Updated:** December 16, 2025  
-**Version:** 2.1  
+**Last Updated:** January 4, 2026  
+**Version:** 2.2  
 **Status:** Active Development
 
 ---
@@ -70,9 +70,9 @@ The School Management System is a comprehensive Laravel-based application design
 
 The Fees Management module is a comprehensive system for managing school fees, payments, invoices, discounts, and financial reporting. It supports multiple fee structures, payment methods, allocation, and audit tracking.
 
-### Module Status: ✅ **COMPLETE**
+### Module Status: ✅ **COMPLETE & ENHANCED**
 
-All core features have been implemented, tested, and documented. The module is production-ready.
+All core features have been implemented, tested, and documented. The module is production-ready. Enhanced in January 2026 with Payment Plans & Thresholds system.
 
 ---
 
@@ -400,6 +400,96 @@ FeeStructure::replicateTo($classroomIds, $academicYearId, $termId, $studentCateg
 ---
 
 ---
+---
+
+### 14. Fee Reminders ✅
+
+**Description:** Automated and manual email/SMS reminders for overdue fees and payment plan installments
+
+**Features:**
+- ✅ Automated reminder system via scheduled jobs
+- ✅ Manual reminder creation and sending
+- ✅ Multiple channels: Email, SMS, WhatsApp (enhanced January 2026)
+- ✅ Installment-aware reminders (links to payment plan installments)
+- ✅ Template support with placeholders (student name, amount, due date, remaining balance)
+- ✅ Reminder rules: before_due, on_due, after_overdue
+- ✅ Automatic cancellation when installment paid or plan completes
+- ✅ Outstanding balance calculation (includes balance brought forward)
+- ✅ Hashed ID for secure public access
+- ✅ Status tracking: pending, sent, failed, cancelled
+
+**Database:**
+- `fee_reminders` table (enhanced with payment_plan_id, payment_plan_installment_id, reminder_rule, WhatsApp support)
+
+**Files:**
+- `app/Models/FeeReminder.php`
+- `app/Http/Controllers/Finance/FeeReminderController.php`
+- `app/Jobs/SendFeeRemindersJob.php`
+
+---
+
+### 15. Student Fee Statements ✅
+
+**Description:** Generate comprehensive fee statements for students with PDF/CSV export
+
+**Features:**
+- ✅ Complete student ledger view
+- ✅ Shows all invoices, payments, discounts, credit/debit notes
+- ✅ Balance calculations (including balance brought forward from legacy data)
+- ✅ Filter by academic year and term
+- ✅ PDF export with professional formatting
+- ✅ CSV export for spreadsheet analysis
+- ✅ Print functionality (opens in new window)
+- ✅ Send via SMS/Email functionality
+- ✅ Legacy data support (pre-2026 statements)
+
+**Files:**
+- `app/Http/Controllers/Finance/StudentStatementController.php`
+- `resources/views/finance/student_statements/show.blade.php`
+
+---
+### 16. Payment Plans ✅
+
+**Description:** Installment payment plans for students with threshold-based compliance tracking
+
+**Features:**
+- ✅ Payment plan creation and management
+- ✅ Dynamic installments (any number, any amount, any due date)
+- ✅ Payment allocation (FIFO - oldest unpaid installment first)
+- ✅ Status lifecycle: active, compliant, overdue, completed, broken, cancelled
+- ✅ Term and academic year tracking
+- ✅ Final clearance deadline tracking
+- ✅ Auto-close plans when balance reaches zero
+- ✅ Auto-cancel reminders when installment paid or plan completes
+- ✅ Payment threshold configuration (per term, per student category)
+- ✅ Compliance classification on term opening day (above/below threshold)
+- ✅ Public view using hashed ID (no authentication required)
+- ✅ Audit tracking (created_by, updated_by)
+- ✅ Installment status tracking: pending, partial, paid, overdue
+
+**Database Tables:**
+- `fee_payment_plans` - Payment plan definitions (enhanced with term_id, academic_year_id, final_clearance_deadline, status expansion)
+- `fee_payment_plan_installments` - Individual installments with amounts, due dates, payment status
+- `payment_thresholds` - Threshold configurations per term/category
+
+**Services:**
+- `PaymentPlanComplianceService` - Compliance classification and threshold logic
+- `PaymentAllocationService::allocatePaymentToInstallments()` - FIFO payment allocation
+
+**Commands:**
+- `php artisan payment-plans:update-statuses` - Automatically update payment plan and installment statuses
+
+**Files:**
+- `app/Models/FeePaymentPlan.php`
+- `app/Models/FeePaymentPlanInstallment.php`
+- `app/Models/PaymentThreshold.php`
+- `app/Http/Controllers/Finance/FeePaymentPlanController.php`
+- `app/Services/PaymentPlanComplianceService.php`
+- `app/Console/Commands/UpdatePaymentPlanStatuses.php`
+
+---
+
+
 
 ## POS (Point of Sale) Module
 
@@ -524,11 +614,11 @@ The Hostel module manages boarding facilities, room allocations, and hostel atte
 
 ### Overview
 
-The Transport module manages school transport routes, vehicles, trips, and student assignments.
+The Transport module manages school transport routes, vehicles, trips, and student assignments with a trip-based architecture.
 
-### Module Status: ✅ **IMPLEMENTED**
+### Module Status: ✅ **IMPLEMENTED & ENHANCED**
 
-### Features Implemented
+### Core Features Implemented
 
 - ✅ Route management
 - ✅ Vehicle management
@@ -538,20 +628,47 @@ The Transport module manages school transport routes, vehicles, trips, and stude
 - ✅ Driver assignment
 - ✅ Bulk import of drop-off points
 
+### Recent Enhancements (January 2026)
+
+- ✅ **Trip-based architecture**: Transport now revolves around trips rather than static routes
+- ✅ **Driver assignment**: Staff with Driver role assigned to trips
+- ✅ **Day-of-week scheduling**: Trips can be scheduled for specific days (Monday-Sunday)
+- ✅ **Direction support**: Trips support pickup and dropoff directions
+- ✅ **Trip stops**: Ordered stops with estimated times
+- ✅ **Special assignments**: Override assignments (student-specific, vehicle-wide, own means) with approval workflow
+- ✅ **Driver interface**: Dedicated interface for drivers to view trips, students, and take attendance
+- ✅ **Trip attendance**: Per-trip, per-student attendance tracking
+- ✅ **Driver change requests**: Drivers can request reassignments or dropoff/pickup changes (requires approval)
+- ✅ **School calendar integration**: Transport logic respects school days, holidays, and breaks
+- ✅ **Enhanced dashboard**: Statistics, alerts (missing drivers, unassigned students, special assignments)
+
 **Database Tables:**
 - `routes` - Transport routes
 - `vehicles` - School vehicles
-- `trips` - Trip schedules
-- `student_assignments` - Student route assignments
+- `trips` - Trip schedules (enhanced with driver_id, day_of_week, direction)
+- `trip_stops` - Ordered stops within trips
+- `student_assignments` - Student route/trip assignments (morning/evening trips)
 - `drop_off_points` - Pickup/drop-off locations
+- `transport_special_assignments` - Override assignments with approval workflow
+- `driver_change_requests` - Driver-initiated change requests
+- `trip_attendances` - Per-trip attendance records
+
+**Services:**
+- `TransportAssignmentService` - Assignment resolution with priority (special > term > default)
 
 **Files:**
 - `app/Models/Route.php`
 - `app/Models/Vehicle.php`
-- `app/Models/Trip.php`
+- `app/Models/Trip.php` (enhanced)
+- `app/Models/TripStop.php` (new)
+- `app/Models/TransportSpecialAssignment.php` (new)
+- `app/Models/DriverChangeRequest.php` (new)
+- `app/Models/TripAttendance.php` (new)
 - `app/Models/StudentAssignment.php`
 - `app/Models/DropOffPoint.php`
-- `app/Http/Controllers/TransportController.php`
+- `app/Http/Controllers/TransportController.php` (enhanced)
+- `app/Http/Controllers/Driver/DriverController.php` (new)
+- `app/Http/Controllers/Transport/TripAttendanceController.php` (new)
 - `app/Http/Controllers/VehicleController.php`
 - `app/Http/Controllers/RouteController.php`
 - `app/Http/Controllers/TripController.php`
@@ -817,14 +934,22 @@ The Student Management module handles admissions, student records, families, and
 
 ### High Priority
 
-- [ ] **Fee Reminders** - Automated email/SMS reminders for overdue fees
-- [ ] **Payment Plans** - Installment payment plans for students
+- [x] **Fee Reminders** - Automated email/SMS reminders for overdue fees ✅ **IMPLEMENTED**
+  - Enhanced with installment-aware reminders
+  - Support for email, SMS, and WhatsApp channels
+  - Automated sending via scheduled jobs
+  - Manual sending capability
+  - Template support with placeholders
+- [x] **Payment Plans** - Installment payment plans for students ✅ **IMPLEMENTED**
 - [ ] **Fee Waivers** - Complete fee waiver management
-- [ ] **Financial Reports** - Comprehensive financial reporting and analytics
+- [ ] **Financial Reports** - Comprehensive financial reporting and analytics (Basic reporting exists)
 - [ ] **Fee Structure Templates** - Save and reuse fee structure templates
-- [ ] **Online Payment Gateway Integration** - Complete integration with payment gateways
+- [ ] **Online Payment Gateway Integration** - Complete integration with payment gateways (M-Pesa gateway exists for POS, needs expansion to fees)
 - [ ] **Mobile App API** - RESTful API for mobile applications
-- [ ] **Fee Statement Generation** - PDF statements for students/parents
+- [x] **Fee Statement Generation** - PDF statements for students/parents ✅ **IMPLEMENTED**
+  - Student fee statements with PDF and CSV export
+  - Complete ledger view with invoices, payments, discounts
+  - Print functionality
 
 ### Medium Priority
 
@@ -1613,7 +1738,7 @@ For issues, questions, or contributions, please refer to the project repository 
 
 ---
 
-**Document Version:** 2.1  
-**Last Updated:** December 16, 2025  
+**Document Version:** 2.2  
+**Last Updated:** January 4, 2026  
 **Next Review:** As needed
 

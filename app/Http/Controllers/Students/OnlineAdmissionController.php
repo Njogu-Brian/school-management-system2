@@ -49,11 +49,44 @@ class OnlineAdmissionController extends Controller
      */
     public function showPublicForm()
     {
-        $classrooms = Classroom::orderBy('name')->get();
+        $allClassrooms = Classroom::all();
+        
+        // Get IDs before sorting
+        $crecheId = $allClassrooms->firstWhere('name', 'like', '%creche%')?->id;
+        $foundationId = $allClassrooms->firstWhere('name', 'like', '%foundation%')?->id;
+        
+        // Sort classrooms: Creche, Foundation, PP1, PP2, Grade 1-9
+        // Use multi-level sort: first by category weight, then alphabetically within category
+        $classrooms = $allClassrooms->sortBy([
+            function($classroom) {
+                $name = strtolower(trim($classroom->name));
+                
+                // Define order weights - match at start of string
+                if (strpos($name, 'creche') !== false) return 1;
+                if (strpos($name, 'foundation') !== false) return 2;
+                if (preg_match('/^pp1/', $name)) return 3;
+                if (preg_match('/^pp2/', $name)) return 4;
+                if (preg_match('/^grade\s*1(?!\d)/', $name)) return 5;
+                if (preg_match('/^grade\s*2(?!\d)/', $name)) return 6;
+                if (preg_match('/^grade\s*3(?!\d)/', $name)) return 7;
+                if (preg_match('/^grade\s*4(?!\d)/', $name)) return 8;
+                if (preg_match('/^grade\s*5(?!\d)/', $name)) return 9;
+                if (preg_match('/^grade\s*6(?!\d)/', $name)) return 10;
+                if (preg_match('/^grade\s*7(?!\d)/', $name)) return 11;
+                if (preg_match('/^grade\s*8(?!\d)/', $name)) return 12;
+                if (preg_match('/^grade\s*9(?!\d)/', $name)) return 13;
+                
+                // For other classrooms, sort alphabetically after the main sequence
+                return 1000;
+            },
+            function($classroom) {
+                // Secondary sort: alphabetically by name
+                return strtolower(trim($classroom->name));
+            }
+        ])->values();
+        
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $countryCodes = $this->getCountryCodes();
-        $crecheId = $classrooms->firstWhere('name', 'like', '%creche%')?->id;
-        $foundationId = $classrooms->firstWhere('name', 'like', '%foundation%')?->id;
         
         return view('online_admissions.public_form', compact('classrooms', 'dropOffPoints', 'countryCodes','crecheId','foundationId'));
     }

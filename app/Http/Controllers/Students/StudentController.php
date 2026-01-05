@@ -10,10 +10,8 @@ use App\Models\Family;
 use App\Models\FamilyUpdateLink;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
-use App\Models\TransportRoute;
 use App\Models\DropOffPoint;
 use App\Models\Trip;
-use App\Models\Route;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\FeeStructure;
@@ -144,7 +142,6 @@ class StudentController extends Controller
         $categories = StudentCategory::orderBy('name')->get();
         $classrooms = Classroom::orderBy('name')->get();
         $streams    = Stream::orderBy('name')->get();
-        $routes     = TransportRoute::orderBy('name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $trips = Trip::orderBy('trip_name')->get();
         $countryCodes = $this->getCountryCodes();
@@ -154,7 +151,6 @@ class StudentController extends Controller
             'categories' => $categories,
             'classrooms' => $classrooms,
             'streams' => $streams,
-            'routes' => $routes,
             'dropOffPoints' => $dropOffPoints,
             'trips' => $trips,
             'countryCodes' => $countryCodes,
@@ -185,7 +181,6 @@ class StudentController extends Controller
                 'classroom_id' => 'required|exists:classrooms,id',
                 'stream_id' => 'nullable|exists:streams,id',
                 'category_id' => 'required|exists:student_categories,id',
-                'route_id' => 'nullable|exists:routes,id',
                 'trip_id' => 'nullable|exists:trips,id',
                 'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
                 'drop_off_point_other' => 'nullable|string|max:255',
@@ -308,7 +303,7 @@ class StudentController extends Controller
             $studentData = $request->only([
                 'first_name', 'middle_name', 'last_name', 'gender', 'dob',
                 'classroom_id', 'stream_id', 'category_id',
-                'route_id', 'trip_id', 'drop_off_point_id', 'drop_off_point_other',
+                'trip_id', 'drop_off_point_id', 'drop_off_point_other',
                 'has_allergies', 'allergies_notes', 'is_fully_immunized',
                 'emergency_contact_name',
                 'residential_area', 'preferred_hospital',
@@ -419,7 +414,6 @@ class StudentController extends Controller
         $categories   = StudentCategory::orderBy('name')->get();
         $classrooms   = Classroom::orderBy('name')->get();
         $streams      = Stream::orderBy('name')->get();
-        $routes       = TransportRoute::orderBy('name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $trips = Trip::orderBy('trip_name')->get();
         $countryCodes = $this->getCountryCodes();
@@ -427,7 +421,7 @@ class StudentController extends Controller
             ? Student::where('family_id',$student->family_id)->where('id','!=',$student->id)->get()
             : collect();
 
-        return view('students.edit', compact('student','categories','classrooms','streams','routes','familyMembers','dropOffPoints','trips','countryCodes'));
+        return view('students.edit', compact('student','categories','classrooms','streams','familyMembers','dropOffPoints','trips','countryCodes'));
     }
     /**
      * Update student
@@ -478,7 +472,6 @@ class StudentController extends Controller
                 },
             ],
             'category_id' => 'required|exists:student_categories,id',
-            'route_id' => 'nullable|exists:routes,id',
             'trip_id' => 'nullable|exists:trips,id',
             'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'drop_off_point_other' => 'nullable|string|max:255',
@@ -554,7 +547,7 @@ class StudentController extends Controller
         $updateData = $request->only([
             'first_name', 'middle_name', 'last_name', 'gender', 'dob',
             'classroom_id', 'stream_id', 'category_id',
-            'route_id', 'trip_id', 'drop_off_point_id', 'drop_off_point_other',
+            'trip_id', 'drop_off_point_id', 'drop_off_point_other',
             'has_allergies', 'allergies_notes', 'is_fully_immunized',
             'emergency_contact_name',
             'residential_area', 'preferred_hospital',

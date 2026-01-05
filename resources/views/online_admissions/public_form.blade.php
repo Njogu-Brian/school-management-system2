@@ -105,17 +105,6 @@
                     <img src="{{ $logoUrl }}" alt="Logo" style="max-height: 72px;">
                 </div>
 
-                <h5 class="section-title"><i class="bi bi-building"></i> Previous School (if applicable)</h5>
-                <div class="row g-3" id="previous-school-section" style="display:none;">
-                    <div class="col-md-6">
-                        <label class="form-label">Previous School Attended</label>
-                        <input type="text" name="previous_school" class="form-control" value="{{ old('previous_school') }}">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Reason for Transfer</label>
-                        <input type="text" name="transfer_reason" class="form-control" value="{{ old('transfer_reason') }}">
-                    </div>
-                </div>
                 <h1 class="mb-2"><i class="bi bi-mortarboard"></i> Online Admission Application</h1>
                 <p class="text-muted mb-1">{{ $schoolName }}</p>
                 <p class="text-muted">Please fill in all required fields marked with <span class="text-danger">*</span></p>
@@ -179,6 +168,17 @@
                         <small class="text-muted d-block" id="class-hint">
                             Creche: below 2½ years. Foundation: below 4 years. Final placement set by school.
                         </small>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2" id="previous-school-section" style="display:none;">
+                    <div class="col-md-6">
+                        <label class="form-label">Previous School Attended</label>
+                        <input type="text" name="previous_school" class="form-control" value="{{ old('previous_school') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Reason for Transfer</label>
+                        <input type="text" name="transfer_reason" class="form-control" value="{{ old('transfer_reason') }}">
                     </div>
                 </div>
 
@@ -392,13 +392,20 @@
         const prevSection = document.getElementById('previous-school-section');
         const hint = document.getElementById('class-hint');
         function syncPrev() {
-          if (!classSelect) return;
+          if (!classSelect || !prevSection) return;
           const opt = classSelect.options[classSelect.selectedIndex];
-          const isCreche = opt?.getAttribute('data-creche') === '1';
-          const isFoundation = opt?.getAttribute('data-foundation') === '1';
-          const showPrev = !(isCreche || isFoundation);
-          if (prevSection) prevSection.style.display = showPrev ? '' : 'none';
+          if (!opt || !opt.value) {
+            prevSection.style.display = 'none';
+            return;
+          }
+          const className = opt.textContent.trim().toLowerCase();
+          // Show for PP2, Grade 1 to Grade 9
+          const showPrev = /^pp2(\s|$)|^grade\s*[1-9](\s|$)/.test(className);
+          prevSection.style.display = showPrev ? '' : 'none';
+          
           if (hint) {
+            const isCreche = opt?.getAttribute('data-creche') === '1';
+            const isFoundation = opt?.getAttribute('data-foundation') === '1';
             if (isCreche) hint.textContent = 'Creche: below 2½ years. Final placement set by school.';
             else if (isFoundation) hint.textContent = 'Foundation: below 4 years. Final placement set by school.';
             else hint.textContent = 'Creche: below 2½ years. Foundation: below 4 years. Final placement set by school.';

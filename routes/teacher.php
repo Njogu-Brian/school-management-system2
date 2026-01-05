@@ -133,6 +133,7 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])-
     Route::prefix('transport')->name('teacher.transport.')->group(function () {
         Route::get('/', [TransportController::class, 'index'])->name('index');
         Route::get('/{student}', [TransportController::class, 'show'])->name('show');
+        Route::get('/sheet/print', [TransportController::class, 'transportSheet'])->name('sheet.print');
     });
 
     /*

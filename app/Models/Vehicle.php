@@ -21,12 +21,6 @@ class Vehicle extends Model
         'logbook_document',
     ];
 
-    // Relationship with Routes (Many-to-Many)
-    public function routes()
-    {
-        return $this->belongsToMany(Route::class, 'route_vehicle');
-    }
-
     // Relationship with Trips
     public function trips()
     {

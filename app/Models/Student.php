@@ -69,7 +69,6 @@ class Student extends Model
         'archive',
         'is_alumni',
         'alumni_date',
-        'route_id',
         'trip_id',
         'drop_off_point_id',
         'drop_off_point_other',
@@ -141,10 +140,6 @@ class Student extends Model
         return $this->hasOne(Attendance::class)->whereDate('date', today());
     }
 
-    public function route()
-    {
-        return $this->belongsTo(Route::class, 'route_id');
-    }
 
     public function stream()
     {

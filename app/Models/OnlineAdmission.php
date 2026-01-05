@@ -20,7 +20,7 @@ class OnlineAdmission extends Model
         'application_date', 'review_date', 'classroom_id', 'stream_id',
         'application_source', 'application_notes',
         'preferred_classroom_id', 'transport_needed', 'drop_off_point_id', 'drop_off_point_other',
-        'route_id', 'trip_id',
+        'trip_id',
         'has_allergies', 'allergies_notes', 'is_fully_immunized',
         'emergency_contact_name', 'emergency_contact_phone',
         'residential_area', 'preferred_hospital',

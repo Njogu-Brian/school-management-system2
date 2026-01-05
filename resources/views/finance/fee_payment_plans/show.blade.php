@@ -20,7 +20,12 @@
                     <table class="table table-borderless">
                         <tr>
                             <th>Student:</th>
-                            <td>{{ $feePaymentPlan->student->first_name }} {{ $feePaymentPlan->student->last_name }}</td>
+                            <td>
+                                <a href="{{ route('students.show', $feePaymentPlan->student) }}">{{ $feePaymentPlan->student->first_name }} {{ $feePaymentPlan->student->last_name }}</a>
+                                <a href="{{ route('finance.accountant-dashboard.student-history', $feePaymentPlan->student) }}" class="btn btn-sm btn-outline-primary ms-2">
+                                    <i class="bi bi-clock-history"></i> Payment History
+                                </a>
+                            </td>
                         </tr>
                         <tr>
                             <th>Total Amount:</th>

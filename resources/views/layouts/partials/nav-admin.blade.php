@@ -378,33 +378,65 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
     <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
     <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
+    <a href="{{ route('finance.accountant-dashboard.index') }}"class="{{ Request::is('finance/accountant-dashboard*') ? 'active' : '' }}"><i class="bi bi-graph-up"></i> Accountant Dashboard</a>
     <a href="{{ route('finance.document-settings.index') }}"class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
 </div>
 
 <!-- Transport -->
-@php $isTransportActive = Request::is('transport*'); @endphp
+@php $isTransportActive = Request::is('transport*') || Request::is('driver*'); @endphp
 <a href="#transportMenu" data-bs-toggle="collapse" 
 aria-expanded="{{ $isTransportActive ? 'true' : 'false' }}"
 class="{{ $isTransportActive ? 'parent-active' : '' }}">
 <i class="bi bi-truck"></i><span> Transport</span>
 </a>
 <div class="collapse {{ $isTransportActive ? 'show' : '' }}" id="transportMenu">
-    <a href="{{ route('transport.vehicles.index') }}" 
-    class="sublink {{ Request::is('transport/vehicles*') ? 'active' : '' }}">
-    <i class="bi bi-bus-front"></i> Vehicles
-    </a>
-    <a href="{{ route('transport.routes.index') }}" 
-    class="sublink {{ Request::is('transport/routes*') ? 'active' : '' }}">
-    <i class="bi bi-map"></i> Routes
-    </a>
-    <a href="{{ route('transport.trips.index') }}" 
-    class="sublink {{ Request::is('transport/trips*') ? 'active' : '' }}">
-    <i class="bi bi-geo"></i> Trips
-    </a>
-    <a href="{{ route('transport.student-assignments.index') }}" 
-    class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">
-    <i class="bi bi-people"></i> Assignments
-    </a>
+    @if(auth()->user()->hasRole('Driver'))
+        {{-- Driver-specific links --}}
+        <a href="{{ route('driver.index') }}" 
+        class="sublink {{ Request::is('driver') && !Request::is('driver/*') ? 'active' : '' }}">
+        <i class="bi bi-speedometer2"></i> My Trips
+        </a>
+        <a href="{{ route('driver.transport-sheet') }}" 
+        class="sublink {{ Request::is('driver/transport-sheet*') ? 'active' : '' }}">
+        <i class="bi bi-printer"></i> Transport Sheet
+        </a>
+        <a href="{{ route('transport.driver-change-requests.create') }}" 
+        class="sublink {{ Request::is('transport/driver-change-requests/create') ? 'active' : '' }}">
+        <i class="bi bi-plus-circle"></i> Request Change
+        </a>
+        <a href="{{ route('transport.driver-change-requests.index') }}" 
+        class="sublink {{ Request::is('transport/driver-change-requests*') && !Request::is('transport/driver-change-requests/create') ? 'active' : '' }}">
+        <i class="bi bi-list-check"></i> My Requests
+        </a>
+    @endif
+    
+    @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary']))
+        {{-- Admin/Secretary links --}}
+        <a href="{{ route('transport.dashboard') }}" 
+        class="sublink {{ Request::is('transport/home*') || (Request::is('transport') && !Request::is('transport/*')) ? 'active' : '' }}">
+        <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a href="{{ route('transport.vehicles.index') }}" 
+        class="sublink {{ Request::is('transport/vehicles*') ? 'active' : '' }}">
+        <i class="bi bi-bus-front"></i> Vehicles
+        </a>
+        <a href="{{ route('transport.trips.index') }}" 
+        class="sublink {{ Request::is('transport/trips*') ? 'active' : '' }}">
+        <i class="bi bi-geo"></i> Trips
+        </a>
+        <a href="{{ route('transport.student-assignments.index') }}" 
+        class="sublink {{ Request::is('transport/student-assignments*') ? 'active' : '' }}">
+        <i class="bi bi-people"></i> Assignments
+        </a>
+        <a href="{{ route('transport.special-assignments.index') }}" 
+        class="sublink {{ Request::is('transport/special-assignments*') ? 'active' : '' }}">
+        <i class="bi bi-star"></i> Special Assignments
+        </a>
+        <a href="{{ route('transport.driver-change-requests.index') }}" 
+        class="sublink {{ Request::is('transport/driver-change-requests*') ? 'active' : '' }}">
+        <i class="bi bi-arrow-repeat"></i> Driver Change Requests
+        </a>
+    @endif
 </div>
 
 <!-- Communication -->

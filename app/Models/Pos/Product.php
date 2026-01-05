@@ -16,8 +16,9 @@ class Product extends Model
     protected $fillable = [
         'name', 'sku', 'barcode', 'type', 'inventory_item_id', 'requirement_type_id',
         'description', 'category', 'brand', 'base_price', 'cost_price',
-        'stock_quantity', 'min_stock_level', 'track_stock', 'allow_backorders',
-        'is_active', 'is_featured', 'sort_order', 'images', 'specifications'
+        'stock_quantity', 'min_stock_level', 'track_stock', 'allow_backorders', 'allow_overselling',
+        'oversell_count', 'last_oversell_alert_at', 'is_active', 'is_featured', 'is_publicly_visible',
+        'sort_order', 'images', 'specifications'
     ];
 
     protected $casts = [
@@ -27,8 +28,12 @@ class Product extends Model
         'min_stock_level' => 'integer',
         'track_stock' => 'boolean',
         'allow_backorders' => 'boolean',
+        'allow_overselling' => 'boolean',
+        'oversell_count' => 'integer',
+        'last_oversell_alert_at' => 'datetime',
         'is_active' => 'boolean',
         'is_featured' => 'boolean',
+        'is_publicly_visible' => 'boolean',
         'sort_order' => 'integer',
         'images' => 'array',
         'specifications' => 'array',
@@ -117,6 +122,63 @@ class Product extends Model
             $q->where('track_stock', false)
               ->orWhereColumn('stock_quantity', '>', 0);
         });
+    }
+
+    public function scopePubliclyVisible($query)
+    {
+        return $query->where('is_publicly_visible', true);
+    }
+
+    /**
+     * Check if product can be purchased (in stock or overselling allowed)
+     */
+    public function canPurchase($quantity = 1): bool
+    {
+        if (!$this->track_stock) {
+            return true;
+        }
+
+        if ($this->stock_quantity >= $quantity) {
+            return true;
+        }
+
+        return $this->allow_overselling;
+    }
+
+    /**
+     * Record an oversell and alert admin if needed
+     */
+    public function recordOversell($quantity): void
+    {
+        if (!$this->allow_overselling) {
+            return;
+        }
+
+        $this->oversell_count += 1;
+        
+        // Alert admin if not alerted recently (e.g., not in last hour)
+        $shouldAlert = !$this->last_oversell_alert_at || 
+                       $this->last_oversell_alert_at->diffInHours(now()) >= 1;
+        
+        if ($shouldAlert) {
+            $this->last_oversell_alert_at = now();
+            // TODO: Send notification to admin
+            // You can use Laravel notifications or events here
+        }
+        
+        $this->save();
+    }
+
+    /**
+     * Check if product is out of stock
+     */
+    public function isOutOfStock(): bool
+    {
+        if (!$this->track_stock) {
+            return false;
+        }
+
+        return $this->stock_quantity <= 0;
     }
 }
 
