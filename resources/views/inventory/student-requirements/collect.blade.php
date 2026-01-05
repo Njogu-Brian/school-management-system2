@@ -10,11 +10,8 @@
         .form-section {
             margin-bottom: 2rem;
         }
-        #requirementsForm {
+        #requirementsSection {
             display: none;
-        }
-        #requirementsForm.show {
-            display: block;
         }
     </style>
 @endpush
@@ -82,35 +79,48 @@
                 <div class="alert alert-info">
                     No requirements have been published for this class yet. Ask an administrator to set them up first.
                 </div>
-            @else
-                <!-- Student Selection and Requirements Form -->
-                <div class="settings-card">
-                    <div class="card-body">
-                        <form method="POST" action="{{ route('inventory.student-requirements.collect.store') }}" id="requirementsForm" class="row g-3">
-                            @csrf
-                            
-                            <!-- Student Selection -->
-                            <div class="col-12 form-section">
-                                <h5 class="mb-3">Select Student</h5>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Student</label>
-                                        <select name="student_id" id="studentSelect" class="form-select" required>
-                                            <option value="">Select a student</option>
-                                            @foreach($students as $student)
-                                                <option value="{{ $student->id }}">
-                                                    {{ $student->getNameAttribute() }}
-                                                    @if($student->stream)
-                                                        ({{ $student->stream->name }})
-                                                    @endif
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
+            @endif
+
+            <!-- Student Selection and Requirements Form -->
+            <form method="POST" action="{{ route('inventory.student-requirements.collect.store') }}" id="requirementsForm" class="row g-3">
+                @csrf
+                
+                <!-- Student Selection -->
+                <div class="col-12">
+                    <div class="settings-card mb-3">
+                        <div class="card-body">
+                            <h5 class="mb-3">Select Student</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Student <span class="text-danger">*</span></label>
+                                    <select name="student_id" id="studentSelect" class="form-select" required>
+                                        <option value="">Select a student</option>
+                                        @foreach($students as $student)
+                                            <option value="{{ $student->id }}">
+                                                {{ $student->getNameAttribute() }}
+                                                @if($student->stream)
+                                                    ({{ $student->stream->name }})
+                                                @endif
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                    @if($students->isEmpty())
+                                        <small class="text-danger d-block mt-1">No active students found for this class/stream combination.</small>
+                                    @endif
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
 
+                @if(!$templates->isEmpty())
+                <!-- Requirements Section -->
+                <div class="col-12" id="requirementsSection" style="display: none;">
+                    <div class="settings-card">
+                        <div class="card-body">
+                            
                             <!-- Requirements Table -->
+
                             <div class="col-12 form-section">
                                 <h5 class="mb-3">Requirements Collection</h5>
                                 <div class="table-responsive">
@@ -185,10 +195,11 @@
                                     <i class="bi bi-check2-circle"></i> Submit Collection & Notify Parent
                                 </button>
                             </div>
-                        </form>
+                        </div>
                     </div>
                 </div>
-            @endif
+                @endif
+            </form>
         @else
             <div class="alert alert-info">
                 Please select a class and click "Load" to begin collecting requirements.
@@ -234,10 +245,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load students and requirements when student is selected
     studentSelect.addEventListener('change', function() {
         const studentId = this.value;
+        const requirementsSection = document.getElementById('requirementsSection');
         
         if (studentId) {
-            // Show form
-            requirementsForm.classList.add('show');
+            // Show requirements section
+            if (requirementsSection) {
+                requirementsSection.style.display = 'block';
+            }
             
             // Load existing requirement data
             fetch(`{{ url('/inventory/student-requirements/load-student-requirements') }}?student_id=${studentId}`)
@@ -258,6 +272,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 notesInput.value = req.notes;
                             }
                         });
+                    } else {
+                        // Reset all fields if no existing data
+                        document.querySelectorAll('.quantity-input').forEach(input => {
+                            input.value = 0;
+                        });
+                        document.querySelectorAll('.notes-input').forEach(textarea => {
+                            textarea.value = '';
+                        });
                     }
                 })
                 .catch(error => {
@@ -265,7 +287,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Still show the form even if loading fails
                 });
         } else {
-            requirementsForm.classList.remove('show');
+            if (requirementsSection) {
+                requirementsSection.style.display = 'none';
+            }
         }
     });
 
@@ -273,8 +297,17 @@ document.addEventListener('DOMContentLoaded', function() {
     streamSelect.addEventListener('change', function() {
         const classroomId = classroomSelect.value;
         const streamId = this.value;
-        studentSelect.innerHTML = '<option value="">Select a student</option>';
-        requirementsForm.classList.remove('show');
+        const studentSelect = document.getElementById('studentSelect');
+        const requirementsForm = document.getElementById('requirementsForm');
+        const hiddenStudentId = document.getElementById('hiddenStudentId');
+        
+        const requirementsSection = document.getElementById('requirementsSection');
+        if (studentSelect) {
+            studentSelect.innerHTML = '<option value="">Select a student</option>';
+        }
+        if (requirementsSection) {
+            requirementsSection.style.display = 'none';
+        }
         
         if (classroomId) {
             let url = `{{ url('/inventory/student-requirements/load-students') }}?classroom_id=${classroomId}`;
@@ -285,16 +318,33 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    if (data.students) {
-                        data.students.forEach(student => {
+                    if (data.students && studentSelect) {
+                        if (data.students.length === 0) {
                             const option = document.createElement('option');
-                            option.value = student.id;
-                            option.textContent = `${student.name}${student.stream ? ' (' + student.stream + ')' : ''}`;
+                            option.value = '';
+                            option.textContent = 'No students found';
+                            option.disabled = true;
                             studentSelect.appendChild(option);
-                        });
+                        } else {
+                            data.students.forEach(student => {
+                                const option = document.createElement('option');
+                                option.value = student.id;
+                                option.textContent = `${student.name}${student.stream ? ' (' + student.stream + ')' : ''}`;
+                                studentSelect.appendChild(option);
+                            });
+                        }
                     }
                 })
-                .catch(error => console.error('Error loading students:', error));
+                .catch(error => {
+                    console.error('Error loading students:', error);
+                    if (studentSelect) {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'Error loading students';
+                        option.disabled = true;
+                        studentSelect.appendChild(option);
+                    }
+                });
         }
     });
 
@@ -303,33 +353,8 @@ document.addEventListener('DOMContentLoaded', function() {
         // The form will submit normally to reload the page with filters
     });
     
-    // If page loads with selected classroom, load students
-    @if($selectedClassroomId)
-        const classroomId = '{{ $selectedClassroomId }}';
-        const streamId = '{{ $selectedStreamId ?? '' }}';
-        
-        if (classroomId) {
-            let url = `{{ url('/inventory/student-requirements/load-students') }}?classroom_id=${classroomId}`;
-            if (streamId) {
-                url += `&stream_id=${streamId}`;
-            }
-            
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.students) {
-                        const studentSelect = document.getElementById('studentSelect');
-                        data.students.forEach(student => {
-                            const option = document.createElement('option');
-                            option.value = student.id;
-                            option.textContent = `${student.name}${student.stream ? ' (' + student.stream + ')' : ''}`;
-                            studentSelect.appendChild(option);
-                        });
-                    }
-                })
-                .catch(error => console.error('Error loading students:', error));
-        }
-    @endif
+    // Initialize on page load - students should already be loaded server-side
+    // The requirements section will be shown when a student is selected
 });
 </script>
 @endpush

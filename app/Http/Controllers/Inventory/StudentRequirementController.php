@@ -103,6 +103,7 @@ class StudentRequirementController extends Controller
         $students = collect();
         if ($selectedClassroomId) {
             $query = Student::where('classroom_id', $selectedClassroomId)
+                ->where('status', 'active') // Only active students
                 ->with(['classroom', 'stream', 'parent']);
 
             if ($selectedStreamId) {
@@ -188,6 +189,7 @@ class StudentRequirementController extends Controller
         }
 
         $query = Student::where('classroom_id', $classroomId)
+            ->where('status', 'active') // Only active students
             ->with(['classroom', 'stream']);
 
         if ($streamId) {
