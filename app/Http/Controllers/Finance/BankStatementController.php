@@ -634,20 +634,4 @@ class BankStatementController extends Controller
             ->route('finance.bank-statements.index')
             ->with('success', 'Statement and all related records deleted successfully.');
     }
-
-        // Delete statement file if no other transactions reference it
-        $otherTransactions = BankStatementTransaction::where('statement_file_path', $bankStatement->statement_file_path)
-            ->where('id', '!=', $bankStatement->id)
-            ->exists();
-
-        if (!$otherTransactions && $bankStatement->statement_file_path) {
-            Storage::delete($bankStatement->statement_file_path);
-        }
-
-        $bankStatement->delete();
-
-        return redirect()
-            ->route('finance.bank-statements.index')
-            ->with('success', 'Transaction deleted');
-    }
 }
