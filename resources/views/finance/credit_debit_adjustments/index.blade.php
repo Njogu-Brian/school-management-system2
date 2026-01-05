@@ -195,6 +195,63 @@
         </div>
         @endif
     </div>
+
+    {{-- Import Section --}}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="finance-card shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-upload"></i>
+                    <span>Import Credit/Debit Notes</span>
+                </div>
+                <div class="finance-card-body p-4">
+                    <p class="text-muted">Upload an Excel file with columns: Name, Admission Number, CR (Credit), DR (Debit).</p>
+                    <form method="POST" action="{{ route('finance.credit-debit-notes.import.preview') }}" enctype="multipart/form-data">
+                        @csrf
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="finance-form-label">File (.xlsx/.csv)</label>
+                                <input type="file" name="file" class="form-control" accept=".xlsx,.xls,.csv" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="finance-form-label">Year</label>
+                                <input type="number" name="year" class="finance-form-control" value="{{ $currentYear ?? now()->year }}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="finance-form-label">Term</label>
+                                <select name="term" class="finance-form-select" required>
+                                    @foreach([1,2,3] as $t)
+                                        <option value="{{ $t }}" @selected(($currentTermNumber ?? 1) == $t)>Term {{ $t }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="finance-form-label">Votehead</label>
+                                <select name="votehead_id" class="finance-form-select" required>
+                                    <option value="">Select Votehead</option>
+                                    @foreach($voteheads ?? [] as $votehead)
+                                        <option value="{{ $votehead->id }}">{{ $votehead->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-finance btn-finance-primary w-100">
+                                    <i class="bi bi-eye"></i> Preview &amp; apply
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-12">
+                                <a class="btn btn-outline-secondary" href="{{ route('finance.credit-debit-notes.import.template') }}">
+                                    <i class="bi bi-download"></i> Download Template
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
   </div>
 </div>
 @endsection

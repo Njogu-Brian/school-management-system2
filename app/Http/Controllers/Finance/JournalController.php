@@ -83,7 +83,15 @@ class JournalController extends Controller
             ->limit(500) // Limit to prevent timeout on large datasets
             ->get();
         
-        return view('finance.credit_debit_adjustments.index', compact('journals', 'creditNotes', 'debitNotes', 'students'));
+        // Load voteheads for import form
+        $voteheads = Votehead::orderBy('name')->get();
+        
+        // Get current year and term for import form defaults
+        $currentYear = now()->year;
+        $currentTerm = \App\Models\Term::where('is_current', true)->first();
+        $currentTermNumber = $currentTerm ? (int) preg_replace('/[^0-9]/', '', $currentTerm->name) : 1;
+        
+        return view('finance.credit_debit_adjustments.index', compact('journals', 'creditNotes', 'debitNotes', 'students', 'voteheads', 'currentYear', 'currentTermNumber'));
     }
 
     public function create()
