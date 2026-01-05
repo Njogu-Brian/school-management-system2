@@ -185,7 +185,10 @@ class TransportFeeController extends Controller
                 }
             }
 
-            $amountField = $assoc['transport_fee'] ?? $assoc['fee'] ?? $assoc['amount'] ?? null;
+            // Try multiple column name variations for amount
+            $amountField = $assoc['transport_fee'] ?? $assoc['fee'] ?? $assoc['amount'] 
+                ?? $assoc['transport_amount'] ?? $assoc['fee_amount'] ?? $assoc['charge'] 
+                ?? $assoc['transport_charge'] ?? null;
             
             // Parse amount - handle formatted numbers (currency symbols, commas, whitespace)
             $amount = null;
