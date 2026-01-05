@@ -426,29 +426,18 @@ class BankStatementParser
     {
         $students = [];
         
-        // Split parent name into parts
-        $nameParts = explode(' ', trim($parentName));
-        if (count($nameParts) < 2) {
+        // Normalize parent name for searching
+        $parentName = trim($parentName);
+        if (empty($parentName)) {
             return [];
         }
         
-        $firstName = $nameParts[0];
-        $lastName = end($nameParts);
-        
-        // Search in parent_info table
-        $parents = ParentInfo::where(function($q) use ($firstName, $lastName, $parentName) {
-            $q->where(function($q2) use ($firstName, $lastName) {
-                $q2->where('father_first_name', 'LIKE', "%{$firstName}%")
-                   ->where('father_last_name', 'LIKE', "%{$lastName}%");
-            })->orWhere(function($q2) use ($firstName, $lastName) {
-                $q2->where('mother_first_name', 'LIKE', "%{$firstName}%")
-                   ->where('mother_last_name', 'LIKE', "%{$lastName}%");
-            })->orWhere(function($q2) use ($firstName, $lastName) {
-                $q2->where('guardian_first_name', 'LIKE', "%{$firstName}%")
-                   ->where('guardian_last_name', 'LIKE', "%{$lastName}%");
-            })->orWhere('father_full_name', 'LIKE', "%{$parentName}%")
-              ->orWhere('mother_full_name', 'LIKE', "%{$parentName}%")
-              ->orWhere('guardian_full_name', 'LIKE', "%{$parentName}%");
+        // Search in parent_info table using the actual column names
+        // parent_info has: father_name, mother_name, guardian_name (full names, not split)
+        $parents = ParentInfo::where(function($q) use ($parentName) {
+            $q->where('father_name', 'LIKE', "%{$parentName}%")
+              ->orWhere('mother_name', 'LIKE', "%{$parentName}%")
+              ->orWhere('guardian_name', 'LIKE', "%{$parentName}%");
         })->get();
         
         foreach ($parents as $parent) {
@@ -468,30 +457,25 @@ class BankStatementParser
         }
         
         $parent = $student->parentInfo;
-        $nameParts = explode(' ', trim($parentName));
-        $firstName = $nameParts[0] ?? '';
-        $lastName = end($nameParts);
+        $parentName = trim($parentName);
         
-        // Check father
-        if ($parent->father_first_name && $parent->father_last_name) {
-            if (stripos($parent->father_first_name, $firstName) !== false && 
-                stripos($parent->father_last_name, $lastName) !== false) {
+        // Check father name (full name stored in single column)
+        if ($parent->father_name) {
+            if (stripos($parent->father_name, $parentName) !== false) {
                 return true;
             }
         }
         
-        // Check mother
-        if ($parent->mother_first_name && $parent->mother_last_name) {
-            if (stripos($parent->mother_first_name, $firstName) !== false && 
-                stripos($parent->mother_last_name, $lastName) !== false) {
+        // Check mother name (full name stored in single column)
+        if ($parent->mother_name) {
+            if (stripos($parent->mother_name, $parentName) !== false) {
                 return true;
             }
         }
         
-        // Check guardian
-        if ($parent->guardian_first_name && $parent->guardian_last_name) {
-            if (stripos($parent->guardian_first_name, $firstName) !== false && 
-                stripos($parent->guardian_last_name, $lastName) !== false) {
+        // Check guardian name (full name stored in single column)
+        if ($parent->guardian_name) {
+            if (stripos($parent->guardian_name, $parentName) !== false) {
                 return true;
             }
         }
