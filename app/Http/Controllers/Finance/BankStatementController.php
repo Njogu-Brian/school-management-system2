@@ -544,11 +544,12 @@ class BankStatementController extends Controller
                 if ($result['matched']) {
                     $matched++;
                     
-                    // Refresh transaction to get updated match_confidence
+                    // Refresh transaction to get updated match_confidence and student_id
                     $transaction->refresh();
                     
-                    // Auto-confirm high-confidence matches (>= 0.85) if enabled
-                    if ($autoConfirm && $transaction->match_confidence >= 0.85 && $transaction->student_id) {
+                    // Auto-confirm ALL successfully matched transactions if enabled
+                    // A successful match means there was exactly one unique student match
+                    if ($autoConfirm && $transaction->student_id && $transaction->match_status === 'matched') {
                         try {
                             DB::transaction(function () use ($transaction) {
                                 // Confirm the transaction
@@ -557,6 +558,9 @@ class BankStatementController extends Controller
                                 // Create payment if not already created
                                 if (!$transaction->payment_created) {
                                     $payment = $this->parser->createPaymentFromTransaction($transaction);
+                                    
+                                    // Payment is automatically allocated to invoices in createPaymentFromTransaction
+                                    // via autoAllocate() call
                                     
                                     // Generate receipt for the payment
                                     try {
