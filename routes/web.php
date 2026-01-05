@@ -1329,6 +1329,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('student-requirements', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'index'])->name('student-requirements.index');
         Route::get('student-requirements/collect', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'collectForm'])->name('student-requirements.collect');
         Route::post('student-requirements/collect', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'collect'])->name('student-requirements.collect.store');
+        Route::get('student-requirements/load-streams', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'loadStreams'])->name('student-requirements.load-streams');
+        Route::get('student-requirements/load-students', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'loadStudents'])->name('student-requirements.load-students');
+        Route::get('student-requirements/load-student-requirements', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'loadStudentRequirements'])->name('student-requirements.load-student-requirements');
         Route::get('student-requirements/{requirement}', [\App\Http\Controllers\Inventory\StudentRequirementController::class, 'show'])->name('student-requirements.show');
         
         // Requisitions

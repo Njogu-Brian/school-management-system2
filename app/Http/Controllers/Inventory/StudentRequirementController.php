@@ -11,6 +11,7 @@ use App\Models\ItemReceipt;
 use App\Models\ActivityLog;
 use App\Models\Student;
 use App\Models\Academics\Classroom;
+use App\Models\Academics\Stream;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use Illuminate\Http\Request;
@@ -80,34 +81,183 @@ class StudentRequirementController extends Controller
         $currentYear = AcademicYear::where('is_active', true)->first();
         $currentTerm = Term::where('is_current', true)->first();
 
-        $query = Student::whereIn('classroom_id', $assignedClassroomIds)
-            ->with(['classroom', 'parent']);
+        $selectedClassroomId = $request->filled('classroom_id') && in_array($request->classroom_id, $assignedClassroomIds) 
+            ? $request->classroom_id 
+            : null;
 
-        if ($request->filled('classroom_id') && in_array($request->classroom_id, $assignedClassroomIds)) {
-            $query->where('classroom_id', $request->classroom_id);
-        }
+        $selectedStreamId = $request->filled('stream_id') ? $request->stream_id : null;
 
-        $students = $query->orderBy('first_name')->get();
-
-        // Get requirement templates for these classes
-        // Support both single classroom_id and multi-class via pivot table
-        $templates = RequirementTemplate::where(function($q) use ($assignedClassroomIds) {
-                $q->whereIn('classroom_id', $assignedClassroomIds)
-                  ->orWhereHas('classrooms', function($q2) use ($assignedClassroomIds) {
-                      $q2->whereIn('classrooms.id', $assignedClassroomIds);
-                  });
-            })
-            ->when($currentYear, fn($q) => $q->where('academic_year_id', $currentYear->id))
-            ->when($currentTerm, fn($q) => $q->where('term_id', $currentTerm->id))
-            ->where('is_active', true)
-            ->with('requirementType')
-            ->get();
-
+        // Get classrooms
         $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
 
+        // Get streams for selected classroom
+        $streams = collect();
+        if ($selectedClassroomId) {
+            $classroom = Classroom::find($selectedClassroomId);
+            if ($classroom) {
+                $streams = $classroom->allStreams();
+            }
+        }
+
+        // Get students based on classroom and stream selection
+        $students = collect();
+        if ($selectedClassroomId) {
+            $query = Student::where('classroom_id', $selectedClassroomId)
+                ->with(['classroom', 'stream', 'parent']);
+
+            if ($selectedStreamId) {
+                $query->where('stream_id', $selectedStreamId);
+            }
+
+            $students = $query->orderBy('first_name')->get();
+        }
+
+        // Get requirement templates for selected class
+        $templates = collect();
+        if ($selectedClassroomId) {
+            $templates = RequirementTemplate::where('classroom_id', $selectedClassroomId)
+                ->when($currentYear, fn($q) => $q->where('academic_year_id', $currentYear->id))
+                ->when($currentTerm, fn($q) => $q->where('term_id', $currentTerm->id))
+                ->where('is_active', true)
+                ->with('requirementType')
+                ->orderBy('requirement_type_id')
+                ->get();
+        }
+
         return view('inventory.student-requirements.collect', compact(
-            'students', 'templates', 'classrooms', 'currentYear', 'currentTerm'
+            'students', 
+            'templates', 
+            'classrooms', 
+            'streams',
+            'currentYear', 
+            'currentTerm',
+            'selectedClassroomId',
+            'selectedStreamId'
         ));
+    }
+
+    /**
+     * Load streams for a classroom
+     */
+    public function loadStreams(Request $request)
+    {
+        $user = Auth::user();
+        $assignedClassroomIds = $user->getAssignedClassroomIds();
+
+        $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+        ]);
+
+        $classroomId = $request->classroom_id;
+
+        // Verify teacher has access to this classroom
+        if (!in_array($classroomId, $assignedClassroomIds)) {
+            return response()->json(['error' => 'You do not have access to this classroom.'], 403);
+        }
+
+        $classroom = Classroom::findOrFail($classroomId);
+        $streams = $classroom->allStreams()->map(function($stream) {
+            return [
+                'id' => $stream->id,
+                'name' => $stream->name,
+            ];
+        });
+
+        return response()->json(['streams' => $streams]);
+    }
+
+    /**
+     * Load students based on classroom and stream selection
+     */
+    public function loadStudents(Request $request)
+    {
+        $user = Auth::user();
+        $assignedClassroomIds = $user->getAssignedClassroomIds();
+
+        $request->validate([
+            'classroom_id' => 'required|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+        ]);
+
+        $classroomId = $request->classroom_id;
+        $streamId = $request->stream_id;
+
+        // Verify teacher has access to this classroom
+        if (!in_array($classroomId, $assignedClassroomIds)) {
+            return response()->json(['error' => 'You do not have access to this classroom.'], 403);
+        }
+
+        $query = Student::where('classroom_id', $classroomId)
+            ->with(['classroom', 'stream']);
+
+        if ($streamId) {
+            $query->where('stream_id', $streamId);
+        }
+
+        $students = $query->orderBy('first_name')->get()->map(function($student) {
+            return [
+                'id' => $student->id,
+                'name' => $student->getNameAttribute(),
+                'admission_number' => $student->admission_number,
+                'classroom' => $student->classroom->name ?? '',
+                'stream' => $student->stream->name ?? '',
+            ];
+        });
+
+        return response()->json(['students' => $students]);
+    }
+
+    /**
+     * Load existing requirement data for a student
+     */
+    public function loadStudentRequirements(Request $request)
+    {
+        $user = Auth::user();
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+        ]);
+
+        $student = Student::findOrFail($request->student_id);
+
+        // Verify teacher has access
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!in_array($student->classroom_id, $assignedClassroomIds)) {
+                return response()->json(['error' => 'You do not have access to this student.'], 403);
+            }
+        }
+
+        $currentYear = AcademicYear::where('is_active', true)->first();
+        $currentTerm = Term::where('is_current', true)->first();
+
+        if (!$currentYear || !$currentTerm) {
+            return response()->json(['error' => 'No active academic year or term found.'], 400);
+        }
+
+        // Get all requirements for this student
+        $requirements = StudentRequirement::where('student_id', $student->id)
+            ->where('academic_year_id', $currentYear->id)
+            ->where('term_id', $currentTerm->id)
+            ->with('requirementTemplate.requirementType')
+            ->get()
+            ->map(function($req) {
+                return [
+                    'template_id' => $req->requirement_template_id,
+                    'quantity_collected' => $req->quantity_collected,
+                    'quantity_required' => $req->quantity_required,
+                    'notes' => $req->notes,
+                    'status' => $req->status,
+                ];
+            })
+            ->keyBy('template_id');
+
+        return response()->json([
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->getNameAttribute(),
+            ],
+            'requirements' => $requirements,
+        ]);
     }
 
     public function collect(Request $request)
@@ -117,7 +267,6 @@ class StudentRequirementController extends Controller
             'requirements' => 'required|array',
             'requirements.*.template_id' => 'required|exists:requirement_templates,id',
             'requirements.*.quantity_collected' => 'required|numeric|min:0',
-            'requirements.*.receipt_status' => 'nullable|in:fully_received,partially_received,not_received',
             'requirements.*.notes' => 'nullable|string',
         ]);
 
@@ -140,6 +289,7 @@ class StudentRequirementController extends Controller
             foreach ($validated['requirements'] as $reqData) {
                 $template = RequirementTemplate::findOrFail($reqData['template_id']);
                 
+                // Find or create student requirement
                 $studentRequirement = StudentRequirement::firstOrCreate(
                     [
                         'student_id' => $student->id,
@@ -165,28 +315,31 @@ class StudentRequirementController extends Controller
                     return back()->with('error', "Cannot collect items for {$student->first_name} {$student->last_name}: {$paymentCheck['reason']}");
                 }
 
+                // Get quantity to add (difference between submitted and already collected)
+                $quantitySubmitted = (float)($reqData['quantity_collected'] ?? 0);
+                $quantityToAdd = max(0, $quantitySubmitted - $studentRequirement->quantity_collected);
+
                 // Determine receipt status
-                $quantity = $reqData['quantity_collected'] ?? 0;
-                $receiptStatus = $reqData['receipt_status'] ?? 'fully_received';
+                $expected = $studentRequirement->expected_quantity ?? $studentRequirement->quantity_required;
                 
-                if ($quantity == 0) {
+                if ($quantitySubmitted == 0) {
                     $receiptStatus = 'not_received';
-                } elseif ($quantity < ($studentRequirement->expected_quantity ?? $studentRequirement->quantity_required)) {
-                    $receiptStatus = 'partially_received';
-                } else {
+                } elseif ($quantitySubmitted >= $expected) {
                     $receiptStatus = 'fully_received';
+                } else {
+                    $receiptStatus = 'partially_received';
                 }
 
-                // Record receipt using the new method
-                if ($quantity > 0) {
+                // Record receipt if there's a quantity to add
+                if ($quantityToAdd > 0) {
                     $studentRequirement->recordReceipt(
-                        $quantity,
+                        $quantityToAdd,
                         $user->id,
                         $receiptStatus,
                         $reqData['notes'] ?? null
                     );
-                } else {
-                    // Record as not received
+                } elseif ($quantitySubmitted == 0 && $studentRequirement->quantity_collected > 0) {
+                    // If updating to 0, create a receipt record for tracking
                     ItemReceipt::create([
                         'student_requirement_id' => $studentRequirement->id,
                         'student_id' => $student->id,
@@ -194,16 +347,26 @@ class StudentRequirementController extends Controller
                         'received_by' => $user->id,
                         'quantity_received' => 0,
                         'receipt_status' => 'not_received',
-                        'notes' => $reqData['notes'] ?? 'Items not received',
+                        'notes' => $reqData['notes'] ?? 'Items updated to not received',
                         'received_at' => now(),
                     ]);
                 }
 
+                // Update notes if provided
+                if (!empty($reqData['notes'])) {
+                    $existingNotes = $studentRequirement->notes ?? '';
+                    $newNote = date('Y-m-d H:i') . ': ' . $reqData['notes'];
+                    $studentRequirement->notes = $existingNotes ? $existingNotes . "\n" . $newNote : $newNote;
+                }
+
                 // Update collected_by and collected_at if first collection
-                if (!$studentRequirement->collected_by) {
+                if (!$studentRequirement->collected_by && $quantitySubmitted > 0) {
                     $studentRequirement->collected_by = $user->id;
                     $studentRequirement->collected_at = now();
                 }
+
+                $studentRequirement->save();
+                $studentRequirement->updateStatus();
             }
 
             DB::commit();

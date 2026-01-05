@@ -80,7 +80,7 @@ class Requirements2026Seeder extends Seeder
             ['item' => 'Pencil Colours', 'quantity' => '1 Packet', 'brand' => '—'],
             ['item' => 'JK Ream Paper', 'quantity' => '1', 'brand' => 'JK'],
             ['item' => 'Manila Paper', 'quantity' => '1 Packet', 'brand' => 'Nataraj, Pelican'],
-            ['item' => 'Luminous Paper', 'quantity' => '', 'brand' => ''],
+            ['item' => 'Luminous Paper', 'quantity' => '2', 'brand' => ''],
             ['item' => 'Pencils porch with pencils, rubber, sharpeners,', 'quantity' => '1 inch', 'brand' => '—'],
             ['item' => 'Scrap Book', 'quantity' => '1', 'brand' => '—'],
             ['item' => 'White Erasers', 'quantity' => '12', 'brand' => 'Nataraj'],
@@ -101,7 +101,7 @@ class Requirements2026Seeder extends Seeder
             ['item' => 'Pencil Colours', 'quantity' => '1 Packet', 'brand' => '—'],
             ['item' => 'JK Ream Paper', 'quantity' => '1', 'brand' => 'JK'],
             ['item' => 'Manila Paper', 'quantity' => '1 Packet', 'brand' => 'Nataraj, Pelican'],
-            ['item' => 'Luminous Paper', 'quantity' => '', 'brand' => ''],
+            ['item' => 'Luminous Paper', 'quantity' => '2', 'brand' => ''],
             ['item' => 'Pencils porch with pencils, rubber, sharpeners,', 'quantity' => '1 inch', 'brand' => '—'],
             ['item' => 'Scrap Book', 'quantity' => '1', 'brand' => '—'],
             ['item' => 'White Erasers', 'quantity' => '6', 'brand' => 'Nataraj'],
@@ -147,7 +147,7 @@ class Requirements2026Seeder extends Seeder
             ['item' => 'Pencil Colours', 'quantity' => '1 Packet', 'brand' => '—'],
             ['item' => 'JK Ream Paper', 'quantity' => '1', 'brand' => 'JK'],
             ['item' => 'Manila Paper', 'quantity' => '1 Packet', 'brand' => 'Nataraj, Pelican'],
-            ['item' => 'Luminous Paper', 'quantity' => '', 'brand' => ''],
+            ['item' => 'Luminous Paper', 'quantity' => '2', 'brand' => ''],
             ['item' => 'Pencils porch with pencils, rubber, sharpeners,', 'quantity' => '1 inch', 'brand' => '—'],
             ['item' => 'Scrap Book', 'quantity' => '1', 'brand' => '—'],
             ['item' => 'White Erasers', 'quantity' => '12', 'brand' => 'Nataraj'],
@@ -172,7 +172,7 @@ class Requirements2026Seeder extends Seeder
             ['item' => 'Pencil Colours', 'quantity' => '1 Packet', 'brand' => '—'],
             ['item' => 'JK Ream Paper', 'quantity' => '1', 'brand' => 'JK'],
             ['item' => 'Manila Paper', 'quantity' => '1 Packet', 'brand' => 'Nataraj, Pelican'],
-            ['item' => 'Luminous Paper', 'quantity' => '', 'brand' => ''],
+            ['item' => 'Luminous Paper', 'quantity' => '2', 'brand' => ''],
             ['item' => 'Pencils porch with pencils, rubber, sharpeners,', 'quantity' => '1 inch', 'brand' => '—'],
             ['item' => 'Scrap Book', 'quantity' => '1', 'brand' => '—'],
             ['item' => 'White Erasers', 'quantity' => '12', 'brand' => 'Nataraj'],
@@ -310,9 +310,11 @@ class Requirements2026Seeder extends Seeder
             ];
 
             foreach ($items as $itemData) {
-                $processed = $this->processItem($itemData, $className);
-                if ($processed) {
-                    $preview[$className]['items'][] = $processed;
+                $processedItems = $this->processItem($itemData, $className);
+                foreach ($processedItems as $processed) {
+                    if ($processed) {
+                        $preview[$className]['items'][] = $processed;
+                    }
                 }
             }
         }
@@ -321,13 +323,31 @@ class Requirements2026Seeder extends Seeder
     }
 
     /**
-     * Process a single item
+     * Process a single item - may return multiple items for storybooks
      */
-    private function processItem(array $itemData, string $className): ?array
+    private function processItem(array $itemData, string $className): array
     {
         $itemName = trim($itemData['item']);
         $quantityStr = trim($itemData['quantity'] ?? '');
         $brand = trim($itemData['brand'] ?? '');
+
+        // Handle Ladybird storybooks - split into individual books
+        if (preg_match('/story\s*book/i', strtolower($itemName)) && 
+            preg_match('/peter\s*&?\s*jane/i', strtolower($itemName)) &&
+            preg_match('/ladybird/i', strtolower($brand))) {
+            return $this->processLadybirdStorybooks($itemName, $brand, $className);
+        }
+
+        // Handle Oxford workbooks - use workbook name as requirement name
+        if (preg_match('/workbook/i', strtolower($itemName)) && 
+            preg_match('/oxford/i', strtolower($brand))) {
+            return $this->processOxfordWorkbook($itemName, $quantityStr, $className);
+        }
+
+        // Handle Pencil Colours specifically
+        if (preg_match('/pencil\s*colour/i', strtolower($itemName))) {
+            return $this->processPencilColours($itemName, $quantityStr, $brand);
+        }
 
         // Parse quantity and unit
         $parsed = $this->parseQuantity($quantityStr);
@@ -335,25 +355,124 @@ class Requirements2026Seeder extends Seeder
         $unit = $parsed['unit'];
 
         // Map to requirement type
-        $requirementType = $this->mapToRequirementType($itemName);
+        $requirementType = $this->mapToRequirementType($itemName, $itemName);
 
         if (!$requirementType) {
             $this->command->warn("Could not map '{$itemName}' to a requirement type. Skipping...");
-            return null;
+            return [];
         }
 
-        // Clean brand (remove '—' and empty values)
+        // Clean brand (remove '—' and empty values, handle pcs)
         if ($brand === '—' || $brand === '' || strtolower($brand) === 'pcs') {
             $brand = null;
         }
 
-        return [
+        // Handle Manila and Luminous paper - ensure quantities are set
+        if (preg_match('/manila\s*paper/i', strtolower($itemName))) {
+            if (preg_match('/(\d+)\s*packet/i', $quantityStr, $matches)) {
+                $quantity = (float)$matches[1];
+                $unit = 'packet';
+            } elseif (preg_match('/(\d+)/', $quantityStr, $matches)) {
+                $quantity = (float)$matches[1];
+                $unit = 'piece';
+            }
+            // If no quantity specified, default to 2
+            if ($quantity == 1 && $unit == 'piece' && empty($quantityStr)) {
+                $quantity = 2;
+            }
+        }
+
+        if (preg_match('/luminous\s*paper/i', strtolower($itemName))) {
+            if (preg_match('/(\d+)/', $quantityStr, $matches)) {
+                $quantity = (float)$matches[1];
+                $unit = 'piece';
+            } elseif (empty($quantityStr)) {
+                // Default to 2 if not specified
+                $quantity = 2;
+                $unit = 'piece';
+            }
+        }
+
+        return [[
             'item_name' => $itemName,
             'requirement_type' => $requirementType,
             'quantity' => $quantity,
             'unit' => $unit,
             'brand' => $brand,
-        ];
+        ]];
+    }
+
+    /**
+     * Process Ladybird storybooks - split into individual books
+     */
+    private function processLadybirdStorybooks(string $itemName, string $brand, string $className): array
+    {
+        $items = [];
+        
+        // Extract book numbers (e.g., "6a, 6b, 7a, 7b, 8a, 8b")
+        if (preg_match_all('/(\d+[ab])/i', $itemName, $matches)) {
+            $bookNumbers = $matches[1];
+            
+            foreach ($bookNumbers as $bookNum) {
+                $bookName = "Ladybird Storybook {$bookNum}";
+                $requirementType = $this->getOrCreateRequirementType('Storybooks', 'books');
+                
+                $items[] = [
+                    'item_name' => $bookName,
+                    'requirement_type' => $requirementType,
+                    'quantity' => 1,
+                    'unit' => 'book',
+                    'brand' => 'Ladybird',
+                ];
+            }
+        }
+        
+        return $items;
+    }
+
+    /**
+     * Process Oxford workbooks
+     */
+    private function processOxfordWorkbook(string $itemName, string $quantityStr, string $className): array
+    {
+        $parsed = $this->parseQuantity($quantityStr);
+        $quantity = $parsed['quantity'];
+        $unit = $parsed['unit'];
+        
+        // Use the workbook name as the requirement type name
+        $requirementType = $this->getOrCreateRequirementType($itemName, 'books');
+        
+        return [[
+            'item_name' => $itemName,
+            'requirement_type' => $requirementType,
+            'quantity' => $quantity,
+            'unit' => $unit,
+            'brand' => 'Oxford',
+        ]];
+    }
+
+    /**
+     * Process Pencil Colours
+     */
+    private function processPencilColours(string $itemName, string $quantityStr, string $brand): array
+    {
+        $parsed = $this->parseQuantity($quantityStr);
+        $quantity = $parsed['quantity'];
+        $unit = $parsed['unit'];
+        
+        // Create requirement type with exact name "Pencil Colours"
+        $requirementType = $this->getOrCreateRequirementType('Pencil Colours', 'stationery');
+        
+        // Brand should be "Any brand" if not specified or if it's "—"
+        $finalBrand = ($brand === '—' || $brand === '' || strtolower($brand) === 'pcs') ? 'Any brand' : $brand;
+        
+        return [[
+            'item_name' => 'Pencil Colours',
+            'requirement_type' => $requirementType,
+            'quantity' => $quantity,
+            'unit' => $unit,
+            'brand' => $finalBrand,
+        ]];
     }
 
     /**
@@ -398,14 +517,18 @@ class Requirements2026Seeder extends Seeder
     /**
      * Map item name to requirement type
      */
-    private function mapToRequirementType(string $itemName): ?RequirementType
+    private function mapToRequirementType(string $itemName, ?string $typeName = null): ?RequirementType
     {
         $itemLower = strtolower($itemName);
+        $useName = $typeName ?? $itemName;
 
-        // Toiletries
-        if (preg_match('/tissue\s*roll/i', $itemLower) || 
-            preg_match('/wet\s*wip/i', $itemLower)) {
+        // Toiletries - Tissue Rolls (not Tissue Paper)
+        if (preg_match('/tissue\s*roll/i', $itemLower)) {
             return $this->getOrCreateRequirementType('Tissue Rolls', 'toiletries');
+        }
+
+        if (preg_match('/wet\s*wip/i', $itemLower)) {
+            return $this->getOrCreateRequirementType('Wet Wipes', 'toiletries');
         }
 
         // Stationery
@@ -425,6 +548,10 @@ class Requirements2026Seeder extends Seeder
             preg_match('/spring\s*file/i', $itemLower) ||
             preg_match('/ream\s*paper/i', $itemLower) ||
             preg_match('/photocopy/i', $itemLower)) {
+            // If it's Pencil Colours, use that specific name
+            if (preg_match('/pencil\s*colour/i', $itemLower)) {
+                return $this->getOrCreateRequirementType('Pencil Colours', 'stationery');
+            }
             return $this->getOrCreateRequirementType('Stationery', 'stationery');
         }
 
@@ -458,6 +585,10 @@ class Requirements2026Seeder extends Seeder
             preg_match('/sound\s*and\s*read/i', $itemLower) ||
             preg_match('/mathematical\s*table/i', $itemLower) ||
             preg_match('/calculator/i', $itemLower)) {
+            // For Oxford workbooks, use the workbook name itself as the requirement type
+            if (preg_match('/oxford/i', strtolower($useName)) || preg_match('/workbook/i', $itemLower)) {
+                return $this->getOrCreateRequirementType($useName, 'books');
+            }
             return $this->getOrCreateRequirementType('Textbooks and Others', 'books');
         }
 
@@ -567,7 +698,10 @@ class Requirements2026Seeder extends Seeder
                             ->where('classroom_id', $classroom->id)
                             ->where('academic_year_id', $this->academicYear->id)
                             ->where('term_id', $this->term->id)
-                            ->where('notes', 'like', "%{$item['item_name']}%")
+                            ->where(function($q) use ($item) {
+                                $q->where('notes', 'like', "%{$item['item_name']}%")
+                                  ->orWhere('brand', $item['brand']);
+                            })
                             ->first();
 
                         if ($existing) {
@@ -577,6 +711,7 @@ class Requirements2026Seeder extends Seeder
                                 'quantity_per_student' => $item['quantity'],
                                 'unit' => $item['unit'],
                                 'is_active' => true,
+                                'notes' => "Imported from Requirements 2026 PDF - {$item['item_name']}",
                             ]);
                         } else {
                             // Create new
@@ -608,4 +743,3 @@ class Requirements2026Seeder extends Seeder
         $this->command->info("Import complete: {$imported} items imported, {$skipped} skipped.");
     }
 }
-
