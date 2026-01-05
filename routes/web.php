@@ -1066,6 +1066,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/student',        [OptionalFeeController::class, 'studentView'])->name('student_view');
             Route::post('/student/save',  [OptionalFeeController::class, 'saveStudentBilling'])->name('save_student');
         });
+        Route::post('optional-fees/import/preview', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importPreview'])->name('optional-fees.import.preview');
+        Route::post('optional-fees/import/commit', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importCommit'])->name('optional-fees.import.commit');
+        Route::post('optional-fees/import/{import}/reverse', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'reverse'])->name('optional-fees.import.reverse');
+        Route::get('optional-fees/import/template', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'template'])->name('optional-fees.import.template');
 
         // Transport Fees
         Route::get('transport-fees', [TransportFeeController::class, 'index'])->name('transport-fees.index');
@@ -1115,6 +1119,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('debits/create',  [DebitNoteController::class, 'create'])->name('debits.create');
         Route::post('debits/store',  [DebitNoteController::class, 'store'])->name('debits.store');
         Route::delete('debit-notes/{debitNote}/reverse', [DebitNoteController::class, 'reverse'])->name('debit-notes.reverse');
+        
+        // Credit/Debit Notes Import
+        Route::post('credit-debit-notes/import/preview', [\App\Http\Controllers\Finance\CreditDebitNoteImportController::class, 'importPreview'])->name('credit-debit-notes.import.preview');
+        Route::post('credit-debit-notes/import/commit', [\App\Http\Controllers\Finance\CreditDebitNoteImportController::class, 'importCommit'])->name('credit-debit-notes.import.commit');
+        Route::post('credit-debit-notes/import/{import}/reverse', [\App\Http\Controllers\Finance\CreditDebitNoteImportController::class, 'reverse'])->name('credit-debit-notes.import.reverse');
+        Route::get('credit-debit-notes/import/template', [\App\Http\Controllers\Finance\CreditDebitNoteImportController::class, 'template'])->name('credit-debit-notes.import.template');
 
         // Fee Payment Plans
         Route::resource('fee-payment-plans', FeePaymentPlanController::class)->parameters(['fee-payment-plans' => 'feePaymentPlan']);

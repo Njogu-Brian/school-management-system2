@@ -110,6 +110,52 @@
             ])
         </div>
     </div>
+
+    {{-- Import Section --}}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="finance-card shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex align-items-center gap-2">
+                    <i class="bi bi-upload"></i>
+                    <span>Import Optional Fees</span>
+                </div>
+                <div class="finance-card-body p-4">
+                    <p class="text-muted">Upload an Excel file with columns: Admission Number, Name, Votehead Name, Amount.</p>
+                    <form method="POST" action="{{ route('finance.optional-fees.import.preview') }}" enctype="multipart/form-data">
+                        @csrf
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="finance-form-label">File (.xlsx/.csv)</label>
+                                <input type="file" name="file" class="form-control" accept=".xlsx,.xls,.csv" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="finance-form-label">Year</label>
+                                <input type="number" name="year" class="finance-form-control" value="{{ $currentYear ?? now()->year }}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="finance-form-label">Term</label>
+                                <select name="term" class="finance-form-select" required>
+                                    @foreach([1,2,3] as $t)
+                                        <option value="{{ $t }}" @selected(($currentTermNumber ?? 1) == $t)>Term {{ $t }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-finance btn-finance-primary w-100">
+                                    <i class="bi bi-eye"></i> Preview &amp; apply
+                                </button>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <a class="btn btn-outline-secondary w-100" href="{{ route('finance.optional-fees.import.template') }}">
+                                    <i class="bi bi-download"></i> Template
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
   </div>
 </div>
 
