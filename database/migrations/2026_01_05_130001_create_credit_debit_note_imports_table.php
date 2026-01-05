@@ -26,7 +26,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->timestamps();
 
-            $table->index(['year', 'term', 'votehead_id', 'is_reversed']);
+            $table->index(['year', 'term', 'votehead_id', 'is_reversed'], 'cdni_year_term_votehead_reversed_idx');
         });
     }
 
