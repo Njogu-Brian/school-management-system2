@@ -1090,6 +1090,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('payments/{payment}/transfer', [PaymentController::class, 'transfer'])->name('payments.transfer');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
+        Route::get('payments/bulk-print', [PaymentController::class, 'bulkPrintReceipts'])->name('payments.bulk-print');
         Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentBalanceAndSiblings'])->name('payments.student-info');
         
         // Bank Accounts
@@ -1111,8 +1112,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject'])->name('reject');
             Route::post('/{bankStatement}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share'])->name('share');
             Route::get('/{bankStatement}/view-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'viewPdf'])->name('view-pdf');
+            Route::get('/{bankStatement}/serve-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'servePdf'])->name('serve-pdf');
             Route::get('/{bankStatement}/download-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'downloadPdf'])->name('download-pdf');
             Route::post('/bulk-confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkConfirm'])->name('bulk-confirm');
+            Route::post('/auto-assign', [\App\Http\Controllers\Finance\BankStatementController::class, 'autoAssign'])->name('auto-assign');
+            Route::post('/{bankStatement}/reparse', [\App\Http\Controllers\Finance\BankStatementController::class, 'reparse'])->name('reparse');
             Route::post('/{bankStatement}/archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'archive'])->name('archive');
             Route::post('/{bankStatement}/unarchive', [\App\Http\Controllers\Finance\BankStatementController::class, 'unarchive'])->name('unarchive');
         });

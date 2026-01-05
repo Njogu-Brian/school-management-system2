@@ -113,8 +113,8 @@
     </div>
 
     <!-- Bulk Actions -->
-    @if(request('status') == 'draft' || !request('status'))
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+        @if(request('status') == 'draft' || !request('status'))
         <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
             @csrf
             <input type="hidden" name="transaction_ids" id="bulkTransactionIds">
@@ -122,8 +122,16 @@
                 <i class="bi bi-check-circle"></i> Confirm Selected
             </button>
         </form>
+        @endif
+        
+        <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
+            @csrf
+            <input type="hidden" name="transaction_ids" id="autoAssignTransactionIds">
+            <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()">
+                <i class="bi bi-magic"></i> Auto-Assign Unmatched
+            </button>
+        </form>
     </div>
-    @endif
 
     <!-- Transactions Table -->
     <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
@@ -284,6 +292,35 @@
                 document.getElementById('bulkConfirmForm').submit();
             }
         }
+
+        function autoAssign() {
+            // Get all unmatched transactions (or selected ones)
+            const selectedIds = JSON.parse(document.getElementById('autoAssignTransactionIds').value || '[]');
+            
+            // If no specific selection, auto-assign all unmatched
+            if (selectedIds.length === 0) {
+                if (confirm('Auto-assign all unmatched transactions? This will attempt to match them to students.')) {
+                    document.getElementById('autoAssignForm').submit();
+                }
+            } else {
+                if (confirm(`Auto-assign ${selectedIds.length} selected transaction(s)?`)) {
+                    document.getElementById('autoAssignForm').submit();
+                }
+            }
+        }
+
+        // Update auto-assign IDs when checkboxes change
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('.transaction-checkbox');
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', function() {
+                    updateBulkIds();
+                    // Also update auto-assign IDs
+                    const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(c => c.value);
+                    document.getElementById('autoAssignTransactionIds').value = JSON.stringify(checked);
+                });
+            });
+        });
     </script>
 @endsection
 

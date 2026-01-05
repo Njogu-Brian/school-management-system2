@@ -267,10 +267,27 @@
                         <a href="{{ route('finance.bank-statements.view-pdf', $bankStatement) }}" target="_blank" class="btn btn-finance btn-finance-info w-100 mb-2">
                             <i class="bi bi-file-pdf"></i> View Statement PDF
                         </a>
-                        <a href="{{ route('finance.bank-statements.download-pdf', $bankStatement) }}" class="btn btn-finance btn-finance-secondary w-100">
+                        <a href="{{ route('finance.bank-statements.download-pdf', $bankStatement) }}" class="btn btn-finance btn-finance-secondary w-100 mb-2">
                             <i class="bi bi-download"></i> Download PDF
                         </a>
                     @endif
+                    
+                    @if($bankStatement->statement_file_path)
+                        <form method="POST" action="{{ route('finance.bank-statements.reparse', $bankStatement) }}" class="mb-2" onsubmit="return confirm('Re-analyze this statement? This will delete all transactions and payments from this statement and re-parse it. This action cannot be undone.')">
+                            @csrf
+                            <button type="submit" class="btn btn-finance btn-finance-warning w-100">
+                                <i class="bi bi-arrow-clockwise"></i> Re-Analyze Statement
+                            </button>
+                        </form>
+                    @endif
+                    
+                    <form method="POST" action="{{ route('finance.bank-statements.destroy', $bankStatement) }}" onsubmit="return confirm('Delete this statement and ALL related records (transactions, payments, allocations)? This action cannot be undone.')">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-finance btn-finance-danger w-100">
+                            <i class="bi bi-trash"></i> Delete Statement
+                        </button>
+                    </form>
                 </div>
             </div>
 

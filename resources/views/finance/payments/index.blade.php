@@ -37,8 +37,8 @@
 
     <!-- Filters -->
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0">
-        <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3">
-            <div class="col-md-6 col-lg-3">
+        <form method="GET" action="{{ route('finance.payments.index') }}" class="row g-3" id="paymentsFilterForm">
+            <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">Student</label>
                 @include('partials.student_live_search', [
                     'hiddenInputId' => 'student_id',
@@ -49,19 +49,32 @@
                 ])
             </div>
             <div class="col-md-6 col-lg-2">
-                <label class="finance-form-label">Status</label>
-                <select name="status" class="finance-form-select">
-                    <option value="">All Statuses</option>
-                    <option value="paid" {{ request('status') == 'paid' ? 'selected' : '' }}>Paid</option>
-                    <option value="partial" {{ request('status') == 'partial' ? 'selected' : '' }}>Partial</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                <label class="finance-form-label">Class</label>
+                <select name="class_id" class="finance-form-select">
+                    <option value="">All Classes</option>
+                    @foreach($classrooms ?? [] as $classroom)
+                        <option value="{{ $classroom->id }}" {{ request('class_id') == $classroom->id ? 'selected' : '' }}>
+                            {{ $classroom->name }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Stream</label>
+                <select name="stream_id" class="finance-form-select">
+                    <option value="">All Streams</option>
+                    @foreach($streams ?? [] as $stream)
+                        <option value="{{ $stream->id }}" {{ request('stream_id') == $stream->id ? 'selected' : '' }}>
+                            {{ $stream->name }}
+                        </option>
+                    @endforeach
                 </select>
             </div>
             <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">Payment Method</label>
                 <select name="payment_method_id" class="finance-form-select">
                     <option value="">All Methods</option>
-                    @foreach(\App\Models\PaymentMethod::where('is_active', true)->get() as $method)
+                    @foreach($paymentMethods ?? [] as $method)
                         <option value="{{ $method->id }}" {{ request('payment_method_id') == $method->id ? 'selected' : '' }}>
                             {{ $method->name }}
                         </option>
@@ -76,9 +89,12 @@
                 <label class="finance-form-label">To Date</label>
                 <input type="date" name="to_date" class="finance-form-control" value="{{ request('to_date') }}">
             </div>
-            <div class="col-md-6 col-lg-1 d-flex align-items-end">
-                <button type="submit" class="btn btn-finance btn-finance-primary w-100">
+            <div class="col-md-6 col-lg-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-finance btn-finance-primary flex-fill">
                     <i class="bi bi-search"></i> Filter
+                </button>
+                <button type="button" class="btn btn-finance btn-finance-secondary" onclick="bulkPrintReceipts()" title="Bulk Print Receipts">
+                    <i class="bi bi-printer"></i> Bulk Print
                 </button>
             </div>
         </form>
@@ -86,11 +102,15 @@
 
     <!-- Bulk send toolbar -->
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-        <div class="text-muted small">Select receipts to send via SMS / Email / WhatsApp.</div>
+        <div class="text-muted small">Select receipts to send via SMS / Email / WhatsApp, or use filters to bulk print.</div>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-finance btn-finance-secondary"
                 onclick="openSendDocument('receipt', collectCheckedIds('.receipt-checkbox'))">
                 <i class="bi bi-send"></i> Send Selected
+            </button>
+            <button type="button" class="btn btn-finance btn-finance-outline"
+                onclick="bulkPrintReceipts()" title="Bulk Print Receipts (uses current filters)">
+                <i class="bi bi-printer"></i> Bulk Print
             </button>
             <a href="{{ route('finance.payments.create') }}" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Record Payment</a>
         </div>
@@ -250,6 +270,37 @@ document.addEventListener('DOMContentLoaded', function() {
     boxes.forEach(b => b.addEventListener('change', refresh));
     refresh();
 });
+
+function bulkPrintReceipts() {
+    const form = document.getElementById('paymentsFilterForm');
+    const formData = new FormData(form);
+    
+    // Get selected payment IDs if any checkboxes are checked
+    const checkedIds = Array.from(document.querySelectorAll('.receipt-checkbox:checked'))
+        .map(cb => cb.value);
+    
+    if (checkedIds.length > 0) {
+        formData.append('payment_ids', checkedIds.join(','));
+    }
+    
+    // Build query string
+    const params = new URLSearchParams();
+    for (const [key, value] of formData.entries()) {
+        if (value) {
+            params.append(key, value);
+        }
+    }
+    
+    // Open bulk print in new window
+    const url = '{{ route("finance.payments.bulk-print") }}?' + params.toString();
+    window.open(url, 'BulkReceiptPrint', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no');
+}
+
+function collectCheckedIds(selector) {
+    return Array.from(document.querySelectorAll(selector + ':checked'))
+        .map(cb => parseInt(cb.value))
+        .filter(id => !isNaN(id));
+}
 </script>
 @endpush
 @endsection

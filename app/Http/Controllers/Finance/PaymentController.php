@@ -37,16 +37,55 @@ class PaymentController extends Controller
         $this->commService = $commService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $payments = Payment::with(['student', 'paymentMethod', 'invoice'])
+        $query = Payment::with(['student.classroom', 'student.stream', 'paymentMethod', 'invoice'])
             ->whereHas('student', function($q) {
                 $q->where('archive', 0)->where('is_alumni', false);
-            })
-            ->latest('payment_date')
-            ->paginate(20);
+            });
         
-        return view('finance.payments.index', compact('payments'));
+        // Apply filters
+        if ($request->filled('student_id')) {
+            $query->where('student_id', $request->student_id);
+        }
+        
+        if ($request->filled('class_id')) {
+            $query->whereHas('student', function($q) use ($request) {
+                $q->where('classroom_id', $request->class_id);
+            });
+        }
+        
+        if ($request->filled('stream_id')) {
+            $query->whereHas('student', function($q) use ($request) {
+                $q->where('stream_id', $request->stream_id);
+            });
+        }
+        
+        if ($request->filled('payment_method_id')) {
+            $query->where('payment_method_id', $request->payment_method_id);
+        }
+        
+        if ($request->filled('from_date')) {
+            $query->whereDate('payment_date', '>=', $request->from_date);
+        }
+        
+        if ($request->filled('to_date')) {
+            $query->whereDate('payment_date', '<=', $request->to_date);
+        }
+        
+        if ($request->filled('status')) {
+            // Status filtering would need to be implemented based on payment status logic
+            // For now, we'll skip this as it requires more complex logic
+        }
+        
+        $payments = $query->latest('payment_date')->paginate(20)->appends($request->all());
+        
+        // Get filter options for the view
+        $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
+        $streams = \App\Models\Academics\Stream::orderBy('name')->get();
+        $paymentMethods = \App\Models\PaymentMethod::where('is_active', true)->orderBy('name')->get();
+        
+        return view('finance.payments.index', compact('payments', 'classrooms', 'streams', 'paymentMethods'));
     }
 
     public function create(Request $request)
@@ -472,7 +511,12 @@ class PaymentController extends Controller
         
         // Optimize: Only recalculate invoices that were affected by this payment
         // Get invoices that have allocations from this payment
-        $affectedInvoiceIds = $payment->allocations()->pluck('invoice_id')->unique()->filter();
+        // payment_allocations -> invoice_items -> invoices (need to join through invoice_items)
+        $affectedInvoiceIds = $payment->allocations()
+            ->join('invoice_items', 'payment_allocations.invoice_item_id', '=', 'invoice_items.id')
+            ->pluck('invoice_items.invoice_id')
+            ->unique()
+            ->filter();
         
         if ($affectedInvoiceIds->isNotEmpty()) {
             // Only recalculate affected invoices
@@ -911,6 +955,122 @@ class PaymentController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return back()->with('error', 'Receipt print view failed: ' . $e->getMessage());
+        }
+    }
+
+    public function bulkPrintReceipts(Request $request)
+    {
+        try {
+            $query = Payment::with([
+                'student.classroom', 
+                'student.stream', 
+                'paymentMethod', 
+                'invoice',
+                'allocations.invoiceItem.votehead',
+                'allocations.invoiceItem.invoice'
+            ])
+            ->whereHas('student', function($q) {
+                $q->where('archive', 0)->where('is_alumni', false);
+            })
+            ->where('reversed', false); // Exclude reversed payments
+        
+            // Apply filters (same as index)
+            if ($request->filled('student_id')) {
+                $query->where('student_id', $request->student_id);
+            }
+            
+            if ($request->filled('class_id')) {
+                $query->whereHas('student', function($q) use ($request) {
+                    $q->where('classroom_id', $request->class_id);
+                });
+            }
+            
+            if ($request->filled('stream_id')) {
+                $query->whereHas('student', function($q) use ($request) {
+                    $q->where('stream_id', $request->stream_id);
+                });
+            }
+            
+            if ($request->filled('payment_method_id')) {
+                $query->where('payment_method_id', $request->payment_method_id);
+            }
+            
+            if ($request->filled('from_date')) {
+                $query->whereDate('payment_date', '>=', $request->from_date);
+            }
+            
+            if ($request->filled('to_date')) {
+                $query->whereDate('payment_date', '<=', $request->to_date);
+            }
+            
+            // If specific payment IDs are provided, use those
+            if ($request->filled('payment_ids')) {
+                $paymentIds = is_array($request->payment_ids) 
+                    ? $request->payment_ids 
+                    : explode(',', $request->payment_ids);
+                $query->whereIn('id', $paymentIds);
+            }
+            
+            $payments = $query->orderBy('payment_date')->orderBy('id')->get();
+            
+            if ($payments->isEmpty()) {
+                return back()->with('error', 'No payments found matching the selected criteria.');
+            }
+            
+            // Get school settings and branding (shared across all receipts)
+            $schoolSettings = $this->getSchoolSettings();
+            $branding = $this->branding();
+            $receiptHeader = \App\Models\Setting::get('receipt_header', '');
+            $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
+            
+            // Prepare receipt data for each payment
+            $receiptsData = [];
+            foreach ($payments as $payment) {
+                $student = $payment->student;
+                
+                // Calculate total outstanding balance (current balance AFTER this payment)
+                $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+                $currentOutstandingBalance = 0;
+                foreach ($invoices as $invoice) {
+                    $invoice->recalculate();
+                    $currentOutstandingBalance += max(0, $invoice->balance ?? 0);
+                }
+                
+                // Balance before this payment = current balance + payment amount
+                $balanceBeforePayment = $currentOutstandingBalance + $payment->amount;
+                
+                $receiptsData[] = [
+                    'payment' => $payment,
+                    'school' => $schoolSettings,
+                    'branding' => $branding,
+                    'receipt_number' => $payment->receipt_number,
+                    'date' => $payment->payment_date->format('d M Y'),
+                    'student' => $student,
+                    'total_amount' => $payment->amount,
+                    'total_outstanding_balance' => $balanceBeforePayment,
+                    'current_outstanding_balance' => $currentOutstandingBalance,
+                    'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
+                    'transaction_code' => $payment->transaction_code,
+                    'narration' => $payment->narration,
+                    'receiptHeader' => $receiptHeader,
+                    'receiptFooter' => $receiptFooter,
+                ];
+            }
+            
+            return view('finance.receipts.bulk-print', [
+                'receipts' => $receiptsData,
+                'school' => $schoolSettings,
+                'branding' => $branding,
+                'receiptHeader' => $receiptHeader,
+                'receiptFooter' => $receiptFooter,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Bulk receipt print failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            return back()->with('error', 'Bulk receipt print failed: ' . $e->getMessage());
         }
     }
 

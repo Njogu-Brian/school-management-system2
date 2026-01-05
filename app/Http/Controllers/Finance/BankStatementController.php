@@ -357,7 +357,7 @@ class BankStatementController extends Controller
     }
 
     /**
-     * View statement PDF
+     * View statement PDF (embedded view page)
      */
     public function viewPdf(BankStatementTransaction $bankStatement)
     {
@@ -365,7 +365,27 @@ class BankStatementController extends Controller
             abort(404, 'Statement file not found');
         }
 
-        $path = Storage::path($bankStatement->statement_file_path);
+        if (!Storage::disk('private')->exists($bankStatement->statement_file_path)) {
+            abort(404, 'Statement file not found');
+        }
+
+        return view('finance.bank-statements.view-pdf', compact('bankStatement'));
+    }
+    
+    /**
+     * Serve PDF file directly
+     */
+    public function servePdf(BankStatementTransaction $bankStatement)
+    {
+        if (!$bankStatement->statement_file_path) {
+            abort(404, 'Statement file not found');
+        }
+
+        if (!Storage::disk('private')->exists($bankStatement->statement_file_path)) {
+            abort(404, 'Statement file not found');
+        }
+
+        $path = Storage::disk('private')->path($bankStatement->statement_file_path);
         
         if (!file_exists($path)) {
             abort(404, 'Statement file not found');
@@ -494,14 +514,126 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Delete transaction (draft only)
+     * Auto-assign unmatched transactions
+     */
+    public function autoAssign(Request $request)
+    {
+        $validated = $request->validate([
+            'transaction_ids' => 'nullable|array',
+            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        ]);
+
+        $query = BankStatementTransaction::where('match_status', 'unmatched')
+            ->where('is_duplicate', false)
+            ->where('is_archived', false);
+
+        if (!empty($validated['transaction_ids'])) {
+            $query->whereIn('id', $validated['transaction_ids']);
+        }
+
+        $transactions = $query->get();
+        $matched = 0;
+        $errors = [];
+
+        foreach ($transactions as $transaction) {
+            try {
+                $result = $this->parser->matchTransaction($transaction);
+                if ($result['matched']) {
+                    $matched++;
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
+            }
+        }
+
+        $message = "Auto-assigned {$matched} out of {$transactions->count()} transactions.";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', $errors);
+        }
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with('success', $message);
+    }
+
+    /**
+     * Reparse/re-analyze statement
+     */
+    public function reparse(BankStatementTransaction $bankStatement)
+    {
+        // Store values before deletion
+        $pdfPath = $bankStatement->statement_file_path;
+        $bankAccountId = $bankStatement->bank_account_id;
+        $bankType = $bankStatement->bank_type;
+
+        DB::transaction(function () use ($bankStatement, $pdfPath, $bankAccountId, $bankType) {
+            // Get all transactions from the same statement file
+            $statementTransactions = BankStatementTransaction::where('statement_file_path', $pdfPath)
+                ->get();
+
+            // Delete all related payments
+            foreach ($statementTransactions as $transaction) {
+                if ($transaction->payment_id) {
+                    $payment = \App\Models\Payment::find($transaction->payment_id);
+                    if ($payment) {
+                        // Delete payment allocations first
+                        \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
+                        // Delete the payment
+                        $payment->delete();
+                    }
+                }
+            }
+
+            // Delete all transactions from this statement
+            BankStatementTransaction::where('statement_file_path', $pdfPath)
+                ->delete();
+
+            // Re-parse the statement
+            $this->parser->parseStatement($pdfPath, $bankAccountId, $bankType);
+        });
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with('success', 'Statement re-analyzed successfully. All previous transactions and payments have been deleted.');
+    }
+
+    /**
+     * Delete statement and all related records
      */
     public function destroy(BankStatementTransaction $bankStatement)
     {
-        if ($bankStatement->isConfirmed()) {
-            return redirect()->back()
-                ->withErrors(['error' => 'Cannot delete confirmed transaction']);
-        }
+        DB::transaction(function () use ($bankStatement) {
+            // Get all transactions from the same statement file
+            $statementTransactions = BankStatementTransaction::where('statement_file_path', $bankStatement->statement_file_path)
+                ->get();
+
+            // Delete all related payments
+            foreach ($statementTransactions as $transaction) {
+                if ($transaction->payment_id) {
+                    $payment = \App\Models\Payment::find($transaction->payment_id);
+                    if ($payment) {
+                        // Delete payment allocations first
+                        \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
+                        // Delete the payment
+                        $payment->delete();
+                    }
+                }
+            }
+
+            // Delete the PDF file
+            if ($bankStatement->statement_file_path && Storage::disk('private')->exists($bankStatement->statement_file_path)) {
+                Storage::disk('private')->delete($bankStatement->statement_file_path);
+            }
+
+            // Delete all transactions from this statement
+            BankStatementTransaction::where('statement_file_path', $bankStatement->statement_file_path)
+                ->delete();
+        });
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with('success', 'Statement and all related records deleted successfully.');
+    }
 
         // Delete statement file if no other transactions reference it
         $otherTransactions = BankStatementTransaction::where('statement_file_path', $bankStatement->statement_file_path)
