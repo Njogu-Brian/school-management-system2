@@ -281,7 +281,17 @@
                         Showing {{ $groupedDiffs->firstItem() }} to {{ $groupedDiffs->lastItem() }} of {{ $groupedDiffs->total() }} students
                     </div>
                     <div>
-                        {{ $groupedDiffs->appends(request()->query())->links() }}
+                        {{ $groupedDiffs->appends(array_filter([
+                            'year' => $filters['year'] ?? null,
+                            'term' => $filters['term'] ?? null,
+                            'votehead_id' => $filters['votehead_id'] ?? null,
+                            'class_id' => $filters['class_id'] ?? null,
+                            'stream_id' => $filters['stream_id'] ?? null,
+                            'student_id' => $filters['student_id'] ?? null,
+                            'student_category_id' => $filters['student_category_id'] ?? null,
+                            'effective_date' => $filters['effective_date'] ?? null,
+                            'per_page' => $perPage,
+                        ]))->links() }}
                     </div>
                 </div>
             </div>

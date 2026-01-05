@@ -62,6 +62,19 @@ class PostingController extends Controller
         // Get paginated student groups
         $paginatedStudents = $groupedByStudent->slice($offset, $perPage);
         
+        // Prepare query parameters for pagination links (include all filter params)
+        $queryParams = array_filter([
+            'year' => $request->input('year'),
+            'term' => $request->input('term'),
+            'votehead_id' => $request->input('votehead_id'),
+            'class_id' => $request->input('class_id'),
+            'stream_id' => $request->input('stream_id'),
+            'student_id' => $request->input('student_id'),
+            'student_category_id' => $request->input('student_category_id'),
+            'effective_date' => $request->input('effective_date'),
+            'per_page' => $perPage,
+        ], fn($value) => $value !== null && $value !== '');
+        
         // Create paginator for students
         $studentsPaginator = new \Illuminate\Pagination\LengthAwarePaginator(
             $paginatedStudents,
@@ -70,7 +83,7 @@ class PostingController extends Controller
             $currentPage,
             [
                 'path' => $request->url(),
-                'query' => $request->query(),
+                'query' => $queryParams,
                 'pageName' => 'page'
             ]
         );

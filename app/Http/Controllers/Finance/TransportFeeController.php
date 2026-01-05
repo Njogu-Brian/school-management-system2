@@ -28,8 +28,7 @@ class TransportFeeController extends Controller
         $students = Student::with(['classroom', 'stream', 'dropOffPoint'])
             ->when($classroomId, fn($q) => $q->where('classroom_id', $classroomId))
             ->where(function ($q) use ($feeStudentIds) {
-                $q->whereNotNull('route_id')
-                    ->orWhereNotNull('drop_off_point_id')
+                $q->whereNotNull('drop_off_point_id')
                     ->orWhereNotNull('trip_id')
                     ->orWhereIn('id', $feeStudentIds);
             })

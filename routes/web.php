@@ -1140,7 +1140,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Posting (Pending → Active)
         Route::prefix('posting')->name('posting.')->group(function(){
             Route::get('/',       [PostingController::class, 'index'])->name('index');
-            Route::post('/preview',[PostingController::class, 'preview'])->name('preview');
+            Route::match(['get', 'post'], '/preview',[PostingController::class, 'preview'])->name('preview');
             Route::post('/commit', [PostingController::class, 'commit'])->name('commit');
             Route::get('/{run}',  [PostingController::class, 'show'])->name('show');
             Route::post('/{run}/reverse', [PostingController::class, 'reverse'])->name('reverse');
