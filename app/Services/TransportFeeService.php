@@ -87,7 +87,8 @@ class TransportFeeService
             $note,
             $year,
             $term,
-            $academicYearId
+            $academicYearId,
+            $skipInvoice
         ) {
             $existing = TransportFee::where('student_id', $studentId)
                 ->where('year', $year)
