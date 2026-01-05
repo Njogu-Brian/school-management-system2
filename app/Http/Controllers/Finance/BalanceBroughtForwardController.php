@@ -101,8 +101,14 @@ class BalanceBroughtForwardController extends Controller
                 return $item['balance_brought_forward'] > 0;
             });
 
+        // Get latest import batch for reversal
+        $latestImport = BalanceBroughtForwardImport::where('is_reversed', false)
+            ->orderBy('created_at', 'desc')
+            ->first();
+
         return view('finance.balance_brought_forward.index', [
             'students' => $students,
+            'latestImport' => $latestImport,
         ]);
     }
 
