@@ -74,14 +74,9 @@
         <input type="hidden" name="student_category_id" value="{{ $filters['student_category_id'] ?? '' }}">
         <input type="hidden" name="effective_date" value="{{ $filters['effective_date'] ?? '' }}">
         
-        @foreach($allDiffs as $index => $diff)
-            <input type="hidden" name="diffs[{{ $index }}][student_id]" value="{{ $diff['student_id'] }}">
-            <input type="hidden" name="diffs[{{ $index }}][votehead_id]" value="{{ $diff['votehead_id'] }}">
-            <input type="hidden" name="diffs[{{ $index }}][old_amount]" value="{{ $diff['old_amount'] ?? 0 }}">
-            <input type="hidden" name="diffs[{{ $index }}][new_amount]" value="{{ $diff['new_amount'] }}">
-            <input type="hidden" name="diffs[{{ $index }}][action]" value="{{ $diff['action'] }}">
-            <input type="hidden" name="diffs[{{ $index }}][origin]" value="{{ $diff['origin'] ?? 'structure' }}">
-        @endforeach
+        {{-- Use JSON encoding to avoid PHP max_input_vars limit (default 1000) --}}
+        {{-- With 930 transactions * 6 fields = 5,580 inputs, which exceeds the limit --}}
+        <input type="hidden" name="diffs_json" value="{{ base64_encode(json_encode($allDiffs->values()->all())) }}">
 
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
             <div class="finance-card-header d-flex justify-content-between align-items-center flex-wrap">

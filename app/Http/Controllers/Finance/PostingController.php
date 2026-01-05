@@ -126,10 +126,16 @@ class PostingController extends Controller
             'year'=>'required|integer', 'term'=>'required|in:1,2,3',
             'activate_now'=>'required|boolean',
             'effective_date'=>'nullable|date',
-            'diffs'=>'required|array', // array of diffs from preview
+            'diffs_json'=>'required|string', // JSON-encoded diffs to avoid max_input_vars limit
         ]);
 
-        $diffs = collect($request->diffs);
+        // Decode JSON-encoded diffs (base64 encoded to avoid issues with special characters)
+        $diffsArray = json_decode(base64_decode($request->diffs_json), true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($diffsArray)) {
+            return back()->with('error', 'Invalid diffs data. Please try the preview again.');
+        }
+        
+        $diffs = collect($diffsArray);
         $run = $this->postingService->commitWithTracking(
             $diffs,
             (int)$request->year,
