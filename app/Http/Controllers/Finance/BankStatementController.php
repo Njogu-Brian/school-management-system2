@@ -866,10 +866,10 @@ class BankStatementController extends Controller
 
         // Only process CONFIRMED transactions that need payment creation
         // Exclude rejected transactions - they should never be auto-assigned
-        // Get confirmed transactions that are matched (auto-assigned) OR manual-assigned but payment not created
-        // This includes both single payments (student_id) and shared payments (is_shared)
+        // Get ALL confirmed transactions with student_id or shared allocations, regardless of match_status
+        // This includes: matched, manual, multiple_matches, draft (low confidence), and unmatched
+        // As long as they have a student_id or are shared, they can be processed
         $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
-            ->whereIn('match_status', ['matched', 'manual']) // Include both auto-assigned and manual-assigned
             ->where('is_duplicate', false)
             ->where('is_archived', false)
             ->where('payment_created', false)
@@ -1035,8 +1035,8 @@ class BankStatementController extends Controller
                           ->orWhere('match_notes', 'NOT LIKE', '%MANUALLY_REJECTED%');
                 });
             
+            // Get ALL confirmed transactions with student_id or shared allocations, regardless of match_status
             $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
-                ->whereIn('match_status', ['matched', 'manual'])
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('payment_created', false)
@@ -1090,14 +1090,15 @@ class BankStatementController extends Controller
 
         // Process confirmed matched transactions - CREATE PAYMENTS ONLY (do not confirm)
         // This includes both single payments and shared payments (siblings)
+        // Process ALL confirmed transactions with student_id or shared allocations, regardless of match_status
         // For bulk operations, create all payments first without allocations/notifications
         foreach ($matchedTransactions as $transaction) {
             try {
-                // Only create payment if transaction is confirmed and matched (auto or manual)
-                // Handle both single payments and shared payments
+                // Process ALL confirmed transactions that have a student or are shared
+                // This includes: matched, manual, multiple_matches, draft, and unmatched (if they have student_id)
                 if ($transaction->status === 'confirmed' && 
-                    in_array($transaction->match_status, ['matched', 'manual']) && 
-                    !$transaction->payment_created) {
+                    !$transaction->payment_created &&
+                    ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations))) {
                     
                     // For shared transactions, check if is_shared and has allocations
                     if ($transaction->is_shared && $transaction->shared_allocations) {
@@ -1241,11 +1242,18 @@ class BankStatementController extends Controller
                     
                     // Send notifications (can be slow, but we continue even if it fails)
                     try {
+                        // Refresh payment to ensure we have latest data
+                        $payment->refresh();
                         $paymentController->sendPaymentNotifications($payment);
-                    } catch (\Exception $e) {
-                        Log::warning('Payment notification failed', [
+                        \Log::info('Payment notification sent successfully', [
                             'payment_id' => $payment->id,
-                            'error' => $e->getMessage()
+                            'receipt_number' => $payment->receipt_number,
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error('Payment notification failed', [
+                            'payment_id' => $payment->id,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString()
                         ]);
                         // Continue processing other payments even if notification fails
                     }
@@ -1277,7 +1285,7 @@ class BankStatementController extends Controller
                 $message .= "{$paymentsCreated} payment(s) created, receipts generated, and notifications sent.";
             }
         } else {
-            $message .= "No payments created. Ensure transactions are confirmed and matched first.";
+            $message .= "No payments created. Ensure transactions are confirmed and have a student assigned or are shared.";
         }
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5)); // Limit error display

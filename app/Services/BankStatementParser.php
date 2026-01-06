@@ -1254,10 +1254,12 @@ class BankStatementParser
             }
             
             // Update transaction with first payment ID (for reference) and mark as collected
+            // Also update match_status to 'manual' since it's been confirmed and collected
             $transaction->update([
                 'payment_id' => $payments[0]->id,
                 'payment_created' => true,
                 'status' => 'confirmed', // Ensure it's confirmed when payment is created
+                'match_status' => 'manual', // Update match_status to manual when collected
             ]);
             
             return $payments[0];
@@ -1267,10 +1269,12 @@ class BankStatementParser
             $payment = $this->createSinglePayment($transaction, $student, $transaction->amount, null, $skipAllocation);
             
             // Mark transaction as collected (payment created)
+            // Also update match_status to 'manual' since it's been confirmed and collected
             $transaction->update([
                 'payment_id' => $payment->id,
                 'payment_created' => true,
                 'status' => 'confirmed', // Ensure it's confirmed when payment is created
+                'match_status' => 'manual', // Update match_status to manual when collected
             ]);
             
             return $payment;
