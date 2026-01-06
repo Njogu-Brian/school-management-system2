@@ -427,9 +427,13 @@
                         </form>
                     @elseif($bankStatement->status == 'confirmed' && $bankStatement->payment)
                         <!-- Actions for confirmed transactions with payments -->
-                        <a href="{{ route('finance.payments.reverse', $bankStatement->payment) }}" class="btn btn-finance btn-finance-warning w-100 mb-2" onclick="return confirm('Reverse this payment? This will undo all allocations and mark the payment as reversed.')">
-                            <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
-                        </a>
+                        <form action="{{ route('finance.payments.reverse', $bankStatement->payment) }}" method="POST" class="d-inline w-100 mb-2" onsubmit="return confirm('Reverse this payment? This will undo all allocations and mark the payment as reversed.');">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-finance btn-finance-warning w-100">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
+                            </button>
+                        </form>
                         
                         <a href="{{ route('finance.payments.show', $bankStatement->payment) }}?action=transfer" class="btn btn-finance btn-finance-info w-100 mb-2">
                             <i class="bi bi-arrow-right-circle"></i> Transfer Payment

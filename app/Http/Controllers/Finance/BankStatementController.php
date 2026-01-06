@@ -1063,19 +1063,30 @@ class BankStatementController extends Controller
         foreach ($unmatchedTransactions as $transaction) {
             try {
                 $result = $this->parser->matchTransaction($transaction);
+                $transaction->refresh(); // Refresh to get updated match_status and student_id
+                
                 if ($result['matched']) {
                     $matched++;
-                    $transaction->refresh();
                     
                     // If now matched (auto or manual), add to matched transactions list for payment creation
                     if (in_array($transaction->match_status, ['matched', 'manual']) && $transaction->student_id) {
-                        $matchedTransactions->push($transaction);
+                        // Check if not already in the collection to avoid duplicates
+                        if (!$matchedTransactions->contains('id', $transaction->id)) {
+                            $matchedTransactions->push($transaction);
+                        }
                     }
                 }
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
+                \Log::error('Failed to match transaction in auto-assign', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
+        
+        // Refresh the matched transactions collection to ensure we have the latest data
+        $matchedTransactions = $matchedTransactions->unique('id');
 
         // Process confirmed matched transactions - CREATE PAYMENTS ONLY (do not confirm)
         // This includes both single payments and shared payments (siblings)
