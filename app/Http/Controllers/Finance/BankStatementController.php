@@ -40,11 +40,13 @@ class BankStatementController extends Controller
             case 'auto-assigned':
                 $query->where('match_status', 'matched')
                       ->where('match_confidence', '>=', 0.85)
+                      ->where('payment_created', false) // Exclude collected transactions
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
             case 'manual-assigned':
                 $query->where('match_status', 'manual')
+                      ->where('payment_created', false) // Exclude collected transactions
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
@@ -141,10 +143,12 @@ class BankStatementController extends Controller
             'all' => BankStatementTransaction::where('is_archived', false)->count(),
             'auto-assigned' => BankStatementTransaction::where('match_status', 'matched')
                 ->where('match_confidence', '>=', 0.85)
+                ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
             'manual-assigned' => BankStatementTransaction::where('match_status', 'manual')
+                ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
