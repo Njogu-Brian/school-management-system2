@@ -211,13 +211,16 @@ class FeePostingService
                 $invoice = InvoiceService::ensure($diff['student_id'], $year, $term);
                 // Note: Balance brought forward is automatically added in InvoiceService::ensure() for first term of 2026
                 
-                // Check if item already exists to preserve credit notes
-                // Exclude transport and balance brought forward items
+                // Check if item already exists (check ALL sources first to avoid unique constraint violation)
+                // The unique constraint is on invoice_id + votehead_id, so we need to check all items
                 $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
                     ->where('votehead_id', $diff['votehead_id'])
-                    ->where('source', '!=', 'transport')
-                    ->where('source', '!=', 'balance_brought_forward')
                     ->first();
+                
+                // Skip if item exists and is transport or balance brought forward (these are managed separately)
+                if ($existingItem && ($existingItem->source === 'transport' || $existingItem->source === 'balance_brought_forward')) {
+                    continue; // Skip this item - it's managed separately
+                }
                 
                 // Get existing credit/debit notes if item exists
                 $existingCreditNotes = 0;
@@ -236,18 +239,53 @@ class FeePostingService
                 // This allows proper comparison in future postings
                 $originalAmount = $newFeeStructureAmount;
                 
-                $item = InvoiceItem::updateOrCreate(
-                    ['invoice_id' => $invoice->id, 'votehead_id' => $diff['votehead_id']],
-                    [
-                        'amount' => $finalAmount, // Set to fee structure amount minus credit notes
-                        'original_amount' => $originalAmount, // Store current fee structure amount (before credit notes)
-                        'status' => $activateNow ? 'active' : 'pending',
-                        'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
-                        'source' => $diff['origin'] ?? 'structure',
-                        'posting_run_id' => $run->id,
-                        'posted_at' => now(),
-                    ]
-                );
+                // Use updateOrCreate with proper error handling for race conditions
+                try {
+                    $item = InvoiceItem::updateOrCreate(
+                        ['invoice_id' => $invoice->id, 'votehead_id' => $diff['votehead_id']],
+                        [
+                            'amount' => $finalAmount, // Set to fee structure amount minus credit notes
+                            'original_amount' => $originalAmount, // Store current fee structure amount (before credit notes)
+                            'status' => $activateNow ? 'active' : 'pending',
+                            'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
+                            'source' => $diff['origin'] ?? 'structure',
+                            'posting_run_id' => $run->id,
+                            'posted_at' => now(),
+                        ]
+                    );
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // Handle unique constraint violation (race condition)
+                    if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry') || str_contains($e->getMessage(), 'unique_invoice_votehead')) {
+                        // Another request created the item, fetch it
+                        $item = InvoiceItem::where('invoice_id', $invoice->id)
+                            ->where('votehead_id', $diff['votehead_id'])
+                            ->first();
+                        
+                        if (!$item) {
+                            // Item still not found, log and skip
+                            \Log::warning("Invoice item not found after unique constraint violation", [
+                                'invoice_id' => $invoice->id,
+                                'votehead_id' => $diff['votehead_id'],
+                                'error' => $e->getMessage()
+                            ]);
+                            continue;
+                        }
+                        
+                        // Update the existing item
+                        $item->update([
+                            'amount' => $finalAmount,
+                            'original_amount' => $originalAmount,
+                            'status' => $activateNow ? 'active' : 'pending',
+                            'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
+                            'source' => $diff['origin'] ?? 'structure',
+                            'posting_run_id' => $run->id,
+                            'posted_at' => now(),
+                        ]);
+                    } else {
+                        // Re-throw if it's not a unique constraint violation
+                        throw $e;
+                    }
+                }
                 
                 // Create diff record
                 PostingDiff::create([
