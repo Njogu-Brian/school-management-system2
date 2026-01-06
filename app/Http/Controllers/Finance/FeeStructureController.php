@@ -203,14 +203,17 @@ class FeeStructureController extends Controller
         }
 
         try {
+            // Always use the source structure's student category to ensure replication within same category
+            // Ignore any category provided in the request to prevent cross-category replication
             $replicated = $source->replicateTo(
                 $request->target_classroom_ids,
                 $request->academic_year_id,
                 $request->term_id,
-                $request->student_category_id
+                $source->student_category_id // Always use source structure's category
             );
 
-            return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s).");
+            $categoryName = $source->studentCategory ? $source->studentCategory->name : 'General';
+            return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s) for category: {$categoryName}.");
         } catch (\Exception $e) {
             \Log::error('Fee structure replication failed', [
                 'error' => $e->getMessage(),
