@@ -1291,6 +1291,7 @@ class BankStatementParser
         
         // If using reference number, check if payment with this code already exists
         if ($transaction->reference_number) {
+            // First check for exact match (same student, amount, date)
             $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
                 ->where('student_id', $student->id)
                 ->where('amount', $amount)
@@ -1313,14 +1314,30 @@ class BankStatementParser
                 return $existingPayment;
             }
             
-            // Check if transaction code is already used by another payment (different student/amount)
-            $codeExists = \App\Models\Payment::where('transaction_code', $transaction->reference_number)->exists();
+            // Check if transaction code (original or modified) is already used
+            $originalCode = $transaction->reference_number;
+            $modifiedCode = $originalCode . '-' . $transaction->id;
+            
+            // Check both original and modified codes
+            $codeExists = \App\Models\Payment::whereIn('transaction_code', [$originalCode, $modifiedCode])->exists();
+            
             if ($codeExists) {
-                // Generate a unique transaction code by appending transaction ID
-                $transactionCode = $transaction->reference_number . '-' . $transaction->id;
+                // Generate a unique transaction code by appending transaction ID and timestamp
+                $uniqueSuffix = $transaction->id . '-' . time();
+                $transactionCode = $originalCode . '-' . $uniqueSuffix;
+                
+                // Double-check the new code doesn't exist (very unlikely but possible)
+                $maxAttempts = 5;
+                $attempt = 0;
+                while (\App\Models\Payment::where('transaction_code', $transactionCode)->exists() && $attempt < $maxAttempts) {
+                    $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+                    $transactionCode = $originalCode . '-' . $uniqueSuffix;
+                    $attempt++;
+                    usleep(10000); // 0.01 seconds
+                }
                 
                 Log::warning('Transaction code already exists, using modified code', [
-                    'original_code' => $transaction->reference_number,
+                    'original_code' => $originalCode,
                     'new_code' => $transactionCode,
                     'transaction_id' => $transaction->id,
                 ]);
@@ -1368,13 +1385,34 @@ class BankStatementParser
             }
         }
         
+        // Final check: ensure transaction code is truly unique before creating
+        $finalTransactionCode = $transactionCode;
+        $maxCodeAttempts = 10;
+        $codeAttempt = 0;
+        while (\App\Models\Payment::where('transaction_code', $finalTransactionCode)->exists() && $codeAttempt < $maxCodeAttempts) {
+            $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+            $finalTransactionCode = ($transaction->reference_number ?? 'TXN') . '-' . $uniqueSuffix;
+            $codeAttempt++;
+            usleep(10000); // 0.01 seconds
+        }
+        
+        if ($codeAttempt >= $maxCodeAttempts) {
+            // Last resort: use a completely unique code
+            $finalTransactionCode = 'TXN-' . $transaction->id . '-' . time() . '-' . uniqid();
+            \Log::error('Failed to generate unique transaction code after max attempts', [
+                'transaction_id' => $transaction->id,
+                'original_code' => $transactionCode,
+                'final_code' => $finalTransactionCode,
+            ]);
+        }
+        
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
             'family_id' => $student->family_id,
             'amount' => $amount,
             'payment_method_id' => $paymentMethod->id,
             'payment_method' => $paymentMethodName,
-            'transaction_code' => $transactionCode,
+            'transaction_code' => $finalTransactionCode,
             'receipt_number' => $finalReceiptNumber,
             'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
             'payer_type' => 'parent',
