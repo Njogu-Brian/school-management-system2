@@ -33,15 +33,32 @@
                 <h3 class="mb-0 d-flex align-items-center gap-2">
                     <i class="bi bi-receipt"></i> Receipt: {{ $payment->receipt_number }}
                 </h3>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
                     @php
                         $family = $payment->student->family ?? null;
                         $updateLink = $family->updateLink ?? null;
                     @endphp
                     @if($updateLink && $updateLink->is_active)
-                        <a href="{{ route('family-update.form', $updateLink->token) }}" target="_blank" class="btn btn-finance btn-finance-info">
-                            <i class="bi bi-person-gear"></i> Update Profile
-                        </a>
+                        <div class="d-flex flex-column align-items-end me-2" style="position: relative;">
+                            <a href="{{ route('family-update.form', $updateLink->token) }}" 
+                               target="_blank" 
+                               class="btn btn-finance btn-finance-info position-relative"
+                               style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                                      border: none; 
+                                      color: white; 
+                                      font-weight: 600; 
+                                      padding: 10px 20px; 
+                                      border-radius: 8px; 
+                                      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                                      transition: all 0.3s ease;"
+                               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)';"
+                               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)';">
+                                <i class="bi bi-person-gear me-2"></i> Update Profile
+                            </a>
+                            <small class="text-muted mt-1" style="font-size: 11px; white-space: nowrap; text-align: right;">
+                                Update student biodata in the system
+                            </small>
+                        </div>
                     @endif
                     <a href="{{ route('finance.payments.receipt', $payment) }}" target="_blank" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-download"></i> Download PDF
