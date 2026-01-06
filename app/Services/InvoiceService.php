@@ -12,6 +12,7 @@ class InvoiceService
 {
     /**
      * Ensure invoice exists for student/year/term
+     * Handles race conditions by catching unique constraint violations
      */
     public static function ensure(int $studentId, int $year, int $term): Invoice
     {
@@ -23,13 +24,43 @@ class InvoiceService
             ->where('name', 'like', "%Term {$term}%")
             ->first();
         
-        $invoice = Invoice::firstOrCreate(
-            [
+        // First, try to find existing invoice (including soft deleted ones)
+        $invoice = Invoice::withTrashed()
+            ->where('student_id', $studentId)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
+        
+        // If found and soft deleted, restore it
+        if ($invoice && $invoice->trashed()) {
+            $invoice->restore();
+            // Update the invoice with current data
+            $invoice->update([
+                'family_id' => $student->family_id,
+                'academic_year_id' => $academicYear->id ?? $invoice->academic_year_id,
+                'term_id' => $termModel->id ?? $invoice->term_id,
+            ]);
+            return $invoice;
+        }
+        
+        // If found and not deleted, return it
+        if ($invoice && !$invoice->trashed()) {
+            // Update academic_year_id and term_id if they're null (for legacy invoices)
+            if (!$invoice->academic_year_id && $academicYear) {
+                $invoice->update(['academic_year_id' => $academicYear->id]);
+            }
+            if (!$invoice->term_id && $termModel) {
+                $invoice->update(['term_id' => $termModel->id]);
+            }
+            return $invoice;
+        }
+        
+        // Try to create new invoice, handling race conditions
+        try {
+            $invoice = Invoice::create([
                 'student_id' => $studentId,
                 'year' => $year, // Keep for backward compatibility
                 'term' => $term, // Keep for backward compatibility
-            ],
-            [
                 'family_id' => $student->family_id,
                 'academic_year_id' => $academicYear->id ?? null,
                 'term_id' => $termModel->id ?? null,
@@ -39,16 +70,38 @@ class InvoiceService
                 'balance' => 0,
                 'status' => 'unpaid',
                 'issued_date' => now(),
-            ]
-        );
-        
-        // Add balance brought forward for first term of 2026 (only if invoice was just created)
-        // For existing invoices, balance brought forward should already be there if it was added
-        if ($invoice->wasRecentlyCreated && $year >= 2026 && $term == 1) {
-            self::addBalanceBroughtForward($invoice, $student);
+            ]);
+            
+            // Add balance brought forward for first term of 2026 (only if invoice was just created)
+            if ($year >= 2026 && $term == 1) {
+                self::addBalanceBroughtForward($invoice, $student);
+            }
+            
+            return $invoice;
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle unique constraint violation (race condition)
+            if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry')) {
+                // Another request created the invoice, fetch it
+                $invoice = Invoice::where('student_id', $studentId)
+                    ->where('year', $year)
+                    ->where('term', $term)
+                    ->first();
+                
+                if ($invoice) {
+                    // Update academic_year_id and term_id if they're null
+                    if (!$invoice->academic_year_id && $academicYear) {
+                        $invoice->update(['academic_year_id' => $academicYear->id]);
+                    }
+                    if (!$invoice->term_id && $termModel) {
+                        $invoice->update(['term_id' => $termModel->id]);
+                    }
+                    return $invoice;
+                }
+            }
+            
+            // Re-throw if it's not a unique constraint violation
+            throw $e;
         }
-        
-        return $invoice;
     }
     
     /**

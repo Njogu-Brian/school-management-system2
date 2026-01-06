@@ -486,6 +486,9 @@ class FeePostingService
             throw new \Exception('This posting run cannot be reversed. It may already be reversed, not completed, or not a commit run.');
         }
         
+        // Ensure relationships are loaded
+        $run->load(['academicYear', 'term']);
+        
         // Get the student
         $student = Student::findOrFail($studentId);
         
@@ -501,14 +504,28 @@ class FeePostingService
             }
             
             // Check if student has already been reversed (items no longer linked to this run)
-            $existingItems = InvoiceItem::whereHas('invoice', function($q) use ($student) {
+            // Use a more flexible check - look for items that exist and are linked to this run
+            $existingItems = InvoiceItem::whereHas('invoice', function($q) use ($student, $run) {
                 $q->where('student_id', $student->id);
+                // Match by academic year and term
+                if ($run->academicYear) {
+                    $q->where(function($query) use ($run) {
+                        $query->where('academic_year_id', $run->academic_year_id)
+                              ->orWhere('year', $run->academicYear->year);
+                    });
+                }
+                if ($run->term) {
+                    $q->where(function($query) use ($run) {
+                        $query->where('term_id', $run->term_id)
+                              ->orWhere('term', $run->term->term);
+                    });
+                }
             })
             ->where('posting_run_id', $run->id)
             ->count();
             
             if ($existingItems === 0) {
-                throw new \Exception("Student {$student->first_name} {$student->last_name} has already been reversed for this posting run.");
+                throw new \Exception("Student {$student->first_name} {$student->last_name} has already been reversed for this posting run, or no items were found linked to this run.");
             }
             
             // Collect invoice IDs and payment IDs for recalculation
@@ -518,32 +535,59 @@ class FeePostingService
             $itemsDeleted = 0;
             $itemsRestored = 0;
             
+            // First, get all invoice items for this student that are linked to this posting run
+            // This is more reliable than relying on diffs
+            $studentInvoice = Invoice::where('student_id', $student->id)
+                ->where(function($q) use ($run) {
+                    if ($run->academicYear) {
+                        $q->where(function($query) use ($run) {
+                            $query->where('academic_year_id', $run->academic_year_id)
+                                  ->orWhere('year', $run->academicYear->year);
+                        });
+                    }
+                    if ($run->term) {
+                        $q->where(function($query) use ($run) {
+                            $query->where('term_id', $run->term_id)
+                                  ->orWhere('term', $run->term->term);
+                        });
+                    }
+                })
+                ->first();
+            
+            if (!$studentInvoice) {
+                throw new \Exception("No invoice found for student {$student->first_name} {$student->last_name} for the academic year and term of this posting run.");
+            }
+            
+            // Get all items linked to this posting run for this student
+            $studentItems = InvoiceItem::with(['allocations', 'invoice'])
+                ->where('invoice_id', $studentInvoice->id)
+                ->where('posting_run_id', $run->id)
+                ->get()
+                ->keyBy('votehead_id'); // Key by votehead_id for easy lookup
+            
             // Process each diff
             foreach ($studentDiffs as $diff) {
                 $invoiceItem = null;
                 
-                // Get the invoice item if it exists
-                if ($diff->invoice_item_id) {
+                // First, try to find by votehead_id from our pre-loaded items
+                if ($diff->votehead_id && isset($studentItems[$diff->votehead_id])) {
+                    $invoiceItem = $studentItems[$diff->votehead_id];
+                }
+                
+                // If not found, try by invoice_item_id from diff
+                if (!$invoiceItem && $diff->invoice_item_id) {
                     $invoiceItem = InvoiceItem::with(['allocations', 'invoice'])
                         ->where('id', $diff->invoice_item_id)
-                        ->where('posting_run_id', $run->id) // Ensure it belongs to this run
+                        ->where('posting_run_id', $run->id)
                         ->first();
                 }
                 
-                // If no invoice item found by ID, try to find by student, votehead, and posting run
+                // If still not found, try without posting_run_id check (in case it wasn't set properly)
                 if (!$invoiceItem && $diff->votehead_id) {
-                    $invoice = Invoice::where('student_id', $student->id)
-                        ->where('year', $run->academicYear->year ?? null)
-                        ->where('term', $run->term->term ?? null)
+                    $invoiceItem = InvoiceItem::with(['allocations', 'invoice'])
+                        ->where('invoice_id', $studentInvoice->id)
+                        ->where('votehead_id', $diff->votehead_id)
                         ->first();
-                    
-                    if ($invoice) {
-                        $invoiceItem = InvoiceItem::with(['allocations', 'invoice'])
-                            ->where('invoice_id', $invoice->id)
-                            ->where('votehead_id', $diff->votehead_id)
-                            ->where('posting_run_id', $run->id)
-                            ->first();
-                    }
                 }
                 
                 if (!$invoiceItem) {
@@ -551,9 +595,34 @@ class FeePostingService
                     // For "removed" actions, we skip restoration (too complex without full context)
                     // For other actions, log a warning but continue
                     if ($diff->action !== 'removed') {
-                        \Log::warning("Invoice item not found for diff #{$diff->id} in posting run #{$run->id}");
+                        \Log::warning("Invoice item not found for diff #{$diff->id} (votehead_id: {$diff->votehead_id}) in posting run #{$run->id} for student {$student->id}");
                     }
                     continue;
+                }
+                
+                // Double-check that this item belongs to this posting run
+                // If it doesn't have posting_run_id set, set it now (for consistency)
+                if ($invoiceItem->posting_run_id !== $run->id) {
+                    // Only process if the action was "added" (new item) or if we're sure it's from this run
+                    $shouldProcess = false;
+                    if ($diff->action === 'added') {
+                        $shouldProcess = true;
+                    } elseif ($invoiceItem->posted_at && $run->posted_at) {
+                        // Check if posted on the same day (within reasonable time window)
+                        $shouldProcess = $invoiceItem->posted_at->isSameDay($run->posted_at);
+                    } elseif ($diff->action !== 'removed') {
+                        // For other actions, if no posting_run_id is set, assume it's from this run
+                        // This handles legacy items or items that weren't properly linked
+                        $shouldProcess = true;
+                    }
+                    
+                    if ($shouldProcess) {
+                        $invoiceItem->update(['posting_run_id' => $run->id]);
+                    } else {
+                        // Skip this item - it might be from a different posting run
+                        \Log::info("Skipping item #{$invoiceItem->id} for diff #{$diff->id} - doesn't match posting run");
+                        continue;
+                    }
                 }
                 
                 // Store invoice ID
@@ -635,9 +704,14 @@ class FeePostingService
                     'action' => 'reversed',
                     'old_amount' => $diff->new_amount, // Current amount (after posting)
                     'new_amount' => $diff->old_amount, // Restored to old amount
-                    'invoice_item_id' => $diff->invoice_item_id,
+                    'invoice_item_id' => $invoiceItem->id, // Use the actual item ID we found
                     'source' => $diff->source ?? 'structure',
                 ]);
+            }
+            
+            // If no items were processed, throw an error
+            if ($itemsProcessed === 0) {
+                throw new \Exception("No invoice items were found to reverse for student {$student->first_name} {$student->last_name}. The items may have already been reversed or deleted.");
             }
             
             // Update payment allocation totals for affected payments
@@ -1081,4 +1155,5 @@ class FeePostingService
         });
     }
 }
+
 
