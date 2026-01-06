@@ -50,9 +50,13 @@ class FeePostingService
             // AND they're not in the proposed items from fee structure
             // Items with other sources (optional, manual, journal) are managed separately
             // BUT if they're also in the fee structure, they should be updated to match, not removed
+            // CRITICAL: Respect votehead types - once_annually fees already charged this year should not be removed
             foreach ($existingItems as $existing) {
                 $source = $existing['source'] ?? 'structure';
                 $voteheadId = $existing['votehead_id'];
+                
+                // Get the votehead to check its charge type
+                $votehead = \App\Models\Votehead::find($voteheadId);
                 
                 // Check if this votehead is in the proposed items (from fee structure)
                 $proposedItem = $proposedItems->firstWhere('votehead_id', $voteheadId);
@@ -64,6 +68,25 @@ class FeePostingService
                     // The item exists and is also in fee structure - it will be handled by the diff calculation above
                     // No need to mark as removed
                     continue;
+                }
+                
+                // CRITICAL: For once_annually voteheads, if already charged this year, don't remove them
+                // They should remain even if not in current term's fee structure proposal
+                // This is because once_annually fees are charged once per year, not per term
+                if ($votehead && $votehead->charge_type === 'once_annually') {
+                    // Check if this votehead exists in any invoice for this student and year
+                    // If it exists, it means it was already charged this year, so don't remove it
+                    $existsThisYear = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($student, $year) {
+                        $q->where('student_id', $student->id)->where('year', $year);
+                    })
+                    ->where('votehead_id', $voteheadId)
+                    ->where('status', 'active')
+                    ->exists();
+                    
+                    // If it exists for this year, don't remove it - once_annually fees persist throughout the year
+                    if ($existsThisYear) {
+                        continue; // Don't remove once_annually fees that exist for this year
+                    }
                 }
                 
                 // Skip items that are not from fee structure - they're managed separately
@@ -79,6 +102,7 @@ class FeePostingService
                 // Only mark as removed if:
                 // 1. It came from fee structure (source='structure')
                 // 2. It's not in the proposed items (not in current fee structure)
+                // 3. It's not a once_annually fee already charged this year (handled above)
                 $diffs->push([
                     'action' => 'removed',
                     'student_id' => $student->id,
@@ -527,8 +551,9 @@ class FeePostingService
     }
     
     /**
-     * Get the original amount before credit/debit notes were applied
+     * Get the original amount before credit/debit notes and discounts were applied
      * This is used to properly compare with new fee structure amounts
+     * We ignore discounts and credit notes when comparing with fee structure
      */
     private function getOriginalAmountBeforeNotes(InvoiceItem $item): float
     {
@@ -538,9 +563,11 @@ class FeePostingService
         }
         
         // Otherwise, calculate by adding back credit notes and subtracting debit notes
+        // Also add back discount_amount since we want to compare base fee structure amounts
         $creditNotesTotal = $item->creditNotes()->sum('amount');
         $debitNotesTotal = $item->debitNotes()->sum('amount');
-        $originalAmount = (float)$item->amount + (float)$creditNotesTotal - (float)$debitNotesTotal;
+        $discountAmount = (float)($item->discount_amount ?? 0);
+        $originalAmount = (float)$item->amount + (float)$creditNotesTotal - (float)$debitNotesTotal + $discountAmount;
         
         return max(0, $originalAmount); // Ensure non-negative
     }
