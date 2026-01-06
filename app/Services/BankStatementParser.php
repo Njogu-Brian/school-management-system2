@@ -245,6 +245,7 @@ class BankStatementParser
                     'matched_value' => $studentName,
                 ];
             }
+            }
         }
         
         // Try to match by partial phone number (first 3 and last 3 digits)
