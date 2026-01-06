@@ -23,7 +23,7 @@ class ResetFinancialData extends Command
      *
      * @var string
      */
-    protected $description = 'DANGER: Delete all invoices, payments, bank statements, imports, transport fees, and related data. Resets auto-increment IDs. Preserves legacy imports and balance brought forward.';
+    protected $description = 'DANGER: Delete all invoices, payments, transport fees, optional fees, credit notes, and fee postings. Resets auto-increment IDs. Preserves bank statements, student assignments, legacy imports, and balance brought forward.';
 
     /**
      * Execute the console command.
@@ -35,13 +35,16 @@ class ResetFinancialData extends Command
             $this->warn('This includes:');
             $this->line('  - All invoices and invoice items');
             $this->line('  - All payments and payment allocations');
-            $this->line('  - All bank statement transactions and PDF files');
             $this->line('  - All transport fees and imports');
-            $this->line('  - All drop-off points and assignments');
+            $this->line('  - All optional fees and imports');
             $this->line('  - All credit/debit notes');
+            $this->line('  - All fee posting runs and diffs');
             $this->line('  - Auto-increment IDs will be reset');
             $this->newLine();
-            $this->info('Note: Legacy imports and balance brought forward data will be RETAINED');
+            $this->info('Note: The following will be RETAINED:');
+            $this->line('  ✓ Bank statement transactions and PDF files');
+            $this->line('  ✓ Student transport assignments');
+            $this->line('  ✓ Legacy imports and balance brought forward data');
             $this->newLine();
 
             if (!$this->confirm('Are you ABSOLUTELY SURE you want to continue?', false)) {
@@ -69,41 +72,12 @@ class ResetFinancialData extends Command
             // Note: TRUNCATE auto-commits, so we don't use transactions
             DB::statement('SET FOREIGN_KEY_CHECKS=0;');
 
-            // 1. Delete bank statement transactions first (they reference payments)
-            $this->info('Deleting bank statement transactions...');
-            if (Schema::hasTable('bank_statement_transactions')) {
-                // Get unique statement file paths before deletion for file cleanup
-                $statementFilePaths = DB::table('bank_statement_transactions')
-                    ->whereNotNull('statement_file_path')
-                    ->distinct()
-                    ->pluck('statement_file_path')
-                    ->filter()
-                    ->unique()
-                    ->toArray();
-                
-                $count = DB::table('bank_statement_transactions')->count();
-                DB::table('bank_statement_transactions')->truncate();
-                $this->line("  ✓ Deleted {$count} bank statement transactions");
-                
-                // Delete bank statement PDF files from storage
-                if (!empty($statementFilePaths)) {
-                    $this->info('Deleting bank statement PDF files...');
-                    $deletedFiles = 0;
-                    foreach ($statementFilePaths as $filePath) {
-                        try {
-                            if (Storage::disk('private')->exists($filePath)) {
-                                Storage::disk('private')->delete($filePath);
-                                $deletedFiles++;
-                            }
-                        } catch (\Exception $e) {
-                            $this->warn("  ⚠ Could not delete file {$filePath}: " . $e->getMessage());
-                        }
-                    }
-                    $this->line("  ✓ Deleted {$deletedFiles} bank statement PDF files");
-                }
-            } else {
-                $this->line("  ⚠ bank_statement_transactions table does not exist");
-            }
+            // 1. Keep bank statement transactions - NOT DELETED
+            $this->info('Keeping bank statement transactions...');
+            $count = Schema::hasTable('bank_statement_transactions') 
+                ? DB::table('bank_statement_transactions')->count() 
+                : 0;
+            $this->line("  ✓ Retained {$count} bank statement transactions");
 
             // 2. Delete payment allocations (they reference payments and invoice items)
             $this->info('Deleting payment allocations...');
@@ -147,26 +121,40 @@ class ResetFinancialData extends Command
             DB::table('invoices')->truncate();
             $this->line("  ✓ Deleted {$count} invoices");
 
-            // 10. Keep legacy import data (lines, terms, batches) and balance brought forward - NOT DELETED
+            // 10. Delete optional fee imports
+            if (Schema::hasTable('optional_fee_imports')) {
+                $this->info('Deleting optional fee imports...');
+                $count = DB::table('optional_fee_imports')->count();
+                DB::table('optional_fee_imports')->truncate();
+                $this->line("  ✓ Deleted {$count} optional fee imports");
+            }
+
+            // 11. Delete optional fees
+            $this->info('Deleting optional fees...');
+            $count = DB::table('optional_fees')->count();
+            DB::table('optional_fees')->truncate();
+            $this->line("  ✓ Deleted {$count} optional fees");
+
+            // 12. Keep legacy import data (lines, terms, batches) and balance brought forward - NOT DELETED
             $this->info('Keeping legacy imports and balance brought forward data...');
             $this->line("  ✓ Legacy statement lines retained");
             $this->line("  ✓ Legacy statement terms retained");
             $this->line("  ✓ Legacy import batches retained");
             $this->line("  ✓ Balance brought forward data retained");
 
-            // 11. Delete transport fee revisions
+            // 13. Delete transport fee revisions
             $this->info('Deleting transport fee revisions...');
             $count = DB::table('transport_fee_revisions')->count();
             DB::table('transport_fee_revisions')->truncate();
             $this->line("  ✓ Deleted {$count} transport fee revisions");
 
-            // 12. Delete transport fees
+            // 14. Delete transport fees
             $this->info('Deleting transport fees...');
             $count = DB::table('transport_fees')->count();
             DB::table('transport_fees')->truncate();
             $this->line("  ✓ Deleted {$count} transport fees");
 
-            // 13. Delete transport fee imports
+            // 15. Delete transport fee imports
             if (Schema::hasTable('transport_fee_imports')) {
                 $this->info('Deleting transport fee imports...');
                 $count = DB::table('transport_fee_imports')->count();
@@ -174,34 +162,14 @@ class ResetFinancialData extends Command
                 $this->line("  ✓ Deleted {$count} transport fee imports");
             }
 
-            // 14. Delete student assignments (they reference drop-off points)
-            $this->info('Deleting student transport assignments...');
-            $count = DB::table('student_assignments')->count();
-            DB::table('student_assignments')->truncate();
-            $this->line("  ✓ Deleted {$count} student assignments");
+            // 16. Keep student assignments - NOT DELETED
+            $this->info('Keeping student transport assignments...');
+            $count = Schema::hasTable('student_assignments') 
+                ? DB::table('student_assignments')->count() 
+                : 0;
+            $this->line("  ✓ Retained {$count} student assignments");
 
-            // 15. Clear student drop-off point info
-            $this->info('Clearing student drop-off point data...');
-            $count = DB::table('students')
-                ->whereNotNull('drop_off_point_id')
-                ->orWhereNotNull('drop_off_point_other')
-                ->update([
-                    'drop_off_point_id' => null,
-                    'drop_off_point_other' => null,
-                ]);
-            $this->line("  ✓ Cleared drop-off point data for {$count} students");
-
-            // 16. Delete drop-off points (unless --keep-dropoff flag is used)
-            if (!$this->option('keep-dropoff')) {
-                $this->info('Deleting drop-off points...');
-                $count = DB::table('drop_off_points')->count();
-                DB::table('drop_off_points')->truncate();
-                $this->line("  ✓ Deleted {$count} drop-off points");
-            } else {
-                $this->info('Keeping drop-off points (--keep-dropoff flag used)');
-            }
-
-            // 17. Delete fee posting runs and diffs
+            // 17. Delete fee posting runs and diffs (pending postings)
             if (Schema::hasTable('posting_diffs')) {
                 $this->info('Deleting posting diffs...');
                 $count = DB::table('posting_diffs')->count();
