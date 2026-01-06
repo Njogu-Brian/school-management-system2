@@ -18,10 +18,10 @@ class CommunicationService
         $this->smsService   = $smsService;
     }
 
-    public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null)
+    public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null)
     {
         try {
-            $result = $this->smsService->sendSMS($phone, $message);
+            $result = $this->smsService->sendSMS($phone, $message, $senderId);
 
             // Check for insufficient credits error
             if (isset($result['status']) && $result['status'] === 'error' && isset($result['error_code']) && $result['error_code'] === 'INSUFFICIENT_CREDITS') {

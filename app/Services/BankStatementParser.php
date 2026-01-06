@@ -127,38 +127,101 @@ class BankStatementParser
         $parsedData = $this->parseMpesaPaybillDescription($description);
         
         // Try to match by admission number(s) in description
+        // Admission number matches are 100% confident - if admission number is found, it's a definite match
         $admissionNumbers = $this->extractAdmissionNumbers($description);
-        foreach ($admissionNumbers as $admissionNumber) {
-            $student = Student::where('admission_number', $admissionNumber)->first();
-            if ($student) {
-                $confidence = 0.95;
-                // Increase confidence if parent name also matches
-                if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
-                    $confidence = 0.98;
+        
+        // Also check for admission numbers in the account field (child_admission_numbers)
+        if (!empty($parsedData['child_admission_numbers'])) {
+            $admissionNumbers = array_merge($admissionNumbers, $parsedData['child_admission_numbers']);
+            $admissionNumbers = array_unique($admissionNumbers);
+        }
+        
+        // If multiple admission numbers found, this is likely a sibling payment
+        if (count($admissionNumbers) > 1) {
+            $siblingStudents = [];
+            foreach ($admissionNumbers as $admissionNumber) {
+                $student = $this->findStudentByAdmissionNumber($admissionNumber);
+                if ($student) {
+                    $siblingStudents[] = $student;
                 }
-                // Increase confidence if partial phone matches
-                if ($parsedData['partial_phone'] && $this->matchesPartialPhone($student, $parsedData['partial_phone'])) {
-                    $confidence = min(0.99, $confidence + 0.02);
+            }
+            
+            // If we found multiple siblings, mark this as a shared transaction
+            if (count($siblingStudents) > 1) {
+                // Store all sibling matches for potential sharing
+                foreach ($siblingStudents as $student) {
+                    $matches[] = [
+                        'student' => $student,
+                        'match_type' => 'admission_number',
+                        'confidence' => 1.0,
+                        'matched_value' => $student->admission_number,
+                    ];
                 }
-                
+            } elseif (count($siblingStudents) === 1) {
+                // Only one sibling found, match to that one
                 $matches[] = [
-                    'student' => $student,
+                    'student' => $siblingStudents[0],
                     'match_type' => 'admission_number',
-                    'confidence' => $confidence,
-                    'matched_value' => $admissionNumber,
+                    'confidence' => 1.0,
+                    'matched_value' => $siblingStudents[0]->admission_number,
                 ];
+            }
+        } else {
+            // Single admission number matching
+            foreach ($admissionNumbers as $admissionNumber) {
+                $student = $this->findStudentByAdmissionNumber($admissionNumber);
+                if ($student) {
+                    $matches[] = [
+                        'student' => $student,
+                        'match_type' => 'admission_number',
+                        'confidence' => 1.0,
+                        'matched_value' => $admissionNumber,
+                    ];
+                }
             }
         }
         
+        // Check if we have any admission number matches (100% confidence)
+        $hasAdmissionNumberMatch = !empty(array_filter($matches, fn($m) => ($m['match_type'] ?? '') === 'admission_number'));
+        
         // Try to match by student name(s) - handle siblings
+        // Only match by name if no admission number match was found (admission number takes priority)
         $studentNames = $this->extractStudentNames($description);
-        foreach ($studentNames as $studentName) {
-            $nameMatches = Student::where(function($q) use ($studentName) {
-                $q->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$studentName}%"])
-                  ->orWhereRaw("CONCAT(first_name, ' ', middle_name, ' ', last_name) LIKE ?", ["%{$studentName}%"])
-                  ->orWhere('first_name', 'LIKE', "%{$studentName}%")
-                  ->orWhere('last_name', 'LIKE', "%{$studentName}%");
-            })->get();
+        // Also use child names from account field
+        if (!empty($parsedData['child_names'])) {
+            $studentNames = array_merge($studentNames, $parsedData['child_names']);
+            $studentNames = array_unique($studentNames);
+        }
+        
+        if (!$hasAdmissionNumberMatch && !empty($studentNames)) {
+            foreach ($studentNames as $studentName) {
+                // Handle full names like "Christiannjenga" (no space) or "Trevor Osairi" (with space)
+                $nameParts = preg_split('/\s+/', trim($studentName));
+                $firstName = $nameParts[0] ?? '';
+                $lastName = count($nameParts) > 1 ? $nameParts[1] : '';
+                
+                $nameMatches = Student::where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->where(function($q) use ($studentName, $firstName, $lastName) {
+                        // Match full name (with or without space)
+                        $q->whereRaw("CONCAT(first_name, last_name) LIKE ?", ["%" . str_replace(' ', '', $studentName) . "%"])
+                          ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$studentName}%"])
+                          ->orWhereRaw("CONCAT(first_name, ' ', middle_name, ' ', last_name) LIKE ?", ["%{$studentName}%"]);
+                        
+                        // If we have both first and last name, match more precisely
+                        if ($firstName && $lastName) {
+                            $q->orWhere(function($q2) use ($firstName, $lastName) {
+                                $q2->where('first_name', 'LIKE', "%{$firstName}%")
+                                   ->where('last_name', 'LIKE', "%{$lastName}%");
+                            });
+                        } else {
+                            // Single name - match first or last
+                            $q->orWhere('first_name', 'LIKE', "%{$studentName}%")
+                              ->orWhere('last_name', 'LIKE', "%{$studentName}%");
+                        }
+                    })
+                    ->orderBy('created_at', 'desc') // Most recent first
+                    ->get();
             
             foreach ($nameMatches as $student) {
                 $confidence = 0.70;
@@ -169,6 +232,10 @@ class BankStatementParser
                 // Increase confidence if partial phone matches
                 if ($parsedData['partial_phone'] && $this->matchesPartialPhone($student, $parsedData['partial_phone'])) {
                     $confidence = min(0.95, $confidence + 0.10);
+                }
+                // Increase confidence if full phone matches
+                if ($phoneNumber && $this->matchesPhone($student, $phoneNumber)) {
+                    $confidence = min(0.98, $confidence + 0.15);
                 }
                 
                 $matches[] = [
@@ -181,19 +248,69 @@ class BankStatementParser
         }
         
         // Try to match by partial phone number (first 3 and last 3 digits)
-        if ($parsedData['partial_phone']) {
+        // Only if no admission number match was found (admission number takes priority)
+        if (!$hasAdmissionNumberMatch && $parsedData['partial_phone']) {
             $phoneMatches = $this->findStudentsByPartialPhone($parsedData['partial_phone']);
-            foreach ($phoneMatches as $student) {
+            // Filter to only active students
+            $phoneMatches = array_filter($phoneMatches, fn($s) => $s->archive == 0 && $s->is_alumni == false);
+            
+            // Cross-reference with child names from account field if available
+            $childNames = $parsedData['child_names'] ?? [];
+            if (!empty($childNames) && count($phoneMatches) > 1) {
+                // Filter phone matches by child names
+                $filteredMatches = [];
+                foreach ($phoneMatches as $student) {
+                    $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                    $studentFirstName = strtolower($student->first_name);
+                    $studentLastName = strtolower($student->last_name);
+                    
+                    foreach ($childNames as $childName) {
+                        $childNameLower = strtolower(trim($childName));
+                        // Check if child name matches student's full name or parts
+                        if (stripos($studentFullName, $childNameLower) !== false || 
+                            stripos($childNameLower, $studentFirstName) !== false ||
+                            stripos($childNameLower, $studentLastName) !== false ||
+                            stripos($studentFullName, str_replace(' ', '', $childNameLower)) !== false) {
+                            $filteredMatches[] = $student;
+                            break;
+                        }
+                    }
+                }
+                
+                // If we found matches by name, use those; otherwise use all phone matches
+                if (!empty($filteredMatches)) {
+                    $phoneMatches = $filteredMatches;
+                }
+            }
+            
+            // Sort by created_at descending (most recent first)
+            usort($phoneMatches, fn($a, $b) => $b->created_at <=> $a->created_at);
+            
+            // Handle sibling matching: if multiple child names found, check for siblings
+            if (count($childNames) > 1 && count($phoneMatches) > 1) {
+                $siblingMatches = $this->findSiblingMatches($phoneMatches, $childNames);
+                if (!empty($siblingMatches)) {
+                    // If siblings found, this should be a shared transaction
+                    // For now, take the first sibling match
+                    $phoneMatches = [$siblingMatches[0]];
+                }
+            }
+            
+            // Only take the first match if multiple found (most recent active student)
+            if (count($phoneMatches) > 0) {
+                $student = $phoneMatches[0];
                 $confidence = 0.80;
                 // Increase confidence if parent name also matches
                 if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
                     $confidence = 0.92;
                 }
                 // Increase confidence if student name also matches
-                if (count($studentNames) > 0) {
-                    $studentFullName = $student->first_name . ' ' . $student->last_name;
-                    foreach ($studentNames as $name) {
-                        if (stripos($studentFullName, $name) !== false) {
+                if (!empty($childNames)) {
+                    $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                    foreach ($childNames as $name) {
+                        $nameLower = strtolower(trim($name));
+                        if (stripos($studentFullName, $nameLower) !== false || 
+                            stripos($studentFullName, str_replace(' ', '', $nameLower)) !== false) {
                             $confidence = 0.95;
                             break;
                         }
@@ -210,15 +327,75 @@ class BankStatementParser
         }
         
         // Try to match by full phone number (parent/guardian)
-        if ($phoneNumber) {
+        // Only if no admission number match was found (admission number takes priority)
+        if (!$hasAdmissionNumberMatch && $phoneNumber) {
             $normalizedPhone = $this->normalizePhone($phoneNumber);
             $phoneMatches = $this->findStudentsByPhone($normalizedPhone);
             
-            foreach ($phoneMatches as $student) {
+            // Filter to only active students
+            $phoneMatches = array_filter($phoneMatches, fn($s) => $s->archive == 0 && $s->is_alumni == false);
+            
+            // Cross-reference with child names from account field if available
+            $childNames = $parsedData['child_names'] ?? [];
+            if (!empty($childNames) && count($phoneMatches) > 1) {
+                // Filter phone matches by child names
+                $filteredMatches = [];
+                foreach ($phoneMatches as $student) {
+                    $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                    $studentFirstName = strtolower($student->first_name);
+                    $studentLastName = strtolower($student->last_name);
+                    
+                    foreach ($childNames as $childName) {
+                        $childNameLower = strtolower(trim($childName));
+                        // Check if child name matches student's full name or parts
+                        if (stripos($studentFullName, $childNameLower) !== false || 
+                            stripos($childNameLower, $studentFirstName) !== false ||
+                            stripos($childNameLower, $studentLastName) !== false ||
+                            stripos($studentFullName, str_replace(' ', '', $childNameLower)) !== false) {
+                            $filteredMatches[] = $student;
+                            break;
+                        }
+                    }
+                }
+                
+                // If we found matches by name, use those; otherwise use all phone matches
+                if (!empty($filteredMatches)) {
+                    $phoneMatches = $filteredMatches;
+                }
+            }
+            
+            // Sort by created_at descending (most recent first)
+            usort($phoneMatches, fn($a, $b) => $b->created_at <=> $a->created_at);
+            
+            // Handle sibling matching: if multiple child names found, check for siblings
+            if (count($childNames) > 1 && count($phoneMatches) > 1) {
+                $siblingMatches = $this->findSiblingMatches($phoneMatches, $childNames);
+                if (!empty($siblingMatches)) {
+                    // If siblings found, this should be a shared transaction
+                    // For now, take the first sibling match
+                    $phoneMatches = [$siblingMatches[0]];
+                }
+            }
+            
+            // Only take the first match if multiple found (most recent active student)
+            if (count($phoneMatches) > 0) {
+                $student = $phoneMatches[0];
                 $confidence = 0.85;
                 // Increase confidence if parent name also matches
                 if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
                     $confidence = 0.95;
+                }
+                // Increase confidence if child name matches
+                if (!empty($childNames)) {
+                    $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                    foreach ($childNames as $name) {
+                        $nameLower = strtolower(trim($name));
+                        if (stripos($studentFullName, $nameLower) !== false || 
+                            stripos($studentFullName, str_replace(' ', '', $nameLower)) !== false) {
+                            $confidence = 0.98;
+                            break;
+                        }
+                    }
                 }
                 
                 $matches[] = [
@@ -231,15 +408,33 @@ class BankStatementParser
         }
         
         // Try to match by parent name only (if no other matches found)
-        if (empty($matches) && $parsedData['parent_name']) {
+        // BUT: Only match by parent name if there's also a student name in the description
+        // If only parent name exists (like "DOUGLAS NJOROGE KAMAU" without student name), don't match
+        // This prevents false matches where only the payer's name is mentioned
+        if (empty($matches) && $parsedData['parent_name'] && !empty($studentNames)) {
             $parentMatches = $this->findStudentsByParentName($parsedData['parent_name']);
+            // Filter to only active students
+            $parentMatches = array_filter($parentMatches, fn($s) => $s->archive == 0 && $s->is_alumni == false);
+            
             foreach ($parentMatches as $student) {
-                $matches[] = [
-                    'student' => $student,
-                    'match_type' => 'parent_name',
-                    'confidence' => 0.60,
-                    'matched_value' => $parsedData['parent_name'],
-                ];
+                // Only add if student name also matches (double verification)
+                $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                $matchesStudentName = false;
+                foreach ($studentNames as $name) {
+                    if (stripos($studentFullName, strtolower($name)) !== false) {
+                        $matchesStudentName = true;
+                        break;
+                    }
+                }
+                
+                if ($matchesStudentName) {
+                    $matches[] = [
+                        'student' => $student,
+                        'match_type' => 'parent_name',
+                        'confidence' => 0.60,
+                        'matched_value' => $parsedData['parent_name'],
+                    ];
+                }
             }
         }
         
@@ -264,7 +459,32 @@ class BankStatementParser
             }
         }
         
-        if (count($uniqueMatches) === 1) {
+        // Check if this is a sibling payment (multiple admission numbers in account field)
+        $isSiblingPayment = !empty($parsedData['child_admission_numbers']) && count($parsedData['child_admission_numbers']) > 1;
+        
+        if ($isSiblingPayment && count($uniqueMatches) > 1) {
+            // Multiple siblings found - mark as shared transaction
+            $siblingIds = array_map(fn($m) => $m['student']->id, $uniqueMatches);
+            $siblingAllocations = [];
+            $amountPerSibling = $transaction->amount / count($uniqueMatches);
+            
+            foreach ($uniqueMatches as $match) {
+                $siblingAllocations[] = [
+                    'student_id' => $match['student']->id,
+                    'amount' => $amountPerSibling,
+                ];
+            }
+            
+            $transaction->update([
+                'match_status' => 'matched',
+                'match_confidence' => 1.0, // 100% for admission numbers
+                'is_shared' => true,
+                'shared_allocations' => $siblingAllocations,
+                'match_notes' => sprintf('Matched to %d siblings by admission numbers', count($uniqueMatches)),
+            ]);
+            
+            return ['matched' => true, 'matches' => $uniqueMatches, 'multiple' => true, 'shared' => true];
+        } elseif (count($uniqueMatches) === 1) {
             // Single match - auto-assign
             $match = $uniqueMatches[0];
             $student = $match['student'];
@@ -319,9 +539,25 @@ class BankStatementParser
             $result['parent_name'] = trim($parentMatches[1]);
         }
         
-        // Extract child name: After "Acc."
-        if (preg_match('/Acc\.\s*([A-Z][A-Za-z\s&]+?)(?:\s|$)/i', $description, $childMatches)) {
-            $result['child_name'] = trim($childMatches[1]);
+        // Extract child name(s) and admission numbers: After "Acc."
+        // Handles: "Acc. Trevor Osairi", "Acc. susan & david", "Acc. RKS066&RKS233&RKS702", "Acc. Christiannjenga"
+        if (preg_match('/Acc\.\s*([A-Z0-9][A-Za-z0-9\s&]+?)(?:\s|$)/i', $description, $childMatches)) {
+            $childNameString = trim($childMatches[1]);
+            $result['child_name'] = $childNameString;
+            
+            // Check if it contains admission numbers (RKS format)
+            if (preg_match_all('/RKS\s*\d{3,}/i', $childNameString, $admMatches)) {
+                $result['child_admission_numbers'] = array_map(function($m) {
+                    return preg_replace('/\s+/', '', strtoupper($m));
+                }, $admMatches[0]);
+            }
+            
+            // Extract individual names (split by &, and, or space)
+            $nameParts = preg_split('/\s*(?:&|and)\s*/i', $childNameString);
+            $result['child_names'] = array_map('trim', array_filter($nameParts, function($name) {
+                // Exclude admission numbers from name list
+                return !preg_match('/^RKS\d+$/i', trim($name)) && strlen(trim($name)) > 1;
+            }));
         }
         
         return $result;
@@ -334,17 +570,25 @@ class BankStatementParser
     {
         $admissionNumbers = [];
         
-        // Patterns: RKS000, RKS 000, RKS000 RKS001, RKS000 & RKS001
+        // Patterns: RKS000, RKS 000, RKS412, RKS000 RKS001, RKS000 & RKS001
+        // Also handle "Acc. RKS412" format
+        // Match the full "RKS" + digits pattern
         $patterns = [
-            '/RKS\s*(\d{3,})/i',  // RKS000 or RKS 000
-            '/ADM[-\s]?(\d+)/i',   // ADM123, ADM-123
-            '/(\d{3,})\/(\d{4})/', // Format: 123/2024
+            '/\bRKS\s*(\d{3,})\b/i',        // RKS000, RKS 000, RKS412 (standalone word)
+            '/Acc\.\s*RKS\s*(\d{3,})/i',   // Acc. RKS412, Acc. RKS 412
+            '/ADM[-\s]?(\d+)/i',            // ADM123, ADM-123
         ];
         
         foreach ($patterns as $pattern) {
             if (preg_match_all($pattern, $description, $matches, PREG_SET_ORDER)) {
                 foreach ($matches as $match) {
-                    $admissionNumbers[] = $match[1];
+                    // Get the captured group (admission number digits)
+                    $digits = $match[1] ?? null;
+                    if ($digits) {
+                        // Always return in RKS format (e.g., RKS412)
+                        $admissionNumber = 'RKS' . str_pad($digits, 3, '0', STR_PAD_LEFT);
+                        $admissionNumbers[] = $admissionNumber;
+                    }
                 }
             }
         }
@@ -886,6 +1130,127 @@ class BankStatementParser
         }
         
         return $payment;
+    }
+    
+    /**
+     * Find student by admission number (handles both RKS412 and 412 formats)
+     */
+    protected function findStudentByAdmissionNumber(string $admissionNumber): ?Student
+    {
+        // Try matching with full format (RKS412) first
+        $student = Student::where('admission_number', $admissionNumber)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->first();
+        
+        // If not found, try without RKS prefix (in case stored as just digits)
+        if (!$student && preg_match('/RKS(\d+)/i', $admissionNumber, $digitsMatch)) {
+            $digitsOnly = $digitsMatch[1];
+            $student = Student::where(function($q) use ($digitsOnly) {
+                $q->where('admission_number', $digitsOnly)
+                  ->orWhere('admission_number', 'LIKE', "%{$digitsOnly}");
+            })
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->first();
+        }
+        
+        return $student;
+    }
+    
+    /**
+     * Find sibling matches when multiple child names are provided
+     * Returns students that are siblings and match the provided names
+     */
+    protected function findSiblingMatches(array $candidates, array $childNames): array
+    {
+        $siblingMatches = [];
+        
+        foreach ($candidates as $student) {
+            // Check if this student matches any of the child names
+            $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+            $studentFirstName = strtolower($student->first_name);
+            $studentLastName = strtolower($student->last_name);
+            
+            $matchesName = false;
+            foreach ($childNames as $childName) {
+                $childNameLower = strtolower(trim($childName));
+                if (stripos($studentFullName, $childNameLower) !== false || 
+                    stripos($childNameLower, $studentFirstName) !== false ||
+                    stripos($childNameLower, $studentLastName) !== false ||
+                    stripos($studentFullName, str_replace(' ', '', $childNameLower)) !== false) {
+                    $matchesName = true;
+                    break;
+                }
+            }
+            
+            if ($matchesName) {
+                // Check if this student has siblings that match other names
+                $siblings = Student::where('family_id', $student->family_id)
+                    ->where('id', '!=', $student->id)
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->get();
+                
+                $siblingMatchesThisFamily = [$student];
+                foreach ($siblings as $sibling) {
+                    $siblingFullName = strtolower($sibling->first_name . ' ' . $sibling->last_name);
+                    $siblingFirstName = strtolower($sibling->first_name);
+                    $siblingLastName = strtolower($sibling->last_name);
+                    
+                    foreach ($childNames as $childName) {
+                        $childNameLower = strtolower(trim($childName));
+                        if ((stripos($siblingFullName, $childNameLower) !== false || 
+                             stripos($childNameLower, $siblingFirstName) !== false ||
+                             stripos($childNameLower, $siblingLastName) !== false ||
+                             stripos($siblingFullName, str_replace(' ', '', $childNameLower)) !== false) &&
+                            !in_array($sibling->id, array_map(fn($s) => $s->id, $siblingMatchesThisFamily))) {
+                            $siblingMatchesThisFamily[] = $sibling;
+                        }
+                    }
+                }
+                
+                // If we found multiple siblings matching the names, this is likely the right family
+                if (count($siblingMatchesThisFamily) >= min(2, count($childNames))) {
+                    $siblingMatches = array_merge($siblingMatches, $siblingMatchesThisFamily);
+                    break; // Found the right family
+                }
+            }
+        }
+        
+        return array_unique($siblingMatches, SORT_REGULAR);
+    }
+    
+    /**
+     * Check if student's parent phone matches
+     */
+    protected function matchesPhone(Student $student, string $phoneNumber): bool
+    {
+        if (!$student->parentInfo) {
+            return false;
+        }
+        
+        $normalizedPhone = $this->normalizePhone($phoneNumber);
+        $parent = $student->parentInfo;
+        $phones = [
+            $parent->father_phone,
+            $parent->mother_phone,
+            $parent->guardian_phone,
+            $parent->father_whatsapp,
+            $parent->mother_whatsapp,
+            $parent->guardian_whatsapp,
+        ];
+        
+        foreach ($phones as $phone) {
+            if ($phone) {
+                $normalizedParentPhone = $this->normalizePhone($phone);
+                if ($normalizedParentPhone === $normalizedPhone) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
     }
 }
 

@@ -590,18 +590,24 @@ class PaymentController extends Controller
             return $text;
         };
         
-        // Send SMS
+        // Send SMS using finance sender ID
         if ($parentPhone) {
             try {
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                
+                // Get finance sender ID for payment notifications
+                $smsService = app(\App\Services\SMSService::class);
+                $financeSenderId = $smsService->getFinanceSenderId();
+                
                 Log::info('Attempting to send payment SMS', [
                     'payment_id' => $payment->id,
                     'phone' => $parentPhone,
                     'template_code' => $smsTemplate->code,
-                    'message_length' => strlen($smsMessage)
+                    'message_length' => strlen($smsMessage),
+                    'sender_id' => $financeSenderId
                 ]);
                 
-                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title);
+                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId);
                 
                 Log::info('Payment SMS sent successfully', [
                     'payment_id' => $payment->id, 
