@@ -1111,6 +1111,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm'])->name('confirm');
             Route::post('/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject'])->name('reject');
             Route::post('/{bankStatement}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share'])->name('share');
+            Route::put('/{bankStatement}/update-allocations', [\App\Http\Controllers\Finance\BankStatementController::class, 'updateAllocations'])->name('update-allocations');
             Route::get('/{bankStatement}/view-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'viewPdf'])->name('view-pdf');
             Route::get('/{bankStatement}/serve-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'servePdf'])->name('serve-pdf');
             Route::get('/{bankStatement}/download-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'downloadPdf'])->name('download-pdf');

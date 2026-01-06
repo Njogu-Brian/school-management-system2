@@ -22,7 +22,7 @@ class SMSService
         $this->userId   = env('SMS_USER_ID');
         $this->password = env('SMS_PASSWORD');
         $this->senderId = env('SMS_SENDER_ID', 'ROYAL_KINGS');
-        $this->financeSenderId = env('SMS_SENDER_ID_FINANCE', $this->senderId);
+        $this->financeSenderId = env('SMS_SENDER_ID_FINANCE', 'RKS_FINANCE');
         // HostPinnacle API base URL
         $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
         // Use "Read Account Status" API for balance check (from HostPinnacle documentation)

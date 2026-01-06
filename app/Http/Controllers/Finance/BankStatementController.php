@@ -361,17 +361,93 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Reject transaction
+     * Reject transaction - unmatch it to allow re-matching
+     * This does NOT delete or archive, just removes the match
      */
     public function reject(BankStatementTransaction $bankStatement)
     {
-        $bankStatement->reject();
+        DB::transaction(function () use ($bankStatement) {
+            // If payment was created, reverse and delete it
+            if ($bankStatement->payment_created && $bankStatement->payment_id) {
+                $payment = Payment::find($bankStatement->payment_id);
+                if ($payment && !$payment->reversed) {
+                    // Reverse payment allocations
+                    foreach ($payment->allocations as $allocation) {
+                        $allocation->delete();
+                    }
+                    
+                    // Mark payment as reversed
+                    $payment->update([
+                        'reversed' => true,
+                        'reversed_by' => auth()->id(),
+                        'reversed_at' => now(),
+                    ]);
+                    
+                    // Delete payment record
+                    $payment->delete();
+                }
+            }
+            
+            // Unmatch the transaction - reset to draft and unmatched
+            $bankStatement->update([
+                'status' => 'draft',
+                'student_id' => null,
+                'family_id' => null,
+                'match_status' => 'unmatched',
+                'match_confidence' => 0,
+                'matched_admission_number' => null,
+                'matched_student_name' => null,
+                'matched_phone_number' => null,
+                'match_notes' => 'Unmatched - available for re-matching',
+                'payment_id' => null,
+                'payment_created' => false,
+                'is_shared' => false,
+                'shared_allocations' => null,
+                'confirmed_by' => null,
+                'confirmed_at' => null,
+            ]);
+        });
 
         return redirect()
             ->route('finance.bank-statements.show', $bankStatement)
-            ->with('success', 'Transaction rejected');
+            ->with('success', 'Transaction unmatched. You can now match it to a different student.');
     }
 
+    /**
+     * Update shared allocations (edit amounts)
+     */
+    public function updateAllocations(Request $request, BankStatementTransaction $bankStatement)
+    {
+        if (!$bankStatement->is_shared || !$bankStatement->isDraft()) {
+            return back()->with('error', 'Can only edit allocations for draft shared transactions');
+        }
+        
+        $validated = $request->validate([
+            'allocations' => 'required|array|min:1',
+            'allocations.*.student_id' => 'required|exists:students,id',
+            'allocations.*.amount' => 'required|numeric|min:0.01',
+        ]);
+
+        $totalAmount = array_sum(array_column($validated['allocations'], 'amount'));
+        
+        if (abs($totalAmount - $bankStatement->amount) > 0.01) {
+            return redirect()->back()
+                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount (Ksh ' . number_format($bankStatement->amount, 2) . ')']);
+        }
+
+        try {
+            $bankStatement->update([
+                'shared_allocations' => $validated['allocations'],
+            ]);
+            
+            return redirect()
+                ->route('finance.bank-statements.show', $bankStatement)
+                ->with('success', 'Shared allocations updated successfully');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Failed to update allocations: ' . $e->getMessage());
+        }
+    }
+    
     /**
      * Share transaction among siblings
      */
@@ -547,12 +623,20 @@ class BankStatementController extends Controller
 
         // Only process CONFIRMED transactions that need payment creation
         // Get confirmed transactions that are matched but payment not created
+        // Get confirmed matched but payment not created transactions
+        // This includes both single payments (student_id) and shared payments (is_shared)
         $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
             ->where('match_status', 'matched')
             ->where('is_duplicate', false)
             ->where('is_archived', false)
-            ->whereNotNull('student_id')
-            ->where('payment_created', false);
+            ->where('payment_created', false)
+            ->where(function($query) {
+                $query->whereNotNull('student_id')
+                      ->orWhere(function($q) {
+                          $q->where('is_shared', true)
+                            ->whereNotNull('shared_allocations');
+                      });
+            });
         
         // Also get confirmed unmatched transactions to try matching first
         $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
@@ -697,22 +781,43 @@ class BankStatementController extends Controller
         }
 
         // Process confirmed matched transactions - CREATE PAYMENTS ONLY (do not confirm)
+        // This includes both single payments and shared payments (siblings)
         foreach ($matchedTransactions as $transaction) {
             try {
                 // Only create payment if transaction is confirmed and matched
+                // Handle both single payments and shared payments
                 if ($transaction->status === 'confirmed' && 
                     $transaction->match_status === 'matched' && 
-                    $transaction->student_id && 
                     !$transaction->payment_created) {
                     
-                    DB::transaction(function () use ($transaction, &$paymentsCreated, &$createdPaymentIds, $skipReceiptAndNotifications) {
-                        // Create payment (transaction is already confirmed)
-                        $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
-                        if ($payment && $payment->id) {
-                            $createdPaymentIds[] = $payment->id;
-                            $paymentsCreated++;
+                    // For shared transactions, check if is_shared and has allocations
+                    if ($transaction->is_shared && $transaction->shared_allocations) {
+                        // Shared payment - will create multiple payments
+                        if (count($transaction->shared_allocations) > 0) {
+                            DB::transaction(function () use ($transaction, &$paymentsCreated, &$createdPaymentIds, $skipReceiptAndNotifications) {
+                                // Create payment (will create payments for all siblings)
+                                $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
+                                if ($payment && $payment->id) {
+                                    $createdPaymentIds[] = $payment->id;
+                                    // Count all sibling payments created
+                                    $siblingPayments = \App\Models\Payment::where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                                        ->where('created_at', '>=', now()->subMinutes(5))
+                                        ->get();
+                                    $paymentsCreated += $siblingPayments->count();
+                                }
+                            });
                         }
-                    });
+                    } elseif ($transaction->student_id) {
+                        // Single payment
+                        DB::transaction(function () use ($transaction, &$paymentsCreated, &$createdPaymentIds, $skipReceiptAndNotifications) {
+                            // Create payment (transaction is already confirmed)
+                            $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
+                            if ($payment && $payment->id) {
+                                $createdPaymentIds[] = $payment->id;
+                                $paymentsCreated++;
+                            }
+                        });
+                    }
                 }
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transaction->id} (create payment): " . $e->getMessage();
@@ -832,24 +937,30 @@ class BankStatementController extends Controller
             // Don't fail the process if notifications fail
         }
         
-        // If shared payment, handle sibling payments
+        // If shared payment, handle sibling payments - send individual communications for each
         if ($transaction->is_shared && $transaction->shared_allocations) {
-            foreach ($transaction->shared_allocations as $allocation) {
-                $siblingPayment = \App\Models\Payment::where('student_id', $allocation['student_id'])
-                    ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
-                    ->where('id', '!=', $payment->id)
-                    ->first();
+            // Get all sibling payments created for this transaction
+            $siblingPayments = \App\Models\Payment::where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                ->where('created_at', '>=', now()->subMinutes(5)) // Payments created in last 5 minutes
+                ->get();
+            
+            foreach ($siblingPayments as $siblingPayment) {
+                // Find the allocation for this sibling
+                $allocation = collect($transaction->shared_allocations)->firstWhere('student_id', $siblingPayment->student_id);
                 
-                if ($siblingPayment) {
+                if ($allocation) {
                     try {
+                        // Generate receipt for sibling payment
                         $receiptService->generateReceipt($siblingPayment, ['save' => true]);
                         
-                        // Send notifications for sibling payment
+                        // Send notifications for sibling payment with their allocated amount
                         try {
                             $paymentController->sendPaymentNotifications($siblingPayment);
                         } catch (\Exception $e) {
                             Log::warning('Payment notification failed for sibling payment', [
                                 'payment_id' => $siblingPayment->id,
+                                'student_id' => $siblingPayment->student_id,
+                                'allocated_amount' => $allocation['amount'],
                                 'error' => $e->getMessage()
                             ]);
                         }

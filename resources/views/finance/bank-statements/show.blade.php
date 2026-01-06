@@ -187,33 +187,76 @@
             <!-- Sharing Information -->
             @if($bankStatement->is_shared && $bankStatement->shared_allocations)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
-                <div class="finance-card-header">
+                <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Shared Among Siblings</h5>
+                    @if($bankStatement->isDraft())
+                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary" onclick="toggleEditAllocations()">
+                        <i class="bi bi-pencil"></i> Edit Amounts
+                    </button>
+                    @endif
                 </div>
                 <div class="finance-card-body p-4">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Student</th>
-                                <th>Admission</th>
-                                <th class="text-end">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($bankStatement->shared_allocations as $allocation)
-                                @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
+                    <form id="editAllocationsForm" method="POST" action="{{ route('finance.bank-statements.update-allocations', $bankStatement) }}" style="display: none;">
+                        @csrf
+                        @method('PUT')
+                        <div class="mb-3">
+                            <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
+                        </div>
+                        @foreach($bankStatement->shared_allocations as $index => $allocation)
+                            @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
+                            <div class="mb-3 p-3 border rounded">
+                                <label class="form-label">
+                                    <strong>{{ $student?->first_name }} {{ $student?->last_name }}</strong>
+                                    <small class="text-muted">({{ $student?->admission_number }})</small>
+                                </label>
+                                <input type="hidden" name="allocations[{{ $index }}][student_id]" value="{{ $allocation['student_id'] }}">
+                                <input type="number" 
+                                       name="allocations[{{ $index }}][amount]" 
+                                       class="form-control allocation-amount" 
+                                       step="0.01" 
+                                       min="0" 
+                                       max="{{ $bankStatement->amount }}"
+                                       value="{{ $allocation['amount'] }}"
+                                       onchange="updateAllocationTotal()"
+                                       required>
+                            </div>
+                        @endforeach
+                        <div class="mb-3">
+                            <strong>Remaining: <span id="allocationRemaining">Ksh {{ number_format($bankStatement->amount, 2) }}</span></strong>
+                        </div>
+                        <button type="submit" class="btn btn-finance btn-finance-success" id="saveAllocationsBtn">
+                            <i class="bi bi-check-circle"></i> Save Changes
+                        </button>
+                        <button type="button" class="btn btn-finance btn-finance-secondary" onclick="toggleEditAllocations()">
+                            Cancel
+                        </button>
+                    </form>
+                    
+                    <div id="viewAllocations">
+                        <table class="table table-sm">
+                            <thead>
                                 <tr>
-                                    <td>{{ $student?->first_name }} {{ $student?->last_name }}</td>
-                                    <td><code>{{ $student?->admission_number }}</code></td>
-                                    <td class="text-end">Ksh {{ number_format($allocation['amount'], 2) }}</td>
+                                    <th>Student</th>
+                                    <th>Admission</th>
+                                    <th class="text-end">Amount</th>
                                 </tr>
-                            @endforeach
-                            <tr class="table-active">
-                                <td colspan="2"><strong>Total</strong></td>
-                                <td class="text-end"><strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                @foreach($bankStatement->shared_allocations as $allocation)
+                                    @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
+                                    <tr>
+                                        <td>{{ $student?->first_name }} {{ $student?->last_name }}</td>
+                                        <td><code>{{ $student?->admission_number }}</code></td>
+                                        <td class="text-end">Ksh {{ number_format($allocation['amount'], 2) }}</td>
+                                    </tr>
+                                @endforeach
+                                <tr class="table-active">
+                                    <td colspan="2"><strong>Total</strong></td>
+                                    <td class="text-end"><strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
             @endif
@@ -414,6 +457,47 @@
                 shareBtn.disabled = true;
                 shareBtn.classList.remove('btn-primary');
                 shareBtn.classList.add('btn-secondary');
+            }
+        }
+        
+        function toggleEditAllocations() {
+            const form = document.getElementById('editAllocationsForm');
+            const view = document.getElementById('viewAllocations');
+            
+            if (form && view) {
+                if (form.style.display === 'none' || !form.style.display) {
+                    form.style.display = 'block';
+                    view.style.display = 'none';
+                    updateAllocationTotal();
+                } else {
+                    form.style.display = 'none';
+                    view.style.display = 'block';
+                }
+            }
+        }
+        
+        function updateAllocationTotal() {
+            const amounts = Array.from(document.querySelectorAll('.allocation-amount')).map(input => parseFloat(input.value) || 0);
+            const total = amounts.reduce((sum, amt) => sum + amt, 0);
+            const transactionAmount = {{ $bankStatement->amount }};
+            const remaining = transactionAmount - total;
+            
+            const remainingEl = document.getElementById('allocationRemaining');
+            if (remainingEl) {
+                remainingEl.textContent = 'Ksh ' + remaining.toFixed(2);
+            }
+            
+            const saveBtn = document.getElementById('saveAllocationsBtn');
+            if (saveBtn) {
+                if (Math.abs(remaining) < 0.01 && total > 0) {
+                    saveBtn.disabled = false;
+                    saveBtn.classList.remove('btn-secondary');
+                    saveBtn.classList.add('btn-success');
+                } else {
+                    saveBtn.disabled = true;
+                    saveBtn.classList.remove('btn-success');
+                    saveBtn.classList.add('btn-secondary');
+                }
             }
         }
     </script>
