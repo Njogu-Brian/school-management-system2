@@ -74,64 +74,99 @@ class FeeStructureController extends Controller
 
     public function save(Request $request)
     {
-        $validated = $request->validate([
-            'classroom_id' => 'required|exists:classrooms,id',
-            'student_category_id' => 'required|exists:student_categories,id',
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'year' => 'required|digits:4|exists:academic_years,year',
-            'charges' => 'required|array',
-            'charges.*.votehead_id' => 'required|exists:voteheads,id',
-            'charges.*.term_1' => 'nullable|numeric|min:0',
-            'charges.*.term_2' => 'nullable|numeric|min:0',
-            'charges.*.term_3' => 'nullable|numeric|min:0',
-        ]);
-
-        $transportVoteheadId = TransportFeeService::transportVotehead()->id;
-
-        DB::transaction(function () use ($validated, $transportVoteheadId) {
-            $yearValue = $validated['year'];
-
-            $structure = FeeStructure::updateOrCreate(
-                [
-                    'classroom_id' => $validated['classroom_id'],
-                    'student_category_id' => $validated['student_category_id'],
-                    'academic_year_id' => $validated['academic_year_id'],
-                ],
-                [
-                    'year' => $yearValue,
-                    'academic_year_id' => $validated['academic_year_id'],
-                ]
-            );
-
-            // Remove old charges
-            $structure->charges()->delete();
-
-            foreach ($validated['charges'] as $charge) {
-                if ((int) $charge['votehead_id'] === $transportVoteheadId) {
-                    // Transport is managed separately from fee structures
-                    continue;
-                }
-                foreach ([1 => $charge['term_1'], 2 => $charge['term_2'], 3 => $charge['term_3']] as $term => $amount) {
-                    // Convert to float and handle null/empty values
-                    $amount = $amount === null || $amount === '' ? 0 : (float) $amount;
-                    if ($amount > 0) {
-                        FeeCharge::create([
-                            'fee_structure_id' => $structure->id,
-                            'votehead_id' => $charge['votehead_id'],
-                            'term' => $term,
-                            'amount' => $amount,
-                        ]);
+        try {
+            // Normalize empty strings to null for validation
+            $charges = $request->input('charges', []);
+            foreach ($charges as $key => $charge) {
+                foreach (['term_1', 'term_2', 'term_3'] as $term) {
+                    if (isset($charge[$term]) && $charge[$term] === '') {
+                        $charges[$key][$term] = null;
                     }
                 }
             }
-        });
+            $request->merge(['charges' => $charges]);
+            
+            $validated = $request->validate([
+                'classroom_id' => 'required|exists:classrooms,id',
+                'student_category_id' => 'required|exists:student_categories,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'year' => 'required|digits:4|exists:academic_years,year',
+                'charges' => 'required|array|min:1',
+                'charges.*.votehead_id' => 'required|exists:voteheads,id',
+                'charges.*.term_1' => 'nullable|numeric|min:0',
+                'charges.*.term_2' => 'nullable|numeric|min:0',
+                'charges.*.term_3' => 'nullable|numeric|min:0',
+            ]);
 
-        return redirect()->route('finance.fee-structures.manage', [
-            'classroom_id' => $request->classroom_id,
-            'student_category_id' => $request->student_category_id,
-            'academic_year_id' => $request->academic_year_id,
-        ])
-                        ->with('success', 'Fee structure saved successfully.');
+            $transportVoteheadId = TransportFeeService::transportVotehead()->id;
+
+            DB::transaction(function () use ($validated, $transportVoteheadId) {
+                $yearValue = $validated['year'];
+
+                $structure = FeeStructure::updateOrCreate(
+                    [
+                        'classroom_id' => $validated['classroom_id'],
+                        'student_category_id' => $validated['student_category_id'],
+                        'academic_year_id' => $validated['academic_year_id'],
+                    ],
+                    [
+                        'year' => $yearValue,
+                        'academic_year_id' => $validated['academic_year_id'],
+                    ]
+                );
+
+                // Remove old charges
+                $structure->charges()->delete();
+
+                foreach ($validated['charges'] as $charge) {
+                    if (!isset($charge['votehead_id']) || (int) $charge['votehead_id'] === $transportVoteheadId) {
+                        // Transport is managed separately from fee structures
+                        continue;
+                    }
+                    
+                    foreach ([1 => $charge['term_1'] ?? null, 2 => $charge['term_2'] ?? null, 3 => $charge['term_3'] ?? null] as $term => $amount) {
+                        // Convert to float and handle null/empty values
+                        $amount = $amount === null || $amount === '' ? 0 : (float) $amount;
+                        if ($amount > 0) {
+                            FeeCharge::create([
+                                'fee_structure_id' => $structure->id,
+                                'votehead_id' => $charge['votehead_id'],
+                                'term' => $term,
+                                'amount' => $amount,
+                            ]);
+                        }
+                    }
+                }
+            });
+
+            return redirect()->route('finance.fee-structures.manage', [
+                'classroom_id' => $request->classroom_id,
+                'student_category_id' => $request->student_category_id,
+                'academic_year_id' => $request->academic_year_id,
+            ])
+                            ->with('success', 'Fee structure saved successfully.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return redirect()->route('finance.fee-structures.manage', [
+                'classroom_id' => $request->classroom_id,
+                'student_category_id' => $request->student_category_id,
+                'academic_year_id' => $request->academic_year_id,
+            ])
+                            ->withErrors($e->errors())
+                            ->withInput();
+        } catch (\Exception $e) {
+            \Log::error('Fee structure save failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+            ]);
+            
+            return redirect()->route('finance.fee-structures.manage', [
+                'classroom_id' => $request->classroom_id,
+                'student_category_id' => $request->student_category_id,
+                'academic_year_id' => $request->academic_year_id,
+            ])
+                            ->with('error', 'Failed to save fee structure: ' . $e->getMessage());
+        }
     }
    
     public function replicateTo(Request $request)

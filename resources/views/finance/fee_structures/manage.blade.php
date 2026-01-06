@@ -126,13 +126,13 @@
                                             <input type="hidden" name="charges[{{ $loop->index }}][votehead_id]" value="{{ $votehead->id }}">
                                         </td>
                                         <td>
-                                            <input type="number" name="charges[{{ $loop->index }}][term_1]" class="finance-form-control text-center" step="0.01" value="{{ $term1 }}" placeholder="0.00">
+                                            <input type="number" name="charges[{{ $loop->index }}][term_1]" class="finance-form-control text-center" step="0.01" value="{{ $term1 }}" placeholder="0.00" min="0">
                                         </td>
                                         <td>
-                                            <input type="number" name="charges[{{ $loop->index }}][term_2]" class="finance-form-control text-center" step="0.01" value="{{ $term2 }}" placeholder="0.00">
+                                            <input type="number" name="charges[{{ $loop->index }}][term_2]" class="finance-form-control text-center" step="0.01" value="{{ $term2 }}" placeholder="0.00" min="0">
                                         </td>
                                         <td>
-                                            <input type="number" name="charges[{{ $loop->index }}][term_3]" class="finance-form-control text-center" step="0.01" value="{{ $term3 }}" placeholder="0.00">
+                                            <input type="number" name="charges[{{ $loop->index }}][term_3]" class="finance-form-control text-center" step="0.01" value="{{ $term3 }}" placeholder="0.00" min="0">
                                         </td>
                                     </tr>
                                 @endforeach
