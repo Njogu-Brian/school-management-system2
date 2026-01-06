@@ -61,6 +61,7 @@ class BankStatementController extends Controller
                              ->where('match_confidence', '<', 0.85);
                       });
                 })
+                ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false);
                 break;
@@ -160,6 +161,7 @@ class BankStatementController extends Controller
                              ->where('match_confidence', '<', 0.85);
                       });
                 })
+                ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
