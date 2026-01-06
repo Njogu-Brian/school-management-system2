@@ -114,21 +114,19 @@
 
     <!-- Bulk Actions -->
     <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
-        @if(request('status') == 'draft' || !request('status'))
         <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
             @csrf
             <input type="hidden" name="transaction_ids" id="bulkTransactionIds">
             <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()">
-                <i class="bi bi-check-circle"></i> Confirm Selected
+                <i class="bi bi-check-circle"></i> Confirm Selected (Draft Only)
             </button>
         </form>
-        @endif
         
         <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
             @csrf
             <input type="hidden" name="transaction_ids" id="autoAssignTransactionIds">
             <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()">
-                <i class="bi bi-magic"></i> Auto-Assign Unmatched
+                <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
             </button>
         </form>
     </div>
@@ -140,9 +138,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(request('status') == 'draft' || !request('status'))
                             <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
-                            @endif
                         </th>
                         <th>Date</th>
                         <th>Amount</th>
@@ -159,9 +155,7 @@
                     @forelse($transactions as $transaction)
                         <tr>
                             <td>
-                                @if(request('status') == 'draft' || !request('status'))
                                 <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()">
-                                @endif
                             </td>
                             <td>{{ $transaction->transaction_date->format('d M Y') }}</td>
                             <td>
@@ -170,7 +164,7 @@
                                 </strong>
                             </td>
                             <td>
-                                <div class="text-truncate" style="max-width: 200px;" title="{{ $transaction->description }}">
+                                <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $transaction->description }}">
                                     {{ $transaction->description }}
                                 </div>
                             </td>
@@ -294,16 +288,16 @@
         }
 
         function autoAssign() {
-            // Get all unmatched transactions (or selected ones)
+            // Get selected transaction IDs (or process all confirmed)
             const selectedIds = JSON.parse(document.getElementById('autoAssignTransactionIds').value || '[]');
             
-            // If no specific selection, auto-assign all unmatched
+            // If no specific selection, process all confirmed transactions
             if (selectedIds.length === 0) {
-                if (confirm('Auto-assign all unmatched transactions? This will attempt to match them to students.')) {
+                if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched but don\'t have payments yet.')) {
                     document.getElementById('autoAssignForm').submit();
                 }
             } else {
-                if (confirm(`Auto-assign ${selectedIds.length} selected transaction(s)?`)) {
+                if (confirm(`Create payments for ${selectedIds.length} selected confirmed transaction(s)? Only confirmed transactions will be processed.`)) {
                     document.getElementById('autoAssignForm').submit();
                 }
             }

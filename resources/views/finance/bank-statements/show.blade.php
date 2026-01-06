@@ -54,8 +54,10 @@
                         </div>
                         <div class="col-md-6">
                             <dl class="row mb-0">
-                                <dt class="col-sm-5">Description:</dt>
-                                <dd class="col-sm-7">{{ $bankStatement->description ?? 'N/A' }}</dd>
+                                <dt class="col-sm-5">Description / Particulars:</dt>
+                                <dd class="col-sm-7">
+                                    <div class="text-break" style="word-wrap: break-word; white-space: pre-wrap;">{{ $bankStatement->description ?? 'N/A' }}</div>
+                                </dd>
 
                                 <dt class="col-sm-5">Match Status:</dt>
                                 <dd class="col-sm-7">
@@ -324,6 +326,30 @@
                                 <i class="bi bi-x-circle"></i> Reject
                             </button>
                         </form>
+                    @elseif($bankStatement->status == 'confirmed' && $bankStatement->payment)
+                        <!-- Actions for confirmed transactions with payments -->
+                        <a href="{{ route('finance.payments.reverse', $bankStatement->payment) }}" class="btn btn-finance btn-finance-warning w-100 mb-2" onclick="return confirm('Reverse this payment? This will undo all allocations and mark the payment as reversed.')">
+                            <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
+                        </a>
+                        
+                        <a href="{{ route('finance.payments.show', $bankStatement->payment) }}?action=transfer" class="btn btn-finance btn-finance-info w-100 mb-2">
+                            <i class="bi bi-arrow-right-circle"></i> Transfer Payment
+                        </a>
+                        
+                        @if($bankStatement->student)
+                            @php
+                                $siblings = \App\Models\Student::where('family_id', $bankStatement->student->family_id)
+                                    ->where('id', '!=', $bankStatement->student->id)
+                                    ->where('archive', 0)
+                                    ->where('is_alumni', false)
+                                    ->get();
+                            @endphp
+                            @if($siblings->count() > 0)
+                                <a href="{{ route('finance.payments.show', $bankStatement->payment) }}?action=share" class="btn btn-finance btn-finance-secondary w-100 mb-2">
+                                    <i class="bi bi-share"></i> Share Payment
+                                </a>
+                            @endif
+                        @endif
                     @endif
 
                     @if($bankStatement->statement_file_path)

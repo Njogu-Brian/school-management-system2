@@ -377,6 +377,17 @@ class PaymentController extends Controller
             }
         });
 
+        // Auto-match to bank statement transaction if transaction code matches
+        try {
+            $this->autoMatchToBankStatement($createdPayment);
+        } catch (\Exception $e) {
+            Log::warning('Auto-match to bank statement failed', [
+                'payment_id' => $createdPayment->id ?? null,
+                'transaction_code' => $createdPayment->transaction_code,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         // Send notifications
         try {
             $this->sendPaymentNotifications($createdPayment);
@@ -752,10 +763,13 @@ class PaymentController extends Controller
             return back()->with('error', 'Cannot transfer a reversed payment.');
         }
         
+        // Allow transfer of allocated amounts - validate against total payment amount
+        $maxTransferAmount = $payment->amount;
+        
         $request->validate([
             'transfer_type' => 'required|in:transfer,share',
             'target_student_id' => 'required_if:transfer_type,transfer|exists:students,id',
-            'transfer_amount' => 'required_if:transfer_type,transfer|numeric|min:0.01|max:' . $payment->unallocated_amount,
+            'transfer_amount' => 'required_if:transfer_type,transfer|numeric|min:0.01|max:' . $maxTransferAmount,
             'shared_students' => 'required_if:transfer_type,share|array',
             'shared_students.*' => 'exists:students,id',
             'shared_amounts' => 'required_if:transfer_type,share|array',
@@ -764,6 +778,9 @@ class PaymentController extends Controller
         ]);
         
         return DB::transaction(function () use ($request, $payment) {
+            $originalStudent = $payment->student;
+            $affectedInvoices = collect();
+            
             if ($request->transfer_type === 'transfer') {
                 // Single student transfer
                 $targetStudent = Student::withAlumni()->findOrFail($request->target_student_id);
@@ -777,6 +794,10 @@ class PaymentController extends Controller
                         return back()->with('error', "Cannot transfer more than outstanding balance for " . ($targetStudent->is_alumni ? 'alumni' : 'archived') . " student. Maximum: Ksh " . number_format($targetBalance, 2));
                     }
                 }
+                
+                // Deallocate from original payment if needed (FIFO - oldest allocations first)
+                $deallocatedInvoices = $this->deallocatePaymentAmount($payment, $transferAmount);
+                $affectedInvoices = $affectedInvoices->merge($deallocatedInvoices);
                 
                 // Create new payment for target student
                 $newPayment = Payment::create([
@@ -792,10 +813,37 @@ class PaymentController extends Controller
                 
                 // Reduce original payment amount
                 $payment->decrement('amount', $transferAmount);
-                $payment->decrement('unallocated_amount', $transferAmount);
                 
-                        // Auto-allocate to target student's invoices
-                        $this->allocationService->autoAllocate($newPayment, $targetStudent->id);
+                // Update allocation totals for original payment
+                $payment->updateAllocationTotals();
+                
+                // Recalculate affected invoices for original student
+                foreach ($affectedInvoices as $invoice) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+                
+                // Auto-allocate to target student's invoices
+                $this->allocationService->autoAllocate($newPayment, $targetStudent->id);
+                
+                // Get invoices for target student that were affected
+                $targetInvoices = \App\Models\Invoice::where('student_id', $targetStudent->id)->get();
+                foreach ($targetInvoices as $invoice) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+                
+                // Update receipt for original payment
+                try {
+                    $this->receiptService->generateReceipt($payment->fresh(), ['save' => true]);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to update receipt for original payment', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+                
+                // Send communications
+                $this->sendFeeUpdateNotification($originalStudent, $transferAmount, $payment);
+                $this->sendPaymentNotifications($newPayment);
                 
                 return back()->with('success', "Payment of Ksh " . number_format($transferAmount, 2) . " transferred to {$targetStudent->full_name}.");
             } else {
@@ -804,9 +852,17 @@ class PaymentController extends Controller
                 $sharedAmounts = $request->shared_amounts;
                 $totalShared = array_sum($sharedAmounts);
                 
-                if (abs($totalShared - $payment->unallocated_amount) > 0.01) {
-                    return back()->with('error', 'Total shared amounts must equal unallocated amount.');
+                // Validate total doesn't exceed payment amount
+                if ($totalShared > $payment->amount + 0.01) {
+                    return back()->with('error', 'Total shared amounts cannot exceed payment amount.');
                 }
+                
+                // Deallocate from original payment if needed (FIFO - oldest allocations first)
+                $deallocatedInvoices = $this->deallocatePaymentAmount($payment, $totalShared);
+                $affectedInvoices = $affectedInvoices->merge($deallocatedInvoices);
+                
+                $totalSharedAmount = 0;
+                $newPayments = [];
                 
                 foreach ($sharedStudents as $index => $studentId) {
                     $student = Student::withAlumni()->findOrFail($studentId);
@@ -822,6 +878,7 @@ class PaymentController extends Controller
                     }
                     
                     if ($amount > 0) {
+                        $totalSharedAmount += $amount;
                         $newPayment = Payment::create([
                             'student_id' => $student->id,
                             'amount' => $amount,
@@ -833,20 +890,211 @@ class PaymentController extends Controller
                             'narration' => ($request->transfer_reason ?? 'Shared from payment ' . $payment->transaction_code),
                         ]);
                         
+                        $newPayments[] = $newPayment;
+                        
                         // Auto-allocate
                         $this->allocationService->autoAllocate($newPayment, $student->id);
+                        
+                        // Recalculate invoices for new student
+                        $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+                        foreach ($studentInvoices as $invoice) {
+                            \App\Services\InvoiceService::recalc($invoice);
+                        }
+                        
+                        // Send payment received notification
+                        $this->sendPaymentNotifications($newPayment);
                     }
                 }
                 
-                // Mark original payment as fully allocated
-                $payment->update([
-                    'unallocated_amount' => 0,
-                    'allocated_amount' => $payment->amount,
-                ]);
+                // Reduce original payment amount by the total shared amount
+                $payment->decrement('amount', $totalSharedAmount);
+                
+                // Update allocation totals for original payment
+                $payment->updateAllocationTotals();
+                
+                // Recalculate affected invoices for original student
+                foreach ($affectedInvoices as $invoice) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+                
+                // Update receipt for original payment
+                try {
+                    $this->receiptService->generateReceipt($payment->fresh(), ['save' => true]);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to update receipt for original payment', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+                
+                // Send fee update notification to original student
+                if ($totalSharedAmount > 0) {
+                    $this->sendFeeUpdateNotification($originalStudent, $totalSharedAmount, $payment);
+                }
                 
                 return back()->with('success', 'Payment shared among ' . count($sharedStudents) . ' student(s).');
             }
         });
+    }
+    
+    /**
+     * Deallocate a specific amount from a payment (FIFO - oldest allocations first)
+     * Returns collection of affected invoices
+     */
+    protected function deallocatePaymentAmount(Payment $payment, float $amountToDeallocate): \Illuminate\Support\Collection
+    {
+        $remaining = $amountToDeallocate;
+        $affectedInvoices = collect();
+        
+        // Get allocations ordered by date (oldest first)
+        $allocations = \App\Models\PaymentAllocation::where('payment_id', $payment->id)
+            ->with('invoiceItem.invoice')
+            ->orderBy('allocated_at', 'asc')
+            ->get();
+        
+        foreach ($allocations as $allocation) {
+            if ($remaining <= 0) {
+                break;
+            }
+            
+            $allocationAmount = (float)$allocation->amount;
+            $invoice = $allocation->invoiceItem->invoice;
+            
+            if ($allocationAmount <= $remaining) {
+                // Delete entire allocation
+                $remaining -= $allocationAmount;
+                $allocation->delete();
+                
+                if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                    $affectedInvoices->push($invoice);
+                }
+            } else {
+                // Partially deallocate
+                $newAmount = $allocationAmount - $remaining;
+                $allocation->update(['amount' => $newAmount]);
+                $remaining = 0;
+                
+                if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                    $affectedInvoices->push($invoice);
+                }
+            }
+        }
+        
+        return $affectedInvoices;
+    }
+    
+    /**
+     * Send fee update notification to student when payment is transferred/shared
+     */
+    protected function sendFeeUpdateNotification(Student $student, float $amount, Payment $originalPayment)
+    {
+        $parent = $student->parent;
+        if (!$parent) {
+            return;
+        }
+        
+        // Get parent contact info
+        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+        
+        if (!$parentPhone && !$parentEmail) {
+            return;
+        }
+        
+        // Get or create fee update template
+        $smsTemplate = \App\Models\CommunicationTemplate::where('code', 'fee_update_sms')
+            ->orWhere('code', 'finance_fee_update_sms')
+            ->first();
+        
+        $emailTemplate = \App\Models\CommunicationTemplate::where('code', 'fee_update_email')
+            ->orWhere('code', 'finance_fee_update_email')
+            ->first();
+        
+        if (!$smsTemplate) {
+            $smsTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                ['code' => 'fee_update_sms'],
+                [
+                    'title' => 'Fee Update SMS',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "Dear {{parent_name}}, Payment of Ksh {{amount}} has been transferred from {{student_name}}'s account. Updated balance: Ksh {{balance}}. View statement: {{statement_link}}",
+                ]
+            );
+        }
+        
+        if (!$emailTemplate) {
+            $emailTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                ['code' => 'fee_update_email'],
+                [
+                    'title' => 'Fee Update Email',
+                    'type' => 'email',
+                    'subject' => 'Fee Account Update - {{student_name}}',
+                    'content' => "<p>Dear {{parent_name}},</p><p>This is to inform you that a payment of <strong>Ksh {{amount}}</strong> has been transferred from <strong>{{student_name}}</strong>'s fee account.</p><p><strong>Transaction Code:</strong> {{transaction_code}}<br><strong>Date:</strong> {{payment_date}}</p><p><strong>Updated Balance:</strong> Ksh {{balance}}</p><p><a href=\"{{statement_link}}\">View Updated Statement</a></p><p>If you have any questions, please contact the finance office.</p>",
+                ]
+            );
+        }
+        
+        // Prepare template variables
+        $balance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        $statementLink = url('/finance/student-statements/' . $student->id);
+        
+        $variables = [
+            'parent_name' => $parent->father_name ?? $parent->mother_name ?? 'Parent',
+            'student_name' => $student->full_name,
+            'admission_number' => $student->admission_number ?? '',
+            'amount' => number_format($amount, 2),
+            'balance' => number_format($balance, 2),
+            'transaction_code' => $originalPayment->transaction_code,
+            'payment_date' => $originalPayment->payment_date->format('d/m/Y'),
+            'statement_link' => $statementLink,
+        ];
+        
+        // Replace template variables
+        $smsContent = $smsTemplate->content;
+        $emailSubject = $emailTemplate->subject;
+        $emailContent = $emailTemplate->content;
+        
+        foreach ($variables as $key => $value) {
+            $smsContent = str_replace('{{' . $key . '}}', $value, $smsContent);
+            $emailSubject = str_replace('{{' . $key . '}}', $value, $emailSubject);
+            $emailContent = str_replace('{{' . $key . '}}', $value, $emailContent);
+        }
+        
+        // Send SMS
+        if ($parentPhone) {
+            try {
+                $this->commService->sendSMS(
+                    'student',
+                    $student->id,
+                    $parentPhone,
+                    $smsContent,
+                    'Fee Account Update'
+                );
+            } catch (\Exception $e) {
+                \Log::warning('Failed to send fee update SMS', [
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+        
+        // Send Email
+        if ($parentEmail) {
+            try {
+                $this->commService->sendEmail(
+                    'student',
+                    $student->id,
+                    $parentEmail,
+                    $emailSubject,
+                    $emailContent
+                );
+            } catch (\Exception $e) {
+                \Log::warning('Failed to send fee update email', [
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
     }
     
     public function printReceipt(Payment $payment)
@@ -1516,5 +1764,49 @@ class PaymentController extends Controller
         $normalizedUrl = preg_replace('/:(\d+):\1/', ':$1', $normalizedUrl);
         
         return $normalizedUrl;
+    }
+    
+    /**
+     * Auto-match payment to bank statement transaction if transaction code matches
+     * This prevents double collection of fees
+     */
+    protected function autoMatchToBankStatement(Payment $payment)
+    {
+        if (!$payment->transaction_code) {
+            return;
+        }
+        
+        // Find unmatched bank statement transaction with matching reference number
+        $bankTransaction = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)
+            ->where('match_status', 'unmatched')
+            ->where('status', 'draft')
+            ->where('is_duplicate', false)
+            ->where('is_archived', false)
+            ->whereNull('student_id')
+            ->first();
+        
+        if ($bankTransaction && $bankTransaction->amount == $payment->amount) {
+            // Match the transaction to the payment's student
+            $bankTransaction->update([
+                'student_id' => $payment->student_id,
+                'family_id' => $payment->family_id,
+                'match_status' => 'matched',
+                'match_confidence' => 1.0,
+                'matched_phone_number' => $payment->transaction_code,
+                'match_notes' => 'Auto-matched to manually created payment #' . ($payment->receipt_number ?? $payment->transaction_code),
+            ]);
+            
+            // Link the payment to the bank transaction
+            $bankTransaction->update([
+                'payment_id' => $payment->id,
+                'payment_created' => true,
+            ]);
+            
+            Log::info('Auto-matched bank statement transaction to payment', [
+                'payment_id' => $payment->id,
+                'bank_transaction_id' => $bankTransaction->id,
+                'transaction_code' => $payment->transaction_code,
+            ]);
+        }
     }
 }

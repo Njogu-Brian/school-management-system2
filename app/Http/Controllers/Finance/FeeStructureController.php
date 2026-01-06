@@ -112,6 +112,8 @@ class FeeStructureController extends Controller
                     continue;
                 }
                 foreach ([1 => $charge['term_1'], 2 => $charge['term_2'], 3 => $charge['term_3']] as $term => $amount) {
+                    // Convert to float and handle null/empty values
+                    $amount = $amount === null || $amount === '' ? 0 : (float) $amount;
                     if ($amount > 0) {
                         FeeCharge::create([
                             'fee_structure_id' => $structure->id,
@@ -127,6 +129,7 @@ class FeeStructureController extends Controller
         return redirect()->route('finance.fee-structures.manage', [
             'classroom_id' => $request->classroom_id,
             'student_category_id' => $request->student_category_id,
+            'academic_year_id' => $request->academic_year_id,
         ])
                         ->with('success', 'Fee structure saved successfully.');
     }

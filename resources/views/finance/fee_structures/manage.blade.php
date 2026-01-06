@@ -113,9 +113,12 @@
                                 @foreach($voteheads as $votehead)
                                     @php
                                         $existing = collect($charges)->where('votehead_id', $votehead->id);
-                                        $term1 = old("charges.{$loop->index}.term_1", $existing->where('term', 1)->first()->amount ?? '');
-                                        $term2 = old("charges.{$loop->index}.term_2", $existing->where('term', 2)->first()->amount ?? '');
-                                        $term3 = old("charges.{$loop->index}.term_3", $existing->where('term', 3)->first()->amount ?? '');
+                                        $term1Charge = $existing->where('term', 1)->first();
+                                        $term2Charge = $existing->where('term', 2)->first();
+                                        $term3Charge = $existing->where('term', 3)->first();
+                                        $term1 = old("charges.{$loop->index}.term_1", $term1Charge ? $term1Charge->amount : '');
+                                        $term2 = old("charges.{$loop->index}.term_2", $term2Charge ? $term2Charge->amount : '');
+                                        $term3 = old("charges.{$loop->index}.term_3", $term3Charge ? $term3Charge->amount : '');
                                     @endphp
                                     <tr>
                                         <td>

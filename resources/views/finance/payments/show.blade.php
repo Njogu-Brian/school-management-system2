@@ -315,9 +315,12 @@
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info">
-                        <strong>Available to transfer:</strong> Ksh {{ number_format($payment->unallocated_amount, 2) }}
-                        @if($payment->unallocated_amount <= 0)
-                            <div class="small text-warning mt-1">Note: currently no unallocated amount; adjust manually if needed.</div>
+                        <strong>Available to transfer:</strong> Ksh {{ number_format($payment->amount, 2) }}
+                        @if($payment->unallocated_amount < $payment->amount)
+                            <div class="small text-info mt-1">
+                                <i class="bi bi-info-circle"></i> 
+                                Note: This payment has allocated amounts. Transferring allocated amounts will automatically deallocate them from the original student's invoices.
+                            </div>
                         @endif
                     </div>
                     
@@ -346,7 +349,7 @@
                             <label class="form-label">Amount to Transfer <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">Ksh</span>
-                                <input type="number" step="0.01" min="0.01" max="{{ $payment->unallocated_amount }}" name="transfer_amount" class="form-control" required>
+                                <input type="number" step="0.01" min="0.01" max="{{ $payment->amount }}" name="transfer_amount" id="transferAmount" class="form-control" required>
                             </div>
                         </div>
                     </div>
@@ -425,6 +428,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const transferType = document.getElementById('transferType');
     const transferSingle = document.getElementById('transferSingleStudent');
     const transferMultiple = document.getElementById('transferMultipleStudents');
+    const maxTransferAmount = {{ $payment->amount }};
     
     if (transferType) {
         transferType.addEventListener('change', function() {
@@ -437,6 +441,21 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'none';
+            }
+        });
+    }
+    
+    // Validate transfer amount
+    const transferAmountInput = document.getElementById('transferAmount');
+    if (transferAmountInput) {
+        transferAmountInput.addEventListener('input', function() {
+            const amount = parseFloat(this.value) || 0;
+            if (amount > maxTransferAmount) {
+                this.setCustomValidity(`Amount cannot exceed payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+            } else if (amount <= 0) {
+                this.setCustomValidity('Amount must be greater than 0');
+            } else {
+                this.setCustomValidity('');
             }
         });
     }
@@ -535,10 +554,50 @@ document.addEventListener('DOMContentLoaded', function() {
         const amounts = document.querySelectorAll('.shared-amount');
         let total = 0;
         amounts.forEach(input => {
-            total += parseFloat(input.value) || 0;
+            const amount = parseFloat(input.value) || 0;
+            total += amount;
+            
+            // Validate each shared amount
+            if (amount > maxTransferAmount) {
+                input.setCustomValidity(`Amount cannot exceed payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+            } else if (amount <= 0 && input.value !== '') {
+                input.setCustomValidity('Amount must be greater than 0');
+            } else {
+                input.setCustomValidity('');
+            }
         });
-        document.getElementById('totalSharedAmount').textContent = `Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        
+        const totalElement = document.getElementById('totalSharedAmount');
+        if (totalElement) {
+            totalElement.textContent = `Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            
+            // Highlight if total exceeds payment amount
+            if (total > maxTransferAmount) {
+                totalElement.style.color = 'red';
+                totalElement.parentElement.innerHTML = `<strong style="color: red;">Total Allocated: <span id="totalSharedAmount">Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span> (Exceeds payment amount!)</strong>`;
+            } else {
+                totalElement.style.color = '';
+            }
+        }
+        
+        // Validate form submission
+        const form = document.getElementById('transferPaymentForm');
+        if (form) {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (transferType && transferType.value === 'share') {
+                if (total > maxTransferAmount + 0.01) {
+                    if (submitBtn) submitBtn.disabled = true;
+                } else {
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            }
+        }
     }
+    
+    // Initialize shared amount validation
+    document.querySelectorAll('.shared-amount').forEach(input => {
+        input.addEventListener('input', updateTotalShared);
+    });
     
     // Remove student functionality
     document.addEventListener('click', function(e) {
@@ -547,6 +606,32 @@ document.addEventListener('DOMContentLoaded', function() {
             updateTotalShared();
         }
     });
+    
+    // Form validation on submit
+    const transferForm = document.getElementById('transferPaymentForm');
+    if (transferForm) {
+        transferForm.addEventListener('submit', function(e) {
+            if (transferType && transferType.value === 'transfer') {
+                const amount = parseFloat(transferAmountInput?.value || 0);
+                if (amount > maxTransferAmount) {
+                    e.preventDefault();
+                    alert(`Transfer amount cannot exceed payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+                    return false;
+                }
+            } else if (transferType && transferType.value === 'share') {
+                const amounts = document.querySelectorAll('.shared-amount');
+                let total = 0;
+                amounts.forEach(input => {
+                    total += parseFloat(input.value) || 0;
+                });
+                if (total > maxTransferAmount + 0.01) {
+                    e.preventDefault();
+                    alert(`Total shared amounts (Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}) cannot exceed payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+                    return false;
+                }
+            }
+        });
+    }
 });
 </script>
 @endpush

@@ -480,77 +480,28 @@ class BankStatementController extends Controller
                     continue;
                 }
 
-                DB::transaction(function () use ($transaction) {
-                    $transaction->confirm();
-                    if (!$transaction->payment_created) {
-                        $payment = $this->parser->createPaymentFromTransaction($transaction);
-                        
-                        // Generate receipt for the payment
-                        try {
-                            $receiptService = app(\App\Services\ReceiptService::class);
-                            $receiptService->generateReceipt($payment, ['save' => true]);
-                        } catch (\Exception $e) {
-                            Log::warning('Receipt generation failed for bank statement payment', [
-                                'payment_id' => $payment->id,
-                                'error' => $e->getMessage()
-                            ]);
-                        }
-                        
-                        // Send payment notifications (SMS, Email, WhatsApp)
-                        try {
-                            $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
-                            $paymentController->sendPaymentNotifications($payment);
-                        } catch (\Exception $e) {
-                            Log::warning('Payment notification failed for bank statement payment', [
-                                'payment_id' => $payment->id ?? null,
-                                'transaction_id' => $transaction->id,
-                                'error' => $e->getMessage()
-                            ]);
-                            // Don't fail the process if notifications fail
-                        }
-                        
-                        // If shared payment, generate receipts for all sibling payments
-                        if ($transaction->is_shared && $transaction->shared_allocations) {
-                            foreach ($transaction->shared_allocations as $allocation) {
-                                $siblingPayment = \App\Models\Payment::where('student_id', $allocation['student_id'])
-                                    ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
-                                    ->where('id', '!=', $payment->id)
-                                    ->first();
-                                
-                                if ($siblingPayment) {
-                                    try {
-                                        $receiptService->generateReceipt($siblingPayment, ['save' => true]);
-                                        
-                                        // Send notifications for sibling payment
-                                        try {
-                                            $paymentController->sendPaymentNotifications($siblingPayment);
-                                        } catch (\Exception $e) {
-                                            Log::warning('Payment notification failed for sibling payment', [
-                                                'payment_id' => $siblingPayment->id,
-                                                'error' => $e->getMessage()
-                                            ]);
-                                        }
-                                    } catch (\Exception $e) {
-                                        Log::warning('Receipt generation failed for sibling payment', [
-                                            'payment_id' => $siblingPayment->id,
-                                            'error' => $e->getMessage()
-                                        ]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-
+                // Only confirm draft transactions
+                if ($transaction->status !== 'draft') {
+                    $errors[] = "Transaction #{$transactionId} is already {$transaction->status}";
+                    continue;
+                }
+                
+                // Only confirm, do NOT create payment (that will be done via auto-assign)
+                $transaction->confirm();
                 $confirmed++;
+                
+                Log::info('Bulk confirmed transaction', [
+                    'transaction_id' => $transaction->id,
+                    'student_id' => $transaction->student_id,
+                ]);
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
             }
         }
 
-        $message = "Confirmed {$confirmed} transaction(s)";
+        $message = "Confirmed {$confirmed} transaction(s). Use Auto-Assign to create payments.";
         if (!empty($errors)) {
-            $message .= ". Errors: " . implode(', ', $errors);
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
         }
 
         return redirect()
@@ -583,69 +534,62 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Auto-assign unmatched transactions and confirm matched transactions
-     * Re-analyzes ALL transactions including confirmed ones to fix any matching issues
+     * Auto-assign: Creates payments for CONFIRMED transactions only
+     * Does NOT confirm transactions - that must be done separately via bulk confirm
+     * This prevents timeouts and errors by separating confirmation from payment creation
      */
     public function autoAssign(Request $request)
     {
         $validated = $request->validate([
             'transaction_ids' => 'nullable|array',
             'transaction_ids.*' => 'exists:bank_statement_transactions,id',
-            'auto_confirm' => 'nullable|boolean', // Option to auto-confirm high-confidence matches
-            'confirm_matched' => 'nullable|boolean', // Option to confirm already-matched transactions
         ]);
 
-        // Get ALL transactions to re-analyze (including confirmed ones)
-        $allTransactionsQuery = BankStatementTransaction::where('is_duplicate', false)
-            ->where('is_archived', false);
-
-        // Get unmatched transactions to match
-        $unmatchedQuery = BankStatementTransaction::where('match_status', 'unmatched')
-            ->where('is_duplicate', false)
-            ->where('is_archived', false);
-
-        // Get matched but not confirmed transactions to confirm
-        $matchedQuery = BankStatementTransaction::where('match_status', 'matched')
-            ->where('status', 'draft')
+        // Only process CONFIRMED transactions that need payment creation
+        // Get confirmed transactions that are matched but payment not created
+        $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
+            ->where('match_status', 'matched')
             ->where('is_duplicate', false)
             ->where('is_archived', false)
             ->whereNotNull('student_id')
             ->where('payment_created', false);
         
-        // Get confirmed transactions that need re-analysis
-        $confirmedQuery = BankStatementTransaction::where('status', 'confirmed')
+        // Also get confirmed unmatched transactions to try matching first
+        $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
+            ->where('match_status', 'unmatched')
+            ->where('is_duplicate', false)
+            ->where('is_archived', false);
+        
+        // Get all confirmed transactions for re-analysis
+        $allConfirmedQuery = BankStatementTransaction::where('status', 'confirmed')
             ->where('is_duplicate', false)
             ->where('is_archived', false);
 
         if (!empty($validated['transaction_ids'])) {
-            $allTransactionsQuery->whereIn('id', $validated['transaction_ids']);
             $unmatchedQuery->whereIn('id', $validated['transaction_ids']);
             $matchedQuery->whereIn('id', $validated['transaction_ids']);
-            $confirmedQuery->whereIn('id', $validated['transaction_ids']);
+            $allConfirmedQuery->whereIn('id', $validated['transaction_ids']);
         }
 
-        $allTransactions = $allTransactionsQuery->get();
         $unmatchedTransactions = $unmatchedQuery->get();
         $matchedTransactions = $matchedQuery->get();
-        $confirmedTransactions = $confirmedQuery->get();
+        $allConfirmedTransactions = $allConfirmedQuery->get();
         
         $matched = 0;
-        $confirmed = 0;
+        $paymentsCreated = 0;
         $reversed = 0;
         $errors = [];
-        $autoConfirm = $validated['auto_confirm'] ?? true; // Default to true for auto-confirmation
-        $confirmMatched = $validated['confirm_matched'] ?? true; // Default to true to confirm already-matched
         
         // For bulk operations (many transactions), skip receipt generation and notifications to avoid timeouts
         // Receipts and notifications can be generated later via a separate process
-        $totalTransactions = $allTransactions->count();
+        $totalTransactions = $matchedTransactions->count();
         $skipReceiptAndNotifications = $totalTransactions > 10; // Skip if processing more than 10 transactions
         
         // Track payment IDs created during this process for background processing
         $createdPaymentIds = [];
         
-        // First, re-analyze ALL transactions (including confirmed ones) to check for matching issues
-        foreach ($allTransactions as $transaction) {
+        // First, re-analyze ALL confirmed transactions to check for matching issues
+        foreach ($allConfirmedTransactions as $transaction) {
             try {
                 // Store original state BEFORE re-matching
                 $originalStudentId = $transaction->student_id;
@@ -734,41 +678,17 @@ class BankStatementController extends Controller
         $unmatchedTransactions = $unmatchedQuery->get();
         $matchedTransactions = $matchedQuery->get();
 
-        // Process unmatched transactions - match them first
+        // Process unmatched confirmed transactions - try to match them first
         foreach ($unmatchedTransactions as $transaction) {
             try {
                 $result = $this->parser->matchTransaction($transaction);
                 if ($result['matched']) {
                     $matched++;
-                    
-                    // Refresh transaction to get updated match_confidence and student_id
                     $transaction->refresh();
                     
-                    // Auto-confirm ALL successfully matched transactions if enabled
-                    // A successful match means there was exactly one unique student match
-                    if ($autoConfirm && $transaction->student_id && $transaction->match_status === 'matched') {
-                        try {
-                            DB::transaction(function () use ($transaction, &$confirmed, &$createdPaymentIds, $skipReceiptAndNotifications) {
-                                // Confirm the transaction
-                                $transaction->confirm();
-                                
-                                // Create payment if not already created
-                                if (!$transaction->payment_created) {
-                                    $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
-                                    if ($payment && $payment->id) {
-                                        $createdPaymentIds[] = $payment->id;
-                                    }
-                                    $confirmed++;
-                                }
-                            });
-                        } catch (\Exception $e) {
-                            $errors[] = "Transaction #{$transaction->id} (auto-confirm): " . $e->getMessage();
-                            Log::error('Auto-confirm failed for transaction', [
-                                'transaction_id' => $transaction->id,
-                                'error' => $e->getMessage(),
-                                'trace' => $e->getTraceAsString()
-                            ]);
-                        }
+                    // If now matched, add to matched transactions list for payment creation
+                    if ($transaction->match_status === 'matched' && $transaction->student_id) {
+                        $matchedTransactions->push($transaction);
                     }
                 }
             } catch (\Exception $e) {
@@ -776,31 +696,31 @@ class BankStatementController extends Controller
             }
         }
 
-        // Process already-matched transactions - confirm them and create payments
-        if ($confirmMatched) {
-            foreach ($matchedTransactions as $transaction) {
-                try {
-                    DB::transaction(function () use ($transaction, &$confirmed, &$createdPaymentIds, $skipReceiptAndNotifications) {
-                        // Confirm the transaction
-                        $transaction->confirm();
-                        
-                        // Create payment if not already created
-                        if (!$transaction->payment_created) {
-                            $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
-                            if ($payment && $payment->id) {
-                                $createdPaymentIds[] = $payment->id;
-                            }
-                            $confirmed++;
+        // Process confirmed matched transactions - CREATE PAYMENTS ONLY (do not confirm)
+        foreach ($matchedTransactions as $transaction) {
+            try {
+                // Only create payment if transaction is confirmed and matched
+                if ($transaction->status === 'confirmed' && 
+                    $transaction->match_status === 'matched' && 
+                    $transaction->student_id && 
+                    !$transaction->payment_created) {
+                    
+                    DB::transaction(function () use ($transaction, &$paymentsCreated, &$createdPaymentIds, $skipReceiptAndNotifications) {
+                        // Create payment (transaction is already confirmed)
+                        $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
+                        if ($payment && $payment->id) {
+                            $createdPaymentIds[] = $payment->id;
+                            $paymentsCreated++;
                         }
                     });
-                } catch (\Exception $e) {
-                    $errors[] = "Transaction #{$transaction->id} (confirm matched): " . $e->getMessage();
-                    Log::error('Confirm matched transaction failed', [
-                        'transaction_id' => $transaction->id,
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString()
-                    ]);
                 }
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id} (create payment): " . $e->getMessage();
+                Log::error('Payment creation failed for confirmed transaction', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
             }
         }
         
@@ -842,20 +762,22 @@ class BankStatementController extends Controller
             }
         }
 
-        $totalProcessed = $allTransactions->count();
-        $message = "Re-analyzed {$totalProcessed} transactions. ";
+        $totalProcessed = $allConfirmedTransactions->count();
+        $message = "Processed {$totalProcessed} confirmed transaction(s). ";
         if ($reversed > 0) {
             $message .= "Reversed and deleted {$reversed} incorrect payment(s). ";
         }
         if ($matched > 0) {
-            $message .= "Matched {$matched} new transactions. ";
+            $message .= "Matched {$matched} unmatched transaction(s). ";
         }
-        if ($confirmed > 0) {
+        if ($paymentsCreated > 0) {
             if ($skipReceiptAndNotifications) {
-                $message .= "{$confirmed} payment(s) created. Receipts and notifications are being processed in the background.";
+                $message .= "{$paymentsCreated} payment(s) created. Receipts and notifications are being processed in the background.";
             } else {
-                $message .= "{$confirmed} payment(s) created, receipts generated, and notifications sent.";
+                $message .= "{$paymentsCreated} payment(s) created, receipts generated, and notifications sent.";
             }
+        } else {
+            $message .= "No payments created. Ensure transactions are confirmed and matched first.";
         }
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5)); // Limit error display
