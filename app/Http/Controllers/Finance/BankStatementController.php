@@ -639,8 +639,14 @@ class BankStatementController extends Controller
                     continue;
                 }
                 
-                // Only confirm, do NOT create payment (that will be done via auto-assign)
+                // Confirm and set match_status to 'manual' since it was manually confirmed
                 $transaction->confirm();
+                
+                // If transaction has student_id or is_shared, mark as manual assigned
+                if ($transaction->student_id || $transaction->is_shared) {
+                    $transaction->update(['match_status' => 'manual']);
+                }
+                
                 $confirmed++;
                 
                 Log::info('Bulk confirmed transaction', [
@@ -700,11 +706,10 @@ class BankStatementController extends Controller
 
         // Only process CONFIRMED transactions that need payment creation
         // Exclude rejected transactions - they should never be auto-assigned
-        // Get confirmed transactions that are matched but payment not created
-        // Get confirmed matched but payment not created transactions
+        // Get confirmed transactions that are matched (auto-assigned) OR manual-assigned but payment not created
         // This includes both single payments (student_id) and shared payments (is_shared)
         $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
-            ->where('match_status', 'matched')
+            ->whereIn('match_status', ['matched', 'manual']) // Include both auto-assigned and manual-assigned
             ->where('is_duplicate', false)
             ->where('is_archived', false)
             ->where('payment_created', false)

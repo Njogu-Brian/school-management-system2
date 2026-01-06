@@ -324,7 +324,7 @@
                         @csrf
                         <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
                         <p class="text-info mb-3">
-                            <i class="bi bi-info-circle"></i> Allocate the payment amount among the siblings below. The total must equal the transaction amount.
+                            <i class="bi bi-info-circle"></i> Allocate the payment amount among the siblings below. You can share with 1, 2, or 3 siblings (not all). Enter 0.00 for siblings you don't want to include. The total must equal the transaction amount.
                         </p>
                         <div id="siblingAllocations">
                             @php

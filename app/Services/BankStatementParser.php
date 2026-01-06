@@ -1045,7 +1045,7 @@ class BankStatementParser
         $transaction->update([
             'is_shared' => true,
             'shared_allocations' => $allocations,
-            'match_status' => 'matched',
+            'match_status' => 'manual', // Set to manual since it was manually shared
             'match_notes' => $matchNotes,
         ]);
         

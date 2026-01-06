@@ -123,18 +123,18 @@
     </div>
 
     <!-- Bulk Actions -->
-    <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2" id="bulkActionsContainer" style="display: none !important;">
         <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
             @csrf
-            <input type="hidden" name="transaction_ids" id="bulkTransactionIds">
-            <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()">
+            <input type="hidden" name="transaction_ids[]" id="bulkTransactionIds">
+            <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
                 <i class="bi bi-check-circle"></i> Confirm Selected (Draft Only)
             </button>
         </form>
         
         <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
             @csrf
-            <input type="hidden" name="transaction_ids" id="autoAssignTransactionIds">
+            <input type="hidden" name="transaction_ids[]" id="autoAssignTransactionIds">
             <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()">
                 <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
             </button>
@@ -148,7 +148,11 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                            @if(request('view') === 'draft' || request('view') === 'all')
+                                <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
                         </th>
                         <th>Date</th>
                         <th>Amount</th>
@@ -165,7 +169,11 @@
                     @forelse($transactions as $transaction)
                         <tr>
                             <td>
-                                <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()">
+                                @if($transaction->status === 'draft' && !$transaction->is_duplicate && !$transaction->is_archived)
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()">
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
                             </td>
                             <td>{{ $transaction->transaction_date->format('d M Y') }}</td>
                             <td>
@@ -191,6 +199,7 @@
                                 @elseif($transaction->is_shared && $transaction->shared_allocations)
                                     <div class="text-primary">
                                         <i class="bi bi-people"></i> <strong>Shared Payment</strong>
+                                        <br><small class="text-info">({{ count($transaction->shared_allocations) }} sibling{{ count($transaction->shared_allocations) === 1 ? '' : 's' }})</small>
                                     </div>
                                     @foreach($transaction->shared_allocations as $allocation)
                                         @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
@@ -204,6 +213,27 @@
                                             </div>
                                         @endif
                                     @endforeach
+                                @elseif($transaction->student_id)
+                                    @php
+                                        $student = $transaction->student;
+                                        $siblings = [];
+                                        if ($student && $student->family_id) {
+                                            $siblings = \App\Models\Student::where('family_id', $student->family_id)
+                                                ->where('id', '!=', $student->id)
+                                                ->where('is_alumni', false)
+                                                ->where('archive', false)
+                                                ->get();
+                                        }
+                                    @endphp
+                                    <a href="{{ route('students.show', $transaction->student) }}">
+                                        {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
+                                        <br><small class="text-muted">{{ $transaction->student->admission_number }}</small>
+                                    </a>
+                                    @if(count($siblings) > 0 && !$transaction->is_shared)
+                                        <br><small class="text-info">
+                                            <i class="bi bi-people"></i> {{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }} available
+                                        </small>
+                                    @endif
                                 @elseif($transaction->student)
                                     <a href="{{ route('students.show', $transaction->student) }}">
                                         {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
@@ -292,39 +322,134 @@
     <script>
         function toggleSelectAll() {
             const selectAll = document.getElementById('selectAll');
+            if (!selectAll) return;
+            
             const checkboxes = document.querySelectorAll('.transaction-checkbox');
             checkboxes.forEach(cb => cb.checked = selectAll.checked);
             updateBulkIds();
         }
 
         function updateBulkIds() {
-            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => cb.value);
-            document.getElementById('bulkTransactionIds').value = JSON.stringify(checked);
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
+            const bulkIdsInput = document.getElementById('bulkTransactionIds');
+            const autoAssignIdsInput = document.getElementById('autoAssignTransactionIds');
+            const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
+            const bulkActionsContainer = document.getElementById('bulkActionsContainer');
+            
+            // Update hidden input with array format
+            bulkIdsInput.value = checked.length > 0 ? JSON.stringify(checked) : '';
+            autoAssignIdsInput.value = checked.length > 0 ? JSON.stringify(checked) : '';
+            
+            // Show/hide bulk confirm button based on draft selections
+            const draftChecked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).filter(cb => {
+                const row = cb.closest('tr');
+                return row && row.querySelector('.badge') && row.querySelector('.badge').textContent.trim() === 'Draft';
+            });
+            
+            if (draftChecked.length > 0) {
+                bulkConfirmBtn.style.display = 'inline-block';
+                bulkActionsContainer.style.display = 'flex';
+            } else {
+                bulkConfirmBtn.style.display = 'none';
+                if (checked.length === 0) {
+                    bulkActionsContainer.style.display = 'none';
+                } else {
+                    bulkActionsContainer.style.display = 'flex';
+                }
+            }
         }
 
         function bulkConfirm() {
-            const ids = JSON.parse(document.getElementById('bulkTransactionIds').value || '[]');
-            if (ids.length === 0) {
-                alert('Please select at least one transaction');
+            const idsInput = document.getElementById('bulkTransactionIds');
+            const idsValue = idsInput.value;
+            
+            if (!idsValue || idsValue === '[]') {
+                alert('Please select at least one draft transaction');
                 return;
             }
-            if (confirm(`Confirm ${ids.length} transaction(s)?`)) {
-                document.getElementById('bulkConfirmForm').submit();
+            
+            let ids;
+            try {
+                ids = JSON.parse(idsValue);
+            } catch (e) {
+                alert('Error parsing transaction IDs. Please try again.');
+                return;
+            }
+            
+            if (!Array.isArray(ids) || ids.length === 0) {
+                alert('Please select at least one draft transaction');
+                return;
+            }
+            
+            // Create hidden inputs for each ID
+            const form = document.getElementById('bulkConfirmForm');
+            // Remove existing hidden inputs
+            form.querySelectorAll('input[name="transaction_ids[]"]').forEach(input => {
+                if (input.id !== 'bulkTransactionIds') {
+                    input.remove();
+                }
+            });
+            
+            // Add new hidden inputs
+            ids.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'transaction_ids[]';
+                input.value = id;
+                form.appendChild(input);
+            });
+            
+            if (confirm(`Confirm ${ids.length} draft transaction(s)?`)) {
+                form.submit();
             }
         }
 
         function autoAssign() {
-            // Get selected transaction IDs (or process all confirmed)
-            const selectedIds = JSON.parse(document.getElementById('autoAssignTransactionIds').value || '[]');
+            const idsInput = document.getElementById('autoAssignTransactionIds');
+            const idsValue = idsInput.value;
+            
+            const form = document.getElementById('autoAssignForm');
+            
+            // Remove existing hidden inputs
+            form.querySelectorAll('input[name="transaction_ids[]"]').forEach(input => {
+                if (input.id !== 'autoAssignTransactionIds') {
+                    input.remove();
+                }
+            });
             
             // If no specific selection, process all confirmed transactions
-            if (selectedIds.length === 0) {
-                if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched but don\'t have payments yet.')) {
-                    document.getElementById('autoAssignForm').submit();
+            if (!idsValue || idsValue === '[]') {
+                if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched (auto-assigned or manual-assigned) but don\'t have payments yet.')) {
+                    form.submit();
                 }
             } else {
-                if (confirm(`Create payments for ${selectedIds.length} selected confirmed transaction(s)? Only confirmed transactions will be processed.`)) {
-                    document.getElementById('autoAssignForm').submit();
+                let ids;
+                try {
+                    ids = JSON.parse(idsValue);
+                } catch (e) {
+                    alert('Error parsing transaction IDs. Processing all confirmed transactions instead.');
+                    form.submit();
+                    return;
+                }
+                
+                if (!Array.isArray(ids) || ids.length === 0) {
+                    if (confirm('Create payments for all confirmed transactions?')) {
+                        form.submit();
+                    }
+                    return;
+                }
+                
+                // Add hidden inputs for each ID
+                ids.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'transaction_ids[]';
+                    input.value = id;
+                    form.appendChild(input);
+                });
+                
+                if (confirm(`Create payments for ${ids.length} selected transaction(s)? This will process confirmed transactions that are matched (auto-assigned or manual-assigned) but don't have payments yet.`)) {
+                    form.submit();
                 }
             }
         }
@@ -335,11 +460,11 @@
             checkboxes.forEach(cb => {
                 cb.addEventListener('change', function() {
                     updateBulkIds();
-                    // Also update auto-assign IDs
-                    const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(c => c.value);
-                    document.getElementById('autoAssignTransactionIds').value = JSON.stringify(checked);
                 });
             });
+            
+            // Initial update
+            updateBulkIds();
         });
     </script>
 @endsection
