@@ -44,11 +44,11 @@
                         Update student biodata in the system
                     </small>
                 </div>
-            @elseif($family && !$updateLink)
-                {{-- Show button even if link doesn't exist yet (will be created on next load) --}}
+            @else
+                {{-- Show button even if family/link doesn't exist yet (will be created on next load) --}}
                 <div class="d-flex flex-column align-items-end me-2" style="position: relative;">
                     <a href="javascript:void(0)" 
-                       onclick="alert('Profile update link is being generated. Please refresh the page in a moment.'); location.reload();"
+                       onclick="location.reload();"
                        class="btn btn-primary position-relative"
                        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                               border: none; 

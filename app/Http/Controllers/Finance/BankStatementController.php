@@ -33,7 +33,7 @@ class BankStatementController extends Controller
             ->orderBy('transaction_date', 'desc')
             ->orderBy('created_at', 'desc');
 
-        // View filters (all, auto-assigned, manual-assigned, draft, unassigned, archived)
+        // View filters (all, auto-assigned, manual-assigned, draft, unassigned, confirmed, collected, archived)
         $view = $request->get('view', 'all');
         
         switch ($view) {
@@ -65,6 +65,19 @@ class BankStatementController extends Controller
             case 'unassigned':
                 $query->where('match_status', 'unmatched')
                       ->whereNull('student_id')
+                      ->where('is_duplicate', false)
+                      ->where('is_archived', false);
+                break;
+            case 'confirmed':
+                // All confirmed transactions (regardless of payment_created status)
+                $query->where('status', 'confirmed')
+                      ->where('is_duplicate', false)
+                      ->where('is_archived', false);
+                break;
+            case 'collected':
+                // Confirmed transactions where payment has been created
+                $query->where('status', 'confirmed')
+                      ->where('payment_created', true)
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
@@ -148,6 +161,15 @@ class BankStatementController extends Controller
                 ->count(),
             'unassigned' => BankStatementTransaction::where('match_status', 'unmatched')
                 ->whereNull('student_id')
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->count(),
+            'confirmed' => BankStatementTransaction::where('status', 'confirmed')
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->count(),
+            'collected' => BankStatementTransaction::where('status', 'confirmed')
+                ->where('payment_created', true)
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),

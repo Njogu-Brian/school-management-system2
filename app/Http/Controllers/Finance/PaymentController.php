@@ -1466,14 +1466,32 @@ class PaymentController extends Controller
         
         $student = $payment->student;
         
-        // Ensure family has an update link (create if doesn't exist)
-        if ($student->family && !$student->family->updateLink) {
-            \App\Models\FamilyUpdateLink::create([
-                'family_id' => $student->family->id,
-                'is_active' => true,
+        // Ensure student has a family (create if doesn't exist)
+        if (!$student->family_id) {
+            // Create a family for the student if they don't have one
+            $family = \App\Models\Family::create([
+                'guardian_name' => $student->first_name . ' ' . $student->last_name,
             ]);
-            // Reload the relationship
-            $student->family->load('updateLink');
+            $student->update(['family_id' => $family->id]);
+            // Refresh student to get the new family relationship
+            $student->refresh();
+            $payment->refresh();
+        }
+        
+        // Reload student with family and updateLink
+        $student->load('family.updateLink');
+        
+        // Ensure family has an update link (create if doesn't exist)
+        if ($student->family) {
+            if (!$student->family->updateLink) {
+                \App\Models\FamilyUpdateLink::create([
+                    'family_id' => $student->family->id,
+                    'is_active' => true,
+                ]);
+                // Reload the relationship to ensure updateLink is available
+                $student->family->refresh();
+                $student->family->load('updateLink');
+            }
         }
         
         // Get ALL unpaid invoice items for the student

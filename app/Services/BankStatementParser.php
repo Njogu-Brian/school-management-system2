@@ -1232,10 +1232,11 @@ class BankStatementParser
                 $payments[] = $payment;
             }
             
-            // Update transaction with first payment ID (for reference)
+            // Update transaction with first payment ID (for reference) and mark as collected
             $transaction->update([
                 'payment_id' => $payments[0]->id,
                 'payment_created' => true,
+                'status' => 'confirmed', // Ensure it's confirmed when payment is created
             ]);
             
             return $payments[0];
@@ -1244,9 +1245,11 @@ class BankStatementParser
             $student = Student::findOrFail($transaction->student_id);
             $payment = $this->createSinglePayment($transaction, $student, $transaction->amount);
             
+            // Mark transaction as collected (payment created)
             $transaction->update([
                 'payment_id' => $payment->id,
                 'payment_created' => true,
+                'status' => 'confirmed', // Ensure it's confirmed when payment is created
             ]);
             
             return $payment;

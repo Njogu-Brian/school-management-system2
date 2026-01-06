@@ -56,6 +56,16 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {{ ($view ?? 'all') == 'confirmed' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'confirmed'] + request()->except('view')) }}">
+                        Confirmed <span class="badge bg-primary">{{ $counts['confirmed'] ?? 0 }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ ($view ?? 'all') == 'collected' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'collected'] + request()->except('view')) }}">
+                        Collected <span class="badge bg-success">{{ $counts['collected'] ?? 0 }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {{ ($view ?? 'all') == 'duplicate' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'duplicate'] + request()->except('view')) }}">
                         Duplicate <span class="badge bg-danger">{{ $counts['duplicate'] ?? 0 }}</span>
                     </a>
@@ -148,7 +158,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'all']) || !request('view'))
+                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'all']) || !request('view'))
                                 <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                             @else
                                 <span class="text-muted">—</span>
@@ -268,8 +278,10 @@
                                     <span class="badge bg-secondary">Archived</span>
                                 @elseif($transaction->is_duplicate)
                                     <span class="badge bg-danger">Duplicate</span>
+                                @elseif($transaction->status == 'confirmed' && $transaction->payment_created)
+                                    <span class="badge bg-success">Collected</span>
                                 @elseif($transaction->status == 'confirmed')
-                                    <span class="badge bg-success">Confirmed</span>
+                                    <span class="badge bg-primary">Confirmed</span>
                                 @elseif($transaction->status == 'rejected')
                                     <span class="badge bg-danger">Rejected</span>
                                 @elseif($transaction->match_status == 'matched' && ($transaction->student_id || $transaction->is_shared))
