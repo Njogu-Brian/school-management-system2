@@ -850,6 +850,11 @@ class BankStatementController extends Controller
             'transaction_ids' => $transactionIds,
             'count' => count($transactionIds),
         ]);
+        
+        // Increase execution time limit for bulk operations (set early)
+        set_time_limit(600); // 10 minutes
+        ini_set('max_execution_time', 600);
+        ini_set('memory_limit', '512M'); // Increase memory limit for bulk operations
 
         // Only process CONFIRMED transactions that need payment creation
         // Exclude rejected transactions - they should never be auto-assigned
@@ -903,7 +908,13 @@ class BankStatementController extends Controller
         // For bulk operations (many transactions), skip receipt generation and notifications to avoid timeouts
         // Receipts and notifications can be generated later via a separate process
         $totalTransactions = $matchedTransactions->count();
-        $skipReceiptAndNotifications = $totalTransactions > 10; // Skip if processing more than 10 transactions
+        $skipReceiptAndNotifications = $totalTransactions > 5; // Skip if processing more than 5 transactions
+        
+        // Increase execution time limit for bulk operations
+        if ($totalTransactions > 5) {
+            set_time_limit(600); // 10 minutes for bulk operations
+            ini_set('max_execution_time', 600);
+        }
         
         // Track payment IDs created during this process for background processing
         $createdPaymentIds = [];
@@ -1056,6 +1067,7 @@ class BankStatementController extends Controller
 
         // Process confirmed matched transactions - CREATE PAYMENTS ONLY (do not confirm)
         // This includes both single payments and shared payments (siblings)
+        // For bulk operations, create all payments first without allocations/notifications
         foreach ($matchedTransactions as $transaction) {
             try {
                 // Only create payment if transaction is confirmed and matched (auto or manual)
@@ -1068,9 +1080,11 @@ class BankStatementController extends Controller
                     if ($transaction->is_shared && $transaction->shared_allocations) {
                         // Shared payment - will create multiple payments
                         if (count($transaction->shared_allocations) > 0) {
-                            DB::transaction(function () use ($transaction, &$paymentsCreated, &$createdPaymentIds, $skipReceiptAndNotifications) {
-                                // Create payment (will create payments for all siblings)
-                                $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
+                            // Create payment directly without DB transaction wrapper for speed
+                            // DB transactions add overhead - we'll handle errors individually
+                            // Skip allocation during creation for bulk operations
+                            try {
+                                $payment = $this->parser->createPaymentFromTransaction($transaction, true); // Skip allocation
                                 if ($payment && $payment->id) {
                                     $createdPaymentIds[] = $payment->id;
                                     // Count all sibling payments created
@@ -1078,19 +1092,39 @@ class BankStatementController extends Controller
                                         ->where('created_at', '>=', now()->subMinutes(5))
                                         ->get();
                                     $paymentsCreated += $siblingPayments->count();
+                                    
+                                    // Add all sibling payment IDs for batch allocation
+                                    foreach ($siblingPayments as $siblingPayment) {
+                                        if (!in_array($siblingPayment->id, $createdPaymentIds)) {
+                                            $createdPaymentIds[] = $siblingPayment->id;
+                                        }
+                                    }
                                 }
-                            });
+                            } catch (\Exception $e) {
+                                $errors[] = "Transaction #{$transaction->id} (create payment): " . $e->getMessage();
+                                Log::error('Payment creation failed for shared transaction', [
+                                    'transaction_id' => $transaction->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
                         }
                     } elseif ($transaction->student_id) {
-                        // Single payment
-                        DB::transaction(function () use ($transaction, &$paymentsCreated, &$createdPaymentIds, $skipReceiptAndNotifications) {
-                            // Create payment (transaction is already confirmed)
-                            $payment = $this->createPaymentAndNotify($transaction, $skipReceiptAndNotifications);
+                        // Single payment - create directly without DB transaction wrapper
+                        // Skip allocation during creation for bulk operations
+                        try {
+                            $payment = $this->parser->createPaymentFromTransaction($transaction, true); // Skip allocation
                             if ($payment && $payment->id) {
                                 $createdPaymentIds[] = $payment->id;
                                 $paymentsCreated++;
                             }
-                        });
+                        } catch (\Exception $e) {
+                            $errors[] = "Transaction #{$transaction->id} (create payment): " . $e->getMessage();
+                            Log::error('Payment creation failed for confirmed transaction', [
+                                'transaction_id' => $transaction->id,
+                                'error' => $e->getMessage(),
+                                'trace' => $e->getTraceAsString()
+                            ]);
+                        }
                     }
                 }
             } catch (\Exception $e) {
@@ -1103,19 +1137,77 @@ class BankStatementController extends Controller
             }
         }
         
+        // After all payments are created, do allocations in batch (much faster)
+        // Only do batch allocation if we skipped it during payment creation
+        if (!empty($createdPaymentIds) && $skipReceiptAndNotifications) {
+            try {
+                $allocationService = app(\App\Services\PaymentAllocationService::class);
+                
+                \Log::info('Starting batch allocation', [
+                    'payment_count' => count($createdPaymentIds),
+                ]);
+                
+                // Process in smaller batches to avoid memory issues and improve performance
+                $allocationBatchSize = 20; // Process 20 payments at a time for allocation
+                $paymentChunks = array_chunk($createdPaymentIds, $allocationBatchSize);
+                
+                foreach ($paymentChunks as $chunk) {
+                    // Eager load relationships to reduce database queries
+                    $payments = \App\Models\Payment::whereIn('id', $chunk)
+                        ->with(['student.invoices.items.votehead']) // Eager load to reduce queries
+                        ->get();
+                    
+                    foreach ($payments as $payment) {
+                        try {
+                            $allocationService->autoAllocate($payment);
+                        } catch (\Exception $e) {
+                            Log::warning('Batch auto-allocation failed for payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                    
+                    // Small delay between allocation batches to prevent overwhelming the system
+                    usleep(100000); // 0.1 seconds
+                }
+                
+                \Log::info('Completed batch allocation', [
+                    'payment_count' => count($createdPaymentIds),
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Batch allocation process failed', [
+                    'error' => $e->getMessage(),
+                    'payment_count' => count($createdPaymentIds),
+                ]);
+            }
+        }
+        
         // For bulk operations, process receipts and notifications in batches to avoid timeouts
+        // Process after allocations are complete
         if ($skipReceiptAndNotifications && !empty($createdPaymentIds)) {
             // Increase execution time limit for bulk processing
-            set_time_limit(300); // 5 minutes
+            set_time_limit(600); // 10 minutes for bulk processing
+            ini_set('max_execution_time', 600);
             
-            $payments = \App\Models\Payment::whereIn('id', $createdPaymentIds)->get();
-            $batchSize = 5; // Process 5 payments at a time
+            // Eager load all payments with relationships to reduce queries
+            $payments = \App\Models\Payment::whereIn('id', $createdPaymentIds)
+                ->with(['student', 'allocations.invoiceItem'])
+                ->get();
             
-            foreach ($payments->chunk($batchSize) as $batch) {
+            $batchSize = 10; // Process 10 payments at a time (increased from 5)
+            $receiptService = app(\App\Services\ReceiptService::class);
+            $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
+            
+            \Log::info('Starting batch receipt and notification processing', [
+                'payment_count' => $payments->count(),
+                'batch_size' => $batchSize,
+            ]);
+            
+            foreach ($payments->chunk($batchSize) as $batchIndex => $batch) {
                 foreach ($batch as $payment) {
                     try {
-                        // Generate receipt
-                        $receiptService = app(\App\Services\ReceiptService::class);
+                        // Generate receipt (faster with eager loaded relationships)
                         $receiptService->generateReceipt($payment, ['save' => true]);
                     } catch (\Exception $e) {
                         Log::warning('Receipt generation failed for payment', [
@@ -1124,21 +1216,27 @@ class BankStatementController extends Controller
                         ]);
                     }
                     
-                    // Send notifications
+                    // Send notifications (can be slow, but we continue even if it fails)
                     try {
-                        $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
                         $paymentController->sendPaymentNotifications($payment);
                     } catch (\Exception $e) {
                         Log::warning('Payment notification failed', [
                             'payment_id' => $payment->id,
                             'error' => $e->getMessage()
                         ]);
+                        // Continue processing other payments even if notification fails
                     }
                 }
                 
                 // Small delay between batches to prevent overwhelming the system
-                usleep(500000); // 0.5 seconds
+                if ($batchIndex < $payments->chunk($batchSize)->count() - 1) {
+                    usleep(200000); // 0.2 seconds between batches
+                }
             }
+            
+            \Log::info('Completed batch receipt and notification processing', [
+                'payment_count' => $payments->count(),
+            ]);
         }
 
         $totalProcessed = $allConfirmedTransactions->count();

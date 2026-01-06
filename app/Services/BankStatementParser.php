@@ -1157,7 +1157,7 @@ class BankStatementParser
     /**
      * Create payment from confirmed transaction
      */
-    public function createPaymentFromTransaction(BankStatementTransaction $transaction): \App\Models\Payment
+    public function createPaymentFromTransaction(BankStatementTransaction $transaction, bool $skipAllocation = false): \App\Models\Payment
     {
         if (!$transaction->isConfirmed()) {
             throw new \Exception('Transaction must be confirmed before creating payment');
@@ -1228,7 +1228,7 @@ class BankStatementParser
             $payments = [];
             foreach ($transaction->shared_allocations as $allocation) {
                 $student = Student::findOrFail($allocation['student_id']);
-                $payment = $this->createSinglePayment($transaction, $student, $allocation['amount'], $sharedReceiptNumber);
+                $payment = $this->createSinglePayment($transaction, $student, $allocation['amount'], $sharedReceiptNumber, $skipAllocation);
                 $payments[] = $payment;
             }
             
@@ -1243,7 +1243,7 @@ class BankStatementParser
         } else {
             // Create single payment
             $student = Student::findOrFail($transaction->student_id);
-            $payment = $this->createSinglePayment($transaction, $student, $transaction->amount);
+            $payment = $this->createSinglePayment($transaction, $student, $transaction->amount, null, $skipAllocation);
             
             // Mark transaction as collected (payment created)
             $transaction->update([
@@ -1258,12 +1258,14 @@ class BankStatementParser
     
     /**
      * Create a single payment record
+     * @param bool $skipAllocation Skip auto-allocation for bulk operations (faster)
      */
     protected function createSinglePayment(
         BankStatementTransaction $transaction,
         Student $student,
         float $amount,
-        ?string $receiptNumber = null
+        ?string $receiptNumber = null,
+        bool $skipAllocation = false
     ): \App\Models\Payment {
         // Determine payment method based on bank type
         $paymentMethodName = $transaction->bank_type === 'mpesa' ? 'MPESA Paybill' : 'Equity Bank Transfer';
@@ -1381,15 +1383,19 @@ class BankStatementParser
             'bank_account_id' => $transaction->bank_account_id,
         ]);
         
-        // Auto-allocate payment
-        try {
-            $allocationService = app(\App\Services\PaymentAllocationService::class);
-            $allocationService->autoAllocate($payment);
-        } catch (\Exception $e) {
-            Log::warning('Auto-allocation failed for bank statement payment', [
-                'payment_id' => $payment->id,
-                'error' => $e->getMessage(),
-            ]);
+        // Skip auto-allocation during bulk creation - it will be done later in batch
+        // Auto-allocation is time-consuming and can be done asynchronously
+        // This significantly speeds up bulk payment creation
+        if (!$skipAllocation) {
+            try {
+                $allocationService = app(\App\Services\PaymentAllocationService::class);
+                $allocationService->autoAllocate($payment);
+            } catch (\Exception $e) {
+                Log::warning('Auto-allocation failed for bank statement payment', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
         
         return $payment;
