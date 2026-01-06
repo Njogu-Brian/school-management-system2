@@ -365,7 +365,33 @@ class BankStatementController extends Controller
             // Create payment if not already created
             if (!$bankStatement->payment_created) {
                 try {
-                    $payment = $this->parser->createPaymentFromTransaction($bankStatement);
+                    // Check if payment already exists for this transaction
+                    $existingPayment = null;
+                    if ($bankStatement->payment_id) {
+                        $existingPayment = \App\Models\Payment::find($bankStatement->payment_id);
+                    }
+                    
+                    // Also check by transaction code if reference number exists
+                    if (!$existingPayment && $bankStatement->reference_number) {
+                        $existingPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)->first();
+                        if ($existingPayment) {
+                            // Link the transaction to existing payment
+                            $bankStatement->update([
+                                'payment_id' => $existingPayment->id,
+                                'payment_created' => true,
+                            ]);
+                        }
+                    }
+                    
+                    if ($existingPayment) {
+                        $payment = $existingPayment;
+                        Log::info('Using existing payment for transaction', [
+                            'transaction_id' => $bankStatement->id,
+                            'payment_id' => $payment->id,
+                        ]);
+                    } else {
+                        $payment = $this->parser->createPaymentFromTransaction($bankStatement);
+                    }
                     
                     // Generate receipt for the payment
                     try {
@@ -502,24 +528,39 @@ class BankStatementController extends Controller
         $validated = $request->validate([
             'allocations' => 'required|array|min:1',
             'allocations.*.student_id' => 'required|exists:students,id',
-            'allocations.*.amount' => 'required|numeric|min:0.01',
+            'allocations.*.amount' => 'nullable|numeric|min:0', // Allow 0 or empty to exclude siblings
         ]);
 
-        $totalAmount = array_sum(array_column($validated['allocations'], 'amount'));
+        // Filter out allocations with 0 or empty amounts (excluded siblings)
+        $activeAllocations = array_filter($validated['allocations'], function($allocation) {
+            $amount = $allocation['amount'] ?? 0;
+            return !empty($amount) && (float)$amount > 0;
+        });
+
+        if (empty($activeAllocations)) {
+            return redirect()->back()
+                ->withErrors(['allocations' => 'At least one sibling must have an amount greater than 0']);
+        }
+
+        // Re-index the array
+        $activeAllocations = array_values($activeAllocations);
+
+        $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
         if (abs($totalAmount - $bankStatement->amount) > 0.01) {
             return redirect()->back()
-                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount (Ksh ' . number_format($bankStatement->amount, 2) . ')']);
+                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Required: Ksh ' . number_format($bankStatement->amount, 2)]);
         }
 
         try {
             $bankStatement->update([
-                'shared_allocations' => $validated['allocations'],
+                'shared_allocations' => $activeAllocations,
             ]);
             
+            $siblingCount = count($activeAllocations);
             return redirect()
                 ->route('finance.bank-statements.show', $bankStatement)
-                ->with('success', 'Shared allocations updated successfully');
+                ->with('success', "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s).");
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to update allocations: ' . $e->getMessage());
         }
@@ -533,22 +574,37 @@ class BankStatementController extends Controller
         $validated = $request->validate([
             'allocations' => 'required|array|min:1',
             'allocations.*.student_id' => 'required|exists:students,id',
-            'allocations.*.amount' => 'required|numeric|min:0.01',
+            'allocations.*.amount' => 'nullable|numeric|min:0', // Allow 0 or empty to exclude siblings
         ]);
 
-        $totalAmount = array_sum(array_column($validated['allocations'], 'amount'));
+        // Filter out allocations with 0 or empty amounts (excluded siblings)
+        $activeAllocations = array_filter($validated['allocations'], function($allocation) {
+            $amount = $allocation['amount'] ?? 0;
+            return !empty($amount) && (float)$amount > 0;
+        });
+
+        if (empty($activeAllocations)) {
+            return redirect()->back()
+                ->withErrors(['allocations' => 'At least one sibling must have an amount greater than 0']);
+        }
+
+        // Re-index the array
+        $activeAllocations = array_values($activeAllocations);
+
+        $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
         if (abs($totalAmount - $bankStatement->amount) > 0.01) {
             return redirect()->back()
-                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount']);
+                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2)]);
         }
 
         try {
-            $this->parser->shareTransaction($bankStatement, $validated['allocations']);
+            $this->parser->shareTransaction($bankStatement, $activeAllocations);
             
+            $siblingCount = count($activeAllocations);
             return redirect()
                 ->route('finance.bank-statements.show', $bankStatement)
-                ->with('success', 'Transaction shared among siblings');
+                ->with('success', "Transaction shared among {$siblingCount} sibling(s).");
         } catch (\Exception $e) {
             return redirect()->back()
                 ->withErrors(['error' => $e->getMessage()]);
@@ -665,18 +721,28 @@ class BankStatementController extends Controller
                     continue;
                 }
 
-                // Only confirm draft transactions
-                if ($transaction->status !== 'draft') {
-                    $errors[] = "Transaction #{$transactionId} is already {$transaction->status}";
+                // Allow confirming draft, matched (auto-assigned), and manual-assigned transactions
+                // Only skip if already confirmed or rejected
+                if ($transaction->status === 'confirmed') {
+                    // Already confirmed, skip but don't error
                     continue;
                 }
                 
-                // Confirm and set match_status to 'manual' since it was manually confirmed
+                if ($transaction->status === 'rejected') {
+                    $errors[] = "Transaction #{$transactionId} is rejected and cannot be confirmed";
+                    continue;
+                }
+                
+                // Confirm the transaction
                 $transaction->confirm();
                 
-                // If transaction has student_id or is_shared, mark as manual assigned
+                // If transaction has student_id or is_shared, ensure match_status is set
+                // Don't override if already matched/manual - keep existing status
                 if ($transaction->student_id || $transaction->is_shared) {
-                    $transaction->update(['match_status' => 'manual']);
+                    // Only update if match_status is unmatched or null
+                    if (!$transaction->match_status || $transaction->match_status === 'unmatched') {
+                        $transaction->update(['match_status' => 'manual']);
+                    }
                 }
                 
                 $confirmed++;

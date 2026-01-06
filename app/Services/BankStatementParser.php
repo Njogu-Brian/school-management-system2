@@ -211,7 +211,50 @@ class BankStatementParser
                 $nameParts = preg_split('/\s+/', trim($studentName));
                 $firstName = $nameParts[0] ?? '';
                 $lastName = count($nameParts) > 1 ? $nameParts[1] : '';
+                $isFullName = !empty($firstName) && !empty($lastName);
                 
+                // First, try exact full name match (case-insensitive)
+                if ($isFullName) {
+                    $exactMatches = Student::where('archive', 0)
+                        ->where('is_alumni', false)
+                        ->where(function($q) use ($firstName, $lastName) {
+                            // Exact match: first_name = firstName AND last_name = lastName
+                            $q->whereRaw('LOWER(TRIM(first_name)) = ?', [strtolower(trim($firstName))])
+                              ->whereRaw('LOWER(TRIM(last_name)) = ?', [strtolower(trim($lastName))]);
+                        })
+                        ->get();
+                    
+                    // If only one exact match, use it with high confidence
+                    if ($exactMatches->count() === 1) {
+                        $student = $exactMatches->first();
+                        $confidence = 0.95; // Very high confidence for exact full name match
+                        
+                        // Increase confidence if parent name also matches
+                        if ($parsedData['parent_name'] && $this->matchesParentName($student, $parsedData['parent_name'])) {
+                            $confidence = 1.0; // 100% if parent name also matches
+                        }
+                        
+                        // Increase confidence if partial phone matches
+                        if ($parsedData['partial_phone']) {
+                            $phoneMatches = $this->findStudentsByPartialPhone($parsedData['partial_phone']);
+                            if (in_array($student->id, array_column($phoneMatches, 'id'))) {
+                                $confidence = 1.0; // 100% if phone also matches
+                            }
+                        }
+                        
+                        $matches[] = [
+                            'student' => $student,
+                            'match_type' => 'name',
+                            'confidence' => $confidence,
+                            'matched_value' => $studentName,
+                        ];
+                        
+                        // Skip fuzzy matching if we have exact match
+                        continue;
+                    }
+                }
+                
+                // Fall back to fuzzy matching
                 $nameMatches = Student::where('archive', 0)
                     ->where('is_alumni', false)
                     ->where(function($q) use ($studentName, $firstName, $lastName) {
@@ -553,7 +596,7 @@ class BankStatementParser
         }
         
         // Extract child name(s) and admission numbers: After "Acc."
-        // Handles: "Acc. Trevor Osairi", "Acc. susan & david", "Acc. RKS066&RKS233&RKS702", "Acc. Christiannjenga"
+        // Handles: "Acc. Trevor Osairi", "Acc. Imani wakina", "Acc. susan & david", "Acc. RKS066&RKS233&RKS702", "Acc. Christiannjenga"
         if (preg_match('/Acc\.\s*([A-Z0-9][A-Za-z0-9\s&]+?)(?:\s|$)/i', $description, $childMatches)) {
             $childNameString = trim($childMatches[1]);
             $result['child_name'] = $childNameString;
@@ -565,11 +608,37 @@ class BankStatementParser
                 }, $admMatches[0]);
             }
             
-            // Extract individual names (split by &, and, or space)
-            $nameParts = preg_split('/\s*(?:&|and)\s*/i', $childNameString);
-            $result['child_names'] = array_map('trim', array_filter($nameParts, function($name) {
-                // Exclude admission numbers from name list
-                return !preg_match('/^RKS\d+$/i', trim($name)) && strlen(trim($name)) > 1;
+            // Extract individual names - preserve full names (2 words) before splitting
+            $childNames = [];
+            
+            // First, extract full names (2 words) like "Imani wakina" or "Trevor Osairi"
+            // Split by "and" or "&" first to separate multiple students
+            $studentParts = preg_split('/\s*(?:&|and)\s*/i', $childNameString);
+            
+            foreach ($studentParts as $part) {
+                $part = trim($part);
+                
+                // Skip if it's an admission number
+                if (preg_match('/^RKS\d+$/i', $part)) {
+                    continue;
+                }
+                
+                // Check if it's a full name (2 words) - preserve it as full name
+                if (preg_match('/^([A-Z][a-z]+\s+[a-z]+)$/i', $part, $fullNameMatch)) {
+                    // Full name like "Imani wakina" - capitalize properly
+                    $fullName = ucwords(strtolower($part));
+                    $childNames[] = $fullName;
+                } elseif (preg_match('/^([A-Z][a-z]+\s+[A-Z][a-z]+)$/', $part, $fullNameMatch)) {
+                    // Full name like "Imani Wakina" - already proper case
+                    $childNames[] = $part;
+                } elseif (strlen($part) > 2) {
+                    // Single name or other format
+                    $childNames[] = $part;
+                }
+            }
+            
+            $result['child_names'] = array_unique(array_filter($childNames, function($name) {
+                return strlen(trim($name)) > 1 && !preg_match('/^RKS\d+$/i', trim($name));
             }));
         }
         
@@ -616,25 +685,58 @@ class BankStatementParser
     {
         $names = [];
         
-        // Extract from "Acc." pattern: "Acc. Trevor Osairi" or "Acc. Trevor Susan"
+        // Extract from "Acc." pattern: "Acc. Trevor Osairi" or "Acc. Imani wakina" or "Acc. Trevor Susan"
         if (preg_match('/Acc\.\s*([A-Z][A-Za-z\s&]+?)(?:\s|$)/i', $description, $matches)) {
             $nameString = trim($matches[1]);
-            // Split by "and", "&", or space
-            $nameParts = preg_split('/\s+(?:and|&)\s+|\s+/i', $nameString);
+            
+            // First, try to extract full names (2 words) before splitting
+            // Pattern: "Imani wakina" or "Trevor Osairi" (case-insensitive first word, case-insensitive second word)
+            if (preg_match_all('/\b([A-Z][a-z]+\s+[a-z]+)\b/i', $nameString, $fullNameMatches)) {
+                foreach ($fullNameMatches[1] as $fullName) {
+                    $fullName = trim($fullName);
+                    // Capitalize first letter of each word for consistency
+                    $fullName = ucwords(strtolower($fullName));
+                    if (strlen($fullName) > 5) { // At least 6 characters for a full name
+                        $names[] = $fullName;
+                    }
+                }
+            }
+            
+            // Also split by "and", "&" to handle multiple names
+            $nameParts = preg_split('/\s+(?:and|&)\s+/i', $nameString);
             foreach ($nameParts as $part) {
                 $part = trim($part);
-                if (strlen($part) > 2 && preg_match('/^[A-Z][a-z]+/', $part)) {
+                // If it's a 2-word name, add it as full name
+                if (preg_match('/^([A-Z][a-z]+\s+[a-z]+)$/i', $part)) {
+                    $part = ucwords(strtolower($part));
+                    if (strlen($part) > 5) {
+                        $names[] = $part;
+                    }
+                } elseif (strlen($part) > 2 && preg_match('/^[A-Z][a-z]+/', $part)) {
+                    // Single name
                     $names[] = $part;
                 }
             }
         }
         
-        // Also try to extract capitalized names (2-3 words) that look like student names
-        if (preg_match_all('/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b/', $description, $nameMatches)) {
+        // Also try to extract capitalized names (2-3 words) that look like student names from anywhere in description
+        // Pattern: "Imani wakina" (case-insensitive) or "Imani Wakina" (proper case)
+        if (preg_match_all('/\b([A-Z][a-z]+\s+[a-z]+)\b/i', $description, $nameMatches)) {
             foreach ($nameMatches[1] as $name) {
-                // Exclude common words
-                $exclude = ['Pay', 'Bill', 'From', 'Acc', 'Online', 'MPESA', 'Bank', 'Transfer'];
-                if (!in_array($name, $exclude) && strlen($name) > 3) {
+                // Exclude common words and patterns
+                $exclude = ['Pay', 'Bill', 'From', 'Acc', 'Online', 'MPESA', 'Bank', 'Transfer', 'Erastus Ongeso'];
+                $name = ucwords(strtolower(trim($name)));
+                if (!in_array($name, $exclude) && strlen($name) > 5) {
+                    $names[] = $name;
+                }
+            }
+        }
+        
+        // Also extract proper case names (2 words with both capitalized)
+        if (preg_match_all('/\b([A-Z][a-z]+\s+[A-Z][a-z]+)\b/', $description, $properCaseMatches)) {
+            foreach ($properCaseMatches[1] as $name) {
+                $exclude = ['Pay Bill', 'From 254', 'Acc Erastus'];
+                if (!in_array($name, $exclude) && strlen($name) > 5) {
                     $names[] = $name;
                 }
             }
@@ -1062,7 +1164,38 @@ class BankStatementParser
         }
         
         if ($transaction->payment_created) {
-            throw new \Exception('Payment already created for this transaction');
+            // Check if payment still exists
+            if ($transaction->payment_id) {
+                $existingPayment = \App\Models\Payment::find($transaction->payment_id);
+                if ($existingPayment) {
+                    return $existingPayment;
+                }
+            }
+            // Payment was marked as created but doesn't exist, reset the flag
+            $transaction->update(['payment_created' => false, 'payment_id' => null]);
+        }
+        
+        // Check if payment already exists by transaction code
+        if ($transaction->reference_number) {
+            $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+                ->where('payment_date', $transaction->transaction_date)
+                ->first();
+            
+            if ($existingPayment) {
+                // Link transaction to existing payment
+                $transaction->update([
+                    'payment_id' => $existingPayment->id,
+                    'payment_created' => true,
+                ]);
+                
+                \Log::info('Found existing payment for transaction', [
+                    'transaction_id' => $transaction->id,
+                    'payment_id' => $existingPayment->id,
+                    'transaction_code' => $transaction->reference_number,
+                ]);
+                
+                return $existingPayment;
+            }
         }
         
         if ($transaction->is_shared && $transaction->shared_allocations) {
@@ -1126,13 +1259,54 @@ class BankStatementParser
             ]);
         }
         
+        // Check if payment already exists for this transaction
+        $transactionCode = $transaction->reference_number ?? \App\Models\Payment::generateTransactionCode();
+        
+        // If using reference number, check if payment with this code already exists
+        if ($transaction->reference_number) {
+            $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+                ->where('student_id', $student->id)
+                ->where('amount', $amount)
+                ->where('payment_date', $transaction->transaction_date)
+                ->first();
+            
+            if ($existingPayment) {
+                // Payment already exists, update transaction to link to it
+                $transaction->update([
+                    'payment_id' => $existingPayment->id,
+                    'payment_created' => true,
+                ]);
+                
+                Log::info('Payment already exists for transaction', [
+                    'transaction_id' => $transaction->id,
+                    'payment_id' => $existingPayment->id,
+                    'transaction_code' => $transactionCode,
+                ]);
+                
+                return $existingPayment;
+            }
+            
+            // Check if transaction code is already used by another payment (different student/amount)
+            $codeExists = \App\Models\Payment::where('transaction_code', $transaction->reference_number)->exists();
+            if ($codeExists) {
+                // Generate a unique transaction code by appending transaction ID
+                $transactionCode = $transaction->reference_number . '-' . $transaction->id;
+                
+                Log::warning('Transaction code already exists, using modified code', [
+                    'original_code' => $transaction->reference_number,
+                    'new_code' => $transactionCode,
+                    'transaction_id' => $transaction->id,
+                ]);
+            }
+        }
+        
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
             'family_id' => $student->family_id,
             'amount' => $amount,
             'payment_method_id' => $paymentMethod->id,
             'payment_method' => $paymentMethodName,
-            'transaction_code' => $transaction->reference_number ?? \App\Models\Payment::generateTransactionCode(),
+            'transaction_code' => $transactionCode,
             'receipt_number' => $receiptNumber ?? \App\Services\DocumentNumberService::generateReceipt(),
             'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
             'payer_type' => 'parent',

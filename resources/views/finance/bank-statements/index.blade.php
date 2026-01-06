@@ -128,7 +128,7 @@
             @csrf
             <div id="bulkTransactionIdsContainer"></div>
             <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
-                <i class="bi bi-check-circle"></i> Confirm Selected (Draft Only)
+                <i class="bi bi-check-circle"></i> Confirm Selected
             </button>
         </form>
         
@@ -379,23 +379,29 @@
                 return;
             }
             
-            // Filter to only draft transactions
-            const draftChecked = checked.filter(id => {
+            // Filter out already confirmed and rejected transactions
+            const confirmableChecked = checked.filter(id => {
                 const checkbox = document.querySelector(`.transaction-checkbox[value="${id}"]`);
                 if (!checkbox) return false;
                 const row = checkbox.closest('tr');
-                return row && row.querySelector('.badge') && row.querySelector('.badge').textContent.trim() === 'Draft';
+                if (!row) return false;
+                const badge = row.querySelector('.badge');
+                if (!badge) return false;
+                const status = badge.textContent.trim();
+                // Allow: Draft, Auto Assigned (matched), Manual Assigned
+                // Exclude: Confirmed, Rejected
+                return status === 'Draft' || status === 'Auto Assigned' || status === 'Manual Assigned';
             });
             
-            if (draftChecked.length === 0) {
-                alert('Please select at least one draft transaction');
+            if (confirmableChecked.length === 0) {
+                alert('Please select at least one transaction that can be confirmed (Draft, Auto Assigned, or Manual Assigned). Confirmed and Rejected transactions cannot be confirmed again.');
                 return;
             }
             
-            // Update the form with only draft transaction IDs
+            // Update the form with confirmable transaction IDs
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
             bulkIdsContainer.innerHTML = '';
-            draftChecked.forEach(id => {
+            confirmableChecked.forEach(id => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'transaction_ids[]';
@@ -403,7 +409,7 @@
                 bulkIdsContainer.appendChild(input);
             });
             
-            if (confirm(`Confirm ${draftChecked.length} draft transaction(s)?`)) {
+            if (confirm(`Confirm ${confirmableChecked.length} transaction(s)? This will confirm draft, auto-assigned, and manual-assigned transactions.`)) {
                 document.getElementById('bulkConfirmForm').submit();
             }
         }

@@ -345,7 +345,10 @@
                                            min="0" 
                                            max="{{ $bankStatement->amount }}"
                                            onchange="updateTotal()"
-                                           placeholder="0.00">
+                                           oninput="updateTotal()"
+                                           value=""
+                                           placeholder="0.00 (leave 0 to exclude)">
+                                    <small class="text-muted">Enter 0.00 or leave empty to exclude this student</small>
                                 </div>
                             @endif
                             @foreach($siblings as $sibling)
@@ -366,7 +369,10 @@
                                            min="0" 
                                            max="{{ $bankStatement->amount }}"
                                            onchange="updateTotal()"
-                                           placeholder="0.00">
+                                           oninput="updateTotal()"
+                                           value=""
+                                           placeholder="0.00 (leave 0 to exclude)">
+                                    <small class="text-muted">Enter 0.00 or leave empty to exclude this student</small>
                                 </div>
                             @endforeach
                         </div>
