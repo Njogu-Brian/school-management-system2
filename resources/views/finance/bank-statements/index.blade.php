@@ -126,7 +126,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3 gap-2" id="bulkActionsContainer" style="display: none !important;">
         <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
             @csrf
-            <input type="hidden" name="transaction_ids[]" id="bulkTransactionIds">
+            <div id="bulkTransactionIdsContainer"></div>
             <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
                 <i class="bi bi-check-circle"></i> Confirm Selected (Draft Only)
             </button>
@@ -134,7 +134,7 @@
         
         <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
             @csrf
-            <input type="hidden" name="transaction_ids[]" id="autoAssignTransactionIds">
+            <div id="autoAssignTransactionIdsContainer"></div>
             <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()">
                 <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
             </button>
@@ -331,14 +331,29 @@
 
         function updateBulkIds() {
             const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
-            const bulkIdsInput = document.getElementById('bulkTransactionIds');
-            const autoAssignIdsInput = document.getElementById('autoAssignTransactionIds');
+            const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
+            const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
             const bulkActionsContainer = document.getElementById('bulkActionsContainer');
             
-            // Update hidden input with array format
-            bulkIdsInput.value = checked.length > 0 ? JSON.stringify(checked) : '';
-            autoAssignIdsInput.value = checked.length > 0 ? JSON.stringify(checked) : '';
+            // Clear existing hidden inputs
+            bulkIdsContainer.innerHTML = '';
+            autoAssignIdsContainer.innerHTML = '';
+            
+            // Create hidden inputs for each checked ID
+            checked.forEach(id => {
+                const bulkInput = document.createElement('input');
+                bulkInput.type = 'hidden';
+                bulkInput.name = 'transaction_ids[]';
+                bulkInput.value = id;
+                bulkIdsContainer.appendChild(bulkInput);
+                
+                const autoAssignInput = document.createElement('input');
+                autoAssignInput.type = 'hidden';
+                autoAssignInput.name = 'transaction_ids[]';
+                autoAssignInput.value = id;
+                autoAssignIdsContainer.appendChild(autoAssignInput);
+            });
             
             // Show/hide bulk confirm button based on draft selections
             const draftChecked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).filter(cb => {
@@ -360,95 +375,66 @@
         }
 
         function bulkConfirm() {
-            const idsInput = document.getElementById('bulkTransactionIds');
-            const idsValue = idsInput.value;
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
             
-            if (!idsValue || idsValue === '[]') {
+            if (checked.length === 0) {
                 alert('Please select at least one draft transaction');
                 return;
             }
             
-            let ids;
-            try {
-                ids = JSON.parse(idsValue);
-            } catch (e) {
-                alert('Error parsing transaction IDs. Please try again.');
-                return;
-            }
-            
-            if (!Array.isArray(ids) || ids.length === 0) {
-                alert('Please select at least one draft transaction');
-                return;
-            }
-            
-            // Create hidden inputs for each ID
-            const form = document.getElementById('bulkConfirmForm');
-            // Remove existing hidden inputs
-            form.querySelectorAll('input[name="transaction_ids[]"]').forEach(input => {
-                if (input.id !== 'bulkTransactionIds') {
-                    input.remove();
-                }
+            // Filter to only draft transactions
+            const draftChecked = checked.filter(id => {
+                const checkbox = document.querySelector(`.transaction-checkbox[value="${id}"]`);
+                if (!checkbox) return false;
+                const row = checkbox.closest('tr');
+                return row && row.querySelector('.badge') && row.querySelector('.badge').textContent.trim() === 'Draft';
             });
             
-            // Add new hidden inputs
-            ids.forEach(id => {
+            if (draftChecked.length === 0) {
+                alert('Please select at least one draft transaction');
+                return;
+            }
+            
+            // Update the form with only draft transaction IDs
+            const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
+            bulkIdsContainer.innerHTML = '';
+            draftChecked.forEach(id => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'transaction_ids[]';
                 input.value = id;
-                form.appendChild(input);
+                bulkIdsContainer.appendChild(input);
             });
             
-            if (confirm(`Confirm ${ids.length} draft transaction(s)?`)) {
-                form.submit();
+            if (confirm(`Confirm ${draftChecked.length} draft transaction(s)?`)) {
+                document.getElementById('bulkConfirmForm').submit();
             }
         }
 
         function autoAssign() {
-            const idsInput = document.getElementById('autoAssignTransactionIds');
-            const idsValue = idsInput.value;
-            
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
             const form = document.getElementById('autoAssignForm');
+            const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             
-            // Remove existing hidden inputs
-            form.querySelectorAll('input[name="transaction_ids[]"]').forEach(input => {
-                if (input.id !== 'autoAssignTransactionIds') {
-                    input.remove();
-                }
-            });
+            // Clear existing hidden inputs
+            autoAssignIdsContainer.innerHTML = '';
             
             // If no specific selection, process all confirmed transactions
-            if (!idsValue || idsValue === '[]') {
+            if (checked.length === 0) {
                 if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched (auto-assigned or manual-assigned) but don\'t have payments yet.')) {
                     form.submit();
                 }
             } else {
-                let ids;
-                try {
-                    ids = JSON.parse(idsValue);
-                } catch (e) {
-                    alert('Error parsing transaction IDs. Processing all confirmed transactions instead.');
-                    form.submit();
-                    return;
-                }
-                
-                if (!Array.isArray(ids) || ids.length === 0) {
-                    if (confirm('Create payments for all confirmed transactions?')) {
-                        form.submit();
-                    }
-                    return;
-                }
-                
-                // Add hidden inputs for each ID
-                ids.forEach(id => {
+                // Add hidden inputs for each checked ID
+                checked.forEach(id => {
                     const input = document.createElement('input');
                     input.type = 'hidden';
                     input.name = 'transaction_ids[]';
                     input.value = id;
-                    form.appendChild(input);
+                    autoAssignIdsContainer.appendChild(input);
                 });
                 
-                if (confirm(`Create payments for ${ids.length} selected transaction(s)? This will process confirmed transactions that are matched (auto-assigned or manual-assigned) but don't have payments yet.`)) {
+                if (confirm(`Create payments for ${checked.length} selected transaction(s)? This will process confirmed transactions that are matched (auto-assigned or manual-assigned) but don't have payments yet.`)) {
                     form.submit();
                 }
             }
