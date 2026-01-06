@@ -221,15 +221,38 @@ class BankStatementController extends Controller
     {
         $bankStatement->load(['student', 'family', 'bankAccount', 'payment', 'confirmedBy', 'createdBy']);
         
+        // Fix old rejected transactions that still have students assigned
+        // This handles transactions rejected before the reject logic was updated
+        if ($bankStatement->status === 'rejected' && $bankStatement->student_id) {
+            $bankStatement->update([
+                'student_id' => null,
+                'family_id' => null,
+                'match_status' => 'unmatched',
+                'match_confidence' => 0,
+                'matched_admission_number' => null,
+                'matched_student_name' => null,
+                'matched_phone_number' => null,
+                'match_notes' => 'MANUALLY_REJECTED - Requires manual assignment',
+            ]);
+            $bankStatement->refresh();
+        }
+        
         // Get siblings if family exists
+        // Only include active, non-archived siblings
         $siblings = [];
         if ($bankStatement->family_id) {
             $siblings = Student::where('family_id', $bankStatement->family_id)
                 ->where('id', '!=', $bankStatement->student_id)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
                 ->get();
         } elseif ($bankStatement->student_id) {
             $student = $bankStatement->student;
-            $siblings = $student->siblings;
+            // Get siblings via relationship and filter to active ones
+            $siblings = $student->siblings()
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->get();
         }
 
         // Get possible matches if transaction has multiple matches or is unmatched
@@ -441,10 +464,10 @@ class BankStatementController extends Controller
                 }
             }
             
-            // Unmatch the transaction - reset to draft and unmatched
+            // Unmatch the transaction - set to rejected and unmatched
             // Mark as manually rejected to prevent automatic re-matching
             $bankStatement->update([
-                'status' => 'draft',
+                'status' => 'rejected',
                 'student_id' => null,
                 'family_id' => null,
                 'match_status' => 'unmatched',
@@ -676,6 +699,7 @@ class BankStatementController extends Controller
         ]);
 
         // Only process CONFIRMED transactions that need payment creation
+        // Exclude rejected transactions - they should never be auto-assigned
         // Get confirmed transactions that are matched but payment not created
         // Get confirmed matched but payment not created transactions
         // This includes both single payments (student_id) and shared payments (is_shared)
@@ -704,6 +728,7 @@ class BankStatementController extends Controller
             });
         
         // Get all confirmed transactions for re-analysis
+        // Exclude rejected transactions
         $allConfirmedQuery = BankStatementTransaction::where('status', 'confirmed')
             ->where('is_duplicate', false)
             ->where('is_archived', false);

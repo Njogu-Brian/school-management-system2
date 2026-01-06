@@ -118,9 +118,10 @@ class BankStatementParser
      */
     public function matchTransaction(BankStatementTransaction $transaction): array
     {
-        // Skip matching if transaction was manually rejected
+        // Skip matching if transaction was manually rejected or has rejected status
         // Only allow manual assignment after rejection
-        if ($transaction->match_notes && strpos($transaction->match_notes, 'MANUALLY_REJECTED') !== false) {
+        if ($transaction->status === 'rejected' || 
+            ($transaction->match_notes && strpos($transaction->match_notes, 'MANUALLY_REJECTED') !== false)) {
             return [
                 'matched' => false,
                 'confidence' => 0,

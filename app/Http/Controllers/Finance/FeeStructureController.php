@@ -174,6 +174,7 @@ class FeeStructureController extends Controller
         $request->validate([
             'source_structure_id' => 'nullable|exists:fee_structures,id',
             'source_classroom_id' => 'nullable|exists:classrooms,id',
+            'source_category_id' => 'nullable|exists:student_categories,id',
             'target_classroom_ids' => 'required|array|min:1',
             'target_classroom_ids.*' => 'exists:classrooms,id',
             'target_category_ids' => 'required|array|min:1',
@@ -182,26 +183,65 @@ class FeeStructureController extends Controller
             'term_id' => 'nullable|exists:terms,id',
         ]);
 
-        // Get source structure
+        // Get source structure - CRITICAL: Must match the exact source category
         if ($request->source_structure_id) {
             $source = FeeStructure::with('charges')->findOrFail($request->source_structure_id);
-        } elseif ($request->source_classroom_id) {
-            $source = FeeStructure::with('charges')
+        } elseif ($request->source_classroom_id && $request->source_category_id) {
+            // CRITICAL: Filter by both classroom AND category to get the correct source structure
+            $sourceQuery = FeeStructure::with('charges')
                 ->where('classroom_id', $request->source_classroom_id)
-                ->where('is_active', true)
-                ->latest()
-                ->first();
+                ->where('is_active', true);
+            
+            // Match the exact source category
+            if ($request->source_category_id) {
+                $sourceQuery->where('student_category_id', (int)$request->source_category_id);
+            } else {
+                $sourceQuery->whereNull('student_category_id');
+            }
+            
+            // Also match academic year if provided
+            if ($request->academic_year_id) {
+                $sourceQuery->where(function($q) use ($request) {
+                    $q->where('academic_year_id', $request->academic_year_id);
+                    // Also check year column for backward compatibility
+                    $academicYear = \App\Models\AcademicYear::find($request->academic_year_id);
+                    if ($academicYear) {
+                        $q->orWhere('year', $academicYear->year);
+                    }
+                });
+            }
+            
+            $source = $sourceQuery->latest()->first();
         } else {
-            return back()->with('error', 'Please specify either source structure or source classroom.');
+            return back()->with('error', 'Please specify either source structure or both source classroom and category.');
         }
 
         if (!$source) {
-            return back()->with('error', 'Source fee structure not found.');
+            return back()->with('error', 'Source fee structure not found for the specified classroom and category.');
+        }
+
+        // Verify source structure matches the expected category
+        if ($request->source_category_id && $source->student_category_id != (int)$request->source_category_id) {
+            \Log::warning('Fee structure replication: Source structure category mismatch', [
+                'expected_category_id' => $request->source_category_id,
+                'found_category_id' => $source->student_category_id,
+                'source_structure_id' => $source->id,
+            ]);
+            return back()->with('error', 'Source fee structure category does not match. Please ensure you are viewing the correct category.');
         }
 
         if ($source->charges->isEmpty()) {
             return back()->with('error', 'Source fee structure has no charges to replicate.');
         }
+        
+        // Log the source structure being used for replication
+        \Log::info('Fee structure replication: Using source structure', [
+            'source_structure_id' => $source->id,
+            'source_classroom_id' => $source->classroom_id,
+            'source_category_id' => $source->student_category_id,
+            'source_category_name' => $source->studentCategory->name ?? 'General',
+            'charges_count' => $source->charges->count(),
+        ]);
 
         try {
             $totalReplicated = 0;

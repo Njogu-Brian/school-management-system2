@@ -10,6 +10,40 @@
 
     @include('finance.invoices.partials.alerts')
 
+    <!-- Siblings Notification -->
+    @if($bankStatement->student_id && count($siblings) > 0 && !$bankStatement->is_shared)
+    <div class="alert alert-info alert-dismissible fade show finance-animate shadow-sm rounded-4 border-0 mb-4" role="alert">
+        <div class="d-flex align-items-start">
+            <div class="flex-shrink-0 me-3">
+                <i class="bi bi-info-circle fs-4"></i>
+            </div>
+            <div class="flex-grow-1">
+                <h5 class="alert-heading mb-2">
+                    <i class="bi bi-people"></i> Siblings Detected
+                </h5>
+                <p class="mb-2">
+                    This transaction is assigned to <strong>{{ $bankStatement->student->first_name }} {{ $bankStatement->student->last_name }}</strong> ({{ $bankStatement->student->admission_number }}), 
+                    but there {{ count($siblings) === 1 ? 'is' : 'are' }} <strong>{{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }}</strong> in the same family.
+                </p>
+                <p class="mb-2">
+                    <strong>Siblings:</strong>
+                    @foreach($siblings as $sibling)
+                        {{ $sibling->first_name }} {{ $sibling->last_name }} ({{ $sibling->admission_number }}){{ !$loop->last ? ', ' : '' }}
+                    @endforeach
+                </p>
+                <p class="mb-0">
+                    @if($bankStatement->isDraft())
+                        <strong>You can share this payment among siblings</strong> using the form below. This allows you to allocate the payment amount across multiple students in the same family.
+                    @else
+                        <strong>Note:</strong> This transaction is {{ $bankStatement->status }}. To share payments, the transaction must be in draft status.
+                    @endif
+                </p>
+            </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
     <div class="row">
         <div class="col-md-8">
             <!-- Transaction Details -->
@@ -277,15 +311,21 @@
             @endif
 
             <!-- Siblings (if family exists) -->
-            @if(count($siblings) > 0 && $bankStatement->isDraft() && !$bankStatement->is_shared)
+            @if($bankStatement->student_id && count($siblings) > 0 && !$bankStatement->is_shared)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
-                    <h5 class="mb-0">Share Among Siblings</h5>
+                    <h5 class="mb-0">
+                        <i class="bi bi-share"></i> Share Among Siblings
+                    </h5>
                 </div>
                 <div class="finance-card-body p-4">
+                    @if($bankStatement->isDraft())
                     <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
                         @csrf
                         <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
+                        <p class="text-info mb-3">
+                            <i class="bi bi-info-circle"></i> Allocate the payment amount among the siblings below. The total must equal the transaction amount.
+                        </p>
                         <div id="siblingAllocations">
                             @php
                                 $currentStudentBalance = $bankStatement->student ? \App\Services\StudentBalanceService::getTotalOutstandingBalance($bankStatement->student) : 0;
@@ -337,6 +377,16 @@
                             <i class="bi bi-share"></i> Share Payment
                         </button>
                     </form>
+                    @else
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>Cannot share payment:</strong> This transaction is {{ ucfirst($bankStatement->status) }}. 
+                        Only draft transactions can be shared among siblings. 
+                        @if($bankStatement->status === 'confirmed')
+                            If you need to share this payment, you may need to reverse the payment first.
+                        @endif
+                    </div>
+                    @endif
                 </div>
             </div>
             @endif

@@ -160,6 +160,7 @@
             <form method="POST" action="{{ route('finance.fee-structures.replicate') }}">
                 @csrf
                 <input type="hidden" name="source_classroom_id" value="{{ $selectedClassroom }}">
+                <input type="hidden" name="source_category_id" value="{{ $selectedCategory }}">
                 <input type="hidden" name="academic_year_id" value="{{ $selectedAcademicYearId }}">
 
                 <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
