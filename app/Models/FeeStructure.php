@@ -135,29 +135,84 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
         // Use the provided category ID, or fall back to source structure's category
         $targetCategoryId = $studentCategoryId ?? $this->student_category_id;
         
+        // Resolve academic year and year value
+        $targetAcademicYearId = $academicYearId ?? $this->academic_year_id;
+        $targetYear = null;
+        if ($targetAcademicYearId) {
+            $academicYear = \App\Models\AcademicYear::find($targetAcademicYearId);
+            $targetYear = $academicYear ? $academicYear->year : ($this->year ?? date('Y'));
+        } else {
+            $targetYear = $this->year ?? date('Y');
+        }
+        
         foreach ($classroomIds as $classroomId) {
-            // Use updateOrCreate to handle existing structures (due to unique constraint)
-            $newStructure = static::updateOrCreate(
-                [
-                    'classroom_id' => $classroomId,
-                    'academic_year_id' => $academicYearId ?? $this->academic_year_id,
-                    'term_id' => $termId ?? $this->term_id,
-                    'stream_id' => $this->stream_id, // Keep same stream or null
-                    'student_category_id' => $targetCategoryId, // Use the target category
+            // First, try to find existing structure (check both active and inactive)
+            // The unique constraint is: (classroom_id, academic_year_id, term_id, stream_id, student_category_id, is_active)
+            $targetTermId = $termId ?? $this->term_id;
+            $targetStreamId = $this->stream_id;
+            
+            // Build query to find existing structure
+            // Check for active structure first, then inactive
+            $buildQuery = function($isActive) use ($classroomId, $targetAcademicYearId, $targetCategoryId, $targetTermId, $targetStreamId) {
+                $query = static::where('classroom_id', $classroomId)
+                    ->where('academic_year_id', $targetAcademicYearId)
+                    ->where('student_category_id', $targetCategoryId)
+                    ->where('is_active', $isActive);
+                
+                // Handle null values correctly for term_id and stream_id
+                if ($targetTermId === null) {
+                    $query->whereNull('term_id');
+                } else {
+                    $query->where('term_id', $targetTermId);
+                }
+                
+                if ($targetStreamId === null) {
+                    $query->whereNull('stream_id');
+                } else {
+                    $query->where('stream_id', $targetStreamId);
+                }
+                
+                return $query;
+            };
+            
+            // First try to find active structure
+            $existingStructure = $buildQuery(true)->first();
+            
+            // If no active structure found, check for inactive one
+            if (!$existingStructure) {
+                $existingStructure = $buildQuery(false)->first();
+            }
+            
+            if ($existingStructure) {
+                // Update existing structure
+                $existingStructure->update([
+                    'name' => $this->name ?? ($this->classroom->name ?? 'Fee Structure'),
+                    'parent_structure_id' => $this->id,
                     'is_active' => true,
-                ],
-                [
+                    'year' => $targetYear,
+                    'created_by' => auth()->id() ?? $this->created_by,
+                ]);
+                
+                // Delete existing charges for this structure to avoid duplicates
+                $existingStructure->charges()->delete();
+                
+                $newStructure = $existingStructure;
+            } else {
+                // Create new structure
+                $newStructure = static::create([
+                    'classroom_id' => $classroomId,
+                    'academic_year_id' => $targetAcademicYearId,
+                    'term_id' => $termId ?? $this->term_id,
+                    'stream_id' => $this->stream_id,
+                    'student_category_id' => $targetCategoryId,
                     'name' => $this->name ?? ($this->classroom->name ?? 'Fee Structure'),
                     'parent_structure_id' => $this->id,
                     'version' => 1,
                     'is_active' => true,
                     'created_by' => auth()->id() ?? $this->created_by,
-                    'year' => $this->year ?? ($academicYearId ? \App\Models\AcademicYear::find($academicYearId)?->year : null),
-                ]
-            );
-            
-            // Delete existing charges for this structure to avoid duplicates
-            $newStructure->charges()->delete();
+                    'year' => $targetYear,
+                ]);
+            }
             
             // Replicate charges
             foreach ($this->charges as $charge) {
