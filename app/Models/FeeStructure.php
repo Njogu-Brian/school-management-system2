@@ -122,8 +122,8 @@ class FeeStructure extends Model
 
     /**
      * Replicate structure to other classrooms
-     * IMPORTANT: Always replicates to the same student category as the source structure
-     * This ensures fee structures are only replicated within the same category
+     * If studentCategoryId is provided, use it; otherwise use the source structure's category
+     * This allows replication to different categories when explicitly requested
      */
 public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?int $termId = null, ?int $studentCategoryId = null): array
     {
@@ -132,24 +132,18 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
         // Ensure charges are loaded
         $this->load('charges');
         
-        // Always use the source structure's student category to ensure consistency
-        // If a category is explicitly provided and it matches the source, use it
-        // Otherwise, always use the source structure's category
-        $targetCategoryId = $this->student_category_id;
-        if ($studentCategoryId !== null && $studentCategoryId === $this->student_category_id) {
-            $targetCategoryId = $studentCategoryId;
-        }
+        // Use the provided category ID, or fall back to source structure's category
+        $targetCategoryId = $studentCategoryId ?? $this->student_category_id;
         
         foreach ($classroomIds as $classroomId) {
             // Use updateOrCreate to handle existing structures (due to unique constraint)
-            // CRITICAL: Always use the source structure's student_category_id to ensure replication within same category
             $newStructure = static::updateOrCreate(
                 [
                     'classroom_id' => $classroomId,
                     'academic_year_id' => $academicYearId ?? $this->academic_year_id,
                     'term_id' => $termId ?? $this->term_id,
                     'stream_id' => $this->stream_id, // Keep same stream or null
-                    'student_category_id' => $targetCategoryId, // Always use source structure's category
+                    'student_category_id' => $targetCategoryId, // Use the target category
                     'is_active' => true,
                 ],
                 [

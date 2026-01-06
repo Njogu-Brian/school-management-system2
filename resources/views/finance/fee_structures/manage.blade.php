@@ -160,11 +160,30 @@
             <form method="POST" action="{{ route('finance.fee-structures.replicate') }}">
                 @csrf
                 <input type="hidden" name="source_classroom_id" value="{{ $selectedClassroom }}">
-                <input type="hidden" name="student_category_id" value="{{ $selectedCategory }}">
+                <input type="hidden" name="academic_year_id" value="{{ $selectedAcademicYearId }}">
+
+                <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+                    <i class="bi bi-info-circle mt-1"></i>
+                    <div class="small mb-0">
+                        <strong>Source Category:</strong> {{ $feeStructure->studentCategory->name ?? 'General' }}<br>
+                        Select the target categories you want to replicate this fee structure to. You can select multiple categories.
+                    </div>
+                </div>
 
                 <div class="row g-4">
-                    <div class="col-md-12">
-                        <label class="finance-form-label">Select Target Classes (hold Ctrl to select multiple)</label>
+                    <div class="col-md-6">
+                        <label class="finance-form-label">Select Target Categories <span class="text-danger">*</span></label>
+                        <select name="target_category_ids[]" class="finance-form-select" multiple required style="height: 200px;">
+                            @foreach($categories as $category)
+                                <option value="{{ $category->id }}" {{ $category->id == $selectedCategory ? 'selected' : '' }}>
+                                    {{ $category->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Hold Ctrl (Windows) or Cmd (Mac) to select multiple categories</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="finance-form-label">Select Target Classes <span class="text-danger">*</span></label>
                         <select name="target_classroom_ids[]" class="finance-form-select" multiple required style="height: 200px;">
                             @foreach($classrooms->where('id', '!=', $selectedClassroom) as $class)
                                 <option value="{{ $class->id }}">{{ $class->name }}</option>
@@ -176,7 +195,7 @@
 
                 <div class="mt-3 d-flex gap-3 flex-wrap">
                     <button type="submit" class="btn btn-finance btn-finance-warning">
-                        <i class="bi bi-copy"></i> Replicate to Selected Classes
+                        <i class="bi bi-copy"></i> Replicate to Selected Classes & Categories
                     </button>
                 </div>
             </form>

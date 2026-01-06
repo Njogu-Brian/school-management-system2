@@ -42,7 +42,7 @@ class FeeStructureController extends Controller
         $charges = [];
 
         if ($selectedClassroom && $selectedCategory && $selectedAcademicYearId) {
-            $feeStructure = FeeStructure::with('charges')
+            $feeStructure = FeeStructure::with(['charges', 'studentCategory'])
                 ->where('classroom_id', $selectedClassroom)
                 ->where('student_category_id', $selectedCategory)
                 ->where(function ($q) use ($selectedAcademicYearId, $selectedAcademicYear) {
@@ -176,9 +176,10 @@ class FeeStructureController extends Controller
             'source_classroom_id' => 'nullable|exists:classrooms,id',
             'target_classroom_ids' => 'required|array|min:1',
             'target_classroom_ids.*' => 'exists:classrooms,id',
+            'target_category_ids' => 'required|array|min:1',
+            'target_category_ids.*' => 'exists:student_categories,id',
             'academic_year_id' => 'nullable|exists:academic_years,id',
             'term_id' => 'nullable|exists:terms,id',
-            'student_category_id' => 'nullable|exists:student_categories,id',
         ]);
 
         // Get source structure
@@ -203,17 +204,35 @@ class FeeStructureController extends Controller
         }
 
         try {
-            // Always use the source structure's student category to ensure replication within same category
-            // Ignore any category provided in the request to prevent cross-category replication
-            $replicated = $source->replicateTo(
-                $request->target_classroom_ids,
-                $request->academic_year_id,
-                $request->term_id,
-                $source->student_category_id // Always use source structure's category
-            );
+            $totalReplicated = 0;
+            $replicatedCategories = [];
+            
+            // Replicate to each selected category
+            foreach ($request->target_category_ids as $targetCategoryId) {
+                $replicated = $source->replicateTo(
+                    $request->target_classroom_ids,
+                    $request->academic_year_id,
+                    $request->term_id,
+                    $targetCategoryId // Use the selected target category
+                );
+                
+                $totalReplicated += count($replicated);
+                
+                // Track which categories were replicated
+                $category = \App\Models\StudentCategory::find($targetCategoryId);
+                if ($category) {
+                    $replicatedCategories[] = $category->name;
+                }
+            }
 
-            $categoryName = $source->studentCategory ? $source->studentCategory->name : 'General';
-            return back()->with('success', "Fee structure replicated to " . count($replicated) . " classroom(s) for category: {$categoryName}.");
+            $categoryList = implode(', ', $replicatedCategories);
+            $categoryCount = count($replicatedCategories);
+            $classroomCount = count($request->target_classroom_ids);
+            
+            return back()->with('success', 
+                "Fee structure replicated to {$classroomCount} classroom(s) across {$categoryCount} category/categories: {$categoryList}. " .
+                "Total structures created: {$totalReplicated}."
+            );
         } catch (\Exception $e) {
             \Log::error('Fee structure replication failed', [
                 'error' => $e->getMessage(),
