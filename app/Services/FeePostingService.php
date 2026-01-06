@@ -47,13 +47,28 @@ class FeePostingService
             
             // Check for removed items (existing but not in proposed)
             // Only mark items as removed if they came from fee structure (source='structure')
-            // Optional fees, manual entries, journal entries, transport, and balance brought forward are managed separately
+            // AND they're not in the proposed items from fee structure
+            // Items with other sources (optional, manual, journal) are managed separately
+            // BUT if they're also in the fee structure, they should be updated to match, not removed
             foreach ($existingItems as $existing) {
                 $source = $existing['source'] ?? 'structure';
+                $voteheadId = $existing['votehead_id'];
+                
+                // Check if this votehead is in the proposed items (from fee structure)
+                $proposedItem = $proposedItems->firstWhere('votehead_id', $voteheadId);
+                
+                // If the votehead is in proposed items (fee structure), it should be updated, not removed
+                // This handles cases where school diary/textbook fees exist with source='optional' or 'manual'
+                // but are also in the fee structure - they should match the fee structure
+                if ($proposedItem) {
+                    // The item exists and is also in fee structure - it will be handled by the diff calculation above
+                    // No need to mark as removed
+                    continue;
+                }
                 
                 // Skip items that are not from fee structure - they're managed separately
-                // - 'optional': managed via OptionalFee table
-                // - 'manual': manually added, shouldn't be removed by posting
+                // - 'optional': managed via OptionalFee table (unless also in fee structure, handled above)
+                // - 'manual': manually added, shouldn't be removed by posting (unless also in fee structure, handled above)
                 // - 'journal': added via credit/debit adjustments, shouldn't be removed
                 // - 'transport': managed via TransportFeeService
                 // - 'balance_brought_forward': managed separately
@@ -61,18 +76,18 @@ class FeePostingService
                     continue;
                 }
                 
-                // Only mark as removed if not in proposed items
-                if (!$proposedItems->contains('votehead_id', $existing['votehead_id'])) {
-                    $diffs->push([
-                        'action' => 'removed',
-                        'student_id' => $student->id,
-                        'votehead_id' => $existing['votehead_id'],
-                        'old_amount' => $existing['amount'],
-                        'new_amount' => 0,
-                        'invoice_item_id' => $existing['id'],
-                        'origin' => $source,
-                    ]);
-                }
+                // Only mark as removed if:
+                // 1. It came from fee structure (source='structure')
+                // 2. It's not in the proposed items (not in current fee structure)
+                $diffs->push([
+                    'action' => 'removed',
+                    'student_id' => $student->id,
+                    'votehead_id' => $voteheadId,
+                    'old_amount' => $existing['amount'],
+                    'new_amount' => 0,
+                    'invoice_item_id' => $existing['id'],
+                    'origin' => $source,
+                ]);
             }
         }
         
