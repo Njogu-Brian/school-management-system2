@@ -121,11 +121,33 @@ class FeePostingService
                 $invoice = InvoiceService::ensure($diff['student_id'], $year, $term);
                 // Note: Balance brought forward is automatically added in InvoiceService::ensure() for first term of 2026
                 
+                // Check if item already exists to preserve credit notes
+                $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+                    ->where('votehead_id', $diff['votehead_id'])
+                    ->first();
+                
+                // Get existing credit/debit notes if item exists
+                $existingCreditNotes = 0;
+                $existingDebitNotes = 0;
+                if ($existingItem) {
+                    $existingCreditNotes = (float)$existingItem->creditNotes()->sum('amount');
+                    $existingDebitNotes = (float)$existingItem->debitNotes()->sum('amount');
+                }
+                
+                // Calculate the final amount: new fee structure amount - credit notes + debit notes
+                // This preserves existing credit/debit notes when updating the fee structure
+                $newFeeStructureAmount = (float)($diff['new_amount'] ?? 0);
+                $finalAmount = max(0, $newFeeStructureAmount - $existingCreditNotes + $existingDebitNotes);
+                
+                // original_amount should always represent the current fee structure amount (before credit notes)
+                // This allows proper comparison in future postings
+                $originalAmount = $newFeeStructureAmount;
+                
                 $item = InvoiceItem::updateOrCreate(
                     ['invoice_id' => $invoice->id, 'votehead_id' => $diff['votehead_id']],
                     [
-                        'amount' => (float)($diff['new_amount'] ?? 0),
-                        'original_amount' => $diff['old_amount'] ?? null,
+                        'amount' => $finalAmount, // Set to fee structure amount minus credit notes
+                        'original_amount' => $originalAmount, // Store current fee structure amount (before credit notes)
                         'status' => $activateNow ? 'active' : 'pending',
                         'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
                         'source' => $diff['origin'] ?? 'structure',
@@ -389,6 +411,7 @@ class FeePostingService
     
     /**
      * Get existing invoice items
+     * Returns the original amount before credit/debit notes for proper diff calculation
      */
     private function getExistingInvoiceItems(int $studentId, int $year, int $term): Collection
     {
@@ -408,14 +431,16 @@ class FeePostingService
             foreach ($allInvoices as $inv) {
                 // Only include ACTIVE items - exclude pending items from optional fees
                 // Pending items from optional fees should be treated as "new" in preview
-                $allItems = $allItems->merge($inv->items()->where('status', 'active')->get());
+                $allItems = $allItems->merge($inv->items()->where('status', 'active')->with(['creditNotes', 'debitNotes'])->get());
             }
             
             return $allItems->map(function ($item) {
+                // Calculate original amount before credit/debit notes
+                $originalAmount = $this->getOriginalAmountBeforeNotes($item);
                 return [
                     'id' => $item->id,
                     'votehead_id' => $item->votehead_id,
-                    'amount' => (float)$item->amount,
+                    'amount' => $originalAmount, // Use original amount (before credit notes) for comparison
                     'source' => $item->source,
                 ];
             });
@@ -426,15 +451,37 @@ class FeePostingService
         // This ensures optional fees appear in preview even if they were previously billed
         return $invoice->items()
             ->where('status', 'active') // Only active items - pending optional fees will show as "added"
+            ->with(['creditNotes', 'debitNotes']) // Eager load credit/debit notes
             ->get()
             ->map(function ($item) {
+                // Calculate original amount before credit/debit notes
+                $originalAmount = $this->getOriginalAmountBeforeNotes($item);
                 return [
                     'id' => $item->id,
                     'votehead_id' => $item->votehead_id,
-                    'amount' => (float)$item->amount, // Ensure float for comparison
+                    'amount' => $originalAmount, // Use original amount (before credit notes) for comparison
                     'source' => $item->source,
                 ];
             });
+    }
+    
+    /**
+     * Get the original amount before credit/debit notes were applied
+     * This is used to properly compare with new fee structure amounts
+     */
+    private function getOriginalAmountBeforeNotes(InvoiceItem $item): float
+    {
+        // If original_amount is set, use it (it should represent the amount before credit notes)
+        if ($item->original_amount !== null && $item->original_amount > 0) {
+            return (float)$item->original_amount;
+        }
+        
+        // Otherwise, calculate by adding back credit notes and subtracting debit notes
+        $creditNotesTotal = $item->creditNotes()->sum('amount');
+        $debitNotesTotal = $item->debitNotes()->sum('amount');
+        $originalAmount = (float)$item->amount + (float)$creditNotesTotal - (float)$debitNotesTotal;
+        
+        return max(0, $originalAmount); // Ensure non-negative
     }
     
     /**
