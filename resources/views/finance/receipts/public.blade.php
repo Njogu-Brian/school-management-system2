@@ -23,10 +23,32 @@
                 $family = $payment->student->family ?? null;
                 $updateLink = $family->updateLink ?? null;
             @endphp
-            @if($updateLink && $updateLink->is_active)
+            @if($family && $updateLink && $updateLink->is_active)
                 <div class="d-flex flex-column align-items-end me-2" style="position: relative;">
                     <a href="{{ route('family-update.form', $updateLink->token) }}" 
                        target="_blank" 
+                       class="btn btn-primary position-relative"
+                       style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                              border: none; 
+                              color: white; 
+                              font-weight: 600; 
+                              padding: 10px 20px; 
+                              border-radius: 8px; 
+                              box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                              transition: all 0.3s ease;"
+                       onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)';"
+                       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)';">
+                        <i class="bi bi-person-gear me-2"></i> Update Profile
+                    </a>
+                    <small class="text-muted mt-1" style="font-size: 11px; white-space: nowrap; text-align: right;">
+                        Update student biodata in the system
+                    </small>
+                </div>
+            @elseif($family && !$updateLink)
+                {{-- Show button even if link doesn't exist yet (will be created on next load) --}}
+                <div class="d-flex flex-column align-items-end me-2" style="position: relative;">
+                    <a href="javascript:void(0)" 
+                       onclick="alert('Profile update link is being generated. Please refresh the page in a moment.'); location.reload();"
                        class="btn btn-primary position-relative"
                        style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
                               border: none; 

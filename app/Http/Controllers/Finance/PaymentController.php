@@ -1456,7 +1456,8 @@ class PaymentController extends Controller
             ->firstOrFail();
         
         $payment->load([
-            'student.classroom', 
+            'student.classroom',
+            'student.family.updateLink', // Load family and updateLink for profile update button
             'invoice', 
             'paymentMethod', 
             'allocations.invoiceItem.votehead',
@@ -1464,6 +1465,16 @@ class PaymentController extends Controller
         ]);
         
         $student = $payment->student;
+        
+        // Ensure family has an update link (create if doesn't exist)
+        if ($student->family && !$student->family->updateLink) {
+            \App\Models\FamilyUpdateLink::create([
+                'family_id' => $student->family->id,
+                'is_active' => true,
+            ]);
+            // Reload the relationship
+            $student->family->load('updateLink');
+        }
         
         // Get ALL unpaid invoice items for the student
         $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
