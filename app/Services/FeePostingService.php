@@ -89,6 +89,25 @@ class FeePostingService
                     }
                 }
                 
+                // CRITICAL: For 'once' type voteheads (one-time fees), if already charged, don't remove them
+                // They should remain permanently once charged, as they are one-time charges
+                // This is because once fees are charged only once (typically at admission) and should persist
+                if ($votehead && $votehead->charge_type === 'once') {
+                    // Check if this votehead exists in any invoice for this student (ever, not just this year)
+                    // If it exists, it means it was already charged, so don't remove it
+                    $existsEver = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($student) {
+                        $q->where('student_id', $student->id);
+                    })
+                    ->where('votehead_id', $voteheadId)
+                    ->where('status', 'active')
+                    ->exists();
+                    
+                    // If it exists, don't remove it - once fees persist permanently once charged
+                    if ($existsEver) {
+                        continue; // Don't remove once fees that have been charged
+                    }
+                }
+                
                 // Skip items that are not from fee structure - they're managed separately
                 // - 'optional': managed via OptionalFee table (unless also in fee structure, handled above)
                 // - 'manual': manually added, shouldn't be removed by posting (unless also in fee structure, handled above)
@@ -103,6 +122,7 @@ class FeePostingService
                 // 1. It came from fee structure (source='structure')
                 // 2. It's not in the proposed items (not in current fee structure)
                 // 3. It's not a once_annually fee already charged this year (handled above)
+                // 4. It's not a once fee already charged (handled above)
                 $diffs->push([
                     'action' => 'removed',
                     'student_id' => $student->id,
