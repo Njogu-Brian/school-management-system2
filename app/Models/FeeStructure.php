@@ -152,12 +152,26 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
             $targetStreamId = $this->stream_id;
             
             // Build query to find existing structure
+            // CRITICAL: Must match ALL fields including student_category_id exactly
             // Check for active structure first, then inactive
             $buildQuery = function($isActive) use ($classroomId, $targetAcademicYearId, $targetCategoryId, $targetTermId, $targetStreamId) {
                 $query = static::where('classroom_id', $classroomId)
-                    ->where('academic_year_id', $targetAcademicYearId)
-                    ->where('student_category_id', $targetCategoryId)
                     ->where('is_active', $isActive);
+                
+                // Handle academic_year_id - must match exactly
+                if ($targetAcademicYearId === null) {
+                    $query->whereNull('academic_year_id');
+                } else {
+                    $query->where('academic_year_id', $targetAcademicYearId);
+                }
+                
+                // CRITICAL: Handle student_category_id - must match EXACTLY (including NULL)
+                // This ensures we don't pick up structures from different categories
+                if ($targetCategoryId === null) {
+                    $query->whereNull('student_category_id');
+                } else {
+                    $query->where('student_category_id', $targetCategoryId);
+                }
                 
                 // Handle null values correctly for term_id and stream_id
                 if ($targetTermId === null) {
@@ -175,29 +189,37 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
                 return $query;
             };
             
-            // First try to find active structure
+            // First try to find active structure with EXACT category match
             $existingStructure = $buildQuery(true)->first();
             
-            // If no active structure found, check for inactive one
+            // If no active structure found, check for inactive one with EXACT category match
             if (!$existingStructure) {
                 $existingStructure = $buildQuery(false)->first();
             }
             
             if ($existingStructure) {
-                // Update existing structure
-                $existingStructure->update([
-                    'name' => $this->name ?? ($this->classroom->name ?? 'Fee Structure'),
-                    'parent_structure_id' => $this->id,
-                    'is_active' => true,
-                    'year' => $targetYear,
-                    'created_by' => auth()->id() ?? $this->created_by,
-                ]);
-                
-                // Delete existing charges for this structure to avoid duplicates
-                $existingStructure->charges()->delete();
-                
-                $newStructure = $existingStructure;
-            } else {
+                // Double-check that the category matches exactly (safety check)
+                if ($existingStructure->student_category_id != $targetCategoryId) {
+                    // Category mismatch - this shouldn't happen, but if it does, create new instead
+                    $existingStructure = null;
+                } else {
+                    // Update existing structure
+                    $existingStructure->update([
+                        'name' => $this->name ?? ($this->classroom->name ?? 'Fee Structure'),
+                        'parent_structure_id' => $this->id,
+                        'is_active' => true,
+                        'year' => $targetYear,
+                        'created_by' => auth()->id() ?? $this->created_by,
+                    ]);
+                    
+                    // Delete existing charges for this structure to avoid duplicates
+                    $existingStructure->charges()->delete();
+                    
+                    $newStructure = $existingStructure;
+                }
+            }
+            
+            if (!$existingStructure) {
                 // Create new structure
                 $newStructure = static::create([
                     'classroom_id' => $classroomId,
