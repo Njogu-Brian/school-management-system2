@@ -110,10 +110,26 @@ class FeePostingService
                     continue;
                 }
                 
+                // Skip transport fees and balance brought forward - they are managed separately
+                $source = $diff['origin'] ?? 'structure';
+                if ($source === 'transport' || $source === 'balance_brought_forward') {
+                    continue;
+                }
+                
+                // Additional safeguard: check votehead code for balance brought forward
+                $votehead = \App\Models\Votehead::find($diff['votehead_id']);
+                if ($votehead && ($votehead->code === 'BAL_BF' || strtoupper($votehead->code) === 'TRANSPORT')) {
+                    continue;
+                }
+                
                 // Idempotency check: skip if item already exists and is active
                 if (isset($diff['invoice_item_id']) && $diff['invoice_item_id']) {
                     $existingItem = InvoiceItem::find($diff['invoice_item_id']);
                     if ($existingItem && $existingItem->status === 'active' && $existingItem->amount == ($diff['new_amount'] ?? 0)) {
+                        continue;
+                    }
+                    // Additional safeguard: skip if existing item is transport or balance brought forward
+                    if ($existingItem && ($existingItem->source === 'transport' || $existingItem->source === 'balance_brought_forward')) {
                         continue;
                     }
                 }
@@ -122,8 +138,11 @@ class FeePostingService
                 // Note: Balance brought forward is automatically added in InvoiceService::ensure() for first term of 2026
                 
                 // Check if item already exists to preserve credit notes
+                // Exclude transport and balance brought forward items
                 $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
                     ->where('votehead_id', $diff['votehead_id'])
+                    ->where('source', '!=', 'transport')
+                    ->where('source', '!=', 'balance_brought_forward')
                     ->first();
                 
                 // Get existing credit/debit notes if item exists
@@ -412,6 +431,7 @@ class FeePostingService
     /**
      * Get existing invoice items
      * Returns the original amount before credit/debit notes for proper diff calculation
+     * Excludes transport fees and balance brought forward as they are managed separately
      */
     private function getExistingInvoiceItems(int $studentId, int $year, int $term): Collection
     {
@@ -430,8 +450,16 @@ class FeePostingService
             $allItems = collect();
             foreach ($allInvoices as $inv) {
                 // Only include ACTIVE items - exclude pending items from optional fees
+                // Exclude transport fees and balance brought forward (managed separately)
                 // Pending items from optional fees should be treated as "new" in preview
-                $allItems = $allItems->merge($inv->items()->where('status', 'active')->with(['creditNotes', 'debitNotes'])->get());
+                $allItems = $allItems->merge(
+                    $inv->items()
+                        ->where('status', 'active')
+                        ->where('source', '!=', 'transport')
+                        ->where('source', '!=', 'balance_brought_forward')
+                        ->with(['creditNotes', 'debitNotes'])
+                        ->get()
+                );
             }
             
             return $allItems->map(function ($item) {
@@ -447,10 +475,13 @@ class FeePostingService
         }
         
         // Only include ACTIVE items - exclude pending items from optional fees
+        // Exclude transport fees and balance brought forward (managed separately)
         // Pending items from optional fees should be treated as "new" in preview
         // This ensures optional fees appear in preview even if they were previously billed
         return $invoice->items()
             ->where('status', 'active') // Only active items - pending optional fees will show as "added"
+            ->where('source', '!=', 'transport') // Exclude transport fees (managed separately)
+            ->where('source', '!=', 'balance_brought_forward') // Exclude balance brought forward (managed separately)
             ->with(['creditNotes', 'debitNotes']) // Eager load credit/debit notes
             ->get()
             ->map(function ($item) {
