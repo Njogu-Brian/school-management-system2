@@ -152,7 +152,7 @@
 
     {{-- Replication Form --}}
     @if($feeStructure)
-    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="finance-card-header secondary d-flex align-items-center gap-2">
             <i class="bi bi-copy"></i> <span>Replicate this Fee Structure</span>
         </div>
@@ -165,8 +165,8 @@
                 <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
                     <i class="bi bi-info-circle mt-1"></i>
                     <div class="small mb-0">
-                        <strong>Source Category:</strong> {{ $feeStructure->studentCategory->name ?? 'General' }}<br>
-                        Select the target categories you want to replicate this fee structure to. You can select multiple categories.
+                        <strong>Source:</strong> {{ $classrooms->firstWhere('id', $selectedClassroom)->name ?? 'Selected Class' }} - {{ $feeStructure->studentCategory->name ?? 'General' }}<br>
+                        Select the target categories and classes you want to replicate this fee structure to.
                     </div>
                 </div>
 
@@ -196,6 +196,57 @@
                 <div class="mt-3 d-flex gap-3 flex-wrap">
                     <button type="submit" class="btn btn-finance btn-finance-warning">
                         <i class="bi bi-copy"></i> Replicate to Selected Classes & Categories
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {{-- Term-to-Term Replication Form --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
+        <div class="finance-card-header secondary d-flex align-items-center gap-2">
+            <i class="bi bi-arrow-repeat"></i> <span>Replicate to Other Terms (Same Class & Category)</span>
+        </div>
+        <div class="finance-card-body p-4">
+            <form method="POST" action="{{ route('finance.fee-structures.replicate-terms') }}">
+                @csrf
+                <input type="hidden" name="source_structure_id" value="{{ $feeStructure->id }}">
+                <input type="hidden" name="source_classroom_id" value="{{ $selectedClassroom }}">
+                <input type="hidden" name="source_category_id" value="{{ $selectedCategory }}">
+                <input type="hidden" name="academic_year_id" value="{{ $selectedAcademicYearId }}">
+
+                <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
+                    <i class="bi bi-info-circle mt-1"></i>
+                    <div class="small mb-0">
+                        <strong>Source:</strong> {{ $classrooms->firstWhere('id', $selectedClassroom)->name ?? 'Selected Class' }} - {{ $feeStructure->studentCategory->name ?? 'General' }}<br>
+                        Replicate this fee structure to other terms within the <strong>same class and category</strong>. This will create fee structures for the selected terms.
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-12">
+                        <label class="finance-form-label">Select Target Terms <span class="text-danger">*</span></label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="target_terms[]" value="1" id="term1">
+                                <label class="form-check-label" for="term1">Term 1</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="target_terms[]" value="2" id="term2">
+                                <label class="form-check-label" for="term2">Term 2</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="target_terms[]" value="3" id="term3">
+                                <label class="form-check-label" for="term3">Term 3</label>
+                            </div>
+                        </div>
+                        <small class="text-muted">Select one or more terms to replicate this fee structure to</small>
+                    </div>
+                </div>
+
+                <div class="mt-3 d-flex gap-3 flex-wrap">
+                    <button type="submit" class="btn btn-finance btn-finance-primary">
+                        <i class="bi bi-arrow-repeat"></i> Replicate to Selected Terms
                     </button>
                 </div>
             </form>

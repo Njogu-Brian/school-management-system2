@@ -209,11 +209,14 @@ class FeeStructureController extends Controller
             
             // Replicate to each selected category
             foreach ($request->target_category_ids as $targetCategoryId) {
+                // Ensure category ID is cast to integer
+                $targetCategoryId = (int)$targetCategoryId;
+                
                 $replicated = $source->replicateTo(
                     $request->target_classroom_ids,
                     $request->academic_year_id,
                     $request->term_id,
-                    $targetCategoryId // Use the selected target category
+                    $targetCategoryId // Use the selected target category (explicitly cast to int)
                 );
                 
                 $totalReplicated += count($replicated);
@@ -239,6 +242,96 @@ class FeeStructureController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             return back()->with('error', 'Failed to replicate fee structure: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Replicate fee structure to other terms within the same class and category
+     */
+    public function replicateTerms(Request $request)
+    {
+        $request->validate([
+            'source_structure_id' => 'nullable|exists:fee_structures,id',
+            'source_classroom_id' => 'nullable|exists:classrooms,id',
+            'source_category_id' => 'required|exists:student_categories,id',
+            'target_terms' => 'required|array|min:1',
+            'target_terms.*' => 'in:1,2,3',
+            'academic_year_id' => 'nullable|exists:academic_years,id',
+        ]);
+
+        // Get source structure
+        if ($request->source_structure_id) {
+            $source = FeeStructure::with('charges')->findOrFail($request->source_structure_id);
+        } elseif ($request->source_classroom_id) {
+            $source = FeeStructure::with('charges')
+                ->where('classroom_id', $request->source_classroom_id)
+                ->where('student_category_id', $request->source_category_id)
+                ->where('is_active', true)
+                ->latest()
+                ->first();
+        } else {
+            return back()->with('error', 'Please specify either source structure or source classroom.');
+        }
+
+        if (!$source) {
+            return back()->with('error', 'Source fee structure not found.');
+        }
+
+        if ($source->charges->isEmpty()) {
+            return back()->with('error', 'Source fee structure has no charges to replicate.');
+        }
+
+        // Verify source structure matches the specified category
+        if ($source->student_category_id != $request->source_category_id) {
+            return back()->with('error', 'Source structure category does not match specified category.');
+        }
+
+        try {
+            $totalReplicated = 0;
+            $replicatedTerms = [];
+            
+            // Get term models for the target terms
+            $academicYearId = $request->academic_year_id ?? $source->academic_year_id;
+            $academicYear = \App\Models\AcademicYear::find($academicYearId);
+            
+            foreach ($request->target_terms as $termNumber) {
+                // Find the term model
+                $term = \App\Models\Term::whereHas('academicYear', function($q) use ($academicYearId) {
+                    if ($academicYearId) {
+                        $q->where('id', $academicYearId);
+                    }
+                })
+                ->where('name', 'like', "%Term {$termNumber}%")
+                ->first();
+                
+                $termId = $term ? $term->id : null;
+                
+                // Replicate to the same classroom and category, but different term
+                $replicated = $source->replicateTo(
+                    [$source->classroom_id], // Same classroom
+                    $academicYearId,
+                    $termId, // Different term
+                    $source->student_category_id // Same category
+                );
+                
+                $totalReplicated += count($replicated);
+                $replicatedTerms[] = "Term {$termNumber}";
+            }
+
+            $termList = implode(', ', $replicatedTerms);
+            $classroomName = $source->classroom->name ?? 'Selected Class';
+            $categoryName = $source->studentCategory->name ?? 'General';
+            
+            return back()->with('success', 
+                "Fee structure replicated to {$termList} for {$classroomName} - {$categoryName}. " .
+                "Total structures created/updated: {$totalReplicated}."
+            );
+        } catch (\Exception $e) {
+            \Log::error('Fee structure term replication failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'Failed to replicate fee structure to terms: ' . $e->getMessage());
         }
     }
 

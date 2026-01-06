@@ -37,7 +37,12 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {{ ($view ?? 'all') == 'auto-assigned' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'auto-assigned'] + request()->except('view')) }}">
-                        Auto-Assigned <span class="badge bg-success">{{ $counts['auto-assigned'] ?? 0 }}</span>
+                        Auto Assigned <span class="badge bg-success">{{ $counts['auto-assigned'] ?? 0 }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ ($view ?? 'all') == 'manual-assigned' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'manual-assigned'] + request()->except('view')) }}">
+                        Manual Assigned <span class="badge bg-info">{{ $counts['manual-assigned'] ?? 0 }}</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -46,8 +51,8 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ ($view ?? 'all') == 'unmatched' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'unmatched'] + request()->except('view')) }}">
-                        Unmatched <span class="badge bg-info">{{ $counts['unmatched'] ?? 0 }}</span>
+                    <a class="nav-link {{ ($view ?? 'all') == 'unassigned' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'unassigned'] + request()->except('view')) }}">
+                        Unassigned <span class="badge bg-secondary">{{ $counts['unassigned'] ?? 0 }}</span>
                     </a>
                 </li>
                 <li class="nav-item">

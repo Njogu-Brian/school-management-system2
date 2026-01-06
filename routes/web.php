@@ -1021,6 +1021,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('fee-structures/manage',   [FeeStructureController::class, 'manage'])->name('fee-structures.manage');
         Route::post('fee-structures/manage',  [FeeStructureController::class, 'save'])->name('fee-structures.save');
         Route::post('fee-structures/replicate',[FeeStructureController::class, 'replicateTo'])->name('fee-structures.replicate');
+        Route::post('fee-structures/replicate-terms',[FeeStructureController::class, 'replicateTerms'])->name('fee-structures.replicate-terms');
         Route::get('fee-structures/import', [FeeStructureController::class, 'import'])->name('fee-structures.import');
         Route::post('fee-structures/import', [FeeStructureController::class, 'processImport'])->name('fee-structures.process-import');
         Route::get('fee-structures/template/download', [FeeStructureController::class, 'downloadTemplate'])->name('fee-structures.download-template');

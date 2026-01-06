@@ -133,7 +133,8 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
         $this->load('charges');
         
         // Use the provided category ID, or fall back to source structure's category
-        $targetCategoryId = $studentCategoryId ?? $this->student_category_id;
+        // Ensure it's properly cast to int or null
+        $targetCategoryId = $studentCategoryId !== null ? (int)$studentCategoryId : ($this->student_category_id !== null ? (int)$this->student_category_id : null);
         
         // Resolve academic year and year value
         $targetAcademicYearId = $academicYearId ?? $this->academic_year_id;
@@ -153,40 +154,47 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
             
             // Build query to find existing structure
             // CRITICAL: Must match ALL fields including student_category_id exactly
-            // Check for active structure first, then inactive
+            // Use a single comprehensive whereRaw to ensure ALL conditions are applied together
             $buildQuery = function($isActive) use ($classroomId, $targetAcademicYearId, $targetCategoryId, $targetTermId, $targetStreamId) {
-                $query = static::where('classroom_id', $classroomId)
-                    ->where('is_active', $isActive);
+                // Build the raw SQL condition to ensure exact matching
+                $conditions = ['classroom_id = ?', 'is_active = ?'];
+                $bindings = [$classroomId, $isActive ? 1 : 0];
                 
-                // Handle academic_year_id - must match exactly
+                // Handle academic_year_id
                 if ($targetAcademicYearId === null) {
-                    $query->whereNull('academic_year_id');
+                    $conditions[] = 'academic_year_id IS NULL';
                 } else {
-                    $query->where('academic_year_id', $targetAcademicYearId);
+                    $conditions[] = 'academic_year_id = ?';
+                    $bindings[] = $targetAcademicYearId;
                 }
                 
-                // CRITICAL: Handle student_category_id - must match EXACTLY (including NULL)
-                // This ensures we don't pick up structures from different categories
+                // CRITICAL: Handle student_category_id - must match EXACTLY
+                // This is the most important check to prevent picking wrong category
                 if ($targetCategoryId === null) {
-                    $query->whereNull('student_category_id');
+                    $conditions[] = 'student_category_id IS NULL';
                 } else {
-                    $query->where('student_category_id', $targetCategoryId);
+                    $conditions[] = 'student_category_id = ?';
+                    $bindings[] = (int)$targetCategoryId;
                 }
                 
-                // Handle null values correctly for term_id and stream_id
+                // Handle term_id
                 if ($targetTermId === null) {
-                    $query->whereNull('term_id');
+                    $conditions[] = 'term_id IS NULL';
                 } else {
-                    $query->where('term_id', $targetTermId);
+                    $conditions[] = 'term_id = ?';
+                    $bindings[] = $targetTermId;
                 }
                 
+                // Handle stream_id
                 if ($targetStreamId === null) {
-                    $query->whereNull('stream_id');
+                    $conditions[] = 'stream_id IS NULL';
                 } else {
-                    $query->where('stream_id', $targetStreamId);
+                    $conditions[] = 'stream_id = ?';
+                    $bindings[] = $targetStreamId;
                 }
                 
-                return $query;
+                // Use whereRaw with all conditions to ensure they're all applied
+                return static::whereRaw(implode(' AND ', $conditions), $bindings);
             };
             
             // First try to find active structure with EXACT category match
@@ -197,10 +205,21 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
                 $existingStructure = $buildQuery(false)->first();
             }
             
+            // CRITICAL: Verify the found structure matches the target category exactly
+            // Use strict comparison to catch any edge cases
             if ($existingStructure) {
-                // Double-check that the category matches exactly (safety check)
-                if ($existingStructure->student_category_id != $targetCategoryId) {
-                    // Category mismatch - this shouldn't happen, but if it does, create new instead
+                $foundCategoryId = $existingStructure->student_category_id;
+                $categoryMatches = ($targetCategoryId === null && $foundCategoryId === null) || 
+                                  ($targetCategoryId !== null && (int)$foundCategoryId === (int)$targetCategoryId);
+                
+                if (!$categoryMatches) {
+                    // Category mismatch - this should never happen with proper query, but safety check
+                    \Log::warning('Fee structure replication: Found structure with mismatched category', [
+                        'found_category_id' => $foundCategoryId,
+                        'target_category_id' => $targetCategoryId,
+                        'classroom_id' => $classroomId,
+                        'structure_id' => $existingStructure->id,
+                    ]);
                     $existingStructure = null;
                 } else {
                     // Update existing structure
@@ -220,13 +239,39 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
             }
             
             if (!$existingStructure) {
+                // Create new structure with explicit category
+                // Double-check that no structure exists with different category before creating
+                $conflictingStructure = static::where('classroom_id', $classroomId)
+                    ->where('academic_year_id', $targetAcademicYearId)
+                    ->where('term_id', $targetTermId === null ? null : $targetTermId)
+                    ->where('stream_id', $targetStreamId === null ? null : $targetStreamId)
+                    ->where('is_active', true)
+                    ->where(function($q) use ($targetCategoryId) {
+                        if ($targetCategoryId === null) {
+                            $q->whereNotNull('student_category_id');
+                        } else {
+                            $q->where('student_category_id', '!=', $targetCategoryId)
+                              ->orWhereNull('student_category_id');
+                        }
+                    })
+                    ->first();
+                
+                if ($conflictingStructure) {
+                    \Log::warning('Fee structure replication: Conflicting structure found with different category', [
+                        'conflicting_category_id' => $conflictingStructure->student_category_id,
+                        'target_category_id' => $targetCategoryId,
+                        'classroom_id' => $classroomId,
+                        'conflicting_structure_id' => $conflictingStructure->id,
+                    ]);
+                }
+                
                 // Create new structure
                 $newStructure = static::create([
                     'classroom_id' => $classroomId,
                     'academic_year_id' => $targetAcademicYearId,
                     'term_id' => $termId ?? $this->term_id,
                     'stream_id' => $this->stream_id,
-                    'student_category_id' => $targetCategoryId,
+                    'student_category_id' => $targetCategoryId, // Explicitly set the target category
                     'name' => $this->name ?? ($this->classroom->name ?? 'Fee Structure'),
                     'parent_structure_id' => $this->id,
                     'version' => 1,
@@ -234,6 +279,18 @@ public function replicateTo(array $classroomIds, ?int $academicYearId = null, ?i
                     'created_by' => auth()->id() ?? $this->created_by,
                     'year' => $targetYear,
                 ]);
+                
+                // Final verification that the created structure has the correct category
+                $newStructure->refresh();
+                if ($newStructure->student_category_id != $targetCategoryId) {
+                    \Log::error('Fee structure replication: Created structure has wrong category!', [
+                        'created_category_id' => $newStructure->student_category_id,
+                        'target_category_id' => $targetCategoryId,
+                        'structure_id' => $newStructure->id,
+                    ]);
+                    // Fix it
+                    $newStructure->update(['student_category_id' => $targetCategoryId]);
+                }
             }
             
             // Replicate charges

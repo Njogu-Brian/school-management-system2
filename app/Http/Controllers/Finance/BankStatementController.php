@@ -33,7 +33,7 @@ class BankStatementController extends Controller
             ->orderBy('transaction_date', 'desc')
             ->orderBy('created_at', 'desc');
 
-        // View filters (auto-assigned, draft, duplicate, archived)
+        // View filters (all, auto-assigned, manual-assigned, draft, unassigned, archived)
         $view = $request->get('view', 'all');
         
         switch ($view) {
@@ -43,13 +43,28 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
-            case 'draft':
-                $query->where('status', 'draft')
+            case 'manual-assigned':
+                $query->where('match_status', 'manual')
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
-            case 'unmatched':
+            case 'draft':
+                // Transactions that system has seen potential but not sure
+                // This includes: multiple_matches OR (matched with low confidence)
+                $query->where(function($q) {
+                    $q->where('match_status', 'multiple_matches')
+                      ->orWhere(function($q2) {
+                          $q2->where('match_status', 'matched')
+                             ->where('match_confidence', '>', 0)
+                             ->where('match_confidence', '<', 0.85);
+                      });
+                })
+                ->where('is_duplicate', false)
+                ->where('is_archived', false);
+                break;
+            case 'unassigned':
                 $query->where('match_status', 'unmatched')
+                      ->whereNull('student_id')
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
@@ -116,11 +131,23 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
-            'draft' => BankStatementTransaction::where('status', 'draft')
+            'manual-assigned' => BankStatementTransaction::where('match_status', 'manual')
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
-            'unmatched' => BankStatementTransaction::where('match_status', 'unmatched')
+            'draft' => BankStatementTransaction::where(function($q) {
+                    $q->where('match_status', 'multiple_matches')
+                      ->orWhere(function($q2) {
+                          $q2->where('match_status', 'matched')
+                             ->where('match_confidence', '>', 0)
+                             ->where('match_confidence', '<', 0.85);
+                      });
+                })
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->count(),
+            'unassigned' => BankStatementTransaction::where('match_status', 'unmatched')
+                ->whereNull('student_id')
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
