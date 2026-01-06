@@ -177,4 +177,24 @@ class PostingController extends Controller
             return back()->with('error', $e->getMessage());
         }
     }
+    
+    public function reverseStudent(FeePostingRun $run, Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+        ]);
+        
+        try {
+            $student = \App\Models\Student::findOrFail($request->student_id);
+            $this->postingService->reverseStudentPosting($run, $student->id);
+            
+            $message = "Posting reversed for student {$student->first_name} {$student->last_name} ({$student->admission_number}) successfully.";
+            
+            return redirect()
+                ->route('finance.posting.show', $run)
+                ->with('success', $message);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
 }

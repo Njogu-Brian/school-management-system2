@@ -477,6 +477,227 @@ class FeePostingService
     }
     
     /**
+     * Reverse posting for a specific student within a posting run
+     * This allows reversing individual student postings without affecting other students
+     */
+    public function reverseStudentPosting(FeePostingRun $run, int $studentId): bool
+    {
+        if (!$run->canBeReversed()) {
+            throw new \Exception('This posting run cannot be reversed. It may already be reversed, not completed, or not a commit run.');
+        }
+        
+        // Get the student
+        $student = Student::findOrFail($studentId);
+        
+        return DB::transaction(function () use ($run, $student) {
+            // Get all diffs for this student in this posting run (excluding reversal diffs)
+            $studentDiffs = PostingDiff::where('posting_run_id', $run->id)
+                ->where('student_id', $student->id)
+                ->where('action', '!=', 'reversed') // Exclude reversal records
+                ->get();
+            
+            if ($studentDiffs->isEmpty()) {
+                throw new \Exception("No posting changes found for student {$student->first_name} {$student->last_name} in posting run #{$run->id}, or they may have already been reversed.");
+            }
+            
+            // Check if student has already been reversed (items no longer linked to this run)
+            $existingItems = InvoiceItem::whereHas('invoice', function($q) use ($student) {
+                $q->where('student_id', $student->id);
+            })
+            ->where('posting_run_id', $run->id)
+            ->count();
+            
+            if ($existingItems === 0) {
+                throw new \Exception("Student {$student->first_name} {$student->last_name} has already been reversed for this posting run.");
+            }
+            
+            // Collect invoice IDs and payment IDs for recalculation
+            $invoiceIds = collect();
+            $paymentIds = collect();
+            $itemsProcessed = 0;
+            $itemsDeleted = 0;
+            $itemsRestored = 0;
+            
+            // Process each diff
+            foreach ($studentDiffs as $diff) {
+                $invoiceItem = null;
+                
+                // Get the invoice item if it exists
+                if ($diff->invoice_item_id) {
+                    $invoiceItem = InvoiceItem::with(['allocations', 'invoice'])
+                        ->where('id', $diff->invoice_item_id)
+                        ->where('posting_run_id', $run->id) // Ensure it belongs to this run
+                        ->first();
+                }
+                
+                // If no invoice item found by ID, try to find by student, votehead, and posting run
+                if (!$invoiceItem && $diff->votehead_id) {
+                    $invoice = Invoice::where('student_id', $student->id)
+                        ->where('year', $run->academicYear->year ?? null)
+                        ->where('term', $run->term->term ?? null)
+                        ->first();
+                    
+                    if ($invoice) {
+                        $invoiceItem = InvoiceItem::with(['allocations', 'invoice'])
+                            ->where('invoice_id', $invoice->id)
+                            ->where('votehead_id', $diff->votehead_id)
+                            ->where('posting_run_id', $run->id)
+                            ->first();
+                    }
+                }
+                
+                if (!$invoiceItem) {
+                    // Item doesn't exist (might have been deleted already or was a "removed" action)
+                    // For "removed" actions, we skip restoration (too complex without full context)
+                    // For other actions, log a warning but continue
+                    if ($diff->action !== 'removed') {
+                        \Log::warning("Invoice item not found for diff #{$diff->id} in posting run #{$run->id}");
+                    }
+                    continue;
+                }
+                
+                // Store invoice ID
+                if ($invoiceItem->invoice) {
+                    $invoiceIds->push($invoiceItem->invoice_id);
+                }
+                
+                // Handle payment allocations - delete them to free up payments
+                if ($invoiceItem->allocations && $invoiceItem->allocations->isNotEmpty()) {
+                    foreach ($invoiceItem->allocations as $allocation) {
+                        if ($allocation->payment_id) {
+                            $paymentIds->push($allocation->payment_id);
+                        }
+                        $allocation->delete();
+                    }
+                }
+                
+                // Handle different action types
+                switch ($diff->action) {
+                    case 'added':
+                        // Item was added by this posting - delete it
+                        $invoiceItem->delete();
+                        $itemsDeleted++;
+                        break;
+                        
+                    case 'increased':
+                    case 'decreased':
+                        // Item amount was changed - restore to old amount
+                        $oldAmount = (float)($diff->old_amount ?? 0);
+                        $oldOriginalAmount = $oldAmount; // Try to preserve original_amount if possible
+                        
+                        // If we have the old original_amount from before posting, use it
+                        // Otherwise, use old_amount as original_amount
+                        $invoiceItem->update([
+                            'amount' => $oldAmount,
+                            'original_amount' => $oldOriginalAmount,
+                            'posting_run_id' => null, // Remove link to this posting run
+                        ]);
+                        $itemsRestored++;
+                        break;
+                        
+                    case 'unchanged':
+                        // Item was unchanged - just remove the posting_run_id link
+                        // But if the amount actually changed (edge case), restore it
+                        $oldAmount = (float)($diff->old_amount ?? 0);
+                        if (abs($invoiceItem->amount - $oldAmount) > 0.01) {
+                            $invoiceItem->update([
+                                'amount' => $oldAmount,
+                                'original_amount' => $oldAmount,
+                                'posting_run_id' => null,
+                            ]);
+                            $itemsRestored++;
+                        } else {
+                            $invoiceItem->update([
+                                'posting_run_id' => null,
+                            ]);
+                        }
+                        break;
+                        
+                    case 'removed':
+                        // Item was removed - we could restore it, but that's complex
+                        // For now, if the item still exists, just remove the posting_run_id link
+                        // If it doesn't exist, we skip it (would need full context to restore)
+                        if ($invoiceItem) {
+                            $invoiceItem->update([
+                                'posting_run_id' => null,
+                            ]);
+                        }
+                        break;
+                }
+                
+                $itemsProcessed++;
+                
+                // Create reversal diff record
+                PostingDiff::create([
+                    'posting_run_id' => $run->id,
+                    'student_id' => $student->id,
+                    'votehead_id' => $diff->votehead_id,
+                    'action' => 'reversed',
+                    'old_amount' => $diff->new_amount, // Current amount (after posting)
+                    'new_amount' => $diff->old_amount, // Restored to old amount
+                    'invoice_item_id' => $diff->invoice_item_id,
+                    'source' => $diff->source ?? 'structure',
+                ]);
+            }
+            
+            // Update payment allocation totals for affected payments
+            $affectedPaymentCount = 0;
+            if ($paymentIds->isNotEmpty()) {
+                $payments = \App\Models\Payment::whereIn('id', $paymentIds->unique())->get();
+                $affectedPaymentCount = $payments->count();
+                foreach ($payments as $payment) {
+                    $payment->updateAllocationTotals();
+                }
+            }
+            
+            // Recalculate affected invoices
+            $invoices = Invoice::whereIn('id', $invoiceIds->unique())->get();
+            foreach ($invoices as $invoice) {
+                $invoice->refresh();
+                
+                // Check if invoice has any remaining items
+                $remainingItems = $invoice->items()->count();
+                
+                // If invoice was created by this posting run and has no items, delete it
+                if ($invoice->posting_run_id === $run->id && $remainingItems === 0) {
+                    $invoice->creditNotes()->delete();
+                    $invoice->debitNotes()->delete();
+                    $invoice->feeConcessions()->delete();
+                    $invoice->delete();
+                } else {
+                    // Recalculate invoice totals
+                    InvoiceService::recalc($invoice);
+                }
+            }
+            
+            // Update run notes to track partial reversal
+            $notes = $run->notes ?? '';
+            $reversalNote = "Student reversal: {$student->first_name} {$student->last_name} ({$student->admission_number}) - {$itemsProcessed} item(s) processed ({$itemsDeleted} deleted, {$itemsRestored} restored)";
+            if ($affectedPaymentCount > 0) {
+                $reversalNote .= ", {$affectedPaymentCount} payment(s) freed";
+            }
+            $notes = ($notes ? $notes . "\n" : '') . $reversalNote;
+            
+            $run->update([
+                'notes' => $notes,
+            ]);
+            
+            // Log audit
+            if (class_exists(\App\Models\AuditLog::class)) {
+                \App\Models\AuditLog::log(
+                    'reversed_student',
+                    $run,
+                    ['student_id' => $student->id],
+                    ['items_processed' => $itemsProcessed, 'items_deleted' => $itemsDeleted, 'items_restored' => $itemsRestored],
+                    ['fee_posting', 'reversal', 'student']
+                );
+            }
+            
+            return true;
+        });
+    }
+    
+    /**
      * Get filtered students
      * IMPORTANT: If student_id is provided, ONLY return that student (ignore class/stream filters)
      */

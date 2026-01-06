@@ -1190,6 +1190,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/commit', [PostingController::class, 'commit'])->name('commit');
             Route::get('/{run}',  [PostingController::class, 'show'])->name('show');
             Route::post('/{run}/reverse', [PostingController::class, 'reverse'])->name('reverse');
+            Route::post('/{run}/reverse-student', [PostingController::class, 'reverseStudent'])->name('reverse-student');
         });
 
         // Journals
