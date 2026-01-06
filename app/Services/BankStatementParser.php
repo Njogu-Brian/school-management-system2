@@ -1224,11 +1224,32 @@ class BankStatementParser
                 ]);
             }
             
+            // Final check: ensure shared receipt number is truly unique before creating payments
+            $finalSharedReceiptNumber = $sharedReceiptNumber;
+            $maxSharedReceiptAttempts = 10;
+            $sharedReceiptAttempt = 0;
+            while (\App\Models\Payment::where('receipt_number', $finalSharedReceiptNumber)->exists() && $sharedReceiptAttempt < $maxSharedReceiptAttempts) {
+                $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+                $finalSharedReceiptNumber = ($sharedReceiptNumber ?: 'RCPT') . '-' . $uniqueSuffix;
+                $sharedReceiptAttempt++;
+                usleep(10000); // 0.01 seconds
+            }
+            
+            if ($sharedReceiptAttempt >= $maxSharedReceiptAttempts) {
+                // Last resort: use a completely unique receipt number
+                $finalSharedReceiptNumber = 'RCPT-' . $transaction->id . '-' . time() . '-' . uniqid();
+                \Log::error('Failed to generate unique shared receipt number after max attempts', [
+                    'transaction_id' => $transaction->id,
+                    'original_receipt' => $sharedReceiptNumber,
+                    'final_receipt' => $finalSharedReceiptNumber,
+                ]);
+            }
+            
             // Create payments for each sibling
             $payments = [];
             foreach ($transaction->shared_allocations as $allocation) {
                 $student = Student::findOrFail($allocation['student_id']);
-                $payment = $this->createSinglePayment($transaction, $student, $allocation['amount'], $sharedReceiptNumber, $skipAllocation);
+                $payment = $this->createSinglePayment($transaction, $student, $allocation['amount'], $finalSharedReceiptNumber, $skipAllocation);
                 $payments[] = $payment;
             }
             
@@ -1406,6 +1427,27 @@ class BankStatementParser
             ]);
         }
         
+        // Final check: ensure receipt number is truly unique before creating
+        $finalReceiptNumberCheck = $finalReceiptNumber;
+        $maxReceiptAttempts = 10;
+        $receiptAttempt = 0;
+        while (\App\Models\Payment::where('receipt_number', $finalReceiptNumberCheck)->exists() && $receiptAttempt < $maxReceiptAttempts) {
+            $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+            $finalReceiptNumberCheck = ($finalReceiptNumber ?: 'RCPT') . '-' . $uniqueSuffix;
+            $receiptAttempt++;
+            usleep(10000); // 0.01 seconds
+        }
+        
+        if ($receiptAttempt >= $maxReceiptAttempts) {
+            // Last resort: use a completely unique receipt number
+            $finalReceiptNumberCheck = 'RCPT-' . $transaction->id . '-' . time() . '-' . uniqid();
+            \Log::error('Failed to generate unique receipt number after max attempts', [
+                'transaction_id' => $transaction->id,
+                'original_receipt' => $finalReceiptNumber,
+                'final_receipt' => $finalReceiptNumberCheck,
+            ]);
+        }
+        
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
             'family_id' => $student->family_id,
@@ -1413,7 +1455,7 @@ class BankStatementParser
             'payment_method_id' => $paymentMethod->id,
             'payment_method' => $paymentMethodName,
             'transaction_code' => $finalTransactionCode,
-            'receipt_number' => $finalReceiptNumber,
+            'receipt_number' => $finalReceiptNumberCheck,
             'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
             'payer_type' => 'parent',
             'narration' => $transaction->description,

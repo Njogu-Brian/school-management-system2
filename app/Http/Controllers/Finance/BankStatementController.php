@@ -72,8 +72,9 @@ class BankStatementController extends Controller
                       ->where('is_archived', false);
                 break;
             case 'confirmed':
-                // All confirmed transactions (regardless of payment_created status)
+                // Confirmed transactions that haven't been collected yet
                 $query->where('status', 'confirmed')
+                      ->where('payment_created', false) // Exclude collected transactions
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
@@ -171,6 +172,7 @@ class BankStatementController extends Controller
                 ->where('is_archived', false)
                 ->count(),
             'confirmed' => BankStatementTransaction::where('status', 'confirmed')
+                ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
@@ -881,8 +883,10 @@ class BankStatementController extends Controller
         
         // Also get confirmed unmatched transactions to try matching first
         // Exclude manually rejected transactions (they require manual assignment)
+        // Also exclude transactions that already have payments created
         $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
             ->where('match_status', 'unmatched')
+            ->where('payment_created', false) // Only process unmatched transactions without payments
             ->where('is_duplicate', false)
             ->where('is_archived', false)
             ->where(function($query) {
@@ -891,8 +895,9 @@ class BankStatementController extends Controller
             });
         
         // Get all confirmed transactions for re-analysis
-        // Exclude rejected transactions
+        // Exclude rejected transactions and already collected ones
         $allConfirmedQuery = BankStatementTransaction::where('status', 'confirmed')
+            ->where('payment_created', false) // Only re-analyze transactions without payments
             ->where('is_duplicate', false)
             ->where('is_archived', false);
 
@@ -1021,6 +1026,7 @@ class BankStatementController extends Controller
         if (!empty($transactionIds)) {
             $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
                 ->where('match_status', 'unmatched')
+                ->where('payment_created', false) // Only process unmatched transactions without payments
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->whereIn('id', $transactionIds)
