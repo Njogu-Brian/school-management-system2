@@ -46,6 +46,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {{ ($view ?? 'all') == 'unmatched' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'unmatched'] + request()->except('view')) }}">
+                        Unmatched <span class="badge bg-info">{{ $counts['unmatched'] ?? 0 }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {{ ($view ?? 'all') == 'duplicate' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'duplicate'] + request()->except('view')) }}">
                         Duplicate <span class="badge bg-danger">{{ $counts['duplicate'] ?? 0 }}</span>
                     </a>
@@ -178,6 +183,22 @@
                                             <br><small>Payment: {{ $transaction->duplicateOfPayment->receipt_number ?? $transaction->duplicateOfPayment->transaction_code }}</small>
                                         @endif
                                     </span>
+                                @elseif($transaction->is_shared && $transaction->shared_allocations)
+                                    <div class="text-primary">
+                                        <i class="bi bi-people"></i> <strong>Shared Payment</strong>
+                                    </div>
+                                    @foreach($transaction->shared_allocations as $allocation)
+                                        @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
+                                        @if($student)
+                                            <div class="mt-1">
+                                                <a href="{{ route('students.show', $student) }}" class="text-decoration-none">
+                                                    {{ $student->first_name }} {{ $student->last_name }}
+                                                    <br><small class="text-muted">{{ $student->admission_number }}</small>
+                                                </a>
+                                                <br><small class="text-success fw-bold">Ksh {{ number_format($allocation['amount'], 2) }}</small>
+                                            </div>
+                                        @endif
+                                    @endforeach
                                 @elseif($transaction->student)
                                     <a href="{{ route('students.show', $transaction->student) }}">
                                         {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}

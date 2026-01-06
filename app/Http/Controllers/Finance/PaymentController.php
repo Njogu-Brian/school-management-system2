@@ -1102,6 +1102,7 @@ class PaymentController extends Controller
         try {
             $payment->load([
                 'student.classroom', 
+                'student.family.updateLink',
                 'invoice', 
                 'paymentMethod', 
                 'allocations.invoiceItem.votehead',

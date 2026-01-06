@@ -118,6 +118,17 @@ class BankStatementParser
      */
     public function matchTransaction(BankStatementTransaction $transaction): array
     {
+        // Skip matching if transaction was manually rejected
+        // Only allow manual assignment after rejection
+        if ($transaction->match_notes && strpos($transaction->match_notes, 'MANUALLY_REJECTED') !== false) {
+            return [
+                'matched' => false,
+                'confidence' => 0,
+                'reason' => 'Transaction was manually rejected and requires manual assignment',
+                'matches' => [],
+            ];
+        }
+        
         $description = $transaction->description ?? '';
         $phoneNumber = $transaction->phone_number;
         
@@ -1022,9 +1033,19 @@ class BankStatementParser
             throw new \Exception('Total allocation amount must equal transaction amount');
         }
         
+        // Clear MANUALLY_REJECTED marker when manually shared
+        $matchNotes = $transaction->match_notes ?? '';
+        if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
+            $matchNotes = 'Manually shared among siblings';
+        } else {
+            $matchNotes = $matchNotes ?: 'Manually shared among siblings';
+        }
+        
         $transaction->update([
             'is_shared' => true,
             'shared_allocations' => $allocations,
+            'match_status' => 'matched',
+            'match_notes' => $matchNotes,
         ]);
         
         return true;

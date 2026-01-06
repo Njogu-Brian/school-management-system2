@@ -48,6 +48,11 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false);
                 break;
+            case 'unmatched':
+                $query->where('match_status', 'unmatched')
+                      ->where('is_duplicate', false)
+                      ->where('is_archived', false);
+                break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
                       ->where('is_archived', false);
@@ -112,6 +117,10 @@ class BankStatementController extends Controller
                 ->where('is_archived', false)
                 ->count(),
             'draft' => BankStatementTransaction::where('status', 'draft')
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->count(),
+            'unmatched' => BankStatementTransaction::where('match_status', 'unmatched')
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->count(),
@@ -259,12 +268,18 @@ class BankStatementController extends Controller
                 $student = Student::findOrFail($validated['student_id']);
             }
 
+            // Clear MANUALLY_REJECTED marker when manually assigned
+            $matchNotes = $validated['match_notes'] ?? 'Manually assigned';
+            if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
+                $matchNotes = 'Manually assigned';
+            }
+            
             $bankStatement->update([
                 'student_id' => $student?->id,
                 'family_id' => $student?->family_id,
                 'match_status' => $student ? 'manual' : 'unmatched',
                 'match_confidence' => $student ? 1.0 : 0,
-                'match_notes' => $validated['match_notes'] ?? 'Manually assigned',
+                'match_notes' => $matchNotes,
             ]);
         });
 
@@ -284,7 +299,18 @@ class BankStatementController extends Controller
         }
 
         DB::transaction(function () use ($bankStatement) {
+            // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
+            $matchNotes = $bankStatement->match_notes ?? '';
+            if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
+                $matchNotes = $matchNotes ? str_replace('MANUALLY_REJECTED - ', '', $matchNotes) : 'Manually confirmed';
+            }
+            
             $bankStatement->confirm();
+            
+            // Update match notes if it had MANUALLY_REJECTED marker
+            if (strpos($bankStatement->match_notes ?? '', 'MANUALLY_REJECTED') !== false) {
+                $bankStatement->update(['match_notes' => $matchNotes]);
+            }
 
             // Create payment if not already created
             if (!$bankStatement->payment_created) {
@@ -389,6 +415,7 @@ class BankStatementController extends Controller
             }
             
             // Unmatch the transaction - reset to draft and unmatched
+            // Mark as manually rejected to prevent automatic re-matching
             $bankStatement->update([
                 'status' => 'draft',
                 'student_id' => null,
@@ -398,7 +425,7 @@ class BankStatementController extends Controller
                 'matched_admission_number' => null,
                 'matched_student_name' => null,
                 'matched_phone_number' => null,
-                'match_notes' => 'Unmatched - available for re-matching',
+                'match_notes' => 'MANUALLY_REJECTED - Requires manual assignment',
                 'payment_id' => null,
                 'payment_created' => false,
                 'is_shared' => false,
@@ -410,7 +437,7 @@ class BankStatementController extends Controller
 
         return redirect()
             ->route('finance.bank-statements.show', $bankStatement)
-            ->with('success', 'Transaction unmatched. You can now match it to a different student.');
+            ->with('success', 'Transaction rejected and unmatched. It will not be automatically matched again until you manually assign it.');
     }
 
     /**
@@ -639,10 +666,15 @@ class BankStatementController extends Controller
             });
         
         // Also get confirmed unmatched transactions to try matching first
+        // Exclude manually rejected transactions (they require manual assignment)
         $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
             ->where('match_status', 'unmatched')
             ->where('is_duplicate', false)
-            ->where('is_archived', false);
+            ->where('is_archived', false)
+            ->where(function($query) {
+                $query->whereNull('match_notes')
+                      ->orWhere('match_notes', 'NOT LIKE', '%MANUALLY_REJECTED%');
+            });
         
         // Get all confirmed transactions for re-analysis
         $allConfirmedQuery = BankStatementTransaction::where('status', 'confirmed')
@@ -673,8 +705,14 @@ class BankStatementController extends Controller
         $createdPaymentIds = [];
         
         // First, re-analyze ALL confirmed transactions to check for matching issues
+        // Skip manually rejected transactions (they require manual assignment)
         foreach ($allConfirmedTransactions as $transaction) {
             try {
+                // Skip manually rejected transactions
+                if ($transaction->match_notes && strpos($transaction->match_notes, 'MANUALLY_REJECTED') !== false) {
+                    continue;
+                }
+                
                 // Store original state BEFORE re-matching
                 $originalStudentId = $transaction->student_id;
                 $originalMatchStatus = $transaction->match_status;

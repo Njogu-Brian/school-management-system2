@@ -396,6 +396,18 @@
         <div class="footer">
             <div class="thank-you">Thank You for Your Payment!</div>
             <div>This is a computer-generated receipt. No signature required.</div>
+            @php
+                $family = $student->family ?? null;
+                $updateLink = $family->updateLink ?? null;
+            @endphp
+            @if($updateLink && $updateLink->is_active)
+                @php
+                    $profileUpdateUrl = url('/family-update/' . $updateLink->token);
+                @endphp
+                <div style="margin-top: 8px; padding: 6px; background: #f0f0f0; border-radius: 4px;">
+                    <strong>Update Your Profile:</strong> Visit {{ $profileUpdateUrl }} to update student and family information.
+                </div>
+            @endif
             <div style="margin-top: 10px;">
                 Generated on: {{ date('d M Y, H:i:s') }}<br>
                 @if(!empty($school['phone'] ?? ''))For inquiries, contact: {{ $school['phone'] }}@endif

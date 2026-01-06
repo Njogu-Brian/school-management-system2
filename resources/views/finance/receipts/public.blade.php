@@ -18,12 +18,19 @@
 <body>
     <div class="finance-page">
         <div class="finance-shell py-4">
-        <div class="d-flex justify-content-end align-items-center mb-3 no-print">
-            <div>
-                <button onclick="window.print()" class="btn btn-success">
-                    <i class="bi bi-printer"></i> Print
-                </button>
-            </div>
+        <div class="d-flex justify-content-end align-items-center mb-3 no-print gap-2">
+            @php
+                $family = $payment->student->family ?? null;
+                $updateLink = $family->updateLink ?? null;
+            @endphp
+            @if($updateLink && $updateLink->is_active)
+                <a href="{{ route('family-update.form', $updateLink->token) }}" target="_blank" class="btn btn-primary">
+                    <i class="bi bi-person-gear"></i> Update Profile
+                </a>
+            @endif
+            <button onclick="window.print()" class="btn btn-success">
+                <i class="bi bi-printer"></i> Print
+            </button>
         </div>
 
         <div class="card">

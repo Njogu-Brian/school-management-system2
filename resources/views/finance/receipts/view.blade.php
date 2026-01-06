@@ -34,6 +34,15 @@
                     <i class="bi bi-receipt"></i> Receipt: {{ $payment->receipt_number }}
                 </h3>
                 <div class="d-flex flex-wrap gap-2">
+                    @php
+                        $family = $payment->student->family ?? null;
+                        $updateLink = $family->updateLink ?? null;
+                    @endphp
+                    @if($updateLink && $updateLink->is_active)
+                        <a href="{{ route('family-update.form', $updateLink->token) }}" target="_blank" class="btn btn-finance btn-finance-info">
+                            <i class="bi bi-person-gear"></i> Update Profile
+                        </a>
+                    @endif
                     <a href="{{ route('finance.payments.receipt', $payment) }}" target="_blank" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-download"></i> Download PDF
                     </a>
