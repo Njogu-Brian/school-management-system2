@@ -616,15 +616,47 @@ class BankStatementController extends Controller
      */
     public function bulkConfirm(Request $request)
     {
-        $validated = $request->validate([
-            'transaction_ids' => 'required|array',
-            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        // Debug: Log what we're receiving
+        \Log::info('Bulk confirm request', [
+            'transaction_ids' => $request->input('transaction_ids'),
+            'all_input' => $request->all(),
         ]);
+        
+        // Handle both array and JSON string formats
+        $transactionIds = $request->input('transaction_ids', []);
+        
+        // If it's a JSON string, decode it
+        if (is_string($transactionIds)) {
+            $transactionIds = json_decode($transactionIds, true) ?? [];
+        }
+        
+        // Ensure it's an array and convert to integers
+        if (!is_array($transactionIds)) {
+            $transactionIds = [];
+        }
+        
+        $transactionIds = array_filter(array_map('intval', $transactionIds));
+        
+        if (empty($transactionIds)) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'Please select at least one draft transaction to confirm.');
+        }
+        
+        // Validate that all IDs exist
+        $existingIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+        $invalidIds = array_diff($transactionIds, $existingIds);
+        
+        if (!empty($invalidIds)) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'Some selected transaction IDs are invalid: ' . implode(', ', $invalidIds));
+        }
 
         $confirmed = 0;
         $errors = [];
 
-        foreach ($validated['transaction_ids'] as $transactionId) {
+        foreach ($transactionIds as $transactionId) {
             try {
                 $transaction = BankStatementTransaction::findOrFail($transactionId);
                 
