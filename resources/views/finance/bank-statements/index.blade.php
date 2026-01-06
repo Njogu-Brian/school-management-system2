@@ -148,7 +148,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(request('view') === 'draft' || request('view') === 'all')
+                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'all']) || !request('view'))
                                 <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                             @else
                                 <span class="text-muted">—</span>
@@ -169,7 +169,13 @@
                     @forelse($transactions as $transaction)
                         <tr>
                             <td>
-                                @if($transaction->status === 'draft' && !$transaction->is_duplicate && !$transaction->is_archived)
+                                @php
+                                    $canConfirm = $transaction->status === 'draft' 
+                                        && !$transaction->is_duplicate 
+                                        && !$transaction->is_archived
+                                        && ($transaction->student_id || $transaction->is_shared);
+                                @endphp
+                                @if($canConfirm)
                                     <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()">
                                 @else
                                     <span class="text-muted">—</span>
@@ -266,6 +272,10 @@
                                     <span class="badge bg-success">Confirmed</span>
                                 @elseif($transaction->status == 'rejected')
                                     <span class="badge bg-danger">Rejected</span>
+                                @elseif($transaction->match_status == 'matched' && ($transaction->student_id || $transaction->is_shared))
+                                    <span class="badge bg-success">Auto Assigned</span>
+                                @elseif($transaction->match_status == 'manual' && ($transaction->student_id || $transaction->is_shared))
+                                    <span class="badge bg-info">Manual Assigned</span>
                                 @else
                                     <span class="badge bg-warning">Draft</span>
                                 @endif
@@ -355,16 +365,12 @@
                 autoAssignIdsContainer.appendChild(autoAssignInput);
             });
             
-            // Show/hide bulk confirm button based on draft selections
-            const draftChecked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).filter(cb => {
-                const row = cb.closest('tr');
-                return row && row.querySelector('.badge') && row.querySelector('.badge').textContent.trim() === 'Draft';
-            });
-            
+            // Show/hide bulk confirm button based on checked transactions
+            // All checkboxes shown are confirmable (they're only shown if status is draft and has student_id/is_shared)
             // Always show the container (auto-assign button should always be visible)
             bulkActionsContainer.style.display = 'flex';
             
-            if (draftChecked.length > 0) {
+            if (checked.length > 0) {
                 bulkConfirmBtn.style.display = 'inline-block';
             } else {
                 bulkConfirmBtn.style.display = 'none';
@@ -375,33 +381,15 @@
             const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
             
             if (checked.length === 0) {
-                alert('Please select at least one draft transaction');
+                alert('Please select at least one transaction to confirm');
                 return;
             }
             
-            // Filter out already confirmed and rejected transactions
-            const confirmableChecked = checked.filter(id => {
-                const checkbox = document.querySelector(`.transaction-checkbox[value="${id}"]`);
-                if (!checkbox) return false;
-                const row = checkbox.closest('tr');
-                if (!row) return false;
-                const badge = row.querySelector('.badge');
-                if (!badge) return false;
-                const status = badge.textContent.trim();
-                // Allow: Draft, Auto Assigned (matched), Manual Assigned
-                // Exclude: Confirmed, Rejected
-                return status === 'Draft' || status === 'Auto Assigned' || status === 'Manual Assigned';
-            });
-            
-            if (confirmableChecked.length === 0) {
-                alert('Please select at least one transaction that can be confirmed (Draft, Auto Assigned, or Manual Assigned). Confirmed and Rejected transactions cannot be confirmed again.');
-                return;
-            }
-            
-            // Update the form with confirmable transaction IDs
+            // All checkboxes shown are confirmable (they're only shown if status is draft and has student_id/is_shared)
+            // No need to filter - if it has a checkbox, it can be confirmed
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
             bulkIdsContainer.innerHTML = '';
-            confirmableChecked.forEach(id => {
+            checked.forEach(id => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'transaction_ids[]';
@@ -409,7 +397,7 @@
                 bulkIdsContainer.appendChild(input);
             });
             
-            if (confirm(`Confirm ${confirmableChecked.length} transaction(s)? This will confirm draft, auto-assigned, and manual-assigned transactions.`)) {
+            if (confirm(`Confirm ${checked.length} transaction(s)? This will confirm draft, auto-assigned, and manual-assigned transactions.`)) {
                 document.getElementById('bulkConfirmForm').submit();
             }
         }
