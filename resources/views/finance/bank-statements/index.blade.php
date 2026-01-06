@@ -123,7 +123,7 @@
     </div>
 
     <!-- Bulk Actions -->
-    <div class="d-flex justify-content-between align-items-center mb-3 gap-2" id="bulkActionsContainer" style="display: none !important;">
+    <div class="d-flex justify-content-between align-items-center mb-3 gap-2" id="bulkActionsContainer">
         <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
             @csrf
             <div id="bulkTransactionIdsContainer"></div>
@@ -135,7 +135,7 @@
         <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
             @csrf
             <div id="autoAssignTransactionIdsContainer"></div>
-            <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()">
+            <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()" id="autoAssignBtn">
                 <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
             </button>
         </form>
@@ -361,16 +361,13 @@
                 return row && row.querySelector('.badge') && row.querySelector('.badge').textContent.trim() === 'Draft';
             });
             
+            // Always show the container (auto-assign button should always be visible)
+            bulkActionsContainer.style.display = 'flex';
+            
             if (draftChecked.length > 0) {
                 bulkConfirmBtn.style.display = 'inline-block';
-                bulkActionsContainer.style.display = 'flex';
             } else {
                 bulkConfirmBtn.style.display = 'none';
-                if (checked.length === 0) {
-                    bulkActionsContainer.style.display = 'none';
-                } else {
-                    bulkActionsContainer.style.display = 'flex';
-                }
             }
         }
 
@@ -412,16 +409,32 @@
         }
 
         function autoAssign() {
+            console.log('Auto-assign clicked');
             const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
             const form = document.getElementById('autoAssignForm');
             const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             
+            if (!form) {
+                console.error('Auto-assign form not found');
+                alert('Error: Auto-assign form not found. Please refresh the page.');
+                return;
+            }
+            
+            if (!autoAssignIdsContainer) {
+                console.error('Auto-assign container not found');
+                alert('Error: Auto-assign container not found. Please refresh the page.');
+                return;
+            }
+            
             // Clear existing hidden inputs
             autoAssignIdsContainer.innerHTML = '';
+            
+            console.log('Checked transactions:', checked);
             
             // If no specific selection, process all confirmed transactions
             if (checked.length === 0) {
                 if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched (auto-assigned or manual-assigned) but don\'t have payments yet.')) {
+                    console.log('Submitting form for all confirmed transactions');
                     form.submit();
                 }
             } else {
@@ -434,7 +447,10 @@
                     autoAssignIdsContainer.appendChild(input);
                 });
                 
+                console.log('Added hidden inputs:', autoAssignIdsContainer.innerHTML);
+                
                 if (confirm(`Create payments for ${checked.length} selected transaction(s)? This will process confirmed transactions that are matched (auto-assigned or manual-assigned) but don't have payments yet.`)) {
+                    console.log('Submitting form with selected transactions');
                     form.submit();
                 }
             }

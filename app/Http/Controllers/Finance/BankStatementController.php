@@ -731,9 +731,36 @@ class BankStatementController extends Controller
      */
     public function autoAssign(Request $request)
     {
-        $validated = $request->validate([
-            'transaction_ids' => 'nullable|array',
-            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        // Handle both array and JSON string formats
+        $transactionIds = $request->input('transaction_ids', []);
+        
+        // If it's a JSON string, decode it
+        if (is_string($transactionIds)) {
+            $transactionIds = json_decode($transactionIds, true) ?? [];
+        }
+        
+        // Ensure it's an array and convert to integers
+        if (!is_array($transactionIds)) {
+            $transactionIds = [];
+        }
+        
+        $transactionIds = array_filter(array_map('intval', $transactionIds));
+        
+        // Validate IDs exist if provided
+        if (!empty($transactionIds)) {
+            $existingIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+            $invalidIds = array_diff($transactionIds, $existingIds);
+            
+            if (!empty($invalidIds)) {
+                return redirect()
+                    ->route('finance.bank-statements.index')
+                    ->with('error', 'Some selected transaction IDs are invalid: ' . implode(', ', $invalidIds));
+            }
+        }
+        
+        \Log::info('Auto-assign request', [
+            'transaction_ids' => $transactionIds,
+            'count' => count($transactionIds),
         ]);
 
         // Only process CONFIRMED transactions that need payment creation
@@ -770,10 +797,10 @@ class BankStatementController extends Controller
             ->where('is_duplicate', false)
             ->where('is_archived', false);
 
-        if (!empty($validated['transaction_ids'])) {
-            $unmatchedQuery->whereIn('id', $validated['transaction_ids']);
-            $matchedQuery->whereIn('id', $validated['transaction_ids']);
-            $allConfirmedQuery->whereIn('id', $validated['transaction_ids']);
+        if (!empty($transactionIds)) {
+            $unmatchedQuery->whereIn('id', $transactionIds);
+            $matchedQuery->whereIn('id', $transactionIds);
+            $allConfirmedQuery->whereIn('id', $transactionIds);
         }
 
         $unmatchedTransactions = $unmatchedQuery->get();
@@ -885,9 +912,41 @@ class BankStatementController extends Controller
             }
         }
         
-        // Refresh queries after re-analysis
+        // Refresh queries after re-analysis (re-run the queries to get updated data)
+        if (!empty($transactionIds)) {
+            $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
+                ->where('match_status', 'unmatched')
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->whereIn('id', $transactionIds)
+                ->where(function($query) {
+                    $query->whereNull('match_notes')
+                          ->orWhere('match_notes', 'NOT LIKE', '%MANUALLY_REJECTED%');
+                });
+            
+            $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
+                ->whereIn('match_status', ['matched', 'manual'])
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->where('payment_created', false)
+                ->whereIn('id', $transactionIds)
+                ->where(function($query) {
+                    $query->whereNotNull('student_id')
+                          ->orWhere(function($q) {
+                              $q->where('is_shared', true)
+                                ->whereNotNull('shared_allocations');
+                          });
+                });
+        }
+        
         $unmatchedTransactions = $unmatchedQuery->get();
         $matchedTransactions = $matchedQuery->get();
+        
+        \Log::info('Auto-assign: Transactions found', [
+            'matched_count' => $matchedTransactions->count(),
+            'unmatched_count' => $unmatchedTransactions->count(),
+            'transaction_ids' => $transactionIds,
+        ]);
 
         // Process unmatched confirmed transactions - try to match them first
         foreach ($unmatchedTransactions as $transaction) {
@@ -897,8 +956,8 @@ class BankStatementController extends Controller
                     $matched++;
                     $transaction->refresh();
                     
-                    // If now matched, add to matched transactions list for payment creation
-                    if ($transaction->match_status === 'matched' && $transaction->student_id) {
+                    // If now matched (auto or manual), add to matched transactions list for payment creation
+                    if (in_array($transaction->match_status, ['matched', 'manual']) && $transaction->student_id) {
                         $matchedTransactions->push($transaction);
                     }
                 }
@@ -911,10 +970,10 @@ class BankStatementController extends Controller
         // This includes both single payments and shared payments (siblings)
         foreach ($matchedTransactions as $transaction) {
             try {
-                // Only create payment if transaction is confirmed and matched
+                // Only create payment if transaction is confirmed and matched (auto or manual)
                 // Handle both single payments and shared payments
                 if ($transaction->status === 'confirmed' && 
-                    $transaction->match_status === 'matched' && 
+                    in_array($transaction->match_status, ['matched', 'manual']) && 
                     !$transaction->payment_created) {
                     
                     // For shared transactions, check if is_shared and has allocations
