@@ -1200,7 +1200,29 @@ class BankStatementParser
         
         if ($transaction->is_shared && $transaction->shared_allocations) {
             // Generate same receipt number for all sibling payments
-            $sharedReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+            // Check if receipt number already exists and generate unique one if needed
+            $maxAttempts = 10;
+            $attempt = 0;
+            do {
+                $sharedReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                $exists = \App\Models\Payment::where('receipt_number', $sharedReceiptNumber)->exists();
+                $attempt++;
+                
+                if ($exists && $attempt < $maxAttempts) {
+                    // Wait a tiny bit and try again (handles race conditions)
+                    usleep(10000); // 0.01 seconds
+                }
+            } while ($exists && $attempt < $maxAttempts);
+            
+            if ($exists) {
+                // If still exists after max attempts, append transaction ID to make it unique
+                $sharedReceiptNumber = $sharedReceiptNumber . '-' . $transaction->id;
+                
+                \Log::warning('Shared receipt number collision after max attempts, using modified number', [
+                    'modified_receipt' => $sharedReceiptNumber,
+                    'transaction_id' => $transaction->id,
+                ]);
+            }
             
             // Create payments for each sibling
             $payments = [];
@@ -1300,6 +1322,47 @@ class BankStatementParser
             }
         }
         
+        // Generate unique receipt number
+        $finalReceiptNumber = $receiptNumber;
+        if (!$finalReceiptNumber) {
+            $maxAttempts = 10;
+            $attempt = 0;
+            do {
+                $finalReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                $exists = \App\Models\Payment::where('receipt_number', $finalReceiptNumber)->exists();
+                $attempt++;
+                
+                if ($exists && $attempt < $maxAttempts) {
+                    // Wait a tiny bit and try again (handles race conditions)
+                    usleep(10000); // 0.01 seconds
+                }
+            } while ($exists && $attempt < $maxAttempts);
+            
+            if ($exists) {
+                // If still exists after max attempts, append transaction ID to make it unique
+                $finalReceiptNumber = $finalReceiptNumber . '-' . $transaction->id;
+                
+                \Log::warning('Receipt number collision after max attempts, using modified number', [
+                    'original_receipt' => \App\Services\DocumentNumberService::generateReceipt(),
+                    'modified_receipt' => $finalReceiptNumber,
+                    'transaction_id' => $transaction->id,
+                ]);
+            }
+        } else {
+            // If receipt number is provided, check if it exists
+            $exists = \App\Models\Payment::where('receipt_number', $finalReceiptNumber)->exists();
+            if ($exists) {
+                // Append transaction ID to make it unique
+                $finalReceiptNumber = $finalReceiptNumber . '-' . $transaction->id;
+                
+                \Log::warning('Provided receipt number already exists, using modified number', [
+                    'original_receipt' => $receiptNumber,
+                    'modified_receipt' => $finalReceiptNumber,
+                    'transaction_id' => $transaction->id,
+                ]);
+            }
+        }
+        
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
             'family_id' => $student->family_id,
@@ -1307,7 +1370,7 @@ class BankStatementParser
             'payment_method_id' => $paymentMethod->id,
             'payment_method' => $paymentMethodName,
             'transaction_code' => $transactionCode,
-            'receipt_number' => $receiptNumber ?? \App\Services\DocumentNumberService::generateReceipt(),
+            'receipt_number' => $finalReceiptNumber,
             'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
             'payer_type' => 'parent',
             'narration' => $transaction->description,
