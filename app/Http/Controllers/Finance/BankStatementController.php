@@ -434,7 +434,21 @@ class BankStatementController extends Controller
                             'payment_id' => $payment->id,
                         ]);
                     } else {
-                        $payment = $this->parser->createPaymentFromTransaction($bankStatement);
+                        // Create payment with auto-allocation enabled
+                        $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                        
+                        // Ensure payment is allocated (double-check)
+                        if ($payment && $payment->unallocated_amount > 0) {
+                            try {
+                                $allocationService = app(\App\Services\PaymentAllocationService::class);
+                                $allocationService->autoAllocate($payment);
+                            } catch (\Exception $e) {
+                                Log::warning('Post-creation auto-allocation failed for bank statement payment', [
+                                    'payment_id' => $payment->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
                     }
                     
                     // Queue receipt generation and notifications for all payments (main + siblings)
@@ -1128,8 +1142,9 @@ class BankStatementController extends Controller
         }
         
         // After all payments are created, do allocations in batch (much faster)
-        // Only do batch allocation if we skipped it during payment creation
-        if (!empty($createdPaymentIds) && $skipReceiptAndNotifications) {
+        // ALWAYS run batch allocation if we skipped it during payment creation
+        // This ensures all payments are allocated regardless of skipReceiptAndNotifications flag
+        if (!empty($createdPaymentIds)) {
             try {
                 $allocationService = app(\App\Services\PaymentAllocationService::class);
                 
@@ -1165,6 +1180,33 @@ class BankStatementController extends Controller
                 \Log::info('Completed batch allocation', [
                     'payment_count' => count($createdPaymentIds),
                 ]);
+                
+                // Safety check: Allocate any payments that might have been missed
+                // This ensures 100% allocation coverage
+                $unallocatedPayments = \App\Models\Payment::whereIn('id', $createdPaymentIds)
+                    ->where('reversed', false)
+                    ->where(function($q) {
+                        $q->where('unallocated_amount', '>', 0)
+                          ->orWhereRaw('amount > allocated_amount');
+                    })
+                    ->get();
+                
+                if ($unallocatedPayments->count() > 0) {
+                    \Log::info('Found unallocated payments after batch allocation, allocating now', [
+                        'count' => $unallocatedPayments->count(),
+                    ]);
+                    
+                    foreach ($unallocatedPayments as $payment) {
+                        try {
+                            $allocationService->autoAllocate($payment);
+                        } catch (\Exception $e) {
+                            Log::warning('Fallback auto-allocation failed for payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
             } catch (\Exception $e) {
                 Log::error('Batch allocation process failed', [
                     'error' => $e->getMessage(),
@@ -1385,6 +1427,57 @@ class BankStatementController extends Controller
         return redirect()
             ->route('finance.bank-statements.index')
             ->with('success', 'Statement re-analyzed successfully. All previous transactions and payments have been deleted.');
+    }
+
+    /**
+     * Retroactively allocate all unallocated payments from bank statements
+     * This fixes any payments that were created without allocation
+     */
+    public function allocateUnallocatedPayments(Request $request)
+    {
+        $allocated = 0;
+        $failed = 0;
+        $errors = [];
+        
+        // Get all unallocated payments that came from bank statements
+        $unallocatedPayments = \App\Models\Payment::where('reversed', false)
+            ->whereNotNull('bank_account_id')
+            ->where(function($q) {
+                $q->where('unallocated_amount', '>', 0)
+                  ->orWhereRaw('amount > allocated_amount');
+            })
+            ->with('student')
+            ->get();
+        
+        foreach ($unallocatedPayments as $payment) {
+            try {
+                // Only allocate if student exists and has outstanding invoices
+                if ($payment->student_id && $payment->student) {
+                    $this->allocationService->autoAllocate($payment);
+                    $allocated++;
+                } else {
+                    $errors[] = "Payment #{$payment->id}: No student associated";
+                    $failed++;
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Payment #{$payment->id}: " . $e->getMessage();
+                $failed++;
+                Log::warning('Retroactive allocation failed for payment', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        $message = "Allocated {$allocated} payment(s)";
+        if ($failed > 0) {
+            $message .= ". {$failed} payment(s) failed to allocate.";
+        }
+        
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with('success', $message)
+            ->with('errors', $errors);
     }
 
     /**

@@ -28,7 +28,17 @@
             'muted'=> 'of '. $n(($kpis['students'] ?? 0)),
         ],
         [
-            'label' => 'Fees Collected',
+            'label' => 'Total Invoiced',
+            'value' => $m($kpis['total_invoiced'] ?? 0),
+            'icon'  => 'bi-receipt',
+            'delta'=> null,
+            'muted'=> null,
+            'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
+            'clickable' => true,
+            'data_target' => 'voteheadBreakdownModal',
+        ],
+        [
+            'label' => 'Payments Collected',
             'value' => $m($kpis['fees_collected'] ?? 0),
             'icon'  => 'bi-cash-coin',
             'delta'=> $kpis['fees_delta'] ?? null,
@@ -36,11 +46,11 @@
             'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
         ],
         [
-            'label' => 'Outstanding Fees',
+            'label' => 'Balances Collected',
             'value' => $m($kpis['fees_outstanding'] ?? 0),
             'icon'  => 'bi-wallet2',
             'delta'=> $kpis['fees_delta'] ?? null,
-            'muted'=> null,
+            'muted'=> 'Outstanding',
             'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
         ],
         [
@@ -56,7 +66,12 @@
 @foreach($cards as $card)
     @continue(!empty($card['hide']))
     <div class="col-12 col-sm-6 col-lg-4">
-        <div class="dash-card card h-100">
+        <div class="dash-card card h-100 {{ !empty($card['clickable']) ? 'cursor-pointer' : '' }}" 
+             @if(!empty($card['clickable']) && !empty($card['data_target']))
+             data-bs-toggle="modal" 
+             data-bs-target="#{{ $card['data_target'] }}"
+             style="cursor: pointer;"
+             @endif>
             <div class="card-body d-flex">
                 <div class="flex-grow-1">
                     <div class="dash-muted small mb-1">{{ $card['label'] }}</div>

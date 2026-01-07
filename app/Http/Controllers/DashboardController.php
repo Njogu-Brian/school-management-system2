@@ -190,7 +190,14 @@ class DashboardController extends Controller
         $absentToday = (clone $attendanceQuery)->where('status', 'absent')->count();
 
         // ---- Finance KPIs
-        $feesCollected = Payment::whereBetween('payment_date', [$filters['from'], $filters['to']])->sum('amount');
+        $feesCollected = Payment::whereBetween('payment_date', [$filters['from'], $filters['to']])
+            ->where('reversed', false)
+            ->sum('amount');
+
+        // Total invoiced - sum of all invoice totals within the date range
+        $totalInvoiced = Invoice::whereBetween('created_at', [$filters['from'], $filters['to']])
+            ->whereNull('reversed_at')
+            ->sum('total');
 
         // Use centralized service to calculate outstanding fees
         // This properly accounts for:
@@ -198,6 +205,62 @@ class DashboardController extends Controller
         // - Balance brought forward from legacy (only if not already in invoices)
         // - All voteheads including transport (already in invoice items)
         $feesOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingFees();
+
+        // Votehead breakdown - total invoiced per votehead
+        $voteheadBreakdown = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($filters) {
+                $q->whereBetween('created_at', [$filters['from'], $filters['to']])
+                  ->whereNull('reversed_at');
+            })
+            ->where('status', 'active')
+            ->with('votehead')
+            ->select('votehead_id', DB::raw('SUM(amount - COALESCE(discount_amount, 0)) as total_amount'))
+            ->groupBy('votehead_id')
+            ->get()
+            ->map(function($item) {
+                return [
+                    'votehead_id' => $item->votehead_id,
+                    'votehead_name' => $item->votehead->name ?? 'Unknown',
+                    'votehead_code' => $item->votehead->code ?? '',
+                    'total_amount' => (float)$item->total_amount,
+                ];
+            })
+            ->sortByDesc('total_amount')
+            ->values();
+
+        // Weekly payment categorization for the current term
+        $weeklyPayments = [];
+        if ($filters['term_id']) {
+            $term = Term::find($filters['term_id']);
+            if ($term) {
+                // Get term start and end dates
+                $termStart = $term->opening_date ? $term->opening_date->toDateString() : $filters['from'];
+                $termEnd = $term->closing_date ? $term->closing_date->toDateString() : $filters['to'];
+                
+                // Group payments by week within the term
+                $payments = Payment::whereBetween('payment_date', [$termStart, $termEnd])
+                    ->where('reversed', false)
+                    ->select(
+                        DB::raw('YEARWEEK(payment_date, 1) as week'),
+                        DB::raw('MIN(payment_date) as week_start'),
+                        DB::raw('SUM(amount) as total_amount'),
+                        DB::raw('COUNT(*) as payment_count')
+                    )
+                    ->groupBy('week')
+                    ->orderBy('week')
+                    ->get()
+                    ->map(function($item) {
+                        return [
+                            'week' => $item->week,
+                            'week_label' => Carbon::parse($item->week_start)->format('M d') . ' - ' . 
+                                          Carbon::parse($item->week_start)->addDays(6)->format('M d, Y'),
+                            'total_amount' => (float)$item->total_amount,
+                            'payment_count' => (int)$item->payment_count,
+                        ];
+                    });
+                
+                $weeklyPayments = $payments->toArray();
+            }
+        }
 
         $teachersOnLeave = class_exists('\App\Models\Staff\Leave')
             ? \App\Models\Staff\Leave::whereDate('start', '<=', $today)->whereDate('end', '>=', $today)->count()
@@ -209,6 +272,7 @@ class DashboardController extends Controller
             'present_today'     => $presentToday,
             'absent_today'      => $absentToday,
             'attendance_delta'  => 0.0,
+            'total_invoiced'    => in_array($role, ['admin', 'finance']) ? $totalInvoiced : 0,
             'fees_collected'    => in_array($role, ['admin', 'finance']) ? $feesCollected : 0,
             'fees_outstanding'  => in_array($role, ['admin', 'finance']) ? $feesOutstanding : 0,
             'fees_delta'        => 0.0,
@@ -539,6 +603,8 @@ class DashboardController extends Controller
             'transport'     => $transport,
             'behaviour'     => $behaviour,
             'health'        => $health,
+            'voteheadBreakdown' => $voteheadBreakdown,
+            'weeklyPayments' => $weeklyPayments,
 
             'role'          => $role,
         ];
