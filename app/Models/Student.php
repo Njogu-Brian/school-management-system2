@@ -187,9 +187,27 @@ class Student extends Model
     {
         return $this->belongsTo(Classroom::class);
     }
+    /**
+     * Get siblings via family_id (not through pivot table)
+     * This ensures siblings are only retrieved from the same family
+     * IMPORTANT: Siblings should ONLY be determined by family_id, not through a pivot table
+     * The old belongsToMany relationship used a pivot table that may have incorrect data
+     */
     public function siblings()
     {
-        return $this->belongsToMany(Student::class, 'student_siblings', 'student_id', 'sibling_id');
+        // If no family_id, return empty query
+        if (!$this->family_id) {
+            return Student::whereRaw('1 = 0');
+        }
+        
+        // Return a query builder that filters by family_id
+        // This replaces the old belongsToMany relationship that used student_siblings pivot table
+        // Limit to reasonable number of siblings (max 10) to prevent data issues
+        return Student::where('family_id', $this->family_id)
+            ->where('id', '!=', $this->id)
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->limit(10); // Safety limit - if a family has more than 10 siblings, there's likely a data issue
     }
     public function assignments()
     {

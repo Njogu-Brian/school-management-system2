@@ -145,11 +145,17 @@
                                 $confidence = $match['confidence'] ?? 0;
                                 $matchType = $match['match_type'] ?? 'unknown';
                                 $matchedValue = $match['matched_value'] ?? '';
-                                $studentSiblings = \App\Models\Student::where('family_id', $student->family_id)
-                                    ->where('id', '!=', $student->id)
-                                    ->where('archive', 0)
-                                    ->where('is_alumni', false)
-                                    ->get();
+                                // Get siblings via family_id ONLY (not through siblings() relationship)
+                                // Limit to 10 siblings max to prevent display issues with bad data
+                                $studentSiblings = collect();
+                                if ($student->family_id) {
+                                    $studentSiblings = \App\Models\Student::where('family_id', $student->family_id)
+                                        ->where('id', '!=', $student->id)
+                                        ->where('archive', 0)
+                                        ->where('is_alumni', false)
+                                        ->limit(10) // Safety limit
+                                        ->get();
+                                }
                             @endphp
                             <div class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-start">

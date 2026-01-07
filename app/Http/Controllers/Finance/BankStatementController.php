@@ -269,6 +269,7 @@ class BankStatementController extends Controller
         
         // Get siblings if family exists
         // Only include active, non-archived siblings
+        // IMPORTANT: Siblings should ONLY be retrieved via family_id, not through the siblings() relationship
         $siblings = [];
         if ($bankStatement->family_id) {
             $siblings = Student::where('family_id', $bankStatement->family_id)
@@ -278,11 +279,14 @@ class BankStatementController extends Controller
                 ->get();
         } elseif ($bankStatement->student_id) {
             $student = $bankStatement->student;
-            // Get siblings via relationship and filter to active ones
-            $siblings = $student->siblings()
-                ->where('archive', 0)
-                ->where('is_alumni', false)
-                ->get();
+            // Get siblings via family_id ONLY (not through siblings() relationship)
+            if ($student->family_id) {
+                $siblings = Student::where('family_id', $student->family_id)
+                    ->where('id', '!=', $student->id)
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->get();
+            }
         }
 
         // Get possible matches if transaction has multiple matches or is unmatched
