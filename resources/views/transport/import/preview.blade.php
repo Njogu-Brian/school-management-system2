@@ -406,13 +406,13 @@
                         students.forEach(student => {
                             html += `<button type="button" class="list-group-item list-group-item-action py-2 student-result" 
                                             data-id="${student.id}" 
-                                            data-name="${student.name}"
+                                            data-name="${student.full_name}"
                                             data-admission="${student.admission_number}"
-                                            data-class="${student.class_name || ''}"
+                                            data-class="${student.classroom_name || ''}"
                                             data-row="${row}">
-                                        <strong>${student.name}</strong> 
+                                        <strong>${student.full_name}</strong> 
                                         <span class="badge bg-secondary">${student.admission_number}</span>
-                                        ${student.class_name ? `<span class="badge bg-info">${student.class_name}</span>` : ''}
+                                        ${student.classroom_name ? `<span class="badge bg-info">${student.classroom_name}</span>` : ''}
                                     </button>`;
                         });
                         html += '</div>';
