@@ -145,6 +145,11 @@
                                 $confidence = $match['confidence'] ?? 0;
                                 $matchType = $match['match_type'] ?? 'unknown';
                                 $matchedValue = $match['matched_value'] ?? '';
+                                $studentSiblings = \App\Models\Student::where('family_id', $student->family_id)
+                                    ->where('id', '!=', $student->id)
+                                    ->where('archive', 0)
+                                    ->where('is_alumni', false)
+                                    ->get();
                             @endphp
                             <div class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-start">
@@ -163,6 +168,14 @@
                                                 | Stream: {{ $student->stream->name }}
                                             @endif
                                         </p>
+                                        @if($studentSiblings->count() > 0)
+                                            <p class="text-info mb-1 small">
+                                                <i class="bi bi-people"></i> Has {{ $studentSiblings->count() }} sibling(s):
+                                                @foreach($studentSiblings as $sib)
+                                                    {{ $sib->first_name }} {{ $sib->last_name }}{{ !$loop->last ? ', ' : '' }}
+                                                @endforeach
+                                            </p>
+                                        @endif
                                         <div class="small">
                                             <span class="badge bg-info">{{ ucfirst(str_replace('_', ' ', $matchType)) }}</span>
                                             @if($matchedValue)
@@ -183,10 +196,38 @@
                                                 <i class="bi bi-check-circle"></i> Select
                                             </button>
                                         </form>
+                                        @if($studentSiblings->count() > 0)
+                                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModal{{ $student->id }}()">
+                                                <i class="bi bi-share"></i> Share
+                                            </button>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
                         @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
+            
+            <!-- Manual Student Search for Rejected/Unassigned Transactions -->
+            @if(!$bankStatement->student_id && in_array($bankStatement->status, ['draft', 'rejected']) && $bankStatement->match_status === 'unmatched')
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header">
+                    <h5 class="mb-0">Manual Student Assignment</h5>
+                </div>
+                <div class="finance-card-body p-4">
+                    <p class="text-muted mb-3">Search and select a student to assign this transaction to:</p>
+                    <div class="mb-3">
+                        <label class="form-label">Search Student</label>
+                        <input type="text" 
+                               id="studentSearch" 
+                               class="form-control" 
+                               placeholder="Search by name or admission number..."
+                               onkeyup="searchStudents()">
+                    </div>
+                    <div id="studentSearchResults" class="list-group" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Results will be populated here -->
                     </div>
                 </div>
             </div>
@@ -562,4 +603,185 @@
         }
     </script>
 @endsection
+
+@push('scripts')
+<script>
+// Student search functionality
+let searchTimeout;
+function searchStudents() {
+    const query = document.getElementById('studentSearch').value;
+    
+    clearTimeout(searchTimeout);
+    
+    if (query.length < 2) {
+        document.getElementById('studentSearchResults').innerHTML = '<div class="text-muted p-3">Enter at least 2 characters to search</div>';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                displaySearchResults(data);
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                document.getElementById('studentSearchResults').innerHTML = '<div class="text-danger p-3">Error searching students</div>';
+            });
+    }, 300);
+}
+
+function displaySearchResults(students) {
+    const resultsContainer = document.getElementById('studentSearchResults');
+    
+    if (students.length === 0) {
+        resultsContainer.innerHTML = '<div class="text-muted p-3">No students found</div>';
+        return;
+    }
+    
+    let html = '';
+    students.forEach(student => {
+        const hasSiblings = student.siblings && student.siblings.length > 0;
+        html += `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${student.first_name} ${student.last_name}</h6>
+                        <p class="text-muted mb-1 small">
+                            Admission: <code>${student.admission_number}</code>
+                            ${student.classroom ? `| Class: ${student.classroom.name}` : ''}
+                        </p>
+                        ${hasSiblings ? `
+                            <p class="text-info mb-1 small">
+                                <i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s):
+                                ${student.siblings.map(s => `${s.first_name} ${s.last_name}`).join(', ')}
+                            </p>
+                        ` : ''}
+                    </div>
+                    <div class="ms-3">
+                        <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}" class="d-inline">
+                            @csrf
+                            @method('PUT')
+                            <input type="hidden" name="student_id" value="${student.id}">
+                            <input type="hidden" name="match_notes" value="Manually selected via search">
+                            <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
+                                <i class="bi bi-check-circle"></i> Select
+                            </button>
+                        </form>
+                        ${hasSiblings ? `
+                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent(${student.id}, '${student.first_name} ${student.last_name}', ${JSON.stringify(student.siblings).replace(/"/g, '&quot;')})">
+                                <i class="bi bi-share"></i> Share
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = html;
+}
+
+function showShareModalForStudent(studentId, studentName, siblings) {
+    // Create modal for sharing payment with siblings
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'shareModal' + studentId;
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Share Payment with Siblings</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
+                    @csrf
+                    <div class="modal-body">
+                        <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
+                        <p class="text-info mb-3">
+                            <i class="bi bi-info-circle"></i> Allocate the payment amount among the siblings below. You can share with 1, 2, or 3 siblings (not all). Enter 0.00 for siblings you don't want to include.
+                        </p>
+                        <div class="mb-3 p-3 border rounded">
+                            <label class="form-label">
+                                <strong>${studentName}</strong>
+                            </label>
+                            <input type="hidden" name="allocations[0][student_id]" value="${studentId}">
+                            <input type="number" 
+                                   name="allocations[0][amount]" 
+                                   class="form-control modal-sibling-amount" 
+                                   step="0.01" 
+                                   min="0" 
+                                   max="{{ $bankStatement->amount }}"
+                                   onchange="updateModalTotal()"
+                                   oninput="updateModalTotal()"
+                                   placeholder="0.00 (leave 0 to exclude)">
+                        </div>
+                        ${siblings.map((sib, idx) => `
+                            <div class="mb-3 p-3 border rounded">
+                                <label class="form-label">
+                                    <strong>${sib.first_name} ${sib.last_name}</strong>
+                                    <small class="text-muted">(${sib.admission_number})</small>
+                                </label>
+                                <input type="hidden" name="allocations[${idx + 1}][student_id]" value="${sib.id}">
+                                <input type="number" 
+                                       name="allocations[${idx + 1}][amount]" 
+                                       class="form-control modal-sibling-amount" 
+                                       step="0.01" 
+                                       min="0" 
+                                       max="{{ $bankStatement->amount }}"
+                                       onchange="updateModalTotal()"
+                                       oninput="updateModalTotal()"
+                                       placeholder="0.00 (leave 0 to exclude)">
+                            </div>
+                        `).join('')}
+                        <div class="mb-3">
+                            <strong>Remaining: <span id="modalRemainingAmount">Ksh {{ number_format($bankStatement->amount, 2) }}</span></strong>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-finance btn-finance-primary" id="modalShareBtn" disabled>
+                            <i class="bi bi-share"></i> Share Payment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    modal.addEventListener('hidden.bs.modal', function () {
+        modal.remove();
+    });
+}
+
+function updateModalTotal() {
+    const amounts = document.querySelectorAll('.modal-sibling-amount');
+    let total = 0;
+    amounts.forEach(input => {
+        const value = parseFloat(input.value) || 0;
+        total += value;
+    });
+    
+    const transactionAmount = {{ $bankStatement->amount }};
+    const remaining = transactionAmount - total;
+    
+    document.getElementById('modalRemainingAmount').textContent = `Ksh ${remaining.toFixed(2)}`;
+    
+    const shareBtn = document.getElementById('modalShareBtn');
+    if (Math.abs(remaining) < 0.01 && total > 0) {
+        shareBtn.disabled = false;
+        shareBtn.classList.remove('btn-secondary');
+        shareBtn.classList.add('btn-finance', 'btn-finance-primary');
+    } else {
+        shareBtn.disabled = true;
+        shareBtn.classList.remove('btn-finance', 'btn-finance-primary');
+        shareBtn.classList.add('btn-secondary');
+    }
+}
+</script>
+@endpush
 
