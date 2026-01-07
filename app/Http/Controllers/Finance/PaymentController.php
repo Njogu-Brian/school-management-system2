@@ -2261,91 +2261,115 @@ class PaymentController extends Controller
             $query->whereDate('payment_date', '<=', $request->to_date);
         }
 
-        // Get all payments matching filters
-        $payments = $query->get();
-
-        $totalPayments = $payments->count();
+        // Process in batches to avoid timeout
+        $batchSize = 50; // Process 50 payments at a time
+        $totalPayments = $query->count();
         $skippedCount = 0;
         $sentCount = 0;
         $failedCount = 0;
         $errors = [];
+        $processed = 0;
 
-        foreach ($payments as $payment) {
-            try {
-                // Skip if already bulk sent for all selected channels
-                if ($payment->hasBeenBulkSent($channels)) {
-                    $skippedCount++;
-                    continue;
-                }
+        Log::info('Starting bulk send', [
+            'total_payments' => $totalPayments,
+            'channels' => $channels,
+            'batch_size' => $batchSize
+        ]);
 
-                // Send notifications (this will send via all channels in sendPaymentNotifications)
-                // But we need to track which channels were actually sent
-                $sentChannels = [];
-                
-                // Check parent contact info
-                $parent = $payment->student->parent ?? null;
-                if (!$parent) {
-                    $skippedCount++;
-                    continue;
-                }
-
-                // Send via each selected channel
-                foreach ($channels as $channel) {
-                    // Skip if this channel was already bulk sent
+        // Process payments in batches
+        $query->chunk($batchSize, function ($payments) use ($channels, &$skippedCount, &$sentCount, &$failedCount, &$errors, &$processed) {
+            foreach ($payments as $payment) {
+                $processed++;
+                try {
+                    // Get already sent channels for this payment
                     $bulkSent = $payment->bulk_sent_channels ?? [];
-                    if (in_array($channel, $bulkSent)) {
+                    
+                    // Filter out channels that have already been sent
+                    $channelsToSend = array_filter($channels, function($channel) use ($bulkSent) {
+                        return !in_array($channel, $bulkSent);
+                    });
+
+                    // Skip if all channels have already been sent
+                    if (empty($channelsToSend)) {
+                        $skippedCount++;
                         continue;
                     }
 
-                    try {
-                        // Send via the specific channel
-                        if ($channel === 'sms') {
-                            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-                            if ($parentPhone) {
-                                $this->sendPaymentNotificationByChannel($payment, $channel);
-                                $sentChannels[] = $channel;
-                            }
-                        } elseif ($channel === 'email') {
-                            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
-                            if ($parentEmail) {
-                                $this->sendPaymentNotificationByChannel($payment, $channel);
-                                $sentChannels[] = $channel;
-                            }
-                        } elseif ($channel === 'whatsapp') {
-                            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-                            if ($whatsappPhone) {
-                                $this->sendPaymentNotificationByChannel($payment, $channel);
-                                $sentChannels[] = $channel;
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        Log::error("Failed to send {$channel} for payment {$payment->id}", [
-                            'payment_id' => $payment->id,
-                            'channel' => $channel,
-                            'error' => $e->getMessage()
-                        ]);
-                        $errors[] = "Payment #{$payment->receipt_number} ({$channel}): " . $e->getMessage();
+                    // Check parent contact info
+                    $parent = $payment->student->parent ?? null;
+                    if (!$parent) {
+                        $skippedCount++;
+                        continue;
                     }
+
+                    // Track which channels were successfully sent
+                    $sentChannels = [];
+
+                    // Send via each channel that hasn't been sent yet
+                    foreach ($channelsToSend as $channel) {
+                        try {
+                            $hasContact = false;
+                            
+                            // Check if parent has contact for this channel
+                            if ($channel === 'sms') {
+                                $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                                $hasContact = !empty($parentPhone);
+                            } elseif ($channel === 'email') {
+                                $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                                $hasContact = !empty($parentEmail);
+                            } elseif ($channel === 'whatsapp') {
+                                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
+                                    ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                                $hasContact = !empty($whatsappPhone);
+                            }
+
+                            if ($hasContact) {
+                                $this->sendPaymentNotificationByChannel($payment, $channel);
+                                $sentChannels[] = $channel;
+                            }
+                        } catch (\Exception $e) {
+                            Log::error("Failed to send {$channel} for payment {$payment->id}", [
+                                'payment_id' => $payment->id,
+                                'channel' => $channel,
+                                'error' => $e->getMessage(),
+                                'trace' => $e->getTraceAsString()
+                            ]);
+                            $errors[] = "Payment #{$payment->receipt_number} ({$channel}): " . $e->getMessage();
+                        }
+                    }
+
+                    // Mark channels as bulk sent if any were successfully sent
+                    if (!empty($sentChannels)) {
+                        $payment->markBulkSent($sentChannels);
+                        $sentCount++;
+                    } else {
+                        // If no channels were sent (no contact info), still count as skipped
+                        $skippedCount++;
+                    }
+
+                } catch (\Exception $e) {
+                    $failedCount++;
+                    Log::error('Bulk send failed for payment', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    $errors[] = "Payment #{$payment->receipt_number}: " . $e->getMessage();
                 }
 
-                // Mark channels as bulk sent if any were successfully sent
-                if (!empty($sentChannels)) {
-                    $payment->markBulkSent($sentChannels);
-                    $sentCount++;
-                } else {
-                    $skippedCount++;
+                // Small delay every 10 payments to prevent overwhelming the system
+                if ($processed % 10 === 0) {
+                    usleep(100000); // 0.1 seconds
                 }
-
-            } catch (\Exception $e) {
-                $failedCount++;
-                Log::error('Bulk send failed for payment', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage()
-                ]);
-                $errors[] = "Payment #{$payment->receipt_number}: " . $e->getMessage();
             }
-        }
+        });
+
+        Log::info('Bulk send completed', [
+            'total_payments' => $totalPayments,
+            'sent' => $sentCount,
+            'skipped' => $skippedCount,
+            'failed' => $failedCount
+        ]);
 
         $message = "Bulk send completed: {$sentCount} sent, {$skippedCount} skipped";
         if ($failedCount > 0) {
