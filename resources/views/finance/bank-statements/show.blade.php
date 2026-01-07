@@ -197,7 +197,7 @@
                                             </button>
                                         </form>
                                         @if($studentSiblings->count() > 0)
-                                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModal{{ $student->id }}()">
+                                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent({{ $student->id }}, {{ json_encode($student->first_name . ' ' . $student->last_name) }}, {{ json_encode($studentSiblings->map(function($s) { return ['id' => $s->id, 'first_name' => $s->first_name, 'last_name' => $s->last_name, 'admission_number' => $s->admission_number]; })->toArray()) }})">
                                                 <i class="bi bi-share"></i> Share
                                             </button>
                                         @endif
@@ -642,19 +642,21 @@ function displaySearchResults(students) {
     let html = '';
     students.forEach(student => {
         const hasSiblings = student.siblings && student.siblings.length > 0;
+        const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
+        const classroomName = student.classroom_name || (student.classroom ? student.classroom.name : '');
         html += `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <h6 class="mb-1">${student.first_name} ${student.last_name}</h6>
+                        <h6 class="mb-1">${studentName}</h6>
                         <p class="text-muted mb-1 small">
-                            Admission: <code>${student.admission_number}</code>
-                            ${student.classroom ? `| Class: ${student.classroom.name}` : ''}
+                            Admission: <code>${student.admission_number || ''}</code>
+                            ${classroomName ? `| Class: ${classroomName}` : ''}
                         </p>
                         ${hasSiblings ? `
                             <p class="text-info mb-1 small">
                                 <i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s):
-                                ${student.siblings.map(s => `${s.first_name} ${s.last_name}`).join(', ')}
+                                ${student.siblings.map(s => `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown').join(', ')}
                             </p>
                         ` : ''}
                     </div>
@@ -669,7 +671,7 @@ function displaySearchResults(students) {
                             </button>
                         </form>
                         ${hasSiblings ? `
-                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent(${student.id}, '${student.first_name} ${student.last_name}', ${JSON.stringify(student.siblings).replace(/"/g, '&quot;')})">
+                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent(${student.id}, ${JSON.stringify(studentName)}, ${JSON.stringify(student.siblings)})">
                                 <i class="bi bi-share"></i> Share
                             </button>
                         ` : ''}
@@ -683,6 +685,11 @@ function displaySearchResults(students) {
 }
 
 function showShareModalForStudent(studentId, studentName, siblings) {
+    // Ensure siblings is an array
+    if (!Array.isArray(siblings)) {
+        siblings = [];
+    }
+    
     // Create modal for sharing payment with siblings
     const modal = document.createElement('div');
     modal.className = 'modal fade';
@@ -716,11 +723,14 @@ function showShareModalForStudent(studentId, studentName, siblings) {
                                    oninput="updateModalTotal()"
                                    placeholder="0.00 (leave 0 to exclude)">
                         </div>
-                        ${siblings.map((sib, idx) => `
+                        ${siblings.map((sib, idx) => {
+                            const sibName = `${sib.first_name || ''} ${sib.last_name || ''}`.trim() || 'Unknown';
+                            const sibAdmission = sib.admission_number || '';
+                            return `
                             <div class="mb-3 p-3 border rounded">
                                 <label class="form-label">
-                                    <strong>${sib.first_name} ${sib.last_name}</strong>
-                                    <small class="text-muted">(${sib.admission_number})</small>
+                                    <strong>${sibName}</strong>
+                                    ${sibAdmission ? `<small class="text-muted">(${sibAdmission})</small>` : ''}
                                 </label>
                                 <input type="hidden" name="allocations[${idx + 1}][student_id]" value="${sib.id}">
                                 <input type="number" 
@@ -733,7 +743,8 @@ function showShareModalForStudent(studentId, studentName, siblings) {
                                        oninput="updateModalTotal()"
                                        placeholder="0.00 (leave 0 to exclude)">
                             </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                         <div class="mb-3">
                             <strong>Remaining: <span id="modalRemainingAmount">Ksh {{ number_format($bankStatement->amount, 2) }}</span></strong>
                         </div>
