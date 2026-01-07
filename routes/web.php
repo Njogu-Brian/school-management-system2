@@ -1086,16 +1086,16 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('payments/create', [PaymentController::class, 'create'])->name('payments.create');
         Route::get('payments/bulk-print', [PaymentController::class, 'bulkPrintReceipts'])->name('payments.bulk-print');
         Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentBalanceAndSiblings'])->name('payments.student-info');
+        Route::get('payments/failed-communications', [PaymentController::class, 'failedCommunications'])->name('payments.failed-communications');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
+        Route::post('payments/communications/{communicationLog}/resend', [PaymentController::class, 'resendCommunication'])->name('payments.communications.resend');
+        Route::post('payments/communications/resend-multiple', [PaymentController::class, 'resendMultipleCommunications'])->name('payments.communications.resend-multiple');
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
         Route::delete('payments/{payment}/reverse', [PaymentController::class, 'reverse'])->name('payments.reverse');
         Route::post('payments/{payment}/transfer', [PaymentController::class, 'transfer'])->name('payments.transfer');
-        Route::get('payments/failed-communications', [PaymentController::class, 'failedCommunications'])->name('payments.failed-communications');
-        Route::post('payments/communications/{communicationLog}/resend', [PaymentController::class, 'resendCommunication'])->name('payments.communications.resend');
-        Route::post('payments/communications/resend-multiple', [PaymentController::class, 'resendMultipleCommunications'])->name('payments.communications.resend-multiple');
         
         // Bank Accounts
         Route::resource('bank-accounts', BankAccountController::class)->parameters(['bank-accounts' => 'bankAccount']);

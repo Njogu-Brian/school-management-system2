@@ -720,8 +720,11 @@ function displayShareSearchResults(students) {
         return;
     }
     
+    // Store students in a global array for access by index
+    window.shareSearchResults = students;
+    
     let html = '';
-    students.forEach(student => {
+    students.forEach((student, index) => {
         const hasSiblings = student.siblings && student.siblings.length > 0;
         const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
         
@@ -729,12 +732,14 @@ function displayShareSearchResults(students) {
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <strong>${studentName}</strong>
-                        <br><small class="text-muted">Admission: ${student.admission_number || 'N/A'}</small>
-                        ${student.classroom ? `<br><small class="text-muted">Class: ${student.classroom.name || 'N/A'}</small>` : ''}
+                        <strong>${escapeHtml(studentName)}</strong>
+                        <br><small class="text-muted">Admission: ${escapeHtml(student.admission_number || 'N/A')}</small>
+                        ${student.classroom_name ? `<br><small class="text-muted">Class: ${escapeHtml(student.classroom_name)}</small>` : ''}
                         ${hasSiblings ? `<br><small class="text-info"><i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s)</small>` : ''}
                     </div>
-                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary" onclick="selectStudentForShare(${JSON.stringify(student)})">
+                    <button type="button" 
+                            class="btn btn-sm btn-finance btn-finance-primary share-student-btn" 
+                            data-index="${index}">
                         ${hasSiblings ? '<i class="bi bi-share"></i> Share' : '<i class="bi bi-check"></i> Select'}
                     </button>
                 </div>
@@ -743,6 +748,27 @@ function displayShareSearchResults(students) {
     });
     
     resultsContainer.innerHTML = html;
+    
+    // Attach event listeners to all share buttons
+    document.querySelectorAll('.share-student-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const index = parseInt(this.getAttribute('data-index'));
+            const student = window.shareSearchResults[index];
+            if (student) {
+                selectStudentForShare(student);
+            } else {
+                console.error('Student not found at index:', index);
+                alert('Error loading student data. Please try again.');
+            }
+        });
+    });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 function selectStudentForShare(student) {
