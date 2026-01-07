@@ -1987,6 +1987,77 @@ class PaymentController extends Controller
     }
 
     /**
+     * Bulk allocate all unallocated payments that have outstanding invoices
+     */
+    public function bulkAllocateUnallocated(Request $request)
+    {
+        $allocated = 0;
+        $failed = 0;
+        $errors = [];
+        $skipped = 0;
+        
+        // Get all unallocated payments
+        $unallocatedPayments = Payment::where('reversed', false)
+            ->where(function($q) {
+                $q->where('unallocated_amount', '>', 0)
+                  ->orWhereRaw('amount > allocated_amount');
+            })
+            ->with(['student.invoices.items'])
+            ->get();
+        
+        foreach ($unallocatedPayments as $payment) {
+            try {
+                // Only allocate if student exists
+                if (!$payment->student_id || !$payment->student) {
+                    $errors[] = "Payment #{$payment->receipt_number}: No student associated";
+                    $failed++;
+                    continue;
+                }
+                
+                // Check if student has any unpaid invoice items
+                $hasUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($payment) {
+                    $q->where('student_id', $payment->student_id)
+                      ->where('status', '!=', 'paid');
+                })
+                ->where('status', 'active')
+                ->get()
+                ->filter(function($item) {
+                    return $item->getBalance() > 0;
+                })
+                ->isNotEmpty();
+                
+                if ($hasUnpaidItems) {
+                    $this->allocationService->autoAllocate($payment);
+                    $allocated++;
+                } else {
+                    // No unpaid items - this is an overpayment, skip it
+                    $skipped++;
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Payment #{$payment->receipt_number}: " . $e->getMessage();
+                $failed++;
+                Log::warning('Bulk allocation failed for payment', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        $message = "Allocated {$allocated} payment(s)";
+        if ($skipped > 0) {
+            $message .= ". {$skipped} payment(s) skipped (no outstanding invoices).";
+        }
+        if ($failed > 0) {
+            $message .= ". {$failed} payment(s) failed to allocate.";
+        }
+        
+        return redirect()
+            ->route('finance.payments.index')
+            ->with('success', $message)
+            ->with('errors', $errors);
+    }
+
+    /**
      * Resend a failed payment communication
      */
     public function resendCommunication(Request $request, CommunicationLog $communicationLog)
