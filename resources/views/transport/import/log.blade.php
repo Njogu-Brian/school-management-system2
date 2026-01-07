@@ -10,7 +10,7 @@
         <div class="page-header d-flex justify-content-between align-items-start">
             <div>
                 <div class="crumb">
-                    <a href="{{ route('transport.index') }}">Transport</a> / 
+                    <a href="{{ route('transport.dashboard') }}">Transport</a> / 
                     <a href="{{ route('transport.import.form') }}">Import</a> / Log
                 </div>
                 <h1>Import Log Details</h1>

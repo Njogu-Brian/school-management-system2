@@ -10,7 +10,7 @@
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
                 <div class="crumb">
-                    <a href="{{ route('transport.index') }}">Transport</a> / Import
+                    <a href="{{ route('transport.dashboard') }}">Transport</a> / Import
                 </div>
                 <h1>Import Transport Assignments</h1>
                 <p>Upload an Excel file to assign students to evening transport routes and vehicles.</p>
@@ -19,7 +19,7 @@
                 <a href="{{ route('transport.import.template') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-download"></i> Download Template
                 </a>
-                <a href="{{ route('transport.index') }}" class="btn btn-ghost-strong">
+                <a href="{{ route('transport.dashboard') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-arrow-left"></i> Back to Transport
                 </a>
             </div>
@@ -109,7 +109,7 @@
                         <button type="submit" class="btn btn-settings-primary">
                             <i class="bi bi-eye me-2"></i> Preview Import
                         </button>
-                        <a href="{{ route('transport.index') }}" class="btn btn-ghost-strong">Cancel</a>
+                        <a href="{{ route('transport.dashboard') }}" class="btn btn-ghost-strong">Cancel</a>
                     </div>
                 </form>
             </div>

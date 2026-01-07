@@ -9,7 +9,7 @@
     <div class="settings-shell">
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
-                <div class="crumb"><a href="{{ route('transport.index') }}">Transport</a> / Attendance</div>
+                <div class="crumb"><a href="{{ route('transport.dashboard') }}">Transport</a> / Attendance</div>
                 <h1>Attendance History</h1>
                 <p>{{ $trip->trip_name ?? $trip->name }} · {{ \Carbon\Carbon::parse($selected_date)->format('F d, Y') }}</p>
             </div>
@@ -20,7 +20,7 @@
                 <a href="{{ route('transport.trip-attendance.create', ['trip' => $trip->id, 'date' => $selected_date]) }}" class="btn btn-settings-primary">
                     <i class="bi bi-plus-circle"></i> Take Attendance
                 </a>
-                <a href="{{ route('transport.index') }}" class="btn btn-ghost-strong">Back to Transport</a>
+                <a href="{{ route('transport.dashboard') }}" class="btn btn-ghost-strong">Back to Transport</a>
             </div>
         </div>
 

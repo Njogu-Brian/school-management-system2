@@ -10,7 +10,7 @@
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
                 <div class="crumb">
-                    <a href="{{ route('transport.index') }}">Transport</a> / Daily List
+                    <a href="{{ route('transport.dashboard') }}">Transport</a> / Daily List
                 </div>
                 <h1>Daily Transport List</h1>
                 <p>View and download transport lists for present students.</p>
@@ -24,7 +24,7 @@
                    class="btn btn-ghost-strong" target="_blank">
                     <i class="bi bi-printer"></i> Print All
                 </a>
-                <a href="{{ route('transport.index') }}" class="btn btn-ghost-strong">
+                <a href="{{ route('transport.dashboard') }}" class="btn btn-ghost-strong">
                     <i class="bi bi-arrow-left"></i> Back
                 </a>
             </div>

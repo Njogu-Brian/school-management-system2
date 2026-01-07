@@ -23,7 +23,7 @@
     <div class="settings-shell">
         <div class="page-header">
             <div class="crumb">
-                <a href="{{ route('transport.index') }}">Transport</a> / 
+                <a href="{{ route('transport.dashboard') }}">Transport</a> / 
                 <a href="{{ route('transport.import.form') }}">Import</a> / Preview
             </div>
             <h1>Import Preview</h1>

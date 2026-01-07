@@ -9,13 +9,13 @@
     <div class="settings-shell">
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
-                <div class="crumb"><a href="{{ route('transport.index') }}">Transport</a> / Attendance</div>
+                <div class="crumb"><a href="{{ route('transport.dashboard') }}">Transport</a> / Attendance</div>
                 <h1>Trip Attendance Checklist</h1>
                 <p>{{ $trip->trip_name ?? $trip->name }} · {{ \Carbon\Carbon::parse($selected_date)->format('F d, Y') }}</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
                 <a href="{{ route('transport.trip-attendance.index', ['trip' => $trip->id, 'date' => $selected_date]) }}" class="btn btn-ghost-strong">View History</a>
-                <a href="{{ route('transport.index') }}" class="btn btn-ghost-strong">Back to Transport</a>
+                <a href="{{ route('transport.dashboard') }}" class="btn btn-ghost-strong">Back to Transport</a>
             </div>
         </div>
 
@@ -121,7 +121,7 @@
                         <button type="submit" class="btn btn-settings-primary">
                             <i class="bi bi-check-circle"></i> Save Attendance
                         </button>
-                        <a href="{{ route('transport.index') }}" class="btn btn-ghost-strong">Cancel</a>
+                        <a href="{{ route('transport.dashboard') }}" class="btn btn-ghost-strong">Cancel</a>
                     </div>
                 </div>
             @else
