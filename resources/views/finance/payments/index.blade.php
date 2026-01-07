@@ -458,9 +458,8 @@ document.addEventListener('DOMContentLoaded', function() {
     updateSelectAllState();
     updateSelectedCount();
     
-    // Initialize button state
+    // Initialize button state (selectedIds already declared above)
     const sendBtn = document.getElementById('sendSelectedBtn');
-    const selectedIds = getAllSelectedPaymentIds();
     if (sendBtn && selectedIds.length > 0) {
         sendBtn.disabled = false;
     }
@@ -548,87 +547,73 @@ function openBulkSendModal() {
 // Also make it available on window for backwards compatibility
 window.openBulkSendModal = openBulkSendModal;
 
-// Initialize all button handlers on page load
-document.addEventListener('DOMContentLoaded', function() {
-    // Bulk Send All button
-    const bulkSendBtn = document.getElementById('bulkSendBtn');
-    if (bulkSendBtn) {
-        bulkSendBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            openBulkSendModal();
-        });
-    }
+// Simple button initialization using onclick (more reliable than addEventListener)
+(function initPaymentButtons() {
+    function setupButtons() {
+        // Bulk Send All
+        const bulkSendBtn = document.getElementById('bulkSendBtn');
+        if (bulkSendBtn) bulkSendBtn.onclick = () => { openBulkSendModal(); };
 
-    // Bulk Print buttons (there are 2)
-    const bulkPrintBtn = document.getElementById('bulkPrintBtn');
-    const bulkPrintBtn2 = document.getElementById('bulkPrintBtn2');
-    [bulkPrintBtn, bulkPrintBtn2].forEach(btn => {
-        if (btn) {
-            btn.addEventListener('click', function(e) {
-                e.preventDefault();
-                bulkPrintReceipts();
-            });
+        // Bulk Print buttons
+        ['bulkPrintBtn', 'bulkPrintBtn2'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.onclick = () => { bulkPrintReceipts(); };
+        });
+
+        // Send Selected
+        const sendSelectedBtn = document.getElementById('sendSelectedBtn');
+        if (sendSelectedBtn) {
+            sendSelectedBtn.onclick = function() {
+                const ids = getAllSelectedPaymentIds();
+                if (ids.length === 0) {
+                    alert('Please select at least one payment to send.');
+                    return;
+                }
+                // Wait for openSendDocument
+                let attempts = 0;
+                function tryOpen() {
+                    if (window.openSendDocument) {
+                        window.openSendDocument('receipt', ids);
+                    } else if (attempts++ < 20) {
+                        setTimeout(tryOpen, 100);
+                    } else {
+                        alert('Send function not available. Please refresh the page.');
+                    }
+                }
+                tryOpen();
+            };
         }
-    });
 
-    // Send Selected button
-    const sendSelectedBtn = document.getElementById('sendSelectedBtn');
-    if (sendSelectedBtn) {
-        sendSelectedBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const selectedIds = getAllSelectedPaymentIds();
-            if (selectedIds.length === 0) {
-                alert('Please select at least one payment to send.');
-                return;
-            }
-            if (typeof openSendDocument === 'function') {
-                openSendDocument('receipt', selectedIds);
-            } else {
-                console.error('openSendDocument function not found');
-                alert('Send function not available. Please refresh the page.');
-            }
-        });
+        // Clear Selections
+        const clearBtn = document.getElementById('clearSelectionsBtn');
+        if (clearBtn) clearBtn.onclick = () => { clearAllSelections(); };
+
+        // Bulk send form validation
+        const bulkForm = document.getElementById('bulkSendForm');
+        if (bulkForm) {
+            bulkForm.onsubmit = function(e) {
+                const checked = Array.from(this.querySelectorAll('.channel-checkbox')).some(c => c.checked);
+                if (!checked) {
+                    e.preventDefault();
+                    alert('Please select at least one channel (SMS, WhatsApp, or Email)');
+                    return false;
+                }
+                const btn = this.querySelector('button[type="submit"]');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+                    setTimeout(() => { btn.disabled = false; btn.innerHTML = 'Send to All'; }, 10000);
+                }
+            };
+        }
     }
 
-    // Clear Selections button
-    const clearSelectionsBtn = document.getElementById('clearSelectionsBtn');
-    if (clearSelectionsBtn) {
-        clearSelectionsBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            clearAllSelections();
-        });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(setupButtons, 300));
+    } else {
+        setTimeout(setupButtons, 300);
     }
-
-    // Initialize bulk send form validation
-    const bulkSendForm = document.getElementById('bulkSendForm');
-    if (bulkSendForm) {
-        // Add form validation
-        bulkSendForm.addEventListener('submit', function(e) {
-            const channelCheckboxes = this.querySelectorAll('.channel-checkbox');
-            const anyChecked = Array.from(channelCheckboxes).some(c => c.checked);
-            
-            if (!anyChecked) {
-                e.preventDefault();
-                alert('Please select at least one channel (SMS, WhatsApp, or Email)');
-                return false;
-            }
-            
-            // Show loading state
-            const submitBtn = this.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                const originalText = submitBtn.innerHTML;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
-                
-                // Re-enable button if form submission fails (after 10 seconds as safety)
-                setTimeout(function() {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = originalText;
-                }, 10000);
-            }
-        });
-    }
-});
+})();
 </script>
 @endpush
 @endsection

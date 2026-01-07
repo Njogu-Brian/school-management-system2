@@ -13,7 +13,7 @@
         
         @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 15mm 10mm;
         }
         
         body {
@@ -21,19 +21,33 @@
             font-size: 13px;
             color: #333;
             background: #fff;
+            margin: 0;
+            padding: 0;
         }
         
         .receipt-container {
             width: 100%;
-            max-width: 210mm;
+            max-width: 190mm;
             padding: 12px 18px;
-            page-break-after: always;
-            page-break-inside: avoid;
+            page-break-after: always !important;
+            page-break-before: always !important;
+            page-break-inside: avoid !important;
             margin: 0 auto;
+            box-sizing: border-box;
+            display: block;
+        }
+        
+        .receipt-container:first-child {
+            page-break-before: auto !important;
         }
         
         .receipt-container:last-child {
-            page-break-after: auto;
+            page-break-after: auto !important;
+        }
+        
+        /* Force page break for all elements inside receipt */
+        .receipt-container > * {
+            page-break-inside: avoid;
         }
         
         .header {
@@ -210,7 +224,7 @@
     </style>
 </head>
 <body>
-@foreach($receipts as $receiptData)
+@foreach($receipts as $index => $receiptData)
 @php
     $payment = $receiptData['payment'];
     $student = $receiptData['student'];
@@ -243,7 +257,7 @@
     }
 @endphp
 
-    <div class="receipt-container">
+    <div class="receipt-container" style="@if($index > 0) page-break-before: always !important; @endif">
         <!-- Header -->
         <div class="header">
             @if($logo)
