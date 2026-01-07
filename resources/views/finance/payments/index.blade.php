@@ -5,7 +5,7 @@
         'title' => 'Payments',
         'icon' => 'bi bi-cash-stack',
         'subtitle' => 'Track and manage all payment records',
-        'actions' => '<a href="' . route('finance.payments.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Record Payment</a>'
+        'actions' => '<a href="' . route('finance.payments.failed-communications') . '" class="btn btn-finance btn-finance-warning me-2"><i class="bi bi-exclamation-triangle"></i> Failed Communications</a><a href="' . route('finance.payments.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Record Payment</a>'
     ])
 
     @include('finance.invoices.partials.alerts')

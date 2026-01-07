@@ -1093,6 +1093,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
         Route::delete('payments/{payment}/reverse', [PaymentController::class, 'reverse'])->name('payments.reverse');
         Route::post('payments/{payment}/transfer', [PaymentController::class, 'transfer'])->name('payments.transfer');
+        Route::get('payments/failed-communications', [PaymentController::class, 'failedCommunications'])->name('payments.failed-communications');
+        Route::post('payments/communications/{communicationLog}/resend', [PaymentController::class, 'resendCommunication'])->name('payments.communications.resend');
+        Route::post('payments/communications/resend-multiple', [PaymentController::class, 'resendMultipleCommunications'])->name('payments.communications.resend-multiple');
         
         // Bank Accounts
         Route::resource('bank-accounts', BankAccountController::class)->parameters(['bank-accounts' => 'bankAccount']);

@@ -17,12 +17,14 @@ class SMSService
 
     public function __construct()
     {
-        $this->apiUrl   = env('SMS_API_URL', 'https://smsportal.hostpinnacle.co.ke/SMSApi/send');
-        $this->apiKey   = env('SMS_API_KEY');
-        $this->userId   = env('SMS_USER_ID');
-        $this->password = env('SMS_PASSWORD');
-        $this->senderId = env('SMS_SENDER_ID', 'ROYAL_KINGS');
-        $this->financeSenderId = env('SMS_SENDER_ID_FINANCE', 'RKS_FINANCE');
+        // Use config() instead of env() to support config caching in production
+        // Fallback to env() if config is not cached (for development)
+        $this->apiUrl   = config('services.sms.api_url', env('SMS_API_URL', 'https://smsportal.hostpinnacle.co.ke/SMSApi/send'));
+        $this->apiKey   = config('services.sms.api_key', env('SMS_API_KEY'));
+        $this->userId   = config('services.sms.user_id', env('SMS_USER_ID'));
+        $this->password = config('services.sms.password', env('SMS_PASSWORD'));
+        $this->senderId = config('services.sms.sender_id', env('SMS_SENDER_ID', 'ROYAL_KINGS'));
+        $this->financeSenderId = config('services.sms.sender_id_finance', env('SMS_SENDER_ID_FINANCE', 'RKS_FINANCE'));
         // HostPinnacle API base URL
         $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
         // Use "Read Account Status" API for balance check (from HostPinnacle documentation)
@@ -202,6 +204,49 @@ class SMSService
 
     public function sendSMS($phoneNumber, $message, $senderId = null)
     {
+        // Validate required credentials BEFORE attempting to send
+        // This prevents API calls with missing credentials
+        if (empty($this->userId) || trim($this->userId) === '') {
+            Log::error("SMS sending failed: SMS_USER_ID not configured", [
+                'phone' => $phoneNumber,
+                'user_id_set' => isset($this->userId),
+                'user_id_value' => $this->userId ?? 'null'
+            ]);
+            return [
+                'status' => 'error',
+                'statusCode' => '213',
+                'reason' => 'Parameter userid required.',
+                'message' => 'SMS_USER_ID environment variable is not set or is empty',
+                'error_code' => 'MISSING_USER_ID'
+            ];
+        }
+
+        if (empty($this->password) || trim($this->password) === '') {
+            Log::error("SMS sending failed: SMS_PASSWORD not configured", [
+                'phone' => $phoneNumber,
+            ]);
+            return [
+                'status' => 'error',
+                'statusCode' => '214',
+                'reason' => 'Parameter password required.',
+                'message' => 'SMS_PASSWORD environment variable is not set or is empty',
+                'error_code' => 'MISSING_PASSWORD'
+            ];
+        }
+
+        if (empty($this->apiKey) || trim($this->apiKey) === '') {
+            Log::error("SMS sending failed: SMS_API_KEY not configured", [
+                'phone' => $phoneNumber,
+            ]);
+            return [
+                'status' => 'error',
+                'statusCode' => '215',
+                'reason' => 'API key required.',
+                'message' => 'SMS_API_KEY environment variable is not set or is empty',
+                'error_code' => 'MISSING_API_KEY'
+            ];
+        }
+
         // Check balance before sending
         if (!$this->hasSufficientCredits(1)) {
             $balance = $this->checkBalance();

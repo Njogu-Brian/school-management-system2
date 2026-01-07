@@ -1839,4 +1839,129 @@ class PaymentController extends Controller
             ]);
         }
     }
+
+    /**
+     * View failed payment communications
+     */
+    public function failedCommunications(Request $request)
+    {
+        $query = CommunicationLog::with(['payment.student.parent'])
+            ->whereNotNull('payment_id')
+            ->where('status', 'failed')
+            ->orderBy('created_at', 'desc');
+
+        // Filter by date range
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        // Filter by channel
+        if ($request->filled('channel')) {
+            $query->where('channel', $request->channel);
+        }
+
+        // Filter by error code
+        if ($request->filled('error_code')) {
+            $query->where('error_code', $request->error_code);
+        }
+
+        $failedCommunications = $query->paginate(20);
+
+        // Get unique error codes for filter dropdown
+        $errorCodes = CommunicationLog::whereNotNull('payment_id')
+            ->where('status', 'failed')
+            ->whereNotNull('error_code')
+            ->distinct()
+            ->pluck('error_code')
+            ->filter()
+            ->sort()
+            ->values();
+
+        return view('finance.payments.failed-communications', compact('failedCommunications', 'errorCodes'));
+    }
+
+    /**
+     * Resend a failed payment communication
+     */
+    public function resendCommunication(Request $request, CommunicationLog $communicationLog)
+    {
+        $request->validate([
+            'channel' => 'nullable|in:sms,email,both'
+        ]);
+
+        if (!$communicationLog->payment_id) {
+            return redirect()->back()->with('error', 'This communication is not linked to a payment.');
+        }
+
+        $payment = Payment::with(['student.parent', 'paymentMethod'])->findOrFail($communicationLog->payment_id);
+
+        try {
+            // Resend payment notifications (sends both SMS and email if available)
+            // The sendPaymentNotifications method handles both channels internally
+            $this->sendPaymentNotifications($payment);
+
+            return redirect()->back()->with('success', 'Payment communication resent successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to resend payment communication', [
+                'communication_log_id' => $communicationLog->id,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->back()->with('error', 'Failed to resend communication: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Resend multiple failed payment communications
+     */
+    public function resendMultipleCommunications(Request $request)
+    {
+        $request->validate([
+            'communication_ids' => 'required|array',
+            'communication_ids.*' => 'exists:communication_logs,id'
+        ]);
+
+        $communicationIds = $request->input('communication_ids');
+        $successCount = 0;
+        $failureCount = 0;
+        $errors = [];
+
+        foreach ($communicationIds as $logId) {
+            try {
+                $communicationLog = CommunicationLog::findOrFail($logId);
+                
+                if (!$communicationLog->payment_id) {
+                    $failureCount++;
+                    $errors[] = "Communication #{$logId} is not linked to a payment.";
+                    continue;
+                }
+
+                $payment = Payment::with(['student.parent', 'paymentMethod'])->findOrFail($communicationLog->payment_id);
+                $this->sendPaymentNotifications($payment);
+                $successCount++;
+            } catch (\Exception $e) {
+                $failureCount++;
+                $errors[] = "Communication #{$logId}: " . $e->getMessage();
+                Log::error('Failed to resend payment communication in bulk', [
+                    'communication_log_id' => $logId,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        $message = "Resent {$successCount} communication(s) successfully.";
+        if ($failureCount > 0) {
+            $message .= " {$failureCount} failed.";
+        }
+
+        return redirect()->back()->with(
+            $failureCount === 0 ? 'success' : 'warning',
+            $message
+        )->with('errors', $errors);
+    }
 }
