@@ -93,7 +93,7 @@
                 <button type="submit" class="btn btn-finance btn-finance-primary flex-fill">
                     <i class="bi bi-search"></i> Filter
                 </button>
-                <button type="button" class="btn btn-finance btn-finance-secondary" onclick="bulkPrintReceipts()" title="Bulk Print Receipts">
+                <button type="button" class="btn btn-finance btn-finance-secondary" id="bulkPrintBtn" title="Bulk Print Receipts">
                     <i class="bi bi-printer"></i> Bulk Print
                 </button>
             </div>
@@ -116,20 +116,17 @@
             <a href="{{ route('finance.payments.failed-communications') }}" class="btn btn-finance btn-finance-warning" title="View and resend failed payment communications">
                 <i class="bi bi-exclamation-triangle"></i> Failed Communications
             </a>
-            <button type="button" class="btn btn-finance btn-finance-secondary" id="sendSelectedBtn"
-                onclick="openSendDocument('receipt', getAllSelectedPaymentIds())">
+            <button type="button" class="btn btn-finance btn-finance-secondary" id="sendSelectedBtn">
                 <i class="bi bi-send"></i> Send Selected (<span id="sendSelectedCount">0</span>)
             </button>
             <button type="button" class="btn btn-finance btn-finance-primary" id="bulkSendBtn"
                 title="Send to all payments matching current filters (skips already sent)">
                 <i class="bi bi-send-fill"></i> Bulk Send All
             </button>
-            <button type="button" class="btn btn-finance btn-finance-outline"
-                onclick="clearAllSelections()" title="Clear all selections">
+            <button type="button" class="btn btn-finance btn-finance-outline" id="clearSelectionsBtn" title="Clear all selections">
                 <i class="bi bi-x-circle"></i> Clear
             </button>
-            <button type="button" class="btn btn-finance btn-finance-outline"
-                onclick="bulkPrintReceipts()" title="Bulk Print Receipts (uses current filters)">
+            <button type="button" class="btn btn-finance btn-finance-outline" id="bulkPrintBtn2" title="Bulk Print Receipts (uses current filters)">
                 <i class="bi bi-printer"></i> Bulk Print
             </button>
             <a href="{{ route('finance.payments.create') }}" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Record Payment</a>
@@ -349,6 +346,9 @@ function getAllSelectedPaymentIds() {
     }
 }
 
+// Make it globally accessible
+window.getAllSelectedPaymentIds = getAllSelectedPaymentIds;
+
 // Save selected payment IDs to localStorage
 function saveSelectedPaymentIds(ids) {
     const uniqueIds = [...new Set(ids.map(id => parseInt(id)).filter(id => !isNaN(id)))];
@@ -378,10 +378,16 @@ function clearAllSelections() {
         localStorage.removeItem(SELECTED_PAYMENTS_KEY);
         // Uncheck all checkboxes on current page
         document.querySelectorAll('.receipt-checkbox').forEach(cb => cb.checked = false);
-        document.getElementById('receiptCheckAll').checked = false;
+        const checkAll = document.getElementById('receiptCheckAll');
+        if (checkAll) {
+            checkAll.checked = false;
+        }
         updateSelectedCount();
     }
 }
+
+// Make it globally accessible
+window.clearAllSelections = clearAllSelections;
 
 // Update selected count display
 function updateSelectedCount() {
@@ -461,35 +467,53 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function bulkPrintReceipts() {
-    const form = document.getElementById('paymentsFilterForm');
-    const formData = new FormData(form);
-    
-    // Get selected payment IDs from localStorage (all pages)
-    const selectedIds = getAllSelectedPaymentIds();
-    
-    // Also check current page checkboxes as fallback
-    const checkedIds = Array.from(document.querySelectorAll('.receipt-checkbox:checked'))
-        .map(cb => parseInt(cb.value));
-    
-    // Combine both sources
-    const allIds = [...new Set([...selectedIds, ...checkedIds])];
-    
-    if (allIds.length > 0) {
-        formData.append('payment_ids', allIds.join(','));
-    }
-    
-    // Build query string
-    const params = new URLSearchParams();
-    for (const [key, value] of formData.entries()) {
-        if (value) {
-            params.append(key, value);
+    try {
+        const form = document.getElementById('paymentsFilterForm');
+        if (!form) {
+            console.error('Payments filter form not found');
+            alert('Filter form not found. Please refresh the page.');
+            return;
         }
+        
+        const formData = new FormData(form);
+        
+        // Get selected payment IDs from localStorage (all pages)
+        const selectedIds = getAllSelectedPaymentIds();
+        
+        // Also check current page checkboxes as fallback
+        const checkedIds = Array.from(document.querySelectorAll('.receipt-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+        
+        // Combine both sources
+        const allIds = [...new Set([...selectedIds, ...checkedIds])];
+        
+        if (allIds.length > 0) {
+            formData.append('payment_ids', allIds.join(','));
+        }
+        
+        // Build query string
+        const params = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+            if (value) {
+                params.append(key, value);
+            }
+        }
+        
+        // Open bulk print in new window
+        const url = '{{ route("finance.payments.bulk-print") }}?' + params.toString();
+        const printWindow = window.open(url, 'BulkReceiptPrint', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no');
+        
+        if (!printWindow || printWindow.closed || typeof printWindow.closed == 'undefined') {
+            alert('Popup blocked. Please allow popups for this site to print receipts.');
+        }
+    } catch (error) {
+        console.error('Error in bulkPrintReceipts:', error);
+        alert('Error opening bulk print: ' + error.message);
     }
-    
-    // Open bulk print in new window
-    const url = '{{ route("finance.payments.bulk-print") }}?' + params.toString();
-    window.open(url, 'BulkReceiptPrint', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no');
 }
+
+// Make it globally accessible
+window.bulkPrintReceipts = bulkPrintReceipts;
 
 function collectCheckedIds(selector) {
     // Use localStorage instead of just current page
@@ -524,14 +548,54 @@ function openBulkSendModal() {
 // Also make it available on window for backwards compatibility
 window.openBulkSendModal = openBulkSendModal;
 
-// Initialize bulk send button and form validation on page load
+// Initialize all button handlers on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Add click handler to bulk send button
+    // Bulk Send All button
     const bulkSendBtn = document.getElementById('bulkSendBtn');
     if (bulkSendBtn) {
         bulkSendBtn.addEventListener('click', function(e) {
             e.preventDefault();
             openBulkSendModal();
+        });
+    }
+
+    // Bulk Print buttons (there are 2)
+    const bulkPrintBtn = document.getElementById('bulkPrintBtn');
+    const bulkPrintBtn2 = document.getElementById('bulkPrintBtn2');
+    [bulkPrintBtn, bulkPrintBtn2].forEach(btn => {
+        if (btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                bulkPrintReceipts();
+            });
+        }
+    });
+
+    // Send Selected button
+    const sendSelectedBtn = document.getElementById('sendSelectedBtn');
+    if (sendSelectedBtn) {
+        sendSelectedBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const selectedIds = getAllSelectedPaymentIds();
+            if (selectedIds.length === 0) {
+                alert('Please select at least one payment to send.');
+                return;
+            }
+            if (typeof openSendDocument === 'function') {
+                openSendDocument('receipt', selectedIds);
+            } else {
+                console.error('openSendDocument function not found');
+                alert('Send function not available. Please refresh the page.');
+            }
+        });
+    }
+
+    // Clear Selections button
+    const clearSelectionsBtn = document.getElementById('clearSelectionsBtn');
+    if (clearSelectionsBtn) {
+        clearSelectionsBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearAllSelections();
         });
     }
 
