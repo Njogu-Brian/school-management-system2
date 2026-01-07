@@ -1430,7 +1430,7 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Retroactively allocate all unallocated payments from bank statements
+     * Retroactively allocate all unallocated payments that have invoices
      * This fixes any payments that were created without allocation
      */
     public function allocateUnallocatedPayments(Request $request)
@@ -1439,22 +1439,41 @@ class BankStatementController extends Controller
         $failed = 0;
         $errors = [];
         
-        // Get all unallocated payments that came from bank statements
+        // Get all unallocated payments (not just from bank statements)
         $unallocatedPayments = \App\Models\Payment::where('reversed', false)
-            ->whereNotNull('bank_account_id')
             ->where(function($q) {
                 $q->where('unallocated_amount', '>', 0)
                   ->orWhereRaw('amount > allocated_amount');
             })
-            ->with('student')
+            ->with(['student.invoices.items'])
             ->get();
         
         foreach ($unallocatedPayments as $payment) {
             try {
                 // Only allocate if student exists and has outstanding invoices
                 if ($payment->student_id && $payment->student) {
-                    $this->allocationService->autoAllocate($payment);
-                    $allocated++;
+                    // Check if student has any unpaid invoice items
+                    $hasUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($payment) {
+                        $q->where('student_id', $payment->student_id)
+                          ->where('status', '!=', 'paid');
+                    })
+                    ->where('status', 'active')
+                    ->get()
+                    ->filter(function($item) {
+                        return $item->getBalance() > 0;
+                    })
+                    ->isNotEmpty();
+                    
+                    if ($hasUnpaidItems) {
+                        $this->allocationService->autoAllocate($payment);
+                        $allocated++;
+                    } else {
+                        // No unpaid items - this is an overpayment, which is fine
+                        Log::info('Payment has no unpaid items to allocate', [
+                            'payment_id' => $payment->id,
+                            'student_id' => $payment->student_id,
+                        ]);
+                    }
                 } else {
                     $errors[] = "Payment #{$payment->id}: No student associated";
                     $failed++;

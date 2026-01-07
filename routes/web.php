@@ -1124,6 +1124,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/{bankStatement}/reparse', [\App\Http\Controllers\Finance\BankStatementController::class, 'reparse'])->name('reparse');
             Route::post('/{bankStatement}/archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'archive'])->name('archive');
             Route::post('/{bankStatement}/unarchive', [\App\Http\Controllers\Finance\BankStatementController::class, 'unarchive'])->name('unarchive');
+            Route::post('/allocate-unallocated-payments', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateUnallocatedPayments'])->name('allocate-unallocated-payments');
         });
         
         // Document Settings

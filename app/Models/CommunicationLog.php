@@ -10,7 +10,8 @@ class CommunicationLog extends Model
         'recipient_type', 'recipient_id', 'contact', 'channel',
         'title', 'message', 'status', 'type', 'sent_at',
         'classroom_id', 'stream_id', 'scope', 'response',
-        'provider_id', 'provider_status', 'delivered_at', 'error_code'
+        'provider_id', 'provider_status', 'delivered_at', 'error_code',
+        'payment_id'
     ];
     
     protected $guarded = []; 
@@ -29,6 +30,10 @@ class CommunicationLog extends Model
     
     public function stream() {
         return $this->belongsTo(Stream::class);
+    }
+    
+    public function payment() {
+        return $this->belongsTo(Payment::class);
     }
     
 }

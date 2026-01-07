@@ -618,7 +618,7 @@ class PaymentController extends Controller
                     'sender_id' => $financeSenderId
                 ]);
                 
-                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId);
+                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
                 
                 Log::info('Payment SMS sent successfully', [
                     'payment_id' => $payment->id, 
@@ -674,6 +674,98 @@ class PaymentController extends Controller
             }
         } else {
             Log::info('Payment email skipped - no parent email', ['payment_id' => $payment->id, 'student_id' => $student->id]);
+        }
+        
+        // Send WhatsApp notification
+        // Get WhatsApp number with fallback to phone number
+        $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
+            ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+        
+        if ($whatsappPhone) {
+            try {
+                // Get WhatsApp template
+                $whatsappTemplate = CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
+                    ->orWhere('code', 'finance_payment_received_whatsapp')
+                    ->first();
+                
+                if (!$whatsappTemplate) {
+                    $whatsappTemplate = CommunicationTemplate::firstOrCreate(
+                        ['code' => 'payment_receipt_whatsapp'],
+                        [
+                            'title' => 'Payment Receipt WhatsApp',
+                            'type' => 'whatsapp',
+                            'subject' => null,
+                            'content' => "Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}",
+                        ]
+                    );
+                }
+                
+                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+                
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
+                
+                $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                
+                // Log WhatsApp communication
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id'   => $parent->id ?? null,
+                    'contact'        => $whatsappPhone,
+                    'channel'        => 'whatsapp',
+                    'title'          => $whatsappTemplate->subject ?? $whatsappTemplate->title,
+                    'message'        => $whatsappMessage,
+                    'type'           => 'whatsapp',
+                    'status'         => $status,
+                    'response'       => $response,
+                    'scope'          => 'whatsapp',
+                    'sent_at'        => now(),
+                    'payment_id'     => $payment->id,
+                    'provider_id'    => data_get($response, 'body.data.id') 
+                                        ?? data_get($response, 'body.data.message.id')
+                                        ?? data_get($response, 'body.messageId')
+                                        ?? data_get($response, 'body.id'),
+                    'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                ]);
+                
+                if ($status === 'sent') {
+                    Log::info('Payment WhatsApp sent successfully', [
+                        'payment_id' => $payment->id,
+                        'phone' => $whatsappPhone,
+                    ]);
+                } else {
+                    Log::warning('Payment WhatsApp sending failed', [
+                        'payment_id' => $payment->id,
+                        'phone' => $whatsappPhone,
+                        'response' => $response,
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::error('Payment WhatsApp sending failed', [
+                    'error' => $e->getMessage(),
+                    'payment_id' => $payment->id,
+                    'phone' => $whatsappPhone,
+                    'trace' => $e->getTraceAsString()
+                ]);
+                
+                // Log failed WhatsApp attempt
+                CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id'   => $parent->id ?? null,
+                    'contact'        => $whatsappPhone,
+                    'channel'        => 'whatsapp',
+                    'title'          => 'Payment Receipt',
+                    'message'        => $whatsappMessage ?? 'Payment notification',
+                    'type'           => 'whatsapp',
+                    'status'         => 'failed',
+                    'response'       => ['error' => $e->getMessage()],
+                    'scope'          => 'whatsapp',
+                    'sent_at'        => now(),
+                    'payment_id'     => $payment->id,
+                ]);
+            }
+        } else {
+            Log::info('Payment WhatsApp skipped - no parent WhatsApp/phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
     }
     
@@ -1845,9 +1937,20 @@ class PaymentController extends Controller
      */
     public function failedCommunications(Request $request)
     {
+        // Check for failed communications - include both explicit 'failed' status and error codes
         $query = CommunicationLog::with(['payment.student.parent'])
             ->whereNotNull('payment_id')
-            ->where('status', 'failed')
+            ->where(function($q) {
+                $q->where('status', 'failed')
+                  ->orWhereNotNull('error_code')
+                  ->orWhere(function($subQ) {
+                      // Also check for provider_status indicating failure
+                      $subQ->where('provider_status', '!=', 'success')
+                           ->where('provider_status', '!=', 'sent')
+                           ->where('provider_status', '!=', 'delivered')
+                           ->whereNotNull('provider_status');
+                  });
+            })
             ->orderBy('created_at', 'desc');
 
         // Filter by date range

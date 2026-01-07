@@ -36,9 +36,9 @@ class CommunicationHelperService
                 $contacts = match ($type) {
                     'email' => [$student->parent->father_email, $student->parent->mother_email, $student->parent->guardian_email],
                     'whatsapp' => [
-                        $student->parent->father_whatsapp ?? $student->parent->father_phone,
-                        $student->parent->mother_whatsapp ?? $student->parent->mother_phone,
-                        $student->parent->guardian_whatsapp ?? $student->parent->guardian_phone,
+                        $student->parent->father_whatsapp ?: $student->parent->father_phone,
+                        $student->parent->mother_whatsapp ?: $student->parent->mother_phone,
+                        $student->parent->guardian_whatsapp ?: $student->parent->guardian_phone,
                     ],
                     default => [$student->parent->father_phone, $student->parent->mother_phone, $student->parent->guardian_phone],
                 };

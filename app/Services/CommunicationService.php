@@ -18,7 +18,7 @@ class CommunicationService
         $this->smsService   = $smsService;
     }
 
-    public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null)
+    public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null, $paymentId = null)
     {
         try {
             $result = $this->smsService->sendSMS($phone, $message, $senderId);
@@ -44,6 +44,7 @@ class CommunicationService
                     'scope'          => 'sms',
                     'sent_at'        => now(),
                     'error_code'     => 'INSUFFICIENT_CREDITS',
+                    'payment_id'     => $paymentId,
                 ]);
 
                 // Re-throw as exception so caller can handle it
@@ -126,6 +127,7 @@ class CommunicationService
                 'provider_id'    => $transactionId ?? data_get($result, 'id') ?? data_get($result, 'message_id') ?? data_get($result, 'MessageID'),
                 'provider_status' => $providerStatus,
                 'error_code'     => $errorCode,
+                'payment_id'     => $paymentId,
             ]);
 
             Log::info("SMS attempt finished", [
@@ -153,6 +155,7 @@ class CommunicationService
                 'response'       => ['error' => $e->getMessage()],
                 'scope'          => 'sms',
                 'sent_at'        => now(),
+                'payment_id'     => $paymentId ?? null,
             ]);
         }
     }
