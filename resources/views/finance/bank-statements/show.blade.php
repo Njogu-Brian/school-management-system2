@@ -211,23 +211,77 @@
             @endif
             
             <!-- Manual Student Search for Rejected/Unassigned Transactions -->
-            @if(!$bankStatement->student_id && in_array($bankStatement->status, ['draft', 'rejected']) && $bankStatement->match_status === 'unmatched')
+            @if(!$bankStatement->student_id && in_array($bankStatement->status, ['draft', 'rejected', 'unmatched']) && $bankStatement->match_status === 'unmatched' && !$bankStatement->is_shared)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
-                    <h5 class="mb-0">Manual Student Assignment</h5>
+                    <h5 class="mb-0">Manual Student Assignment or Share Among Siblings</h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    <p class="text-muted mb-3">Search and select a student to assign this transaction to:</p>
-                    <div class="mb-3">
-                        <label class="form-label">Search Student</label>
-                        <input type="text" 
-                               id="studentSearch" 
-                               class="form-control" 
-                               placeholder="Search by name or admission number..."
-                               onkeyup="searchStudents()">
-                    </div>
-                    <div id="studentSearchResults" class="list-group" style="max-height: 400px; overflow-y: auto;">
-                        <!-- Results will be populated here -->
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="assign-tab" data-bs-toggle="tab" data-bs-target="#assign-pane" type="button" role="tab">
+                                <i class="bi bi-person-plus"></i> Assign to Student
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="share-tab" data-bs-toggle="tab" data-bs-target="#share-pane" type="button" role="tab">
+                                <i class="bi bi-share"></i> Share Among Siblings
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Assign to Single Student Tab -->
+                        <div class="tab-pane fade show active" id="assign-pane" role="tabpanel">
+                            <p class="text-muted mb-3">Search and select a student to assign this transaction to:</p>
+                            <div class="mb-3">
+                                <label class="form-label">Search Student</label>
+                                <input type="text" 
+                                       id="studentSearch" 
+                                       class="form-control" 
+                                       placeholder="Search by name or admission number..."
+                                       onkeyup="searchStudents()">
+                            </div>
+                            <div id="studentSearchResults" class="list-group" style="max-height: 400px; overflow-y: auto;">
+                                <!-- Results will be populated here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Share Among Siblings Tab -->
+                        <div class="tab-pane fade" id="share-pane" role="tabpanel">
+                            <p class="text-muted mb-3">Search for a student to find their siblings, then share the payment amount among them:</p>
+                            <div class="mb-3">
+                                <label class="form-label">Search Student (to find siblings)</label>
+                                <input type="text" 
+                                       id="shareStudentSearch" 
+                                       class="form-control" 
+                                       placeholder="Search by name or admission number..."
+                                       onkeyup="searchStudentsForShare()">
+                            </div>
+                            <div id="shareStudentSearchResults" class="list-group mb-3" style="max-height: 300px; overflow-y: auto;">
+                                <!-- Results will be populated here -->
+                            </div>
+                            
+                            <!-- Share Form (hidden until student selected) -->
+                            <div id="shareFormContainer" style="display: none;">
+                                <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
+                                    @csrf
+                                    <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
+                                    <p class="text-info mb-3">
+                                        <i class="bi bi-info-circle"></i> Allocate the payment amount among the siblings below. Enter 0.00 for siblings you don't want to include. The total must equal the transaction amount.
+                                    </p>
+                                    <div id="shareSiblingAllocations">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Remaining: <span id="shareRemainingAmount">Ksh {{ number_format($bankStatement->amount, 2) }}</span></strong>
+                                    </div>
+                                    <button type="submit" class="btn btn-finance btn-finance-primary" id="shareSubmitBtn" disabled>
+                                        <i class="bi bi-share"></i> Share Payment
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -629,6 +683,170 @@ function searchStudents() {
                 document.getElementById('studentSearchResults').innerHTML = '<div class="text-danger p-3">Error searching students</div>';
             });
     }, 300);
+}
+
+// Share functionality
+let selectedShareStudent = null;
+let selectedShareSiblings = [];
+
+function searchStudentsForShare() {
+    const query = document.getElementById('shareStudentSearch').value;
+    
+    clearTimeout(searchTimeout);
+    
+    if (query.length < 2) {
+        document.getElementById('shareStudentSearchResults').innerHTML = '<div class="text-muted p-3">Enter at least 2 characters to search</div>';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                displayShareSearchResults(data);
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                document.getElementById('shareStudentSearchResults').innerHTML = '<div class="text-danger p-3">Error searching students</div>';
+            });
+    }, 300);
+}
+
+function displayShareSearchResults(students) {
+    const resultsContainer = document.getElementById('shareStudentSearchResults');
+    
+    if (students.length === 0) {
+        resultsContainer.innerHTML = '<div class="text-muted p-3">No students found</div>';
+        return;
+    }
+    
+    let html = '';
+    students.forEach(student => {
+        const hasSiblings = student.siblings && student.siblings.length > 0;
+        const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
+        
+        html += `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${studentName}</strong>
+                        <br><small class="text-muted">Admission: ${student.admission_number || 'N/A'}</small>
+                        ${student.classroom ? `<br><small class="text-muted">Class: ${student.classroom.name || 'N/A'}</small>` : ''}
+                        ${hasSiblings ? `<br><small class="text-info"><i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s)</small>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary" onclick="selectStudentForShare(${JSON.stringify(student)})">
+                        ${hasSiblings ? '<i class="bi bi-share"></i> Share' : '<i class="bi bi-check"></i> Select'}
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = html;
+}
+
+function selectStudentForShare(student) {
+    selectedShareStudent = student;
+    
+    // Get siblings from search result (already included)
+    selectedShareSiblings = student.siblings || [];
+    
+    // If no siblings in search result, try to fetch them
+    if (selectedShareSiblings.length === 0 && student.family_id) {
+        // Siblings should already be in the search result, but just in case
+        selectedShareSiblings = [];
+    }
+    
+    populateShareForm();
+    
+    // Scroll to form
+    document.getElementById('shareFormContainer').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function populateShareForm() {
+    const container = document.getElementById('shareSiblingAllocations');
+    const formContainer = document.getElementById('shareFormContainer');
+    const transactionAmount = {{ $bankStatement->amount }};
+    
+    if (!selectedShareStudent) {
+        return;
+    }
+    
+    // Build form with selected student and siblings
+    let html = '';
+    let index = 0;
+    
+    // Add selected student
+    html += `
+        <div class="mb-3 p-3 border rounded">
+            <label class="form-label">
+                <strong>${selectedShareStudent.first_name || ''} ${selectedShareStudent.last_name || ''}</strong>
+                <small class="text-muted">(${selectedShareStudent.admission_number || 'N/A'})</small>
+            </label>
+            <input type="hidden" name="allocations[${index}][student_id]" value="${selectedShareStudent.id}">
+            <input type="number" 
+                   name="allocations[${index}][amount]" 
+                   class="form-control share-sibling-amount" 
+                   step="0.01" 
+                   min="0" 
+                   max="${transactionAmount}"
+                   onchange="updateShareTotal()"
+                   oninput="updateShareTotal()"
+                   value=""
+                   placeholder="0.00 (leave 0 to exclude)">
+            <small class="text-muted">Enter 0.00 or leave empty to exclude this student</small>
+        </div>
+    `;
+    index++;
+    
+    // Add siblings
+    selectedShareSiblings.forEach(sibling => {
+        html += `
+            <div class="mb-3 p-3 border rounded">
+                <label class="form-label">
+                    <strong>${sibling.first_name || ''} ${sibling.last_name || ''}</strong>
+                    <small class="text-muted">(${sibling.admission_number || 'N/A'})</small>
+                </label>
+                <input type="hidden" name="allocations[${index}][student_id]" value="${sibling.id}">
+                <input type="number" 
+                       name="allocations[${index}][amount]" 
+                       class="form-control share-sibling-amount" 
+                       step="0.01" 
+                       min="0" 
+                       max="${transactionAmount}"
+                       onchange="updateShareTotal()"
+                       oninput="updateShareTotal()"
+                       value=""
+                       placeholder="0.00 (leave 0 to exclude)">
+                <small class="text-muted">Enter 0.00 or leave empty to exclude this student</small>
+            </div>
+        `;
+        index++;
+    });
+    
+    container.innerHTML = html;
+    formContainer.style.display = 'block';
+    updateShareTotal();
+}
+
+function updateShareTotal() {
+    const amounts = Array.from(document.querySelectorAll('.share-sibling-amount')).map(input => parseFloat(input.value) || 0);
+    const total = amounts.reduce((sum, amt) => sum + amt, 0);
+    const transactionAmount = {{ $bankStatement->amount }};
+    const remaining = transactionAmount - total;
+    
+    document.getElementById('shareRemainingAmount').textContent = 'Ksh ' + remaining.toFixed(2);
+    
+    const shareBtn = document.getElementById('shareSubmitBtn');
+    if (Math.abs(remaining) < 0.01 && total > 0) {
+        shareBtn.disabled = false;
+        shareBtn.classList.remove('btn-secondary');
+        shareBtn.classList.add('btn-finance', 'btn-finance-primary');
+    } else {
+        shareBtn.disabled = true;
+        shareBtn.classList.remove('btn-finance', 'btn-finance-primary');
+        shareBtn.classList.add('btn-secondary');
+    }
 }
 
 function displaySearchResults(students) {

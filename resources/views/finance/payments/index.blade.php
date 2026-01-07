@@ -104,6 +104,9 @@
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
         <div class="text-muted small">Select receipts to send via SMS / Email / WhatsApp, or use filters to bulk print.</div>
         <div class="d-flex gap-2">
+            <a href="{{ route('finance.payments.failed-communications') }}" class="btn btn-finance btn-finance-warning" title="View and resend failed payment communications">
+                <i class="bi bi-exclamation-triangle"></i> Failed Communications
+            </a>
             <button type="button" class="btn btn-finance btn-finance-secondary"
                 onclick="openSendDocument('receipt', collectCheckedIds('.receipt-checkbox'))">
                 <i class="bi bi-send"></i> Send Selected

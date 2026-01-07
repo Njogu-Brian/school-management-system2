@@ -1312,10 +1312,13 @@ class StudentController extends Controller
                 
                 return [
                     'id' => $st->id,
+                    'first_name' => $st->first_name,
+                    'last_name' => $st->last_name,
                     'full_name' => $full,
                     'siblings' => $siblings,
                     'admission_number' => $st->admission_number ?? '',
                     'classroom_name' => optional($st->classroom)->name,
+                    'family_id' => $st->family_id,
                 ];
             }));
         } catch (\Exception $e) {
