@@ -87,12 +87,10 @@
                         <p class="mb-2">Your Excel file should have the following columns:</p>
                         <ul class="mb-0">
                             <li><strong>ADMISSION NO</strong> - Student's admission number (required)</li>
-                            <li><strong>NAME</strong> - Student's full name (for reference)</li>
                             <li><strong>ROUTE</strong> - Drop-off point name (e.g., REGEN, RUKUBI, or OWN)</li>
-                            <li><strong>CLASS</strong> - Student's class (for reference)</li>
-                            <li><strong>VEHICLE</strong> - Vehicle and trip (e.g., "KDR TRIP 1", "KDR936F TRIP 2", "KAQ967W TRIP 1", or "OWN")</li>
+                            <li><strong>VEHICLE</strong> - Vehicle and trip (e.g., "KDR TRIP 1", "KCB TRIP 2", or "OWN")</li>
                         </ul>
-                        <p class="mb-0 mt-2"><small class="text-muted"><i class="bi bi-info-circle"></i> You can use either short codes (KDR, KCB) or full registration numbers (KDR936F, KAQ967W). The system will automatically match them.</small></p>
+                        <p class="mb-0 mt-2"><small class="text-muted"><i class="bi bi-lightbulb"></i> Student name and class are automatically fetched from the database using the admission number. You can include NAME and CLASS columns in your Excel for reference, but they will be ignored during import.</small></p>
                     </div>
 
                     <div class="alert alert-warning">

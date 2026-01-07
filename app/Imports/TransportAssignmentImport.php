@@ -59,16 +59,7 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
     protected function processRow($row, $rowNumber)
     {
         // Extract and clean data - handle various column name formats
-        // Excel headers might be: ADMISSION, admission, admission_no, Admission No, etc.
         $rowArray = $row->toArray();
-        
-        // Log the raw row data for debugging (first 5 rows only to avoid log spam)
-        if ($rowNumber <= 7) {
-            Log::info("Transport Import Row {$rowNumber}", [
-                'keys' => array_keys($rowArray), 
-                'data' => $rowArray
-            ]);
-        }
         
         $admissionNumber = trim(
             $rowArray['admission_no'] ?? 
@@ -77,9 +68,9 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             $rowArray['admission_number'] ?? 
             ''
         );
-        $name = trim($rowArray['name'] ?? $rowArray['student_name'] ?? '');
-        $route = trim($rowArray['route'] ?? $rowArray['drop_off_point'] ?? '');
-        $className = trim($rowArray['class'] ?? $rowArray['grade'] ?? '');
+        // Route is the drop-off point from Excel
+        $route = strtoupper(trim($rowArray['route'] ?? $rowArray['drop_off_point'] ?? ''));
+        // Vehicle info contains vehicle code and trip number
         $vehicleInfo = trim($rowArray['vehicle'] ?? $rowArray['vehicle_trip'] ?? '');
 
         // Validate required fields
@@ -87,7 +78,8 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             throw new \Exception("Admission number is required");
         }
 
-        // Find student
+        // Find student by admission number only - name column is ignored
+        // The system uses the student name from the database, not from Excel
         $student = Student::where('admission_number', $admissionNumber)
             ->where('archive', 0)
             ->where('is_alumni', false)
@@ -96,6 +88,9 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         if (!$student) {
             throw new \Exception("Student with admission number '{$admissionNumber}' not found");
         }
+        
+        // Get class name from database student record
+        $className = $student->class ? $student->class->name : '';
 
         // Parse vehicle and trip information
         // Format: "KDR TRIP 1" or "KCB TRIP 2" or "OWN"
