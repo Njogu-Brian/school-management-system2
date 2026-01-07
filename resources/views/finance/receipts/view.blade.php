@@ -24,6 +24,45 @@
         .finance-card-body {
             padding: 20px !important;
         }
+        
+        /* Update Profile Button - Smaller size */
+        .btn-update-profile {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border: none !important;
+            color: white !important;
+            font-weight: 500 !important;
+            padding: 6px 12px !important;
+            font-size: 13px !important;
+            border-radius: 6px !important;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25) !important;
+            transition: all 0.2s ease !important;
+            white-space: nowrap;
+        }
+        
+        .btn-update-profile:hover, .btn-update-profile:active {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35) !important;
+        }
+        
+        .btn-update-profile i {
+            font-size: 12px;
+        }
+        
+        @media (max-width: 576px) {
+            .btn-update-profile {
+                padding: 5px 10px !important;
+                font-size: 12px !important;
+            }
+            .btn-update-profile i {
+                font-size: 11px;
+            }
+            .finance-shell {
+                padding: 10px !important;
+            }
+            .finance-card-body {
+                padding: 15px !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -39,26 +78,11 @@
                         $updateLink = $family->updateLink ?? null;
                     @endphp
                     @if($updateLink && $updateLink->is_active)
-                        <div class="d-flex flex-column align-items-end me-2" style="position: relative;">
-                            <a href="{{ route('family-update.form', $updateLink->token) }}" 
-                               target="_blank" 
-                               class="btn btn-finance btn-finance-info position-relative"
-                               style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                                      border: none; 
-                                      color: white; 
-                                      font-weight: 600; 
-                                      padding: 10px 20px; 
-                                      border-radius: 8px; 
-                                      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-                                      transition: all 0.3s ease;"
-                               onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)';"
-                               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)';">
-                                <i class="bi bi-person-gear me-2"></i> Update Profile
-                            </a>
-                            <small class="text-muted mt-1" style="font-size: 11px; white-space: nowrap; text-align: right;">
-                                Update student biodata in the system
-                            </small>
-                        </div>
+                        <a href="{{ route('family-update.form', $updateLink->token) }}" 
+                           target="_blank" 
+                           class="btn btn-update-profile">
+                            <i class="bi bi-person-gear me-1"></i> Update Profile
+                        </a>
                     @endif
                     <a href="{{ route('finance.payments.receipt', $payment) }}" target="_blank" class="btn btn-finance btn-finance-primary">
                         <i class="bi bi-download"></i> Download PDF

@@ -67,14 +67,21 @@ class CommunicationTemplateSeeder extends Seeder
                 'title'   => 'Payment Received (SMS)',
                 'type'    => 'sms',
                 'subject' => null,
-                'content' => "Dear {{parent_name}},\n\nWe have received a payment of {{amount}} for {{student_name}} on {{payment_date}}.\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
+            ],
+            [
+                'code'    => 'finance_payment_received_whatsapp',
+                'title'   => 'Payment Received (WhatsApp)',
+                'type'    => 'whatsapp',
+                'subject' => null,
+                'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
             ],
             [
                 'code'    => 'finance_payment_received_email',
                 'title'   => 'Payment Received (Email)',
                 'type'    => 'email',
                 'subject' => 'Payment Receipt – {{student_name}}',
-                'content' => "Dear {{parent_name}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                'content' => "{{greeting}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
             ],
 
             // Finance: share invoice/receipt/statement

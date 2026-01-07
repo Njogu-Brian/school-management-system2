@@ -546,6 +546,7 @@ Route::middleware('auth')->group(function () {
             // Transport Assignment Import
             Route::get('import', [\App\Http\Controllers\Transport\TransportImportController::class, 'importForm'])->name('import.form');
             Route::post('import/preview', [\App\Http\Controllers\Transport\TransportImportController::class, 'preview'])->name('import.preview');
+            Route::get('import/preview', fn() => redirect()->route('transport.import.form')->with('error', 'Please upload a file to preview.'))->name('import.preview.redirect');
             Route::post('import/process', [\App\Http\Controllers\Transport\TransportImportController::class, 'import'])->name('import.process');
             Route::get('import/log/{id}', [\App\Http\Controllers\Transport\TransportImportController::class, 'showLog'])->name('import.log');
             Route::get('import/template', [\App\Http\Controllers\Transport\TransportImportController::class, 'downloadTemplate'])->name('import.template');

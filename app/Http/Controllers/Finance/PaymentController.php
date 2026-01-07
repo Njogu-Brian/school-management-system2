@@ -521,7 +521,11 @@ class PaymentController extends Controller
             $receiptLink = 'Contact school for receipt details';
         }
         
-        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent';
+        // Get parent name - return null if not found (not 'Parent')
+        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
+        
+        // Create greeting: "Dear Parent" when name is unknown, "Dear [Name]" when name is known
+        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
         
         // Calculate outstanding balance for the student (after this payment)
         // Refresh payment to ensure allocations are loaded
@@ -579,7 +583,8 @@ class PaymentController extends Controller
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
         
         $variables = [
-            'parent_name' => $parentName,
+            'parent_name' => $parentName ?? 'Parent', // Keep for backward compatibility
+            'greeting' => $greeting, // New greeting variable: "Dear Parent" or "Dear [Name]"
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
             'amount' => 'Ksh ' . number_format($payment->amount, 2),
@@ -695,7 +700,7 @@ class PaymentController extends Controller
                             'title' => 'Payment Receipt WhatsApp',
                             'type' => 'whatsapp',
                             'subject' => null,
-                            'content' => "Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}",
+                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
                         ]
                     );
                 }

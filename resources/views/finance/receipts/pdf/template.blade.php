@@ -194,6 +194,131 @@
             margin-bottom: 4px;
         }
         
+        /* Mobile-friendly profile update link */
+        .profile-update-link {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            word-break: break-word;
+            font-size: 10px;
+            line-height: 1.6;
+            text-align: left;
+            max-width: 100%;
+        }
+        
+        .profile-update-link strong {
+            display: block;
+            margin-bottom: 4px;
+            color: #3a1a59;
+            font-size: 11px;
+        }
+        
+        .profile-update-link a {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 9px;
+            line-height: 1.4;
+            margin-top: 4px;
+        }
+        
+        .profile-update-link a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Mobile responsive styles */
+        @media screen and (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
+            .receipt-container {
+                padding: 10px 12px;
+                max-width: 100%;
+            }
+            .header h1 {
+                font-size: 18px;
+            }
+            .receipt-title {
+                font-size: 15px;
+            }
+            .receipt-details-table {
+                font-size: 11px;
+            }
+            .allocations-table {
+                font-size: 10px;
+            }
+            .allocations-table th,
+            .allocations-table td {
+                padding: 4px 5px;
+                font-size: 10px;
+            }
+            .total-section {
+                font-size: 11px;
+            }
+            .footer {
+                font-size: 10px;
+            }
+            .profile-update-link {
+                font-size: 11px;
+                padding: 10px;
+            }
+            .profile-update-link strong {
+                font-size: 12px;
+            }
+            .profile-update-link a {
+                font-size: 10px;
+            }
+        }
+        
+        @media screen and (max-width: 576px) {
+            body {
+                font-size: 13px;
+            }
+            .receipt-container {
+                padding: 8px 10px;
+            }
+            .header h1 {
+                font-size: 16px;
+            }
+            .receipt-title {
+                font-size: 14px;
+            }
+            .receipt-details-table {
+                font-size: 10px;
+            }
+            .receipt-details-table td {
+                padding: 3px 4px;
+            }
+            .allocations-table {
+                font-size: 9px;
+            }
+            .allocations-table th,
+            .allocations-table td {
+                padding: 3px 4px;
+                font-size: 9px;
+            }
+            .total-section {
+                font-size: 10px;
+                padding: 6px 8px;
+            }
+            .footer {
+                font-size: 9px;
+            }
+            .profile-update-link {
+                font-size: 10px;
+                padding: 8px;
+            }
+            .profile-update-link strong {
+                font-size: 11px;
+            }
+            .profile-update-link a {
+                font-size: 9px;
+            }
+        }
+        
         .watermark {
             position: absolute;
             top: 50%;
@@ -404,8 +529,16 @@
                 @php
                     $profileUpdateUrl = url('/family-update/' . $updateLink->token);
                 @endphp
-                <div style="margin-top: 8px; padding: 6px; background: #f0f0f0; border-radius: 4px;">
-                    <strong>Update Your Profile:</strong> Visit {{ $profileUpdateUrl }} to update student and family information.
+                <div class="profile-update-link">
+                    <strong>Update Your Profile:</strong>
+                    <div style="margin-top: 4px;">
+                        <a href="{{ $profileUpdateUrl }}" target="_blank" style="color: #667eea; text-decoration: none; word-break: break-all; display: inline-block;">
+                            {{ $profileUpdateUrl }}
+                        </a>
+                    </div>
+                    <div style="margin-top: 4px; font-size: 9px; color: #666;">
+                        Click the link above to update student and family information
+                    </div>
                 </div>
             @endif
             <div style="margin-top: 10px;">
