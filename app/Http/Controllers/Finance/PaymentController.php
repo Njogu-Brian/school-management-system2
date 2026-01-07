@@ -1377,46 +1377,112 @@ class PaymentController extends Controller
             $receiptHeader = \App\Models\Setting::get('receipt_header', '');
             $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
             
-            // Prepare receipt data for each payment
+            // Prepare receipt data for each payment using the same format as ReceiptService
             $receiptsData = [];
             foreach ($payments as $payment) {
                 $student = $payment->student;
                 
-                // Calculate total outstanding balance (current balance AFTER this payment)
-                $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-                $currentOutstandingBalance = 0;
-                foreach ($invoices as $invoice) {
-                    $invoice->recalculate();
-                    $currentOutstandingBalance += max(0, $invoice->balance ?? 0);
+                // Get ALL unpaid invoice items for the student (same as ReceiptService)
+                $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
+                    $q->where('student_id', $student->id);
+                })
+                ->where('status', 'active')
+                ->with(['invoice', 'votehead', 'allocations'])
+                ->get()
+                ->filter(function($item) {
+                    return $item->getBalance() > 0;
+                });
+                
+                // Get payment allocations for this specific payment
+                $paymentAllocations = $payment->allocations;
+                
+                // Build comprehensive receipt items (same as ReceiptService)
+                $receiptItems = collect();
+                
+                // First, add items that received payment from this payment
+                foreach ($paymentAllocations as $allocation) {
+                    $item = $allocation->invoiceItem;
+                    $itemAmount = $item->amount ?? 0;
+                    $discountAmount = $item->discount_amount ?? 0;
+                    $allocatedAmount = $allocation->amount;
+                    $balanceBefore = $item->getBalance() + $allocatedAmount;
+                    $balanceAfter = $item->getBalance();
+                    
+                    $receiptItems->push([
+                        'type' => 'paid',
+                        'allocation' => $allocation,
+                        'invoice' => $item->invoice ?? null,
+                        'votehead' => $item->votehead ?? null,
+                        'item_amount' => $itemAmount,
+                        'discount_amount' => $discountAmount,
+                        'allocated_amount' => $allocatedAmount,
+                        'balance_before' => $balanceBefore,
+                        'balance_after' => $balanceAfter,
+                    ]);
                 }
                 
-                // Balance before this payment = current balance + payment amount
-                $balanceBeforePayment = $currentOutstandingBalance + $payment->amount;
+                // Then, add all other unpaid items
+                $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
+                foreach ($allUnpaidItems as $item) {
+                    if (in_array($item->id, $paidItemIds)) {
+                        continue;
+                    }
+                    
+                    $itemAmount = $item->amount ?? 0;
+                    $discountAmount = $item->discount_amount ?? 0;
+                    $balance = $item->getBalance();
+                    
+                    $receiptItems->push([
+                        'type' => 'unpaid',
+                        'allocation' => null,
+                        'invoice' => $item->invoice ?? null,
+                        'votehead' => $item->votehead ?? null,
+                        'item_amount' => $itemAmount,
+                        'discount_amount' => $discountAmount,
+                        'allocated_amount' => 0,
+                        'balance_before' => $balance,
+                        'balance_after' => $balance,
+                    ]);
+                }
+                
+                // Calculate totals
+                $totalBalanceBefore = $receiptItems->sum('balance_before');
+                $totalBalanceAfter = $receiptItems->sum('balance_after');
+                
+                // Calculate TOTAL outstanding balance including balance brought forward
+                $totalOutstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+                
+                // Calculate total invoices
+                $invoices = \App\Models\Invoice::where('student_id', $student->id)
+                    ->with('items')
+                    ->get();
+                $totalInvoices = $invoices->sum('total');
                 
                 $receiptsData[] = [
                     'payment' => $payment,
                     'school' => $schoolSettings,
                     'branding' => $branding,
                     'receipt_number' => $payment->receipt_number,
-                    'date' => $payment->payment_date->format('d M Y'),
+                    'date' => $payment->payment_date->format('d/m/Y'),
                     'student' => $student,
+                    'allocations' => $receiptItems,
                     'total_amount' => $payment->amount,
-                    'total_outstanding_balance' => $balanceBeforePayment,
-                    'current_outstanding_balance' => $currentOutstandingBalance,
+                    'total_balance_before' => $totalBalanceBefore,
+                    'total_balance_after' => $totalBalanceAfter,
+                    'total_outstanding_balance' => $totalOutstandingBalance,
+                    'total_invoices' => $totalInvoices,
                     'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
                     'transaction_code' => $payment->transaction_code,
                     'narration' => $payment->narration,
-                    'receiptHeader' => $receiptHeader,
-                    'receiptFooter' => $receiptFooter,
+                    'receipt_header' => $receiptHeader,
+                    'receipt_footer' => $receiptFooter,
                 ];
             }
             
-            return view('finance.receipts.bulk-print', [
+            return view('finance.receipts.bulk-print-pdf', [
                 'receipts' => $receiptsData,
                 'school' => $schoolSettings,
                 'branding' => $branding,
-                'receiptHeader' => $receiptHeader,
-                'receiptFooter' => $receiptFooter,
             ]);
         } catch (\Exception $e) {
             \Log::error('Bulk receipt print failed', [

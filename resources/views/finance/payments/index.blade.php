@@ -102,7 +102,10 @@
 
     <!-- Bulk send toolbar -->
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-        <div class="text-muted small">Select receipts to send via SMS / Email / WhatsApp, or use filters to bulk print.</div>
+        <div class="text-muted small">
+            Select receipts to send via SMS / Email / WhatsApp, or use filters to bulk print.
+            <span id="selectedCountBadge" class="badge bg-primary ms-2" style="display: none;">0 selected</span>
+        </div>
         <div class="d-flex gap-2">
             <form action="{{ route('finance.payments.bulk-allocate-unallocated') }}" method="POST" class="d-inline" onsubmit="return confirm('This will allocate all unallocated payments to outstanding invoices. Continue?');">
                 @csrf
@@ -113,9 +116,13 @@
             <a href="{{ route('finance.payments.failed-communications') }}" class="btn btn-finance btn-finance-warning" title="View and resend failed payment communications">
                 <i class="bi bi-exclamation-triangle"></i> Failed Communications
             </a>
-            <button type="button" class="btn btn-finance btn-finance-secondary"
-                onclick="openSendDocument('receipt', collectCheckedIds('.receipt-checkbox'))">
-                <i class="bi bi-send"></i> Send Selected
+            <button type="button" class="btn btn-finance btn-finance-secondary" id="sendSelectedBtn"
+                onclick="openSendDocument('receipt', getAllSelectedPaymentIds())">
+                <i class="bi bi-send"></i> Send Selected (<span id="sendSelectedCount">0</span>)
+            </button>
+            <button type="button" class="btn btn-finance btn-finance-outline"
+                onclick="clearAllSelections()" title="Clear all selections">
+                <i class="bi bi-x-circle"></i> Clear
             </button>
             <button type="button" class="btn btn-finance btn-finance-outline"
                 onclick="bulkPrintReceipts()" title="Bulk Print Receipts (uses current filters)">
@@ -264,32 +271,147 @@
 
 @push('scripts')
 <script>
+// localStorage key for storing selected payment IDs
+const SELECTED_PAYMENTS_KEY = 'selected_payment_ids';
+
+// Get all selected payment IDs from localStorage
+function getAllSelectedPaymentIds() {
+    const stored = localStorage.getItem(SELECTED_PAYMENTS_KEY);
+    if (!stored) return [];
+    try {
+        return JSON.parse(stored).map(id => parseInt(id)).filter(id => !isNaN(id));
+    } catch (e) {
+        return [];
+    }
+}
+
+// Save selected payment IDs to localStorage
+function saveSelectedPaymentIds(ids) {
+    const uniqueIds = [...new Set(ids.map(id => parseInt(id)).filter(id => !isNaN(id)))];
+    localStorage.setItem(SELECTED_PAYMENTS_KEY, JSON.stringify(uniqueIds));
+    updateSelectedCount();
+}
+
+// Add payment ID to selection
+function addPaymentToSelection(paymentId) {
+    const current = getAllSelectedPaymentIds();
+    if (!current.includes(paymentId)) {
+        current.push(paymentId);
+        saveSelectedPaymentIds(current);
+    }
+}
+
+// Remove payment ID from selection
+function removePaymentFromSelection(paymentId) {
+    const current = getAllSelectedPaymentIds();
+    const filtered = current.filter(id => id !== paymentId);
+    saveSelectedPaymentIds(filtered);
+}
+
+// Clear all selections
+function clearAllSelections() {
+    if (confirm('Clear all selected payments across all pages?')) {
+        localStorage.removeItem(SELECTED_PAYMENTS_KEY);
+        // Uncheck all checkboxes on current page
+        document.querySelectorAll('.receipt-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('receiptCheckAll').checked = false;
+        updateSelectedCount();
+    }
+}
+
+// Update selected count display
+function updateSelectedCount() {
+    const selectedIds = getAllSelectedPaymentIds();
+    const count = selectedIds.length;
+    const badge = document.getElementById('selectedCountBadge');
+    const sendCount = document.getElementById('sendSelectedCount');
+    const sendBtn = document.getElementById('sendSelectedBtn');
+    
+    if (count > 0) {
+        badge.textContent = count + ' selected';
+        badge.style.display = 'inline-block';
+        sendCount.textContent = count;
+        sendBtn.disabled = false;
+    } else {
+        badge.style.display = 'none';
+        sendCount.textContent = '0';
+        sendBtn.disabled = true;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const checkAll = document.getElementById('receiptCheckAll');
     const boxes = document.querySelectorAll('.receipt-checkbox');
-    function refresh() {
-        if (checkAll) {
-            const allChecked = boxes.length && Array.from(boxes).every(b => b.checked);
+    const selectedIds = getAllSelectedPaymentIds();
+    
+    // Sync checkboxes with localStorage on page load
+    boxes.forEach(box => {
+        const paymentId = parseInt(box.value);
+        if (selectedIds.includes(paymentId)) {
+            box.checked = true;
+        }
+        
+        // Update localStorage when checkbox changes
+        box.addEventListener('change', function() {
+            const paymentId = parseInt(this.value);
+            if (this.checked) {
+                addPaymentToSelection(paymentId);
+            } else {
+                removePaymentFromSelection(paymentId);
+            }
+            updateSelectAllState();
+        });
+    });
+    
+    // Update "Select All" state
+    function updateSelectAllState() {
+        if (checkAll && boxes.length > 0) {
+            const allChecked = Array.from(boxes).every(b => b.checked);
             checkAll.checked = allChecked;
         }
     }
-    checkAll?.addEventListener('change', () => {
-        boxes.forEach(b => b.checked = checkAll.checked);
+    
+    // Handle "Select All" checkbox
+    checkAll?.addEventListener('change', function() {
+        boxes.forEach(box => {
+            const paymentId = parseInt(box.value);
+            box.checked = this.checked;
+            if (this.checked) {
+                addPaymentToSelection(paymentId);
+            } else {
+                removePaymentFromSelection(paymentId);
+            }
+        });
+        updateSelectedCount();
     });
-    boxes.forEach(b => b.addEventListener('change', refresh));
-    refresh();
+    
+    updateSelectAllState();
+    updateSelectedCount();
+    
+    // Initialize button state
+    const sendBtn = document.getElementById('sendSelectedBtn');
+    const selectedIds = getAllSelectedPaymentIds();
+    if (sendBtn && selectedIds.length > 0) {
+        sendBtn.disabled = false;
+    }
 });
 
 function bulkPrintReceipts() {
     const form = document.getElementById('paymentsFilterForm');
     const formData = new FormData(form);
     
-    // Get selected payment IDs if any checkboxes are checked
-    const checkedIds = Array.from(document.querySelectorAll('.receipt-checkbox:checked'))
-        .map(cb => cb.value);
+    // Get selected payment IDs from localStorage (all pages)
+    const selectedIds = getAllSelectedPaymentIds();
     
-    if (checkedIds.length > 0) {
-        formData.append('payment_ids', checkedIds.join(','));
+    // Also check current page checkboxes as fallback
+    const checkedIds = Array.from(document.querySelectorAll('.receipt-checkbox:checked'))
+        .map(cb => parseInt(cb.value));
+    
+    // Combine both sources
+    const allIds = [...new Set([...selectedIds, ...checkedIds])];
+    
+    if (allIds.length > 0) {
+        formData.append('payment_ids', allIds.join(','));
     }
     
     // Build query string
@@ -306,9 +428,8 @@ function bulkPrintReceipts() {
 }
 
 function collectCheckedIds(selector) {
-    return Array.from(document.querySelectorAll(selector + ':checked'))
-        .map(cb => parseInt(cb.value))
-        .filter(id => !isNaN(id));
+    // Use localStorage instead of just current page
+    return getAllSelectedPaymentIds();
 }
 </script>
 @endpush

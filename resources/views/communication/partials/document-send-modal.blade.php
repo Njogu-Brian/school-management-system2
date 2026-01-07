@@ -11,15 +11,31 @@
         </div>
         <div class="modal-body">
           <div class="row g-3">
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Channel</label>
-              <select name="channel" id="sendDocChannel" class="form-select" required>
-                <option value="sms">SMS (link)</option>
-                <option value="whatsapp">WhatsApp (link)</option>
-                <option value="email">Email (PDF attachment)</option>
-              </select>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Select Channels <span class="text-danger">*</span></label>
+              <div class="d-flex gap-3">
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="sms" id="channelSms" checked>
+                  <label class="form-check-label" for="channelSms">
+                    <i class="bi bi-chat-dots"></i> SMS (link)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="whatsapp" id="channelWhatsApp" checked>
+                  <label class="form-check-label" for="channelWhatsApp">
+                    <i class="bi bi-whatsapp"></i> WhatsApp (link)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="email" id="channelEmail" checked>
+                  <label class="form-check-label" for="channelEmail">
+                    <i class="bi bi-envelope"></i> Email (PDF attachment)
+                  </label>
+                </div>
+              </div>
+              <small class="text-muted d-block mt-2">Select one or more channels to send the document</small>
             </div>
-            <div class="col-md-8 email-only-field d-none">
+            <div class="col-12 email-only-field">
               <label class="form-label fw-semibold">Email Subject</label>
               <input type="text" class="form-control" name="subject" id="sendDocSubject" value="School Update">
             </div>
@@ -45,15 +61,40 @@ document.addEventListener('DOMContentLoaded', function() {
   const modalEl = document.getElementById('sendDocumentModal');
   if (!modalEl) return;
 
-  const channelSelect = document.getElementById('sendDocChannel');
+  const channelCheckboxes = modalEl.querySelectorAll('.channel-checkbox');
   const subjectRow = modalEl.querySelector('.email-only-field');
+  const form = document.getElementById('sendDocumentForm');
 
   function toggleSubject() {
-    const show = channelSelect.value === 'email';
-    subjectRow?.classList.toggle('d-none', !show);
+    const emailChecked = document.getElementById('channelEmail')?.checked;
+    subjectRow?.classList.toggle('d-none', !emailChecked);
   }
-  channelSelect?.addEventListener('change', toggleSubject);
-  toggleSubject();
+
+  // Toggle subject field when email checkbox changes
+  channelCheckboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+      if (this.value === 'email') {
+        toggleSubject();
+      }
+      // Ensure at least one channel is selected
+      const anyChecked = Array.from(channelCheckboxes).some(c => c.checked);
+      if (!anyChecked) {
+        this.checked = true; // Re-check if trying to uncheck the last one
+      }
+    });
+  });
+
+  // Validate form submission - ensure at least one channel is selected
+  form?.addEventListener('submit', function(e) {
+    const checkedChannels = Array.from(channelCheckboxes).filter(cb => cb.checked);
+    if (checkedChannels.length === 0) {
+      e.preventDefault();
+      alert('Please select at least one channel (SMS, WhatsApp, or Email)');
+      return false;
+    }
+  });
+
+  toggleSubject(); // Initial state
 
   window.openSendDocument = function(type, ids, defaults = {}) {
     document.getElementById('sendDocType').value = type;
@@ -70,10 +111,19 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('sendDocumentForm').appendChild(hidden);
     });
 
+    // Reset all checkboxes to checked by default
+    channelCheckboxes.forEach(cb => cb.checked = true);
+
     if (defaults.message) document.getElementById('sendDocMessage').value = defaults.message;
     if (defaults.subject) document.getElementById('sendDocSubject').value = defaults.subject;
+    
+    // If default channel is specified, uncheck others
     if (defaults.channel) {
-      document.getElementById('sendDocChannel').value = defaults.channel;
+      channelCheckboxes.forEach(cb => {
+        cb.checked = (cb.value === defaults.channel);
+      });
+      toggleSubject();
+    } else {
       toggleSubject();
     }
 

@@ -7,7 +7,7 @@
         'title' => 'Payment #' . ($payment->receipt_number ?? $payment->transaction_code),
         'icon' => 'bi bi-cash-stack',
         'subtitle' => $payment->student?->first_name ? 'For ' . $payment->student->first_name . ' ' . ($payment->student->last_name ?? '') : 'Payment details',
-        'actions' => '<a href="' . route('finance.payments.receipt.view', $payment) . '" class="btn btn-finance btn-finance-primary" onclick="window.open(\'' . route('finance.payments.receipt.view', $payment) . '\', \'ReceiptWindow\', \'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no\'); return false;"><i class="bi bi-printer"></i> View/Print Receipt</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'receipt\', [' . $payment->id . '], {channel:\'sms\', message:\'Your receipt is ready. Please find the link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'actions' => '<a href="' . route('finance.payments.receipt.view', $payment) . '" class="btn btn-finance btn-finance-primary" onclick="window.open(\'' . route('finance.payments.receipt.view', $payment) . '\', \'ReceiptWindow\', \'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no\'); return false;"><i class="bi bi-printer"></i> View/Print Receipt</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'receipt\', [' . $payment->id . '], {message:\'Your receipt is ready. Please find the link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     @include('finance.invoices.partials.alerts')
@@ -175,6 +175,10 @@
                            onclick="window.open('{{ route('finance.payments.receipt.view', $payment) }}', 'ReceiptWindow', 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'); return false;">
                             <i class="bi bi-printer"></i> View/Print Receipt
                         </a>
+                        <button type="button" class="btn btn-finance btn-finance-secondary" 
+                                onclick="openSendDocument('receipt', [{{ $payment->id }}], {message:'Your receipt is ready. Please find the link below.'})">
+                            <i class="bi bi-send"></i> Send Receipt (SMS/WhatsApp/Email)
+                        </button>
                         @if($payment->student_id)
                         <a href="{{ route('finance.invoices.index', ['student_id' => $payment->student_id]) }}" class="btn btn-finance btn-finance-outline">
                             <i class="bi bi-file-text"></i> View Student Invoices
@@ -635,4 +639,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endpush
+
+@include('communication.partials.document-send-modal')
+
 @endsection
