@@ -433,60 +433,12 @@ class BankStatementController extends Controller
                         $payment = $this->parser->createPaymentFromTransaction($bankStatement);
                     }
                     
-                    // Generate receipt for the payment
-                    try {
-                        $receiptService = app(\App\Services\ReceiptService::class);
-                        $receiptService->generateReceipt($payment, ['save' => true]);
-                    } catch (\Exception $e) {
-                        Log::warning('Receipt generation failed for bank statement payment', [
-                            'payment_id' => $payment->id,
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                    
-                    // Send payment notifications (SMS, Email, WhatsApp)
-                    try {
-                        $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
-                        $paymentController->sendPaymentNotifications($payment);
-                    } catch (\Exception $e) {
-                        Log::warning('Payment notification failed for bank statement payment', [
-                            'payment_id' => $payment->id ?? null,
-                            'transaction_id' => $bankStatement->id,
-                            'error' => $e->getMessage()
-                        ]);
-                        // Don't fail the process if notifications fail
-                    }
-                    
-                    // If shared payment, generate receipts for all sibling payments
-                    if ($bankStatement->is_shared && $bankStatement->shared_allocations) {
-                        foreach ($bankStatement->shared_allocations as $allocation) {
-                            $siblingPayment = \App\Models\Payment::where('student_id', $allocation['student_id'])
-                                ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
-                                ->where('id', '!=', $payment->id)
-                                ->first();
-                            
-                            if ($siblingPayment) {
-                                try {
-                                    $receiptService->generateReceipt($siblingPayment, ['save' => true]);
-                                    
-                                    // Send notifications for sibling payment
-                                    try {
-                                        $paymentController->sendPaymentNotifications($siblingPayment);
-                                    } catch (\Exception $e) {
-                                        Log::warning('Payment notification failed for sibling payment', [
-                                            'payment_id' => $siblingPayment->id,
-                                            'error' => $e->getMessage()
-                                        ]);
-                                    }
-                                } catch (\Exception $e) {
-                                    Log::warning('Receipt generation failed for sibling payment', [
-                                        'payment_id' => $siblingPayment->id,
-                                        'error' => $e->getMessage()
-                                    ]);
-                                }
-                            }
-                        }
-                    }
+                    // Queue receipt generation and notifications for all payments (main + siblings)
+                    // This prevents timeout when processing multiple sibling payments
+                    // For shared payments, this processes main payment + all siblings in background
+                    // For single payments, this processes just the main payment in background
+                    \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                        ->onQueue('default');
                 } catch (\Exception $e) {
                     Log::error('Failed to create payment from transaction', [
                         'transaction_id' => $bankStatement->id,
