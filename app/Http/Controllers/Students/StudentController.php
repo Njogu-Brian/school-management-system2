@@ -1290,16 +1290,30 @@ class StudentController extends Controller
                         );
                     }
                 })
-                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
+                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'family_id')
                 ->orderBy('first_name')
                 ->limit(25)
                 ->get();
 
             return response()->json($students->map(function ($st) {
                 $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
+                
+                // Get siblings
+                $siblings = [];
+                if ($st->family_id) {
+                    $siblings = Student::where('family_id', $st->family_id)
+                        ->where('id', '!=', $st->id)
+                        ->where('archive', 0)
+                        ->where('is_alumni', false)
+                        ->select('id', 'first_name', 'last_name', 'admission_number')
+                        ->get()
+                        ->toArray();
+                }
+                
                 return [
                     'id' => $st->id,
                     'full_name' => $full,
+                    'siblings' => $siblings,
                     'admission_number' => $st->admission_number ?? '',
                     'classroom_name' => optional($st->classroom)->name,
                 ];
