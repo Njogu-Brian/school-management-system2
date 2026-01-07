@@ -418,6 +418,14 @@ class="{{ $isTransportActive ? 'parent-active' : '' }}">
         class="sublink {{ Request::is('transport/home*') || (Request::is('transport') && !Request::is('transport/*')) ? 'active' : '' }}">
         <i class="bi bi-speedometer2"></i> Dashboard
         </a>
+        <a href="{{ route('transport.import.form') }}" 
+        class="sublink {{ Request::is('transport/import*') ? 'active' : '' }}">
+        <i class="bi bi-upload"></i> Import Assignments
+        </a>
+        <a href="{{ route('transport.daily-list.index') }}" 
+        class="sublink {{ Request::is('transport/daily-list*') ? 'active' : '' }}">
+        <i class="bi bi-list-check"></i> Daily Transport List
+        </a>
         <a href="{{ route('transport.vehicles.index') }}" 
         class="sublink {{ Request::is('transport/vehicles*') ? 'active' : '' }}">
         <i class="bi bi-bus-front"></i> Vehicles
