@@ -58,12 +58,29 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
 
     protected function processRow($row, $rowNumber)
     {
-        // Extract and clean data
-        $admissionNumber = trim($row['admission_no'] ?? $row['admission'] ?? '');
-        $name = trim($row['name'] ?? '');
-        $route = trim($row['route'] ?? '');
-        $className = trim($row['class'] ?? '');
-        $vehicleInfo = trim($row['vehicle'] ?? '');
+        // Extract and clean data - handle various column name formats
+        // Excel headers might be: ADMISSION, admission, admission_no, Admission No, etc.
+        $rowArray = $row->toArray();
+        
+        // Log the raw row data for debugging (first 5 rows only to avoid log spam)
+        if ($rowNumber <= 7) {
+            Log::info("Transport Import Row {$rowNumber}", [
+                'keys' => array_keys($rowArray), 
+                'data' => $rowArray
+            ]);
+        }
+        
+        $admissionNumber = trim(
+            $rowArray['admission_no'] ?? 
+            $rowArray['admission'] ?? 
+            $rowArray['admissionno'] ?? 
+            $rowArray['admission_number'] ?? 
+            ''
+        );
+        $name = trim($rowArray['name'] ?? $rowArray['student_name'] ?? '');
+        $route = trim($rowArray['route'] ?? $rowArray['drop_off_point'] ?? '');
+        $className = trim($rowArray['class'] ?? $rowArray['grade'] ?? '');
+        $vehicleInfo = trim($rowArray['vehicle'] ?? $rowArray['vehicle_trip'] ?? '');
 
         // Validate required fields
         if (empty($admissionNumber)) {
