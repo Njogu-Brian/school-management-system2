@@ -223,9 +223,10 @@ class TransportImportController extends Controller
         ];
 
         $sampleData = [
-            ['RKS001', 'John Doe', 'REGEN', 'FOUNDATION LOVE', 'KDR TRIP 1'],
-            ['RKS002', 'Jane Smith', 'RUKUBI', 'FOUNDATION PEACE', 'KCB TRIP 2'],
-            ['RKS003', 'Bob Wilson', 'OWN', 'FOUNDATION LOVE', 'OWN'],
+            ['RKS001', 'John Doe', 'REGEN', 'FOUNDATION LOVE', 'KDR936F TRIP 1'],
+            ['RKS002', 'Jane Smith', 'RUKUBI', 'FOUNDATION PEACE', 'KCB334B TRIP 2'],
+            ['RKS003', 'Alice Brown', 'MUTHURE', 'FOUNDATION LOVE', 'KAQ967W TRIP 1'],
+            ['RKS004', 'Bob Wilson', 'OWN', 'FOUNDATION PEACE', 'OWN'],
         ];
 
         return Excel::download(new \App\Exports\ArrayExport($sampleData, $headers), 'transport_import_template.xlsx');

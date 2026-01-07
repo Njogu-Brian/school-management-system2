@@ -104,16 +104,26 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         // Parse vehicle number and trip number
         $parts = explode(' ', $vehicleInfo);
         if (count($parts) < 3) {
-            throw new \Exception("Invalid vehicle format. Expected format: 'KDR TRIP 1'");
+            throw new \Exception("Invalid vehicle format. Expected format: 'KDR TRIP 1' or 'KDR936F TRIP 1'");
         }
 
-        $vehicleNumber = $parts[0];
+        $vehicleNumberRaw = $parts[0];
         $tripNumber = $parts[2] ?? '1';
 
-        // Find or create vehicle
-        $vehicle = Vehicle::where('vehicle_number', $vehicleNumber)->first();
+        // Extract first 3 letters from vehicle number (e.g., KAQ967W -> KAQ, KDR936F -> KDR)
+        // This allows Excel to have full registration numbers while matching with 3-letter codes in DB
+        $vehicleNumber = strtoupper(substr($vehicleNumberRaw, 0, 3));
+
+        // Find vehicle by matching the first 3 characters
+        $vehicle = Vehicle::where('vehicle_number', 'LIKE', $vehicleNumber . '%')->first();
+        
         if (!$vehicle) {
-            throw new \Exception("Vehicle '{$vehicleNumber}' not found. Please create it first.");
+            // Try exact match as fallback
+            $vehicle = Vehicle::where('vehicle_number', $vehicleNumberRaw)->first();
+        }
+        
+        if (!$vehicle) {
+            throw new \Exception("Vehicle starting with '{$vehicleNumber}' (from '{$vehicleNumberRaw}') not found. Please create it first.");
         }
 
         // Find or create drop-off point

@@ -90,8 +90,9 @@
                             <li><strong>NAME</strong> - Student's full name (for reference)</li>
                             <li><strong>ROUTE</strong> - Drop-off point name (e.g., REGEN, RUKUBI, or OWN)</li>
                             <li><strong>CLASS</strong> - Student's class (for reference)</li>
-                            <li><strong>VEHICLE</strong> - Vehicle and trip (e.g., "KDR TRIP 1", "KCB TRIP 2", or "OWN")</li>
+                            <li><strong>VEHICLE</strong> - Vehicle and trip (e.g., "KDR TRIP 1", "KDR936F TRIP 2", "KAQ967W TRIP 1", or "OWN")</li>
                         </ul>
+                        <p class="mb-0 mt-2"><small class="text-muted"><i class="bi bi-info-circle"></i> You can use either short codes (KDR, KCB) or full registration numbers (KDR936F, KAQ967W). The system will automatically match them.</small></p>
                     </div>
 
                     <div class="alert alert-warning">
@@ -99,7 +100,8 @@
                         <ul class="mb-0">
                             <li>Students marked as "OWN" will be skipped (they use their own transport)</li>
                             <li>If a student's route differs from the system, you'll be asked to resolve the conflict</li>
-                            <li>Vehicles must already exist in the system (KDR, KCB, KAQ, KCA, KCF)</li>
+                            <li>Vehicles must already exist in the system (e.g., KDR, KCB, KAQ, KCA, KCF)</li>
+                            <li>You can use full registration numbers (KAQ967W) or short codes (KAQ) - both work!</li>
                             <li>Trips (TRIP 1, TRIP 2, TRIP 3) will be created automatically if they don't exist</li>
                             <li>Drop-off points will be created automatically if they don't exist</li>
                         </ul>
