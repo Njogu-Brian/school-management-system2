@@ -121,7 +121,7 @@
                 <i class="bi bi-send"></i> Send Selected (<span id="sendSelectedCount">0</span>)
             </button>
             <button type="button" class="btn btn-finance btn-finance-primary" id="bulkSendBtn"
-                onclick="openBulkSendModal()" title="Send to all payments matching current filters (skips already sent)">
+                title="Send to all payments matching current filters (skips already sent)">
                 <i class="bi bi-send-fill"></i> Bulk Send All
             </button>
             <button type="button" class="btn btn-finance btn-finance-outline"
@@ -496,40 +496,75 @@ function collectCheckedIds(selector) {
     return getAllSelectedPaymentIds();
 }
 
-// Bulk Send Modal
+// Bulk Send Modal - Make it globally accessible
 function openBulkSendModal() {
-    const modalEl = document.getElementById('bulkSendModal');
-    if (!modalEl) return;
-
-    const channelCheckboxes = modalEl.querySelectorAll('.channel-checkbox');
-    const form = document.getElementById('bulkSendForm');
-
-    // Ensure at least one channel is selected
-    function validateChannels() {
-        const anyChecked = Array.from(channelCheckboxes).some(c => c.checked);
-        if (!anyChecked) {
-            alert('Please select at least one channel (SMS, WhatsApp, or Email)');
-            return false;
+    try {
+        const modalEl = document.getElementById('bulkSendModal');
+        if (!modalEl) {
+            console.error('Bulk send modal not found');
+            alert('Bulk send modal not found. Please refresh the page.');
+            return;
         }
-        return true;
+
+        // Check if Bootstrap is available
+        if (typeof bootstrap === 'undefined') {
+            console.error('Bootstrap is not loaded');
+            alert('Bootstrap is not loaded. Please refresh the page.');
+            return;
+        }
+
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    } catch (error) {
+        console.error('Error opening bulk send modal:', error);
+        alert('Error opening bulk send modal: ' + error.message);
+    }
+}
+
+// Also make it available on window for backwards compatibility
+window.openBulkSendModal = openBulkSendModal;
+
+// Initialize bulk send button and form validation on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Add click handler to bulk send button
+    const bulkSendBtn = document.getElementById('bulkSendBtn');
+    if (bulkSendBtn) {
+        bulkSendBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            openBulkSendModal();
+        });
     }
 
-    // Validate form submission
-    form?.addEventListener('submit', function(e) {
-        if (!validateChannels()) {
-            e.preventDefault();
-            return false;
-        }
-        
-        // Show loading state
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
-    });
-
-    const modal = new bootstrap.Modal(modalEl);
-    modal.show();
-}
+    // Initialize bulk send form validation
+    const bulkSendForm = document.getElementById('bulkSendForm');
+    if (bulkSendForm) {
+        // Add form validation
+        bulkSendForm.addEventListener('submit', function(e) {
+            const channelCheckboxes = this.querySelectorAll('.channel-checkbox');
+            const anyChecked = Array.from(channelCheckboxes).some(c => c.checked);
+            
+            if (!anyChecked) {
+                e.preventDefault();
+                alert('Please select at least one channel (SMS, WhatsApp, or Email)');
+                return false;
+            }
+            
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+                
+                // Re-enable button if form submission fails (after 10 seconds as safety)
+                setTimeout(function() {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }, 10000);
+            }
+        });
+    }
+});
 </script>
 @endpush
 @endsection
