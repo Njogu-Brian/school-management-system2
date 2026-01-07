@@ -542,6 +542,19 @@ Route::middleware('auth')->group(function () {
             Route::post('special-assignments/{transportSpecialAssignment}/approve', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'approve'])->name('special-assignments.approve');
             Route::post('special-assignments/{transportSpecialAssignment}/reject', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'reject'])->name('special-assignments.reject');
             Route::post('special-assignments/{transportSpecialAssignment}/cancel', [\App\Http\Controllers\Transport\TransportSpecialAssignmentController::class, 'cancel'])->name('special-assignments.cancel');
+
+            // Transport Assignment Import
+            Route::get('import', [\App\Http\Controllers\Transport\TransportImportController::class, 'importForm'])->name('import.form');
+            Route::post('import/preview', [\App\Http\Controllers\Transport\TransportImportController::class, 'preview'])->name('import.preview');
+            Route::post('import/process', [\App\Http\Controllers\Transport\TransportImportController::class, 'import'])->name('import.process');
+            Route::get('import/log/{id}', [\App\Http\Controllers\Transport\TransportImportController::class, 'showLog'])->name('import.log');
+            Route::get('import/template', [\App\Http\Controllers\Transport\TransportImportController::class, 'downloadTemplate'])->name('import.template');
+
+            // Daily Transport List
+            Route::get('daily-list', [\App\Http\Controllers\Transport\DailyTransportListController::class, 'index'])->name('daily-list.index');
+            Route::get('daily-list/download', [\App\Http\Controllers\Transport\DailyTransportListController::class, 'downloadExcel'])->name('daily-list.download');
+            Route::get('daily-list/print', [\App\Http\Controllers\Transport\DailyTransportListController::class, 'printList'])->name('daily-list.print');
+            Route::get('daily-list/print-vehicle/{vehicle}', [\App\Http\Controllers\Transport\DailyTransportListController::class, 'printVehicle'])->name('daily-list.print-vehicle');
         });
 
         // Driver-specific routes
