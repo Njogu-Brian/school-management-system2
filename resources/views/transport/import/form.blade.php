@@ -86,20 +86,20 @@
                         <h6 class="alert-heading"><i class="bi bi-info-circle me-2"></i>Excel File Format</h6>
                         <p class="mb-2">Your Excel file should have the following columns:</p>
                         <ul class="mb-0">
-                            <li><strong>ADMISSION NO</strong> - Student's admission number (required)</li>
+                            <li><strong>NAME</strong> - Student's full name (required - used to find student in system)</li>
                             <li><strong>ROUTE</strong> - Drop-off point name (e.g., REGEN, RUKUBI, or OWN)</li>
                             <li><strong>VEHICLE</strong> - Vehicle and trip (e.g., "KDR TRIP 1", "KCB TRIP 2", or "OWN")</li>
                         </ul>
-                        <p class="mb-0 mt-2"><small class="text-muted"><i class="bi bi-lightbulb"></i> Student name and class are automatically fetched from the database using the admission number. You can include NAME and CLASS columns in your Excel for reference, but they will be ignored during import.</small></p>
+                        <p class="mb-0 mt-2"><small class="text-muted"><i class="bi bi-lightbulb"></i> The system uses the student name to find the matching student in the database. Other columns like ADMISSION NO and CLASS are optional and will be ignored.</small></p>
                     </div>
 
                     <div class="alert alert-warning">
                         <h6 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>Important Notes</h6>
                         <ul class="mb-0">
+                            <li><strong>Student names must match</strong> - The system searches for students by name, so ensure names in Excel match the database</li>
                             <li>Students marked as "OWN" will be skipped (they use their own transport)</li>
                             <li>If a student's route differs from the system, you'll be asked to resolve the conflict</li>
                             <li>Vehicles must already exist in the system (e.g., KDR, KCB, KAQ, KCA, KCF)</li>
-                            <li>You can use full registration numbers (KAQ967W) or short codes (KAQ) - both work!</li>
                             <li>Trips (TRIP 1, TRIP 2, TRIP 3) will be created automatically if they don't exist</li>
                             <li>Drop-off points will be created automatically if they don't exist</li>
                         </ul>

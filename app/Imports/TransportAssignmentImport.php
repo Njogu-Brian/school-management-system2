@@ -61,36 +61,38 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         // Extract and clean data - handle various column name formats
         $rowArray = $row->toArray();
         
-        $admissionNumber = trim(
-            $rowArray['admission_no'] ?? 
-            $rowArray['admission'] ?? 
-            $rowArray['admissionno'] ?? 
-            $rowArray['admission_number'] ?? 
-            ''
-        );
+        // Get student name from Excel (primary identifier)
+        $studentName = trim($rowArray['name'] ?? $rowArray['student_name'] ?? '');
         // Route is the drop-off point from Excel
         $route = strtoupper(trim($rowArray['route'] ?? $rowArray['drop_off_point'] ?? ''));
         // Vehicle info contains vehicle code and trip number
         $vehicleInfo = trim($rowArray['vehicle'] ?? $rowArray['vehicle_trip'] ?? '');
 
         // Validate required fields
-        if (empty($admissionNumber)) {
-            throw new \Exception("Admission number is required");
+        if (empty($studentName)) {
+            throw new \Exception("Student name is required");
         }
 
-        // Find student by admission number only - name column is ignored
-        // The system uses the student name from the database, not from Excel
-        $student = Student::where('admission_number', $admissionNumber)
-            ->where('archive', 0)
+        // Find student by name - search in full_name, first_name + last_name combinations
+        // Try exact match first, then partial match
+        $student = Student::where('archive', 0)
             ->where('is_alumni', false)
+            ->where(function($query) use ($studentName) {
+                $normalizedName = strtoupper(trim($studentName));
+                $query->whereRaw('UPPER(CONCAT(COALESCE(first_name, ""), " ", COALESCE(middle_name, ""), " ", COALESCE(last_name, ""))) LIKE ?', ["%{$normalizedName}%"])
+                      ->orWhereRaw('UPPER(CONCAT(COALESCE(first_name, ""), " ", COALESCE(last_name, ""))) LIKE ?', ["%{$normalizedName}%"])
+                      ->orWhereRaw('UPPER(COALESCE(first_name, "")) = ?', [$normalizedName])
+                      ->orWhereRaw('UPPER(CONCAT(COALESCE(last_name, ""), " ", COALESCE(first_name, ""))) LIKE ?', ["%{$normalizedName}%"]);
+            })
             ->first();
 
         if (!$student) {
-            throw new \Exception("Student with admission number '{$admissionNumber}' not found");
+            throw new \Exception("Student with name '{$studentName}' not found");
         }
         
-        // Get class name from database student record
+        // Get class name and admission number from database student record
         $className = $student->class ? $student->class->name : '';
+        $admissionNumber = $student->admission_number;
 
         // Parse vehicle and trip information
         // Format: "KDR TRIP 1" or "KCB TRIP 2" or "OWN"

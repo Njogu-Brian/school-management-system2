@@ -214,19 +214,19 @@ class TransportImportController extends Controller
      */
     public function downloadTemplate()
     {
-        // Simplified template - only requires ADMISSION NO, ROUTE, and VEHICLE
-        // Student name and class are fetched from database using admission number
+        // Template requires NAME, ROUTE, and VEHICLE
+        // Student is identified by name from the database
         $headers = [
-            'ADMISSION NO',
+            'NAME',
             'ROUTE',
             'VEHICLE'
         ];
 
         $sampleData = [
-            ['RKS001', 'REGEN', 'KDR TRIP 1'],
-            ['RKS002', 'RUKUBI', 'KCB TRIP 2'],
-            ['RKS003', 'MUTHURE', 'KAQ TRIP 1'],
-            ['RKS004', 'OWN', 'OWN'],
+            ['John Doe', 'REGEN', 'KDR TRIP 1'],
+            ['Jane Smith', 'RUKUBI', 'KCB TRIP 2'],
+            ['Alice Brown', 'MUTHURE', 'KAQ TRIP 1'],
+            ['Bob Wilson', 'OWN', 'OWN'],
         ];
 
         return Excel::download(new \App\Exports\ArrayExport($sampleData, $headers), 'transport_import_template.xlsx');
