@@ -102,20 +102,25 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         }
 
         // Parse vehicle number and trip number
-        $parts = explode(' ', $vehicleInfo);
+        // Supported formats:
+        // - "KDR TRIP 1" (3-letter code)
+        // - "KDR936F TRIP 1" (full registration)
+        // - "KAQ967W TRIP 2" (full registration with trip number)
+        $parts = explode(' ', trim($vehicleInfo));
+        
         if (count($parts) < 3) {
             throw new \Exception("Invalid vehicle format. Expected format: 'KDR TRIP 1' or 'KDR936F TRIP 1'");
         }
 
-        $vehicleNumberRaw = $parts[0];
-        $tripNumber = $parts[2] ?? '1';
+        $vehicleNumberRaw = strtoupper(trim($parts[0]));
+        $tripNumber = trim($parts[2] ?? '1');
 
-        // Extract first 3 letters from vehicle number (e.g., KAQ967W -> KAQ, KDR936F -> KDR)
-        // This allows Excel to have full registration numbers while matching with 3-letter codes in DB
-        $vehicleNumber = strtoupper(substr($vehicleNumberRaw, 0, 3));
+        // Extract first 3 letters from vehicle number (e.g., KAQ967W -> KAQ, KDR936F -> KDR, KDR -> KDR)
+        // This allows Excel to have either 3-letter codes or full registration numbers
+        $vehicleCode = substr($vehicleNumberRaw, 0, 3);
 
         // Find vehicle by matching the first 3 characters
-        $vehicle = Vehicle::where('vehicle_number', 'LIKE', $vehicleNumber . '%')->first();
+        $vehicle = Vehicle::where('vehicle_number', 'LIKE', $vehicleCode . '%')->first();
         
         if (!$vehicle) {
             // Try exact match as fallback
@@ -123,7 +128,7 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         }
         
         if (!$vehicle) {
-            throw new \Exception("Vehicle starting with '{$vehicleNumber}' (from '{$vehicleNumberRaw}') not found. Please create it first.");
+            throw new \Exception("Vehicle starting with '{$vehicleCode}' (from '{$vehicleNumberRaw}') not found. Please create it first.");
         }
 
         // Find or create drop-off point
@@ -189,12 +194,13 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
         }
 
         // Find or create trip for this vehicle
-        $tripName = "{$vehicleNumber} TRIP {$tripNumber}";
+        // Use the vehicle code (first 3 letters) for trip name consistency
+        $tripName = "{$vehicleCode} TRIP {$tripNumber}";
         $trip = Trip::firstOrCreate(
             [
                 'vehicle_id' => $vehicle->id,
                 'trip_name' => $tripName,
-                'direction' => 'evening' // Evening drop-off
+                'direction' => 'dropoff' // Evening drop-off (using 'dropoff' not 'evening')
             ],
             [
                 'day_of_week' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
@@ -219,7 +225,7 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
                 'student_name' => $student->full_name,
                 'route' => $route,
                 'class' => $className,
-                'vehicle' => $vehicleNumber,
+                'vehicle' => $vehicleCode,
                 'trip' => $tripName,
                 'status' => $status,
                 'message' => $message,
