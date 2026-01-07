@@ -32,7 +32,7 @@ class TripController extends Controller
             'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
         ]);
 
-        $data = $request->only(['vehicle_id', 'type', 'driver_id', 'direction']);
+        $data = $request->only(['vehicle_id', 'driver_id', 'direction']);
         $data['trip_name'] = $request->input('name');
         
         // Handle day_of_week array - convert to integers and store as JSON
@@ -58,7 +58,6 @@ class TripController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'nullable|string',
             'vehicle_id' => 'required|exists:vehicles,id',
             'day_of_week' => 'nullable|array',
             'day_of_week.*' => 'integer|in:1,2,3,4,5,6,7',
@@ -66,7 +65,6 @@ class TripController extends Controller
     
         $data = [
             'trip_name' => $request->input('name'),
-            'type' => $request->input('type'),
             'vehicle_id' => $request->input('vehicle_id'),
             'driver_id' => $request->input('driver_id'),
             'direction' => $request->input('direction'),

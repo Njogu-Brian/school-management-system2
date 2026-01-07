@@ -11,7 +11,6 @@ class Trip extends Model
 
     protected $fillable = [
         'trip_name', // actual column
-        'type',
         'vehicle_id',
         'driver_id',
         'day_of_week',

@@ -11,7 +11,7 @@ class VehicleController extends Controller
 {
     public function index()
     {
-        $vehicles = Vehicle::with('routes', 'trips.student')->get();
+        $vehicles = Vehicle::with('trips.assignments.student')->get();
         $drivers = Staff::whereHas('user.roles', function ($query) {
             $query->where('name', 'driver');
         })->where('status', '!=', 'archived')->get();

@@ -56,14 +56,23 @@
                                     <td class="fw-semibold">{{ $vehicle->vehicle_number }}</td>
                                     <td>{{ $vehicle->driver_name ?? '—' }}</td>
                                     <td>
-                                        @forelse($vehicle->trips as $trip)
-                                            <div class="text-muted small">
-                                                {{ $trip->student->name ?? $trip->student->full_name ?? 'Student' }}
-                                                <span class="input-chip ms-1">{{ $trip->student->class ?? $trip->student->classrooms->name ?? '' }}</span>
-                                            </div>
-                                        @empty
+                                        @php
+                                            $hasStudents = false;
+                                        @endphp
+                                        @foreach($vehicle->trips as $trip)
+                                            @foreach($trip->assignments as $assignment)
+                                                @if($assignment->student)
+                                                    @php $hasStudents = true; @endphp
+                                                    <div class="text-muted small">
+                                                        {{ $assignment->student->name ?? $assignment->student->full_name ?? 'Student' }}
+                                                        <span class="input-chip ms-1">{{ $assignment->student->class ?? $assignment->student->classrooms->name ?? '' }}</span>
+                                                    </div>
+                                                @endif
+                                            @endforeach
+                                        @endforeach
+                                        @if(!$hasStudents)
                                             <span class="text-muted">None</span>
-                                        @endforelse
+                                        @endif
                                     </td>
                                     <td>
                                         @if($vehicle->insurance_document)
