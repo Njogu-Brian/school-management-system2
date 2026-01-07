@@ -1144,9 +1144,16 @@ class BankStatementParser
             $matchNotes = $matchNotes ?: 'Manually shared among siblings';
         }
         
+        // If transaction is rejected or unmatched, change to draft when sharing
+        $newStatus = $transaction->status;
+        if (in_array($transaction->status, ['rejected', 'unmatched'])) {
+            $newStatus = 'draft';
+        }
+        
         $transaction->update([
             'is_shared' => true,
             'shared_allocations' => $allocations,
+            'status' => $newStatus, // Ensure it's draft if it was rejected/unmatched
             'match_status' => 'manual', // Set to manual since it was manually shared
             'match_notes' => $matchNotes,
         ]);

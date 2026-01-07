@@ -354,9 +354,19 @@ class BankStatementController extends Controller
                 $matchNotes = 'Manually assigned';
             }
             
+            // If assigning a student to a rejected/unmatched transaction, change status to draft
+            $newStatus = $bankStatement->status;
+            if ($student && in_array($bankStatement->status, ['rejected', 'unmatched'])) {
+                $newStatus = 'draft';
+            } elseif (!$student && $bankStatement->status === 'draft') {
+                // If removing student assignment, keep status as is or set to unmatched
+                $newStatus = 'unmatched';
+            }
+            
             $bankStatement->update([
                 'student_id' => $student?->id,
                 'family_id' => $student?->family_id,
+                'status' => $newStatus,
                 'match_status' => $student ? 'manual' : 'unmatched',
                 'match_confidence' => $student ? 1.0 : 0,
                 'match_notes' => $matchNotes,

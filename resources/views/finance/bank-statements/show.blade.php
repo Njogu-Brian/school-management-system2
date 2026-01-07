@@ -360,7 +360,7 @@
                     </h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    @if($bankStatement->isDraft())
+                    @if($bankStatement->isDraft() || ($bankStatement->status !== 'confirmed' && $bankStatement->status !== 'rejected' && !$bankStatement->payment_created))
                     <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
                         @csrf
                         <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
