@@ -66,6 +66,64 @@
             </div>
         </div>
 
+        {{-- Missing Students - Manual Linking Required --}}
+        @if(isset($missingStudents) && count($missingStudents) > 0)
+        <div class="settings-card mt-3">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="bi bi-person-x me-2"></i> Students Not Found - Manual Linking Required</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">The following students were not found by name. Please search and select the correct student from the system:</p>
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Row</th>
+                                <th>Excel Name</th>
+                                <th>Route</th>
+                                <th>Vehicle</th>
+                                <th>Search & Link Student</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($missingStudents as $index => $missing)
+                            <tr>
+                                <td>{{ $missing['row'] }}</td>
+                                <td><strong>{{ $missing['name'] }}</strong></td>
+                                <td><span class="badge bg-info">{{ $missing['route'] }}</span></td>
+                                <td><span class="badge bg-secondary">{{ $missing['vehicle'] }}</span></td>
+                                <td>
+                                    <input type="hidden" name="student_link_data[{{ $missing['row'] }}]" 
+                                           value="{{ json_encode([
+                                               'name' => $missing['name'],
+                                               'route' => $missing['route'],
+                                               'vehicle' => $missing['vehicle']
+                                           ]) }}">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" 
+                                               class="form-control student-search" 
+                                               placeholder="Search by name or admission..."
+                                               data-row="{{ $missing['row'] }}"
+                                               autocomplete="off">
+                                        <select name="student_links[{{ $missing['row'] }}]" 
+                                                class="form-select student-select" 
+                                                id="student-select-{{ $missing['row'] }}"
+                                                style="display:none;">
+                                            <option value="">-- Select Student --</option>
+                                        </select>
+                                    </div>
+                                    <div class="search-results mt-1" id="search-results-{{ $missing['row'] }}" style="display:none;"></div>
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        @endif
+
         @if(isset($feeConflicts) && count($feeConflicts) > 0)
         <div class="settings-card mt-3">
             <div class="card-header bg-info">
@@ -316,6 +374,83 @@
 
 @push('scripts')
 <script>
+    // Student search functionality
+    let searchTimeout;
+    document.querySelectorAll('.student-search').forEach(input => {
+        input.addEventListener('input', function() {
+            const row = this.dataset.row;
+            const searchTerm = this.value.trim();
+            const resultsDiv = document.getElementById(`search-results-${row}`);
+            const selectElement = document.getElementById(`student-select-${row}`);
+            
+            clearTimeout(searchTimeout);
+            
+            if (searchTerm.length < 2) {
+                resultsDiv.style.display = 'none';
+                resultsDiv.innerHTML = '';
+                return;
+            }
+            
+            searchTimeout = setTimeout(() => {
+                // Search for students
+                fetch(`/api/students/search?q=${encodeURIComponent(searchTerm)}`)
+                    .then(response => response.json())
+                    .then(students => {
+                        if (students.length === 0) {
+                            resultsDiv.innerHTML = '<small class="text-muted">No students found</small>';
+                            resultsDiv.style.display = 'block';
+                            return;
+                        }
+                        
+                        let html = '<div class="list-group">';
+                        students.forEach(student => {
+                            html += `<button type="button" class="list-group-item list-group-item-action py-2 student-result" 
+                                            data-id="${student.id}" 
+                                            data-name="${student.name}"
+                                            data-admission="${student.admission_number}"
+                                            data-class="${student.class_name || ''}"
+                                            data-row="${row}">
+                                        <strong>${student.name}</strong> 
+                                        <span class="badge bg-secondary">${student.admission_number}</span>
+                                        ${student.class_name ? `<span class="badge bg-info">${student.class_name}</span>` : ''}
+                                    </button>`;
+                        });
+                        html += '</div>';
+                        
+                        resultsDiv.innerHTML = html;
+                        resultsDiv.style.display = 'block';
+                        
+                        // Add click handlers
+                        resultsDiv.querySelectorAll('.student-result').forEach(btn => {
+                            btn.addEventListener('click', function() {
+                                const studentId = this.dataset.id;
+                                const studentName = this.dataset.name;
+                                const row = this.dataset.row;
+                                
+                                // Update select element
+                                const select = document.getElementById(`student-select-${row}`);
+                                select.innerHTML = `<option value="${studentId}" selected>${studentName}</option>`;
+                                select.style.display = 'block';
+                                
+                                // Update search input
+                                const searchInput = document.querySelector(`.student-search[data-row="${row}"]`);
+                                searchInput.value = studentName;
+                                searchInput.style.display = 'none';
+                                
+                                // Hide results
+                                resultsDiv.style.display = 'none';
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Search error:', error);
+                        resultsDiv.innerHTML = '<small class="text-danger">Search failed</small>';
+                        resultsDiv.style.display = 'block';
+                    });
+            }, 300);
+        });
+    });
+
     // Validate that all conflicts are resolved before submitting
     document.getElementById('importForm')?.addEventListener('submit', function(e) {
         const selects = this.querySelectorAll('select[name^="conflict_resolutions"]');

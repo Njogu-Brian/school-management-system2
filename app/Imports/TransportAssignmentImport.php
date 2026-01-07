@@ -23,6 +23,7 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
     public array $errors = [];
     public array $conflicts = [];
     public array $feeConflicts = [];
+    public array $missingStudents = []; // Students not found by name - need manual linking
     public bool $previewOnly = false;
     public array $previewData = [];
     public bool $syncTransportFees = false;
@@ -87,6 +88,18 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             ->first();
 
         if (!$student) {
+            // In preview mode, add to missing students list for manual linking
+            if ($this->previewOnly) {
+                $this->missingStudents[] = [
+                    'row' => $rowNumber,
+                    'name' => $studentName,
+                    'route' => $route,
+                    'vehicle' => $vehicleInfo,
+                    'excel_data' => $rowArray
+                ];
+                $this->skippedCount++;
+                return; // Skip this row in preview, will be linked manually
+            }
             throw new \Exception("Student with name '{$studentName}' not found");
         }
         
@@ -306,6 +319,7 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             'errors' => $this->errors,
             'conflicts' => $this->conflicts,
             'fee_conflicts' => $this->feeConflicts,
+            'missing_students' => $this->missingStudents,
             'preview_data' => $this->previewData
         ];
     }

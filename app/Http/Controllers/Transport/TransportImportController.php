@@ -8,6 +8,8 @@ use App\Models\TransportImportLog;
 use App\Models\Student;
 use App\Models\StudentAssignment;
 use App\Models\DropOffPoint;
+use App\Models\Vehicle;
+use App\Models\Trip;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +58,7 @@ class TransportImportController extends Controller
                 'previewData' => $results['preview_data'],
                 'conflicts' => $results['conflicts'],
                 'feeConflicts' => $results['fee_conflicts'] ?? [],
+                'missingStudents' => $results['missing_students'] ?? [],
                 'errors' => $results['errors'],
                 'skipped' => $results['skipped'],
                 'filename' => $filename,
@@ -79,6 +82,7 @@ class TransportImportController extends Controller
             'filename' => 'required|string',
             'conflict_resolutions' => 'nullable|array',
             'fee_conflict_resolutions' => 'nullable|array',
+            'student_links' => 'nullable|array', // Manual student links
             'sync_transport_fees' => 'nullable|boolean',
             'year' => 'nullable|integer',
             'term' => 'nullable|integer|in:1,2,3',
@@ -96,7 +100,25 @@ class TransportImportController extends Controller
             [$year, $term] = \App\Services\TransportFeeService::resolveYearAndTerm($request->year, $request->term);
             $syncTransportFees = $request->boolean('sync_transport_fees', false);
 
-            // Process conflict resolutions first
+            // Process manual student links first (for students not found by name)
+            if ($request->has('student_links')) {
+                foreach ($request->student_links as $rowNumber => $studentId) {
+                    if (!empty($studentId)) {
+                        $linkData = $request->input("student_link_data.{$rowNumber}");
+                        if ($linkData) {
+                            $data = json_decode($linkData, true);
+                            $student = Student::find($studentId);
+                            
+                            if ($student && isset($data['route']) && isset($data['vehicle'])) {
+                                // Process this manually linked student
+                                $this->processManualLink($student, $data, $year, $term);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Process conflict resolutions
             if ($request->has('conflict_resolutions')) {
                 foreach ($request->conflict_resolutions as $studentId => $resolution) {
                     if ($resolution === 'use_excel') {
@@ -207,6 +229,75 @@ class TransportImportController extends Controller
     {
         $log = TransportImportLog::with('importedBy')->findOrFail($id);
         return view('transport.import.log', compact('log'));
+    }
+
+    /**
+     * Process manually linked student
+     */
+    private function processManualLink($student, $data, $year, $term)
+    {
+        $route = strtoupper(trim($data['route'] ?? ''));
+        $vehicleInfo = trim($data['vehicle'] ?? '');
+
+        // Skip if OWN transport
+        if (strtoupper($vehicleInfo) === 'OWN' || strtoupper($route) === 'OWN') {
+            return;
+        }
+
+        // Parse vehicle and trip
+        $parts = explode(' ', trim($vehicleInfo));
+        if (count($parts) < 3) {
+            return; // Invalid format
+        }
+
+        $vehicleNumberRaw = strtoupper(trim($parts[0]));
+        $tripNumber = trim($parts[2] ?? '1');
+        $vehicleCode = substr($vehicleNumberRaw, 0, 3);
+
+        // Find vehicle
+        $vehicle = Vehicle::where('vehicle_number', 'LIKE', $vehicleCode . '%')->first();
+        if (!$vehicle) {
+            $vehicle = Vehicle::where('vehicle_number', $vehicleNumberRaw)->first();
+        }
+        if (!$vehicle) {
+            return; // Vehicle not found
+        }
+
+        // Find or create drop-off point
+        $dropOffPoint = null;
+        if (!empty($route) && strtoupper($route) !== 'OWN') {
+            $dropOffPoint = DropOffPoint::firstOrCreate(['name' => $route]);
+        }
+
+        // Find or create trip
+        $tripName = "{$vehicleCode} TRIP {$tripNumber}";
+        $trip = Trip::firstOrCreate(
+            [
+                'vehicle_id' => $vehicle->id,
+                'trip_name' => $tripName,
+                'direction' => 'dropoff'
+            ],
+            [
+                'day_of_week' => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+            ]
+        );
+
+        // Create or update student assignment
+        $assignmentData = [
+            'student_id' => $student->id,
+            'evening_trip_id' => $trip->id,
+        ];
+
+        if ($dropOffPoint) {
+            $assignmentData['evening_drop_off_point_id'] = $dropOffPoint->id;
+        }
+
+        $existingAssignment = StudentAssignment::where('student_id', $student->id)->first();
+        if ($existingAssignment) {
+            $existingAssignment->update($assignmentData);
+        } else {
+            StudentAssignment::create($assignmentData);
+        }
     }
 
     /**
