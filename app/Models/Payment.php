@@ -34,6 +34,7 @@ class Payment extends Model
         'reversed',
         'reversed_by',
         'reversed_at',
+        'bulk_sent_channels',
     ];
 
     protected $casts = [
@@ -45,6 +46,7 @@ class Payment extends Model
         'reversed' => 'boolean',
         'reversed_at' => 'datetime',
         'archived_at' => 'datetime',
+        'bulk_sent_channels' => 'array',
     ];
 
     protected static function boot()
@@ -257,5 +259,46 @@ class Payment extends Model
     public function hasOverpayment(): bool
     {
         return $this->unallocated_amount > 0;
+    }
+
+    /**
+     * Check if payment has been bulk sent via specific channels
+     */
+    public function hasBeenBulkSent(array $channels): bool
+    {
+        $bulkSent = $this->bulk_sent_channels ?? [];
+        if (empty($bulkSent)) {
+            return false;
+        }
+        
+        // Check if all requested channels have been bulk sent
+        foreach ($channels as $channel) {
+            if (!in_array($channel, $bulkSent)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Mark channels as bulk sent
+     */
+    public function markBulkSent(array $channels): void
+    {
+        $bulkSent = $this->bulk_sent_channels ?? [];
+        $updated = false;
+        
+        foreach ($channels as $channel) {
+            if (!in_array($channel, $bulkSent)) {
+                $bulkSent[] = $channel;
+                $updated = true;
+            }
+        }
+        
+        if ($updated) {
+            $this->bulk_sent_channels = $bulkSent;
+            $this->save();
+        }
     }
 }

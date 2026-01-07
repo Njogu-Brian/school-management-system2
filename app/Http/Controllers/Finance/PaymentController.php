@@ -2209,4 +2209,316 @@ class PaymentController extends Controller
             $message
         )->with('errors', $errors);
     }
+
+    /**
+     * Bulk send payment notifications to all payments (respecting filters)
+     * Skips payments that have already been bulk sent for the selected channels
+     */
+    public function bulkSend(Request $request)
+    {
+        $request->validate([
+            'channels' => 'required|array|min:1',
+            'channels.*' => 'in:sms,email,whatsapp',
+            'student_id' => 'nullable|exists:students,id',
+            'class_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+        ]);
+
+        $channels = $request->input('channels');
+        
+        // Build query based on filters (same as index method)
+        $query = Payment::with(['student.parent', 'paymentMethod'])
+            ->where('reversed', false);
+
+        if ($request->filled('student_id')) {
+            $query->where('student_id', $request->student_id);
+        }
+
+        if ($request->filled('class_id')) {
+            $query->whereHas('student', function($q) use ($request) {
+                $q->where('classroom_id', $request->class_id);
+            });
+        }
+
+        if ($request->filled('stream_id')) {
+            $query->whereHas('student', function($q) use ($request) {
+                $q->where('stream_id', $request->stream_id);
+            });
+        }
+
+        if ($request->filled('payment_method_id')) {
+            $query->where('payment_method_id', $request->payment_method_id);
+        }
+
+        if ($request->filled('from_date')) {
+            $query->whereDate('payment_date', '>=', $request->from_date);
+        }
+
+        if ($request->filled('to_date')) {
+            $query->whereDate('payment_date', '<=', $request->to_date);
+        }
+
+        // Get all payments matching filters
+        $payments = $query->get();
+
+        $totalPayments = $payments->count();
+        $skippedCount = 0;
+        $sentCount = 0;
+        $failedCount = 0;
+        $errors = [];
+
+        foreach ($payments as $payment) {
+            try {
+                // Skip if already bulk sent for all selected channels
+                if ($payment->hasBeenBulkSent($channels)) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // Send notifications (this will send via all channels in sendPaymentNotifications)
+                // But we need to track which channels were actually sent
+                $sentChannels = [];
+                
+                // Check parent contact info
+                $parent = $payment->student->parent ?? null;
+                if (!$parent) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // Send via each selected channel
+                foreach ($channels as $channel) {
+                    // Skip if this channel was already bulk sent
+                    $bulkSent = $payment->bulk_sent_channels ?? [];
+                    if (in_array($channel, $bulkSent)) {
+                        continue;
+                    }
+
+                    try {
+                        // Send via the specific channel
+                        if ($channel === 'sms') {
+                            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                            if ($parentPhone) {
+                                $this->sendPaymentNotificationByChannel($payment, $channel);
+                                $sentChannels[] = $channel;
+                            }
+                        } elseif ($channel === 'email') {
+                            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                            if ($parentEmail) {
+                                $this->sendPaymentNotificationByChannel($payment, $channel);
+                                $sentChannels[] = $channel;
+                            }
+                        } elseif ($channel === 'whatsapp') {
+                            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
+                                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                            if ($whatsappPhone) {
+                                $this->sendPaymentNotificationByChannel($payment, $channel);
+                                $sentChannels[] = $channel;
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Failed to send {$channel} for payment {$payment->id}", [
+                            'payment_id' => $payment->id,
+                            'channel' => $channel,
+                            'error' => $e->getMessage()
+                        ]);
+                        $errors[] = "Payment #{$payment->receipt_number} ({$channel}): " . $e->getMessage();
+                    }
+                }
+
+                // Mark channels as bulk sent if any were successfully sent
+                if (!empty($sentChannels)) {
+                    $payment->markBulkSent($sentChannels);
+                    $sentCount++;
+                } else {
+                    $skippedCount++;
+                }
+
+            } catch (\Exception $e) {
+                $failedCount++;
+                Log::error('Bulk send failed for payment', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage()
+                ]);
+                $errors[] = "Payment #{$payment->receipt_number}: " . $e->getMessage();
+            }
+        }
+
+        $message = "Bulk send completed: {$sentCount} sent, {$skippedCount} skipped";
+        if ($failedCount > 0) {
+            $message .= ", {$failedCount} failed";
+        }
+
+        return redirect()->route('finance.payments.index', $request->only([
+            'student_id', 'class_id', 'stream_id', 'payment_method_id', 'from_date', 'to_date'
+        ]))->with(
+            $failedCount === 0 ? 'success' : 'warning',
+            $message
+        )->with('errors', $errors);
+    }
+
+    /**
+     * Send payment notification via a specific channel
+     */
+    private function sendPaymentNotificationByChannel(Payment $payment, string $channel): void
+    {
+        $payment->load(['student.parent', 'paymentMethod']);
+        $student = $payment->student;
+        $parent = $student->parent;
+
+        if (!$parent) {
+            return;
+        }
+
+        // Get receipt link
+        if (!$payment->public_token) {
+            $payment->public_token = Payment::generatePublicToken();
+            $payment->save();
+        }
+
+        try {
+            $receiptLink = url('/receipt/' . $payment->public_token);
+            $receiptLink = $this->normalizeUrl($receiptLink);
+        } catch (\Exception $e) {
+            Log::error('Failed to generate receipt link', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+            $receiptLink = 'Contact school for receipt details';
+        }
+
+        // Get parent name and greeting
+        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
+        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+
+        // Calculate outstanding balance
+        $outstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        $payment->refresh();
+        $carriedForward = $payment->unallocated_amount ?? 0;
+        $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+
+        $variables = [
+            'parent_name' => $parentName ?? 'Parent',
+            'greeting' => $greeting,
+            'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
+            'admission_number' => $student->admission_number,
+            'amount' => 'Ksh ' . number_format($payment->amount, 2),
+            'receipt_number' => $payment->receipt_number,
+            'transaction_code' => $payment->transaction_code,
+            'payment_date' => $payment->payment_date->format('d M Y'),
+            'receipt_link' => $receiptLink,
+            'finance_portal_link' => $receiptLink,
+            'outstanding_amount' => 'Ksh ' . number_format($outstandingBalance, 2),
+            'carried_forward' => number_format($carriedForward, 2),
+            'school_name' => $schoolName,
+        ];
+
+        $replacePlaceholders = function($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', $value, $text);
+            }
+            return $text;
+        };
+
+        // Send via specific channel
+        if ($channel === 'sms') {
+            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            if ($parentPhone) {
+                $smsTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_sms')
+                    ->orWhere('code', 'finance_payment_received_sms')
+                    ->first();
+                
+                if (!$smsTemplate) {
+                    $smsTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                        ['code' => 'payment_receipt_sms'],
+                        [
+                            'title' => 'Payment Receipt SMS',
+                            'type' => 'sms',
+                            'subject' => null,
+                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                        ]
+                    );
+                }
+
+                $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                $smsService = app(\App\Services\SMSService::class);
+                $financeSenderId = $smsService->getFinanceSenderId();
+                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
+            }
+        } elseif ($channel === 'email') {
+            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+            if ($parentEmail) {
+                $emailTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_email')
+                    ->orWhere('code', 'finance_payment_received_email')
+                    ->first();
+                
+                if (!$emailTemplate) {
+                    $emailTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                        ['code' => 'payment_receipt_email'],
+                        [
+                            'title' => 'Payment Receipt Email',
+                            'type' => 'email',
+                            'subject' => 'Payment Receipt – {{student_name}}',
+                            'content' => "{{greeting}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                        ]
+                    );
+                }
+
+                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+                $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+                $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
+                $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
+            }
+        } elseif ($channel === 'whatsapp') {
+            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
+                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            
+            if ($whatsappPhone) {
+                $whatsappTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
+                    ->orWhere('code', 'finance_payment_received_whatsapp')
+                    ->first();
+                
+                if (!$whatsappTemplate) {
+                    $whatsappTemplate = \App\Models\CommunicationTemplate::firstOrCreate(
+                        ['code' => 'payment_receipt_whatsapp'],
+                        [
+                            'title' => 'Payment Receipt WhatsApp',
+                            'type' => 'whatsapp',
+                            'subject' => null,
+                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                        ]
+                    );
+                }
+
+                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+                $whatsappService = app(\App\Services\WhatsAppService::class);
+                $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
+                
+                $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                
+                \App\Models\CommunicationLog::create([
+                    'recipient_type' => 'parent',
+                    'recipient_id'   => $parent->id ?? null,
+                    'contact'        => $whatsappPhone,
+                    'channel'        => 'whatsapp',
+                    'title'          => $whatsappTemplate->subject ?? $whatsappTemplate->title,
+                    'message'        => $whatsappMessage,
+                    'type'           => 'whatsapp',
+                    'status'         => $status,
+                    'response'       => $response,
+                    'scope'          => 'whatsapp',
+                    'sent_at'        => now(),
+                    'payment_id'     => $payment->id,
+                    'provider_id'    => data_get($response, 'body.data.id') 
+                                        ?? data_get($response, 'body.data.message.id')
+                                        ?? data_get($response, 'body.messageId')
+                                        ?? data_get($response, 'body.id'),
+                    'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                ]);
+            }
+        }
+    }
 }

@@ -120,6 +120,10 @@
                 onclick="openSendDocument('receipt', getAllSelectedPaymentIds())">
                 <i class="bi bi-send"></i> Send Selected (<span id="sendSelectedCount">0</span>)
             </button>
+            <button type="button" class="btn btn-finance btn-finance-primary" id="bulkSendBtn"
+                onclick="openBulkSendModal()" title="Send to all payments matching current filters (skips already sent)">
+                <i class="bi bi-send-fill"></i> Bulk Send All
+            </button>
             <button type="button" class="btn btn-finance btn-finance-outline"
                 onclick="clearAllSelections()" title="Clear all selections">
                 <i class="bi bi-x-circle"></i> Clear
@@ -268,6 +272,66 @@
     </div>
 
 @include('communication.partials.document-send-modal')
+
+<!-- Bulk Send Modal -->
+<div class="modal fade" id="bulkSendModal" tabindex="-1" aria-labelledby="bulkSendLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" action="{{ route('finance.payments.bulk-send') }}" id="bulkSendForm">
+        @csrf
+        <!-- Include current filter parameters -->
+        <input type="hidden" name="student_id" value="{{ request('student_id') }}">
+        <input type="hidden" name="class_id" value="{{ request('class_id') }}">
+        <input type="hidden" name="stream_id" value="{{ request('stream_id') }}">
+        <input type="hidden" name="payment_method_id" value="{{ request('payment_method_id') }}">
+        <input type="hidden" name="from_date" value="{{ request('from_date') }}">
+        <input type="hidden" name="to_date" value="{{ request('to_date') }}">
+        
+        <div class="modal-header">
+          <h5 class="modal-title" id="bulkSendLabel">Bulk Send Payment Receipts</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> This will send receipts to <strong>all payments</strong> matching your current filters. Payments that have already been bulk sent via the selected channels will be automatically skipped.
+          </div>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">Select Channels <span class="text-danger">*</span></label>
+              <div class="d-flex gap-3">
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="sms" id="bulkChannelSms" checked>
+                  <label class="form-check-label" for="bulkChannelSms">
+                    <i class="bi bi-chat-dots"></i> SMS
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="whatsapp" id="bulkChannelWhatsApp" checked>
+                  <label class="form-check-label" for="bulkChannelWhatsApp">
+                    <i class="bi bi-whatsapp"></i> WhatsApp
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input channel-checkbox" type="checkbox" name="channels[]" value="email" id="bulkChannelEmail" checked>
+                  <label class="form-check-label" for="bulkChannelEmail">
+                    <i class="bi bi-envelope"></i> Email
+                  </label>
+                </div>
+              </div>
+              <small class="text-muted d-block mt-2">Select one or more channels. Already bulk-sent payments will be skipped for the selected channels.</small>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-settings-primary">
+            <i class="bi bi-send-fill"></i> Send to All
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 @push('scripts')
 <script>
@@ -430,6 +494,41 @@ function bulkPrintReceipts() {
 function collectCheckedIds(selector) {
     // Use localStorage instead of just current page
     return getAllSelectedPaymentIds();
+}
+
+// Bulk Send Modal
+function openBulkSendModal() {
+    const modalEl = document.getElementById('bulkSendModal');
+    if (!modalEl) return;
+
+    const channelCheckboxes = modalEl.querySelectorAll('.channel-checkbox');
+    const form = document.getElementById('bulkSendForm');
+
+    // Ensure at least one channel is selected
+    function validateChannels() {
+        const anyChecked = Array.from(channelCheckboxes).some(c => c.checked);
+        if (!anyChecked) {
+            alert('Please select at least one channel (SMS, WhatsApp, or Email)');
+            return false;
+        }
+        return true;
+    }
+
+    // Validate form submission
+    form?.addEventListener('submit', function(e) {
+        if (!validateChannels()) {
+            e.preventDefault();
+            return false;
+        }
+        
+        // Show loading state
+        const submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+    });
+
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
 }
 </script>
 @endpush

@@ -1102,6 +1102,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentBalanceAndSiblings'])->name('payments.student-info');
         Route::get('payments/failed-communications', [PaymentController::class, 'failedCommunications'])->name('payments.failed-communications');
         Route::post('payments/bulk-allocate-unallocated', [PaymentController::class, 'bulkAllocateUnallocated'])->name('payments.bulk-allocate-unallocated');
+        Route::post('payments/bulk-send', [PaymentController::class, 'bulkSend'])->name('payments.bulk-send');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');

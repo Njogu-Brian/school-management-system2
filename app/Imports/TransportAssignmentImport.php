@@ -74,18 +74,8 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             throw new \Exception("Student name is required");
         }
 
-        // Find student by name - search in full_name, first_name + last_name combinations
-        // Try exact match first, then partial match
-        $student = Student::where('archive', 0)
-            ->where('is_alumni', false)
-            ->where(function($query) use ($studentName) {
-                $normalizedName = strtoupper(trim($studentName));
-                $query->whereRaw('UPPER(CONCAT(COALESCE(first_name, ""), " ", COALESCE(middle_name, ""), " ", COALESCE(last_name, ""))) LIKE ?', ["%{$normalizedName}%"])
-                      ->orWhereRaw('UPPER(CONCAT(COALESCE(first_name, ""), " ", COALESCE(last_name, ""))) LIKE ?', ["%{$normalizedName}%"])
-                      ->orWhereRaw('UPPER(COALESCE(first_name, "")) = ?', [$normalizedName])
-                      ->orWhereRaw('UPPER(CONCAT(COALESCE(last_name, ""), " ", COALESCE(first_name, ""))) LIKE ?', ["%{$normalizedName}%"]);
-            })
-            ->first();
+        // Find student using smart name matching
+        $student = $this->findStudentByName($studentName);
 
         if (!$student) {
             // In preview mode, add to missing students list for manual linking
@@ -322,6 +312,227 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             'missing_students' => $this->missingStudents,
             'preview_data' => $this->previewData
         ];
+    }
+
+    /**
+     * Smart name matching algorithm
+     * 1. Try exact full name match
+     * 2. Try matching with name parts in any order
+     * 3. If 2+ name parts match and only one student has those parts, use that student
+     * 4. If multiple students share 2 names, use 3rd name to disambiguate
+     */
+    protected function findStudentByName(string $searchName): ?Student
+    {
+        // Normalize and split the search name into parts
+        $searchParts = $this->normalizeNameParts($searchName);
+        
+        if (empty($searchParts)) {
+            return null;
+        }
+
+        // Get all active students
+        $students = Student::where('archive', 0)
+            ->where('is_alumni', false)
+            ->get();
+
+        $matches = [];
+
+        foreach ($students as $student) {
+            // Get student's name parts from database
+            $studentParts = $this->getStudentNameParts($student);
+            
+            // Count how many name parts match (order doesn't matter)
+            $matchCount = $this->countMatchingParts($searchParts, $studentParts);
+            
+            if ($matchCount >= 2) {
+                $matches[] = [
+                    'student' => $student,
+                    'match_count' => $matchCount,
+                    'total_search_parts' => count($searchParts),
+                    'total_student_parts' => count($studentParts),
+                    'student_parts' => $studentParts
+                ];
+            }
+        }
+
+        // No matches found
+        if (empty($matches)) {
+            return null;
+        }
+
+        // Sort by match count (highest first)
+        usort($matches, function($a, $b) {
+            return $b['match_count'] - $a['match_count'];
+        });
+
+        // If only one match, return it
+        if (count($matches) === 1) {
+            return $matches[0]['student'];
+        }
+
+        // Multiple matches - try to find unique match
+        $topMatchCount = $matches[0]['match_count'];
+        $topMatches = array_filter($matches, fn($m) => $m['match_count'] === $topMatchCount);
+
+        // If only one student has the highest match count, use that
+        if (count($topMatches) === 1) {
+            return $matches[0]['student'];
+        }
+
+        // Multiple students with same match count
+        // Try to disambiguate using additional name parts
+        foreach ($topMatches as $match) {
+            $studentParts = $match['student_parts'];
+            
+            // Check if ALL search parts are found in student parts
+            $allMatch = true;
+            foreach ($searchParts as $searchPart) {
+                $found = false;
+                foreach ($studentParts as $studentPart) {
+                    if ($this->fuzzyMatch($searchPart, $studentPart)) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
+                    $allMatch = false;
+                    break;
+                }
+            }
+            
+            if ($allMatch) {
+                // This student matches all search parts
+                // Check if any other student also matches all parts
+                $fullMatchCount = 0;
+                $fullMatchStudent = null;
+                
+                foreach ($topMatches as $m) {
+                    $allPartsMatch = true;
+                    foreach ($searchParts as $searchPart) {
+                        $found = false;
+                        foreach ($m['student_parts'] as $sp) {
+                            if ($this->fuzzyMatch($searchPart, $sp)) {
+                                $found = true;
+                                break;
+                            }
+                        }
+                        if (!$found) {
+                            $allPartsMatch = false;
+                            break;
+                        }
+                    }
+                    if ($allPartsMatch) {
+                        $fullMatchCount++;
+                        $fullMatchStudent = $m['student'];
+                    }
+                }
+                
+                // If only one student matches all parts, return that student
+                if ($fullMatchCount === 1) {
+                    return $fullMatchStudent;
+                }
+            }
+        }
+
+        // Still ambiguous - return the first match (highest score)
+        // This will be handled by manual linking if in preview mode
+        return null;
+    }
+
+    /**
+     * Normalize a name string into an array of uppercase name parts
+     */
+    protected function normalizeNameParts(string $name): array
+    {
+        // Remove extra spaces, convert to uppercase
+        $name = strtoupper(trim(preg_replace('/\s+/', ' ', $name)));
+        
+        // Split by space
+        $parts = explode(' ', $name);
+        
+        // Filter out empty parts and very short parts (like initials)
+        $parts = array_filter($parts, fn($p) => strlen($p) >= 2);
+        
+        return array_values($parts);
+    }
+
+    /**
+     * Get name parts from a student record
+     */
+    protected function getStudentNameParts(Student $student): array
+    {
+        $parts = [];
+        
+        if (!empty($student->first_name)) {
+            $parts[] = strtoupper(trim($student->first_name));
+        }
+        if (!empty($student->middle_name)) {
+            // Middle name might contain multiple names
+            $middleParts = explode(' ', strtoupper(trim($student->middle_name)));
+            foreach ($middleParts as $mp) {
+                if (strlen($mp) >= 2) {
+                    $parts[] = $mp;
+                }
+            }
+        }
+        if (!empty($student->last_name)) {
+            $parts[] = strtoupper(trim($student->last_name));
+        }
+        
+        return $parts;
+    }
+
+    /**
+     * Count how many name parts match between search and student
+     */
+    protected function countMatchingParts(array $searchParts, array $studentParts): int
+    {
+        $matchCount = 0;
+        $usedStudentParts = [];
+        
+        foreach ($searchParts as $searchPart) {
+            foreach ($studentParts as $index => $studentPart) {
+                if (!isset($usedStudentParts[$index]) && $this->fuzzyMatch($searchPart, $studentPart)) {
+                    $matchCount++;
+                    $usedStudentParts[$index] = true;
+                    break;
+                }
+            }
+        }
+        
+        return $matchCount;
+    }
+
+    /**
+     * Fuzzy match two name parts
+     * Handles slight variations like MWANGI vs MWANGI, NYAMWITHA vs NYAMUITHA
+     */
+    protected function fuzzyMatch(string $part1, string $part2): bool
+    {
+        // Exact match
+        if ($part1 === $part2) {
+            return true;
+        }
+        
+        // One contains the other (for abbreviated names)
+        if (str_contains($part1, $part2) || str_contains($part2, $part1)) {
+            return true;
+        }
+        
+        // Levenshtein distance for typos (allow 1-2 character differences for longer names)
+        $len = max(strlen($part1), strlen($part2));
+        $maxDistance = $len >= 6 ? 2 : ($len >= 4 ? 1 : 0);
+        
+        if (levenshtein($part1, $part2) <= $maxDistance) {
+            return true;
+        }
+        
+        // Soundex match for phonetically similar names
+        if (soundex($part1) === soundex($part2)) {
+            return true;
+        }
+        
+        return false;
     }
 }
 
