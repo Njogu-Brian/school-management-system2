@@ -2002,7 +2002,7 @@ class PaymentController extends Controller
                 $q->where('unallocated_amount', '>', 0)
                   ->orWhereRaw('amount > allocated_amount');
             })
-            ->with(['student.invoices.items'])
+            ->with('student')
             ->get();
         
         foreach ($unallocatedPayments as $payment) {
