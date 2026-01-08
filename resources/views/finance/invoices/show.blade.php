@@ -705,20 +705,39 @@
 @push('scripts')
 <script>
 // Handle AJAX form submission for invoice item editing
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     'use strict';
     
-    console.log('[Invoice Edit] Initializing form handlers');
+    // Prevent multiple initializations
+    if (window.invoiceEditHandlersAttached) {
+        console.log('[Invoice Edit] Handlers already attached, skipping');
+        return;
+    }
     
-    // Attach handlers to all edit forms once
-    document.querySelectorAll('.edit-item-form').forEach(function(form) {
-        console.log('[Invoice Edit] Attaching to form:', form.id);
+    window.invoiceEditHandlersAttached = true;
+    console.log('[Invoice Edit] Initializing form handlers (ONCE)');
+    
+    // Wait for DOM to be ready
+    function initHandlers() {
+        // Attach handlers to all edit forms once
+        var forms = document.querySelectorAll('.edit-item-form');
+        console.log('[Invoice Edit] Found', forms.length, 'forms to attach');
         
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        forms.forEach(function(form) {
+            // Check if already has handler attached
+            if (form.dataset.handlerAttached) {
+                console.log('[Invoice Edit] Skipping form (already attached):', form.id);
+                return;
+            }
             
-            console.log('[Invoice Edit] Form submission started');
+            console.log('[Invoice Edit] Attaching to form:', form.id);
+            form.dataset.handlerAttached = 'true';
+            
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('[Invoice Edit] Form submission started for:', form.id);
             
             // Get form data
             var newAmountInput = form.querySelector('input[name="new_amount"]');
@@ -754,46 +773,55 @@ document.addEventListener('DOMContentLoaded', function() {
             xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
             xhr.setRequestHeader('Accept', 'application/json');
-            
-            xhr.onload = function() {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-                        if (data.success || data.message) {
-                            alert(data.message || 'Invoice item updated successfully');
-                            window.location.reload();
-                        } else {
-                            alert(data.error || 'Update failed');
-                            if (submitButton) {
-                                submitButton.disabled = false;
-                                submitButton.textContent = 'Update Item';
+                
+                xhr.onload = function() {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            var data = JSON.parse(xhr.responseText);
+                            if (data.success || data.message) {
+                                alert(data.message || 'Invoice item updated successfully');
+                                window.location.reload();
+                            } else {
+                                alert(data.error || 'Update failed');
+                                if (submitButton) {
+                                    submitButton.disabled = false;
+                                    submitButton.textContent = 'Update Item';
+                                }
                             }
+                        } catch (e) {
+                            alert('Update completed. Reloading...');
+                            window.location.reload();
                         }
-                    } catch (e) {
-                        alert('Update completed. Reloading...');
-                        window.location.reload();
+                    } else {
+                        alert('Update failed. Please try again.');
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = 'Update Item';
+                        }
                     }
-                } else {
-                    alert('Update failed. Please try again.');
+                };
+                
+                xhr.onerror = function() {
+                    alert('Network error. Please try again.');
                     if (submitButton) {
                         submitButton.disabled = false;
                         submitButton.textContent = 'Update Item';
                     }
-                }
-            };
-            
-            xhr.onerror = function() {
-                alert('Network error. Please try again.');
-                if (submitButton) {
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Update Item';
-                }
-            };
-            
-            xhr.send(formData);
+                };
+                
+                xhr.send(formData);
+            });
         });
-    });
-});
+    }
+    
+    // Initialize based on document ready state
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initHandlers);
+    } else {
+        // DOM is already loaded
+        initHandlers();
+    }
+})();
 </script>
 @endpush
 @endsection
