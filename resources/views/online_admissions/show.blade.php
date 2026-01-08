@@ -283,15 +283,6 @@
                     </select>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Transport Route</label>
-                    <select name="route_id" class="form-select">
-                      <option value="">—</option>
-                      @foreach($routes as $route)
-                        <option value="{{ $route->id }}" @selected($admission->route_id==$route->id)>{{ $route->name }}</option>
-                      @endforeach
-                    </select>
-                  </div>
-                  <div class="mb-3">
                     <label class="form-label">Trip</label>
                     <select name="trip_id" class="form-select">
                       <option value="">—</option>
