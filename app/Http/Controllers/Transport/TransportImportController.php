@@ -36,23 +36,39 @@ class TransportImportController extends Controller
      */
     public function preview(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
             'year' => 'nullable|integer',
             'term' => 'nullable|integer|in:1,2,3',
         ]);
 
         try {
+            // Check if file was actually uploaded
+            if (!$request->hasFile('file')) {
+                return back()->with('error', 'No file uploaded. Please select a file to import.');
+            }
+
+            $file = $request->file('file');
+            
+            // Check if file is valid
+            if (!$file->isValid()) {
+                return back()->with('error', 'File upload failed. Please try again. Error: ' . $file->getErrorMessage());
+            }
+
             [$year, $term] = \App\Services\TransportFeeService::resolveYearAndTerm($request->year, $request->term);
             
             $import = new TransportAssignmentImport(true, false, $year, $term); // Preview mode
-            Excel::import($import, $request->file('file'));
+            Excel::import($import, $file);
 
             $results = $import->getResults();
 
             // Store file temporarily for actual import
-            $filename = time() . '_' . $request->file('file')->getClientOriginalName();
-            $path = $request->file('file')->storeAs('temp/transport-imports', $filename);
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('temp/transport-imports', $filename);
+
+            if (!$path) {
+                return back()->with('error', 'Failed to save uploaded file. Please check storage permissions.');
+            }
 
             return view('transport.import.preview', [
                 'previewData' => $results['preview_data'],
@@ -68,7 +84,9 @@ class TransportImportController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Transport import preview error: ' . $e->getMessage());
+            Log::error('Transport import preview error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return back()->with('error', 'Error processing file: ' . $e->getMessage());
         }
     }

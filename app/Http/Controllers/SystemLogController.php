@@ -55,7 +55,26 @@ class SystemLogController extends Controller
     protected function parseLogFile($filePath, $levelFilter = 'all', $search = '', $dateFilter = '')
     {
         try {
-            $content = File::get($filePath);
+            // For large log files on production, only read the last 100KB to prevent memory issues
+            // This should contain roughly the last 500-1000 log entries
+            $fileSize = filesize($filePath);
+            $maxBytes = 100 * 1024; // 100KB
+            
+            if ($fileSize > $maxBytes) {
+                // Read from the end of the file
+                $handle = fopen($filePath, 'r');
+                fseek($handle, -$maxBytes, SEEK_END);
+                $content = fread($handle, $maxBytes);
+                fclose($handle);
+                
+                // Find the first complete line (skip partial line at start)
+                $firstNewline = strpos($content, "\n");
+                if ($firstNewline !== false) {
+                    $content = substr($content, $firstNewline + 1);
+                }
+            } else {
+                $content = File::get($filePath);
+            }
         } catch (\Exception $e) {
             return collect();
         }

@@ -37,6 +37,18 @@
             </div>
         @endif
 
+        @if($errors->any() && !session('error'))
+            <div class="alert alert-danger mt-3">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <strong>Validation Error:</strong>
+                <ul class="mb-0 mt-2">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         {{-- Upload Form --}}
         <div class="settings-card mt-3">
             <div class="card-header">
