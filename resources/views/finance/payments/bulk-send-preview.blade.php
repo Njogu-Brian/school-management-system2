@@ -131,7 +131,7 @@
                                                 >
                                             </td>
                                             <td>
-                                                <a href="{{ route('finance.receipts.view', $payment->id) }}" target="_blank">
+                                                <a href="{{ route('finance.payments.receipt.view', $payment->id) }}" target="_blank">
                                                     {{ $payment->receipt_number }}
                                                 </a>
                                             </td>
