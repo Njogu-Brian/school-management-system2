@@ -62,12 +62,34 @@ class TransportImportController extends Controller
 
             $results = $import->getResults();
 
+            // Ensure temp directory exists
+            $tempDir = storage_path('app/temp/transport-imports');
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
             // Store file temporarily for actual import
             $filename = time() . '_' . $file->getClientOriginalName();
             $path = $file->storeAs('temp/transport-imports', $filename);
 
             if (!$path) {
+                Log::error('Failed to save import file', [
+                    'filename' => $filename,
+                    'temp_dir' => $tempDir,
+                    'dir_exists' => file_exists($tempDir),
+                    'dir_writable' => is_writable($tempDir)
+                ]);
                 return back()->with('error', 'Failed to save uploaded file. Please check storage permissions.');
+            }
+
+            // Verify file was actually saved
+            $fullPath = storage_path('app/' . $path);
+            if (!file_exists($fullPath)) {
+                Log::error('File saved but not found', [
+                    'path' => $path,
+                    'full_path' => $fullPath
+                ]);
+                return back()->with('error', 'File upload verification failed. Please try again.');
             }
 
             return view('transport.import.preview', [
@@ -112,7 +134,16 @@ class TransportImportController extends Controller
             $filePath = storage_path('app/temp/transport-imports/' . $request->filename);
             
             if (!file_exists($filePath)) {
-                throw new \Exception('Import file not found. Please upload again.');
+                // Log detailed information about the missing file
+                $tempDir = storage_path('app/temp/transport-imports');
+                Log::error('Import file not found', [
+                    'filename' => $request->filename,
+                    'expected_path' => $filePath,
+                    'temp_dir_exists' => file_exists($tempDir),
+                    'temp_dir_writable' => is_writable($tempDir),
+                    'files_in_dir' => file_exists($tempDir) ? scandir($tempDir) : 'Directory does not exist'
+                ]);
+                throw new \Exception('Import file not found. The file may have expired or been deleted. Please upload again.');
             }
 
             [$year, $term] = \App\Services\TransportFeeService::resolveYearAndTerm($request->year, $request->term);
@@ -235,7 +266,24 @@ class TransportImportController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Transport import error: ' . $e->getMessage());
+            
+            // Clean up temp file on error if it exists
+            if (isset($filePath) && file_exists($filePath)) {
+                try {
+                    unlink($filePath);
+                } catch (\Exception $cleanupException) {
+                    Log::warning('Failed to clean up temp file after error', [
+                        'file' => $filePath,
+                        'error' => $cleanupException->getMessage()
+                    ]);
+                }
+            }
+            
+            Log::error('Transport import error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             return back()->with('error', 'Import failed: ' . $e->getMessage());
         }
     }
