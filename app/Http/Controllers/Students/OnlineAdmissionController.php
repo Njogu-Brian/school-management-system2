@@ -9,7 +9,6 @@ use App\Models\ParentInfo;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\StudentCategory;
-use App\Models\Transport;
 use App\Models\Trip;
 use App\Models\DropOffPoint;
 use App\Services\TransportFeeService;
@@ -219,12 +218,11 @@ class OnlineAdmissionController extends Controller
         $classrooms = Classroom::orderBy('name')->get();
         $streams = Stream::orderBy('name')->get();
         $categories = StudentCategory::orderBy('name')->get();
-        $routes = Transport::orderBy('name')->get();
         $trips = Trip::orderBy('trip_name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $countryCodes = $this->getCountryCodes();
         
-        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'routes', 'trips', 'dropOffPoints', 'countryCodes'));
+        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'trips', 'dropOffPoints', 'countryCodes'));
     }
 
     /**
@@ -294,7 +292,6 @@ class OnlineAdmissionController extends Controller
             'classroom_id' => 'required|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
             'category_id' => 'required|exists:student_categories,id',
-            'route_id' => 'nullable|exists:routes,id',
             'trip_id' => 'nullable|exists:trips,id',
             'drop_off_point_id' => 'nullable|exists:drop_off_points,id',
             'drop_off_point_other' => 'nullable|string|max:255',
@@ -376,7 +373,6 @@ class OnlineAdmissionController extends Controller
                 'classroom_id' => $validated['classroom_id'],
                 'stream_id' => $validated['stream_id'] ?? null,
                 'category_id' => $validated['category_id'],
-                'route_id' => $validated['route_id'] ?? null,
                 'trip_id' => $validated['trip_id'] ?? null,
                 'drop_off_point_id' => $validated['drop_off_point_id'] ?? null,
                 'drop_off_point_other' => $validated['drop_off_point_other'] ?? null,
