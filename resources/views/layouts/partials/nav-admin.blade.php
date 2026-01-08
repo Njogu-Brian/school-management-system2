@@ -366,7 +366,20 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- Invoicing & Payments --}}
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.journals.index') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
-    <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') && !Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    
+    {{-- M-PESA Payments --}}
+    @php
+        $mpesaActive = Request::is('finance/mpesa*');
+    @endphp
+    <a href="#mpesaMenu" data-bs-toggle="collapse" aria-expanded="{{ $mpesaActive ? 'true' : 'false' }}" class="{{ $mpesaActive ? 'parent-active' : '' }}"><i class="bi bi-phone text-success"></i> M-PESA Payments</a>
+    <div class="collapse {{ $mpesaActive ? 'show' : '' }}" id="mpesaMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.mpesa.dashboard') }}" class="sublink {{ Request::is('finance/mpesa/dashboard') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        <a href="{{ route('finance.mpesa.prompt-payment.form') }}" class="sublink {{ Request::is('finance/mpesa/prompt-payment*') ? 'active' : '' }}"><i class="bi bi-phone-vibrate"></i> Prompt Parent to Pay</a>
+        <a href="{{ route('finance.mpesa.links.create') }}" class="sublink {{ Request::is('finance/mpesa/links/create') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Generate Payment Link</a>
+        <a href="{{ route('finance.mpesa.links.index') }}" class="sublink {{ Request::is('finance/mpesa/links') && !Request::is('finance/mpesa/links/create') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> View Payment Links</a>
+    </div>
+    
     <a href="{{ route('finance.bank-statements.index') }}"class="{{ Request::is('finance/bank-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
     <a href="{{ route('finance.student-statements.index') }}"class="{{ Request::is('finance/student-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Student Statements</a>
     <a href="{{ route('finance.balance-brought-forward.index') }}"class="{{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>

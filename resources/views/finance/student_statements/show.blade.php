@@ -108,6 +108,11 @@
                     <div>
                         <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Balance</h6>
                         <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700; color: {{ $balance > 0 ? '#dc3545' : '#10b981' }};">Ksh {{ number_format($balance, 2) }}</h4>
+                        @if($balance > 0)
+                            <button type="button" class="btn btn-success btn-sm mt-2" onclick="openPayBalanceModal({{ $student->id }}, {{ $balance }})">
+                                <i class="bi bi-wallet"></i> Pay Now
+                            </button>
+                        @endif
                     </div>
                     <i class="bi bi-wallet2" style="font-size: 2rem; color: {{ $balance > 0 ? '#dc3545' : '#10b981' }};"></i>
                 </div>
@@ -164,6 +169,13 @@
                                 $transactionId = $transaction['model_id'] ?? null;
                                 $transactionType = $transaction['type'] ?? 'Unknown';
                                 $isReversal = $transaction['is_reversal'] ?? false;
+                                $paymentChannel = null;
+                                
+                                // Get payment channel for payment transactions
+                                if($transactionType == 'Payment' && isset($transaction['payment_id'])) {
+                                    $payment = \App\Models\Payment::find($transaction['payment_id']);
+                                    $paymentChannel = $payment ? $payment->payment_channel : null;
+                                }
                             @endphp
                             <tr style="{{ $isReversal ? 'background-color: #fff3cd;' : '' }}">
                                 <td>{{ \Carbon\Carbon::parse($transaction['date'])->format('d M Y') }}</td>
@@ -171,7 +183,22 @@
                                     @if($transactionType == 'Invoice Item')
                                         <span class="badge bg-primary">Invoice</span>
                                     @elseif($transactionType == 'Payment')
-                                        <span class="badge bg-success">Payment</span>
+                                        <span class="badge bg-success">
+                                            Payment
+                                            @if($paymentChannel)
+                                                <br><small style="font-size: 0.7em;">
+                                                    @if($paymentChannel == 'stk_push')
+                                                        <i class="bi bi-phone"></i> M-PESA STK
+                                                    @elseif($paymentChannel == 'payment_link')
+                                                        <i class="bi bi-link-45deg"></i> Payment Link
+                                                    @elseif($paymentChannel == 'paybill_manual')
+                                                        <i class="bi bi-phone"></i> M-PESA Paybill
+                                                    @else
+                                                        {{ ucfirst(str_replace('_', ' ', $paymentChannel)) }}
+                                                    @endif
+                                                </small>
+                                            @endif
+                                        </span>
                                     @elseif($transactionType == 'Payment Reversal')
                                         <span class="badge bg-danger"><i class="bi bi-arrow-counterclockwise"></i> Payment Reversal</span>
                                     @elseif($transactionType == 'Discount')
@@ -203,7 +230,17 @@
                                         {{ $transaction['description'] }}
                                     @endif
                                 </td>
-                                <td><code>{{ $transaction['reference'] }}</code></td>
+                                <td>
+                                    <code>{{ $transaction['reference'] }}</code>
+                                    @if($transactionType == 'Payment' && isset($transaction['payment_id']))
+                                        @php
+                                            $payment = \App\Models\Payment::find($transaction['payment_id']);
+                                        @endphp
+                                        @if($payment && $payment->mpesa_receipt_number)
+                                            <br><small class="text-success"><i class="bi bi-check-circle"></i> {{ $payment->mpesa_receipt_number }}</small>
+                                        @endif
+                                    @endif
+                                </td>
                                 <td class="text-end">{{ $transaction['debit'] > 0 ? 'Ksh ' . number_format($transaction['debit'], 2) : '—' }}</td>
                                 <td class="text-end">{{ $transaction['credit'] > 0 ? 'Ksh ' . number_format($transaction['credit'], 2) : '—' }}</td>
                                 <td class="text-end">
@@ -419,6 +456,64 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+
+    // Pay Balance Modal
+    window.openPayBalanceModal = function(studentId, balance) {
+        const modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.innerHTML = `
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-success text-white">
+                        <h5 class="modal-title"><i class="bi bi-wallet"></i> Pay Outstanding Balance</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form action="{{ route('finance.mpesa.prompt-payment') }}" method="POST">
+                        @csrf
+                        <input type="hidden" name="student_id" value="${studentId}">
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> You can pay the full balance or a partial amount.
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Outstanding Balance</label>
+                                <input type="text" class="form-control" value="KES ${new Intl.NumberFormat().format(balance)}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Amount to Pay <span class="text-danger">*</span></label>
+                                <input type="number" name="amount" class="form-control" 
+                                       value="${balance}" min="1" max="${balance}" step="0.01" required>
+                                <small class="text-muted">Enter amount (Max: KES ${new Intl.NumberFormat().format(balance)})</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Phone Number <span class="text-danger">*</span></label>
+                                <input type="tel" name="phone_number" class="form-control" 
+                                       placeholder="e.g., 0712345678" required>
+                                <small class="text-muted">Enter M-PESA phone number to receive payment prompt</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notes (Optional)</label>
+                                <textarea name="notes" class="form-control" rows="2" 
+                                          placeholder="Add any notes about this payment..."></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-phone"></i> Send Payment Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+        modal.addEventListener('hidden.bs.modal', function() {
+            modal.remove();
+        });
+    };
 });
 </script>
 @endpush

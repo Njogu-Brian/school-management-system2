@@ -41,34 +41,85 @@ class PaymentWebhookController extends Controller
 
                 if ($transaction) {
                     DB::transaction(function () use ($transaction, $result, $webhook) {
-                        // Update transaction
+                        // Update transaction with M-PESA receipt details
                         $transaction->update([
                             'status' => 'completed',
-                            'transaction_id' => $result['mpesa_receipt_number'] ?? $transaction->transaction_id,
+                            'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? null,
                             'webhook_data' => $result,
                             'paid_at' => now(),
+                            'mpesa_transaction_date' => isset($result['transaction_date']) 
+                                ? \Carbon\Carbon::parse($result['transaction_date']) 
+                                : now(),
                         ]);
 
-                        // Update invoice if exists
-                        if ($transaction->invoice_id) {
-                            $invoice = $transaction->invoice;
-                            $invoice->increment('paid_amount', $transaction->amount);
-                            $invoice->update(['balance' => $invoice->total_amount - $invoice->paid_amount]);
-                            
-                            if ($invoice->balance <= 0) {
-                                $invoice->update(['status' => 'paid']);
-                            }
+                        // Determine payment channel
+                        $paymentChannel = 'stk_push';
+                        if ($transaction->payment_link_id) {
+                            $paymentChannel = 'payment_link';
+                        } elseif ($transaction->initiated_by) {
+                            $paymentChannel = 'stk_push'; // Admin-prompted
                         }
 
+                        // Get or create M-PESA payment method
+                        $mpesaMethod = \App\Models\PaymentMethod::firstOrCreate(
+                            ['code' => 'mpesa'],
+                            [
+                                'name' => 'M-PESA',
+                                'is_online' => true,
+                                'is_active' => true,
+                                'requires_reference' => true,
+                            ]
+                        );
+
                         // Create payment record
-                        \App\Models\Payment::create([
+                        $payment = \App\Models\Payment::create([
                             'student_id' => $transaction->student_id,
                             'invoice_id' => $transaction->invoice_id,
+                            'payment_link_id' => $transaction->payment_link_id,
+                            'payment_transaction_id' => $transaction->id,
+                            'family_id' => $transaction->student->family_id ?? null,
                             'amount' => $transaction->amount,
-                            'payment_method' => 'mpesa',
-                            'reference' => $result['mpesa_receipt_number'] ?? $transaction->reference,
+                            'payment_method_id' => $mpesaMethod->id,
+                            'payment_method' => 'mpesa', // Backward compatibility
+                            'payment_channel' => $paymentChannel,
+                            'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? null,
+                            'mpesa_phone_number' => $result['phone_number'] ?? $transaction->phone_number,
+                            'transaction_code' => $result['mpesa_receipt_number'] ?? $transaction->reference,
+                            'payer_name' => $transaction->student->getFullNameAttribute(),
+                            'payer_type' => 'parent',
+                            'narration' => 'M-PESA Payment - ' . ($result['mpesa_receipt_number'] ?? $transaction->reference),
                             'payment_date' => now(),
+                            'receipt_date' => now(),
                         ]);
+
+                        // Auto-allocate payment using PaymentAllocationService
+                        try {
+                            $allocationService = app(\App\Services\PaymentAllocationService::class);
+                            
+                            if ($transaction->invoice_id) {
+                                // Allocate to specific invoice
+                                $invoice = $transaction->invoice;
+                                $allocationService->allocateToInvoice($payment, $invoice);
+                            } else {
+                                // Auto-allocate to unpaid invoices
+                                $allocationService->autoAllocate($payment, $transaction->student_id);
+                            }
+                        } catch (\Exception $e) {
+                            Log::error('Payment allocation failed', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+
+                        // Mark payment link as used if exists
+                        if ($transaction->payment_link_id) {
+                            $paymentLink = $transaction->paymentLink;
+                            $paymentLink->payment_id = $payment->id;
+                            $paymentLink->save();
+                        }
+
+                        // Send payment confirmation to parent
+                        $this->sendPaymentConfirmation($payment);
 
                         // Handle POS order payment if exists
                         $posOrder = \App\Models\Pos\Order::where('payment_transaction_id', $transaction->id)->first();
@@ -96,6 +147,11 @@ class PaymentWebhookController extends Controller
                         'failure_reason' => $result['result_desc'] ?? 'Payment failed',
                         'webhook_data' => $result,
                     ]);
+
+                    // Notify admin if this was an admin-prompted payment
+                    if ($transaction->initiated_by) {
+                        $this->notifyAdminOfFailure($transaction);
+                    }
                 }
 
                 $webhook->markAsProcessed();
@@ -184,6 +240,93 @@ class PaymentWebhookController extends Controller
 
         // Send notification to parent
         $this->sendPosOrderConfirmation($order);
+    }
+
+    /**
+     * Send payment confirmation notification
+     */
+    protected function sendPaymentConfirmation(\App\Models\Payment $payment)
+    {
+        try {
+            $student = $payment->student;
+            $parent = $student->family;
+
+            if (!$parent) {
+                return;
+            }
+
+            $commService = app(\App\Services\CommunicationService::class);
+
+            $message = "Dear Parent,\n\n";
+            $message .= "Payment of KES " . number_format($payment->amount, 2) . " ";
+            $message .= "for {$student->first_name} {$student->last_name} has been received.\n\n";
+            $message .= "M-PESA Ref: " . $payment->mpesa_receipt_number . "\n";
+            $message .= "Receipt No: " . $payment->receipt_number . "\n";
+            $message .= "Date: " . $payment->payment_date->format('d M Y H:i') . "\n\n";
+            
+            // Add balance information
+            $balance = \App\Models\Invoice::where('student_id', $student->id)
+                ->where('status', '!=', 'paid')
+                ->sum('balance');
+            
+            if ($balance > 0) {
+                $message .= "Outstanding Balance: KES " . number_format($balance, 2) . "\n";
+            } else {
+                $message .= "✅ All fees paid. Thank you!\n";
+            }
+            
+            $message .= "\nView receipt: " . route('receipts.public', $payment->public_token);
+            $message .= "\n\nThank you!";
+
+            // Send SMS
+            if ($parent->primary_phone) {
+                $commService->sendSMS('parent', $parent->id, $parent->primary_phone, $message, 'Payment Confirmation');
+            }
+
+            // Send Email
+            if ($parent->primary_email) {
+                $htmlMessage = nl2br($message);
+                $commService->sendEmail('parent', $parent->id, $parent->primary_email, 'Payment Confirmation - ' . $payment->receipt_number, $htmlMessage);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send payment confirmation', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Notify admin of payment failure
+     */
+    protected function notifyAdminOfFailure(\App\Models\PaymentTransaction $transaction)
+    {
+        try {
+            if ($transaction->initiated_by) {
+                $admin = \App\Models\User::find($transaction->initiated_by);
+                
+                if ($admin && $admin->email) {
+                    $student = $transaction->student;
+                    
+                    $message = "Payment Request Failed\n\n";
+                    $message .= "Student: {$student->first_name} {$student->last_name} ({$student->admission_number})\n";
+                    $message .= "Amount: KES " . number_format($transaction->amount, 2) . "\n";
+                    $message .= "Phone: " . $transaction->phone_number . "\n";
+                    $message .= "Reason: " . $transaction->failure_reason . "\n";
+                    
+                    \Illuminate\Support\Facades\Mail::to($admin->email)
+                        ->send(new \App\Mail\GenericMail(
+                            'Payment Request Failed',
+                            $message
+                        ));
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to notify admin of payment failure', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

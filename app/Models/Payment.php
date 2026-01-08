@@ -21,11 +21,16 @@ class Payment extends Model
         'student_id',
         'family_id',
         'invoice_id',
+        'payment_link_id',
+        'payment_transaction_id',
         'amount',
         'allocated_amount',
         'unallocated_amount',
         'payment_method', // Keep for backward compatibility
         'payment_method_id',
+        'payment_channel',
+        'mpesa_receipt_number',
+        'mpesa_phone_number',
         'payer_name',
         'payer_type',
         'narration',
@@ -108,6 +113,16 @@ class Payment extends Model
     public function receipt(): HasOne
     {
         return $this->hasOne(Receipt::class);
+    }
+
+    public function paymentLink(): BelongsTo
+    {
+        return $this->belongsTo(PaymentLink::class);
+    }
+
+    public function paymentTransaction(): BelongsTo
+    {
+        return $this->belongsTo(PaymentTransaction::class);
     }
 
     /**
@@ -300,5 +315,54 @@ class Payment extends Model
             $this->bulk_sent_channels = $bulkSent;
             $this->save();
         }
+    }
+
+    /**
+     * Get human-readable payment channel name
+     */
+    public function getPaymentChannelNameAttribute(): string
+    {
+        $channels = [
+            'stk_push' => 'M-PESA STK Push',
+            'payment_link' => 'Payment Link',
+            'paybill_manual' => 'M-PESA Paybill (Manual Entry)',
+            'admin_entry' => 'Admin Entry',
+            'mobile_app' => 'Mobile App',
+            'online_portal' => 'Online Portal',
+            'bank_transfer' => 'Bank Transfer',
+            'cash' => 'Cash',
+            'cheque' => 'Cheque',
+        ];
+
+        return $channels[$this->payment_channel] ?? $this->payment_channel ?? 'Not Specified';
+    }
+
+    /**
+     * Check if payment was made via M-PESA
+     */
+    public function isMpesaPayment(): bool
+    {
+        return in_array($this->payment_channel, ['stk_push', 'payment_link', 'paybill_manual'])
+            || !empty($this->mpesa_receipt_number);
+    }
+
+    /**
+     * Get payment source icon
+     */
+    public function getPaymentSourceIcon(): string
+    {
+        $icons = [
+            'stk_push' => '<i class="fas fa-mobile-alt text-success"></i>',
+            'payment_link' => '<i class="fas fa-link text-primary"></i>',
+            'paybill_manual' => '<i class="fas fa-phone text-info"></i>',
+            'admin_entry' => '<i class="fas fa-user-shield text-warning"></i>',
+            'mobile_app' => '<i class="fas fa-mobile text-purple"></i>',
+            'online_portal' => '<i class="fas fa-globe text-cyan"></i>',
+            'bank_transfer' => '<i class="fas fa-university text-primary"></i>',
+            'cash' => '<i class="fas fa-money-bill-wave text-success"></i>',
+            'cheque' => '<i class="fas fa-file-invoice-dollar text-info"></i>',
+        ];
+
+        return $icons[$this->payment_channel] ?? '<i class="fas fa-receipt text-secondary"></i>';
     }
 }

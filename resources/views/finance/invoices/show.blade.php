@@ -3,11 +3,19 @@
 @section('content')
 <div class="finance-page">
   <div class="finance-shell">
+    @php
+        $payNowBtn = '';
+        if ($invoice->balance > 0) {
+            $payNowBtn = '<a href="' . route('finance.mpesa.prompt-payment.form', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) . '" class="btn btn-finance btn-success"><i class="bi bi-phone"></i> Prompt Parent to Pay (M-PESA)</a>';
+            $payNowBtn .= '<a href="' . route('finance.mpesa.links.create', ['student_id' => $invoice->student_id, 'invoice_id' => $invoice->id]) . '" class="btn btn-finance btn-primary"><i class="bi bi-link-45deg"></i> Generate Payment Link</a>';
+        }
+    @endphp
+    
     @include('finance.partials.header', [
         'title' => 'Invoice: ' . $invoice->invoice_number,
         'icon' => 'bi bi-file-text',
         'subtitle' => $invoice->student->first_name ? 'For ' . $invoice->student->first_name . ' ' . ($invoice->student->last_name ?? '') : 'Invoice details',
-        'actions' => '<a href="' . route('finance.invoices.print_single', $invoice) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'actions' => $payNowBtn . '<a href="' . route('finance.invoices.print_single', $invoice) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     @php
