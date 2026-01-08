@@ -949,87 +949,111 @@ class PaymentController extends Controller
                 $sharedAmounts = $request->shared_amounts;
                 $totalShared = array_sum($sharedAmounts);
                 
-                // Validate total doesn't exceed payment amount
-                if ($totalShared > $payment->amount + 0.01) {
-                    return back()->with('error', 'Total shared amounts cannot exceed payment amount.');
+                // Validate total equals exactly payment amount (with small tolerance for rounding)
+                $tolerance = 0.01;
+                if (abs($totalShared - $payment->amount) > $tolerance) {
+                    return back()->with('error', 'Total shared amounts must equal exactly the payment amount of Ksh ' . number_format($payment->amount, 2) . '. Current total: Ksh ' . number_format($totalShared, 2));
                 }
                 
-                // Deallocate from original payment if needed (FIFO - oldest allocations first)
-                $deallocatedInvoices = $this->deallocatePaymentAmount($payment, $totalShared);
+                // Deallocate all from original payment since we're sharing the entire amount
+                $deallocatedInvoices = $this->deallocatePaymentAmount($payment, $payment->amount);
                 $affectedInvoices = $affectedInvoices->merge($deallocatedInvoices);
                 
-                $totalSharedAmount = 0;
                 $newPayments = [];
+                $originalPaymentAmount = $payment->amount;
+                $sharedReference = $payment->transaction_code;
                 
                 foreach ($sharedStudents as $index => $studentId) {
                     $student = Student::withAlumni()->findOrFail($studentId);
                     $amount = (float)($sharedAmounts[$index] ?? 0);
                     
+                    if ($amount <= 0) {
+                        continue; // Skip if no amount allocated
+                    }
+                    
                     // For alumni or archived students, enforce balance limit
                     $isAlumniOrArchived = $student->is_alumni || $student->archive;
-                    if ($isAlumniOrArchived && $amount > 0) {
+                    if ($isAlumniOrArchived) {
                         $studentBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
                         if ($amount > $studentBalance) {
                             return back()->with('error', "Cannot share payment to " . ($student->is_alumni ? 'alumni' : 'archived') . " student {$student->full_name}. Amount (Ksh " . number_format($amount, 2) . ") exceeds balance (Ksh " . number_format($studentBalance, 2) . ").");
                         }
                     }
                     
-                    if ($amount > 0) {
-                        $totalSharedAmount += $amount;
+                    // Determine if this is the original student or a new recipient
+                    $isOriginalStudent = ($student->id == $originalStudent->id);
+                    
+                    // Build narration
+                    if ($isOriginalStudent) {
+                        $narration = $request->transfer_reason ?? "Payment shared with other students (Original amount: Ksh " . number_format($originalPaymentAmount, 2) . ", Retained: Ksh " . number_format($amount, 2) . ")";
+                    } else {
+                        $narration = $request->transfer_reason ?? "Shared from " . $originalStudent->full_name . " (" . $originalStudent->admission_number . ") - Original payment " . $sharedReference;
+                    }
+                    
+                    if ($isOriginalStudent) {
+                        // Update the original payment with the new amount
+                        $payment->amount = $amount;
+                        $payment->narration = $narration;
+                        $payment->save();
+                        
+                        // Auto-allocate the reduced amount
+                        $this->allocationService->autoAllocate($payment, $student->id);
+                        
+                        // Update receipt for original payment with new amount
+                        try {
+                            $this->receiptService->generateReceipt($payment->fresh(), ['save' => true]);
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to update receipt for original payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                    } else {
+                        // Create new payment for shared student
                         $newPayment = Payment::create([
                             'student_id' => $student->id,
                             'amount' => $amount,
                             'payment_method_id' => $payment->payment_method_id,
                             'payment_date' => $payment->payment_date,
-                            'transaction_code' => $payment->transaction_code . '-S' . $student->id,
+                            'transaction_code' => $sharedReference . '-S' . $student->id,
                             'payer_name' => $payment->payer_name,
                             'payer_type' => $payment->payer_type,
-                            'narration' => ($request->transfer_reason ?? 'Shared from payment ' . $payment->transaction_code),
+                            'narration' => $narration,
                         ]);
                         
                         $newPayments[] = $newPayment;
                         
-                        // Auto-allocate
+                        // Auto-allocate to new student's invoices
                         $this->allocationService->autoAllocate($newPayment, $student->id);
                         
-                        // Recalculate invoices for new student
-                        $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-                        foreach ($studentInvoices as $invoice) {
-                            \App\Services\InvoiceService::recalc($invoice);
+                        // Generate receipt for new payment
+                        try {
+                            $this->receiptService->generateReceipt($newPayment, ['save' => true]);
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to generate receipt for shared payment', [
+                                'payment_id' => $newPayment->id,
+                                'error' => $e->getMessage()
+                            ]);
                         }
                         
                         // Send payment received notification
                         $this->sendPaymentNotifications($newPayment);
                     }
+                    
+                    // Recalculate invoices for this student
+                    $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+                    foreach ($studentInvoices as $invoice) {
+                        \App\Services\InvoiceService::recalc($invoice);
+                    }
                 }
-                
-                // Reduce original payment amount by the total shared amount
-                $payment->decrement('amount', $totalSharedAmount);
-                
-                // Update allocation totals for original payment
-                $payment->updateAllocationTotals();
                 
                 // Recalculate affected invoices for original student
                 foreach ($affectedInvoices as $invoice) {
                     \App\Services\InvoiceService::recalc($invoice);
                 }
                 
-                // Update receipt for original payment
-                try {
-                    $this->receiptService->generateReceipt($payment->fresh(), ['save' => true]);
-                } catch (\Exception $e) {
-                    \Log::warning('Failed to update receipt for original payment', [
-                        'payment_id' => $payment->id,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-                
-                // Send fee update notification to original student
-                if ($totalSharedAmount > 0) {
-                    $this->sendFeeUpdateNotification($originalStudent, $totalSharedAmount, $payment);
-                }
-                
-                return back()->with('success', 'Payment shared among ' . count($sharedStudents) . ' student(s).');
+                $recipientCount = count(array_filter($sharedAmounts, function($amt) { return $amt > 0; }));
+                return back()->with('success', 'Payment of Ksh ' . number_format($originalPaymentAmount, 2) . ' successfully shared among ' . $recipientCount . ' student(s).');
             }
         });
     }

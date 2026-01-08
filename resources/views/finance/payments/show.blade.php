@@ -361,30 +361,58 @@
                     <div id="transferMultipleStudents" style="display: none;">
                         <div class="mb-3">
                             <label class="form-label">Students to Share With <span class="text-danger">*</span></label>
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> Total shared amounts must equal exactly <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                            </div>
                             <div id="sharedStudentsList">
-                                <div class="shared-student-item mb-2">
+                                <!-- Original student (pre-populated) -->
+                                <div class="shared-student-item mb-3 border-bottom pb-2">
+                                    <label class="form-label text-muted small">Original Student</label>
+                                    <input type="hidden" name="shared_students[]" value="{{ $payment->student_id }}" class="shared-student-id">
+                                    <input type="text" class="form-control shared-student-name" value="{{ $payment->student->full_name }} ({{ $payment->student->admission_number }})" readonly>
+                                    <div class="input-group mt-2">
+                                        <span class="input-group-text">Ksh</span>
+                                        <input type="number" step="0.01" min="0" max="{{ $payment->amount }}" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount / 2, 2, '.', '') }}" required>
+                                        <span class="input-group-text bg-secondary text-white">Cannot Remove</span>
+                                    </div>
+                                </div>
+                                <!-- Additional students start here -->
+                                <div class="shared-student-item mb-2" data-index="1">
                                     @include('partials.student_live_search', [
-                                        'hiddenInputId' => 'shared_student_id_0',
+                                        'hiddenInputId' => 'shared_student_id_1',
                                         'hiddenInputName' => 'shared_students[]',
-                                        'displayInputId' => 'shared_student_name_0',
-                                        'resultsId' => 'shared_student_results_0',
+                                        'displayInputId' => 'shared_student_name_1',
+                                        'resultsId' => 'shared_student_results_1',
                                         'placeholder' => 'Type name or admission #',
                                         'inputClass' => 'form-control shared-student-name'
                                     ])
                                     <div class="input-group mt-2">
                                         <span class="input-group-text">Ksh</span>
-                                        <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount">
+                                        <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount / 2, 2, '.', '') }}" required>
                                         <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
                                             <i class="bi bi-x"></i>
                                         </button>
                                     </div>
                                 </div>
                             </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="addSharedStudent">
-                                <i class="bi bi-plus"></i> Add Student
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addSharedStudent">
+                                <i class="bi bi-plus"></i> Add Another Student
                             </button>
-                            <div class="mt-2">
-                                <strong>Total Allocated: <span id="totalSharedAmount">Ksh 0.00</span></strong>
+                            <div class="mt-3 p-3 bg-light rounded">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>Total Allocated:</strong>
+                                        <span id="totalSharedAmount" class="fs-5">Ksh 0.00</span>
+                                    </div>
+                                    <div>
+                                        <strong>Remaining:</strong>
+                                        <span id="remainingAmount" class="fs-5">Ksh {{ number_format($payment->amount, 2) }}</span>
+                                    </div>
+                                </div>
+                                <div class="progress mt-2" style="height: 8px;">
+                                    <div id="allocationProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <small id="allocationStatus" class="text-muted">Allocate exactly Ksh {{ number_format($payment->amount, 2) }}</small>
                             </div>
                         </div>
                     </div>
@@ -442,6 +470,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (this.value === 'share') {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'block';
+                // Initialize total calculation when share is selected
+                updateTotalShared();
             } else {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'none';
@@ -527,74 +557,126 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
     
-    // Add shared student (clones the first item's markup)
+    // Add shared student (clones the last added item's markup)
     const addSharedStudentBtn = document.getElementById('addSharedStudent');
     if (addSharedStudentBtn) {
-        let sharedIndex = 1;
+        let sharedIndex = 2; // Start at 2 since 0 is original student, 1 is first additional
         const list = document.getElementById('sharedStudentsList');
-        const template = list.querySelector('.shared-student-item');
+        
         addSharedStudentBtn.addEventListener('click', function() {
+            const items = list.querySelectorAll('.shared-student-item');
+            const template = items[items.length - 1]; // Get the last item as template
             const clone = template.cloneNode(true);
             const newIndex = sharedIndex++;
-            // Update IDs to keep them unique
+            
+            // Clear the clone
+            clone.setAttribute('data-index', newIndex);
             clone.querySelectorAll('[id]').forEach(el => {
-                el.id = el.id.replace('_0', `_${newIndex}`);
+                const oldId = el.id;
+                const baseName = oldId.replace(/_\d+$/, '');
+                el.id = `${baseName}_${newIndex}`;
             });
             clone.querySelectorAll('[name="shared_students[]"]').forEach(el => el.value = '');
             clone.querySelectorAll('[name="shared_amounts[]"]').forEach(el => el.value = '');
+            clone.querySelectorAll('input[type="text"]').forEach(el => el.value = '');
+            
             list.appendChild(clone);
+            
+            // Initialize live search for the new clone
             const wrapper = clone.querySelector('.student-live-search-wrapper');
             initLiveSearchWrapper(wrapper);
+            
+            // Add remove functionality
             clone.querySelector('.remove-student-btn')?.addEventListener('click', function() {
                 clone.remove();
                 updateTotalShared();
             });
+            
+            // Add amount change listener
             clone.querySelector('.shared-amount')?.addEventListener('input', updateTotalShared);
+            
+            updateTotalShared();
         });
     }
     
-    // Update total shared amount
+    // Update total shared amount with exact validation
     function updateTotalShared() {
         const amounts = document.querySelectorAll('.shared-amount');
         let total = 0;
         amounts.forEach(input => {
             const amount = parseFloat(input.value) || 0;
             total += amount;
-            
-            // Validate each shared amount
-            if (amount > maxTransferAmount) {
-                input.setCustomValidity(`Amount cannot exceed payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
-            } else if (amount <= 0 && input.value !== '') {
-                input.setCustomValidity('Amount must be greater than 0');
-            } else {
-                input.setCustomValidity('');
-            }
         });
         
+        const remaining = maxTransferAmount - total;
+        const tolerance = 0.01; // Allow 1 cent tolerance
+        
+        // Update UI elements
         const totalElement = document.getElementById('totalSharedAmount');
+        const remainingElement = document.getElementById('remainingAmount');
+        const statusElement = document.getElementById('allocationStatus');
+        const progressBar = document.getElementById('allocationProgress');
+        const form = document.getElementById('transferPaymentForm');
+        const submitBtn = form?.querySelector('button[type="submit"]');
+        
         if (totalElement) {
             totalElement.textContent = `Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-            
-            // Highlight if total exceeds payment amount
-            if (total > maxTransferAmount) {
-                totalElement.style.color = 'red';
-                totalElement.parentElement.innerHTML = `<strong style="color: red;">Total Allocated: <span id="totalSharedAmount">Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span> (Exceeds payment amount!)</strong>`;
-            } else {
-                totalElement.style.color = '';
-            }
         }
         
-        // Validate form submission
-        const form = document.getElementById('transferPaymentForm');
-        if (form) {
-            const submitBtn = form.querySelector('button[type="submit"]');
-            if (transferType && transferType.value === 'share') {
-                if (total > maxTransferAmount + 0.01) {
-                    if (submitBtn) submitBtn.disabled = true;
-                } else {
-                    if (submitBtn) submitBtn.disabled = false;
-                }
+        if (remainingElement) {
+            remainingElement.textContent = `Ksh ${Math.max(0, remaining).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        
+        // Calculate percentage
+        const percentage = Math.min(100, (total / maxTransferAmount) * 100);
+        if (progressBar) {
+            progressBar.style.width = `${percentage}%`;
+        }
+        
+        // Validate and update status
+        if (Math.abs(remaining) < tolerance) {
+            // Exact match - valid
+            if (progressBar) {
+                progressBar.className = 'progress-bar bg-success';
             }
+            if (statusElement) {
+                statusElement.textContent = '✓ Total matches payment amount exactly';
+                statusElement.className = 'text-success';
+            }
+            if (submitBtn) submitBtn.disabled = false;
+            
+            // Clear validation errors
+            amounts.forEach(input => input.setCustomValidity(''));
+        } else if (remaining < -tolerance) {
+            // Over-allocated - invalid
+            if (progressBar) {
+                progressBar.className = 'progress-bar bg-danger';
+            }
+            if (statusElement) {
+                statusElement.textContent = `⚠ Total exceeds payment amount by Ksh ${Math.abs(remaining).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                statusElement.className = 'text-danger';
+            }
+            if (submitBtn) submitBtn.disabled = true;
+            
+            // Set validation error
+            amounts.forEach(input => {
+                if (parseFloat(input.value) > 0) {
+                    input.setCustomValidity('Total shared amount exceeds payment amount');
+                }
+            });
+        } else {
+            // Under-allocated - invalid
+            if (progressBar) {
+                progressBar.className = 'progress-bar bg-warning';
+            }
+            if (statusElement) {
+                statusElement.textContent = `⚠ Need to allocate Ksh ${remaining.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} more`;
+                statusElement.className = 'text-warning';
+            }
+            if (submitBtn) submitBtn.disabled = true;
+            
+            // Clear validation errors but disable submit
+            amounts.forEach(input => input.setCustomValidity(''));
         }
     }
     
