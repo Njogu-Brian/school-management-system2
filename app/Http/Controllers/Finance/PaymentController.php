@@ -2337,7 +2337,102 @@ class PaymentController extends Controller
         ]);
     }
 
+    /**
+     * Initiate bulk send using background job with real-time tracking
+     */
     public function bulkSend(Request $request)
+    {
+        $request->validate([
+            'channels' => 'required|array|min:1',
+            'channels.*' => 'in:sms,email,whatsapp',
+            'payment_ids' => 'required|array|min:1',
+            'payment_ids.*' => 'exists:payments,id',
+            'student_id' => 'nullable|exists:students,id',
+            'class_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+        ]);
+
+        $channels = $request->input('channels');
+        $paymentIds = $request->input('payment_ids');
+        
+        // Generate tracking ID
+        $trackingId = 'bulk_send_' . uniqid() . '_' . time();
+        
+        // Dispatch job to background queue
+        \App\Jobs\BulkSendPaymentNotifications::dispatch(
+            $trackingId,
+            $paymentIds,
+            $channels,
+            auth()->id()
+        );
+        
+        Log::info('Bulk send job dispatched', [
+            'tracking_id' => $trackingId,
+            'payment_count' => count($paymentIds),
+            'channels' => $channels,
+            'user_id' => auth()->id()
+        ]);
+        
+        // Redirect to progress tracking page
+        return redirect()->route('finance.payments.bulk-send-tracking', [
+            'tracking_id' => $trackingId,
+            'total' => count($paymentIds),
+            'channels' => implode(',', $channels)
+        ]);
+    }
+    
+    /**
+     * Show bulk send progress tracking page
+     */
+    public function bulkSendTracking(Request $request)
+    {
+        $trackingId = $request->query('tracking_id');
+        $totalPayments = $request->query('total', 0);
+        $channels = explode(',', $request->query('channels', ''));
+        
+        return view('finance.payments.bulk-send-progress', [
+            'trackingId' => $trackingId,
+            'totalPayments' => $totalPayments,
+            'channels' => $channels
+        ]);
+    }
+    
+    /**
+     * API endpoint to check bulk send progress
+     */
+    public function bulkSendProgressCheck(Request $request)
+    {
+        $trackingId = $request->query('tracking_id');
+        
+        if (!$trackingId) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Tracking ID is required'
+            ], 400);
+        }
+        
+        // Get progress from cache
+        $cacheKey = "bulk_send_progress_{$trackingId}";
+        $progress = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        
+        if (!$progress) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Progress data not found. The job may not have started yet.'
+            ], 404);
+        }
+        
+        return response()->json($progress);
+    }
+    
+    /**
+     * Old synchronous bulk send method (kept for reference, not used)
+     * @deprecated Use bulkSend() with background job instead
+     */
+    public function bulkSendSynchronous_OLD(Request $request)
     {
         $request->validate([
             'channels' => 'required|array|min:1',

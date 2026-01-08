@@ -1110,6 +1110,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('payments/bulk-allocate-unallocated', [PaymentController::class, 'bulkAllocateUnallocated'])->name('payments.bulk-allocate-unallocated');
         Route::post('payments/bulk-send-preview', [PaymentController::class, 'bulkSendPreview'])->name('payments.bulk-send-preview');
         Route::post('payments/bulk-send', [PaymentController::class, 'bulkSend'])->name('payments.bulk-send');
+        Route::get('payments/bulk-send-tracking', [PaymentController::class, 'bulkSendTracking'])->name('payments.bulk-send-tracking');
+        Route::get('payments/bulk-send-progress-check', [PaymentController::class, 'bulkSendProgressCheck'])->name('payments.bulk-send-progress-check');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
