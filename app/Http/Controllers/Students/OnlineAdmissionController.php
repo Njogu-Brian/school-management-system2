@@ -9,7 +9,7 @@ use App\Models\ParentInfo;
 use App\Models\Academics\Classroom;
 use App\Models\Academics\Stream;
 use App\Models\StudentCategory;
-use App\Models\Route;
+use App\Models\Transport;
 use App\Models\Trip;
 use App\Models\DropOffPoint;
 use App\Services\TransportFeeService;
@@ -219,7 +219,7 @@ class OnlineAdmissionController extends Controller
         $classrooms = Classroom::orderBy('name')->get();
         $streams = Stream::orderBy('name')->get();
         $categories = StudentCategory::orderBy('name')->get();
-        $routes = Route::orderBy('name')->get();
+        $routes = Transport::orderBy('name')->get();
         $trips = Trip::orderBy('trip_name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $countryCodes = $this->getCountryCodes();
