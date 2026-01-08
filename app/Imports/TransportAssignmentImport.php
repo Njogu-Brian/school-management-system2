@@ -315,11 +315,11 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
     }
 
     /**
-     * Smart name matching algorithm
-     * 1. Try exact full name match
-     * 2. Try matching with name parts in any order
-     * 3. If 2+ name parts match and only one student has those parts, use that student
-     * 4. If multiple students share 2 names, use 3rd name to disambiguate
+     * Smart name matching algorithm - improved for Kenyan name patterns
+     * 1. Try exact full name match (case insensitive)
+     * 2. Match if ALL Excel name parts are found in student name (allows student to have additional names)
+     * 3. Match if at least 2 name parts match and it's unique
+     * 4. Return null if ambiguous (multiple students match the same parts)
      */
     protected function findStudentByName(string $searchName): ?Student
     {
@@ -335,107 +335,79 @@ class TransportAssignmentImport implements ToCollection, WithHeadingRow, SkipsEm
             ->where('is_alumni', false)
             ->get();
 
-        $matches = [];
+        $exactMatches = [];
+        $goodMatches = []; // All search parts found in student
+        $partialMatches = []; // Some parts match
 
         foreach ($students as $student) {
             // Get student's name parts from database
             $studentParts = $this->getStudentNameParts($student);
             
-            // Count how many name parts match (order doesn't matter)
-            $matchCount = $this->countMatchingParts($searchParts, $studentParts);
+            // Check if all search parts are found in student parts
+            $allSearchPartsFound = true;
+            $matchedParts = 0;
             
-            if ($matchCount >= 2) {
-                $matches[] = [
-                    'student' => $student,
-                    'match_count' => $matchCount,
-                    'total_search_parts' => count($searchParts),
-                    'total_student_parts' => count($studentParts),
-                    'student_parts' => $studentParts
-                ];
-            }
-        }
-
-        // No matches found
-        if (empty($matches)) {
-            return null;
-        }
-
-        // Sort by match count (highest first)
-        usort($matches, function($a, $b) {
-            return $b['match_count'] - $a['match_count'];
-        });
-
-        // If only one match, return it
-        if (count($matches) === 1) {
-            return $matches[0]['student'];
-        }
-
-        // Multiple matches - try to find unique match
-        $topMatchCount = $matches[0]['match_count'];
-        $topMatches = array_filter($matches, fn($m) => $m['match_count'] === $topMatchCount);
-
-        // If only one student has the highest match count, use that
-        if (count($topMatches) === 1) {
-            return $matches[0]['student'];
-        }
-
-        // Multiple students with same match count
-        // Try to disambiguate using additional name parts
-        foreach ($topMatches as $match) {
-            $studentParts = $match['student_parts'];
-            
-            // Check if ALL search parts are found in student parts
-            $allMatch = true;
             foreach ($searchParts as $searchPart) {
                 $found = false;
                 foreach ($studentParts as $studentPart) {
                     if ($this->fuzzyMatch($searchPart, $studentPart)) {
                         $found = true;
+                        $matchedParts++;
                         break;
                     }
                 }
                 if (!$found) {
-                    $allMatch = false;
-                    break;
+                    $allSearchPartsFound = false;
                 }
             }
             
-            if ($allMatch) {
-                // This student matches all search parts
-                // Check if any other student also matches all parts
-                $fullMatchCount = 0;
-                $fullMatchStudent = null;
-                
-                foreach ($topMatches as $m) {
-                    $allPartsMatch = true;
-                    foreach ($searchParts as $searchPart) {
-                        $found = false;
-                        foreach ($m['student_parts'] as $sp) {
-                            if ($this->fuzzyMatch($searchPart, $sp)) {
-                                $found = true;
-                                break;
-                            }
-                        }
-                        if (!$found) {
-                            $allPartsMatch = false;
-                            break;
-                        }
-                    }
-                    if ($allPartsMatch) {
-                        $fullMatchCount++;
-                        $fullMatchStudent = $m['student'];
-                    }
-                }
-                
-                // If only one student matches all parts, return that student
-                if ($fullMatchCount === 1) {
-                    return $fullMatchStudent;
-                }
+            // Categorize the match quality
+            if ($matchedParts === count($searchParts) && count($searchParts) === count($studentParts)) {
+                // Perfect match - same number of name parts, all match
+                $exactMatches[] = $student;
+            } elseif ($allSearchPartsFound) {
+                // Good match - all Excel parts found in student (student may have extra names)
+                $goodMatches[] = [
+                    'student' => $student,
+                    'extra_parts' => count($studentParts) - count($searchParts)
+                ];
+            } elseif ($matchedParts >= 2) {
+                // Partial match - at least 2 parts match
+                $partialMatches[] = [
+                    'student' => $student,
+                    'matched_count' => $matchedParts
+                ];
             }
         }
 
-        // Still ambiguous - return the first match (highest score)
-        // This will be handled by manual linking if in preview mode
+        // Return exact match if found
+        if (count($exactMatches) === 1) {
+            return $exactMatches[0];
+        }
+        
+        // Return good match if only one found
+        // Example: Excel has "Claire Wanjiru" -> Matches "CLAIRE WANJIRU KARIUKI"
+        if (count($goodMatches) === 1) {
+            return $goodMatches[0]['student'];
+        }
+        
+        // Multiple good matches - prefer the one with fewer extra parts
+        if (count($goodMatches) > 1) {
+            usort($goodMatches, fn($a, $b) => $a['extra_parts'] - $b['extra_parts']);
+            // Only return if the top match has significantly fewer extra parts
+            if ($goodMatches[0]['extra_parts'] < $goodMatches[1]['extra_parts']) {
+                return $goodMatches[0]['student'];
+            }
+            // Ambiguous - return null for manual linking
+            return null;
+        }
+
+        // Try partial matches if at least 2 parts match and only one student
+        if (count($partialMatches) === 1 && $partialMatches[0]['matched_count'] >= 2) {
+            return $partialMatches[0]['student'];
+        }
+
+        // No clear match - return null for manual linking
         return null;
     }
 

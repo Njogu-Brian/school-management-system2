@@ -36,23 +36,48 @@ class TransportImportController extends Controller
      */
     public function preview(Request $request)
     {
-        $validated = $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
-            'year' => 'nullable|integer',
-            'term' => 'nullable|integer|in:1,2,3',
-        ]);
+        try {
+            $validated = $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+                'year' => 'nullable|integer',
+                'term' => 'nullable|integer|in:1,2,3',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->errors();
+            if (isset($errors['file'])) {
+                return back()->withErrors($errors)->withInput();
+            }
+            throw $e;
+        }
 
         try {
             // Check if file was actually uploaded
             if (!$request->hasFile('file')) {
-                return back()->with('error', 'No file uploaded. Please select a file to import.');
+                return back()->with('error', 'No file uploaded. Please select an Excel file to import.');
             }
 
             $file = $request->file('file');
             
             // Check if file is valid
             if (!$file->isValid()) {
-                return back()->with('error', 'File upload failed. Please try again. Error: ' . $file->getErrorMessage());
+                $errorCode = $file->getError();
+                $errorMessages = [
+                    UPLOAD_ERR_INI_SIZE => 'File is too large. Server upload_max_filesize exceeded.',
+                    UPLOAD_ERR_FORM_SIZE => 'File is too large. Maximum 10MB allowed.',
+                    UPLOAD_ERR_PARTIAL => 'File was only partially uploaded. Please try again.',
+                    UPLOAD_ERR_NO_FILE => 'No file was uploaded. Please select a file.',
+                    UPLOAD_ERR_NO_TMP_DIR => 'Server error: Missing temporary folder.',
+                    UPLOAD_ERR_CANT_WRITE => 'Server error: Failed to write file to disk.',
+                    UPLOAD_ERR_EXTENSION => 'Server error: A PHP extension stopped the file upload.',
+                ];
+                $message = $errorMessages[$errorCode] ?? 'File upload failed. Please try again.';
+                return back()->with('error', $message);
+            }
+            
+            // Additional size check
+            $fileSizeKB = $file->getSize() / 1024;
+            if ($fileSizeKB > 10240) { // 10MB
+                return back()->with('error', 'File is too large (' . round($fileSizeKB/1024, 2) . ' MB). Maximum 10MB allowed.');
             }
 
             [$year, $term] = \App\Services\TransportFeeService::resolveYearAndTerm($request->year, $request->term);
