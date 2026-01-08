@@ -708,11 +708,16 @@
 (function() {
     'use strict';
     
+    console.log('[Invoice Edit] Script loaded');
+    
     function handleFormSubmit(e) {
         const form = e.target;
         
+        console.log('[Invoice Edit] Submit event detected on:', form);
+        
         // Only handle forms with class 'edit-item-form'
         if (!form || !form.classList || !form.classList.contains('edit-item-form')) {
+            console.log('[Invoice Edit] Not an edit-item-form, ignoring');
             return true; // Let other forms submit normally
         }
         
@@ -769,11 +774,25 @@
         const submitButton = form.querySelector('button[type="submit"]');
         const originalText = submitButton ? submitButton.innerHTML : '';
         
-        // Validate form
-        if (!form.checkValidity()) {
-            form.reportValidity();
+        // Validate form fields manually for better error display
+        const newAmountInput = form.querySelector('input[name="new_amount"]');
+        const reasonInput = form.querySelector('textarea[name="reason"]');
+        
+        if (!newAmountInput || !newAmountInput.value) {
+            alert('Please enter a new amount');
+            if (newAmountInput) newAmountInput.focus();
             return false;
         }
+        
+        if (!reasonInput || !reasonInput.value.trim()) {
+            alert('Please enter a reason for the change');
+            if (reasonInput) reasonInput.focus();
+            return false;
+        }
+        
+        console.log('[Invoice Edit] Form validation passed');
+        console.log('[Invoice Edit] New amount:', newAmountInput.value);
+        console.log('[Invoice Edit] Reason:', reasonInput.value);
         
         // Disable submit button
         if (submitButton) {
@@ -782,6 +801,10 @@
         }
         
         console.log('[Invoice Edit] Sending AJAX request to:', form.action);
+        console.log('[Invoice Edit] FormData contents:');
+        for (let pair of formData.entries()) {
+            console.log('[Invoice Edit]  ', pair[0], '=', pair[1]);
+        }
         
         // Use XMLHttpRequest for better compatibility
         const xhr = new XMLHttpRequest();
@@ -789,6 +812,8 @@
         xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         xhr.setRequestHeader('Accept', 'application/json');
+        
+        console.log('[Invoice Edit] Request headers set');
         
         xhr.onload = function() {
             console.log('[Invoice Edit] Response status:', xhr.status);
@@ -883,21 +908,47 @@
     }
     
     // Initialize when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('[Invoice Edit] DOM loaded, attaching submit handler');
-            document.addEventListener('submit', handleFormSubmit, true); // Use capture phase
-        });
-    } else {
-        console.log('[Invoice Edit] DOM already ready, attaching submit handler');
+    function init() {
+        console.log('[Invoice Edit] Initializing...');
+        
+        // Attach global submit handler
         document.addEventListener('submit', handleFormSubmit, true); // Use capture phase
+        console.log('[Invoice Edit] Global submit handler attached');
+        
+        // Also attach directly to existing forms
+        const forms = document.querySelectorAll('.edit-item-form');
+        console.log('[Invoice Edit] Found', forms.length, 'forms');
+        
+        forms.forEach(form => {
+            console.log('[Invoice Edit] Attaching handler to form:', form.id || form.action);
+            form.addEventListener('submit', handleFormSubmit, true);
+            
+            // Also attach to submit button for debugging
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', function(e) {
+                    console.log('[Invoice Edit] Submit button clicked');
+                });
+            }
+        });
+        
+        // Listen for modal shown events to attach handlers to dynamically loaded forms
+        document.addEventListener('shown.bs.modal', function(e) {
+            console.log('[Invoice Edit] Modal shown, checking for forms');
+            const modal = e.target;
+            const forms = modal.querySelectorAll('.edit-item-form');
+            forms.forEach(form => {
+                console.log('[Invoice Edit] Attaching handler to form in modal:', form.id || form.action);
+                form.addEventListener('submit', handleFormSubmit, true);
+            });
+        });
     }
     
-    // Also attach directly to existing forms
-    document.querySelectorAll('.edit-item-form').forEach(form => {
-        console.log('[Invoice Edit] Found form:', form.id || form.action);
-        form.addEventListener('submit', handleFormSubmit, true);
-    });
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();
 </script>
 @endpush
