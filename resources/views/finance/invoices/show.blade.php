@@ -526,10 +526,10 @@
                         <!-- Edit Item Modals (only for invoice items) -->
                         @foreach($invoice->items as $item)
                         <!-- Edit Item Modal -->
-                        <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                        <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
-                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="edit-item-form" id="editItemForm{{ $item->id }}" onsubmit="return false;">
+                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="edit-item-form" id="editItemForm{{ $item->id }}">
                                         @csrf
                                         <div class="modal-header">
                                             <h5 class="modal-title">Edit Invoice Item</h5>
@@ -705,298 +705,95 @@
 @push('scripts')
 <script>
 // Handle AJAX form submission for invoice item editing
-(function() {
+document.addEventListener('DOMContentLoaded', function() {
     'use strict';
     
-    console.log('[Invoice Edit] Script loaded');
+    console.log('[Invoice Edit] Initializing form handlers');
     
-    function handleFormSubmit(e) {
-        const form = e.target;
+    // Attach handlers to all edit forms once
+    document.querySelectorAll('.edit-item-form').forEach(function(form) {
+        console.log('[Invoice Edit] Attaching to form:', form.id);
         
-        console.log('[Invoice Edit] Submit event detected on:', form);
-        
-        // Only handle forms with class 'edit-item-form'
-        if (!form || !form.classList || !form.classList.contains('edit-item-form')) {
-            console.log('[Invoice Edit] Not an edit-item-form, ignoring');
-            return true; // Let other forms submit normally
-        }
-        
-        console.log('[Invoice Edit] This is an edit-item-form, intercepting');
-        
-        // Prevent ALL default behaviors
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        
-        // Prevent form from actually submitting
-        if (form.onsubmit) {
-            form.onsubmit = null;
-        }
-        
-        console.log('[Invoice Edit] Form submit intercepted:', form.action);
-        console.log('[Invoice Edit] Form element:', form);
-        
-        // Get CSRF token from form - try multiple ways BEFORE creating FormData
-        let csrfToken = null;
-        
-        // Method 1: From form input (most reliable)
-        const csrfInput = form.querySelector('input[name="_token"]');
-        if (csrfInput) {
-            csrfToken = csrfInput.value;
-            console.log('[Invoice Edit] CSRF token found in form input');
-        }
-        
-        // Method 2: From meta tag in head
-        if (!csrfToken) {
-            const metaToken = document.querySelector('meta[name="csrf-token"]');
-            if (metaToken) {
-                csrfToken = metaToken.getAttribute('content');
-                console.log('[Invoice Edit] CSRF token found in meta tag');
-            }
-        }
-        
-        // Method 3: Try to find any hidden input with _token
-        if (!csrfToken) {
-            const allInputs = form.querySelectorAll('input[type="hidden"]');
-            for (let input of allInputs) {
-                if (input.name === '_token' || input.name.includes('token')) {
-                    csrfToken = input.value;
-                    console.log('[Invoice Edit] CSRF token found in hidden input:', input.name);
-                    break;
-                }
-            }
-        }
-        
-        console.log('[Invoice Edit] CSRF token found:', !!csrfToken);
-        console.log('[Invoice Edit] CSRF token length:', csrfToken ? csrfToken.length : 0);
-        
-        if (!csrfToken) {
-            console.error('[Invoice Edit] CSRF token not found.');
-            console.error('[Invoice Edit] Form inputs:', Array.from(form.querySelectorAll('input')).map(i => i.name + '=' + i.type));
-            console.error('[Invoice Edit] Form HTML (first 1000 chars):', form.innerHTML.substring(0, 1000));
-            alert('CSRF token not found. Please refresh the page and try again.');
-            return false;
-        }
-        
-        const formData = new FormData(form);
-        const submitButton = form.querySelector('button[type="submit"]');
-        const originalText = submitButton ? submitButton.innerHTML : '';
-        
-        // Validate form fields manually for better error display
-        const newAmountInput = form.querySelector('input[name="new_amount"]');
-        const reasonInput = form.querySelector('textarea[name="reason"]');
-        
-        if (!newAmountInput || !newAmountInput.value) {
-            alert('Please enter a new amount');
-            if (newAmountInput) newAmountInput.focus();
-            return false;
-        }
-        
-        if (!reasonInput || !reasonInput.value.trim()) {
-            alert('Please enter a reason for the change');
-            if (reasonInput) reasonInput.focus();
-            return false;
-        }
-        
-        console.log('[Invoice Edit] Form validation passed');
-        console.log('[Invoice Edit] New amount:', newAmountInput.value);
-        console.log('[Invoice Edit] Reason:', reasonInput.value);
-        
-        // Disable submit button
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Updating...';
-        }
-        
-        console.log('[Invoice Edit] Sending AJAX request to:', form.action);
-        console.log('[Invoice Edit] FormData contents:');
-        for (let pair of formData.entries()) {
-            console.log('[Invoice Edit]  ', pair[0], '=', pair[1]);
-        }
-        
-        // Use XMLHttpRequest for better compatibility
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', form.action, true);
-        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.setRequestHeader('Accept', 'application/json');
-        
-        console.log('[Invoice Edit] Request headers set');
-        
-        xhr.onload = function() {
-            console.log('[Invoice Edit] Response status:', xhr.status);
-            console.log('[Invoice Edit] Response text:', xhr.responseText.substring(0, 500));
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
             
-            if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    console.log('[Invoice Edit] Parsed data:', data);
-                    
-                    if (data.success !== false && (data.success || data.message)) {
-                        // Show success message
-                        const message = data.message || 'Invoice item updated successfully';
-                        alert(message);
-                        
-                        // Close modal
-                        const modalElement = form.closest('.modal');
-                        if (modalElement) {
-                            const modal = bootstrap.Modal.getInstance(modalElement);
-                            if (modal) {
-                                modal.hide();
+            console.log('[Invoice Edit] Form submission started');
+            
+            // Get form data
+            var newAmountInput = form.querySelector('input[name="new_amount"]');
+            var reasonInput = form.querySelector('textarea[name="reason"]');
+            var submitButton = form.querySelector('button[type="submit"]');
+            
+            // Validate
+            if (!newAmountInput || !newAmountInput.value) {
+                alert('Please enter a new amount');
+                return;
+            }
+            
+            if (!reasonInput || !reasonInput.value.trim()) {
+                alert('Please enter a reason for the change');
+                return;
+            }
+            
+            // Get CSRF token
+            var csrfToken = form.querySelector('input[name="_token"]').value;
+            
+            // Disable button
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Updating...';
+            }
+            
+            // Prepare data
+            var formData = new FormData(form);
+            
+            // Send AJAX request
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Accept', 'application/json');
+            
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (data.success || data.message) {
+                            alert(data.message || 'Invoice item updated successfully');
+                            window.location.reload();
+                        } else {
+                            alert(data.error || 'Update failed');
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = 'Update Item';
                             }
                         }
-                        
-                        // Reload page to show updated amounts
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 300);
-                    } else {
-                        const errorMsg = data.error || data.message || 'Failed to update amount';
-                        alert(errorMsg);
-                        if (submitButton) {
-                            submitButton.disabled = false;
-                            submitButton.innerHTML = originalText;
-                        }
+                    } catch (e) {
+                        alert('Update completed. Reloading...');
+                        window.location.reload();
                     }
-                } catch (parseError) {
-                    console.error('[Invoice Edit] JSON parse error:', parseError);
-                    console.error('[Invoice Edit] Response was:', xhr.responseText);
-                    // If response is HTML (validation errors), reload page to show errors
-                    alert('Update completed. Reloading page...');
-                    window.location.reload();
+                } else {
+                    alert('Update failed. Please try again.');
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Update Item';
+                    }
                 }
-            } else {
-                // Error response
-                console.error('[Invoice Edit] Error response:', xhr.status, xhr.responseText);
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    alert(data.error || data.message || 'Update failed. Please try again.');
-                } catch (e) {
-                    alert('Update failed (Status: ' + xhr.status + '). Please try again.');
-                }
+            };
+            
+            xhr.onerror = function() {
+                alert('Network error. Please try again.');
                 if (submitButton) {
                     submitButton.disabled = false;
-                    submitButton.innerHTML = originalText;
+                    submitButton.textContent = 'Update Item';
                 }
-            }
-        };
-        
-        xhr.onerror = function() {
-            console.error('[Invoice Edit] XHR network error');
-            alert('Network error. Please check your connection and try again.');
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalText;
-            }
-        };
-        
-        xhr.ontimeout = function() {
-            console.error('[Invoice Edit] XHR timeout');
-            alert('Request timed out. Please try again.');
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalText;
-            }
-        };
-        
-        xhr.timeout = 30000; // 30 second timeout
-        
-        try {
-            xhr.send(formData);
-        } catch (sendError) {
-            console.error('[Invoice Edit] Error sending request:', sendError);
-            alert('Error sending request: ' + sendError.message);
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.innerHTML = originalText;
-            }
-        }
-        
-        return false;
-    }
-    
-    // Track which forms we've already attached handlers to
-    const attachedForms = new WeakSet();
-    
-    // Initialize when DOM is ready
-    function init() {
-        console.log('[Invoice Edit] Initializing...');
-        
-        // Attach global submit handler ONCE
-        document.addEventListener('submit', handleFormSubmit, true); // Use capture phase
-        console.log('[Invoice Edit] Global submit handler attached');
-        
-        // Process existing forms
-        attachToForms();
-        
-        // Listen for modal shown events to handle dynamically shown forms
-        document.addEventListener('shown.bs.modal', function(e) {
-            console.log('[Invoice Edit] Modal shown');
-            const modal = e.target;
+            };
             
-            // Wait a bit for modal to fully render
-            setTimeout(() => {
-                const forms = modal.querySelectorAll('.edit-item-form');
-                console.log('[Invoice Edit] Forms in modal:', forms.length);
-                forms.forEach(form => {
-                    if (!attachedForms.has(form)) {
-                        console.log('[Invoice Edit] New form found in modal:', form.id || form.action);
-                        attachToForm(form);
-                        attachedForms.add(form);
-                    }
-                });
-            }, 50);
+            xhr.send(formData);
         });
-        
-        // Prevent modal from closing on backdrop click while form is being submitted
-        document.addEventListener('hide.bs.modal', function(e) {
-            const modal = e.target;
-            const forms = modal.querySelectorAll('.edit-item-form button[type="submit"]:disabled');
-            if (forms.length > 0) {
-                console.log('[Invoice Edit] Preventing modal close - form is being submitted');
-                e.preventDefault();
-            }
-        });
-    }
-    
-    function attachToForms() {
-        const forms = document.querySelectorAll('.edit-item-form');
-        console.log('[Invoice Edit] Found', forms.length, 'forms on page');
-        
-        forms.forEach(form => {
-            if (!attachedForms.has(form)) {
-                attachToForm(form);
-                attachedForms.add(form);
-            }
-        });
-    }
-    
-    function attachToForm(form) {
-        console.log('[Invoice Edit] Attaching handlers to form:', form.id || form.action);
-        
-        // Remove any existing onsubmit attribute
-        if (form.hasAttribute('onsubmit')) {
-            form.removeAttribute('onsubmit');
-        }
-        
-        // Attach submit handler
-        form.addEventListener('submit', handleFormSubmit, true);
-        
-        // Also attach to submit button for debugging
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.addEventListener('click', function(e) {
-                console.log('[Invoice Edit] Submit button clicked on form:', form.id);
-            });
-        }
-    }
-    
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-})();
+    });
+});
 </script>
 @endpush
 @endsection
