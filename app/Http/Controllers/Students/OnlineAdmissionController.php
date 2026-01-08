@@ -491,17 +491,25 @@ class OnlineAdmissionController extends Controller
     }
 
     /**
-     * Generate next admission number
+     * Generate next admission number with RKS prefix
      */
     private function generateNextAdmissionNumber(): string
     {
         $lastNumber = Student::max('admission_number');
+        
         if (!$lastNumber) {
-            return '001';
+            return 'RKS001';
         }
         
-        $numericPart = (int) $lastNumber;
-        return str_pad((string)($numericPart + 1), 3, '0', STR_PAD_LEFT);
+        // Extract numeric part from admission number (handles RKS724, 724, RKS 724, etc.)
+        if (preg_match('/(\d+)/', $lastNumber, $matches)) {
+            $numericPart = (int) $matches[1];
+            $nextNumber = $numericPart + 1;
+            return 'RKS' . $nextNumber;
+        }
+        
+        // Fallback if no number found
+        return 'RKS001';
     }
 
     /**

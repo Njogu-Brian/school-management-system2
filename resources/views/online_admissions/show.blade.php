@@ -25,6 +25,25 @@
       </div>
     @endif
 
+    @if (session('error'))
+      <div class="alert alert-danger alert-dismissible fade show">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
+
+    @if ($errors->any())
+      <div class="alert alert-danger alert-dismissible fade show">
+        <h6><i class="bi bi-exclamation-triangle"></i> Please correct the following errors:</h6>
+        <ul class="mb-0">
+          @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+          @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @endif
+
     <div class="row g-3">
       <div class="col-md-8">
         <div class="settings-card mb-3">
@@ -261,8 +280,8 @@
                     </select>
                   </div>
                   <div class="mb-3">
-                    <label class="form-label">Residential Area</label>
-                    <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $admission->residential_area) }}">
+                    <label class="form-label">Residential Area <span class="text-danger">*</span></label>
+                    <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $admission->residential_area) }}" required>
                   </div>
                   <div class="mb-3">
                     <label class="form-label">Stream</label>
