@@ -526,10 +526,10 @@
                         <!-- Edit Item Modals (only for invoice items) -->
                         @foreach($invoice->items as $item)
                         <!-- Edit Item Modal -->
-                        <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1">
+                        <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
                             <div class="modal-dialog">
                                 <div class="modal-content">
-                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="edit-item-form" id="editItemForm{{ $item->id }}">
+                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="edit-item-form" id="editItemForm{{ $item->id }}" onsubmit="return false;">
                                         @csrf
                                         <div class="modal-header">
                                             <h5 class="modal-title">Edit Invoice Item</h5>
@@ -721,9 +721,17 @@
             return true; // Let other forms submit normally
         }
         
+        console.log('[Invoice Edit] This is an edit-item-form, intercepting');
+        
+        // Prevent ALL default behaviors
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
+        
+        // Prevent form from actually submitting
+        if (form.onsubmit) {
+            form.onsubmit = null;
+        }
         
         console.log('[Invoice Edit] Form submit intercepted:', form.action);
         console.log('[Invoice Edit] Form element:', form);
@@ -907,41 +915,80 @@
         return false;
     }
     
+    // Track which forms we've already attached handlers to
+    const attachedForms = new WeakSet();
+    
     // Initialize when DOM is ready
     function init() {
         console.log('[Invoice Edit] Initializing...');
         
-        // Attach global submit handler
+        // Attach global submit handler ONCE
         document.addEventListener('submit', handleFormSubmit, true); // Use capture phase
         console.log('[Invoice Edit] Global submit handler attached');
         
-        // Also attach directly to existing forms
-        const forms = document.querySelectorAll('.edit-item-form');
-        console.log('[Invoice Edit] Found', forms.length, 'forms');
+        // Process existing forms
+        attachToForms();
         
-        forms.forEach(form => {
-            console.log('[Invoice Edit] Attaching handler to form:', form.id || form.action);
-            form.addEventListener('submit', handleFormSubmit, true);
+        // Listen for modal shown events to handle dynamically shown forms
+        document.addEventListener('shown.bs.modal', function(e) {
+            console.log('[Invoice Edit] Modal shown');
+            const modal = e.target;
             
-            // Also attach to submit button for debugging
-            const submitBtn = form.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.addEventListener('click', function(e) {
-                    console.log('[Invoice Edit] Submit button clicked');
+            // Wait a bit for modal to fully render
+            setTimeout(() => {
+                const forms = modal.querySelectorAll('.edit-item-form');
+                console.log('[Invoice Edit] Forms in modal:', forms.length);
+                forms.forEach(form => {
+                    if (!attachedForms.has(form)) {
+                        console.log('[Invoice Edit] New form found in modal:', form.id || form.action);
+                        attachToForm(form);
+                        attachedForms.add(form);
+                    }
                 });
+            }, 50);
+        });
+        
+        // Prevent modal from closing on backdrop click while form is being submitted
+        document.addEventListener('hide.bs.modal', function(e) {
+            const modal = e.target;
+            const forms = modal.querySelectorAll('.edit-item-form button[type="submit"]:disabled');
+            if (forms.length > 0) {
+                console.log('[Invoice Edit] Preventing modal close - form is being submitted');
+                e.preventDefault();
             }
         });
+    }
+    
+    function attachToForms() {
+        const forms = document.querySelectorAll('.edit-item-form');
+        console.log('[Invoice Edit] Found', forms.length, 'forms on page');
         
-        // Listen for modal shown events to attach handlers to dynamically loaded forms
-        document.addEventListener('shown.bs.modal', function(e) {
-            console.log('[Invoice Edit] Modal shown, checking for forms');
-            const modal = e.target;
-            const forms = modal.querySelectorAll('.edit-item-form');
-            forms.forEach(form => {
-                console.log('[Invoice Edit] Attaching handler to form in modal:', form.id || form.action);
-                form.addEventListener('submit', handleFormSubmit, true);
-            });
+        forms.forEach(form => {
+            if (!attachedForms.has(form)) {
+                attachToForm(form);
+                attachedForms.add(form);
+            }
         });
+    }
+    
+    function attachToForm(form) {
+        console.log('[Invoice Edit] Attaching handlers to form:', form.id || form.action);
+        
+        // Remove any existing onsubmit attribute
+        if (form.hasAttribute('onsubmit')) {
+            form.removeAttribute('onsubmit');
+        }
+        
+        // Attach submit handler
+        form.addEventListener('submit', handleFormSubmit, true);
+        
+        // Also attach to submit button for debugging
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', function(e) {
+                console.log('[Invoice Edit] Submit button clicked on form:', form.id);
+            });
+        }
     }
     
     if (document.readyState === 'loading') {
