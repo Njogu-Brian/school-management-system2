@@ -11,7 +11,7 @@ class ParentInfo extends Model
     protected $fillable = [
         'father_name', 'father_phone', 'father_whatsapp', 'father_email', 'father_id_number',
         'mother_name', 'mother_phone', 'mother_whatsapp', 'mother_email', 'mother_id_number',
-        'guardian_name', 'guardian_phone', 'guardian_whatsapp', 'guardian_email', 'guardian_id_number',
+        'guardian_name', 'guardian_phone', 'guardian_whatsapp', 'guardian_email',
         'guardian_relationship', 'marital_status',
         'father_phone_country_code', 'mother_phone_country_code', 'guardian_phone_country_code',
         'father_id_document', 'mother_id_document',

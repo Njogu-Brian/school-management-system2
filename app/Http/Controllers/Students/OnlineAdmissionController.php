@@ -334,7 +334,6 @@ class OnlineAdmissionController extends Controller
                 'guardian_name' => $admission->guardian_name,
                 'guardian_phone' => $this->formatPhoneWithCode($admission->guardian_phone, $admission->guardian_phone_country_code ?? '+254'),
                 'guardian_phone_country_code' => $admission->guardian_phone_country_code ?? '+254',
-                'guardian_id_number' => $admission->guardian_id_number,
                 'guardian_relationship' => $admission->guardian_relationship,
                 'marital_status' => $admission->marital_status,
             ]);
