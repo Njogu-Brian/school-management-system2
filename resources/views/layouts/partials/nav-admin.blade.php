@@ -380,7 +380,16 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('finance.mpesa.links.index') }}" class="sublink {{ Request::is('finance/mpesa/links') && !Request::is('finance/mpesa/links/create') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> View Payment Links</a>
     </div>
     
-    <a href="{{ route('finance.bank-statements.index') }}"class="{{ Request::is('finance/bank-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
+    {{-- Bank Statements --}}
+    @php
+        $bankStatementsActive = Request::is('finance/bank-statements*');
+    @endphp
+    <a href="#bankStatementsMenu" data-bs-toggle="collapse" aria-expanded="{{ $bankStatementsActive ? 'true' : 'false' }}" class="{{ $bankStatementsActive ? 'parent-active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
+    <div class="collapse {{ $bankStatementsActive ? 'show' : '' }}" id="bankStatementsMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.bank-statements.statements') }}" class="sublink {{ Request::is('finance/bank-statements/statements') ? 'active' : '' }}"><i class="bi bi-folder2-open"></i> Imported Statements</a>
+        <a href="{{ route('finance.bank-statements.index') }}" class="sublink {{ Request::is('finance/bank-statements') && !Request::is('finance/bank-statements/statements') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Transactions</a>
+        <a href="{{ route('finance.bank-statements.create') }}" class="sublink {{ Request::is('finance/bank-statements/create') ? 'active' : '' }}"><i class="bi bi-upload"></i> Upload Statement</a>
+    </div>
     <a href="{{ route('finance.student-statements.index') }}"class="{{ Request::is('finance/student-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Student Statements</a>
     <a href="{{ route('finance.balance-brought-forward.index') }}"class="{{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
     <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>

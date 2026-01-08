@@ -16,6 +16,8 @@
       </div>
       <div class="actions">
         <a class="dash-chip" href="{{ route('finance.invoices.index') }}"><i class="bi bi-receipt"></i> Invoices</a>
+        <a class="dash-chip" href="{{ route('finance.payments.index') }}"><i class="bi bi-cash-stack"></i> Payments</a>
+        <a class="dash-chip" href="{{ route('finance.bank-statements.statements') }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
         <a class="dash-chip" href="{{ route('finance.fee-structures.manage') }}"><i class="bi bi-cash-coin"></i> Fee Structure</a>
       </div>
     </div>

@@ -25,6 +25,35 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Display list of imported statement files with summaries
+     */
+    public function statements(Request $request)
+    {
+        // Get unique statement files with transaction summaries
+        $statements = BankStatementTransaction::select('statement_file_path', 'bank_type', 'bank_account_id')
+            ->selectRaw('MIN(created_at) as uploaded_at')
+            ->selectRaw('COUNT(*) as total_transactions')
+            ->selectRaw('SUM(amount) as total_amount')
+            ->selectRaw('SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count')
+            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND payment_created = false THEN 1 ELSE 0 END) as confirmed_count')
+            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND payment_created = true THEN 1 ELSE 0 END) as collected_count')
+            ->selectRaw('SUM(CASE WHEN is_archived = true THEN 1 ELSE 0 END) as archived_count')
+            ->selectRaw('SUM(CASE WHEN is_duplicate = true THEN 1 ELSE 0 END) as duplicate_count')
+            ->selectRaw('SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected_count')
+            ->whereNotNull('statement_file_path')
+            ->groupBy('statement_file_path', 'bank_type', 'bank_account_id')
+            ->orderBy('uploaded_at', 'desc')
+            ->paginate(15);
+
+        // Load bank accounts
+        $bankAccounts = BankAccount::whereIn('id', $statements->pluck('bank_account_id')->filter())
+            ->get()
+            ->keyBy('id');
+
+        return view('finance.bank-statements.statements', compact('statements', 'bankAccounts'));
+    }
+
+    /**
      * Display list of bank statement transactions
      */
     public function index(Request $request)
@@ -108,6 +137,10 @@ class BankStatementController extends Controller
 
         if ($request->filled('bank_account_id')) {
             $query->where('bank_account_id', $request->bank_account_id);
+        }
+
+        if ($request->filled('statement_file')) {
+            $query->where('statement_file_path', $request->statement_file);
         }
 
         if ($request->filled('date_from')) {

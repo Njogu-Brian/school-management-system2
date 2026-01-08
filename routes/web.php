@@ -1130,6 +1130,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         // Bank Statements
         Route::prefix('bank-statements')->name('bank-statements.')->group(function () {
+            Route::get('/statements', [\App\Http\Controllers\Finance\BankStatementController::class, 'statements'])->name('statements');
             Route::get('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'index'])->name('index');
             Route::get('/create', [\App\Http\Controllers\Finance\BankStatementController::class, 'create'])->name('create');
             Route::post('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'store'])->name('store');

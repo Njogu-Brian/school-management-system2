@@ -5,10 +5,23 @@
         'title' => 'Bank Statement Transactions',
         'icon' => 'bi bi-bank',
         'subtitle' => 'Upload and reconcile bank statements',
-        'actions' => '<a href="' . route('finance.bank-statements.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-upload"></i> Upload Statement</a>'
+        'actions' => '<a href="' . route('finance.bank-statements.statements') . '" class="btn btn-finance btn-finance-info"><i class="bi bi-folder2-open"></i> View Statements</a>
+                      <a href="' . route('finance.bank-statements.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-upload"></i> Upload Statement</a>'
     ])
 
     @include('finance.invoices.partials.alerts')
+
+    <!-- Statement Filter Notice -->
+    @if(request('statement_file'))
+        <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+            <i class="bi bi-info-circle"></i> 
+            <strong>Filtered by Statement:</strong> Showing transactions from a specific uploaded statement file.
+            <a href="{{ route('finance.bank-statements.index') }}" class="btn btn-sm btn-outline-info ms-2">
+                <i class="bi bi-x-circle"></i> Clear Filter
+            </a>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
 
     <!-- Summary Card -->
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
