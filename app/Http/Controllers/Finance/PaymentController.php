@@ -2214,7 +2214,10 @@ class PaymentController extends Controller
      * Bulk send payment notifications to all payments (respecting filters)
      * Skips payments that have already been bulk sent for the selected channels
      */
-    public function bulkSend(Request $request)
+    /**
+     * Show preview of payments to be sent with ability to exclude already-sent ones
+     */
+    public function bulkSendPreview(Request $request)
     {
         $request->validate([
             'channels' => 'required|array|min:1',
@@ -2230,7 +2233,7 @@ class PaymentController extends Controller
         $channels = $request->input('channels');
         
         // Build query based on filters (same as index method)
-        $query = Payment::with(['student.parent', 'paymentMethod'])
+        $query = Payment::with(['student.parent', 'student.classroom', 'paymentMethod'])
             ->where('reversed', false);
 
         if ($request->filled('student_id')) {
@@ -2260,6 +2263,78 @@ class PaymentController extends Controller
         if ($request->filled('to_date')) {
             $query->whereDate('payment_date', '<=', $request->to_date);
         }
+
+        $payments = $query->orderBy('payment_date', 'desc')->get();
+
+        // Check which payments have already been sent for the selected channels
+        $paymentsPreview = $payments->map(function($payment) use ($channels) {
+            $alreadySentChannels = [];
+            $bulkSentChannels = $payment->bulk_sent_channels ?? [];
+            
+            foreach ($channels as $channel) {
+                // Check bulk_sent_channels field
+                if (in_array($channel, $bulkSentChannels)) {
+                    $alreadySentChannels[$channel] = 'bulk_sent';
+                    continue;
+                }
+                
+                // Check communication_logs table
+                $logExists = \App\Models\CommunicationLog::where('payment_id', $payment->id)
+                    ->where('channel', $channel)
+                    ->where('status', 'sent')
+                    ->exists();
+                    
+                if ($logExists) {
+                    $alreadySentChannels[$channel] = 'communication_log';
+                }
+            }
+            
+            return [
+                'payment' => $payment,
+                'already_sent_channels' => $alreadySentChannels,
+                'will_be_skipped' => count($alreadySentChannels) === count($channels),
+                'has_parent' => $payment->student && $payment->student->parent,
+            ];
+        });
+
+        $toSendCount = $paymentsPreview->where('will_be_skipped', false)->where('has_parent', true)->count();
+        $toSkipCount = $paymentsPreview->where('will_be_skipped', true)->count();
+        $noParentCount = $paymentsPreview->where('has_parent', false)->count();
+
+        return view('finance.payments.bulk-send-preview', [
+            'payments' => $paymentsPreview,
+            'channels' => $channels,
+            'toSendCount' => $toSendCount,
+            'toSkipCount' => $toSkipCount,
+            'noParentCount' => $noParentCount,
+            'filters' => $request->only([
+                'student_id', 'class_id', 'stream_id', 'payment_method_id', 'from_date', 'to_date'
+            ]),
+        ]);
+    }
+
+    public function bulkSend(Request $request)
+    {
+        $request->validate([
+            'channels' => 'required|array|min:1',
+            'channels.*' => 'in:sms,email,whatsapp',
+            'payment_ids' => 'required|array|min:1',
+            'payment_ids.*' => 'exists:payments,id',
+            'student_id' => 'nullable|exists:students,id',
+            'class_id' => 'nullable|exists:classrooms,id',
+            'stream_id' => 'nullable|exists:streams,id',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+        ]);
+
+        $channels = $request->input('channels');
+        $paymentIds = $request->input('payment_ids');
+        
+        // Build query for selected payment IDs only
+        $query = Payment::with(['student.parent', 'paymentMethod'])
+            ->whereIn('id', $paymentIds)
+            ->where('reversed', false);
 
         // Process in batches to avoid timeout
         $batchSize = 50; // Process 50 payments at a time

@@ -274,7 +274,7 @@
 <div class="modal fade" id="bulkSendModal" tabindex="-1" aria-labelledby="bulkSendLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
-      <form method="POST" action="{{ route('finance.payments.bulk-send') }}" id="bulkSendForm">
+      <form method="POST" action="{{ route('finance.payments.bulk-send-preview') }}" id="bulkSendForm">
         @csrf
         <!-- Include current filter parameters -->
         <input type="hidden" name="student_id" value="{{ request('student_id') }}">
@@ -290,7 +290,7 @@
         </div>
         <div class="modal-body">
           <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> This will send receipts to <strong>all payments</strong> matching your current filters. Payments that have already been bulk sent via the selected channels will be automatically skipped.
+            <i class="bi bi-info-circle"></i> This will show you a <strong>preview</strong> of all payments matching your current filters. You'll be able to review which payments have already been sent and select which ones to send.
           </div>
           <div class="row g-3">
             <div class="col-12">
@@ -315,14 +315,14 @@
                   </label>
                 </div>
               </div>
-              <small class="text-muted d-block mt-2">Select one or more channels. Already bulk-sent payments will be skipped for the selected channels.</small>
+              <small class="text-muted d-block mt-2">Select one or more channels. You'll see which payments have already been sent and can choose which to send.</small>
             </div>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost-strong" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-settings-primary">
-            <i class="bi bi-send-fill"></i> Send to All
+            <i class="bi bi-eye-fill"></i> Preview & Select
           </button>
         </div>
       </form>

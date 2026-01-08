@@ -176,6 +176,12 @@ Route::post('/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookCont
 Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookController::class, 'handleStripe'])->name('payment.webhook.stripe');
 Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
 
+// Public Payment Pages (no auth required)
+Route::get('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPaymentPage'])->name('payment.link.show');
+Route::post('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processLinkPayment'])->name('payment.link.process');
+Route::get('/invoice/{invoice:hashed_id}/pay', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showInvoicePayment'])->name('invoice.pay');
+Route::post('/invoice/{invoice}/pay/mpesa', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processInvoicePayment'])->name('invoice.pay.mpesa');
+
 // Public family profile update (no auth)
 Route::get('/family-update/{token}', [FamilyUpdateController::class, 'publicForm'])->name('family-update.form');
 Route::post('/family-update/{token}', [FamilyUpdateController::class, 'submit'])->name('family-update.submit');
@@ -1102,6 +1108,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('payments/student/{student}/info', [PaymentController::class, 'getStudentBalanceAndSiblings'])->name('payments.student-info');
         Route::get('payments/failed-communications', [PaymentController::class, 'failedCommunications'])->name('payments.failed-communications');
         Route::post('payments/bulk-allocate-unallocated', [PaymentController::class, 'bulkAllocateUnallocated'])->name('payments.bulk-allocate-unallocated');
+        Route::post('payments/bulk-send-preview', [PaymentController::class, 'bulkSendPreview'])->name('payments.bulk-send-preview');
         Route::post('payments/bulk-send', [PaymentController::class, 'bulkSend'])->name('payments.bulk-send');
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
@@ -1166,6 +1173,28 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('payments/initiate-online', [PaymentController::class, 'initiateOnline'])->name('payments.initiate-online');
         Route::get('payment-transactions/{transaction}', [PaymentController::class, 'showTransaction'])->name('payment-transactions.show');
         Route::post('payment-transactions/{transaction}/verify', [PaymentController::class, 'verifyTransaction'])->name('payment-transactions.verify');
+
+        // M-PESA Payments
+        Route::prefix('mpesa')->name('mpesa.')->group(function () {
+            // Dashboard
+            Route::get('dashboard', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'dashboard'])->name('dashboard');
+            
+            // Admin-prompted STK Push
+            Route::get('prompt-payment', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'promptPaymentForm'])->name('prompt-payment.form');
+            Route::post('prompt-payment', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'promptPayment'])->name('prompt-payment');
+            
+            // Payment Links Management
+            Route::get('links', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'listLinks'])->name('links.index');
+            Route::get('links/create', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'createLinkForm'])->name('links.create');
+            Route::post('links', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'createLink'])->name('links.store');
+            Route::get('links/{paymentLink}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showLink'])->name('link.show');
+            Route::post('links/{paymentLink}/cancel', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'cancelLink'])->name('link.cancel');
+            Route::post('links/{paymentLink}/send', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'sendLink'])->name('link.send');
+            
+            // Transaction Management
+            Route::get('transactions/{transaction}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showTransaction'])->name('transaction.show');
+            Route::post('transactions/{transaction}/query', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'queryTransaction'])->name('transaction.query');
+        });
 
         // Credit & Debit Notes (manual)
         Route::get('credits/create', [CreditNoteController::class, 'create'])->name('credits.create');
