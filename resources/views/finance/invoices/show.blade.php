@@ -317,8 +317,17 @@
                                     <span class="badge bg-info ms-1">Optional</span>
                                 @endif
                             </td>
-                            <td class="text-end">
-                                <strong>Ksh {{ number_format($item->amount, 2) }}</strong>
+                            <td class="text-end" id="amountCell{{ $item->id }}">
+                                <strong class="amount-display">Ksh {{ number_format($item->amount, 2) }}</strong>
+                                <div class="amount-edit-form" style="display: none;">
+                                    <input type="number" 
+                                           class="form-control form-control-sm" 
+                                           id="newAmount{{ $item->id }}" 
+                                           value="{{ $item->amount }}" 
+                                           step="0.01" 
+                                           min="0"
+                                           style="width: 120px; display: inline-block;">
+                                </div>
                             </td>
                             <td class="text-end">
                                 @if($discount > 0)
@@ -355,13 +364,43 @@
                                 @endif
                             </td>
                             <td>
-                                <button type="button" 
-                                        class="btn btn-sm btn-finance btn-finance-outline" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#editItemModal{{ $item->id }}">
-                                    <i class="bi bi-pencil"></i> Edit
-                                </button>
+                                <div class="edit-actions-view{{ $item->id }}">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-finance btn-finance-outline"
+                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Item') }}')">
+                                        <i class="bi bi-pencil"></i> Edit
+                                    </button>
+                                </div>
+                                <div class="edit-actions-edit{{ $item->id }}" style="display: none;">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-success"
+                                            onclick="saveInlineEdit({{ $item->id }}, {{ $invoice->id }})">
+                                        <i class="bi bi-check"></i> Save
+                                    </button>
+                                    <button type="button" 
+                                            class="btn btn-sm btn-secondary"
+                                            onclick="cancelInlineEdit({{ $item->id }})">
+                                        <i class="bi bi-x"></i> Cancel
+                                    </button>
+                                </div>
                             </td>
+                        </tr>
+                        
+                        <!-- Inline Edit Reason Row -->
+                        <tr id="reasonRow{{ $item->id }}" style="display: none;" class="table-warning">
+                            <td></td>
+                            <td colspan="8">
+                                <div class="mb-2">
+                                    <label class="form-label small mb-1"><strong>Reason for amount change:</strong> <span class="text-danger">*</span></label>
+                                    <textarea class="form-control form-control-sm" 
+                                              id="reason{{ $item->id }}" 
+                                              rows="2" 
+                                              placeholder="Enter reason for changing the amount..."
+                                              required></textarea>
+                                    <small class="text-muted">Decreasing amount will create a credit note. Increasing will create a debit note.</small>
+                                </div>
+                            </td>
+                            <td></td>
                         </tr>
 
                         @elseif($type === 'item_discount')
@@ -523,65 +562,7 @@
                         @endif
                         @endforeach
                         
-                        <!-- Edit Item Modals (only for invoice items) -->
-                        @foreach($invoice->items as $item)
-                        <!-- Edit Item Modal -->
-                        <div class="modal fade" id="editItemModal{{ $item->id }}" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form method="POST" action="{{ route('finance.invoices.items.update', [$invoice->id, $item->id]) }}" class="edit-item-form" id="editItemForm{{ $item->id }}">
-                                        @csrf
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Edit Invoice Item</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label class="form-label">Votehead:</label>
-                                                <input type="text" class="form-control" value="{{ $item->votehead->name ?? 'N/A' }}" disabled>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Current Amount:</label>
-                                                <input type="text" class="form-control" value="Ksh {{ number_format($item->amount, 2) }}" disabled>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">New Amount <span class="text-danger">*</span></label>
-                                                <input type="number" 
-                                                       name="new_amount" 
-                                                       step="0.01" 
-                                                       min="0" 
-                                                       class="form-control @error('new_amount') is-invalid @enderror" 
-                                                       value="{{ $item->amount }}" 
-                                                       required>
-                                                @error('new_amount')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                                <small class="text-muted">
-                                                    Decreasing amount will create a credit note. Increasing will create a debit note.
-                                                </small>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Reason <span class="text-danger">*</span></label>
-                                                <textarea name="reason" 
-                                                          class="form-control @error('reason') is-invalid @enderror" 
-                                                          rows="3" 
-                                                          placeholder="Reason for amount change" 
-                                                          required>{{ old('reason') }}</textarea>
-                                                @error('reason')
-                                                    <div class="invalid-feedback">{{ $message }}</div>
-                                                @enderror
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-finance btn-finance-primary">Update Item</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                        @endforeach
-                        
+                        <!-- No modals needed - using inline editing -->
                         @if($allLineItems->isEmpty())
                         <tr>
                             <td colspan="10" class="text-center py-4 text-muted">
@@ -704,124 +685,149 @@
 
 @push('scripts')
 <script>
-// Handle AJAX form submission for invoice item editing
-(function() {
-    'use strict';
+// Inline editing for invoice items - NO MODAL, NO FLICKERING
+function startInlineEdit(itemId, currentAmount, voteheadName) {
+    console.log('[Invoice Edit] Starting inline edit for item:', itemId);
     
-    // Prevent multiple initializations
-    if (window.invoiceEditHandlersAttached) {
-        console.log('[Invoice Edit] Handlers already attached, skipping');
+    // Hide display, show edit form
+    document.querySelector('#amountCell' + itemId + ' .amount-display').style.display = 'none';
+    document.querySelector('#amountCell' + itemId + ' .amount-edit-form').style.display = 'inline-block';
+    
+    // Show reason row
+    document.getElementById('reasonRow' + itemId).style.display = 'table-row';
+    
+    // Toggle action buttons
+    document.querySelector('.edit-actions-view' + itemId).style.display = 'none';
+    document.querySelector('.edit-actions-edit' + itemId).style.display = 'inline-block';
+    
+    // Focus on amount input
+    document.getElementById('newAmount' + itemId).focus();
+    document.getElementById('newAmount' + itemId).select();
+}
+
+function cancelInlineEdit(itemId) {
+    console.log('[Invoice Edit] Cancelling inline edit for item:', itemId);
+    
+    // Hide edit form, show display
+    document.querySelector('#amountCell' + itemId + ' .amount-display').style.display = 'inline';
+    document.querySelector('#amountCell' + itemId + ' .amount-edit-form').style.display = 'none';
+    
+    // Hide reason row
+    document.getElementById('reasonRow' + itemId).style.display = 'none';
+    
+    // Toggle action buttons
+    document.querySelector('.edit-actions-view' + itemId).style.display = 'inline-block';
+    document.querySelector('.edit-actions-edit' + itemId).style.display = 'none';
+    
+    // Clear reason field
+    document.getElementById('reason' + itemId).value = '';
+}
+
+function saveInlineEdit(itemId, invoiceId) {
+    console.log('[Invoice Edit] Saving inline edit for item:', itemId);
+    
+    // Get values
+    var newAmount = document.getElementById('newAmount' + itemId).value;
+    var reason = document.getElementById('reason' + itemId).value;
+    
+    // Validate
+    if (!newAmount || parseFloat(newAmount) < 0) {
+        alert('Please enter a valid amount');
+        document.getElementById('newAmount' + itemId).focus();
         return;
     }
     
-    window.invoiceEditHandlersAttached = true;
-    console.log('[Invoice Edit] Initializing form handlers (ONCE)');
+    if (!reason || reason.trim() === '') {
+        alert('Please enter a reason for the change');
+        document.getElementById('reason' + itemId).focus();
+        return;
+    }
     
-    // Wait for DOM to be ready
-    function initHandlers() {
-        // Attach handlers to all edit forms once
-        var forms = document.querySelectorAll('.edit-item-form');
-        console.log('[Invoice Edit] Found', forms.length, 'forms to attach');
+    // Get CSRF token
+    var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    
+    // Disable save button
+    var saveBtn = event.target;
+    var originalText = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+    
+    // Prepare data
+    var formData = new FormData();
+    formData.append('new_amount', newAmount);
+    formData.append('reason', reason);
+    formData.append('_token', csrfToken);
+    
+    // Build URL
+    var url = '/finance/invoices/' + invoiceId + '/items/' + itemId + '/update';
+    
+    console.log('[Invoice Edit] Sending update to:', url);
+    
+    // Send AJAX request
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', url, true);
+    xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.setRequestHeader('Accept', 'application/json');
+    
+    xhr.onload = function() {
+        console.log('[Invoice Edit] Response received:', xhr.status);
         
-        forms.forEach(function(form) {
-            // Check if already has handler attached
-            if (form.dataset.handlerAttached) {
-                console.log('[Invoice Edit] Skipping form (already attached):', form.id);
-                return;
+        if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.success || data.message) {
+                    // Show success message
+                    alert(data.message || 'Invoice item updated successfully');
+                    // Reload to show credit/debit note
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Update failed');
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalText;
+                }
+            } catch (e) {
+                console.log('[Invoice Edit] JSON parse error, reloading');
+                alert('Update completed. Reloading...');
+                window.location.reload();
             }
-            
-            console.log('[Invoice Edit] Attaching to form:', form.id);
-            form.dataset.handlerAttached = 'true';
-            
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                console.log('[Invoice Edit] Form submission started for:', form.id);
-            
-            // Get form data
-            var newAmountInput = form.querySelector('input[name="new_amount"]');
-            var reasonInput = form.querySelector('textarea[name="reason"]');
-            var submitButton = form.querySelector('button[type="submit"]');
-            
-            // Validate
-            if (!newAmountInput || !newAmountInput.value) {
-                alert('Please enter a new amount');
-                return;
-            }
-            
-            if (!reasonInput || !reasonInput.value.trim()) {
-                alert('Please enter a reason for the change');
-                return;
-            }
-            
-            // Get CSRF token
-            var csrfToken = form.querySelector('input[name="_token"]').value;
-            
-            // Disable button
-            if (submitButton) {
-                submitButton.disabled = true;
-                submitButton.textContent = 'Updating...';
-            }
-            
-            // Prepare data
-            var formData = new FormData(form);
-            
-            // Send AJAX request
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', form.action, true);
-            xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
-            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-            xhr.setRequestHeader('Accept', 'application/json');
-                
-                xhr.onload = function() {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            var data = JSON.parse(xhr.responseText);
-                            if (data.success || data.message) {
-                                alert(data.message || 'Invoice item updated successfully');
-                                window.location.reload();
-                            } else {
-                                alert(data.error || 'Update failed');
-                                if (submitButton) {
-                                    submitButton.disabled = false;
-                                    submitButton.textContent = 'Update Item';
-                                }
-                            }
-                        } catch (e) {
-                            alert('Update completed. Reloading...');
-                            window.location.reload();
-                        }
-                    } else {
-                        alert('Update failed. Please try again.');
-                        if (submitButton) {
-                            submitButton.disabled = false;
-                            submitButton.textContent = 'Update Item';
-                        }
-                    }
-                };
-                
-                xhr.onerror = function() {
-                    alert('Network error. Please try again.');
-                    if (submitButton) {
-                        submitButton.disabled = false;
-                        submitButton.textContent = 'Update Item';
-                    }
-                };
-                
-                xhr.send(formData);
-            });
-        });
-    }
+        } else {
+            alert('Update failed. Please try again.');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+        }
+    };
     
-    // Initialize based on document ready state
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initHandlers);
-    } else {
-        // DOM is already loaded
-        initHandlers();
+    xhr.onerror = function() {
+        alert('Network error. Please try again.');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    };
+    
+    xhr.send(formData);
+}
+
+// Allow Enter key to save in amount field
+document.addEventListener('keypress', function(e) {
+    if (e.target.matches('[id^="newAmount"]')) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            // Focus on reason field
+            var itemId = e.target.id.replace('newAmount', '');
+            document.getElementById('reason' + itemId).focus();
+        }
+    } else if (e.target.matches('[id^="reason"]')) {
+        // Ctrl+Enter to save
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            var itemId = e.target.id.replace('reason', '');
+            var invoiceId = {{ $invoice->id }};
+            saveInlineEdit(itemId, invoiceId);
+        }
     }
-})();
+});
+
+console.log('[Invoice Edit] Inline editing initialized');
 </script>
 @endpush
 @endsection
