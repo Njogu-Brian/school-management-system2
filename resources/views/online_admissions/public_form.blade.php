@@ -117,6 +117,13 @@
                 </div>
             @endif
 
+            @if (session('error'))
+                <div class="alert alert-danger alert-dismissible fade show">
+                    <i class="bi bi-exclamation-circle"></i> {{ session('error') }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            @endif
+
             @if ($errors->any())
                 <div class="alert alert-danger">
                     <h6><i class="bi bi-exclamation-triangle"></i> Please correct the following errors:</h6>
@@ -128,34 +135,53 @@
                 </div>
             @endif
 
-            <form action="{{ route('online-admissions.public-submit') }}" method="POST" enctype="multipart/form-data">
+            <form id="admissionForm" action="{{ route('online-admissions.public-submit') }}" method="POST" enctype="multipart/form-data" novalidate>
                 @csrf
 
                 <h5 class="section-title"><i class="bi bi-person"></i> Student Information</h5>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label required-field">First Name</label>
-                        <input type="text" name="first_name" class="form-control" value="{{ old('first_name') }}" required>
+                        <input type="text" name="first_name" class="form-control @error('first_name') is-invalid @enderror" value="{{ old('first_name') }}" required>
+                        @error('first_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="invalid-feedback">Please enter the first name.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Middle Name</label>
-                        <input type="text" name="middle_name" class="form-control" value="{{ old('middle_name') }}">
+                        <input type="text" name="middle_name" class="form-control @error('middle_name') is-invalid @enderror" value="{{ old('middle_name') }}">
+                        @error('middle_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
                     </div>
                     <div class="col-md-4">
                         <label class="form-label required-field">Last Name</label>
-                        <input type="text" name="last_name" class="form-control" value="{{ old('last_name') }}" required>
+                        <input type="text" name="last_name" class="form-control @error('last_name') is-invalid @enderror" value="{{ old('last_name') }}" required>
+                        @error('last_name')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="invalid-feedback">Please enter the last name.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label required-field">Date of Birth</label>
-                        <input type="date" name="dob" class="form-control" value="{{ old('dob') }}" required>
+                        <input type="date" name="dob" class="form-control @error('dob') is-invalid @enderror" value="{{ old('dob') }}" required>
+                        @error('dob')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="invalid-feedback">Please select the date of birth.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label required-field">Gender</label>
-                        <select name="gender" class="form-select" required>
+                        <select name="gender" class="form-select @error('gender') is-invalid @enderror" required>
                             <option value="">Select Gender</option>
                             <option value="Male" @selected(old('gender')=='Male')>Male</option>
                             <option value="Female" @selected(old('gender')=='Female')>Female</option>
                         </select>
+                        @error('gender')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="invalid-feedback">Please select a gender.</div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Preferred Classroom</label>
@@ -314,7 +340,11 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                     <label class="form-label required-field">Residential Area</label>
-                    <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area') }}" placeholder="Estate / Area" required>
+                    <input type="text" name="residential_area" class="form-control @error('residential_area') is-invalid @enderror" value="{{ old('residential_area') }}" placeholder="Estate / Area" required>
+                    @error('residential_area')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                    <div class="invalid-feedback">Please enter the residential area.</div>
                   </div>
                 </div>
 
@@ -346,12 +376,25 @@
                     <i class="bi bi-info-circle"></i> <strong>Note:</strong> After submission, your application will be reviewed. You will be contacted via phone or email regarding the status of your application.
                 </div>
 
+                <div id="validationAlert" class="alert alert-danger" style="display: none;">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Please correct the following:</h6>
+                    <ul id="validationErrors" class="mb-0"></ul>
+                </div>
+
                 <div class="d-grid gap-2 mt-4">
-                    <button type="submit" class="btn btn-primary btn-lg">
-                        <i class="bi bi-send"></i> Submit Application
+                    <button type="submit" id="submitBtn" class="btn btn-primary btn-lg">
+                        <span class="submit-text"><i class="bi bi-send"></i> Submit Application</span>
+                        <span class="submit-loading" style="display: none;">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Submitting...
+                        </span>
                     </button>
-                  <button type="submit" name="save_add_another" value="1" class="btn btn-outline-primary">
-                    <i class="bi bi-plus-circle"></i> Submit & Add Another
+                  <button type="submit" id="submitAddAnotherBtn" name="save_add_another" value="1" class="btn btn-outline-primary">
+                    <span class="submit-text"><i class="bi bi-plus-circle"></i> Submit & Add Another</span>
+                    <span class="submit-loading" style="display: none;">
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Submitting...
+                    </span>
                   </button>
                     <a href="{{ route('online-admissions.public-form') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-clockwise"></i> Reset Form
@@ -413,6 +456,140 @@
         }
         classSelect?.addEventListener('change', syncPrev);
         syncPrev();
+
+        // Form validation and submission
+        const form = document.getElementById('admissionForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const submitAddAnotherBtn = document.getElementById('submitAddAnotherBtn');
+        const validationAlert = document.getElementById('validationAlert');
+        const validationErrors = document.getElementById('validationErrors');
+        let isSubmitting = false;
+
+        function showValidationErrors(errors) {
+          validationErrors.innerHTML = '';
+          errors.forEach(error => {
+            const li = document.createElement('li');
+            li.textContent = error;
+            validationErrors.appendChild(li);
+          });
+          validationAlert.style.display = 'block';
+          validationAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function hideValidationErrors() {
+          validationAlert.style.display = 'none';
+          validationErrors.innerHTML = '';
+        }
+
+        function validateForm() {
+          hideValidationErrors();
+          const errors = [];
+          
+          // Remove previous validation states
+          form.querySelectorAll('.is-invalid').forEach(el => {
+            if (!el.classList.contains('is-invalid-server')) {
+              el.classList.remove('is-invalid');
+            }
+          });
+
+          // Check required fields
+          const firstName = form.querySelector('[name="first_name"]');
+          const lastName = form.querySelector('[name="last_name"]');
+          const dob = form.querySelector('[name="dob"]');
+          const gender = form.querySelector('[name="gender"]');
+          const residentialArea = form.querySelector('[name="residential_area"]');
+
+          if (!firstName.value.trim()) {
+            errors.push('First Name is required');
+            firstName.classList.add('is-invalid');
+          }
+          
+          if (!lastName.value.trim()) {
+            errors.push('Last Name is required');
+            lastName.classList.add('is-invalid');
+          }
+          
+          if (!dob.value) {
+            errors.push('Date of Birth is required');
+            dob.classList.add('is-invalid');
+          }
+          
+          if (!gender.value) {
+            errors.push('Gender is required');
+            gender.classList.add('is-invalid');
+          }
+          
+          if (!residentialArea.value.trim()) {
+            errors.push('Residential Area is required');
+            residentialArea.classList.add('is-invalid');
+          }
+
+          // Check at least one parent contact
+          const fatherName = form.querySelector('[name="father_name"]').value.trim();
+          const motherName = form.querySelector('[name="mother_name"]').value.trim();
+          const guardianName = form.querySelector('[name="guardian_name"]').value.trim();
+          const fatherPhone = form.querySelector('[name="father_phone"]').value.trim();
+          const motherPhone = form.querySelector('[name="mother_phone"]').value.trim();
+          const guardianPhone = form.querySelector('[name="guardian_phone"]').value.trim();
+
+          const hasParentName = fatherName || motherName || guardianName;
+          const hasParentPhone = fatherPhone || motherPhone || guardianPhone;
+
+          if (!hasParentName) {
+            errors.push('At least one parent/guardian name is required (Father, Mother, or Guardian)');
+          }
+          
+          if (!hasParentPhone) {
+            errors.push('At least one parent/guardian phone number is required');
+          }
+
+          if (errors.length > 0) {
+            showValidationErrors(errors);
+            return false;
+          }
+
+          return true;
+        }
+
+        function setSubmitLoading(isLoading) {
+          const buttons = [submitBtn, submitAddAnotherBtn];
+          buttons.forEach(btn => {
+            const textSpan = btn.querySelector('.submit-text');
+            const loadingSpan = btn.querySelector('.submit-loading');
+            if (isLoading) {
+              btn.disabled = true;
+              textSpan.style.display = 'none';
+              loadingSpan.style.display = 'inline';
+            } else {
+              btn.disabled = false;
+              textSpan.style.display = 'inline';
+              loadingSpan.style.display = 'none';
+            }
+          });
+        }
+
+        form?.addEventListener('submit', function(e) {
+          if (isSubmitting) {
+            e.preventDefault();
+            return false;
+          }
+
+          if (!validateForm()) {
+            e.preventDefault();
+            return false;
+          }
+
+          isSubmitting = true;
+          setSubmitLoading(true);
+        });
+
+        // Reset loading state if user navigates back
+        window.addEventListener('pageshow', function(event) {
+          if (event.persisted) {
+            isSubmitting = false;
+            setSubmitLoading(false);
+          }
+        });
       })();
     </script>
 </body>
