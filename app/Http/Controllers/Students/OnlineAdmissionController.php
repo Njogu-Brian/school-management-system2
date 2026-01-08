@@ -183,13 +183,7 @@ class OnlineAdmissionController extends Controller
             return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
         }
 
-        // Stream required if selected classroom has streams
-        if (!empty($data['preferred_classroom_id'])) {
-            $classroomHasStreams = Classroom::withCount('streams')->find($data['preferred_classroom_id'])?->streams_count > 0;
-            if ($classroomHasStreams && empty($request->stream_id)) {
-                return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
-            }
-        }
+        // Note: Stream selection is handled by admin during approval process, not during public submission
 
         // Handle file uploads
         if ($request->hasFile('passport_photo')) {
