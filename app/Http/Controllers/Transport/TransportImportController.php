@@ -65,7 +65,19 @@ class TransportImportController extends Controller
             // Ensure temp directory exists
             $tempDir = storage_path('app/temp/transport-imports');
             if (!file_exists($tempDir)) {
-                mkdir($tempDir, 0755, true);
+                if (!mkdir($tempDir, 0755, true) && !is_dir($tempDir)) {
+                    Log::error('Failed to create temp directory', ['dir' => $tempDir]);
+                    return back()->with('error', 'Failed to create temporary storage directory. Please contact system administrator.');
+                }
+            }
+
+            // Verify directory is writable
+            if (!is_writable($tempDir)) {
+                Log::error('Temp directory not writable', [
+                    'dir' => $tempDir,
+                    'permissions' => substr(sprintf('%o', fileperms($tempDir)), -4)
+                ]);
+                return back()->with('error', 'Temporary storage directory is not writable. Please contact system administrator.');
             }
 
             // Store file temporarily for actual import
@@ -76,20 +88,10 @@ class TransportImportController extends Controller
                 Log::error('Failed to save import file', [
                     'filename' => $filename,
                     'temp_dir' => $tempDir,
-                    'dir_exists' => file_exists($tempDir),
-                    'dir_writable' => is_writable($tempDir)
+                    'original_name' => $file->getClientOriginalName(),
+                    'size' => $file->getSize()
                 ]);
-                return back()->with('error', 'Failed to save uploaded file. Please check storage permissions.');
-            }
-
-            // Verify file was actually saved
-            $fullPath = storage_path('app/' . $path);
-            if (!file_exists($fullPath)) {
-                Log::error('File saved but not found', [
-                    'path' => $path,
-                    'full_path' => $fullPath
-                ]);
-                return back()->with('error', 'File upload verification failed. Please try again.');
+                return back()->with('error', 'Failed to save uploaded file. Please try uploading a smaller file or contact system administrator.');
             }
 
             return view('transport.import.preview', [
