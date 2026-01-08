@@ -2376,12 +2376,21 @@ class PaymentController extends Controller
             $message .= ", {$failedCount} failed";
         }
 
+        // Include detailed errors in message if there are any (up to 5)
+        if (!empty($errors)) {
+            $displayErrors = array_slice($errors, 0, 5);
+            $message .= "\n\nErrors:\n" . implode("\n", $displayErrors);
+            if (count($errors) > 5) {
+                $message .= "\n... and " . (count($errors) - 5) . " more errors (check logs)";
+            }
+        }
+
         return redirect()->route('finance.payments.index', $request->only([
             'student_id', 'class_id', 'stream_id', 'payment_method_id', 'from_date', 'to_date'
         ]))->with(
             $failedCount === 0 ? 'success' : 'warning',
             $message
-        )->with('errors', $errors);
+        );
     }
 
     /**
