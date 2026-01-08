@@ -11,10 +11,15 @@ use App\Models\Academics\Stream;
 use App\Models\StudentCategory;
 use App\Models\Trip;
 use App\Models\DropOffPoint;
+use App\Models\CommunicationTemplate;
 use App\Services\TransportFeeService;
+use App\Services\SmsService;
+use App\Mail\GenericMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class OnlineAdmissionController extends Controller
 {
@@ -417,11 +422,21 @@ class OnlineAdmissionController extends Controller
                 'stream_id' => $validated['stream_id'] ?? null,
             ]);
             
+            // Send welcome messages to parent
+            try {
+                $this->sendAdmissionCommunication($student, $parent);
+            } catch (\Exception $e) {
+                Log::warning('Failed to send admission welcome messages: ' . $e->getMessage(), [
+                    'student_id' => $student->id,
+                    'admission_id' => $admission->id,
+                ]);
+            }
+            
             // Charge fees for newly admitted student
             try {
                 \App\Services\FeePostingService::chargeFeesForNewStudent($student);
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student from online admission: ' . $e->getMessage(), [
+                Log::warning('Failed to charge fees for new student from online admission: ' . $e->getMessage(), [
                     'student_id' => $student->id,
                     'admission_id' => $admission->id,
                 ]);
@@ -631,5 +646,120 @@ class OnlineAdmissionController extends Controller
             return null;
         }
         return '+' . $cleanCode . $cleanNumber;
+    }
+
+    /**
+     * Send admission welcome messages via SMS, Email, and WhatsApp
+     */
+    protected function sendAdmissionCommunication($student, $parent)
+    {
+        // Get communication templates
+        $smsTemplate = CommunicationTemplate::where('code', 'admissions_welcome_sms')->first();
+        $emailTemplate = CommunicationTemplate::where('code', 'admissions_welcome_email')->first();
+        $whatsappTemplate = CommunicationTemplate::where('code', 'admissions_welcome_whatsapp')->first();
+        
+        // Fallback: create templates if they don't exist
+        if (!$smsTemplate) {
+            $smsTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'admissions_welcome_sms'],
+                [
+                    'title' => 'Welcome Student (SMS/WA)',
+                    'type' => 'sms',
+                    'subject' => null,
+                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! 🎉\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nWe look forward to partnering with you in nurturing your child's growth and success.\n\nWarm regards,\n{{school_name}}",
+                ]
+            );
+        }
+        
+        if (!$emailTemplate) {
+            $emailTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'admissions_welcome_email'],
+                [
+                    'title' => 'Welcome Student (Email)',
+                    'type' => 'email',
+                    'subject' => 'Welcome to {{school_name}} – Admission Confirmation',
+                    'content' => "Dear {{parent_name}},\n\nWe are pleased to welcome you and your child, {{student_name}}, to the {{school_name}} family.\n\nStudent Name: {{student_name}}\nAdmission Number: {{admission_number}}\nClass & Stream: {{class_name}} {{stream_name}}\n\nYou may update your profile or access student information using the link below:\n{{profile_update_link}}\n\nFor any assistance, contact us at {{school_phone}} or {{school_email}}.\n\nWarm regards,\n{{school_name}} Administration",
+                ]
+            );
+        }
+        
+        // Get school settings
+        $schoolName = DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+        $schoolPhone = DB::table('settings')->where('key', 'school_phone')->value('value') ?? '';
+        $schoolEmail = DB::table('settings')->where('key', 'school_email')->value('value') ?? '';
+        
+        // Prepare template variables
+        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? 'Parent';
+        $className = optional($student->classroom)->name ?? '';
+        $streamName = optional($student->stream)->name ?? '';
+        $fullName = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
+        
+        $variables = [
+            'parent_name' => $parentName,
+            'student_name' => $fullName,
+            'admission_number' => $student->admission_number ?? '',
+            'class_name' => $className,
+            'stream_name' => $streamName,
+            'school_name' => $schoolName,
+            'school_phone' => $schoolPhone,
+            'school_email' => $schoolEmail,
+            'profile_update_link' => url('/parent/profile'),
+        ];
+        
+        // Replace placeholders
+        $replacePlaceholders = function($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', $value, $text);
+            }
+            return $text;
+        };
+        
+        // Initialize SMS service
+        $smsService = app(SmsService::class);
+        
+        // Send SMS
+        if ($smsTemplate) {
+            $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+            foreach ([$parent->primary_contact_phone ?? $parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
+                if ($phone) {
+                    try {
+                        $smsService->sendSMS($phone, $smsMessage);
+                    } catch (\Throwable $e) {
+                        Log::error("Admission SMS sending failed to $phone: " . $e->getMessage());
+                    }
+                }
+            }
+        }
+        
+        // Send Email
+        if ($emailTemplate) {
+            $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+            $body = $replacePlaceholders($emailTemplate->content, $variables);
+            
+            foreach ([$parent->primary_contact_email ?? $parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
+                if ($email) {
+                    try {
+                        Mail::to($email)->send(new GenericMail($subject, $body));
+                    } catch (\Throwable $e) {
+                        Log::error("Admission email sending failed to $email: " . $e->getMessage());
+                    }
+                }
+            }
+        }
+        
+        // Send WhatsApp (if template exists and WhatsApp is configured)
+        if ($whatsappTemplate) {
+            $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+            foreach ([$parent->father_whatsapp, $parent->mother_whatsapp, $parent->guardian_whatsapp] as $whatsapp) {
+                if ($whatsapp) {
+                    try {
+                        // Use SMS service for WhatsApp as it might handle WhatsApp API
+                        $smsService->sendSMS($whatsapp, $whatsappMessage);
+                    } catch (\Throwable $e) {
+                        Log::error("Admission WhatsApp sending failed to $whatsapp: " . $e->getMessage());
+                    }
+                }
+            }
+        }
     }
 }
