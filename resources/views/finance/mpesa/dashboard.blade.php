@@ -90,6 +90,9 @@
                 <a href="{{ route('finance.mpesa.links.index') }}" class="btn btn-finance btn-finance-outline btn-lg">
                     <i class="bi bi-list"></i> View All Payment Links
                 </a>
+                <a href="{{ route('finance.mpesa.c2b.dashboard') }}" class="btn btn-finance btn-finance-success btn-lg">
+                    <i class="bi bi-broadcast"></i> Paybill Transactions (Real-time)
+                </a>
             </div>
         </div>
     </div>

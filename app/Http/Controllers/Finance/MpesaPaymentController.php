@@ -6,10 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentLink;
 use App\Models\PaymentTransaction;
+use App\Models\MpesaC2BTransaction;
 use App\Services\PaymentGateways\MpesaGateway;
 use App\Services\PaymentAllocationService;
+use App\Services\MpesaSmartMatchingService;
 use App\Services\SMSService;
 use App\Services\EmailService;
 use App\Services\WhatsAppService;
@@ -17,12 +20,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class MpesaPaymentController extends Controller
 {
     protected MpesaGateway $mpesaGateway;
     protected PaymentAllocationService $allocationService;
+    protected MpesaSmartMatchingService $smartMatchingService;
     protected SMSService $smsService;
     protected EmailService $emailService;
     protected WhatsAppService $whatsappService;
@@ -30,12 +35,14 @@ class MpesaPaymentController extends Controller
     public function __construct(
         MpesaGateway $mpesaGateway,
         PaymentAllocationService $allocationService,
+        MpesaSmartMatchingService $smartMatchingService,
         SMSService $smsService,
         EmailService $emailService,
         WhatsAppService $whatsappService
     ) {
         $this->mpesaGateway = $mpesaGateway;
         $this->allocationService = $allocationService;
+        $this->smartMatchingService = $smartMatchingService;
         $this->smsService = $smsService;
         $this->emailService = $emailService;
         $this->whatsappService = $whatsappService;
@@ -141,9 +148,10 @@ class MpesaPaymentController extends Controller
                     );
                 }
 
+                // Redirect to waiting screen
                 return redirect()
-                    ->route('finance.mpesa.transaction.show', $result['transaction_id'])
-                    ->with('success', 'Payment request sent successfully. Parent will receive STK push prompt on their phone.');
+                    ->route('finance.mpesa.waiting', $result['transaction_id'])
+                    ->with('success', 'STK Push sent successfully');
             }
 
             return back()->with('error', $result['message'] ?? 'Failed to initiate payment.');
@@ -482,6 +490,289 @@ class MpesaPaymentController extends Controller
     }
 
     /**
+     * Show waiting screen for STK Push
+     */
+    public function waiting(PaymentTransaction $transaction)
+    {
+        $transaction->load(['student', 'invoice', 'student.family']);
+
+        return view('finance.mpesa.waiting', compact('transaction'));
+    }
+
+    /**
+     * Get transaction status (API endpoint for polling)
+     */
+    public function getTransactionStatus(PaymentTransaction $transaction)
+    {
+        if ($transaction->gateway !== 'mpesa') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'This is not an M-PESA transaction.',
+            ], 400);
+        }
+
+        // Check if already completed/failed/cancelled
+        if (in_array($transaction->status, ['completed', 'failed', 'cancelled'])) {
+            $response = [
+                'status' => $transaction->status,
+                'message' => $transaction->failure_reason ?? 'Transaction ' . $transaction->status,
+            ];
+
+            // If completed, include receipt info
+            if ($transaction->status === 'completed' && $transaction->payment_id) {
+                $payment = Payment::find($transaction->payment_id);
+                if ($payment) {
+                    $response['receipt_number'] = $payment->receipt_number;
+                    $response['receipt_id'] = $payment->id;
+                    $response['mpesa_code'] = $transaction->external_transaction_id;
+                }
+            }
+
+            if ($transaction->status === 'failed') {
+                $response['failure_reason'] = $transaction->failure_reason ?? 'Payment failed';
+            }
+
+            return response()->json($response);
+        }
+
+        // Still processing - query M-PESA API
+        try {
+            $result = $this->mpesaGateway->queryStkPushStatus($transaction->transaction_id);
+
+            if ($result['success'] && isset($result['data'])) {
+                $data = $result['data'];
+                
+                // Update transaction based on M-PESA response
+                if (isset($data['ResultCode'])) {
+                    if ($data['ResultCode'] == 0) {
+                        // Success - process payment
+                        $this->processSuccessfulPayment($transaction, $data);
+                        
+                        $payment = Payment::find($transaction->payment_id);
+                        return response()->json([
+                            'status' => 'completed',
+                            'message' => 'Payment completed successfully',
+                            'receipt_number' => $payment->receipt_number ?? null,
+                            'receipt_id' => $payment->id ?? null,
+                            'mpesa_code' => $transaction->external_transaction_id,
+                        ]);
+                    } else {
+                        // Failed
+                        $transaction->update([
+                            'status' => 'failed',
+                            'failure_reason' => $data['ResultDesc'] ?? 'Payment failed',
+                        ]);
+                        
+                        return response()->json([
+                            'status' => 'failed',
+                            'message' => 'Payment failed',
+                            'failure_reason' => $transaction->failure_reason,
+                        ]);
+                    }
+                }
+            }
+
+            // Still pending
+            return response()->json([
+                'status' => $transaction->status,
+                'message' => 'Payment is being processed',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Transaction status check failed', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status' => $transaction->status,
+                'message' => 'Checking status...',
+            ]);
+        }
+    }
+
+    /**
+     * Cancel transaction (API endpoint)
+     */
+    public function cancelTransaction(PaymentTransaction $transaction)
+    {
+        if (!in_array($transaction->status, ['pending', 'processing'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transaction cannot be cancelled in its current state.',
+            ], 400);
+        }
+
+        try {
+            $transaction->update([
+                'status' => 'cancelled',
+                'failure_reason' => 'Cancelled by user',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaction cancelled successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Transaction cancellation failed', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to cancel transaction',
+            ], 500);
+        }
+    }
+
+    /**
+     * Process successful payment - create receipt and allocate payment
+     */
+    protected function processSuccessfulPayment(PaymentTransaction $transaction, $mpesaData)
+    {
+        // Skip if already processed
+        if ($transaction->payment_id) {
+            return;
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Extract M-PESA receipt number
+            $mpesaReceiptNumber = null;
+            if (isset($mpesaData['CallbackMetadata']['Item'])) {
+                foreach ($mpesaData['CallbackMetadata']['Item'] as $item) {
+                    if ($item['Name'] === 'MpesaReceiptNumber') {
+                        $mpesaReceiptNumber = $item['Value'];
+                        break;
+                    }
+                }
+            }
+
+            // Create payment record
+            $payment = Payment::create([
+                'student_id' => $transaction->student_id,
+                'invoice_id' => $transaction->invoice_id,
+                'amount' => $transaction->amount,
+                'payment_method' => 'mpesa',
+                'payment_date' => now(),
+                'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                'transaction_id' => $mpesaReceiptNumber ?? $transaction->transaction_id,
+                'status' => 'approved',
+                'notes' => 'M-PESA STK Push payment',
+                'created_by' => $transaction->initiated_by,
+            ]);
+
+            // Update transaction
+            $transaction->update([
+                'status' => 'completed',
+                'payment_id' => $payment->id,
+                'external_transaction_id' => $mpesaReceiptNumber,
+                'completed_at' => now(),
+            ]);
+
+            // Allocate payment to invoices
+            $this->allocatePaymentToInvoices($payment, $transaction);
+
+            DB::commit();
+
+            Log::info('Payment processed successfully', [
+                'transaction_id' => $transaction->id,
+                'payment_id' => $payment->id,
+                'receipt_number' => $payment->receipt_number,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Failed to process successful payment', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Allocate payment to invoices
+     */
+    protected function allocatePaymentToInvoices(Payment $payment, PaymentTransaction $transaction)
+    {
+        $remainingAmount = $payment->amount;
+
+        // If transaction has specific invoice, prioritize it
+        if ($transaction->invoice_id) {
+            $invoice = Invoice::find($transaction->invoice_id);
+            if ($invoice && $invoice->balance > 0) {
+                $allocationAmount = min($remainingAmount, $invoice->balance);
+                
+                PaymentAllocation::create([
+                    'payment_id' => $payment->id,
+                    'invoice_id' => $invoice->id,
+                    'amount' => $allocationAmount,
+                ]);
+
+                $remainingAmount -= $allocationAmount;
+
+                // Update invoice
+                $invoice->amount_paid += $allocationAmount;
+                if ($invoice->amount_paid >= $invoice->total_amount) {
+                    $invoice->status = 'paid';
+                }
+                $invoice->save();
+            }
+        }
+
+        // If there's remaining amount, allocate to oldest unpaid invoices
+        if ($remainingAmount > 0) {
+            $unpaidInvoices = Invoice::where('student_id', $transaction->student_id)
+                ->where('status', '!=', 'paid')
+                ->where('balance', '>', 0)
+                ->orderBy('due_date', 'asc')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            foreach ($unpaidInvoices as $invoice) {
+                if ($remainingAmount <= 0) {
+                    break;
+                }
+
+                // Skip if already allocated in this payment
+                if ($invoice->id == $transaction->invoice_id) {
+                    continue;
+                }
+
+                $allocationAmount = min($remainingAmount, $invoice->balance);
+                
+                PaymentAllocation::create([
+                    'payment_id' => $payment->id,
+                    'invoice_id' => $invoice->id,
+                    'amount' => $allocationAmount,
+                ]);
+
+                $remainingAmount -= $allocationAmount;
+
+                // Update invoice
+                $invoice->amount_paid += $allocationAmount;
+                if ($invoice->amount_paid >= $invoice->total_amount) {
+                    $invoice->status = 'paid';
+                }
+                $invoice->save();
+            }
+        }
+
+        // If still remaining (overpayment), create credit note or mark as advance payment
+        if ($remainingAmount > 0.01) {
+            // This could be handled by creating a credit note or marking as advance payment
+            Log::info('Overpayment detected', [
+                'payment_id' => $payment->id,
+                'overpayment_amount' => $remainingAmount,
+            ]);
+        }
+    }
+
+    /**
      * Cancel/expire payment link
      */
     public function cancelLink(PaymentLink $paymentLink)
@@ -698,6 +989,346 @@ class MpesaPaymentController extends Controller
                     Log::warning('WhatsApp send failed', ['phone' => $contact['phone'], 'error' => $e->getMessage()]);
                 }
             }
+        }
+    }
+
+    /**
+     * Get student data (API endpoint)
+     */
+    public function getStudentData(Student $student)
+    {
+        $student->load(['family', 'classroom']);
+        
+        return response()->json([
+            'id' => $student->id,
+            'first_name' => $student->first_name,
+            'last_name' => $student->last_name,
+            'admission_number' => $student->admission_number,
+            'classroom' => $student->classroom ? [
+                'id' => $student->classroom->id,
+                'name' => $student->classroom->name,
+            ] : null,
+            'family' => $student->family ? [
+                'id' => $student->family->id,
+                'phone' => $student->family->phone,
+                'email' => $student->family->email,
+                'father_name' => $student->family->father_name,
+                'father_phone' => $student->family->father_phone,
+                'father_email' => $student->family->father_email,
+                'mother_name' => $student->family->mother_name,
+                'mother_phone' => $student->family->mother_phone,
+                'mother_email' => $student->family->mother_email,
+            ] : null,
+        ]);
+    }
+
+    /**
+     * Get student invoices (API endpoint)
+     */
+    public function getStudentInvoices(Student $student)
+    {
+        $invoices = Invoice::where('student_id', $student->id)
+            ->with(['academicYear', 'term'])
+            ->orderBy('due_date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($invoice) {
+                return [
+                    'id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'total_amount' => $invoice->total_amount,
+                    'amount_paid' => $invoice->amount_paid,
+                    'balance' => $invoice->balance,
+                    'status' => $invoice->status,
+                    'due_date' => $invoice->due_date ? $invoice->due_date->format('Y-m-d') : null,
+                    'academic_year' => $invoice->academicYear?->name,
+                    'term' => $invoice->term?->name,
+                ];
+            });
+
+        return response()->json($invoices);
+    }
+
+    /**
+     * C2B Webhook handler (receives all paybill transactions)
+     * This is called by M-PESA when a customer pays via paybill
+     */
+    public function handleC2BCallback(Request $request)
+    {
+        try {
+            Log::info('M-PESA C2B Callback received', ['data' => $request->all()]);
+
+            $data = $request->all();
+
+            // Extract transaction details
+            $transId = $data['TransID'] ?? $data['trans_id'] ?? null;
+            $transTime = $data['TransTime'] ?? $data['trans_time'] ?? null;
+            $transAmount = $data['TransAmount'] ?? $data['trans_amount'] ?? 0;
+            $businessShortCode = $data['BusinessShortCode'] ?? $data['business_short_code'] ?? null;
+            $billRefNumber = $data['BillRefNumber'] ?? $data['bill_ref_number'] ?? null;
+            $invoiceNumber = $data['InvoiceNumber'] ?? $data['invoice_number'] ?? null;
+            $msisdn = $data['MSISDN'] ?? $data['msisdn'] ?? null;
+            $firstName = $data['FirstName'] ?? $data['first_name'] ?? null;
+            $middleName = $data['MiddleName'] ?? $data['middle_name'] ?? null;
+            $lastName = $data['LastName'] ?? $data['last_name'] ?? null;
+            $transactionType = $data['TransactionType'] ?? 'Paybill';
+
+            // Create C2B transaction record
+            $c2bTransaction = MpesaC2BTransaction::create([
+                'transaction_type' => $transactionType,
+                'trans_id' => $transId,
+                'trans_time' => $this->parseMpesaTime($transTime),
+                'trans_amount' => $transAmount,
+                'business_short_code' => $businessShortCode,
+                'bill_ref_number' => $billRefNumber,
+                'invoice_number' => $invoiceNumber,
+                'org_account_balance' => $data['OrgAccountBalance'] ?? null,
+                'third_party_trans_id' => $data['ThirdPartyTransID'] ?? null,
+                'msisdn' => $msisdn,
+                'first_name' => $firstName,
+                'middle_name' => $middleName,
+                'last_name' => $lastName,
+                'unallocated_amount' => $transAmount,
+                'raw_data' => $data,
+            ]);
+
+            // Check for duplicates
+            $isDuplicate = $c2bTransaction->checkForDuplicate();
+            
+            if (!$isDuplicate) {
+                // Attempt smart matching
+                $this->smartMatchingService->matchTransaction($c2bTransaction);
+            }
+
+            Log::info('C2B transaction created', [
+                'id' => $c2bTransaction->id,
+                'trans_id' => $transId,
+                'amount' => $transAmount,
+                'is_duplicate' => $isDuplicate,
+            ]);
+
+            // Return success response to M-PESA
+            return response()->json([
+                'ResultCode' => 0,
+                'ResultDesc' => 'Accepted',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('C2B callback processing failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'data' => $request->all(),
+            ]);
+
+            // Still return success to M-PESA to avoid retries
+            return response()->json([
+                'ResultCode' => 0,
+                'ResultDesc' => 'Accepted',
+            ]);
+        }
+    }
+
+    /**
+     * C2B Transactions Dashboard
+     */
+    public function c2bDashboard(Request $request)
+    {
+        $stats = [
+            'today_count' => MpesaC2BTransaction::today()->count(),
+            'today_amount' => MpesaC2BTransaction::today()->sum('trans_amount'),
+            'unallocated_count' => MpesaC2BTransaction::unallocated()->count(),
+            'unallocated_amount' => MpesaC2BTransaction::unallocated()->sum('trans_amount'),
+            'auto_matched_count' => MpesaC2BTransaction::where('allocation_status', 'auto_matched')->today()->count(),
+            'duplicates_count' => MpesaC2BTransaction::where('is_duplicate', true)->today()->count(),
+        ];
+
+        // Get recent unallocated transactions
+        $unallocatedTransactions = MpesaC2BTransaction::unallocated()
+            ->with(['student', 'invoice'])
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        return view('finance.mpesa.c2b-dashboard', compact('stats', 'unallocatedTransactions'));
+    }
+
+    /**
+     * View all C2B transactions
+     */
+    public function c2bTransactions(Request $request)
+    {
+        $query = MpesaC2BTransaction::with(['student', 'invoice', 'payment', 'processedBy']);
+
+        // Filters
+        if ($request->filled('status')) {
+            $query->where('allocation_status', $request->status);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('trans_id', 'LIKE', "%$search%")
+                  ->orWhere('bill_ref_number', 'LIKE', "%$search%")
+                  ->orWhere('msisdn', 'LIKE', "%$search%")
+                  ->orWhere('first_name', 'LIKE', "%$search%")
+                  ->orWhere('last_name', 'LIKE', "%$search%");
+            });
+        }
+
+        if ($request->filled('date_from')) {
+            $query->whereDate('trans_time', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('trans_time', '<=', $request->date_to);
+        }
+
+        $transactions = $query->orderBy('created_at', 'desc')->paginate(50);
+
+        return view('finance.mpesa.c2b-transactions', compact('transactions'));
+    }
+
+    /**
+     * Show single C2B transaction for allocation
+     */
+    public function c2bTransactionShow($id)
+    {
+        $transaction = MpesaC2BTransaction::with(['student', 'invoice', 'payment', 'processedBy'])
+            ->findOrFail($id);
+
+        // Get matching suggestions if not already matched
+        if (empty($transaction->matching_suggestions)) {
+            $this->smartMatchingService->matchTransaction($transaction);
+            $transaction->refresh();
+        }
+
+        return view('finance.mpesa.c2b-allocate', compact('transaction'));
+    }
+
+    /**
+     * Allocate C2B transaction to student/invoice
+     */
+    public function c2bAllocate(Request $request, $id)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'amount' => 'required|numeric|min:1',
+            'payment_method' => 'required|in:mpesa',
+            'allocations' => 'required|array|min:1',
+            'allocations.*.invoice_id' => 'required|exists:invoices,id',
+            'allocations.*.amount' => 'required|numeric|min:1',
+        ]);
+
+        $transaction = MpesaC2BTransaction::findOrFail($id);
+
+        try {
+            DB::beginTransaction();
+
+            $student = Student::findOrFail($request->student_id);
+
+            // Create payment record
+            $payment = Payment::create([
+                'student_id' => $student->id,
+                'amount' => $request->amount,
+                'payment_method' => 'mpesa',
+                'payment_date' => $transaction->trans_time,
+                'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                'transaction_id' => $transaction->trans_id,
+                'status' => 'approved',
+                'notes' => 'M-PESA Paybill payment - ' . $transaction->full_name,
+                'created_by' => Auth::id(),
+            ]);
+
+            // Allocate to invoices
+            foreach ($request->allocations as $allocation) {
+                $invoice = Invoice::findOrFail($allocation['invoice_id']);
+                $allocationAmount = $allocation['amount'];
+
+                PaymentAllocation::create([
+                    'payment_id' => $payment->id,
+                    'invoice_id' => $invoice->id,
+                    'amount' => $allocationAmount,
+                ]);
+
+                // Update invoice
+                $invoice->amount_paid += $allocationAmount;
+                if ($invoice->amount_paid >= $invoice->total_amount) {
+                    $invoice->status = 'paid';
+                }
+                $invoice->save();
+            }
+
+            // Update C2B transaction
+            $transaction->allocate($student, null, $payment, $request->amount);
+
+            DB::commit();
+
+            Log::info('C2B transaction allocated', [
+                'transaction_id' => $transaction->id,
+                'payment_id' => $payment->id,
+                'student_id' => $student->id,
+                'amount' => $request->amount,
+            ]);
+
+            return redirect()
+                ->route('finance.mpesa.c2b.dashboard')
+                ->with('success', 'Transaction allocated successfully! Receipt: ' . $payment->receipt_number);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('C2B allocation failed', [
+                'transaction_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return back()->with('error', 'Failed to allocate transaction: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get latest C2B transactions (API for real-time updates)
+     */
+    public function getLatestC2BTransactions(Request $request)
+    {
+        $since = $request->input('since', now()->subMinutes(5));
+        
+        $transactions = MpesaC2BTransaction::where('created_at', '>=', $since)
+            ->with(['student'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($transaction) {
+                return [
+                    'id' => $transaction->id,
+                    'trans_id' => $transaction->trans_id,
+                    'trans_time' => $transaction->trans_time->format('Y-m-d H:i:s'),
+                    'amount' => number_format($transaction->trans_amount, 2),
+                    'payer_name' => $transaction->full_name,
+                    'phone' => $transaction->formatted_phone,
+                    'reference' => $transaction->bill_ref_number,
+                    'student_name' => $transaction->student ? $transaction->student->first_name . ' ' . $transaction->student->last_name : null,
+                    'allocation_status' => $transaction->allocation_status,
+                    'match_confidence' => $transaction->match_confidence,
+                    'is_duplicate' => $transaction->is_duplicate,
+                ];
+            });
+
+        return response()->json($transactions);
+    }
+
+    /**
+     * Parse M-PESA timestamp
+     */
+    protected function parseMpesaTime($timeString)
+    {
+        try {
+            // M-PESA format: YYYYMMDDHHmmss
+            if (is_numeric($timeString) && strlen($timeString) == 14) {
+                return Carbon::createFromFormat('YmdHis', $timeString);
+            }
+            
+            return Carbon::parse($timeString);
+        } catch (\Exception $e) {
+            Log::warning('Failed to parse M-PESA time', ['time' => $timeString]);
+            return now();
         }
     }
 }

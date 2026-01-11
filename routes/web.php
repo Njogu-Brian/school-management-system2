@@ -173,6 +173,7 @@ Route::post('/webhooks/whatsapp/wasender', [WhatsAppWebhookController::class, 'h
 
 // Payment Webhooks (public, no auth required)
 Route::post('/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
+Route::post('/webhooks/payment/mpesa/c2b', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'handleC2BCallback'])->name('payment.webhook.mpesa.c2b');
 Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookController::class, 'handleStripe'])->name('payment.webhook.stripe');
 Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
 
@@ -883,6 +884,12 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     // API-like search (inside auth)
     Route::get('/api/students/search', [StudentController::class, 'search'])
         ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('api.students.search');
+    
+    // Student API endpoints for M-PESA payment forms
+    Route::get('/api/students/{student}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentData'])
+        ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.students.show');
+    Route::get('/api/students/{student}/invoices', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getStudentInvoices'])
+        ->middleware('role:Super Admin|Admin|Finance Officer|Accountant')->name('api.students.invoices');
 
     // Export filtered list
     Route::get('/students/export', [StudentController::class, 'export'])
@@ -1197,6 +1204,22 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             // Transaction Management
             Route::get('transactions/{transaction}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showTransaction'])->name('transaction.show');
             Route::post('transactions/{transaction}/query', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'queryTransaction'])->name('transaction.query');
+            
+            // Waiting screen for STK Push
+            Route::get('waiting/{transaction}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'waiting'])->name('waiting');
+            
+            // C2B (Paybill) Transactions Management
+            Route::get('c2b/dashboard', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bDashboard'])->name('c2b.dashboard');
+            Route::get('c2b/transactions', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bTransactions'])->name('c2b.transactions');
+            Route::get('c2b/transactions/{id}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bTransactionShow'])->name('c2b.transaction.show');
+            Route::post('c2b/transactions/{id}/allocate', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bAllocate'])->name('c2b.allocate');
+        });
+        
+        // M-PESA API endpoints (for AJAX)
+        Route::prefix('api/finance/mpesa')->group(function () {
+            Route::get('transaction/{transaction}/status', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getTransactionStatus']);
+            Route::post('transaction/{transaction}/cancel', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'cancelTransaction']);
+            Route::get('c2b/latest', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getLatestC2BTransactions']);
         });
 
         // Credit & Debit Notes (manual)
