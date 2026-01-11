@@ -200,7 +200,7 @@ class MpesaPaymentController extends Controller
 
             $expiresAt = null;
             if ($request->filled('expires_in_days')) {
-                $expiresAt = now()->addDays($request->expires_in_days);
+                $expiresAt = now()->addDays((int) $request->expires_in_days);
             }
 
             $paymentLink = PaymentLink::create([
