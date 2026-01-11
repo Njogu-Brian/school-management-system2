@@ -24,7 +24,7 @@
                         <div class="d-flex align-items-start">
                             <i class="bi bi-info-circle fs-4 me-3"></i>
                             <div>
-                                <strong>Payment links</strong> can be sent via SMS or Email to parents. They provide an easy way for parents to pay fees at their convenience.
+                                <strong>Payment links</strong> can be sent via SMS, Email, or WhatsApp to parents. They provide an easy way for parents to pay fees at their convenience.
                             </div>
                         </div>
                     </div>
@@ -32,26 +32,25 @@
                     <form action="{{ route('finance.mpesa.links.store') }}" method="POST" id="createLinkForm">
                         @csrf
 
-                        <!-- Student Selection -->
+                        <!-- Student Selection with Live Search -->
                         <div class="mb-4">
-                            <label for="student_id" class="finance-form-label">
+                            <label class="finance-form-label">
                                 Student <span class="text-danger">*</span>
                             </label>
-                            <select name="student_id" id="student_id" class="finance-form-select" required>
-                                <option value="">-- Select Student --</option>
-                                @if($student)
-                                    <option value="{{ $student->id }}" selected>
-                                        {{ $student->first_name }} {{ $student->last_name }} - {{ $student->admission_number }}
-                                    </option>
-                                @endif
-                            </select>
+                            @include('partials.student_live_search', [
+                                'hiddenInputId' => 'student_id',
+                                'displayInputId' => 'studentSearchDisplay',
+                                'resultsId' => 'studentSearchResults',
+                                'placeholder' => 'Type name or admission #',
+                                'initialLabel' => $student ? $student->full_name . ' (' . $student->admission_number . ')' : ''
+                            ])
                             @error('student_id')
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <!-- Invoice Selection (Optional) -->
-                        <div class="mb-4">
+                        <div class="mb-4" id="invoiceSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
                             <label for="invoice_id" class="finance-form-label">Invoice (Optional)</label>
                             <select name="invoice_id" id="invoice_id" class="finance-form-select">
                                 <option value="">-- Select Invoice (or leave blank) --</option>
@@ -109,10 +108,36 @@
                             </div>
                         </div>
 
+                        <!-- Send Link Via -->
+                        <div class="mb-4 mt-4">
+                            <label class="finance-form-label">Send Link Via <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-3 flex-wrap">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="sms" id="sendSMS" checked>
+                                    <label class="form-check-label" for="sendSMS">
+                                        <i class="bi bi-chat-dots"></i> SMS (RKS_FINANCE)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="email" id="sendEmail">
+                                    <label class="form-check-label" for="sendEmail">
+                                        <i class="bi bi-envelope"></i> Email
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="whatsapp" id="sendWhatsApp">
+                                    <label class="form-check-label" for="sendWhatsApp">
+                                        <i class="bi bi-whatsapp"></i> WhatsApp
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="text-muted">Payment link will be sent immediately via selected channels</small>
+                        </div>
+
                         <!-- Form Actions -->
                         <div class="finance-card-footer mt-4">
                             <button type="submit" class="btn btn-finance btn-finance-primary btn-lg">
-                                <i class="bi bi-link-45deg"></i> Generate Payment Link
+                                <i class="bi bi-link-45deg"></i> Generate & Send Payment Link
                             </button>
                             <a href="{{ route('finance.mpesa.dashboard') }}" class="btn btn-finance btn-finance-outline">
                                 <i class="bi bi-x-circle"></i> Cancel
@@ -139,7 +164,8 @@
                         <li class="mb-2">Optionally select an invoice</li>
                         <li class="mb-2">Enter the payment amount</li>
                         <li class="mb-2">Set link expiry and usage limits</li>
-                        <li class="mb-2">Click "Generate Payment Link"</li>
+                        <li class="mb-2">Choose delivery channels</li>
+                        <li class="mb-2">Click "Generate & Send Payment Link"</li>
                     </ol>
                     <hr class="my-3">
                     <h6 class="mb-2">
@@ -147,21 +173,21 @@
                         After Creating:
                     </h6>
                     <p class="small text-muted mb-0">
-                        You can send the payment link to parents via SMS or Email. Parents can click the link and pay directly using M-PESA.
+                        The payment link will be sent immediately to parents via your selected channels (SMS, Email, and/or WhatsApp). Parents can click the link and pay directly using M-PESA.
                     </p>
                 </div>
             </div>
 
             <!-- Student Info Card -->
-            @if($student)
-            <div class="finance-card finance-animate">
+            <div class="finance-card finance-animate" id="studentInfoCard" style="display: {{ $student ? 'block' : 'none' }};">
                 <div class="finance-card-header">
                     <h5 class="finance-card-title">
                         <i class="bi bi-person me-2"></i>
                         Student Info
                     </h5>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body" id="studentInfoBody">
+                    @if($student)
                     <div class="mb-2">
                         <strong>Name:</strong>
                         <span class="text-muted">{{ $student->first_name }} {{ $student->last_name }}</span>
@@ -184,9 +210,9 @@
                             <span class="text-muted">{{ $student->family->email ?? 'N/A' }}</span>
                         </div>
                     @endif
+                    @endif
                 </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -194,61 +220,60 @@
 @section('js')
 <script>
 $(document).ready(function() {
-    // Initialize select2 for student search
-    $('#student_id').select2({
-        ajax: {
-            url: '{{ route("students.search") }}',
-            dataType: 'json',
-            delay: 250,
-            data: function (params) {
-                return {
-                    q: params.term,
-                    active_only: 1
-                };
-            },
-            processResults: function (data) {
-                return {
-                    results: data.map(function(student) {
-                        return {
-                            id: student.id,
-                            text: student.first_name + ' ' + student.last_name + ' - ' + student.admission_number
-                        };
-                    })
-                };
-            },
-            cache: true
-        },
-        minimumInputLength: 2,
-        placeholder: 'Type to search student...',
-        theme: 'bootstrap-5'
+    // Watch for student selection from live search
+    $(document).on('studentSelected', function(e, student) {
+        if (student && student.id) {
+            loadStudentData(student.id);
+        }
     });
 
-    // Load invoices when student is selected
-    $('#student_id').on('change', function() {
-        var studentId = $(this).val();
-        if (studentId) {
-            $.get('{{ url("/api/students") }}/' + studentId + '/invoices', function(invoices) {
-                var invoiceSelect = $('#invoice_id');
+    // If student is pre-selected, trigger load
+    @if($student)
+        loadStudentData({{ $student->id }});
+    @endif
+
+    // Load student data function
+    function loadStudentData(studentId) {
+        $('#invoiceSelectionGroup').show();
+        $('#studentInfoCard').show();
+
+        // Load student details
+        $.get('/api/students/' + studentId, function(student) {
+            // Update student info card
+            let infoHtml = `
+                <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.first_name} ${student.last_name}</span></div>
+                <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number}</span></div>
+                <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${student.classroom?.name || 'N/A'}</span></div>
+            `;
+            if (student.family) {
+                if (student.family.phone) {
+                    infoHtml += `<div class="mb-2"><strong>Parent Phone:</strong> <span class="text-muted">${student.family.phone}</span></div>`;
+                }
+                if (student.family.email) {
+                    infoHtml += `<div class="mb-0"><strong>Parent Email:</strong> <span class="text-muted">${student.family.email}</span></div>`;
+                }
+            }
+            $('#studentInfoBody').html(infoHtml);
+
+            // Load invoices
+            $.get('/api/students/' + studentId + '/invoices', function(invoices) {
+                let invoiceSelect = $('#invoice_id');
                 invoiceSelect.empty();
                 invoiceSelect.append('<option value="">-- Select Invoice (or leave blank) --</option>');
                 
                 invoices.forEach(function(invoice) {
                     if (invoice.balance > 0) {
-                        invoiceSelect.append(
-                            '<option value="' + invoice.id + '" data-balance="' + invoice.balance + '">' +
-                            invoice.invoice_number + ' - Balance: KES ' + parseFloat(invoice.balance).toLocaleString() +
-                            '</option>'
-                        );
+                        invoiceSelect.append(`<option value="${invoice.id}" data-balance="${invoice.balance}">${invoice.invoice_number} - Balance: KES ${parseFloat(invoice.balance).toLocaleString()}</option>`);
                     }
                 });
             });
-        }
-    });
+        });
+    }
 
     // Auto-fill amount when invoice is selected
     $('#invoice_id').on('change', function() {
-        var selected = $(this).find('option:selected');
-        var balance = selected.data('balance');
+        let selected = $(this).find('option:selected');
+        let balance = selected.data('balance');
         if (balance) {
             $('#amount').val(parseFloat(balance).toFixed(2));
         }
@@ -256,9 +281,16 @@ $(document).ready(function() {
 
     // Form submission
     $('#createLinkForm').on('submit', function(e) {
-        var btn = $(this).find('button[type="submit"]');
+        // Check if at least one channel is selected
+        if ($('input[name="send_channels[]"]:checked').length === 0) {
+            e.preventDefault();
+            alert('Please select at least one channel to send the payment link.');
+            return false;
+        }
+
+        let btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true);
-        btn.html('<i class="bi bi-hourglass-split"></i> Creating...');
+        btn.html('<i class="bi bi-hourglass-split"></i> Creating & Sending...');
     });
 });
 </script>

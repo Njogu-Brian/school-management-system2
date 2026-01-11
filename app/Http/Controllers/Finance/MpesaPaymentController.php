@@ -10,6 +10,9 @@ use App\Models\PaymentLink;
 use App\Models\PaymentTransaction;
 use App\Services\PaymentGateways\MpesaGateway;
 use App\Services\PaymentAllocationService;
+use App\Services\SMSService;
+use App\Services\EmailService;
+use App\Services\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -20,13 +23,22 @@ class MpesaPaymentController extends Controller
 {
     protected MpesaGateway $mpesaGateway;
     protected PaymentAllocationService $allocationService;
+    protected SMSService $smsService;
+    protected EmailService $emailService;
+    protected WhatsAppService $whatsappService;
 
     public function __construct(
         MpesaGateway $mpesaGateway,
-        PaymentAllocationService $allocationService
+        PaymentAllocationService $allocationService,
+        SMSService $smsService,
+        EmailService $emailService,
+        WhatsAppService $whatsappService
     ) {
         $this->mpesaGateway = $mpesaGateway;
         $this->allocationService = $allocationService;
+        $this->smsService = $smsService;
+        $this->emailService = $emailService;
+        $this->whatsappService = $whatsappService;
     }
 
     /**
@@ -99,6 +111,8 @@ class MpesaPaymentController extends Controller
             'amount' => 'required|numeric|min:1',
             'invoice_id' => 'nullable|exists:invoices,id',
             'notes' => 'nullable|string|max:500',
+            'send_channels' => 'nullable|array',
+            'send_channels.*' => 'in:sms,email,whatsapp',
         ]);
 
         // Validate phone number
@@ -117,6 +131,16 @@ class MpesaPaymentController extends Controller
             );
 
             if ($result['success']) {
+                // Send notifications if channels are selected
+                if ($request->filled('send_channels')) {
+                    $this->sendPaymentNotifications(
+                        $result['student'],
+                        $request->amount,
+                        $request->send_channels,
+                        'STK Push payment request sent'
+                    );
+                }
+
                 return redirect()
                     ->route('finance.mpesa.transaction.show', $result['transaction_id'])
                     ->with('success', 'Payment request sent successfully. Parent will receive STK push prompt on their phone.');
@@ -167,6 +191,8 @@ class MpesaPaymentController extends Controller
             'description' => 'nullable|string|max:255',
             'expires_in_days' => 'nullable|integer|min:1|max:365',
             'max_uses' => 'nullable|integer|min:1|max:100',
+            'send_channels' => 'required|array|min:1',
+            'send_channels.*' => 'in:sms,email,whatsapp',
         ]);
 
         try {
@@ -190,9 +216,12 @@ class MpesaPaymentController extends Controller
                 'status' => 'active',
             ]);
 
+            // Send payment link via selected channels
+            $this->sendPaymentLink($student, $paymentLink, $request->send_channels);
+
             return redirect()
                 ->route('finance.mpesa.link.show', $paymentLink->id)
-                ->with('success', 'Payment link created successfully!');
+                ->with('success', 'Payment link created and sent successfully!');
         } catch (\Exception $e) {
             Log::error('Payment link creation failed', [
                 'student_id' => $request->student_id,
@@ -486,6 +515,121 @@ class MpesaPaymentController extends Controller
             ]);
 
             return back()->with('error', 'Failed to send payment link.');
+        }
+    }
+
+    /**
+     * Send payment notifications via selected channels
+     */
+    protected function sendPaymentNotifications($student, $amount, $channels, $message)
+    {
+        if (!$student->family) {
+            return;
+        }
+
+        $family = $student->family;
+        $studentName = $student->first_name . ' ' . $student->last_name;
+        $amountFormatted = number_format($amount, 2);
+
+        // SMS
+        if (in_array('sms', $channels) && $family->phone) {
+            $smsMessage = "Dear Parent, $message for $studentName. Amount: KES $amountFormatted. Royal Kings School";
+            $this->smsService->sendSMS(
+                $family->phone,
+                $smsMessage,
+                'RKS_FINANCE'  // Use RKS_FINANCE sender ID
+            );
+        }
+
+        // Email
+        if (in_array('email', $channels) && $family->email) {
+            $subject = "M-PESA Payment Notification - $studentName";
+            $emailBody = "<p>Dear Parent,</p>
+                <p>$message for <strong>$studentName</strong> (Admission: {$student->admission_number}).</p>
+                <p><strong>Amount:</strong> KES $amountFormatted</p>
+                <p>Please complete the payment via M-PESA.</p>
+                <p>Thank you,<br>Royal Kings School</p>";
+            
+            $this->emailService->sendEmail(
+                $family->email,
+                $subject,
+                $emailBody
+            );
+        }
+
+        // WhatsApp
+        if (in_array('whatsapp', $channels) && $family->phone) {
+            $whatsappMessage = "*M-PESA Payment Notification*\n\n";
+            $whatsappMessage .= "Dear Parent,\n\n";
+            $whatsappMessage .= "$message for *$studentName*\n";
+            $whatsappMessage .= "Amount: *KES $amountFormatted*\n\n";
+            $whatsappMessage .= "Thank you,\nRoyal Kings School";
+            
+            $this->whatsappService->sendMessage(
+                $family->phone,
+                $whatsappMessage
+            );
+        }
+    }
+
+    /**
+     * Send payment link via selected channels
+     */
+    protected function sendPaymentLink($student, $paymentLink, $channels)
+    {
+        if (!$student->family) {
+            return;
+        }
+
+        $family = $student->family;
+        $studentName = $student->first_name . ' ' . $student->last_name;
+        $amountFormatted = number_format($paymentLink->amount, 2);
+        $linkUrl = route('payment-link.show', $paymentLink->hashed_id);
+
+        // SMS
+        if (in_array('sms', $channels) && $family->phone) {
+            $smsMessage = "Dear Parent, Pay KES $amountFormatted for $studentName. Click: $linkUrl - Royal Kings School";
+            $this->smsService->sendSMS(
+                $family->phone,
+                $smsMessage,
+                'RKS_FINANCE'  // Use RKS_FINANCE sender ID
+            );
+        }
+
+        // Email
+        if (in_array('email', $channels) && $family->email) {
+            $subject = "Payment Link - $studentName";
+            $emailBody = "<p>Dear Parent,</p>
+                <p>A payment link has been generated for <strong>$studentName</strong> (Admission: {$student->admission_number}).</p>
+                <p><strong>Amount:</strong> KES $amountFormatted</p>
+                <p><strong>Description:</strong> {$paymentLink->description}</p>
+                <p><a href='$linkUrl' style='background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>Pay Now</a></p>
+                " . ($paymentLink->expires_at ? "<p><em>Link expires: {$paymentLink->expires_at->format('d M Y H:i')}</em></p>" : "") . "
+                <p>Thank you,<br>Royal Kings School</p>";
+            
+            $this->emailService->sendEmail(
+                $family->email,
+                $subject,
+                $emailBody
+            );
+        }
+
+        // WhatsApp
+        if (in_array('whatsapp', $channels) && $family->phone) {
+            $whatsappMessage = "*Payment Link - Royal Kings School*\n\n";
+            $whatsappMessage .= "Dear Parent,\n\n";
+            $whatsappMessage .= "Pay *KES $amountFormatted* for *$studentName*\n";
+            $whatsappMessage .= "({$paymentLink->description})\n\n";
+            $whatsappMessage .= "Click to pay: $linkUrl\n\n";
+            if ($paymentLink->expires_at) {
+                $whatsappMessage .= "Link expires: {$paymentLink->expires_at->format('d M Y H:i')}\n\n";
+            }
+            $whatsappMessage .= "Thank you,\nRoyal Kings School";
+            
+            $this->whatsappService->sendMessage(
+                $family->phone,
+                $whatsappMessage
+            );
         }
     }
 }

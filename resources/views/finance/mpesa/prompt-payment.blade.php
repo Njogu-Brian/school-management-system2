@@ -32,26 +32,25 @@
                     <form action="{{ route('finance.mpesa.prompt-payment') }}" method="POST" id="promptPaymentForm">
                         @csrf
                         
-                        <!-- Student Selection -->
+                        <!-- Student Selection with Live Search -->
                         <div class="mb-4">
-                            <label for="student_id" class="finance-form-label">
+                            <label class="finance-form-label">
                                 Student <span class="text-danger">*</span>
                             </label>
-                            <select name="student_id" id="student_id" class="finance-form-select" required>
-                                <option value="">-- Select Student --</option>
-                                @if($student)
-                                    <option value="{{ $student->id }}" selected>
-                                        {{ $student->first_name }} {{ $student->last_name }} - {{ $student->admission_number }}
-                                    </option>
-                                @endif
-                            </select>
+                            @include('partials.student_live_search', [
+                                'hiddenInputId' => 'student_id',
+                                'displayInputId' => 'studentSearchDisplay',
+                                'resultsId' => 'studentSearchResults',
+                                'placeholder' => 'Type name or admission #',
+                                'initialLabel' => $student ? $student->full_name . ' (' . $student->admission_number . ')' : ''
+                            ])
                             @error('student_id')
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
                         </div>
 
                         <!-- Phone Number Selection -->
-                        <div class="mb-4">
+                        <div class="mb-4" id="phoneSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
                             <label for="phone_source" class="finance-form-label">
                                 Select Phone Number <span class="text-danger">*</span>
                             </label>
@@ -104,7 +103,7 @@
                         </div>
 
                         <!-- Invoice Selection (Optional) -->
-                        <div class="mb-4">
+                        <div class="mb-4" id="invoiceSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
                             <label for="invoice_id" class="finance-form-label">Invoice (Optional)</label>
                             <select name="invoice_id" id="invoice_id" class="finance-form-select">
                                 <option value="">-- Select Invoice (or leave blank) --</option>
@@ -131,6 +130,32 @@
                             @error('amount')
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
+                        </div>
+
+                        <!-- Send Notification Channels -->
+                        <div class="mb-4">
+                            <label class="finance-form-label">Send Notification Via (Optional)</label>
+                            <div class="d-flex gap-3 flex-wrap">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="sms" id="sendSMS" checked>
+                                    <label class="form-check-label" for="sendSMS">
+                                        <i class="bi bi-chat-dots"></i> SMS (RKS_FINANCE)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="email" id="sendEmail">
+                                    <label class="form-check-label" for="sendEmail">
+                                        <i class="bi bi-envelope"></i> Email
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="whatsapp" id="sendWhatsApp">
+                                    <label class="form-check-label" for="sendWhatsApp">
+                                        <i class="bi bi-whatsapp"></i> WhatsApp
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="text-muted">Parent will be notified via selected channels after STK push is sent</small>
                         </div>
 
                         <!-- Notes -->
@@ -171,6 +196,7 @@
                         <li class="mb-2">Choose parent's M-PESA phone number</li>
                         <li class="mb-2">Optionally select an invoice</li>
                         <li class="mb-2">Enter the amount to collect</li>
+                        <li class="mb-2">Choose notification channels</li>
                         <li class="mb-2">Click "Send STK Push"</li>
                     </ol>
                     <hr class="my-3">
@@ -185,15 +211,15 @@
             </div>
 
             <!-- Student Info Card -->
-            @if($student)
-            <div class="finance-card finance-animate">
+            <div class="finance-card finance-animate" id="studentInfoCard" style="display: {{ $student ? 'block' : 'none' }};">
                 <div class="finance-card-header">
                     <h5 class="finance-card-title">
                         <i class="bi bi-person me-2"></i>
                         Student Info
                     </h5>
                 </div>
-                <div class="finance-card-body">
+                <div class="finance-card-body" id="studentInfoBody">
+                    @if($student)
                     <div class="mb-2">
                         <strong>Name:</strong> 
                         <span class="text-muted">{{ $student->first_name }} {{ $student->last_name }}</span>
@@ -212,9 +238,9 @@
                             <span class="text-muted">{{ $student->family->phone ?? 'N/A' }}</span>
                         </div>
                     @endif
+                    @endif
                 </div>
             </div>
-            @endif
         </div>
     </div>
 @endsection
@@ -222,10 +248,82 @@
 @section('js')
 <script>
 $(document).ready(function() {
+    // Watch for student selection from live search
+    $(document).on('studentSelected', function(e, student) {
+        if (student && student.id) {
+            loadStudentData(student.id);
+        }
+    });
+
+    // If student is pre-selected, trigger load
+    @if($student)
+        loadStudentData({{ $student->id }});
+    @endif
+
+    // Load student data function
+    function loadStudentData(studentId) {
+        $('#phoneSelectionGroup').show();
+        $('#invoiceSelectionGroup').show();
+        $('#studentInfoCard').show();
+
+        // Load student details
+        $.get('/api/students/' + studentId, function(student) {
+            // Update student info card
+            let infoHtml = `
+                <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.first_name} ${student.last_name}</span></div>
+                <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number}</span></div>
+                <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${student.classroom?.name || 'N/A'}</span></div>
+            `;
+            if (student.family && student.family.phone) {
+                infoHtml += `<div class="mb-0"><strong>Parent Phone:</strong> <span class="text-muted">${student.family.phone}</span></div>`;
+            }
+            $('#studentInfoBody').html(infoHtml);
+
+            // Load phone numbers
+            let phoneSelect = $('#phone_source');
+            phoneSelect.empty();
+            phoneSelect.append('<option value="">-- Select Phone Number --</option>');
+            
+            if (student.family) {
+                if (student.family.father_phone) {
+                    let fatherName = student.family.father_name ? ` (${student.family.father_name})` : '';
+                    phoneSelect.append(`<option value="father" data-phone="${student.family.father_phone}">Father's Phone - ${student.family.father_phone}${fatherName}</option>`);
+                }
+                if (student.family.mother_phone) {
+                    let motherName = student.family.mother_name ? ` (${student.family.mother_name})` : '';
+                    phoneSelect.append(`<option value="mother" data-phone="${student.family.mother_phone}">Mother's Phone - ${student.family.mother_phone}${motherName}</option>`);
+                }
+                if (student.family.phone && student.family.phone != student.family.father_phone && student.family.phone != student.family.mother_phone) {
+                    phoneSelect.append(`<option value="primary" data-phone="${student.family.phone}">Primary Phone - ${student.family.phone}</option>`);
+                }
+            }
+            
+            phoneSelect.append('<option value="custom">Enter Different Number</option>');
+            
+            // Auto-select first available phone
+            if (phoneSelect.find('option').length > 2) {
+                phoneSelect.find('option:eq(1)').prop('selected', true).trigger('change');
+            }
+
+            // Load invoices
+            $.get('/api/students/' + studentId + '/invoices', function(invoices) {
+                let invoiceSelect = $('#invoice_id');
+                invoiceSelect.empty();
+                invoiceSelect.append('<option value="">-- Select Invoice (or leave blank) --</option>');
+                
+                invoices.forEach(function(invoice) {
+                    if (invoice.balance > 0) {
+                        invoiceSelect.append(`<option value="${invoice.id}" data-balance="${invoice.balance}">${invoice.invoice_number} - Balance: KES ${parseFloat(invoice.balance).toLocaleString()}</option>`);
+                    }
+                });
+            });
+        });
+    }
+
     // Handle phone source selection
     $('#phone_source').on('change', function() {
-        var selectedOption = $(this).find('option:selected');
-        var phone = selectedOption.data('phone');
+        let selectedOption = $(this).find('option:selected');
+        let phone = selectedOption.data('phone');
         
         if ($(this).val() === 'custom' || $(this).val() === '') {
             $('#phone_number').val('').prop('readonly', false).focus();
@@ -234,104 +332,10 @@ $(document).ready(function() {
         }
     });
 
-    // Initialize select2
-    $('#student_id').select2({
-        ajax: {
-            url: '{{ route("students.search") }}',
-            dataType: 'json',
-            delay: 250,
-            data: function (params) {
-                return {
-                    q: params.term,
-                    active_only: 1
-                };
-            },
-            processResults: function (data) {
-                return {
-                    results: data.map(function(student) {
-                        return {
-                            id: student.id,
-                            text: student.first_name + ' ' + student.last_name + ' - ' + student.admission_number
-                        };
-                    })
-                };
-            },
-            cache: true
-        },
-        minimumInputLength: 2,
-        placeholder: 'Type to search student...',
-        theme: 'bootstrap-5'
-    });
-
-    // Load invoices when student is selected
-    $('#student_id').on('change', function() {
-        var studentId = $(this).val();
-        if (studentId) {
-            // Load unpaid invoices
-            $.get('{{ url("/api/students") }}/' + studentId + '/invoices', function(invoices) {
-                var invoiceSelect = $('#invoice_id');
-                invoiceSelect.empty();
-                invoiceSelect.append('<option value="">-- Select Invoice (or leave blank) --</option>');
-                
-                invoices.forEach(function(invoice) {
-                    if (invoice.balance > 0) {
-                        invoiceSelect.append(
-                            '<option value="' + invoice.id + '" data-balance="' + invoice.balance + '">' +
-                            invoice.invoice_number + ' - Balance: KES ' + parseFloat(invoice.balance).toLocaleString() +
-                            '</option>'
-                        );
-                    }
-                });
-            });
-
-            // Load parent phones
-            $.get('{{ url("/api/students") }}/' + studentId, function(student) {
-                var phoneSelect = $('#phone_source');
-                phoneSelect.empty();
-                phoneSelect.append('<option value="">-- Select Phone Number --</option>');
-                
-                if (student.family) {
-                    if (student.family.father_phone) {
-                        var fatherName = student.family.father_name ? ' (' + student.family.father_name + ')' : '';
-                        phoneSelect.append(
-                            '<option value="father" data-phone="' + student.family.father_phone + '">' +
-                            'Father\'s Phone - ' + student.family.father_phone + fatherName +
-                            '</option>'
-                        );
-                    }
-                    if (student.family.mother_phone) {
-                        var motherName = student.family.mother_name ? ' (' + student.family.mother_name + ')' : '';
-                        phoneSelect.append(
-                            '<option value="mother" data-phone="' + student.family.mother_phone + '">' +
-                            'Mother\'s Phone - ' + student.family.mother_phone + motherName +
-                            '</option>'
-                        );
-                    }
-                    if (student.family.phone && 
-                        student.family.phone != student.family.father_phone && 
-                        student.family.phone != student.family.mother_phone) {
-                        phoneSelect.append(
-                            '<option value="primary" data-phone="' + student.family.phone + '">' +
-                            'Primary Phone - ' + student.family.phone +
-                            '</option>'
-                        );
-                    }
-                }
-                
-                phoneSelect.append('<option value="custom">Enter Different Number</option>');
-                
-                // Auto-select first available phone
-                if (phoneSelect.find('option').length > 2) {
-                    phoneSelect.find('option:eq(1)').prop('selected', true).trigger('change');
-                }
-            });
-        }
-    });
-
     // Auto-fill amount when invoice is selected
     $('#invoice_id').on('change', function() {
-        var selected = $(this).find('option:selected');
-        var balance = selected.data('balance');
+        let selected = $(this).find('option:selected');
+        let balance = selected.data('balance');
         if (balance) {
             $('#amount').val(parseFloat(balance).toFixed(2));
         }
@@ -339,7 +343,7 @@ $(document).ready(function() {
 
     // Form submission
     $('#promptPaymentForm').on('submit', function(e) {
-        var btn = $(this).find('button[type="submit"]');
+        let btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true);
         btn.html('<i class="bi bi-hourglass-split"></i> Sending...');
     });
