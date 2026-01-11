@@ -186,9 +186,10 @@ class MpesaPaymentController extends Controller
     {
         $request->validate([
             'student_id' => 'required|exists:students,id',
-            'invoice_id' => 'nullable|exists:invoices,id',
             'amount' => 'required|numeric|min:1',
-            'description' => 'nullable|string|max:255',
+            'selected_invoices' => 'nullable|string',
+            'parents' => 'required|array|min:1',
+            'parents.*' => 'in:father,mother,primary',
             'expires_in_days' => 'nullable|integer|min:1|max:365',
             'max_uses' => 'nullable|integer|min:1|max:100',
             'send_channels' => 'required|array|min:1',
@@ -198,26 +199,51 @@ class MpesaPaymentController extends Controller
         try {
             $student = Student::with('family')->findOrFail($request->student_id);
 
+            // Parse selected invoices
+            $invoiceIds = $request->filled('selected_invoices') 
+                ? explode(',', $request->selected_invoices) 
+                : [];
+
+            // Get first invoice for the invoice_id field (backward compatibility)
+            $primaryInvoiceId = !empty($invoiceIds) ? $invoiceIds[0] : null;
+
             $expiresAt = null;
             if ($request->filled('expires_in_days')) {
                 $expiresAt = now()->addDays((int) $request->expires_in_days);
             }
 
+            // Create description from invoices
+            $description = 'School Fee Payment';
+            if (!empty($invoiceIds)) {
+                $invoices = Invoice::whereIn('id', $invoiceIds)->get();
+                $invoiceNumbers = $invoices->pluck('invoice_number')->toArray();
+                $description = 'Payment for ' . implode(', ', $invoiceNumbers);
+            }
+
             $paymentLink = PaymentLink::create([
                 'student_id' => $request->student_id,
-                'invoice_id' => $request->invoice_id,
+                'invoice_id' => $primaryInvoiceId,
                 'family_id' => $student->family_id,
                 'amount' => $request->amount,
                 'currency' => 'KES',
-                'description' => $request->description ?? 'School Fee Payment',
+                'description' => $description,
                 'expires_at' => $expiresAt,
                 'max_uses' => $request->max_uses ?? 1,
                 'created_by' => Auth::id(),
                 'status' => 'active',
+                'metadata' => [
+                    'invoice_ids' => $invoiceIds,
+                    'selected_parents' => $request->parents,
+                ],
             ]);
 
-            // Send payment link via selected channels
-            $this->sendPaymentLink($student, $paymentLink, $request->send_channels);
+            // Send payment link via selected channels to selected parents
+            $this->sendPaymentLinkToParents(
+                $student, 
+                $paymentLink, 
+                $request->send_channels,
+                $request->parents
+            );
 
             return redirect()
                 ->route('finance.mpesa.link.show', $paymentLink->id)
@@ -573,9 +599,9 @@ class MpesaPaymentController extends Controller
     }
 
     /**
-     * Send payment link via selected channels
+     * Send payment link via selected channels to selected parents
      */
-    protected function sendPaymentLink($student, $paymentLink, $channels)
+    protected function sendPaymentLinkToParents($student, $paymentLink, $channels, $parents)
     {
         if (!$student->family) {
             return;
@@ -586,50 +612,92 @@ class MpesaPaymentController extends Controller
         $amountFormatted = number_format($paymentLink->amount, 2);
         $linkUrl = route('payment-link.show', $paymentLink->hashed_id);
 
-        // SMS
-        if (in_array('sms', $channels) && $family->phone) {
-            $smsMessage = "Dear Parent, Pay KES $amountFormatted for $studentName. Click: $linkUrl - Royal Kings School";
-            $this->smsService->sendSMS(
-                $family->phone,
-                $smsMessage,
-                'RKS_FINANCE'  // Use RKS_FINANCE sender ID
-            );
+        // Prepare parent contacts
+        $contacts = [];
+        
+        if (in_array('father', $parents)) {
+            $contacts[] = [
+                'name' => $family->father_name ?? 'Father',
+                'phone' => $family->father_phone,
+                'email' => $family->father_email,
+            ];
+        }
+        
+        if (in_array('mother', $parents)) {
+            $contacts[] = [
+                'name' => $family->mother_name ?? 'Mother',
+                'phone' => $family->mother_phone,
+                'email' => $family->mother_email,
+            ];
+        }
+        
+        if (in_array('primary', $parents)) {
+            $contacts[] = [
+                'name' => 'Parent',
+                'phone' => $family->phone,
+                'email' => $family->email,
+            ];
         }
 
-        // Email
-        if (in_array('email', $channels) && $family->email) {
-            $subject = "Payment Link - $studentName";
-            $emailBody = "<p>Dear Parent,</p>
-                <p>A payment link has been generated for <strong>$studentName</strong> (Admission: {$student->admission_number}).</p>
-                <p><strong>Amount:</strong> KES $amountFormatted</p>
-                <p><strong>Description:</strong> {$paymentLink->description}</p>
-                <p><a href='$linkUrl' style='background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>Pay Now</a></p>
-                " . ($paymentLink->expires_at ? "<p><em>Link expires: {$paymentLink->expires_at->format('d M Y H:i')}</em></p>" : "") . "
-                <p>Thank you,<br>Royal Kings School</p>";
-            
-            $this->emailService->sendEmail(
-                $family->email,
-                $subject,
-                $emailBody
-            );
-        }
-
-        // WhatsApp
-        if (in_array('whatsapp', $channels) && $family->phone) {
-            $whatsappMessage = "*Payment Link - Royal Kings School*\n\n";
-            $whatsappMessage .= "Dear Parent,\n\n";
-            $whatsappMessage .= "Pay *KES $amountFormatted* for *$studentName*\n";
-            $whatsappMessage .= "({$paymentLink->description})\n\n";
-            $whatsappMessage .= "Click to pay: $linkUrl\n\n";
-            if ($paymentLink->expires_at) {
-                $whatsappMessage .= "Link expires: {$paymentLink->expires_at->format('d M Y H:i')}\n\n";
+        // Send to each contact
+        foreach ($contacts as $contact) {
+            // SMS
+            if (in_array('sms', $channels) && !empty($contact['phone'])) {
+                $smsMessage = "Dear {$contact['name']}, Pay KES $amountFormatted for $studentName. Click: $linkUrl - Royal Kings School";
+                try {
+                    $this->smsService->sendSMS(
+                        $contact['phone'],
+                        $smsMessage,
+                        'RKS_FINANCE'
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('SMS send failed', ['phone' => $contact['phone'], 'error' => $e->getMessage()]);
+                }
             }
-            $whatsappMessage .= "Thank you,\nRoyal Kings School";
-            
-            $this->whatsappService->sendMessage(
-                $family->phone,
-                $whatsappMessage
-            );
+
+            // Email
+            if (in_array('email', $channels) && !empty($contact['email'])) {
+                $subject = "Payment Link - $studentName";
+                $emailBody = "<p>Dear {$contact['name']},</p>
+                    <p>A payment link has been generated for <strong>$studentName</strong> (Admission: {$student->admission_number}).</p>
+                    <p><strong>Amount:</strong> KES $amountFormatted</p>
+                    <p><strong>Description:</strong> {$paymentLink->description}</p>
+                    <p><a href='$linkUrl' style='background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>Pay Now</a></p>
+                    " . ($paymentLink->expires_at ? "<p><em>Link expires: {$paymentLink->expires_at->format('d M Y H:i')}</em></p>" : "") . "
+                    <p>Thank you,<br>Royal Kings School</p>";
+                
+                try {
+                    $this->emailService->sendEmail(
+                        $contact['email'],
+                        $subject,
+                        $emailBody
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('Email send failed', ['email' => $contact['email'], 'error' => $e->getMessage()]);
+                }
+            }
+
+            // WhatsApp
+            if (in_array('whatsapp', $channels) && !empty($contact['phone'])) {
+                $whatsappMessage = "*Payment Link - Royal Kings School*\n\n";
+                $whatsappMessage .= "Dear {$contact['name']},\n\n";
+                $whatsappMessage .= "Pay *KES $amountFormatted* for *$studentName*\n";
+                $whatsappMessage .= "({$paymentLink->description})\n\n";
+                $whatsappMessage .= "Click to pay: $linkUrl\n\n";
+                if ($paymentLink->expires_at) {
+                    $whatsappMessage .= "Link expires: {$paymentLink->expires_at->format('d M Y H:i')}\n\n";
+                }
+                $whatsappMessage .= "Thank you,\nRoyal Kings School";
+                
+                try {
+                    $this->whatsappService->sendMessage(
+                        $contact['phone'],
+                        $whatsappMessage
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('WhatsApp send failed', ['phone' => $contact['phone'], 'error' => $e->getMessage()]);
+                }
+            }
         }
     }
 }
