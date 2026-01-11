@@ -217,6 +217,10 @@ class Student extends Model
     {
         return $this->belongsTo(Family::class);
     }
+    public function invoices()
+    {
+        return $this->hasMany(\App\Models\Invoice::class);
+    }
     public function transport()
     {
         return $this->hasOne(Transport::class);

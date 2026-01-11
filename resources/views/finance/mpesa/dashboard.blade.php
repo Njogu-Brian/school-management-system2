@@ -1,209 +1,233 @@
-@extends('adminlte::page')
-
-@section('title', 'M-PESA Dashboard')
-
-@section('content_header')
-    <h1><i class="fas fa-mobile-alt text-success"></i> M-PESA Payment Dashboard</h1>
-@stop
+@extends('layouts.app')
 
 @section('content')
-<div class="row">
+    @include('finance.partials.header', [
+        'title' => 'M-PESA Payment Dashboard',
+        'icon' => 'bi bi-phone',
+        'subtitle' => 'Monitor M-PESA transactions and payment links',
+        'actions' => '<a href="' . route('finance.mpesa.prompt-payment.form') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-send"></i> Prompt Payment</a><a href="' . route('finance.mpesa.links.create') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-link-45deg"></i> Create Link</a>'
+    ])
+
     <!-- Statistics Cards -->
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-success">
-            <div class="inner">
-                <h3>{{ number_format($stats['today_amount'], 2) }}</h3>
-                <p>Today's Collections (KES)</p>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-3 col-md-6">
+            <div class="finance-stat-card finance-animate">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted small">Today's Collections</div>
+                        <div class="fw-bold fs-4 text-success">KES {{ number_format($stats['today_amount'], 2) }}</div>
+                    </div>
+                    <div class="text-success">
+                        <i class="bi bi-cash-stack fs-3"></i>
+                    </div>
+                </div>
+                <div class="text-muted small">{{ $stats['today_transactions'] }} transactions today</div>
             </div>
-            <div class="icon">
-                <i class="fas fa-money-bill-wave"></i>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="finance-stat-card finance-animate">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted small">Today's Transactions</div>
+                        <div class="fw-bold fs-4 text-primary">{{ $stats['today_transactions'] }}</div>
+                    </div>
+                    <div class="text-primary">
+                        <i class="bi bi-arrow-left-right fs-3"></i>
+                    </div>
+                </div>
+                <div class="text-muted small">Payment transactions</div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="finance-stat-card finance-animate">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted small">Pending</div>
+                        <div class="fw-bold fs-4 text-warning">{{ $stats['pending_transactions'] }}</div>
+                    </div>
+                    <div class="text-warning">
+                        <i class="bi bi-hourglass-split fs-3"></i>
+                    </div>
+                </div>
+                <div class="text-muted small">Awaiting confirmation</div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+            <div class="finance-stat-card finance-animate">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="text-muted small">Active Links</div>
+                        <div class="fw-bold fs-4 text-info">{{ $stats['active_payment_links'] }}</div>
+                    </div>
+                    <div class="text-info">
+                        <i class="bi bi-link-45deg fs-3"></i>
+                    </div>
+                </div>
+                <div class="text-muted small">Payment links available</div>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-info">
-            <div class="inner">
-                <h3>{{ $stats['today_transactions'] }}</h3>
-                <p>Today's Transactions</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-exchange-alt"></i>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-warning">
-            <div class="inner">
-                <h3>{{ $stats['pending_transactions'] }}</h3>
-                <p>Pending Transactions</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-clock"></i>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3 col-6">
-        <div class="small-box bg-primary">
-            <div class="inner">
-                <h3>{{ $stats['active_payment_links'] }}</h3>
-                <p>Active Payment Links</p>
-            </div>
-            <div class="icon">
-                <i class="fas fa-link"></i>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
     <!-- Quick Actions -->
-    <div class="col-md-12 mb-3">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-bolt"></i> Quick Actions</h3>
-            </div>
-            <div class="card-body">
-                <a href="{{ route('finance.mpesa.prompt-payment.form') }}" class="btn btn-success btn-lg mr-2">
-                    <i class="fas fa-mobile-alt"></i> Prompt Parent to Pay (STK Push)
+    <div class="finance-card finance-animate mb-4">
+        <div class="finance-card-header">
+            <h5 class="finance-card-title">
+                <i class="bi bi-lightning me-2"></i>
+                Quick Actions
+            </h5>
+        </div>
+        <div class="finance-card-body">
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{{ route('finance.mpesa.prompt-payment.form') }}" class="btn btn-finance btn-finance-primary btn-lg">
+                    <i class="bi bi-send"></i> Prompt Parent to Pay (STK Push)
                 </a>
-                <a href="{{ route('finance.mpesa.links.create') }}" class="btn btn-primary btn-lg mr-2">
-                    <i class="fas fa-link"></i> Generate Payment Link
+                <a href="{{ route('finance.mpesa.links.create') }}" class="btn btn-finance btn-finance-secondary btn-lg">
+                    <i class="bi bi-link-45deg"></i> Generate Payment Link
                 </a>
-                <a href="{{ route('finance.mpesa.links.index') }}" class="btn btn-info btn-lg mr-2">
-                    <i class="fas fa-list"></i> View All Payment Links
+                <a href="{{ route('finance.mpesa.links.index') }}" class="btn btn-finance btn-finance-outline btn-lg">
+                    <i class="bi bi-list"></i> View All Payment Links
                 </a>
             </div>
         </div>
     </div>
-</div>
 
-<div class="row">
-    <!-- Recent Transactions -->
-    <div class="col-md-8">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-history"></i> Recent Transactions</h3>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Student</th>
-                                <th>Amount</th>
-                                <th>Phone</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($recentTransactions as $transaction)
-                            <tr>
-                                <td>{{ $transaction->created_at->format('H:i') }}</td>
-                                <td>
-                                    <small>
-                                        <strong>{{ $transaction->student->first_name }} {{ $transaction->student->last_name }}</strong><br>
-                                        {{ $transaction->student->admission_number }}
-                                    </small>
-                                </td>
-                                <td><strong>KES {{ number_format($transaction->amount, 2) }}</strong></td>
-                                <td><small>{{ $transaction->phone_number }}</small></td>
-                                <td>
-                                    @if($transaction->status === 'completed')
-                                        <span class="badge badge-success">Completed</span>
-                                    @elseif($transaction->status === 'processing')
-                                        <span class="badge badge-info">Processing</span>
-                                    @elseif($transaction->status === 'pending')
-                                        <span class="badge badge-warning">Pending</span>
-                                    @else
-                                        <span class="badge badge-danger">{{ ucfirst($transaction->status) }}</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    <a href="{{ route('finance.mpesa.transaction.show', $transaction) }}" class="btn btn-xs btn-info">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="6" class="text-center text-muted">No recent transactions</td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+    <div class="row g-4">
+        <!-- Recent Transactions -->
+        <div class="col-lg-8">
+            <div class="finance-card finance-animate">
+                <div class="finance-card-header">
+                    <h5 class="finance-card-title">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Recent Transactions
+                    </h5>
+                </div>
+                <div class="finance-card-body p-0">
+                    <div class="finance-table-wrapper">
+                        <table class="finance-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Student</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>Phone</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($recentTransactions as $transaction)
+                                <tr>
+                                    <td>
+                                        <span class="text-muted small">
+                                            {{ $transaction->created_at->format('H:i') }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ $transaction->student->first_name }} {{ $transaction->student->last_name }}</strong>
+                                        </div>
+                                        <small class="text-muted">{{ $transaction->student->admission_number }}</small>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>KES {{ number_format($transaction->amount, 2) }}</strong>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ $transaction->phone_number }}</small>
+                                    </td>
+                                    <td>
+                                        @if($transaction->status === 'completed')
+                                            <span class="finance-badge badge-success">Completed</span>
+                                        @elseif($transaction->status === 'processing')
+                                            <span class="finance-badge badge-info">Processing</span>
+                                        @elseif($transaction->status === 'pending')
+                                            <span class="finance-badge badge-warning">Pending</span>
+                                        @else
+                                            <span class="finance-badge badge-danger">{{ ucfirst($transaction->status) }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('finance.mpesa.transaction.show', $transaction) }}" 
+                                           class="btn btn-finance btn-finance-sm">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                        No recent transactions
+                                    </td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Active Payment Links -->
-    <div class="col-md-4">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-link"></i> Active Payment Links</h3>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-striped">
-                        <thead>
-                            <tr>
-                                <th>Student</th>
-                                <th>Amount</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @forelse($activeLinks as $link)
-                            <tr>
-                                <td>
-                                    <small>
-                                        <strong>{{ $link->student->first_name }}</strong><br>
-                                        {{ $link->student->admission_number }}
-                                    </small>
-                                </td>
-                                <td><strong>{{ number_format($link->amount, 2) }}</strong></td>
-                                <td>
-                                    <a href="{{ route('finance.mpesa.link.show', $link) }}" class="btn btn-xs btn-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            @empty
-                            <tr>
-                                <td colspan="3" class="text-center text-muted">No active links</td>
-                            </tr>
-                            @endforelse
-                        </tbody>
-                    </table>
+        <!-- Active Payment Links -->
+        <div class="col-lg-4">
+            <div class="finance-card finance-animate">
+                <div class="finance-card-header">
+                    <h5 class="finance-card-title">
+                        <i class="bi bi-link-45deg me-2"></i>
+                        Active Payment Links
+                    </h5>
                 </div>
+                <div class="finance-card-body p-0">
+                    <div class="finance-table-wrapper">
+                        <table class="finance-table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($activeLinks as $link)
+                                <tr>
+                                    <td>
+                                        <div>
+                                            <strong>{{ $link->student->first_name }}</strong>
+                                        </div>
+                                        <small class="text-muted">{{ $link->student->admission_number }}</small>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>KES {{ number_format($link->amount, 2) }}</strong>
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('finance.mpesa.link.show', $link) }}" 
+                                           class="btn btn-finance btn-finance-sm">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">
+                                        <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                        No active links
+                                    </td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @if($activeLinks->count() > 0)
+                <div class="finance-card-footer text-center">
+                    <a href="{{ route('finance.mpesa.links.index') }}" class="btn btn-finance btn-finance-outline">
+                        View All Links <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+                @endif
             </div>
-            @if($activeLinks->count() > 0)
-            <div class="card-footer text-center">
-                <a href="{{ route('finance.mpesa.links.index') }}" class="btn btn-sm btn-primary">
-                    View All Links <i class="fas fa-arrow-right"></i>
-                </a>
-            </div>
-            @endif
         </div>
     </div>
-</div>
-
-@stop
-
-@section('css')
-<style>
-    .small-box {
-        border-radius: 5px;
-    }
-    .small-box h3 {
-        font-size: 2.2rem;
-        font-weight: 700;
-    }
-</style>
-@stop
-
+@endsection

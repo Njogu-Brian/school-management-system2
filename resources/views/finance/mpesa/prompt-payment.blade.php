@@ -1,173 +1,223 @@
-@extends('adminlte::page')
-
-@section('title', 'Prompt Parent to Pay')
-
-@section('content_header')
-    <h1><i class="fas fa-mobile-alt text-success"></i> Prompt Parent to Pay (STK Push)</h1>
-@stop
+@extends('layouts.app')
 
 @section('content')
-<div class="row">
-    <div class="col-md-8">
-        <div class="card card-success">
-            <div class="card-header">
-                <h3 class="card-title">Initiate M-PESA STK Push Payment</h3>
-            </div>
-            <form action="{{ route('finance.mpesa.prompt-payment') }}" method="POST" id="promptPaymentForm">
-                @csrf
-                <div class="card-body">
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <strong>How it works:</strong> When you submit this form, the parent will receive an STK push prompt on their phone to enter their M-PESA PIN and complete the payment.
-                    </div>
+    @include('finance.partials.header', [
+        'title' => 'Prompt Parent to Pay (STK Push)',
+        'icon' => 'bi bi-phone',
+        'subtitle' => 'Send M-PESA STK Push payment request to parents',
+        'actions' => '<a href="' . route('finance.mpesa.dashboard') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>'
+    ])
 
-                    <!-- Student Selection -->
-                    <div class="form-group">
-                        <label for="student_id">Student <span class="text-danger">*</span></label>
-                        <select name="student_id" id="student_id" class="form-control select2" required>
-                            <option value="">-- Select Student --</option>
-                            @if($student)
-                                <option value="{{ $student->id }}" selected>
-                                    {{ $student->first_name }} {{ $student->last_name }} - {{ $student->admission_number }}
-                                </option>
-                            @endif
-                        </select>
-                        @error('student_id')
-                            <span class="text-danger"><small>{{ $message }}</small></span>
-                        @enderror
-                    </div>
-
-                    <!-- Phone Number Selection -->
-                    <div class="form-group">
-                        <label for="phone_source">Select Phone Number <span class="text-danger">*</span></label>
-                        <select name="phone_source" id="phone_source" class="form-control">
-                            <option value="">-- Select Phone Number --</option>
-                            @if($student && $student->family)
-                                @if($student->family->father_phone)
-                                    <option value="father" data-phone="{{ $student->family->father_phone }}">
-                                        Father's Phone - {{ $student->family->father_phone }}
-                                        @if($student->family->father_name)
-                                            ({{ $student->family->father_name }})
-                                        @endif
-                                    </option>
-                                @endif
-                                @if($student->family->mother_phone)
-                                    <option value="mother" data-phone="{{ $student->family->mother_phone }}">
-                                        Mother's Phone - {{ $student->family->mother_phone }}
-                                        @if($student->family->mother_name)
-                                            ({{ $student->family->mother_name }})
-                                        @endif
-                                    </option>
-                                @endif
-                                @if($student->family->phone && $student->family->phone != $student->family->father_phone && $student->family->phone != $student->family->mother_phone)
-                                    <option value="primary" data-phone="{{ $student->family->phone }}">
-                                        Primary Phone - {{ $student->family->phone }}
-                                    </option>
-                                @endif
-                            @endif
-                            <option value="custom">Enter Different Number</option>
-                        </select>
-                        <small class="form-text text-muted">Select whose phone number to send payment request to</small>
-                    </div>
-
-                    <!-- Phone Number Input -->
-                    <div class="form-group" id="phone_number_group">
-                        <label for="phone_number">Phone Number <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <div class="input-group-prepend">
-                                <span class="input-group-text"><i class="fas fa-phone"></i></span>
+    <div class="row g-4">
+        <!-- Main Form -->
+        <div class="col-lg-8">
+            <div class="finance-card finance-animate">
+                <div class="finance-card-header">
+                    <h5 class="finance-card-title">
+                        <i class="bi bi-send me-2"></i>
+                        Initiate M-PESA STK Push Payment
+                    </h5>
+                </div>
+                <div class="finance-card-body">
+                    <!-- Info Alert -->
+                    <div class="alert alert-info border-0 mb-4">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-info-circle fs-4 me-3"></i>
+                            <div>
+                                <strong>How it works:</strong> When you submit this form, the parent will receive an STK push prompt on their phone to enter their M-PESA PIN and complete the payment.
                             </div>
-                            <input type="text" name="phone_number" id="phone_number" class="form-control" 
-                                   placeholder="e.g., 0712345678 or 254712345678" required>
                         </div>
-                        <small class="form-text text-muted">Kenyan mobile number (Safaricom, Airtel, etc.)</small>
-                        @error('phone_number')
-                            <span class="text-danger"><small>{{ $message }}</small></span>
-                        @enderror
                     </div>
 
-                    <!-- Invoice Selection (Optional) -->
-                    <div class="form-group">
-                        <label for="invoice_id">Invoice (Optional)</label>
-                        <select name="invoice_id" id="invoice_id" class="form-control">
-                            <option value="">-- Select Invoice (or leave blank) --</option>
-                            @if($invoice)
-                                <option value="{{ $invoice->id }}" selected>
-                                    {{ $invoice->invoice_number }} - Balance: KES {{ number_format($invoice->balance, 2) }}
-                                </option>
-                            @endif
-                        </select>
-                        <small class="form-text text-muted">If selected, payment will be allocated to this invoice</small>
-                    </div>
+                    <form action="{{ route('finance.mpesa.prompt-payment') }}" method="POST" id="promptPaymentForm">
+                        @csrf
+                        
+                        <!-- Student Selection -->
+                        <div class="mb-4">
+                            <label for="student_id" class="finance-form-label">
+                                Student <span class="text-danger">*</span>
+                            </label>
+                            <select name="student_id" id="student_id" class="finance-form-select" required>
+                                <option value="">-- Select Student --</option>
+                                @if($student)
+                                    <option value="{{ $student->id }}" selected>
+                                        {{ $student->first_name }} {{ $student->last_name }} - {{ $student->admission_number }}
+                                    </option>
+                                @endif
+                            </select>
+                            @error('student_id')
+                                <div class="finance-form-error">{{ $message }}</div>
+                            @enderror
+                        </div>
 
-                    <!-- Amount -->
-                    <div class="form-group">
-                        <label for="amount">Amount (KES) <span class="text-danger">*</span></label>
-                        <input type="number" name="amount" id="amount" class="form-control" 
-                               step="0.01" min="1" placeholder="0.00" required
-                               value="{{ $invoice ? $invoice->balance : old('amount') }}">
-                        @error('amount')
-                            <span class="text-danger"><small>{{ $message }}</small></span>
-                        @enderror
-                    </div>
+                        <!-- Phone Number Selection -->
+                        <div class="mb-4">
+                            <label for="phone_source" class="finance-form-label">
+                                Select Phone Number <span class="text-danger">*</span>
+                            </label>
+                            <select name="phone_source" id="phone_source" class="finance-form-select">
+                                <option value="">-- Select Phone Number --</option>
+                                @if($student && $student->family)
+                                    @if($student->family->father_phone)
+                                        <option value="father" data-phone="{{ $student->family->father_phone }}">
+                                            Father's Phone - {{ $student->family->father_phone }}
+                                            @if($student->family->father_name)
+                                                ({{ $student->family->father_name }})
+                                            @endif
+                                        </option>
+                                    @endif
+                                    @if($student->family->mother_phone)
+                                        <option value="mother" data-phone="{{ $student->family->mother_phone }}">
+                                            Mother's Phone - {{ $student->family->mother_phone }}
+                                            @if($student->family->mother_name)
+                                                ({{ $student->family->mother_name }})
+                                            @endif
+                                        </option>
+                                    @endif
+                                    @if($student->family->phone && $student->family->phone != $student->family->father_phone && $student->family->phone != $student->family->mother_phone)
+                                        <option value="primary" data-phone="{{ $student->family->phone }}">
+                                            Primary Phone - {{ $student->family->phone }}
+                                        </option>
+                                    @endif
+                                @endif
+                                <option value="custom">Enter Different Number</option>
+                            </select>
+                            <small class="text-muted">Select whose phone number to send payment request to</small>
+                        </div>
 
-                    <!-- Notes -->
-                    <div class="form-group">
-                        <label for="notes">Notes (Internal)</label>
-                        <textarea name="notes" id="notes" class="form-control" rows="3" 
-                                  placeholder="Optional notes for reference">{{ old('notes') }}</textarea>
-                        <small class="form-text text-muted">These notes are for internal tracking only</small>
-                    </div>
+                        <!-- Phone Number Input -->
+                        <div class="mb-4" id="phone_number_group">
+                            <label for="phone_number" class="finance-form-label">
+                                Phone Number <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text finance-input-group-text">
+                                    <i class="bi bi-phone"></i>
+                                </span>
+                                <input type="text" name="phone_number" id="phone_number" class="finance-form-control" 
+                                       placeholder="e.g., 0712345678 or 254712345678" required>
+                            </div>
+                            <small class="text-muted">Kenyan mobile number (Safaricom, Airtel, etc.)</small>
+                            @error('phone_number')
+                                <div class="finance-form-error">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <!-- Invoice Selection (Optional) -->
+                        <div class="mb-4">
+                            <label for="invoice_id" class="finance-form-label">Invoice (Optional)</label>
+                            <select name="invoice_id" id="invoice_id" class="finance-form-select">
+                                <option value="">-- Select Invoice (or leave blank) --</option>
+                                @if($invoice)
+                                    <option value="{{ $invoice->id }}" selected>
+                                        {{ $invoice->invoice_number }} - Balance: KES {{ number_format($invoice->balance, 2) }}
+                                    </option>
+                                @endif
+                            </select>
+                            <small class="text-muted">If selected, payment will be allocated to this invoice</small>
+                        </div>
+
+                        <!-- Amount -->
+                        <div class="mb-4">
+                            <label for="amount" class="finance-form-label">
+                                Amount (KES) <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text finance-input-group-text">KES</span>
+                                <input type="number" name="amount" id="amount" class="finance-form-control" 
+                                       step="0.01" min="1" placeholder="0.00" required
+                                       value="{{ $invoice ? $invoice->balance : old('amount') }}">
+                            </div>
+                            @error('amount')
+                                <div class="finance-form-error">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-4">
+                            <label for="notes" class="finance-form-label">Notes (Internal)</label>
+                            <textarea name="notes" id="notes" class="finance-form-control" rows="3" 
+                                      placeholder="Optional notes for reference">{{ old('notes') }}</textarea>
+                            <small class="text-muted">These notes are for internal tracking only</small>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="finance-card-footer">
+                            <button type="submit" class="btn btn-finance btn-finance-primary btn-lg">
+                                <i class="bi bi-send"></i> Send STK Push
+                            </button>
+                            <a href="{{ route('finance.mpesa.dashboard') }}" class="btn btn-finance btn-finance-outline">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
                 </div>
-                <div class="card-footer">
-                    <button type="submit" class="btn btn-success btn-lg">
-                        <i class="fas fa-paper-plane"></i> Send STK Push
-                    </button>
-                    <a href="{{ route('finance.mpesa.dashboard') }}" class="btn btn-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- How to Use Card -->
+            <div class="finance-card finance-animate mb-4">
+                <div class="finance-card-header">
+                    <h5 class="finance-card-title">
+                        <i class="bi bi-question-circle me-2"></i>
+                        How to Use
+                    </h5>
                 </div>
-            </form>
+                <div class="finance-card-body">
+                    <ol class="ps-3 mb-3">
+                        <li class="mb-2">Select the student</li>
+                        <li class="mb-2">Choose parent's M-PESA phone number</li>
+                        <li class="mb-2">Optionally select an invoice</li>
+                        <li class="mb-2">Enter the amount to collect</li>
+                        <li class="mb-2">Click "Send STK Push"</li>
+                    </ol>
+                    <hr class="my-3">
+                    <h6 class="mb-2">
+                        <i class="bi bi-phone me-2"></i>
+                        What happens next?
+                    </h6>
+                    <p class="small text-muted mb-0">
+                        The parent will receive a pop-up on their phone asking them to enter their M-PESA PIN to authorize the payment. Once authorized, the payment will be processed automatically.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Student Info Card -->
+            @if($student)
+            <div class="finance-card finance-animate">
+                <div class="finance-card-header">
+                    <h5 class="finance-card-title">
+                        <i class="bi bi-person me-2"></i>
+                        Student Info
+                    </h5>
+                </div>
+                <div class="finance-card-body">
+                    <div class="mb-2">
+                        <strong>Name:</strong> 
+                        <span class="text-muted">{{ $student->first_name }} {{ $student->last_name }}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Admission No:</strong>
+                        <span class="text-muted">{{ $student->admission_number }}</span>
+                    </div>
+                    <div class="mb-2">
+                        <strong>Class:</strong>
+                        <span class="text-muted">{{ $student->classroom->name ?? 'N/A' }}</span>
+                    </div>
+                    @if($student->family)
+                        <div class="mb-0">
+                            <strong>Parent Phone:</strong>
+                            <span class="text-muted">{{ $student->family->phone ?? 'N/A' }}</span>
+                        </div>
+                    @endif
+                </div>
+            </div>
+            @endif
         </div>
     </div>
-
-    <div class="col-md-4">
-        <div class="card card-info">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-question-circle"></i> How to Use</h3>
-            </div>
-            <div class="card-body">
-                <ol class="pl-3">
-                    <li>Select the student</li>
-                    <li>Enter parent's M-PESA phone number</li>
-                    <li>Optionally select an invoice</li>
-                    <li>Enter the amount to collect</li>
-                    <li>Click "Send STK Push"</li>
-                </ol>
-                <hr>
-                <h6><i class="fas fa-mobile-alt"></i> What happens next?</h6>
-                <p><small>The parent will receive a pop-up on their phone asking them to enter their M-PESA PIN to authorize the payment. Once authorized, the payment will be processed automatically.</small></p>
-            </div>
-        </div>
-
-        @if($student)
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title"><i class="fas fa-user"></i> Student Info</h3>
-            </div>
-            <div class="card-body">
-                <p><strong>Name:</strong> {{ $student->first_name }} {{ $student->last_name }}</p>
-                <p><strong>Admission No:</strong> {{ $student->admission_number }}</p>
-                <p><strong>Class:</strong> {{ $student->classroom->name ?? 'N/A' }}</p>
-                @if($student->family)
-                    <p><strong>Parent Phone:</strong> {{ $student->family->primary_phone ?? 'N/A' }}</p>
-                @endif
-            </div>
-        </div>
-        @endif
-    </div>
-</div>
-@stop
+@endsection
 
 @section('js')
 <script>
@@ -209,7 +259,8 @@ $(document).ready(function() {
             cache: true
         },
         minimumInputLength: 2,
-        placeholder: 'Type to search student...'
+        placeholder: 'Type to search student...',
+        theme: 'bootstrap-5'
     });
 
     // Load invoices when student is selected
@@ -290,9 +341,8 @@ $(document).ready(function() {
     $('#promptPaymentForm').on('submit', function(e) {
         var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true);
-        btn.html('<i class="fas fa-spinner fa-spin"></i> Sending...');
+        btn.html('<i class="bi bi-hourglass-split"></i> Sending...');
     });
 });
 </script>
-@stop
-
+@endsection
