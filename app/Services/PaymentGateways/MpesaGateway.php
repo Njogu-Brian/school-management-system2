@@ -39,25 +39,128 @@ class MpesaGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Get access token
+     * Get access token (with caching)
      */
     protected function getAccessToken(): string
     {
-        if ($this->accessToken) {
-            return $this->accessToken;
+        // Check if we have a cached token
+        $cacheKey = 'mpesa_access_token_' . md5($this->consumerKey);
+        
+        if ($cachedToken = cache($cacheKey)) {
+            return $cachedToken;
         }
 
-        $url = $this->getUrl('oauth') . '?grant_type=client_credentials';
-
-        $response = Http::withBasicAuth($this->consumerKey, $this->consumerSecret)
-            ->get($url);
-
-        if ($response->successful()) {
-            $this->accessToken = $response->json('access_token');
-            return $this->accessToken;
+        // Validate credentials before attempting
+        if (empty($this->consumerKey) || empty($this->consumerSecret)) {
+            Log::error('M-PESA credentials missing', [
+                'has_consumer_key' => !empty($this->consumerKey),
+                'has_consumer_secret' => !empty($this->consumerSecret),
+                'environment' => $this->environment,
+            ]);
+            throw new \Exception('M-PESA Consumer Key or Consumer Secret is not configured. Check your .env file.');
         }
 
-        throw new \Exception('Failed to get M-Pesa access token: ' . ($response->json('error_description') ?? 'Unknown error'));
+        try {
+            $url = $this->getUrl('oauth') . '?grant_type=client_credentials';
+
+            Log::info('Requesting M-PESA access token', [
+                'url' => $url,
+                'environment' => $this->environment,
+                'consumer_key_length' => strlen($this->consumerKey),
+            ]);
+
+            $response = Http::timeout(30)
+                ->withBasicAuth($this->consumerKey, $this->consumerSecret)
+                ->get($url);
+
+            if ($response->successful() && $response->json('access_token')) {
+                $accessToken = $response->json('access_token');
+                
+                // Cache for 55 minutes (tokens are valid for 1 hour)
+                cache([$cacheKey => $accessToken], now()->addMinutes(55));
+                
+                Log::info('M-PESA access token obtained successfully');
+                
+                return $accessToken;
+            }
+
+            // Log the full error response
+            $errorData = $response->json();
+            Log::error('Failed to get M-PESA access token', [
+                'status' => $response->status(),
+                'response' => $errorData,
+                'url' => $url,
+                'environment' => $this->environment,
+            ]);
+
+            $errorMessage = $errorData['error_description'] ?? $errorData['errorMessage'] ?? 'Unknown error';
+            throw new \Exception('Failed to get M-PESA access token: ' . $errorMessage . ' (Status: ' . $response->status() . ')');
+
+        } catch (\Exception $e) {
+            Log::error('M-PESA authentication exception', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Clear cached access token (useful for forcing refresh)
+     */
+    public function clearAccessToken(): void
+    {
+        $cacheKey = 'mpesa_access_token_' . md5($this->consumerKey);
+        cache()->forget($cacheKey);
+        $this->accessToken = null;
+    }
+
+    /**
+     * Test M-PESA credentials and connection
+     */
+    public function testCredentials(): array
+    {
+        $results = [
+            'configured' => false,
+            'credentials_valid' => false,
+            'token_obtained' => false,
+            'environment' => $this->environment,
+            'errors' => [],
+            'details' => [],
+        ];
+
+        // Check if credentials are configured
+        if (empty($this->consumerKey) || empty($this->consumerSecret) || empty($this->shortcode) || empty($this->passkey)) {
+            $results['errors'][] = 'Missing required credentials';
+            $results['details']['has_consumer_key'] = !empty($this->consumerKey);
+            $results['details']['has_consumer_secret'] = !empty($this->consumerSecret);
+            $results['details']['has_shortcode'] = !empty($this->shortcode);
+            $results['details']['has_passkey'] = !empty($this->passkey);
+            return $results;
+        }
+
+        $results['configured'] = true;
+        $results['details']['consumer_key_length'] = strlen($this->consumerKey);
+        $results['details']['consumer_secret_length'] = strlen($this->consumerSecret);
+        $results['details']['shortcode'] = $this->shortcode;
+
+        // Test getting access token
+        try {
+            $this->clearAccessToken(); // Force fresh token
+            $token = $this->getAccessToken();
+            
+            if ($token) {
+                $results['credentials_valid'] = true;
+                $results['token_obtained'] = true;
+                $results['details']['token_length'] = strlen($token);
+                $results['details']['token_preview'] = substr($token, 0, 20) . '...';
+            }
+        } catch (\Exception $e) {
+            $results['errors'][] = $e->getMessage();
+            $results['details']['exception'] = get_class($e);
+        }
+
+        return $results;
     }
 
     /**
@@ -92,8 +195,54 @@ class MpesaGateway implements PaymentGatewayInterface
             'TransactionDesc' => 'School Fee Payment - ' . $transaction->reference,
         ];
 
-        $response = Http::withToken($this->getAccessToken())
-            ->post($url, $payload);
+        // Try to get fresh token and make request
+        $maxRetries = 2;
+        $attempt = 0;
+        $response = null;
+        
+        while ($attempt < $maxRetries) {
+            try {
+                $accessToken = $this->getAccessToken();
+                
+                $response = Http::timeout(60)
+                    ->withToken($accessToken)
+                    ->post($url, $payload);
+
+                $responseData = $response->json();
+
+                // Check for invalid token error and retry once with fresh token
+                if (isset($responseData['errorCode']) && $responseData['errorCode'] == '404.001.03' && $attempt < 1) {
+                    Log::warning('M-PESA token invalid, clearing cache and retrying', [
+                        'attempt' => $attempt + 1,
+                        'response' => $responseData,
+                    ]);
+                    
+                    // Clear cached token and retry
+                    $this->clearAccessToken();
+                    $attempt++;
+                    continue;
+                }
+
+                // If we get here, we have a response (successful or not)
+                break;
+                
+            } catch (\Exception $e) {
+                Log::error('M-PESA STK Push request failed', [
+                    'attempt' => $attempt + 1,
+                    'error' => $e->getMessage(),
+                ]);
+                
+                if ($attempt >= $maxRetries - 1) {
+                    throw $e;
+                }
+                
+                $attempt++;
+            }
+        }
+
+        if (!$response) {
+            throw new \Exception('Failed to get response from M-PESA after ' . $maxRetries . ' attempts');
+        }
 
         $responseData = $response->json();
 
