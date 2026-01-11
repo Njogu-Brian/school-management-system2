@@ -415,7 +415,7 @@ class MpesaPaymentController extends Controller
         }
 
         try {
-            $result = $this->mpesaGateway->queryTransactionStatus($transaction->transaction_id);
+            $result = $this->mpesaGateway->queryStkPushStatus($transaction->transaction_id);
 
             return response()->json($result);
         } catch (\Exception $e) {

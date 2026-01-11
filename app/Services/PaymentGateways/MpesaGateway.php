@@ -357,12 +357,12 @@ class MpesaGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Query transaction status
+     * Query STK Push status
      * 
      * @param string $checkoutRequestId
      * @return array
      */
-    public function queryTransactionStatus(string $checkoutRequestId): array
+    public function queryStkPushStatus(string $checkoutRequestId): array
     {
         try {
             $response = $this->verifyPayment($checkoutRequestId);
@@ -375,58 +375,6 @@ class MpesaGateway implements PaymentGatewayInterface
             return [
                 'success' => false,
                 'message' => $e->getMessage(),
-            ];
-        }
-    }
-
-    /**
-     * Register C2B URLs (for paybill payments)
-     * This should be run once during setup
-     * 
-     * @param string $validationUrl
-     * @param string $confirmationUrl
-     * @return array
-     */
-    public function registerC2BUrls(string $validationUrl, string $confirmationUrl): array
-    {
-        $url = $this->environment === 'production'
-            ? 'https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl'
-            : 'https://sandbox.safaricom.co.ke/mpesa/c2b/v1/registerurl';
-
-        $payload = [
-            'ShortCode' => $this->shortcode,
-            'ResponseType' => 'Completed',
-            'ConfirmationURL' => $confirmationUrl,
-            'ValidationURL' => $validationUrl,
-        ];
-
-        try {
-            $response = Http::withToken($this->getAccessToken())
-                ->post($url, $payload);
-
-            $responseData = $response->json();
-
-            if ($response->successful() && isset($responseData['ResponseDescription'])) {
-                return [
-                    'success' => true,
-                    'message' => $responseData['ResponseDescription'],
-                    'response' => $responseData,
-                ];
-            }
-
-            return [
-                'success' => false,
-                'message' => $responseData['errorMessage'] ?? 'Failed to register C2B URLs',
-                'response' => $responseData,
-            ];
-        } catch (\Exception $e) {
-            Log::error('M-Pesa C2B URL registration failed', [
-                'error' => $e->getMessage(),
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'Exception: ' . $e->getMessage(),
             ];
         }
     }
