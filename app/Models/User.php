@@ -43,6 +43,68 @@ class User extends Authenticatable
     }
 
     /**
+     * Senior Teacher Relationships
+     */
+    
+    // Classrooms supervised by this senior teacher
+    public function supervisedClassrooms()
+    {
+        return $this->belongsToMany(\App\Models\Academics\Classroom::class, 'senior_teacher_classrooms', 'senior_teacher_id', 'classroom_id')->withTimestamps();
+    }
+
+    // Staff supervised by this senior teacher
+    public function supervisedStaff()
+    {
+        return $this->belongsToMany(\App\Models\Staff::class, 'senior_teacher_staff', 'senior_teacher_id', 'staff_id')->withTimestamps();
+    }
+
+    /**
+     * Check if this user is a senior teacher supervising a specific classroom
+     */
+    public function isSupervisingClassroom($classroomId): bool
+    {
+        return $this->supervisedClassrooms()->where('classrooms.id', $classroomId)->exists();
+    }
+
+    /**
+     * Check if this user is a senior teacher supervising a specific staff member
+     */
+    public function isSupervisingStaff($staffId): bool
+    {
+        return $this->supervisedStaff()->where('staff.id', $staffId)->exists();
+    }
+
+    /**
+     * Get all classroom IDs supervised by this senior teacher
+     */
+    public function getSupervisedClassroomIds(): array
+    {
+        return $this->supervisedClassrooms()->pluck('classrooms.id')->toArray();
+    }
+
+    /**
+     * Get all staff IDs supervised by this senior teacher
+     */
+    public function getSupervisedStaffIds(): array
+    {
+        return $this->supervisedStaff()->pluck('staff.id')->toArray();
+    }
+
+    /**
+     * Get all students in supervised classrooms (for senior teachers)
+     */
+    public function getSupervisedStudents()
+    {
+        $classroomIds = $this->getSupervisedClassroomIds();
+        
+        if (empty($classroomIds)) {
+            return Student::whereRaw('1 = 0'); // No access
+        }
+        
+        return Student::whereIn('classroom_id', $classroomIds);
+    }
+
+    /**
      * Check if teacher is assigned to a classroom
      */
     public function isAssignedToClassroom($classroomId): bool

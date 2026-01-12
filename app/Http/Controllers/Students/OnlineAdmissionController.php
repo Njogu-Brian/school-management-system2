@@ -13,7 +13,7 @@ use App\Models\Trip;
 use App\Models\DropOffPoint;
 use App\Models\CommunicationTemplate;
 use App\Services\TransportFeeService;
-use App\Services\SmsService;
+use App\Services\SMSService;
 use App\Mail\GenericMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -715,7 +715,7 @@ class OnlineAdmissionController extends Controller
         };
         
         // Initialize SMS service
-        $smsService = app(SmsService::class);
+        $smsService = app(SMSService::class);
         
         // Send SMS
         if ($smsTemplate) {

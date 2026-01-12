@@ -28,6 +28,7 @@ use App\Http\Controllers\Hr\StaffController;
 use App\Http\Controllers\Hr\StaffProfileController;
 use App\Http\Controllers\Hr\RolePermissionController;
 use App\Http\Controllers\Hr\LookupController; // HR lookup CRUD (categories, departments, job titles, custom fields)
+use App\Http\Controllers\Admin\SeniorTeacherAssignmentController;
 use App\Http\Controllers\Academics\AcademicConfigController;
 use App\Http\Controllers\Settings\SchoolDayController;
 use App\Http\Controllers\Settings\SettingController;
@@ -215,13 +216,14 @@ Route::get('/home', function () {
 
     // Prefer Spatie helpers; also be tolerant of case/aliases
     $aliases = [
-        'super admin' => 'admin.dashboard',
-        'admin'       => 'admin.dashboard',
-        'secretary'   => 'admin.dashboard',
-        'teacher'     => 'teacher.dashboard',
-        'driver'      => 'transport.dashboard',
-        'parent'      => 'parent.dashboard',
-        'student'     => 'student.dashboard',
+        'super admin'    => 'admin.dashboard',
+        'admin'          => 'admin.dashboard',
+        'secretary'      => 'admin.dashboard',
+        'senior teacher' => 'senior_teacher.dashboard',
+        'teacher'        => 'teacher.dashboard',
+        'driver'         => 'transport.dashboard',
+        'parent'         => 'parent.dashboard',
+        'student'        => 'student.dashboard',
     ];
 
     // If the user has any role that maps above, send them there.
@@ -715,6 +717,23 @@ Route::middleware('auth')->group(function () {
                 Route::post('/custom-deductions/{id}/suspend', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'suspend'])->name('custom-deductions.suspend');
                 Route::post('/custom-deductions/{id}/activate', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'activate'])->name('custom-deductions.activate');
             });
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Senior Teacher Assignments (Admin/Super Admin Only)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('admin/senior-teacher-assignments')->name('admin.senior_teacher_assignments.')
+        ->middleware('role:Super Admin|Admin')
+        ->group(function () {
+            Route::get('/', [SeniorTeacherAssignmentController::class, 'index'])->name('index');
+            Route::get('/{id}/edit', [SeniorTeacherAssignmentController::class, 'edit'])->name('edit');
+            Route::put('/{id}/classrooms', [SeniorTeacherAssignmentController::class, 'updateClassrooms'])->name('update_classrooms');
+            Route::put('/{id}/staff', [SeniorTeacherAssignmentController::class, 'updateStaff'])->name('update_staff');
+            Route::delete('/{seniorTeacherId}/classrooms/{classroomId}', [SeniorTeacherAssignmentController::class, 'removeClassroom'])->name('remove_classroom');
+            Route::delete('/{seniorTeacherId}/staff/{staffId}', [SeniorTeacherAssignmentController::class, 'removeStaff'])->name('remove_staff');
+            Route::post('/bulk-assign', [SeniorTeacherAssignmentController::class, 'bulkAssign'])->name('bulk_assign');
         });
 
     // Supervisor routes (for supervisors to access their subordinates' data)
@@ -1590,3 +1609,6 @@ Route::prefix('shop')->name('pos.shop.')->group(function () {
 
 // Include teacher routes
 require __DIR__.'/teacher.php';
+
+// Include senior teacher routes
+require __DIR__.'/senior_teacher.php';

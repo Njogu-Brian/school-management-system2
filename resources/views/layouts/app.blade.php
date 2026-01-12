@@ -352,15 +352,28 @@
  @php
   $u = Auth::user();
   $onTeacherRoute = request()->routeIs('teacher.*') || request()->is('teacher/*');
+  $onSeniorTeacherRoute = request()->routeIs('senior_teacher.*') || request()->is('senior-teacher/*');
 
   // Case-tolerant teacher check
   $isTeacher = $u && (
       $u->hasAnyRole(['Teacher','teacher']) ||
       ($u->roles->pluck('name')->map(fn($n)=>strtolower($n))->contains('teacher'))
   );
+  
+  // Case-tolerant senior teacher check
+  $isSeniorTeacher = $u && (
+      $u->hasRole('Senior Teacher') ||
+      ($u->roles->pluck('name')->map(fn($n)=>strtolower($n))->contains('senior teacher'))
+  );
 @endphp
 
-@if($onTeacherRoute && $isTeacher)
+@if($onSeniorTeacherRoute && $isSeniorTeacher)
+  @include('layouts.partials.nav-senior-teacher')
+
+@elseif($isSeniorTeacher)
+  @include('layouts.partials.nav-senior-teacher')
+
+@elseif($onTeacherRoute && $isTeacher)
   @include('layouts.partials.nav-teacher')
 
 @elseif($u && $u->hasAnyRole(['Super Admin','Admin','Secretary']))

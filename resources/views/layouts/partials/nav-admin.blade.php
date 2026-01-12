@@ -538,6 +538,11 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
   <a href="{{ route('hr.access-lookups') }}" class="{{ Request::is('hr/access-lookups*') || Request::is('hr/roles*') || Request::is('lookups*') ? 'active' : '' }}">
     <i class="bi bi-shield-lock"></i> Roles & Lookups
   </a>
+  @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
+    <a href="{{ route('admin.senior_teacher_assignments.index') }}" class="{{ Request::is('admin/senior-teacher-assignments*') ? 'active' : '' }}">
+      <i class="bi bi-person-badge"></i> Senior Teacher Assignments
+    </a>
+  @endif
   <a href="{{ route('staff.leave-types.index') }}" class="{{ Request::is('staff/leave-types*') ? 'active' : '' }}">
     <i class="bi bi-calendar-check"></i> Leave Types
   </a>
