@@ -135,29 +135,19 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Senior Teacher'])->group(func
         |--------------------------------------------------------------------------
         | Homework (Full CRUD for supervised/assigned classes)
         |--------------------------------------------------------------------------
-        */
-        Route::resource('homework', HomeworkController::class)
-            ->names('academics.homework');
-
-        /*
-        |--------------------------------------------------------------------------
-        | Digital Diaries
+        | Note: Senior teachers use the main academic routes in web.php
+        | which now include Senior Teacher in the middleware
         |--------------------------------------------------------------------------
         */
-        Route::prefix('diaries')->name('diaries.')->group(function () {
-            Route::get('/', [StudentDiaryController::class, 'index'])->name('index');
-            Route::get('/{diary}', [StudentDiaryController::class, 'show'])->name('show');
-            Route::post('/{diary}/entries', [StudentDiaryController::class, 'storeEntry'])->name('entries.store');
-            Route::post('/entries/bulk', [StudentDiaryController::class, 'bulkStore'])->name('entries.bulk-store');
-        });
-
+        
         /*
         |--------------------------------------------------------------------------
         | Student Behaviours (Full CRUD)
         |--------------------------------------------------------------------------
+        | Note: Senior teachers use the main academic routes in web.php
+        | which now include Senior Teacher in the middleware
+        |--------------------------------------------------------------------------
         */
-        Route::resource('student-behaviours', StudentBehaviourController::class)
-            ->names('academics.student-behaviours');
     });
 
     /*

@@ -131,7 +131,7 @@
 
 {{-- Digital Diaries --}}
 @if (can_access('diaries.view') || can_access('diaries.create') || can_access('diaries.edit'))
-  <a href="{{ route('academics.diaries.index') }}"
+  <a href="{{ route('diaries.index') }}"
      class="{{ $diariesActive ? 'active' : '' }}">
     <i class="bi bi-journals"></i> Digital Diaries
   </a>

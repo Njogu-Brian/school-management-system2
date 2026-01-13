@@ -272,7 +272,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('attendance')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
         ->group(function () {
             Route::get('/mark',          [AttendanceController::class, 'markForm'])->name('attendance.mark.form');
             Route::post('/mark',         [AttendanceController::class, 'mark'])->name('attendance.mark');
@@ -319,7 +319,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('academics')->as('academics.')
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
         ->group(function () {
 
         // Core setup
@@ -1351,7 +1351,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Exam Analytics
     |----------------------------------------------------------------------
     */
-    Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+    Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
         Route::get('exam-analytics', [ExamAnalyticsController::class, 'index'])->name('exam-analytics.index');
         Route::get('exam-analytics/classroom/{classroom}', [ExamAnalyticsController::class, 'classroomPerformance'])->name('exam-analytics.classroom');
     });
