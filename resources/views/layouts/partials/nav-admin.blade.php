@@ -235,7 +235,7 @@ class="{{ $isAttendanceActive ? 'parent-active' : '' }}">
 </a>
 <div class="collapse {{ $homeworkActive ? 'show' : '' }}" id="homeworkMenu">
     <a href="{{ route('academics.homework.index') }}" class="{{ Request::is('academics/homework*') ? 'active' : '' }}">Homework</a>
-    <a href="{{ route('diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
+    <a href="{{ route('academics.diaries.index') }}" class="{{ Request::is('academics/diaries*') ? 'active' : '' }}">Digital Diaries</a>
 </div>
 
 {{-- Exams --}}
