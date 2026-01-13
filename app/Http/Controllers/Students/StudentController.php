@@ -1670,8 +1670,27 @@ class StudentController extends Controller
     public function bulkArchive(Request $request)
     {
         $request->validate(['student_ids'=>'required|array']);
-        Student::withArchived()->whereIn('id', $request->student_ids)->update(['archive'=>1]);
-        return back()->with('success','Selected students archived.');
+        
+        $students = Student::withArchived()->whereIn('id', $request->student_ids)->get();
+        $archivedCount = 0;
+        
+        foreach ($students as $student) {
+            try {
+                $result = $this->archiveService->archive(
+                    $student,
+                    'Bulk archive',
+                    auth()->id(),
+                    null
+                );
+                if (!$result['skipped']) {
+                    $archivedCount++;
+                }
+            } catch (\Throwable $e) {
+                Log::error('Bulk archive failed for student: '.$e->getMessage(), ['student_id' => $student->id]);
+            }
+        }
+        
+        return back()->with('success', "Successfully archived {$archivedCount} student(s).");
     }
 
     public function bulkRestore(Request $request)
