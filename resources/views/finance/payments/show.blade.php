@@ -705,17 +705,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     return false;
                 }
             } else if (transferType && transferType.value === 'share') {
+                // Validate all students are selected
+                const studentInputs = document.querySelectorAll('#sharedStudentsList input[name="shared_students[]"]');
+                let hasEmptyStudent = false;
+                let emptyIndex = -1;
+                
+                studentInputs.forEach((input, index) => {
+                    if (!input.value || input.value.trim() === '') {
+                        hasEmptyStudent = true;
+                        emptyIndex = index;
+                    }
+                });
+                
+                if (hasEmptyStudent) {
+                    e.preventDefault();
+                    alert(`Please select a valid student for all entries. Entry #${emptyIndex + 1} has no student selected. Make sure to:\n1. Type the student name\n2. Wait for search results\n3. Click on a student from the dropdown`);
+                    return false;
+                }
+                
+                // Validate amounts
                 const amounts = document.querySelectorAll('.shared-amount');
                 let total = 0;
                 amounts.forEach(input => {
                     total += parseFloat(input.value) || 0;
                 });
-                if (total > maxTransferAmount + 0.01) {
+                
+                const tolerance = 0.01;
+                if (Math.abs(total - maxTransferAmount) > tolerance) {
                     e.preventDefault();
-                    alert(`Total shared amounts (Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}) cannot exceed payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+                    alert(`Total shared amounts (Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}) must equal exactly the payment amount of Ksh ${maxTransferAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
                     return false;
                 }
             }
+        });
+    }
+    
+    // Reinitialize live search when modal is shown
+    const transferModal = document.getElementById('transferPaymentModal');
+    if (transferModal) {
+        transferModal.addEventListener('shown.bs.modal', function () {
+            // Reinitialize all live search wrappers in the modal
+            document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
         });
     }
 });
