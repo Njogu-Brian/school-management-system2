@@ -78,6 +78,7 @@ class Staff extends Model
     public function category(){ return $this->belongsTo(StaffCategory::class, 'staff_category_id'); }
     public function department(){ return $this->belongsTo(Department::class, 'department_id'); }
     public function jobTitle(){ return $this->belongsTo(JobTitle::class, 'job_title_id'); }
+    public function position(){ return $this->belongsTo(JobTitle::class, 'job_title_id'); } // Alias for jobTitle
 
     public function getFullNameAttribute(){ return "{$this->first_name} {$this->last_name}"; }
 

@@ -1,20 +1,19 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h2><i class="bi bi-person-badge me-2"></i>Senior Teacher Assignments</h2>
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item active">Senior Teacher Assignments</li>
-                        </ol>
-                    </nav>
-                </div>
-            </div>
+<div class="container-fluid px-4 py-4">
+    {{-- Page Header --}}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-2">
+                <i class="bi bi-person-badge text-primary me-2"></i>Senior Teacher Assignments
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item active">Senior Teacher Assignments</li>
+                </ol>
+            </nav>
         </div>
     </div>
 
@@ -32,10 +31,18 @@
         </div>
     @endif
 
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle me-2"></i>
-        <strong>About Senior Teacher Role:</strong> Senior Teachers can supervise specific classrooms and staff members. 
-        They have teacher permissions plus the ability to view comprehensive data for their supervised classes and monitor their assigned staff.
+    {{-- Info Card --}}
+    <div class="alert alert-info border-0 shadow-sm mb-4">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-info-circle-fill fs-4 me-3 mt-1"></i>
+            <div>
+                <h6 class="alert-heading mb-2">About Senior Teacher Role</h6>
+                <p class="mb-0">
+                    Senior Teachers can supervise specific classrooms and staff members. 
+                    They have teacher permissions plus the ability to view comprehensive data for their supervised classes and monitor their assigned staff.
+                </p>
+            </div>
+        </div>
     </div>
 
     @if($seniorTeachers->isEmpty())
@@ -50,66 +57,83 @@
             </div>
         </div>
     @else
-        <div class="card shadow-sm">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Senior Teachers</h5>
-                <span class="badge bg-primary">{{ $seniorTeachers->count() }} Senior Teachers</span>
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-semibold">
+                        <i class="bi bi-people-fill text-primary me-2"></i>Senior Teachers
+                    </h5>
+                    <span class="badge bg-primary rounded-pill px-3 py-2">{{ $seniorTeachers->count() }} {{ Str::plural('Teacher', $seniorTeachers->count()) }}</span>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light">
                             <tr>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Supervised Classrooms</th>
-                                <th>Supervised Staff</th>
-                                <th>Actions</th>
+                                <th class="px-4 py-3">Name</th>
+                                <th class="py-3">Email</th>
+                                <th class="py-3">Supervised Classrooms</th>
+                                <th class="py-3">Supervised Staff</th>
+                                <th class="py-3 text-center">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach($seniorTeachers as $teacher)
                                 <tr>
-                                    <td>
+                                    <td class="px-4">
                                         <div class="d-flex align-items-center">
-                                            <div class="avatar-circle bg-primary text-white me-2" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px;">
+                                            <div class="rounded-circle bg-primary bg-gradient text-white d-flex align-items-center justify-content-center me-3" 
+                                                 style="width: 45px; height: 45px; font-weight: 600; font-size: 16px;">
                                                 {{ strtoupper(substr($teacher->name, 0, 2)) }}
                                             </div>
                                             <div>
-                                                <strong>{{ $teacher->name }}</strong>
+                                                <div class="fw-semibold text-dark">{{ $teacher->name }}</div>
                                                 @if($teacher->staff)
-                                                    <br><small class="text-muted">{{ $teacher->staff->position->name ?? 'Staff' }}</small>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-briefcase me-1"></i>{{ $teacher->staff->position->name ?? 'Staff' }}
+                                                    </small>
                                                 @endif
                                             </div>
                                         </div>
                                     </td>
-                                    <td>{{ $teacher->email }}</td>
+                                    <td>
+                                        <a href="mailto:{{ $teacher->email }}" class="text-decoration-none text-muted">
+                                            <i class="bi bi-envelope me-1"></i>{{ $teacher->email }}
+                                        </a>
+                                    </td>
                                     <td>
                                         @if($teacher->supervisedClassrooms->isNotEmpty())
-                                            <span class="badge bg-primary">{{ $teacher->supervisedClassrooms->count() }} Classes</span>
-                                            <div class="mt-1">
-                                                @foreach($teacher->supervisedClassrooms->take(2) as $classroom)
-                                                    <small class="badge bg-light text-dark me-1">{{ $classroom->name }}</small>
-                                                @endforeach
-                                                @if($teacher->supervisedClassrooms->count() > 2)
-                                                    <small class="text-muted">+{{ $teacher->supervisedClassrooms->count() - 2 }} more</small>
-                                                @endif
+                                            <div>
+                                                <span class="badge bg-primary bg-opacity-10 text-primary px-2 py-1 mb-2">
+                                                    <i class="bi bi-building me-1"></i>{{ $teacher->supervisedClassrooms->count() }} {{ Str::plural('Class', $teacher->supervisedClassrooms->count()) }}
+                                                </span>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    @foreach($teacher->supervisedClassrooms->take(3) as $classroom)
+                                                        <span class="badge bg-light text-dark border">{{ $classroom->name }}</span>
+                                                    @endforeach
+                                                    @if($teacher->supervisedClassrooms->count() > 3)
+                                                        <span class="badge bg-light text-muted border">+{{ $teacher->supervisedClassrooms->count() - 3 }}</span>
+                                                    @endif
+                                                </div>
                                             </div>
                                         @else
-                                            <span class="text-muted">None</span>
+                                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>None assigned</span>
                                         @endif
                                     </td>
                                     <td>
                                         @if($teacher->supervisedStaff->isNotEmpty())
-                                            <span class="badge bg-success">{{ $teacher->supervisedStaff->count() }} Staff</span>
+                                            <span class="badge bg-success bg-opacity-10 text-success px-2 py-1">
+                                                <i class="bi bi-person-check me-1"></i>{{ $teacher->supervisedStaff->count() }} {{ Str::plural('Staff', $teacher->supervisedStaff->count()) }}
+                                            </span>
                                         @else
-                                            <span class="text-muted">None</span>
+                                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>None assigned</span>
                                         @endif
                                     </td>
-                                    <td>
+                                    <td class="text-center">
                                         <a href="{{ route('admin.senior_teacher_assignments.edit', $teacher->id) }}" 
                                            class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-pencil"></i> Manage Assignments
+                                            <i class="bi bi-pencil me-1"></i>Manage
                                         </a>
                                     </td>
                                 </tr>

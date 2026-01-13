@@ -1,26 +1,25 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h2><i class="bi bi-pencil me-2"></i>Manage Assignments</h2>
-                    <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb">
-                            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-                            <li class="breadcrumb-item"><a href="{{ route('admin.senior_teacher_assignments.index') }}">Senior Teacher Assignments</a></li>
-                            <li class="breadcrumb-item active">{{ $seniorTeacher->name }}</li>
-                        </ol>
-                    </nav>
-                </div>
-                <div>
-                    <a href="{{ route('admin.senior_teacher_assignments.index') }}" class="btn btn-secondary">
-                        <i class="bi bi-arrow-left me-1"></i>Back to List
-                    </a>
-                </div>
-            </div>
+<div class="container-fluid px-4 py-4">
+    {{-- Page Header --}}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-2">
+                <i class="bi bi-pencil-square text-primary me-2"></i>Manage Senior Teacher Assignments
+            </h2>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('admin.senior_teacher_assignments.index') }}">Senior Teacher Assignments</a></li>
+                    <li class="breadcrumb-item active">{{ $seniorTeacher->name }}</li>
+                </ol>
+            </nav>
+        </div>
+        <div>
+            <a href="{{ route('admin.senior_teacher_assignments.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back to List
+            </a>
         </div>
     </div>
 
@@ -38,36 +37,52 @@
         </div>
     @endif
 
-    {{-- Senior Teacher Info --}}
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
+    {{-- Senior Teacher Info Card --}}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
             <div class="row align-items-center">
-                <div class="col-md-8">
+                <div class="col-md-7">
                     <div class="d-flex align-items-center">
-                        <div class="avatar-circle bg-primary text-white me-3" style="width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                        <div class="rounded-circle bg-primary bg-gradient text-white d-flex align-items-center justify-content-center me-3" 
+                             style="width: 70px; height: 70px; font-weight: 600; font-size: 24px;">
                             {{ strtoupper(substr($seniorTeacher->name, 0, 2)) }}
                         </div>
                         <div>
-                            <h4 class="mb-1">{{ $seniorTeacher->name }}</h4>
-                            <p class="text-muted mb-0">{{ $seniorTeacher->email }}</p>
+                            <h3 class="mb-1 fw-semibold">{{ $seniorTeacher->name }}</h3>
+                            <p class="text-muted mb-2">
+                                <i class="bi bi-envelope me-1"></i>{{ $seniorTeacher->email }}
+                            </p>
                             @if($seniorTeacher->staff)
-                                <span class="badge bg-light text-dark">{{ $seniorTeacher->staff->position->name ?? 'Staff' }}</span>
+                                <span class="badge bg-primary bg-opacity-10 text-primary px-3 py-1">
+                                    <i class="bi bi-briefcase me-1"></i>{{ $seniorTeacher->staff->position->name ?? 'Staff' }}
+                                </span>
                             @endif
+                            <span class="badge bg-info bg-opacity-10 text-info px-3 py-1 ms-1">
+                                <i class="bi bi-award me-1"></i>Senior Teacher
+                            </span>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4 text-end">
-                    <div class="row g-2">
+                <div class="col-md-5">
+                    <div class="row g-3">
                         <div class="col-6">
-                            <div class="p-2 bg-light rounded">
-                                <div class="fs-4 fw-bold text-primary">{{ $seniorTeacher->supervisedClassrooms->count() }}</div>
-                                <small class="text-muted">Supervised Classes</small>
+                            <div class="card bg-primary bg-opacity-10 border-0 h-100">
+                                <div class="card-body text-center">
+                                    <div class="display-6 fw-bold text-primary mb-1">{{ $seniorTeacher->supervisedClassrooms->count() }}</div>
+                                    <small class="text-muted">
+                                        <i class="bi bi-building me-1"></i>Supervised Classes
+                                    </small>
+                                </div>
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="p-2 bg-light rounded">
-                                <div class="fs-4 fw-bold text-success">{{ $seniorTeacher->supervisedStaff->count() }}</div>
-                                <small class="text-muted">Supervised Staff</small>
+                            <div class="card bg-success bg-opacity-10 border-0 h-100">
+                                <div class="card-body text-center">
+                                    <div class="display-6 fw-bold text-success mb-1">{{ $seniorTeacher->supervisedStaff->count() }}</div>
+                                    <small class="text-muted">
+                                        <i class="bi bi-person-check me-1"></i>Supervised Staff
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -79,11 +94,13 @@
     <div class="row g-4">
         {{-- Supervised Classrooms --}}
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="bi bi-building me-2"></i>Supervised Classrooms</h5>
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-primary bg-gradient text-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-building-fill me-2"></i>Supervised Classrooms
+                    </h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     <form action="{{ route('admin.senior_teacher_assignments.update_classrooms', $seniorTeacher->id) }}" method="POST">
                         @csrf
                         @method('PUT')
@@ -142,11 +159,13 @@
 
         {{-- Supervised Staff --}}
         <div class="col-lg-6">
-            <div class="card shadow-sm h-100">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Supervised Staff</h5>
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-success bg-gradient text-white border-0 py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-badge-fill me-2"></i>Supervised Staff
+                    </h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     <form action="{{ route('admin.senior_teacher_assignments.update_staff', $seniorTeacher->id) }}" method="POST">
                         @csrf
                         @method('PUT')
