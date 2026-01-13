@@ -1008,6 +1008,9 @@ class PaymentController extends Controller
                                 'error' => $e->getMessage()
                             ]);
                         }
+                        
+                        // Send updated receipt notification to original student
+                        $this->sendPaymentNotifications($payment->fresh());
                     } else {
                         // Create new payment for shared student
                         $newPayment = Payment::create([
