@@ -476,27 +476,54 @@ document.addEventListener('DOMContentLoaded', function() {
         transferType.addEventListener('change', function() {
             const transferAmountField = document.getElementById('transferAmount');
             const targetStudentField = document.getElementById('targetStudentId');
+            const targetDisplayField = document.getElementById('targetStudentName');
             
             if (this.value === 'transfer') {
                 transferSingle.style.display = 'block';
                 transferMultiple.style.display = 'none';
-                // Enable validation for single transfer fields
-                if (transferAmountField) transferAmountField.required = true;
-                if (targetStudentField) targetStudentField.required = true;
+                // Enable validation and submission for single transfer fields
+                if (transferAmountField) {
+                    transferAmountField.required = true;
+                    transferAmountField.disabled = false;
+                }
+                if (targetStudentField) {
+                    targetStudentField.required = true;
+                    targetStudentField.disabled = false;
+                }
+                if (targetDisplayField) targetDisplayField.disabled = false;
             } else if (this.value === 'share') {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'block';
-                // Disable validation for single transfer fields (they're hidden)
-                if (transferAmountField) transferAmountField.required = false;
-                if (targetStudentField) targetStudentField.required = false;
+                // Disable fields so they won't be submitted with the form
+                if (transferAmountField) {
+                    transferAmountField.required = false;
+                    transferAmountField.disabled = true;
+                    transferAmountField.value = ''; // Clear the value
+                }
+                if (targetStudentField) {
+                    targetStudentField.required = false;
+                    targetStudentField.disabled = true;
+                    targetStudentField.value = ''; // Clear the value
+                }
+                if (targetDisplayField) {
+                    targetDisplayField.disabled = true;
+                    targetDisplayField.value = ''; // Clear the value
+                }
                 // Initialize total calculation when share is selected
                 updateTotalShared();
             } else {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'none';
-                // Disable all validation when nothing selected
-                if (transferAmountField) transferAmountField.required = false;
-                if (targetStudentField) targetStudentField.required = false;
+                // Disable all fields when nothing selected
+                if (transferAmountField) {
+                    transferAmountField.required = false;
+                    transferAmountField.disabled = true;
+                }
+                if (targetStudentField) {
+                    targetStudentField.required = false;
+                    targetStudentField.disabled = true;
+                }
+                if (targetDisplayField) targetDisplayField.disabled = true;
             }
         });
     }
