@@ -1009,10 +1009,16 @@ class PaymentController extends Controller
                             ]);
                         }
                         
-                        // Send updated receipt notification to original student
-                        $this->sendPaymentNotifications($payment->fresh());
+                        // Note: Notification will be sent after transaction commits
                     } else {
                         // Create new payment for shared student
+                        \Log::info('Creating shared payment for student', [
+                            'student_id' => $student->id,
+                            'student_name' => $student->full_name,
+                            'amount' => $amount,
+                            'original_payment_id' => $payment->id
+                        ]);
+                        
                         $newPayment = Payment::create([
                             'student_id' => $student->id,
                             'amount' => $amount,
@@ -1024,10 +1030,25 @@ class PaymentController extends Controller
                             'narration' => $narration,
                         ]);
                         
+                        \Log::info('Shared payment created successfully', [
+                            'new_payment_id' => $newPayment->id,
+                            'student_id' => $student->id,
+                            'amount' => $amount
+                        ]);
+                        
                         $newPayments[] = $newPayment;
                         
                         // Auto-allocate to new student's invoices
-                        $this->allocationService->autoAllocate($newPayment, $student->id);
+                        try {
+                            $this->allocationService->autoAllocate($newPayment, $student->id);
+                        } catch (\Exception $e) {
+                            \Log::error('Failed to auto-allocate shared payment', [
+                                'payment_id' => $newPayment->id,
+                                'student_id' => $student->id,
+                                'error' => $e->getMessage(),
+                                'trace' => $e->getTraceAsString()
+                            ]);
+                        }
                         
                         // Generate receipt for new payment
                         try {
@@ -1038,27 +1059,79 @@ class PaymentController extends Controller
                                 'error' => $e->getMessage()
                             ]);
                         }
-                        
-                        // Send payment received notification
-                        $this->sendPaymentNotifications($newPayment);
                     }
                     
                     // Recalculate invoices for this student
-                    $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-                    foreach ($studentInvoices as $invoice) {
-                        \App\Services\InvoiceService::recalc($invoice);
+                    try {
+                        $studentInvoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+                        foreach ($studentInvoices as $invoice) {
+                            \App\Services\InvoiceService::recalc($invoice);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to recalculate invoices for shared payment', [
+                            'student_id' => $student->id,
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
                 
                 // Recalculate affected invoices for original student
-                foreach ($affectedInvoices as $invoice) {
-                    \App\Services\InvoiceService::recalc($invoice);
+                try {
+                    foreach ($affectedInvoices as $invoice) {
+                        \App\Services\InvoiceService::recalc($invoice);
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to recalculate affected invoices', [
+                        'error' => $e->getMessage()
+                    ]);
                 }
                 
+                // Store data for notifications (to be sent after transaction commits)
+                $notificationData = [
+                    'original_student' => $originalStudent,
+                    'original_payment' => $payment->fresh(),
+                    'new_payments' => $newPayments,
+                    'is_original_retained' => $payment->amount > 0
+                ];
+                
                 $recipientCount = count(array_filter($sharedAmounts, function($amt) { return $amt > 0; }));
-                return back()->with('success', 'Payment of Ksh ' . number_format($originalPaymentAmount, 2) . ' successfully shared among ' . $recipientCount . ' student(s).');
+                
+                // Return success with notification data
+                return [
+                    'success' => true,
+                    'message' => 'Payment of Ksh ' . number_format($originalPaymentAmount, 2) . ' successfully shared among ' . $recipientCount . ' student(s).',
+                    'notification_data' => $notificationData
+                ];
             }
         });
+        
+        // If transaction was successful, send notifications
+        if (is_array($result) && isset($result['success']) && $result['success']) {
+            $notificationData = $result['notification_data'];
+            
+            // Send notifications to all affected students (outside transaction to prevent rollback)
+            try {
+                // Send to original student if they retained some amount
+                if ($notificationData['is_original_retained']) {
+                    $this->sendPaymentNotifications($notificationData['original_payment']);
+                }
+                
+                // Send to new students
+                foreach ($notificationData['new_payments'] as $newPayment) {
+                    $this->sendPaymentNotifications($newPayment->fresh());
+                }
+            } catch (\Exception $e) {
+                \Log::error('Failed to send notifications after payment sharing', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+                // Don't fail the request - payments were already created successfully
+            }
+            
+            return back()->with('success', $result['message']);
+        }
+        
+        return $result; // Return the redirect response from the transaction
     }
     
     /**
