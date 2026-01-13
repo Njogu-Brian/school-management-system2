@@ -843,6 +843,24 @@ class PaymentController extends Controller
                 'reversed_at' => now(),
             ]);
             
+            // Update related bank statement transaction if exists
+            $bankTransaction = \App\Models\BankStatementTransaction::where('transaction_code', $payment->transaction_code)
+                ->orWhere('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                ->first();
+            
+            if ($bankTransaction && $bankTransaction->payment_id == $payment->id) {
+                $bankTransaction->update([
+                    'payment_created' => false,
+                    'payment_id' => null,
+                    'status' => 'draft', // Reset to draft so it can be re-processed
+                ]);
+                
+                \Log::info('Bank statement transaction updated after payment reversal', [
+                    'bank_transaction_id' => $bankTransaction->id,
+                    'payment_id' => $payment->id,
+                ]);
+            }
+            
             // Recalculate affected invoices (unique invoice IDs)
             $invoices = \App\Models\Invoice::whereIn('id', $invoiceIds->unique())->get();
             

@@ -254,14 +254,21 @@
                                                 ->get();
                                         }
                                     @endphp
-                                    <a href="{{ route('students.show', $transaction->student) }}">
-                                        {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
-                                        <br><small class="text-muted">{{ $transaction->student->admission_number }}</small>
-                                    </a>
-                                    @if(count($siblings) > 0 && !$transaction->is_shared)
-                                        <br><small class="text-info">
-                                            <i class="bi bi-people"></i> {{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }} available
-                                        </small>
+                                    @if($transaction->student)
+                                        <a href="{{ route('students.show', $transaction->student) }}">
+                                            {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
+                                            <br><small class="text-muted">{{ $transaction->student->admission_number }}</small>
+                                        </a>
+                                        @if(count($siblings) > 0 && !$transaction->is_shared)
+                                            <br><small class="text-info">
+                                                <i class="bi bi-people"></i> {{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }} available
+                                            </small>
+                                        @endif
+                                    @else
+                                        <span class="text-muted">
+                                            Student #{{ $transaction->student_id }}
+                                            <br><small>(Archived/Alumni)</small>
+                                        </span>
                                     @endif
                                 @elseif($transaction->student)
                                     <a href="{{ route('students.show', $transaction->student) }}">
