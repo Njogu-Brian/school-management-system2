@@ -1,3 +1,5 @@
+@include('communication.partials.student-selector-modal')
+
 <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-whatsapp fs-5"></i>
     <div>
@@ -43,6 +45,7 @@
             <option value="staff" {{ old('target')==='staff' ? 'selected' : '' }}>Staff</option>
             <option value="class" {{ old('target')==='class' ? 'selected' : '' }}>Specific Class</option>
             <option value="student" {{ old('target')==='student' ? 'selected' : '' }}>Single Student (parents)</option>
+            <option value="specific_students" {{ old('target')==='specific_students' ? 'selected' : '' }}>Select Specific Students</option>
             <option value="custom" {{ old('target')==='custom' ? 'selected' : '' }}>Custom numbers</option>
         </select>
         <small class="text-muted d-block mt-1">Pulls WhatsApp fields first, then phone numbers.</small>
@@ -90,6 +93,21 @@
             @endforeach
         </select>
         <small class="text-muted d-block mt-1">Uses the parent's WhatsApp numbers first, then phone numbers.</small>
+    </div>
+    <div class="col-12 wa-target-field wa-target-specific_students d-none">
+        <label class="form-label fw-semibold">Select Multiple Students</label>
+        <button type="button" class="btn btn-outline-success w-100" data-bs-toggle="modal" data-bs-target="#studentSelectorModal">
+            <i class="bi bi-people-fill"></i> Open Student Selector
+        </button>
+        <input type="hidden" name="selected_student_ids" id="waSelectedStudentIds" value="{{ old('selected_student_ids') }}">
+        <div id="waSelectedStudentsDisplay" class="mt-2 d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted fw-semibold">Selected Students:</small>
+                <span class="badge bg-success" id="waSelectedStudentsBadge">0</span>
+            </div>
+            <div id="waSelectedStudentsList" class="d-flex flex-wrap gap-2"></div>
+        </div>
+        <small class="text-muted d-block mt-1">Click to search and select multiple students. WhatsApp will be sent to parents of selected students.</small>
     </div>
     <div class="col-12 wa-target-field wa-target-custom d-none">
         <label class="form-label fw-semibold">Custom Numbers</label>
@@ -155,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetFields = {
         class: document.querySelectorAll('.wa-target-class'),
         student: document.querySelectorAll('.wa-target-student'),
+        specific_students: document.querySelectorAll('.wa-target-specific_students'),
         custom: document.querySelectorAll('.wa-target-custom')
     };
     const scheduleLater = document.querySelectorAll('.wa-schedule-later-field');
@@ -170,6 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if (val === 'class') targetFields.class.forEach(el => el.classList.remove('d-none'));
         if (val === 'student') targetFields.student.forEach(el => el.classList.remove('d-none'));
+        if (val === 'specific_students') targetFields.specific_students.forEach(el => el.classList.remove('d-none'));
         if (val === 'custom') targetFields.custom.forEach(el => el.classList.remove('d-none'));
     }
 
@@ -322,6 +342,43 @@ document.addEventListener('DOMContentLoaded', function() {
     if (waForm) {
         waForm.addEventListener('submit', validatePlaceholders);
     }
+
+    // Handle student selection from modal for WhatsApp
+    const waSelectedStudentIdsInput = document.getElementById('waSelectedStudentIds');
+    const waSelectedStudentsDisplay = document.getElementById('waSelectedStudentsDisplay');
+    const waSelectedStudentsList = document.getElementById('waSelectedStudentsList');
+    const waSelectedStudentsBadge = document.getElementById('waSelectedStudentsBadge');
+
+    document.addEventListener('studentsSelected', function(event) {
+        const studentIds = event.detail.studentIds;
+        
+        if (waSelectedStudentIdsInput) {
+            waSelectedStudentIdsInput.value = studentIds.join(',');
+        }
+        
+        // Update display
+        if (studentIds.length > 0 && waSelectedStudentsDisplay) {
+            waSelectedStudentsDisplay.classList.remove('d-none');
+            waSelectedStudentsBadge.textContent = studentIds.length;
+            
+            // Show student names
+            waSelectedStudentsList.innerHTML = '';
+            studentIds.forEach(id => {
+                const checkbox = document.querySelector(`#student_${id}`);
+                if (checkbox) {
+                    const label = checkbox.closest('.student-item');
+                    const studentName = label.querySelector('.fw-semibold')?.textContent.trim() || `Student ${id}`;
+                    
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success';
+                    badge.textContent = studentName;
+                    waSelectedStudentsList.appendChild(badge);
+                }
+            });
+        } else if (waSelectedStudentsDisplay) {
+            waSelectedStudentsDisplay.classList.add('d-none');
+        }
+    });
 });
 </script>
 @endpush

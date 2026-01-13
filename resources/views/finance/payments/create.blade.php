@@ -414,7 +414,39 @@ document.addEventListener('DOMContentLoaded', function() {
         paymentSharingSection.style.display = 'block';
         sharedPaymentInput.value = '1';
         
+        const mainStudentId = document.getElementById('student_id').value;
+        const mainStudentName = document.getElementById('studentLiveSearch').value;
+        const mainStudentBalance = currentStudentData?.balance?.total_balance || 0;
+        
         let html = '';
+        
+        // Add main student first
+        if (mainStudentId) {
+            html += `
+                <div class="mb-3 p-3 border rounded bg-light">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <strong>${mainStudentName}</strong> <span class="badge bg-primary">Main Student</span><br>
+                            <small class="text-muted">Balance: Ksh ${parseFloat(mainStudentBalance).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text">Ksh</span>
+                        <input type="number" 
+                               step="0.01" 
+                               min="0" 
+                               class="form-control sibling-amount" 
+                               name="shared_amounts[]" 
+                               data-sibling-id="${mainStudentId}"
+                               value="0"
+                               oninput="updateTotalShared()">
+                        <input type="hidden" name="shared_students[]" value="${mainStudentId}">
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Add siblings
         siblings.forEach((sibling, index) => {
             html += `
                 <div class="mb-3 p-3 border rounded">

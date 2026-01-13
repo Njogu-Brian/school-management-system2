@@ -1,3 +1,5 @@
+@include('communication.partials.student-selector-modal')
+
 <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-envelope-paper fs-5"></i>
     <div>
@@ -61,6 +63,7 @@
             <option value="staff" {{ old('target')==='staff' ? 'selected' : '' }}>Staff</option>
             <option value="class" {{ old('target')==='class' ? 'selected' : '' }}>Specific Class</option>
             <option value="student" {{ old('target')==='student' ? 'selected' : '' }}>Single Student (parents)</option>
+            <option value="specific_students" {{ old('target')==='specific_students' ? 'selected' : '' }}>Select Specific Students</option>
             <option value="custom" {{ old('target')==='custom' ? 'selected' : '' }}>Custom email list</option>
         </select>
     </div>
@@ -86,6 +89,21 @@
             @endforeach
         </select>
         <small class="text-muted d-block mt-1">Sends to parents of the selected student.</small>
+    </div>
+    <div class="col-12 email-target-field email-target-specific_students d-none">
+        <label class="form-label fw-semibold">Select Multiple Students</label>
+        <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#studentSelectorModal">
+            <i class="bi bi-people-fill"></i> Open Student Selector
+        </button>
+        <input type="hidden" name="selected_student_ids" id="selectedStudentIds" value="{{ old('selected_student_ids') }}">
+        <div id="selectedStudentsDisplay" class="mt-2 d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted fw-semibold">Selected Students:</small>
+                <span class="badge bg-primary" id="selectedStudentsBadge">0</span>
+            </div>
+            <div id="selectedStudentsList" class="d-flex flex-wrap gap-2"></div>
+        </div>
+        <small class="text-muted d-block mt-1">Click to search and select multiple students. Email will be sent to parents of selected students.</small>
     </div>
     <div class="col-12 email-target-field email-target-custom d-none">
         <label class="form-label fw-semibold">Custom Emails</label>
@@ -147,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetFields = {
         class: document.querySelectorAll('.email-target-class'),
         student: document.querySelectorAll('.email-target-student'),
+        specific_students: document.querySelectorAll('.email-target-specific_students'),
         custom: document.querySelectorAll('.email-target-custom')
     };
     const scheduleLater = document.querySelectorAll('.email-schedule-later-field');
@@ -158,6 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if (val === 'class') targetFields.class.forEach(el => el.classList.remove('d-none'));
         if (val === 'student') targetFields.student.forEach(el => el.classList.remove('d-none'));
+        if (val === 'specific_students') targetFields.specific_students.forEach(el => el.classList.remove('d-none'));
         if (val === 'custom') targetFields.custom.forEach(el => el.classList.remove('d-none'));
     }
 
@@ -318,6 +338,43 @@ document.addEventListener('DOMContentLoaded', function() {
     if (emailForm) {
         emailForm.addEventListener('submit', validatePlaceholders);
     }
+
+    // Handle student selection from modal
+    const selectedStudentIdsInput = document.getElementById('selectedStudentIds');
+    const selectedStudentsDisplay = document.getElementById('selectedStudentsDisplay');
+    const selectedStudentsList = document.getElementById('selectedStudentsList');
+    const selectedStudentsBadge = document.getElementById('selectedStudentsBadge');
+
+    document.addEventListener('studentsSelected', function(event) {
+        const studentIds = event.detail.studentIds;
+        
+        if (selectedStudentIdsInput) {
+            selectedStudentIdsInput.value = studentIds.join(',');
+        }
+        
+        // Update display
+        if (studentIds.length > 0 && selectedStudentsDisplay) {
+            selectedStudentsDisplay.classList.remove('d-none');
+            selectedStudentsBadge.textContent = studentIds.length;
+            
+            // Show student names
+            selectedStudentsList.innerHTML = '';
+            studentIds.forEach(id => {
+                const checkbox = document.querySelector(`#student_${id}`);
+                if (checkbox) {
+                    const label = checkbox.closest('.student-item');
+                    const studentName = label.querySelector('.fw-semibold')?.textContent.trim() || `Student ${id}`;
+                    
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-primary';
+                    badge.textContent = studentName;
+                    selectedStudentsList.appendChild(badge);
+                }
+            });
+        } else if (selectedStudentsDisplay) {
+            selectedStudentsDisplay.classList.add('d-none');
+        }
+    });
 });
 </script>
 @endpush

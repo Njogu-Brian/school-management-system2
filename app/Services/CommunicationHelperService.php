@@ -9,8 +9,8 @@ class CommunicationHelperService
 {
     /**
      * Build a map of recipients => entity used for personalization.
-     * $target: students|parents|staff|class|student|custom
-     * $data: ['target', 'classroom_id', 'student_id', 'custom_emails', 'custom_numbers']
+     * $target: students|parents|staff|class|student|specific_students|custom
+     * $data: ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers']
      * $type: 'email', 'sms', or 'whatsapp'
      */
     public static function collectRecipients(array $data, string $type): array
@@ -23,6 +23,35 @@ class CommunicationHelperService
         if ($custom) {
             foreach (array_map('trim', explode(',', $custom)) as $item) {
                 if ($item !== '') $out[$item] = null;
+            }
+        }
+
+        // Specific multiple students (exclude alumni and archived)
+        if ($target === 'specific_students' && !empty($data['selected_student_ids'])) {
+            $studentIds = is_array($data['selected_student_ids']) 
+                ? $data['selected_student_ids'] 
+                : array_filter(explode(',', $data['selected_student_ids']));
+            
+            if (!empty($studentIds)) {
+                Student::with('parent', 'classroom')
+                    ->whereIn('id', $studentIds)
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->get()
+                    ->each(function ($s) use (&$out, $type) {
+                        if ($s->parent) {
+                            $contacts = match ($type) {
+                                'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
+                                'whatsapp' => [
+                                    $s->parent->father_whatsapp ?? $s->parent->father_phone,
+                                    $s->parent->mother_whatsapp ?? $s->parent->mother_phone,
+                                    $s->parent->guardian_whatsapp ?? $s->parent->guardian_phone,
+                                ],
+                                default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
+                            };
+                            foreach ($contacts as $c) if ($c) $out[$c] = $s;
+                        }
+                    });
             }
         }
 

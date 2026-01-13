@@ -121,7 +121,17 @@ if (!function_exists('can_access')) {
 if (!function_exists('replace_placeholders')) {
     function replace_placeholders(string $message, $entity = null, array $extra = []): string
     {
+        // Base system placeholders
         $replacements = [
+            '{{school_name}}'    => setting('school_name', 'Our School'),
+            '{{school_phone}}'   => setting('school_phone', ''),
+            '{{school_email}}'   => setting('school_email', ''),
+            '{{school_address}}' => setting('school_address', ''),
+            '{{term}}'           => setting('current_term', ''),
+            '{{academic_year}}'  => setting('current_year', ''),
+            '{{date}}'           => now()->format('d M Y'),
+            
+            // Legacy single brace support
             '{school_name}'    => setting('school_name', 'Our School'),
             '{school_phone}'   => setting('school_phone', ''),
             '{school_email}'   => setting('school_email', ''),
@@ -131,40 +141,88 @@ if (!function_exists('replace_placeholders')) {
             '{date}'           => now()->format('d M Y'),
         ];
 
+        // Student-specific placeholders
         if ($entity instanceof \App\Models\Student) {
+            $studentName = $entity->full_name ?? $entity->name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
+            $admissionNo = $entity->admission_number ?? $entity->admission_no ?? '';
+            $className = optional($entity->classroom)->name ?? '';
+            $parentName = optional($entity->parent)->father_name
+                        ?? optional($entity->parent)->guardian_name
+                        ?? optional($entity->parent)->mother_name
+                        ?? '';
+            $fatherName = optional($entity->parent)->father_name ?? '';
+            
             $replacements += [
-                '{student_name}' => $entity->name ?? '',
-                '{admission_no}' => $entity->admission_no ?? '',
-                '{class_name}'   => optional($entity->classroom)->name,
-                '{grade}'        => optional($entity->classroom)->section,
-                '{parent_name}'  => optional($entity->parent)->father_name
-                                    ?? optional($entity->parent)->guardian_name
-                                    ?? optional($entity->parent)->mother_name,
+                '{{student_name}}' => $studentName,
+                '{{admission_number}}' => $admissionNo,
+                '{{admission_no}}' => $admissionNo,
+                '{{class_name}}'   => $className,
+                '{{grade}}'        => optional($entity->classroom)->section ?? '',
+                '{{parent_name}}'  => $parentName,
+                '{{father_name}}'  => $fatherName,
+                
+                // Legacy single brace
+                '{student_name}' => $studentName,
+                '{admission_number}' => $admissionNo,
+                '{admission_no}' => $admissionNo,
+                '{class_name}'   => $className,
+                '{grade}'        => optional($entity->classroom)->section ?? '',
+                '{parent_name}'  => $parentName,
+                '{father_name}'  => $fatherName,
             ];
         } elseif ($entity instanceof \App\Models\Staff) {
+            $staffName = $entity->full_name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
             $replacements += [
-                '{staff_name}' => trim(($entity->first_name ?? '').' '.($entity->last_name ?? '')),
+                '{{staff_name}}' => $staffName,
+                '{{role}}'       => $entity->role ?? '',
+                '{{experience}}' => $entity->experience ?? '',
+                
+                // Legacy single brace
+                '{staff_name}' => $staffName,
                 '{role}'       => $entity->role ?? '',
                 '{experience}' => $entity->experience ?? '',
             ];
         } elseif ($entity instanceof \App\Models\ParentInfo) {
+            $parentName = $entity->father_name
+                        ?? $entity->guardian_name
+                        ?? $entity->mother_name
+                        ?? '';
             $replacements += [
-                '{parent_name}' => $entity->father_name
-                                    ?? $entity->guardian_name
-                                    ?? $entity->mother_name
-                                    ?? '',
+                '{{parent_name}}' => $parentName,
+                '{parent_name}' => $parentName,
             ];
         }
 
-        // Optional custom placeholders (safe for CLI)
-        if (class_exists(CommunicationPlaceholder::class)) {
-            foreach (CommunicationPlaceholder::all() as $ph) {
-                $replacements['{'.$ph->key.'}'] = (string) $ph->value;
+        // Custom placeholders from database (both CommunicationPlaceholder and CustomPlaceholder)
+        if (class_exists(\App\Models\CommunicationPlaceholder::class)) {
+            try {
+                foreach (\App\Models\CommunicationPlaceholder::all() as $ph) {
+                    $replacements['{{'.$ph->key.'}}'] = (string) $ph->value;
+                    $replacements['{'.$ph->key.'}'] = (string) $ph->value;
+                }
+            } catch (\Exception $e) {
+                // Silently fail if table doesn't exist
+            }
+        }
+        
+        if (class_exists(\App\Models\CustomPlaceholder::class)) {
+            try {
+                foreach (\App\Models\CustomPlaceholder::all() as $ph) {
+                    $replacements['{{'.$ph->key.'}}'] = (string) $ph->value;
+                    $replacements['{'.$ph->key.'}'] = (string) $ph->value;
+                }
+            } catch (\Exception $e) {
+                // Silently fail if table doesn't exist
             }
         }
 
+        // Merge extra placeholders (highest priority)
         if (!empty($extra)) {
-            $replacements = array_merge($replacements, $extra);
+            foreach ($extra as $key => $value) {
+                // Support both {{ }} and { } formats
+                $replacements['{{'.$key.'}}'] = $value;
+                $replacements['{'.$key.'}'] = $value;
+            }
         }
 
         return str_replace(array_keys($replacements), array_values($replacements), $message);

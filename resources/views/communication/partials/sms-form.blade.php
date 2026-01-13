@@ -1,3 +1,5 @@
+@include('communication.partials.student-selector-modal')
+
 <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-megaphone fs-5"></i>
     <div>
@@ -54,6 +56,7 @@
             <option value="staff" {{ old('target')==='staff' ? 'selected' : '' }}>Staff</option>
             <option value="class" {{ old('target')==='class' ? 'selected' : '' }}>Specific Class</option>
             <option value="student" {{ old('target')==='student' ? 'selected' : '' }}>Single Student (parents)</option>
+            <option value="specific_students" {{ old('target')==='specific_students' ? 'selected' : '' }}>Select Specific Students</option>
             <option value="custom" {{ old('target')==='custom' ? 'selected' : '' }}>Custom numbers</option>
         </select>
     </div>
@@ -87,7 +90,22 @@
                 </option>
             @endforeach
         </select>
-        <small class="text-muted d-block mt-1">Sends to the student’s parent contacts.</small>
+        <small class="text-muted d-block mt-1">Sends to the student's parent contacts.</small>
+    </div>
+    <div class="col-12 sms-target-field sms-target-specific_students d-none">
+        <label class="form-label fw-semibold">Select Multiple Students</label>
+        <button type="button" class="btn btn-outline-primary w-100" data-bs-toggle="modal" data-bs-target="#studentSelectorModal">
+            <i class="bi bi-people-fill"></i> Open Student Selector
+        </button>
+        <input type="hidden" name="selected_student_ids" id="smsSelectedStudentIds" value="{{ old('selected_student_ids') }}">
+        <div id="smsSelectedStudentsDisplay" class="mt-2 d-none">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted fw-semibold">Selected Students:</small>
+                <span class="badge bg-primary" id="smsSelectedStudentsBadge">0</span>
+            </div>
+            <div id="smsSelectedStudentsList" class="d-flex flex-wrap gap-2"></div>
+        </div>
+        <small class="text-muted d-block mt-1">Click to search and select multiple students. SMS will be sent to parents of selected students.</small>
     </div>
     <div class="col-12 sms-target-field sms-target-custom d-none">
         <label class="form-label fw-semibold">Custom Numbers</label>
@@ -136,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetFields = {
         class: document.querySelectorAll('.sms-target-class'),
         student: document.querySelectorAll('.sms-target-student'),
+        specific_students: document.querySelectorAll('.sms-target-specific_students'),
         custom: document.querySelectorAll('.sms-target-custom')
     };
     const scheduleLater = document.querySelectorAll('.sms-schedule-later-field');
@@ -149,6 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         if (val === 'class') targetFields.class.forEach(el => el.classList.remove('d-none'));
         if (val === 'student') targetFields.student.forEach(el => el.classList.remove('d-none'));
+        if (val === 'specific_students') targetFields.specific_students.forEach(el => el.classList.remove('d-none'));
         if (val === 'custom') targetFields.custom.forEach(el => el.classList.remove('d-none'));
     }
 
@@ -271,6 +291,43 @@ document.addEventListener('DOMContentLoaded', function() {
     if (smsForm) {
         smsForm.addEventListener('submit', validatePlaceholders);
     }
+
+    // Handle student selection from modal for SMS
+    const smsSelectedStudentIdsInput = document.getElementById('smsSelectedStudentIds');
+    const smsSelectedStudentsDisplay = document.getElementById('smsSelectedStudentsDisplay');
+    const smsSelectedStudentsList = document.getElementById('smsSelectedStudentsList');
+    const smsSelectedStudentsBadge = document.getElementById('smsSelectedStudentsBadge');
+
+    document.addEventListener('studentsSelected', function(event) {
+        const studentIds = event.detail.studentIds;
+        
+        if (smsSelectedStudentIdsInput) {
+            smsSelectedStudentIdsInput.value = studentIds.join(',');
+        }
+        
+        // Update display
+        if (studentIds.length > 0 && smsSelectedStudentsDisplay) {
+            smsSelectedStudentsDisplay.classList.remove('d-none');
+            smsSelectedStudentsBadge.textContent = studentIds.length;
+            
+            // Show student names
+            smsSelectedStudentsList.innerHTML = '';
+            studentIds.forEach(id => {
+                const checkbox = document.querySelector(`#student_${id}`);
+                if (checkbox) {
+                    const label = checkbox.closest('.student-item');
+                    const studentName = label.querySelector('.fw-semibold')?.textContent.trim() || `Student ${id}`;
+                    
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-primary';
+                    badge.textContent = studentName;
+                    smsSelectedStudentsList.appendChild(badge);
+                }
+            });
+        } else if (smsSelectedStudentsDisplay) {
+            smsSelectedStudentsDisplay.classList.add('d-none');
+        }
+    });
 });
 </script>
 @endpush
