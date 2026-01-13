@@ -42,6 +42,24 @@ class SeniorTeacherAssignmentController extends Controller
             ->orderBy('first_name')
             ->get();
         
+        // Sync supervised staff with supervisor_id field
+        // Ensure staff who have this senior teacher as supervisor are marked as supervised
+        if ($seniorTeacher->staff) {
+            $staffWithThisSupervisor = Staff::where('supervisor_id', $seniorTeacher->staff->id)
+                ->pluck('id')
+                ->toArray();
+            
+            // Sync the pivot table to match the supervisor_id relationships
+            $currentSupervised = $seniorTeacher->supervisedStaff->pluck('id')->toArray();
+            $allSupervisedIds = array_unique(array_merge($currentSupervised, $staffWithThisSupervisor));
+            
+            // Update the pivot table if there's a mismatch
+            if ($currentSupervised != $allSupervisedIds) {
+                $seniorTeacher->supervisedStaff()->sync($allSupervisedIds);
+                $seniorTeacher->load('supervisedStaff'); // Reload the relationship
+            }
+        }
+        
         return view('admin.senior_teacher_assignments.edit', compact(
             'seniorTeacher',
             'allClassrooms',
@@ -91,8 +109,26 @@ class SeniorTeacherAssignmentController extends Controller
                 ->with('error', 'A senior teacher cannot supervise themselves.');
         }
 
-        // Sync the supervised staff
+        // Get previously supervised staff to clear their supervisor_id
+        $previouslySupervised = $seniorTeacher->supervisedStaff->pluck('id')->toArray();
+        
+        // Sync the supervised staff pivot table
         $seniorTeacher->supervisedStaff()->sync($staffIds);
+
+        // Update supervisor_id on the Staff model
+        // Clear supervisor_id for previously supervised staff that are no longer supervised
+        $toRemove = array_diff($previouslySupervised, $staffIds);
+        if (!empty($toRemove)) {
+            \App\Models\Staff::whereIn('id', $toRemove)
+                ->where('supervisor_id', $seniorTeacher->staff->id ?? null)
+                ->update(['supervisor_id' => null]);
+        }
+
+        // Set supervisor_id for newly supervised staff
+        if (!empty($staffIds) && $seniorTeacher->staff) {
+            \App\Models\Staff::whereIn('id', $staffIds)
+                ->update(['supervisor_id' => $seniorTeacher->staff->id]);
+        }
 
         return redirect()->route('admin.senior_teacher_assignments.edit', $id)
             ->with('success', 'Supervised staff updated successfully.');

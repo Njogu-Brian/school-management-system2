@@ -222,7 +222,19 @@ class StaffController extends Controller
         }
 
         // 7) Notifications via templates - Send welcome email and SMS
+        // Get school settings for templates
+        $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+        $appUrl = config('app.url');
+        
+        // Prepare template variables matching CommunicationTemplateSeeder placeholders
         $vars = [
+            'staff_name' => $user->name,
+            'school_name' => $schoolName,
+            'app_url' => $appUrl,
+            'login_email' => $user->email,
+            'temporary_password' => $passwordPlain,
+            'staff_role' => $staff->jobTitle->name ?? $staff->category->name ?? 'Staff Member',
+            // Legacy support for old template format
             'name'     => $user->name,
             'login'    => $user->email,
             'password' => $passwordPlain,
