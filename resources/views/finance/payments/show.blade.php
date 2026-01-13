@@ -353,7 +353,7 @@
                             <label class="form-label">Amount to Transfer <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text">Ksh</span>
-                                <input type="number" step="0.01" min="0.01" max="{{ $payment->amount }}" name="transfer_amount" id="transferAmount" class="form-control" required>
+                                <input type="number" step="0.01" min="0.01" max="{{ $payment->amount }}" name="transfer_amount" id="transferAmount" class="form-control">
                             </div>
                         </div>
                     </div>
@@ -474,17 +474,29 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (transferType) {
         transferType.addEventListener('change', function() {
+            const transferAmountField = document.getElementById('transferAmount');
+            const targetStudentField = document.getElementById('targetStudentId');
+            
             if (this.value === 'transfer') {
                 transferSingle.style.display = 'block';
                 transferMultiple.style.display = 'none';
+                // Enable validation for single transfer fields
+                if (transferAmountField) transferAmountField.required = true;
+                if (targetStudentField) targetStudentField.required = true;
             } else if (this.value === 'share') {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'block';
+                // Disable validation for single transfer fields (they're hidden)
+                if (transferAmountField) transferAmountField.required = false;
+                if (targetStudentField) targetStudentField.required = false;
                 // Initialize total calculation when share is selected
                 updateTotalShared();
             } else {
                 transferSingle.style.display = 'none';
                 transferMultiple.style.display = 'none';
+                // Disable all validation when nothing selected
+                if (transferAmountField) transferAmountField.required = false;
+                if (targetStudentField) targetStudentField.required = false;
             }
         });
     }
