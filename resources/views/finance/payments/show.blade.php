@@ -370,6 +370,16 @@
                                     <label class="form-label text-muted small">Original Student</label>
                                     <input type="hidden" name="shared_students[]" value="{{ $payment->student_id }}" class="shared-student-id">
                                     <input type="text" class="form-control shared-student-name" value="{{ $payment->student->full_name }} ({{ $payment->student->admission_number }})" readonly>
+                                    @php
+                                        $studentBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($payment->student);
+                                        $studentInvoiced = \App\Models\Invoice::where('student_id', $payment->student_id)->sum('total') ?? 0;
+                                        $studentPaid = \App\Models\Payment::where('student_id', $payment->student_id)->where('reversed', false)->sum('amount') ?? 0;
+                                    @endphp
+                                    <small class="text-muted d-block mt-1">
+                                        <strong>Balance:</strong> <span class="text-danger">Ksh {{ number_format($studentBalance, 2) }}</span>
+                                        | <strong>Invoiced:</strong> Ksh {{ number_format($studentInvoiced, 2) }}
+                                        | <strong>Paid:</strong> <span class="text-success">Ksh {{ number_format($studentPaid, 2) }}</span>
+                                    </small>
                                     <div class="input-group mt-2">
                                         <span class="input-group-text">Ksh</span>
                                         <input type="number" step="0.01" min="0" max="{{ $payment->amount }}" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount / 2, 2, '.', '') }}" required>
@@ -494,6 +504,58 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Load student balance information
+    async function loadStudentBalanceInfo(studentId, wrapper) {
+        try {
+            // Find or create balance info container in this wrapper
+            let balanceContainer = wrapper.querySelector('.student-balance-info');
+            if (!balanceContainer) {
+                balanceContainer = document.createElement('div');
+                balanceContainer.className = 'student-balance-info mt-2';
+                // Insert after the student name input
+                const inputGroup = wrapper.querySelector('.input-group');
+                if (inputGroup && inputGroup.previousElementSibling) {
+                    inputGroup.previousElementSibling.after(balanceContainer);
+                } else if (wrapper.querySelector('input[type="text"]')) {
+                    wrapper.querySelector('input[type="text"]').after(balanceContainer);
+                }
+            }
+            
+            balanceContainer.innerHTML = '<small class="text-muted"><i class="bi bi-hourglass-split"></i> Loading balance...</small>';
+            
+            const response = await fetch(`{{ route('finance.payments.student-info', ['student' => '__ID__']) }}`.replace('__ID__', studentId), {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const balance = parseFloat(data.balance?.total_balance || 0);
+            const invoiced = parseFloat(data.balance?.total_invoiced || 0);
+            const paid = parseFloat(data.balance?.total_paid || 0);
+            
+            balanceContainer.innerHTML = `
+                <small class="text-muted">
+                    <strong>Balance:</strong> <span class="text-danger">Ksh ${balance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    | <strong>Invoiced:</strong> Ksh ${invoiced.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                    | <strong>Paid:</strong> <span class="text-success">Ksh ${paid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </small>
+            `;
+        } catch (error) {
+            console.error('Error loading student balance:', error);
+            const balanceContainer = wrapper.querySelector('.student-balance-info');
+            if (balanceContainer) {
+                balanceContainer.innerHTML = '<small class="text-danger"><i class="bi bi-exclamation-triangle"></i> Unable to load balance</small>';
+            }
+        }
+    }
+    
     // Simple live-search initializer for wrappers in this modal (works for dynamically added rows)
     function initLiveSearchWrapper(wrapper) {
         const displayInput = wrapper.querySelector('input[type="text"]');
@@ -514,11 +576,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 a.href = '#';
                 a.className = 'list-group-item list-group-item-action py-2';
                 a.textContent = `${item.full_name} (${item.admission_number}) - ${item.classroom_name || 'No Class'}`;
-                a.addEventListener('click', (e) => {
+                a.addEventListener('click', async (e) => {
                     e.preventDefault();
                     displayInput.value = `${item.full_name} (${item.admission_number})`;
                     hiddenInput.value = item.id;
                     resultsList.classList.add('d-none');
+                    
+                    // Fetch and display student balance info
+                    await loadStudentBalanceInfo(item.id, wrapper);
+                    
                     updateTotalShared();
                 });
                 resultsList.appendChild(a);
