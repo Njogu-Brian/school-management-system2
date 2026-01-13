@@ -36,7 +36,7 @@ class FeeBalanceController extends Controller
         $studentsQuery = Student::query()
             ->where('archive', 0)
             ->where('is_alumni', false)
-            ->with(['classroom', 'stream', 'parentInfo']);
+            ->with(['classroom', 'stream', 'parent']);
         
         // Apply classroom filter
         if ($classroomId) {
@@ -76,7 +76,7 @@ class FeeBalanceController extends Controller
                 'full_name' => $student->full_name,
                 'classroom' => $student->classroom ? $student->classroom->name : 'N/A',
                 'stream' => $student->stream ? $student->stream->name : null,
-                'parent_phone' => $student->parentInfo ? $student->parentInfo->phone : 'N/A',
+                'parent_phone' => $student->parent ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? 'N/A') : 'N/A',
                 'total_invoiced' => $totalInvoiced,
                 'total_paid' => $totalPaid,
                 'balance' => $balance,
