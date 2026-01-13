@@ -49,8 +49,12 @@
                 <div class="col-md-6 col-lg-2">
                     <label class="finance-form-label">Term <span class="text-danger">*</span></label>
                     <select name="term" class="finance-form-select" required>
+                        @php
+                            $currentTerm = \App\Models\Term::where('is_current', true)->first();
+                            $defaultTerm = $currentTerm ? (int) preg_replace('/[^0-9]/', '', $currentTerm->name) : 1;
+                        @endphp
                         @for($i=1;$i<=3;$i++)
-                            <option value="{{ $i }}" @selected(old('term')==$i)>Term {{ $i }}</option>
+                            <option value="{{ $i }}" @selected(old('term', $defaultTerm)==$i)>Term {{ $i }}</option>
                         @endfor
                     </select>
                 </div>
@@ -158,7 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Trigger loading when live search selects a student
-    document.addEventListener('student-selected', (event) => {
+    window.addEventListener('student-selected', (event) => {
         if (event.detail?.id) {
             studentIdInput.value = event.detail.id;
             loadVoteheadsFromInvoice();

@@ -140,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
     [term, year].forEach(el => el.addEventListener('change', () => { if (ready()) form.submit(); }));
     
     // When live-search picks a student, auto-submit if term/year present
-    document.addEventListener('student-selected', () => {
+    window.addEventListener('student-selected', () => {
         if (ready()) form.submit();
     });
 });
