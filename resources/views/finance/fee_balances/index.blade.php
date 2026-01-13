@@ -342,7 +342,7 @@
                                             <i class="bi bi-receipt"></i>
                                         </a>
                                         @if($student['balance'] > 0 && !$student['has_payment_plan'])
-                                            <a href="{{ route('finance.payment-plans.create') }}?student_id={{ $student['id'] }}" 
+                                            <a href="{{ route('finance.fee-payment-plans.create') }}?student_id={{ $student['id'] }}" 
                                                class="btn btn-outline-success" title="Create Payment Plan">
                                                 <i class="bi bi-calendar-plus"></i>
                                             </a>
