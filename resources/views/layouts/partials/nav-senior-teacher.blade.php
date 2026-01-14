@@ -216,7 +216,7 @@
   <div class="text-muted small fw-bold px-3 mb-2">Transport</div>
 
   {{-- Transport Dashboard --}}
-  <a href="{{ route('transport.index') }}" class="{{ $transportActive && !$specialAssignmentsActive ? 'active' : '' }}">
+  <a href="{{ url('/transport') }}" class="{{ $transportActive && !$specialAssignmentsActive ? 'active' : '' }}">
     <i class="bi bi-bus-front"></i> Transport
   </a>
 
