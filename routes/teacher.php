@@ -129,8 +129,10 @@ Route::middleware(['auth', 'role:Super Admin|Admin|Secretary|Teacher|teacher'])-
     /*
     |---------------------- Transport ----------------------
     | View transport information for assigned students
+    | NOTE: Main transport routes in web.php already include Teacher and Senior Teacher roles
+    | These routes are kept for backward compatibility but use different paths
     */
-    Route::prefix('transport')->name('teacher.transport.')->group(function () {
+    Route::prefix('teacher/transport')->name('teacher.transport.')->group(function () {
         Route::get('/', [TransportController::class, 'index'])->name('index');
         Route::get('/{student}', [TransportController::class, 'show'])->name('show');
         Route::get('/sheet/print', [TransportController::class, 'transportSheet'])->name('sheet.print');
