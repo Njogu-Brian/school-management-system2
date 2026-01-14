@@ -255,15 +255,7 @@
 </div>
 
 @push('styles')
-<style>
-.avatar-circle {
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-}
-</style>
+    @include('senior_teacher.partials.styles')
 @endpush
 @endsection
 

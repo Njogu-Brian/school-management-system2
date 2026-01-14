@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('senior_teacher.partials.styles')
+@endpush
+
 @section('content')
 <div class="container-fluid">
     <div class="row mb-4">
