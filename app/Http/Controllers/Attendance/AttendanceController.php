@@ -514,19 +514,55 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         ],
         'gender' => [
             'male'   => [
-                'present' => $attendanceRecords->filter(fn($a) => $a->status === 'present' && $a->student && $a->student->gender === 'Male')->count(),
-                'absent'  => $attendanceRecords->filter(fn($a) => $a->status === 'absent' && $a->student && $a->student->gender === 'Male')->count(),
-                'late'    => $attendanceRecords->filter(fn($a) => $a->status === 'late' && $a->student && $a->student->gender === 'Male')->count(),
+                'present' => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'present') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return in_array($gender, ['male', 'm', 'boy', 'boys']);
+                })->count(),
+                'absent'  => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'absent') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return in_array($gender, ['male', 'm', 'boy', 'boys']);
+                })->count(),
+                'late'    => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'late') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return in_array($gender, ['male', 'm', 'boy', 'boys']);
+                })->count(),
             ],
             'female' => [
-                'present' => $attendanceRecords->filter(fn($a) => $a->status === 'present' && $a->student && $a->student->gender === 'Female')->count(),
-                'absent'  => $attendanceRecords->filter(fn($a) => $a->status === 'absent' && $a->student && $a->student->gender === 'Female')->count(),
-                'late'    => $attendanceRecords->filter(fn($a) => $a->status === 'late' && $a->student && $a->student->gender === 'Female')->count(),
+                'present' => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'present') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return in_array($gender, ['female', 'f', 'girl', 'girls']);
+                })->count(),
+                'absent'  => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'absent') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return in_array($gender, ['female', 'f', 'girl', 'girls']);
+                })->count(),
+                'late'    => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'late') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return in_array($gender, ['female', 'f', 'girl', 'girls']);
+                })->count(),
             ],
             'other' => [
-                'present' => $attendanceRecords->filter(fn($a) => $a->status === 'present' && $a->student && !in_array($a->student->gender, ['Male','Female']))->count(),
-                'absent'  => $attendanceRecords->filter(fn($a) => $a->status === 'absent' && $a->student && !in_array($a->student->gender, ['Male','Female']))->count(),
-                'late'    => $attendanceRecords->filter(fn($a) => $a->status === 'late' && $a->student && !in_array($a->student->gender, ['Male','Female']))->count(),
+                'present' => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'present') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return !in_array($gender, ['male', 'm', 'boy', 'boys', 'female', 'f', 'girl', 'girls']);
+                })->count(),
+                'absent'  => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'absent') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return !in_array($gender, ['male', 'm', 'boy', 'boys', 'female', 'f', 'girl', 'girls']);
+                })->count(),
+                'late'    => $attendanceRecords->filter(function($a) {
+                    if (!$a->student || $a->status !== 'late') return false;
+                    $gender = strtolower(trim($a->student->gender ?? ''));
+                    return !in_array($gender, ['male', 'm', 'boy', 'boys', 'female', 'f', 'girl', 'girls']);
+                })->count(),
             ],
         ]
     ];
