@@ -232,8 +232,15 @@
             </form>
         </div>
 
-        {{-- Students Table --}}
-        <div class="finance-table-wrapper finance-animate">
+        {{-- Students Cleared Fees --}}
+        @if($clearedStudents->count() > 0)
+        <div class="finance-table-wrapper finance-animate mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                    Students with Cleared Fees ({{ $clearedStudents->count() }})
+                </h5>
+            </div>
             <div class="table-responsive">
                 <table class="finance-table">
                     <thead>
@@ -252,7 +259,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($students as $student)
+                        @foreach($clearedStudents as $student)
                             <tr class="{{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}">
                                 <td><strong>{{ $student['admission_number'] }}</strong></td>
                                 <td>
@@ -350,18 +357,130 @@
                                     </div>
                                 </td>
                             </tr>
-                        @empty
-                            <tr>
-                                <td colspan="11" class="text-center py-5">
-                                    <i class="bi bi-inbox fs-1 text-muted"></i>
-                                    <p class="text-muted mt-2">No students found matching your criteria.</p>
-                                </td>
-                            </tr>
-                        @endforelse
+                        @endforeach
                     </tbody>
                 </table>
             </div>
         </div>
+        @endif
+
+        {{-- Students Paid Partial --}}
+        @if($partialStudents->count() > 0)
+        <div class="finance-table-wrapper finance-animate mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-hourglass-split text-warning me-2"></i>
+                    Students Paid Partial ({{ $partialStudents->count() }})
+                </h5>
+            </div>
+            <div class="table-responsive">
+                <table class="finance-table">
+                    <thead>
+                        <tr>
+                            <th>Adm No</th>
+                            <th>Student Name</th>
+                            <th>Class</th>
+                            <th class="text-end">Invoiced</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Balance</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Attendance</th>
+                            <th class="text-center">In School</th>
+                            <th class="text-center">Payment Plan</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($partialStudents as $student)
+                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+
+        {{-- Students Not Paid - Present --}}
+        @if($unpaidPresent->count() > 0)
+        <div class="finance-table-wrapper finance-animate mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+                    Students Not Paid - Present in School ({{ $unpaidPresent->count() }})
+                </h5>
+            </div>
+            <div class="table-responsive">
+                <table class="finance-table">
+                    <thead>
+                        <tr>
+                            <th>Adm No</th>
+                            <th>Student Name</th>
+                            <th>Class</th>
+                            <th class="text-end">Invoiced</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Balance</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Attendance</th>
+                            <th class="text-center">In School</th>
+                            <th class="text-center">Payment Plan</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($unpaidPresent as $student)
+                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+
+        {{-- Students Not Paid - Absent --}}
+        @if($unpaidAbsent->count() > 0)
+        <div class="finance-table-wrapper finance-animate mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-x-circle-fill text-danger me-2"></i>
+                    Students Not Paid - Absent/Not Reported ({{ $unpaidAbsent->count() }})
+                </h5>
+            </div>
+            <div class="table-responsive">
+                <table class="finance-table">
+                    <thead>
+                        <tr>
+                            <th>Adm No</th>
+                            <th>Student Name</th>
+                            <th>Class</th>
+                            <th class="text-end">Invoiced</th>
+                            <th class="text-end">Paid</th>
+                            <th class="text-end">Balance</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center">Attendance</th>
+                            <th class="text-center">In School</th>
+                            <th class="text-center">Payment Plan</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($unpaidAbsent as $student)
+                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @endif
+
+        {{-- No Students Message --}}
+        @if($clearedStudents->count() == 0 && $partialStudents->count() == 0 && $unpaidPresent->count() == 0 && $unpaidAbsent->count() == 0)
+        <div class="finance-table-wrapper finance-animate">
+            <div class="text-center py-5">
+                <i class="bi bi-inbox fs-1 text-muted"></i>
+                <p class="text-muted mt-2">No students found matching your criteria.</p>
+            </div>
+        </div>
+        @endif
 
         {{-- Legend --}}
         <div class="alert alert-info border-0 mt-4">

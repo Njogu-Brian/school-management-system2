@@ -151,6 +151,28 @@ class FeeBalanceController extends Controller
             });
         }
         
+        // Categorize students
+        $clearedStudents = $filteredStudents->filter(function ($s) {
+            return $s['balance'] <= 0 && $s['total_invoiced'] > 0;
+        });
+        
+        $partialStudents = $filteredStudents->filter(function ($s) {
+            return $s['payment_status'] === 'partial';
+        });
+        
+        $unpaidStudents = $filteredStudents->filter(function ($s) {
+            return $s['payment_status'] === 'unpaid';
+        });
+        
+        // Split unpaid students by attendance
+        $unpaidPresent = $unpaidStudents->filter(function ($s) {
+            return $s['is_in_school'];
+        });
+        
+        $unpaidAbsent = $unpaidStudents->filter(function ($s) {
+            return !$s['is_in_school'];
+        });
+        
         // Calculate summary statistics
         $summary = [
             'total_students' => $filteredStudents->count(),
@@ -160,7 +182,11 @@ class FeeBalanceController extends Controller
             'total_paid' => $filteredStudents->sum('total_paid'),
             'total_balance' => $filteredStudents->sum('balance'),
             'students_with_balance' => $filteredStudents->where('balance', '>', 0)->count(),
-            'students_cleared' => $filteredStudents->where('balance', '<=', 0)->where('total_invoiced', '>', 0)->count(),
+            'students_cleared' => $clearedStudents->count(),
+            'students_partial' => $partialStudents->count(),
+            'students_unpaid' => $unpaidStudents->count(),
+            'unpaid_present' => $unpaidPresent->count(),
+            'unpaid_absent' => $unpaidAbsent->count(),
             'students_with_plans' => $filteredStudents->where('has_payment_plan', true)->count(),
             'in_school_with_balance' => $filteredStudents->filter(function ($s) {
                 return $s['is_in_school'] && $s['balance'] > 0;
@@ -170,17 +196,23 @@ class FeeBalanceController extends Controller
             })->sum('balance'),
         ];
         
-        // Sort students
+        // Sort each category
         $sortBy = $request->input('sort_by', 'balance');
         $sortOrder = $request->input('sort_order', 'desc');
         
-        $filteredStudents = $filteredStudents->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc');
+        $clearedStudents = $clearedStudents->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
+        $partialStudents = $partialStudents->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
+        $unpaidPresent = $unpaidPresent->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
+        $unpaidAbsent = $unpaidAbsent->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
         
         // Get classrooms for filter
         $classrooms = Classroom::orderBy('name')->get();
         
         return view('finance.fee_balances.index', [
-            'students' => $filteredStudents->values(),
+            'clearedStudents' => $clearedStudents,
+            'partialStudents' => $partialStudents,
+            'unpaidPresent' => $unpaidPresent,
+            'unpaidAbsent' => $unpaidAbsent,
             'summary' => $summary,
             'classrooms' => $classrooms,
             'currentTerm' => $currentTerm,
