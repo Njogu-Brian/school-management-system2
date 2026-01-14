@@ -397,7 +397,15 @@ private function applyPlaceholders(string $content, Student $student, string $hu
 
         $user = auth()->user();
         $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
-        $assignedClassIds = $isTeacher ? (array) $user->getAssignedClassroomIds() : [];
+        // For Senior Teachers, include both assigned and supervised classrooms
+        $assignedClassIds = $isTeacher 
+            ? ($user->hasRole('Senior Teacher')
+                ? array_unique(array_merge(
+                    $user->getAssignedClassroomIds(),
+                    $user->getSupervisedClassroomIds()
+                ))
+                : (array) $user->getAssignedClassroomIds())
+            : [];
         $assignedStreamIds = $isTeacher ? (array) $user->getAssignedStreamIds() : [];
 
         if ($isTeacher && $selectedClass && !in_array($selectedClass, $assignedClassIds)) {
@@ -411,7 +419,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
 
         if ($isTeacher) {
             $classes = !empty($assignedClassIds)
-                ? Classroom::whereIn('id', $assignedClassIds)->pluck('name', 'id')
+                ? Classroom::whereIn('id', $assignedClassIds)->orderBy('name')->pluck('name', 'id')
                 : collect();
 
             $streams = collect();
