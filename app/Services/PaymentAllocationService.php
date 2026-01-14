@@ -153,14 +153,39 @@ class PaymentAllocationService
                 $studentId = $siblingAlloc['student_id'];
                 $allocations = $siblingAlloc['allocations'];
                 
+                // Generate unique receipt number for this sibling payment
+                $maxAttempts = 10;
+                $attempt = 0;
+                do {
+                    $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                    $exists = \App\Models\Payment::where('receipt_number', $receiptNumber)->exists();
+                    $attempt++;
+                    
+                    if ($exists && $attempt < $maxAttempts) {
+                        // Wait a tiny bit and try again (handles race conditions)
+                        usleep(10000); // 0.01 seconds
+                    }
+                } while ($exists && $attempt < $maxAttempts);
+                
+                if ($exists) {
+                    // If still exists after max attempts, append student ID to make it unique
+                    $receiptNumber = $receiptNumber . '-S' . $studentId;
+                    
+                    \Log::warning('Receipt number collision after max attempts, using modified number', [
+                        'modified_receipt' => $receiptNumber,
+                        'student_id' => $studentId,
+                    ]);
+                }
+                
                 // Create sibling payment or use existing
+                // Use same transaction code for all siblings, but unique receipt numbers
                 $siblingPayment = Payment::firstOrCreate(
                     [
-                        'transaction_code' => $payment->transaction_code . '-S' . $studentId,
+                        'transaction_code' => $payment->transaction_code, // Same transaction code for all siblings
                         'student_id' => $studentId,
                     ],
                     [
-                        'receipt_number' => $payment->receipt_number . '-S' . $studentId,
+                        'receipt_number' => $receiptNumber, // Unique receipt number for each sibling
                         'family_id' => $payment->family_id,
                         'amount' => array_sum(array_column($allocations, 'amount')),
                         'payment_method' => $payment->payment_method,

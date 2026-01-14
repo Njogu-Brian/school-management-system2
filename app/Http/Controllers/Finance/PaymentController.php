@@ -185,6 +185,14 @@ class PaymentController extends Controller
     public function store(Request $request)
     {
         try {
+        // For shared payments, transaction_code can be the same for different students
+        // For single payments, transaction_code must be unique per student
+        $transactionCodeRule = 'required|string';
+        if (!($request->shared_payment ?? false)) {
+            // Only check uniqueness per student for non-shared payments
+            $transactionCodeRule .= '|unique:payments,transaction_code,NULL,id,student_id,' . $request->student_id;
+        }
+        
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
             'invoice_id' => 'nullable|exists:invoices,id',
@@ -194,7 +202,7 @@ class PaymentController extends Controller
             'payer_name' => 'nullable|string|max:255',
             'payer_type' => 'nullable|in:parent,sponsor,student,other',
             'narration' => 'nullable|string',
-            'transaction_code' => 'required|string|unique:payments,transaction_code', // Transaction code must be unique
+            'transaction_code' => $transactionCodeRule, // Transaction code must be unique per student (or shared for siblings)
             'auto_allocate' => 'nullable|boolean',
             'allocations' => 'nullable|array', // Manual allocations
             'allocations.*.invoice_item_id' => 'required|exists:invoice_items,id',
@@ -247,8 +255,8 @@ class PaymentController extends Controller
                     throw new \Exception('Total shared amounts must equal payment amount.');
                 }
                 
-                // Generate same receipt number for all sibling payments
-                $sharedReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                // Use same transaction code for all sibling payments
+                $sharedTransactionCode = $validated['transaction_code'];
                 
                 // Create payments for each sibling
                 $createdPayments = [];
@@ -257,8 +265,29 @@ class PaymentController extends Controller
                     $siblingAmount = $sharedAmounts[$index] ?? 0;
                     
                     if ($siblingAmount > 0) {
-                        // Generate unique transaction code for each sibling payment
-                        $transactionCode = $validated['transaction_code'] . '-' . ($index + 1);
+                        // Generate unique receipt number for each sibling payment
+                        $maxAttempts = 10;
+                        $attempt = 0;
+                        do {
+                            $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                            $exists = Payment::where('receipt_number', $receiptNumber)->exists();
+                            $attempt++;
+                            
+                            if ($exists && $attempt < $maxAttempts) {
+                                // Wait a tiny bit and try again (handles race conditions)
+                                usleep(10000); // 0.01 seconds
+                            }
+                        } while ($exists && $attempt < $maxAttempts);
+                        
+                        if ($exists) {
+                            // If still exists after max attempts, append student ID to make it unique
+                            $receiptNumber = $receiptNumber . '-S' . $siblingId;
+                            
+                            Log::warning('Receipt number collision after max attempts, using modified number', [
+                                'modified_receipt' => $receiptNumber,
+                                'student_id' => $siblingId,
+                            ]);
+                        }
                         
                         $payment = Payment::create([
                             'student_id' => $siblingId,
@@ -269,8 +298,8 @@ class PaymentController extends Controller
                             'payer_name' => $validated['payer_name'],
                             'payer_type' => $validated['payer_type'],
                             'narration' => $validated['narration'],
-                            'transaction_code' => $transactionCode,
-                            'receipt_number' => $sharedReceiptNumber, // Same receipt number for all siblings
+                            'transaction_code' => $sharedTransactionCode, // Same transaction code for all siblings
+                            'receipt_number' => $receiptNumber, // Unique receipt number for each sibling
                             'payment_date' => $validated['payment_date'],
                             // receipt_date is set automatically in Payment model
                         ]);
@@ -1037,12 +1066,37 @@ class PaymentController extends Controller
                             'original_payment_id' => $payment->id
                         ]);
                         
+                        // Generate unique receipt number for this shared payment
+                        $maxAttempts = 10;
+                        $attempt = 0;
+                        do {
+                            $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+                            $exists = Payment::where('receipt_number', $receiptNumber)->exists();
+                            $attempt++;
+                            
+                            if ($exists && $attempt < $maxAttempts) {
+                                // Wait a tiny bit and try again (handles race conditions)
+                                usleep(10000); // 0.01 seconds
+                            }
+                        } while ($exists && $attempt < $maxAttempts);
+                        
+                        if ($exists) {
+                            // If still exists after max attempts, append student ID to make it unique
+                            $receiptNumber = $receiptNumber . '-S' . $student->id;
+                            
+                            Log::warning('Receipt number collision after max attempts, using modified number', [
+                                'modified_receipt' => $receiptNumber,
+                                'student_id' => $student->id,
+                            ]);
+                        }
+                        
                         $newPayment = Payment::create([
                             'student_id' => $student->id,
                             'amount' => $amount,
                             'payment_method_id' => $payment->payment_method_id,
                             'payment_date' => $payment->payment_date,
-                            'transaction_code' => $sharedReference . '-S' . $student->id,
+                            'transaction_code' => $sharedReference, // Same transaction code for all siblings
+                            'receipt_number' => $receiptNumber, // Unique receipt number for each sibling
                             'payer_name' => $payment->payer_name,
                             'payer_type' => $payment->payer_type,
                             'narration' => $narration,
