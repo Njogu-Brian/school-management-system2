@@ -14,29 +14,12 @@ class TransportController extends Controller
 {
     public function index()
     {
-        $students = Student::where('archive', 0)->where('is_alumni', false)->count();
-        $vehicles = Vehicle::with('trips')->get();
-        $trips = Trip::with(['vehicle', 'driver'])->get();
-        $assignments = StudentAssignment::count();
+        $user = Auth::user();
         
-        // Get active trips (trips with driver assigned)
-        $activeTrips = Trip::whereNotNull('driver_id')
-            ->with(['vehicle', 'driver', 'assignments'])
-            ->get();
+        // Filter students based on user role
+        $studentsQuery = Student::where('archive', 0)->where('is_alumni', false);
         
-        // Alerts: trips without drivers
-        $tripsWithoutDrivers = Trip::whereNull('driver_id')->count();
-        
-        // Students without assignments
-        $studentsQuery = Student::where('archive', 0)
-            ->where('is_alumni', false)
-            ->whereDoesntHave('assignments', function($q) {
-                $q->whereNotNull('morning_trip_id')
-                  ->orWhereNotNull('evening_trip_id');
-            });
-        
-        // Filter by Senior Teacher's assigned/supervised classrooms
-        $user = auth()->user();
+        // For Senior Teachers, filter by assigned/supervised classrooms
         if ($user && $user->hasRole('Senior Teacher')) {
             $assignedClassroomIds = array_unique(array_merge(
                 $user->getAssignedClassroomIds(),
@@ -49,7 +32,41 @@ class TransportController extends Controller
             }
         }
         
-        $studentsWithoutAssignments = $studentsQuery->count();
+        $students = $studentsQuery->count();
+        $vehicles = Vehicle::with('trips')->get();
+        $trips = Trip::with(['vehicle', 'driver'])->get();
+        $assignments = StudentAssignment::count();
+        
+        // Get active trips (trips with driver assigned)
+        $activeTrips = Trip::whereNotNull('driver_id')
+            ->with(['vehicle', 'driver', 'assignments'])
+            ->get();
+        
+        // Alerts: trips without drivers
+        $tripsWithoutDrivers = Trip::whereNull('driver_id')->count();
+        
+        // Students without assignments - use the same filter as students count
+        $studentsWithoutAssignmentsQuery = Student::where('archive', 0)
+            ->where('is_alumni', false)
+            ->whereDoesntHave('assignments', function($q) {
+                $q->whereNotNull('morning_trip_id')
+                  ->orWhereNotNull('evening_trip_id');
+            });
+        
+        // Apply same classroom filter for Senior Teachers
+        if ($user && $user->hasRole('Senior Teacher')) {
+            $assignedClassroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
+            if (!empty($assignedClassroomIds)) {
+                $studentsWithoutAssignmentsQuery->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $studentsWithoutAssignmentsQuery->whereRaw('1 = 0'); // No access
+            }
+        }
+        
+        $studentsWithoutAssignments = $studentsWithoutAssignmentsQuery->count();
         
         // Special assignments active
         $activeSpecialAssignments = \App\Models\TransportSpecialAssignment::where('status', 'active')
