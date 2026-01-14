@@ -36,14 +36,11 @@ class ExamController extends Controller
         ->withCount(['marks', 'schedules']);
 
         // Teachers can only see exams for their assigned classes (unless they're supervisors)
-        if (Auth::user()->hasRole('Teacher') && !is_supervisor()) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && !is_supervisor()) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $query->whereIn('classroom_id', $assignedClassroomIds);
             } else {
                 $query->whereRaw('1 = 0'); // No access
@@ -107,16 +104,12 @@ class ExamController extends Controller
             $query->where('subject_id', $request->subject_id);
         }
 
-        // Statistics (filtered by teacher if applicable)
+        // Statistics (filtered by teacher or senior teacher if applicable)
         $statsQuery = Exam::query();
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $statsQuery->whereIn('classroom_id', $assignedClassroomIds);
             } else {
                 $statsQuery->whereRaw('1 = 0');
