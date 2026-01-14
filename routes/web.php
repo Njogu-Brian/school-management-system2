@@ -1172,6 +1172,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/{bankStatement}/serve-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'servePdf'])->name('serve-pdf');
             Route::get('/{bankStatement}/download-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'downloadPdf'])->name('download-pdf');
             Route::post('/bulk-confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkConfirm'])->name('bulk-confirm');
+            Route::post('/bulk-archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkArchive'])->name('bulk-archive');
             Route::post('/auto-assign', [\App\Http\Controllers\Finance\BankStatementController::class, 'autoAssign'])->name('auto-assign');
             Route::post('/{bankStatement}/reparse', [\App\Http\Controllers\Finance\BankStatementController::class, 'reparse'])->name('reparse');
             Route::post('/{bankStatement}/archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'archive'])->name('archive');

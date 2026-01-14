@@ -147,13 +147,25 @@
 
     <!-- Bulk Actions -->
     <div class="d-flex justify-content-between align-items-center mb-3 gap-2" id="bulkActionsContainer">
-        <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
-            @csrf
-            <div id="bulkTransactionIdsContainer"></div>
-            <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
-                <i class="bi bi-check-circle"></i> Confirm Selected
-            </button>
-        </form>
+        <div class="d-flex gap-2">
+            <form id="bulkConfirmForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm') }}">
+                @csrf
+                <div id="bulkTransactionIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
+                    <i class="bi bi-check-circle"></i> Confirm Selected
+                </button>
+            </form>
+            
+            @if(request('view') == 'unassigned' || (!request('view') || request('view') == 'all'))
+            <form id="bulkArchiveForm" method="POST" action="{{ route('finance.bank-statements.bulk-archive') }}">
+                @csrf
+                <div id="bulkArchiveTransactionIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-secondary" onclick="bulkArchive()" id="bulkArchiveBtn" style="display: none;">
+                    <i class="bi bi-archive"></i> Archive Selected Unmatched
+                </button>
+            </form>
+            @endif
+        </div>
         
         <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
             @csrf
@@ -171,7 +183,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'all']) || !request('view'))
+                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'unassigned', 'all']) || !request('view'))
                                 <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                             @else
                                 <span class="text-muted">—</span>
@@ -197,9 +209,13 @@
                                         && !$transaction->is_duplicate 
                                         && !$transaction->is_archived
                                         && ($transaction->student_id || $transaction->is_shared);
+                                    $canArchive = $transaction->match_status === 'unmatched'
+                                        && !$transaction->is_archived
+                                        && !$transaction->is_duplicate
+                                        && !$transaction->student_id;
                                 @endphp
-                                @if($canConfirm)
-                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()">
+                                @if($canConfirm || $canArchive)
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
@@ -372,24 +388,39 @@
         }
 
         function updateBulkIds() {
-            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'));
+            const checkedIds = checked.map(cb => parseInt(cb.value));
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
             const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
+            const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
             const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
+            const bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
             const bulkActionsContainer = document.getElementById('bulkActionsContainer');
             
             // Clear existing hidden inputs
             bulkIdsContainer.innerHTML = '';
             autoAssignIdsContainer.innerHTML = '';
+            if (bulkArchiveIdsContainer) {
+                bulkArchiveIdsContainer.innerHTML = '';
+            }
             
-            // Create hidden inputs for each checked ID
-            checked.forEach(id => {
-                const bulkInput = document.createElement('input');
-                bulkInput.type = 'hidden';
-                bulkInput.name = 'transaction_ids[]';
-                bulkInput.value = id;
-                bulkIdsContainer.appendChild(bulkInput);
+            // Separate transactions that can be confirmed vs archived
+            const confirmableIds = [];
+            const archivableIds = [];
+            
+            checked.forEach(cb => {
+                const id = parseInt(cb.value);
+                const canConfirm = cb.getAttribute('data-can-confirm') === '1';
+                const canArchive = cb.getAttribute('data-can-archive') === '1';
                 
+                if (canConfirm) {
+                    confirmableIds.push(id);
+                }
+                if (canArchive) {
+                    archivableIds.push(id);
+                }
+                
+                // Add to auto-assign container (for all checked)
                 const autoAssignInput = document.createElement('input');
                 autoAssignInput.type = 'hidden';
                 autoAssignInput.name = 'transaction_ids[]';
@@ -397,15 +428,42 @@
                 autoAssignIdsContainer.appendChild(autoAssignInput);
             });
             
-            // Show/hide bulk confirm button based on checked transactions
-            // All checkboxes shown are confirmable (they're only shown if status is draft and has student_id/is_shared)
-            // Always show the container (auto-assign button should always be visible)
+            // Create hidden inputs for confirmable transactions
+            confirmableIds.forEach(id => {
+                const bulkInput = document.createElement('input');
+                bulkInput.type = 'hidden';
+                bulkInput.name = 'transaction_ids[]';
+                bulkInput.value = id;
+                bulkIdsContainer.appendChild(bulkInput);
+            });
+            
+            // Create hidden inputs for archivable transactions
+            if (bulkArchiveIdsContainer) {
+                archivableIds.forEach(id => {
+                    const archiveInput = document.createElement('input');
+                    archiveInput.type = 'hidden';
+                    archiveInput.name = 'transaction_ids[]';
+                    archiveInput.value = id;
+                    bulkArchiveIdsContainer.appendChild(archiveInput);
+                });
+            }
+            
+            // Show/hide bulk confirm button
             bulkActionsContainer.style.display = 'flex';
             
-            if (checked.length > 0) {
+            if (confirmableIds.length > 0) {
                 bulkConfirmBtn.style.display = 'inline-block';
             } else {
                 bulkConfirmBtn.style.display = 'none';
+            }
+            
+            // Show/hide bulk archive button
+            if (bulkArchiveBtn) {
+                if (archivableIds.length > 0) {
+                    bulkArchiveBtn.style.display = 'inline-block';
+                } else {
+                    bulkArchiveBtn.style.display = 'none';
+                }
             }
         }
 
@@ -431,6 +489,31 @@
             
             if (confirm(`Confirm ${checked.length} transaction(s)? This will confirm draft, auto-assigned, and manual-assigned transactions.`)) {
                 document.getElementById('bulkConfirmForm').submit();
+            }
+        }
+
+        function bulkArchive() {
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
+                .filter(cb => cb.getAttribute('data-can-archive') === '1')
+                .map(cb => parseInt(cb.value));
+            
+            if (checked.length === 0) {
+                alert('Please select at least one unmatched transaction to archive');
+                return;
+            }
+            
+            const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
+            bulkArchiveIdsContainer.innerHTML = '';
+            checked.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'transaction_ids[]';
+                input.value = id;
+                bulkArchiveIdsContainer.appendChild(input);
+            });
+            
+            if (confirm(`Archive ${checked.length} unmatched transaction(s)? This will move them to the archived view.`)) {
+                document.getElementById('bulkArchiveForm').submit();
             }
         }
 

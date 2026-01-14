@@ -810,6 +810,71 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Bulk archive transactions
+     */
+    public function bulkArchive(Request $request)
+    {
+        // Handle both array and JSON string formats
+        $transactionIds = $request->input('transaction_ids', []);
+        
+        // If it's a JSON string, decode it
+        if (is_string($transactionIds)) {
+            $transactionIds = json_decode($transactionIds, true) ?? [];
+        }
+        
+        // Ensure it's an array and convert to integers
+        if (!is_array($transactionIds)) {
+            $transactionIds = [];
+        }
+        
+        $transactionIds = array_filter(array_map('intval', $transactionIds));
+        
+        if (empty($transactionIds)) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'Please select at least one unmatched transaction to archive.');
+        }
+        
+        // Validate that all IDs exist and are unmatched
+        $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('match_status', 'unmatched')
+            ->where('is_archived', false)
+            ->whereNull('student_id')
+            ->get();
+        
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'No unmatched transactions found to archive. Please ensure selected transactions are unmatched and not already archived.');
+        }
+        
+        $archived = 0;
+        $errors = [];
+        
+        foreach ($transactions as $transaction) {
+            try {
+                $transaction->archive();
+                $archived++;
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
+                Log::error('Failed to archive transaction', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        $message = "Archived {$archived} unmatched transaction(s).";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
+        }
+        
+        return redirect()
+            ->route('finance.bank-statements.index', ['view' => 'unassigned'] + request()->except('view'))
+            ->with($errors ? 'warning' : 'success', $message);
+    }
+
+    /**
      * Archive transaction
      */
     public function archive(BankStatementTransaction $bankStatement)
