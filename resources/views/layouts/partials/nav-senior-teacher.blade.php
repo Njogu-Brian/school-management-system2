@@ -15,6 +15,10 @@
   $timetableActive = Request::is('academics/timetable*') || Request::is('senior-teacher/timetable*');
   $announcementsActive = Request::is('senior-teacher/announcements*');
   $eventsActive = Request::is('events*');
+  $transportActive = Request::is('transport*') && !Request::is('transport/special-assignments*');
+  $specialAssignmentsActive = Request::is('transport/special-assignments*');
+  $requirementsActive = Request::is('inventory/student-requirements*');
+  $hrReportsActive = Request::is('hr/reports*') || Request::is('senior-teacher/reports*');
 @endphp
 
 {{-- Dashboard --}}
