@@ -75,7 +75,7 @@
             </div>
 
             {{-- Parent/Guardian Info --}}
-            @if($student->parentInfo)
+            @if($student->parent)
                 <div class="card shadow-sm mt-4">
                     <div class="card-header bg-white">
                         <h6 class="mb-0"><i class="bi bi-people me-2"></i>Parent/Guardian</h6>
@@ -83,15 +83,15 @@
                     <div class="card-body">
                         <div class="mb-3">
                             <label class="text-muted small">Name</label>
-                            <p class="mb-0"><strong>{{ $student->parentInfo->full_name }}</strong></p>
+                            <p class="mb-0"><strong>{{ $student->parent->primary_contact_name ?? 'N/A' }}</strong></p>
                         </div>
                         <div class="mb-3">
                             <label class="text-muted small">Phone</label>
-                            <p class="mb-0">{{ $student->parentInfo->phone ?? 'N/A' }}</p>
+                            <p class="mb-0">{{ $student->parent->primary_contact_phone ?? 'N/A' }}</p>
                         </div>
                         <div class="mb-0">
                             <label class="text-muted small">Email</label>
-                            <p class="mb-0">{{ $student->parentInfo->email ?? 'N/A' }}</p>
+                            <p class="mb-0">{{ $student->parent->primary_contact_email ?? 'N/A' }}</p>
                         </div>
                     </div>
                 </div>

@@ -116,9 +116,9 @@
                                         @endif
                                     </td>
                                     <td>
-                                        @if($student->parentInfo)
-                                            {{ $student->parentInfo->full_name }}
-                                            <br><small class="text-muted">{{ $student->parentInfo->phone ?? 'N/A' }}</small>
+                                        @if($student->parent)
+                                            {{ $student->parent->primary_contact_name ?? 'N/A' }}
+                                            <br><small class="text-muted">{{ $student->parent->primary_contact_phone ?? 'N/A' }}</small>
                                         @else
                                             <span class="text-muted">N/A</span>
                                         @endif
