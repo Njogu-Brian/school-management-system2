@@ -1,6 +1,11 @@
 @extends('layouts.app')
 
+@push('styles')
+    @include('senior_teacher.partials.styles')
+@endpush
+
 @section('content')
+<div class="senior-teacher-page">
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-12">
@@ -194,6 +199,7 @@
             @endif
         </div>
     </div>
+</div>
 </div>
 @endsection
 

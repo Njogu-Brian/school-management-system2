@@ -38,9 +38,14 @@ class StudentRequirementController extends Controller
         $user = Auth::user();
         $query = StudentRequirement::with(['student.classroom', 'requirementTemplate.requirementType', 'collectedBy']);
 
-        // Teachers see only their assigned classes
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
+        // Teachers and Senior Teachers see only their assigned classes
+        if ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher')) {
+            $assignedClassroomIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge(
+                    $user->getAssignedClassroomIds(),
+                    $user->getSupervisedClassroomIds()
+                ))
+                : $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
                 $query->whereHas('student', function($q) use ($assignedClassroomIds) {
                     $q->whereIn('classroom_id', $assignedClassroomIds);

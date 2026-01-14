@@ -1,11 +1,15 @@
 @extends('layouts.app')
 
 @push('styles')
-    @include('settings.partials.styles')
+    @if(request()->routeIs('senior_teacher.*'))
+        @include('senior_teacher.partials.styles')
+    @else
+        @include('settings.partials.styles')
+    @endif
 @endpush
 
 @section('content')
-<div class="settings-page">
+<div class="{{ request()->routeIs('senior_teacher.*') ? 'senior-teacher-page' : 'settings-page' }}">
     <div class="settings-shell">
         <div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
             <div>
@@ -98,8 +102,8 @@
                         @forelse($requirements as $requirement)
                             <tr>
                                 <td>
-                                    <div class="fw-semibold">{{ $requirement->student->getNameAttribute() }}</div>
-                                    <div class="small text-muted">{{ $requirement->student->classroom->name ?? '—' }}</div>
+                                    <div class="fw-semibold">{{ $requirement->student ? $requirement->student->name : 'N/A' }}</div>
+                                    <div class="small text-muted">{{ $requirement->student?->classroom?->name ?? '—' }}</div>
                                 </td>
                                 <td>
                                     <div>{{ $requirement->requirementTemplate->requirementType->name }}</div>
@@ -142,5 +146,8 @@
         </div>
     </div>
 </div>
+@if(request()->routeIs('senior_teacher.*'))
+</div>
+@endif
 @endsection
 
