@@ -28,13 +28,28 @@ class TransportController extends Controller
         $tripsWithoutDrivers = Trip::whereNull('driver_id')->count();
         
         // Students without assignments
-        $studentsWithoutAssignments = Student::where('archive', 0)
+        $studentsQuery = Student::where('archive', 0)
             ->where('is_alumni', false)
             ->whereDoesntHave('assignments', function($q) {
                 $q->whereNotNull('morning_trip_id')
                   ->orWhereNotNull('evening_trip_id');
-            })
-            ->count();
+            });
+        
+        // Filter by Senior Teacher's assigned/supervised classrooms
+        $user = auth()->user();
+        if ($user && $user->hasRole('Senior Teacher')) {
+            $assignedClassroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
+            if (!empty($assignedClassroomIds)) {
+                $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
+            } else {
+                $studentsQuery->whereRaw('1 = 0'); // No access
+            }
+        }
+        
+        $studentsWithoutAssignments = $studentsQuery->count();
         
         // Special assignments active
         $activeSpecialAssignments = \App\Models\TransportSpecialAssignment::where('status', 'active')

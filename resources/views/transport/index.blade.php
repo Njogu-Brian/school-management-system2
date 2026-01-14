@@ -14,10 +14,14 @@
                 <p>Manage vehicles, trips, and student assignments.</p>
             </div>
             <div class="d-flex gap-2 flex-wrap">
-                <a href="{{ route('transport.import.form') }}" class="btn btn-settings-primary"><i class="bi bi-upload"></i> Import Assignments</a>
+                @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Driver']))
+                    <a href="{{ route('transport.import.form') }}" class="btn btn-settings-primary"><i class="bi bi-upload"></i> Import Assignments</a>
+                @endif
                 <a href="{{ route('transport.daily-list.index') }}" class="btn btn-settings-primary"><i class="bi bi-list-check"></i> Daily List</a>
-                <a href="{{ route('transport.vehicles.create') }}" class="btn btn-ghost-strong"><i class="bi bi-truck"></i> Add Vehicle</a>
-                <a href="{{ route('transport.trips.create') }}" class="btn btn-ghost-strong"><i class="bi bi-map"></i> Add Trip</a>
+                @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Driver']))
+                    <a href="{{ route('transport.vehicles.create') }}" class="btn btn-ghost-strong"><i class="bi bi-truck"></i> Add Vehicle</a>
+                    <a href="{{ route('transport.trips.create') }}" class="btn btn-ghost-strong"><i class="bi bi-map"></i> Add Trip</a>
+                @endif
                 <a href="{{ route('transport.special-assignments.create') }}" class="btn btn-ghost-strong"><i class="bi bi-star"></i> Special Assignment</a>
                 <a href="{{ route('transport.driver-change-requests.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-repeat"></i> Change Requests</a>
             </div>
