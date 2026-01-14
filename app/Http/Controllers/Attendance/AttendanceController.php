@@ -44,8 +44,9 @@ class AttendanceController extends Controller
 
         $user = auth()->user();
         
-        // If user is a teacher, restrict to assigned classes/streams
-        if ($user->hasRole('teacher')) {
+        // If user is a teacher or senior teacher, restrict to assigned classes/streams
+        $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
             $assignedClassIds = $user->getAssignedClassroomIds();
             $assignedStreamIds = $user->getAssignedStreamIds();
             
@@ -80,8 +81,8 @@ class AttendanceController extends Controller
             ->where('archive', 0)
             ->where('is_alumni', false);
         
-        // For teachers, apply stream-aware filtering
-        if ($user->hasRole('teacher') || $user->hasRole('Teacher')) {
+        // For teachers and senior teachers, apply stream-aware filtering
+        if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
             $assignedClassIds = $user->getAssignedClassroomIds();
             
@@ -202,8 +203,9 @@ public function mark(Request $request)
     $selectedClass = $request->input('class');
     $selectedStream = $request->input('stream');
     
-    // If user is a teacher, validate they're assigned to the class/stream
-    if ($user->hasRole('teacher')) {
+    // If user is a teacher or senior teacher, validate they're assigned to the class/stream
+    $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
+    if ($isTeacher) {
         if ($selectedClass && !$user->isAssignedToClassroom($selectedClass)) {
             return back()->with('error', 'You are not assigned to this class.');
         }
@@ -422,7 +424,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         $studentId      = $request->get('student_id');
 
         $user = auth()->user();
-        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher');
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
         $assignedClassIds = $isTeacher ? (array) $user->getAssignedClassroomIds() : [];
         $assignedStreamIds = $isTeacher ? (array) $user->getAssignedStreamIds() : [];
 

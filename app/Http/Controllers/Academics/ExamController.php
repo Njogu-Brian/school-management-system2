@@ -140,14 +140,11 @@ class ExamController extends Controller
         $terms = Term::orderBy('name')->get();
         
         // Filter classrooms based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
             } else {
                 $classrooms = collect();
@@ -173,14 +170,11 @@ class ExamController extends Controller
     public function create()
     {
         // Filter classrooms based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
             } else {
                 $classrooms = collect();
@@ -217,27 +211,15 @@ class ExamController extends Controller
             'publish_result'   => 'boolean',
         ]);
 
-        // Check if teacher/supervisor has access to classroom
-        if (Auth::user()->hasRole('Teacher') && $v['classroom_id']) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $hasOwnAccess = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->where('classroom_id', $v['classroom_id'])
-                    ->exists();
-                
-                // Supervisors can create exams for their subordinates' classrooms
-                $hasSubordinateAccess = false;
-                if (is_supervisor()) {
-                    $subordinateClassroomIds = get_subordinate_classroom_ids();
-                    $hasSubordinateAccess = in_array($v['classroom_id'], $subordinateClassroomIds);
-                }
-                
-                if (!$hasOwnAccess && !$hasSubordinateAccess) {
-                    return back()
-                        ->withInput()
-                        ->with('error', 'You do not have access to this classroom.');
-                }
+        // Check if teacher or senior teacher has access to classroom
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && $v['classroom_id']) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!in_array($v['classroom_id'], $assignedClassroomIds)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'You do not have access to this classroom.');
             }
         }
 
@@ -269,14 +251,11 @@ class ExamController extends Controller
         }
 
         // Filter classrooms based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
             } else {
                 $classrooms = collect();

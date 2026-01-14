@@ -26,15 +26,12 @@ class HomeworkController extends Controller
     {
         $query = Homework::with(['classroom','stream','subject','teacher']);
 
-        // Teachers can only see homework for their assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        // Teachers and senior teachers can only see homework for their assigned classes
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $query->whereIn('classroom_id', $assignedClassroomIds);
             } else {
                 $query->whereRaw('1 = 0'); // No access
@@ -62,18 +59,18 @@ class HomeworkController extends Controller
         $homeworks = $query->latest()->paginate(20)->withQueryString();
 
         // Filter classrooms and subjects based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-                $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
-                    $q->where('staff_id', $staff->id);
-                })->orderBy('name')->get();
+                $staff = $user->staff;
+                if ($staff) {
+                    $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
+                        $q->where('staff_id', $staff->id);
+                    })->orderBy('name')->get();
+                } else {
+                    $subjects = collect();
+                }
             } else {
                 $classrooms = collect();
                 $subjects = collect();
@@ -89,34 +86,39 @@ class HomeworkController extends Controller
     public function create()
     {
         $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
 
         // Filter classrooms and subjects based on user role
         if ($user->hasAnyRole(['Super Admin', 'Admin'])) {
             $classrooms = Classroom::orderBy('name')->get();
             $subjects = Subject::active()->orderBy('name')->get();
-        } else {
-            $staff = $user->staff;
-            if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->distinct()
-                    ->pluck('classroom_id')
-                    ->toArray();
+        } elseif ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
-                $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
-                    $q->where('staff_id', $staff->id);
-                })->orderBy('name')->get();
+                $staff = $user->staff;
+                if ($staff) {
+                    $subjects = Subject::whereHas('classroomSubjects', function($q) use ($staff) {
+                        $q->where('staff_id', $staff->id);
+                    })->orderBy('name')->get();
+                } else {
+                    $subjects = collect();
+                }
             } else {
                 $classrooms = collect();
                 $subjects = collect();
             }
+        } else {
+            $classrooms = collect();
+            $subjects = collect();
         }
 
         // Filter students based on assigned classrooms/streams for teachers
         $studentsQuery = Student::where('archive', 0)
             ->where('is_alumni', false)
             ->orderBy('last_name')->orderBy('first_name');
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        if ($isTeacher) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
             $streamAssignments = $user->getStreamAssignments();
             $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassroomIds);
         }
@@ -144,20 +146,14 @@ class HomeworkController extends Controller
 
         $user = Auth::user();
 
-        // Check if teacher has access to classroom
-        if ($user->hasRole('Teacher') && $request->classroom_id) {
-            $staff = $user->staff;
-            if ($staff) {
-                $hasAccess = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->where('classroom_id', $request->classroom_id)
-                    ->exists();
-                
-                if (!$hasAccess) {
-                    return back()
-                        ->withInput()
-                        ->with('error', 'You do not have access to assign homework to this classroom.');
-                }
+        // Check if teacher or senior teacher has access to classroom
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && $request->classroom_id) {
+            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            if (!in_array($request->classroom_id, $assignedClassroomIds)) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'You do not have access to assign homework to this classroom.');
             }
         }
 
