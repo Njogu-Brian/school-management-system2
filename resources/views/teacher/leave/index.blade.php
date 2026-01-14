@@ -4,7 +4,14 @@
   $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.leave' : 'teacher.leave';
 @endphp
 
+@push('styles')
+    @if(request()->routeIs('senior_teacher.*'))
+        @include('senior_teacher.partials.styles')
+    @endif
+@endpush
+
 @section('content')
+<div class="{{ request()->routeIs('senior_teacher.*') ? 'senior-teacher-page' : '' }}">
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>

@@ -1,5 +1,11 @@
 @extends('layouts.app')
 
+@push('styles')
+    @if(request()->routeIs('senior_teacher.*'))
+        @include('senior_teacher.partials.styles')
+    @endif
+@endpush
+
 @section('content')
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
