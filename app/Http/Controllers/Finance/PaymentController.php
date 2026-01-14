@@ -844,8 +844,8 @@ class PaymentController extends Controller
             ]);
             
             // Update related bank statement transaction if exists
-            $bankTransaction = \App\Models\BankStatementTransaction::where('transaction_code', $payment->transaction_code)
-                ->orWhere('transaction_code', 'LIKE', $payment->transaction_code . '%')
+            $bankTransaction = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)
+                ->orWhere('reference_number', 'LIKE', $payment->transaction_code . '%')
                 ->first();
             
             if ($bankTransaction && $bankTransaction->payment_id == $payment->id) {
