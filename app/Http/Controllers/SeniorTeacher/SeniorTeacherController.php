@@ -143,7 +143,7 @@ class SeniorTeacherController extends Controller
         $feeBalances = $this->calculateFeeBalances($classroomIds);
 
         // Recent announcements
-        $announcements = Announcement::where('status', 'Published')
+        $announcements = Announcement::where('active', 1)
             ->latest()
             ->take(5)
             ->get();
