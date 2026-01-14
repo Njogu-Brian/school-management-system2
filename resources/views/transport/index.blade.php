@@ -169,7 +169,9 @@
         <div class="settings-card mt-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Vehicles</h5>
-                <a href="{{ route('transport.vehicles.create') }}" class="btn btn-sm btn-ghost-strong">Add Vehicle <i class="bi bi-plus"></i></a>
+                @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Driver']))
+                    <a href="{{ route('transport.vehicles.create') }}" class="btn btn-sm btn-ghost-strong">Add Vehicle <i class="bi bi-plus"></i></a>
+                @endif
             </div>
             <div class="card-body">
                 @if($vehicles->count() > 0)
@@ -196,7 +198,11 @@
                                     <td>{{ $vehicle->driver_name ?? '—' }}</td>
                                     <td>{{ $vehicle->trips->count() ?? 0 }}</td>
                                     <td class="text-end">
-                                        <a href="{{ route('transport.vehicles.edit', $vehicle) }}" class="btn btn-sm btn-ghost-strong">Edit</a>
+                                        @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Driver']))
+                                            <a href="{{ route('transport.vehicles.edit', $vehicle) }}" class="btn btn-sm btn-ghost-strong">Edit</a>
+                                        @else
+                                            <span class="text-muted">—</span>
+                                        @endif
                                     </td>
                                 </tr>
                                 @endforeach
@@ -204,7 +210,7 @@
                         </table>
                     </div>
                 @else
-                    <p class="text-muted mb-0">No vehicles registered. <a href="{{ route('transport.vehicles.create') }}">Add one</a></p>
+                    <p class="text-muted mb-0">No vehicles registered.@if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Secretary', 'Driver'])) <a href="{{ route('transport.vehicles.create') }}">Add one</a>@endif</p>
                 @endif
             </div>
         </div>
