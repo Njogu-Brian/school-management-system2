@@ -25,9 +25,13 @@ class StudentDiaryController extends Controller
 
         $query = StudentDiary::with(['student.classroom', 'latestEntry.author']);
 
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
-            $assignedClassrooms = $user->getAssignedClassroomIds();
+            $assignedClassrooms = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             
             if (!empty($streamAssignments)) {
                 // Teacher has stream assignments - filter by those specific streams

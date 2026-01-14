@@ -87,11 +87,16 @@ class StudentBehaviourController extends Controller
                 ->with('error', 'Cannot record behavior for alumni or archived students.');
         }
         
-        // Validate teacher has access to student's class
-        if (Auth::user()->hasRole('Teacher')) {
-            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+        // Validate teacher/senior teacher has access to student's class
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $classroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             
-            if (!in_array($student->classroom_id, $assignedClassroomIds)) {
+            if (!in_array($student->classroom_id, $classroomIds)) {
                 return back()
                     ->withInput()
                     ->with('error', 'You do not have access to record behavior for students in this class.');
