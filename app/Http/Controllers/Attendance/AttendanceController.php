@@ -81,73 +81,24 @@ class AttendanceController extends Controller
             ->where('archive', 0)
             ->where('is_alumni', false);
         
-        // For teachers and senior teachers, apply stream-aware filtering
+        // For teachers and senior teachers, apply filtering
         if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
             $assignedClassIds = $user->getAssignedClassroomIds();
             
-            // If teacher has stream assignments, filter by those specific streams
-            if (!empty($streamAssignments)) {
-                $studentsQuery->where(function($q) use ($streamAssignments, $selectedClass, $selectedStream, $user) {
-                    // Students from assigned streams
-                    foreach ($streamAssignments as $assignment) {
-                        // If a specific class is selected, only include streams for that class
-                        if ($selectedClass && $assignment->classroom_id != $selectedClass) {
-                            continue;
-                        }
-                        // If a specific stream is selected, only include that stream
-                        if ($selectedStream && $assignment->stream_id != $selectedStream) {
-                            continue;
-                        }
-                        $q->orWhere(function($subQ) use ($assignment) {
-                            $subQ->where('classroom_id', $assignment->classroom_id)
-                                 ->where('stream_id', $assignment->stream_id);
-                        });
-                    }
-                    
-                    // Also include students from direct classroom assignments (not via streams)
-                    // Only if no specific class/stream is selected
-                    if (!$selectedClass && !$selectedStream) {
-                        $directClassroomIds = \DB::table('classroom_teacher')
-                            ->where('teacher_id', $user->id)
-                            ->pluck('classroom_id')
-                            ->toArray();
-                        
-                        $subjectClassroomIds = [];
-                        if ($user->staff) {
-                            $subjectClassroomIds = \DB::table('classroom_subjects')
-                                ->where('staff_id', $user->staff->id)
-                                ->distinct()
-                                ->pluck('classroom_id')
-                                ->toArray();
-                        }
-                        
-                        $streamClassroomIds = array_column($streamAssignments, 'classroom_id');
-                        $nonStreamClassroomIds = array_diff(
-                            array_unique(array_merge($directClassroomIds, $subjectClassroomIds)),
-                            $streamClassroomIds
-                        );
-                        
-                        if (!empty($nonStreamClassroomIds)) {
-                            $q->orWhereIn('classroom_id', $nonStreamClassroomIds);
-                        }
-                    }
-                });
-            } else {
-                // No stream assignments, show all students from assigned classrooms
-                if ($selectedClass) {
+            // Use the helper method for consistent filtering
+            $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassIds);
+            
+            // Apply selected class filter if specified
+            if ($selectedClass) {
+                // Only apply if teacher has access to this class
+                if (in_array($selectedClass, $assignedClassIds)) {
                     $studentsQuery->where('classroom_id', $selectedClass);
-                } else {
-                    if (!empty($assignedClassIds)) {
-                        $studentsQuery->whereIn('classroom_id', $assignedClassIds);
-                    } else {
-                        $studentsQuery->whereRaw('1 = 0'); // No access
-                    }
                 }
             }
             
-            // Apply stream filter if selected (for non-stream-assigned teachers or when viewing a specific class)
-            if ($selectedStream && empty($streamAssignments)) {
+            // Apply selected stream filter if specified
+            if ($selectedStream) {
                 $studentsQuery->where('stream_id', $selectedStream);
             }
         } else {
