@@ -1365,7 +1365,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Events Calendar
     |----------------------------------------------------------------------
     */
-    Route::prefix('events')->name('events.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+    Route::prefix('events')->name('events.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
         Route::get('/', [EventCalendarController::class, 'index'])->name('index');
         Route::get('/api', [EventCalendarController::class, 'api'])->name('api');
         Route::get('/create', [EventCalendarController::class, 'create'])->name('create');
