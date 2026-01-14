@@ -55,6 +55,12 @@
      class="{{ $feeBalancesActive ? 'active' : '' }}">
     <i class="bi bi-currency-exchange"></i> Fee Balances
   </a>
+  
+  {{-- Leave Approval --}}
+  <a href="{{ route('hr.leave-requests.index') }}" 
+     class="{{ $leaveActive && Request::is('hr/leave-requests*') ? 'active' : '' }}">
+    <i class="bi bi-check-circle"></i> Leave Approval
+  </a>
 </div>
 
 {{-- Teaching Section --}}
@@ -200,8 +206,43 @@
   </a>
 
   {{-- Leaves --}}
-  <a href="{{ route('senior_teacher.leave.index') }}" class="{{ $leaveActive ? 'active' : '' }}">
-    <i class="bi bi-calendar-event"></i> Leaves
+  <a href="{{ route('senior_teacher.leave.index') }}" class="{{ $leaveActive && Request::is('senior-teacher/leaves*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-event"></i> My Leaves
+  </a>
+</div>
+
+{{-- Transport Section --}}
+<div class="mt-3 pt-3 border-top">
+  <div class="text-muted small fw-bold px-3 mb-2">Transport</div>
+
+  {{-- Transport Dashboard --}}
+  <a href="{{ route('transport.index') }}" class="{{ $transportActive && !$specialAssignmentsActive ? 'active' : '' }}">
+    <i class="bi bi-bus-front"></i> Transport
+  </a>
+
+  {{-- Special Assignments --}}
+  <a href="{{ route('transport.special-assignments.index') }}" class="{{ $specialAssignmentsActive ? 'active' : '' }}">
+    <i class="bi bi-list-check"></i> Special Assignments
+  </a>
+</div>
+
+{{-- Inventory & Requirements Section --}}
+<div class="mt-3 pt-3 border-top">
+  <div class="text-muted small fw-bold px-3 mb-2">Inventory & Requirements</div>
+
+  {{-- Requirements Collection --}}
+  <a href="{{ route('inventory.student-requirements.index') }}" class="{{ $requirementsActive ? 'active' : '' }}">
+    <i class="bi bi-clipboard-check"></i> Requirements Collection
+  </a>
+</div>
+
+{{-- Reports Section --}}
+<div class="mt-3 pt-3 border-top">
+  <div class="text-muted small fw-bold px-3 mb-2">Reports</div>
+
+  {{-- HR Reports --}}
+  <a href="{{ route('hr.reports.index') }}" class="{{ $hrReportsActive ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> Reports
   </a>
 </div>
 

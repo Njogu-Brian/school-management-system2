@@ -512,7 +512,7 @@ Route::middleware('auth')->group(function () {
     |----------------------------------------------------------------------
     */
     Route::prefix('transport')->name('transport.')
-        ->middleware('role:Super Admin|Admin|Secretary|Driver')
+        ->middleware('role:Super Admin|Admin|Secretary|Driver|Senior Teacher')
         ->group(function () {
 
             Route::get('/', [TransportController::class, 'index'])->name('index');
