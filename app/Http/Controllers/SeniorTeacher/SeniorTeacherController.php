@@ -209,11 +209,11 @@ class SeniorTeacherController extends Controller
 
         $studentIds = Student::whereIn('classroom_id', $classroomIds)->pluck('id');
         
-        $totalInvoiced = Invoice::whereIn('student_id', $studentIds)->sum('amount');
+        $totalInvoiced = Invoice::whereIn('student_id', $studentIds)->sum('total');
         $totalPaid = Invoice::whereIn('student_id', $studentIds)->sum('paid_amount');
         $totalBalance = $totalInvoiced - $totalPaid;
         $studentsWithBalance = Invoice::whereIn('student_id', $studentIds)
-            ->whereRaw('amount > paid_amount')
+            ->whereRaw('total > paid_amount')
             ->distinct('student_id')
             ->count();
 
@@ -344,7 +344,7 @@ class SeniorTeacherController extends Controller
         
         // Get student's fee balance
         $feeBalance = [
-            'total_invoiced' => Invoice::where('student_id', $id)->sum('amount'),
+            'total_invoiced' => Invoice::where('student_id', $id)->sum('total'),
             'total_paid' => Invoice::where('student_id', $id)->sum('paid_amount'),
         ];
         $feeBalance['balance'] = $feeBalance['total_invoiced'] - $feeBalance['total_paid'];
@@ -386,9 +386,9 @@ class SeniorTeacherController extends Controller
             ->select('students.*')
             ->leftJoin('invoices', 'students.id', '=', 'invoices.student_id')
             ->selectRaw('students.*, 
-                COALESCE(SUM(invoices.amount), 0) as total_invoiced,
+                COALESCE(SUM(invoices.total), 0) as total_invoiced,
                 COALESCE(SUM(invoices.paid_amount), 0) as total_paid,
-                COALESCE(SUM(invoices.amount - invoices.paid_amount), 0) as balance')
+                COALESCE(SUM(invoices.total - invoices.paid_amount), 0) as balance')
             ->groupBy('students.id');
         
         // Apply filters
