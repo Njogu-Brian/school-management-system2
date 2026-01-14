@@ -15,8 +15,24 @@ class StudentDiaryController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:diaries.view')->only(['index', 'show']);
-        $this->middleware('permission:diaries.create')->only(['storeEntry', 'bulkStore']);
+        // Allow Senior Teachers and Teachers to access diaries without explicit permissions
+        $this->middleware(function ($request, $next) {
+            $user = auth()->user();
+            if ($user && ($user->hasRole('Senior Teacher') || $user->hasRole('Teacher') || $user->hasRole('teacher'))) {
+                return $next($request);
+            }
+            // For other users, check permissions
+            if ($request->routeIs('academics.diaries.index') || $request->routeIs('academics.diaries.show')) {
+                if (!$user->can('diaries.view')) {
+                    abort(403, 'You do not have permission to view diaries.');
+                }
+            } elseif ($request->routeIs('academics.diaries.entries.store') || $request->routeIs('academics.diaries.entries.bulk-store')) {
+                if (!$user->can('diaries.create')) {
+                    abort(403, 'You do not have permission to create diary entries.');
+                }
+            }
+            return $next($request);
+        })->only(['index', 'show', 'storeEntry', 'bulkStore']);
     }
 
     public function index(Request $request)
