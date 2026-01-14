@@ -93,7 +93,13 @@ class AttendanceController extends Controller
         // For teachers and senior teachers, apply filtering
         if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
-            $assignedClassIds = $user->getAssignedClassroomIds();
+            // For Senior Teachers, include both assigned and supervised classrooms
+            $assignedClassIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge(
+                    $user->getAssignedClassroomIds(),
+                    $user->getSupervisedClassroomIds()
+                ))
+                : $user->getAssignedClassroomIds();
             
             // Use the helper method for consistent filtering
             $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassIds);
