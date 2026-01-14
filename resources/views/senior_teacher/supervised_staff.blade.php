@@ -196,7 +196,7 @@
                                         <small class="text-muted">{{ $member->user->email ?? $member->email ?? 'N/A' }}</small>
                                     </td>
                                     <td>
-                                        <small class="text-muted">{{ $member->phone ?? 'N/A' }}</small>
+                                        <small class="text-muted">{{ $member->phone_number ?? 'N/A' }}</small>
                                     </td>
                                     <td>
                                         <span class="badge {{ $member->status === 'Active' ? 'bg-success' : 'bg-danger' }} rounded-pill px-3 py-2">

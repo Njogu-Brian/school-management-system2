@@ -62,8 +62,9 @@
         <h5 class="mb-3">Contact</h5>
         <div class="row g-3">
           <div class="col-md-4">
-            <label class="form-label">Work Email *</label>
-            <input type="email" name="work_email" class="form-control" value="{{ old('work_email', $staff->work_email) }}" required>
+            <label class="form-label">Work Email</label>
+            <input type="email" class="form-control" value="{{ $staff->work_email }}" disabled>
+            <div class="form-text">Contact admin to change work email</div>
           </div>
           <div class="col-md-4">
             <label class="form-label">Personal Email</label>
@@ -83,7 +84,7 @@
           </div>
           <div class="col-md-3">
             <label class="form-label">Date of Birth</label>
-            <input type="date" name="date_of_birth" class="form-control" value="{{ old('date_of_birth', $staff->date_of_birth) }}">
+            <input type="date" name="date_of_birth" class="form-control" value="{{ old('date_of_birth', $staff->date_of_birth ? $staff->date_of_birth->format('Y-m-d') : '') }}">
           </div>
           <div class="col-md-3">
             <label class="form-label">Gender</label>

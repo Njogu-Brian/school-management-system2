@@ -29,9 +29,8 @@ class StaffProfileController extends Controller
         $user  = Auth::user();
         $staff = Staff::where('user_id', $user->id)->firstOrFail();
 
-        // Accept only editable profile fields (HR lookups are admin-only)
+        // Accept only editable profile fields (HR lookups and work_email are admin-only)
         $rules = [
-            'work_email'   => 'required|email|unique:staff,work_email,' . $staff->id,
             'personal_email' => 'nullable|email',
             'phone_number' => 'required|string|max:20',
             'id_number'    => 'required|string|max:255',
