@@ -258,6 +258,7 @@
         </div>
     </div>
 </div>
+</div>
 
 @push('styles')
     @include('senior_teacher.partials.styles')
