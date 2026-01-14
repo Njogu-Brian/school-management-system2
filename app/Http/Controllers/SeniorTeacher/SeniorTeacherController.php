@@ -265,7 +265,7 @@ class SeniorTeacherController extends Controller
         $user = auth()->user();
         $classrooms = $user->supervisedClassrooms()
             ->withCount('students')
-            ->with(['academicYear', 'teachers'])
+            ->with(['teachers'])
             ->get();
         
         return view('senior_teacher.supervised_classrooms', compact('classrooms'));
@@ -296,7 +296,7 @@ class SeniorTeacherController extends Controller
         ));
         
         $query = Student::whereIn('classroom_id', $classroomIds)
-            ->with(['classroom', 'stream', 'parentInfo']);
+            ->with(['classroom', 'stream', 'parent']);
         
         // Apply filters
         if ($request->filled('classroom_id')) {
@@ -339,7 +339,7 @@ class SeniorTeacherController extends Controller
         ));
         
         $student = Student::whereIn('classroom_id', $classroomIds)
-            ->with(['classroom', 'stream', 'parentInfo', 'transportAssignments'])
+            ->with(['classroom', 'stream', 'parent', 'transport'])
             ->findOrFail($id);
         
         // Get student's fee balance
@@ -382,14 +382,16 @@ class SeniorTeacherController extends Controller
         ));
         
         $query = Student::whereIn('classroom_id', $classroomIds)
-            ->with(['classroom', 'stream'])
-            ->select('students.*')
-            ->leftJoin('invoices', 'students.id', '=', 'invoices.student_id')
-            ->selectRaw('students.*, 
+            ->leftJoin('invoices', function($join) {
+                $join->on('students.id', '=', 'invoices.student_id')
+                     ->whereNull('invoices.deleted_at');
+            })
+            ->selectRaw('students.id, students.admission_number, students.first_name, students.middle_name, students.last_name, students.classroom_id, students.stream_id,
                 COALESCE(SUM(invoices.total), 0) as total_invoiced,
                 COALESCE(SUM(invoices.paid_amount), 0) as total_paid,
                 COALESCE(SUM(invoices.total - invoices.paid_amount), 0) as balance')
-            ->groupBy('students.id');
+            ->groupBy('students.id', 'students.admission_number', 'students.first_name', 'students.middle_name', 'students.last_name', 'students.classroom_id', 'students.stream_id')
+            ->with(['classroom', 'stream']);
         
         // Apply filters
         if ($request->filled('classroom_id')) {
