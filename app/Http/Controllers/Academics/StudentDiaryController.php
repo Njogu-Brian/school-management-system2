@@ -254,8 +254,12 @@ class StudentDiaryController extends Controller
             return;
         }
 
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
-            $assigned = $user->getAssignedClassroomIds();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assigned = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             if (!in_array($classroom->id, $assigned)) {
                 abort(403, 'You do not have access to this classroom.');
             }

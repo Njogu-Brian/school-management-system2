@@ -114,11 +114,16 @@ class StudentBehaviourController extends Controller
 
     public function destroy(StudentBehaviour $student_behaviour)
     {
-        // Validate teacher has access to student's class
-        if (Auth::user()->hasRole('Teacher')) {
-            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+        // Validate teacher/senior teacher has access to student's class
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && !$user->hasAnyRole(['Super Admin', 'Admin'])) {
+            $classroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             
-            if (!in_array($student_behaviour->student->classroom_id, $assignedClassroomIds)) {
+            if (!in_array($student_behaviour->student->classroom_id, $classroomIds)) {
                 abort(403, 'You do not have access to delete behavior records for students in this class.');
             }
         }
