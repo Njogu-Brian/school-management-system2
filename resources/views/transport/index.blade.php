@@ -16,8 +16,8 @@
             <div class="d-flex gap-2 flex-wrap">
                 <a href="{{ route('transport.import.form') }}" class="btn btn-settings-primary"><i class="bi bi-upload"></i> Import Assignments</a>
                 <a href="{{ route('transport.daily-list.index') }}" class="btn btn-settings-primary"><i class="bi bi-list-check"></i> Daily List</a>
-                <a href="{{ route('vehicles.create') }}" class="btn btn-ghost-strong"><i class="bi bi-truck"></i> Add Vehicle</a>
-                <a href="{{ route('trips.create') }}" class="btn btn-ghost-strong"><i class="bi bi-map"></i> Add Trip</a>
+                <a href="{{ route('transport.vehicles.create') }}" class="btn btn-ghost-strong"><i class="bi bi-truck"></i> Add Vehicle</a>
+                <a href="{{ route('transport.trips.create') }}" class="btn btn-ghost-strong"><i class="bi bi-map"></i> Add Trip</a>
                 <a href="{{ route('transport.special-assignments.create') }}" class="btn btn-ghost-strong"><i class="bi bi-star"></i> Special Assignment</a>
                 <a href="{{ route('transport.driver-change-requests.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-repeat"></i> Change Requests</a>
             </div>
@@ -43,7 +43,7 @@
                     <div class="col-md-4">
                         <div class="alert alert-warning mb-0">
                             <strong>{{ $tripsWithoutDrivers }}</strong> trip(s) without assigned drivers
-                            <a href="{{ route('trips.index') }}" class="alert-link">View trips <i class="bi bi-arrow-right"></i></a>
+                            <a href="{{ route('transport.trips.index') }}" class="alert-link">View trips <i class="bi bi-arrow-right"></i></a>
                         </div>
                     </div>
                     @endif
@@ -99,7 +99,7 @@
         <div class="settings-card mt-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Active Trips (with Drivers)</h5>
-                <a href="{{ route('trips.index') }}" class="btn btn-sm btn-ghost-strong">View All <i class="bi bi-arrow-right"></i></a>
+                <a href="{{ route('transport.trips.index') }}" class="btn btn-sm btn-ghost-strong">View All <i class="bi bi-arrow-right"></i></a>
             </div>
             <div class="card-body">
                 @if($activeTrips->count() > 0)
@@ -147,7 +147,7 @@
                                     </td>
                                     <td>{{ $trip->assignments->count() ?? 0 }}</td>
                                     <td class="text-end">
-                                        <a href="{{ route('trips.edit', $trip) }}" class="btn btn-sm btn-ghost-strong">Edit</a>
+                                        <a href="{{ route('transport.trips.edit', $trip) }}" class="btn btn-sm btn-ghost-strong">Edit</a>
                                         <a href="{{ route('transport.trip-attendance.create', ['trip' => $trip->id, 'date' => now()->toDateString()]) }}" class="btn btn-sm btn-ghost-strong">Attendance</a>
                                     </td>
                                 </tr>
@@ -165,7 +165,7 @@
         <div class="settings-card mt-3">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Vehicles</h5>
-                <a href="{{ route('vehicles.create') }}" class="btn btn-sm btn-ghost-strong">Add Vehicle <i class="bi bi-plus"></i></a>
+                <a href="{{ route('transport.vehicles.create') }}" class="btn btn-sm btn-ghost-strong">Add Vehicle <i class="bi bi-plus"></i></a>
             </div>
             <div class="card-body">
                 @if($vehicles->count() > 0)
@@ -192,7 +192,7 @@
                                     <td>{{ $vehicle->driver_name ?? '—' }}</td>
                                     <td>{{ $vehicle->trips->count() ?? 0 }}</td>
                                     <td class="text-end">
-                                        <a href="{{ route('vehicles.edit', $vehicle) }}" class="btn btn-sm btn-ghost-strong">Edit</a>
+                                        <a href="{{ route('transport.vehicles.edit', $vehicle) }}" class="btn btn-sm btn-ghost-strong">Edit</a>
                                     </td>
                                 </tr>
                                 @endforeach
@@ -200,7 +200,7 @@
                         </table>
                     </div>
                 @else
-                    <p class="text-muted mb-0">No vehicles registered. <a href="{{ route('vehicles.create') }}">Add one</a></p>
+                    <p class="text-muted mb-0">No vehicles registered. <a href="{{ route('transport.vehicles.create') }}">Add one</a></p>
                 @endif
             </div>
         </div>
