@@ -88,9 +88,10 @@ class ExamMarkController extends Controller
     /** STEP 1: Selector */
     public function bulkForm()
     {
+        $user = Auth::user();
         // Filter exams and classrooms based on user role
-        if (Auth::user()->hasRole('Teacher') || Auth::user()->hasRole('teacher')) {
-            $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             $staff = $user->staff;
             
