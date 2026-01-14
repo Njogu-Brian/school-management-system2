@@ -382,37 +382,56 @@ class SeniorTeacherController extends Controller
         ));
         
         $query = Student::whereIn('classroom_id', $classroomIds)
-            ->leftJoin('invoices', function($join) {
-                $join->on('students.id', '=', 'invoices.student_id')
-                     ->whereNull('invoices.deleted_at');
-            })
-            ->selectRaw('students.id, students.admission_number, students.first_name, students.middle_name, students.last_name, students.classroom_id, students.stream_id,
-                COALESCE(SUM(invoices.total), 0) as total_invoiced,
-                COALESCE(SUM(invoices.paid_amount), 0) as total_paid,
-                COALESCE(SUM(invoices.total - invoices.paid_amount), 0) as balance')
-            ->groupBy('students.id', 'students.admission_number', 'students.first_name', 'students.middle_name', 'students.last_name', 'students.classroom_id', 'students.stream_id')
             ->with(['classroom', 'stream']);
         
         // Apply filters
         if ($request->filled('classroom_id')) {
-            $query->where('students.classroom_id', $request->classroom_id);
+            $query->where('classroom_id', $request->classroom_id);
         }
         
+        $allStudents = $query->orderBy('first_name')->get();
+        
+        // Enrich students with balance data
+        $studentsWithBalances = $allStudents->map(function($student) {
+            $totalInvoiced = Invoice::where('student_id', $student->id)->sum('total') ?? 0;
+            $totalPaid = Invoice::where('student_id', $student->id)->sum('paid_amount') ?? 0;
+            $balance = $totalInvoiced - $totalPaid;
+            
+            $student->total_invoiced = $totalInvoiced;
+            $student->total_paid = $totalPaid;
+            $student->balance = $balance;
+            
+            return $student;
+        });
+        
+        // Apply balance status filter
         if ($request->filled('balance_status')) {
             switch ($request->balance_status) {
                 case 'with_balance':
-                    $query->havingRaw('balance > 0');
+                    $studentsWithBalances = $studentsWithBalances->filter(fn($s) => $s->balance > 0);
                     break;
                 case 'cleared':
-                    $query->havingRaw('balance = 0');
+                    $studentsWithBalances = $studentsWithBalances->filter(fn($s) => $s->balance == 0);
                     break;
                 case 'overpaid':
-                    $query->havingRaw('balance < 0');
+                    $studentsWithBalances = $studentsWithBalances->filter(fn($s) => $s->balance < 0);
                     break;
             }
         }
         
-        $students = $query->orderBy('students.first_name')->paginate(50);
+        // Paginate manually
+        $page = $request->get('page', 1);
+        $perPage = 50;
+        $total = $studentsWithBalances->count();
+        $items = $studentsWithBalances->slice(($page - 1) * $perPage, $perPage)->values();
+        $students = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items,
+            $total,
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+        
         $classrooms = Classroom::whereIn('id', $classroomIds)->get();
         
         return view('senior_teacher.fee_balances', compact('students', 'classrooms'));
