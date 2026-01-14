@@ -1,14 +1,14 @@
 @once
 <style>
     .senior-teacher-page {
-        --st-primary: #8b5cf6;
-        --st-primary-dark: #7c3aed;
-        --st-accent: #a78bfa;
-        --st-bg: #faf5ff;
-        --st-surface: #ffffff;
-        --st-border: #e9d5ff;
-        --st-text: #1e293b;
-        --st-muted: #64748b;
+        --st-primary: var(--brand-primary, {{ setting('finance_primary_color', '#8b5cf6') }});
+        --st-primary-dark: var(--brand-primary-dark, {{ setting('finance_primary_color', '#7c3aed') }});
+        --st-accent: var(--brand-accent, {{ setting('finance_secondary_color', '#a78bfa') }});
+        --st-bg: var(--brand-bg, #faf5ff);
+        --st-surface: var(--brand-surface, {{ setting('finance_surface_color', '#ffffff') }});
+        --st-border: var(--brand-border, {{ setting('finance_border_color', '#e9d5ff') }});
+        --st-text: var(--brand-text, {{ setting('finance_text_color', '#1e293b') }});
+        --st-muted: var(--brand-muted, {{ setting('finance_muted_color', '#64748b') }});
         background: var(--st-bg);
         min-height: 100vh;
         padding: 24px 0;
