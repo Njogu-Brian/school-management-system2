@@ -100,8 +100,8 @@ if (!function_exists('can_access')) {
             return true;
         }
 
-        // Teachers have access to their routes (they're already protected by role middleware)
-        if (method_exists($user, 'hasRole') && ($user->hasRole('Teacher') || $user->hasRole('teacher'))) {
+        // Teachers and Senior Teachers have access to their routes (they're already protected by role middleware)
+        if (method_exists($user, 'hasRole') && ($user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher'))) {
             // For teacher routes, allow access if they have the role
             // Permission checks can be done in controllers for granular control
             return true;

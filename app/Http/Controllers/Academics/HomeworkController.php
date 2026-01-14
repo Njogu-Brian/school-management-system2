@@ -197,18 +197,17 @@ class HomeworkController extends Controller
 
     public function show(Homework $homework)
     {
-        // Check if teacher has access
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
-            if ($staff && $homework->classroom_id) {
-                $hasAccess = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->where('classroom_id', $homework->classroom_id)
-                    ->exists();
-                
-                if (!$hasAccess) {
-                    abort(403, 'You do not have access to this homework.');
-                }
+        // Check if teacher/senior teacher has access
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && !$user->hasAnyRole(['Super Admin', 'Admin'])) {
+            $assignedClassroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
+            
+            if ($homework->classroom_id && !in_array($homework->classroom_id, $assignedClassroomIds)) {
+                abort(403, 'You do not have access to this homework.');
             }
         }
 
@@ -227,19 +226,17 @@ class HomeworkController extends Controller
 
     public function edit(Homework $homework)
     {
-        // Check if teacher has access
+        // Check if teacher/senior teacher has access
         $user = Auth::user();
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
-            $staff = $user->staff;
-            if ($staff && $homework->classroom_id) {
-                $hasAccess = DB::table('classroom_subjects')
-                    ->where('staff_id', $staff->id)
-                    ->where('classroom_id', $homework->classroom_id)
-                    ->exists();
-                
-                if (!$hasAccess) {
-                    abort(403, 'You do not have access to edit this homework.');
-                }
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && !$user->hasAnyRole(['Super Admin', 'Admin'])) {
+            $assignedClassroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
+            
+            if ($homework->classroom_id && !in_array($homework->classroom_id, $assignedClassroomIds)) {
+                abort(403, 'You do not have access to edit this homework.');
             }
         }
 
