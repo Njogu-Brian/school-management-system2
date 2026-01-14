@@ -174,7 +174,8 @@ class StudentDiaryController extends Controller
             'attachments.*' => 'file|max:10240',
         ]);
 
-        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && $data['target_scope'] === 'school') {
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher && $data['target_scope'] === 'school') {
             return back()->with('error', 'Teachers cannot broadcast to the entire school.');
         }
 
@@ -234,8 +235,12 @@ class StudentDiaryController extends Controller
             return;
         }
 
-        if ($user->hasRole('Teacher') || $user->hasRole('teacher')) {
-            $assigned = $user->getAssignedClassroomIds();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $assigned = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             if (in_array($diary->student->classroom_id, $assigned)) {
                 return;
             }
