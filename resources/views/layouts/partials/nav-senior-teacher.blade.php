@@ -210,7 +210,7 @@
   </a>
 
   {{-- Leaves --}}
-  <a href="{{ route('senior_teacher.leave.index') }}" class="{{ $leaveActive && Request::is('senior-teacher/leaves*') ? 'active' : '' }}">
+  <a href="{{ route('senior_teacher.leave.index') }}" class="{{ Request::is('senior-teacher/leaves*') ? 'active' : '' }}">
     <i class="bi bi-calendar-event"></i> My Leaves
   </a>
 </div>
@@ -220,7 +220,7 @@
   <div class="text-muted small fw-bold px-3 mb-2">Transport</div>
 
   {{-- Transport Dashboard --}}
-  <a href="{{ url('/transport') }}" class="{{ $transportActive && !$specialAssignmentsActive ? 'active' : '' }}">
+  <a href="{{ url('/transport') }}" class="{{ $transportActive ? 'active' : '' }}">
     <i class="bi bi-bus-front"></i> Transport
   </a>
 
