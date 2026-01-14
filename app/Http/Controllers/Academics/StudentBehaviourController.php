@@ -17,14 +17,19 @@ class StudentBehaviourController extends Controller
     {
         $query = StudentBehaviour::with(['student.classroom','behaviour','teacher','term','academicYear']);
         
-        // Filter by teacher assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
-            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+        // Filter by teacher/senior teacher assigned classes
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $classroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             
-            if (!empty($assignedClassroomIds)) {
-                $query->whereHas('student', function($q) use ($assignedClassroomIds) {
+            if (!empty($classroomIds)) {
+                $query->whereHas('student', function($q) use ($classroomIds) {
                     $q->where('archive', 0)->where('is_alumni', false);
-                    $q->whereIn('classroom_id', $assignedClassroomIds);
+                    $q->whereIn('classroom_id', $classroomIds);
                 });
             } else {
                 $query->whereRaw('1 = 0'); // No access
@@ -40,12 +45,17 @@ class StudentBehaviourController extends Controller
     {
         $studentsQuery = Student::with('classroom')->orderBy('last_name')->orderBy('first_name');
         
-        // Filter students by teacher assigned classes
-        if (Auth::user()->hasRole('Teacher') || Auth::user()->hasRole('teacher')) {
-            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+        // Filter students by teacher/senior teacher assigned classes
+        $user = Auth::user();
+        $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
+        if ($isTeacher) {
+            $classroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
             
-            if (!empty($assignedClassroomIds)) {
-                $studentsQuery->whereIn('classroom_id', $assignedClassroomIds);
+            if (!empty($classroomIds)) {
+                $studentsQuery->whereIn('classroom_id', $classroomIds);
             } else {
                 $studentsQuery->whereRaw('1 = 0'); // No access
             }
