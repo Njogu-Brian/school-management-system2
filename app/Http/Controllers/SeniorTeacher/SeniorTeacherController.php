@@ -149,10 +149,10 @@ class SeniorTeacherController extends Controller
             ->get();
 
         // Upcoming exams
-        $upcomingExams = Exam::where('start_date', '>=', $today)
+        $upcomingExams = Exam::where('starts_on', '>=', $today)
             ->when($filters['year_id'], fn($q, $v) => $q->where('academic_year_id', $v))
             ->when($filters['term_id'], fn($q, $v) => $q->where('term_id', $v))
-            ->orderBy('start_date')
+            ->orderBy('starts_on')
             ->take(5)
             ->get();
 
