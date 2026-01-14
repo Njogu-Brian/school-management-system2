@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.advances' : 'teacher.advances';
+@endphp
+
 @section('content')
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -7,7 +11,7 @@
             <h1 class="h3 mb-0">My Advance Requests</h1>
             <p class="text-muted mb-0">Track the status of salary advances you have requested.</p>
         </div>
-        <a href="{{ route('teacher.advances.create') }}" class="btn btn-primary">
+        <a href="{{ route($routePrefix . '.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Request Advance
         </a>
     </div>

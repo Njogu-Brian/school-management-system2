@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@php
+  $routePrefix = request()->routeIs('senior_teacher.*') ? 'senior_teacher.leave' : 'teacher.leave';
+@endphp
+
 @section('content')
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -7,7 +11,7 @@
       <h2 class="mb-0">My Leaves</h2>
       <small class="text-muted">Request leaves and view your leave history</small>
     </div>
-    <a href="{{ route('teacher.leave.create') }}" class="btn btn-primary">
+    <a href="{{ route($routePrefix . '.create') }}" class="btn btn-primary">
       <i class="bi bi-plus-circle"></i> Request Leave
     </a>
   </div>
@@ -103,11 +107,11 @@
                     </td>
                     <td class="text-end">
                       <div class="btn-group" role="group">
-                        <a href="{{ route('teacher.leave.show', $request->id) }}" class="btn btn-sm btn-outline-info" title="View">
+                        <a href="{{ route($routePrefix . '.show', $request->id) }}" class="btn btn-sm btn-outline-info" title="View">
                           <i class="bi bi-eye"></i>
                         </a>
                         @if($request->status === 'pending')
-                          <form action="{{ route('teacher.leave.cancel', $request->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to cancel this leave request?')">
+                          <form action="{{ route($routePrefix . '.cancel', $request->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to cancel this leave request?')">
                             @csrf
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Cancel">
                               <i class="bi bi-x-circle"></i>

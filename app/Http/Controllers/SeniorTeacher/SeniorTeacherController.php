@@ -339,7 +339,7 @@ class SeniorTeacherController extends Controller
         ));
         
         $student = Student::whereIn('classroom_id', $classroomIds)
-            ->with(['classroom', 'stream', 'parent', 'transport'])
+            ->with(['classroom', 'stream', 'parent', 'trip', 'assignments'])
             ->findOrFail($id);
         
         // Get student's fee balance
