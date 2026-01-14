@@ -663,7 +663,7 @@ Route::middleware('auth')->group(function () {
 
     // HR Management - Roles & Lookups (moved from settings)
     Route::prefix('hr')->name('hr.')
-        ->middleware('role:Super Admin|Admin|Secretary')
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')
         ->group(function () {
             Route::get('/', fn() => redirect()->route('staff.index'))->name('index');
             
@@ -1436,7 +1436,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     | Inventory & Requirements Management
     |----------------------------------------------------------------------
     */
-    Route::prefix('inventory')->name('inventory.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher')->group(function () {
+    Route::prefix('inventory')->name('inventory.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
         // Inventory Items
         Route::resource('items', \App\Http\Controllers\Inventory\InventoryItemController::class);
         Route::post('items/{item}/adjust-stock', [\App\Http\Controllers\Inventory\InventoryItemController::class, 'adjustStock'])->name('items.adjust-stock');

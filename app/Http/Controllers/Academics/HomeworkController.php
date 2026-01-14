@@ -16,10 +16,32 @@ class HomeworkController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:homework.view')->only(['index', 'show']);
-        $this->middleware('permission:homework.create')->only(['create', 'store']);
-        $this->middleware('permission:homework.edit')->only(['edit', 'update']);
-        $this->middleware('permission:homework.delete')->only(['destroy']);
+        // Allow Senior Teachers and Teachers to access homework without explicit permissions
+        $this->middleware(function ($request, $next) {
+            $user = auth()->user();
+            if ($user && ($user->hasRole('Senior Teacher') || $user->hasRole('Teacher') || $user->hasRole('teacher'))) {
+                return $next($request);
+            }
+            // For other users, check permissions
+            if ($request->routeIs('academics.homework.index') || $request->routeIs('academics.homework.show')) {
+                if (!$user->can('homework.view')) {
+                    abort(403, 'You do not have permission to view homework.');
+                }
+            } elseif ($request->routeIs('academics.homework.create') || $request->routeIs('academics.homework.store')) {
+                if (!$user->can('homework.create')) {
+                    abort(403, 'You do not have permission to create homework.');
+                }
+            } elseif ($request->routeIs('academics.homework.edit') || $request->routeIs('academics.homework.update')) {
+                if (!$user->can('homework.edit')) {
+                    abort(403, 'You do not have permission to edit homework.');
+                }
+            } elseif ($request->routeIs('academics.homework.destroy')) {
+                if (!$user->can('homework.delete')) {
+                    abort(403, 'You do not have permission to delete homework.');
+                }
+            }
+            return $next($request);
+        })->only(['index', 'show', 'create', 'store', 'edit', 'update', 'destroy']);
     }
 
     public function index(Request $request)
