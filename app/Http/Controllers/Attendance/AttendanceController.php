@@ -61,10 +61,16 @@ class AttendanceController extends Controller
                 ? Classroom::whereIn('id', $assignedClassIds)->orderBy('name')->pluck('name', 'id')
                 : collect();
             
-            // If a class is selected, check if teacher is assigned to it
-            if ($selectedClass && !$user->isAssignedToClassroom($selectedClass)) {
-                return redirect()->route('attendance.mark.form')
-                    ->with('error', 'You are not assigned to this class.');
+            // If a class is selected, check if teacher is assigned to it (or supervises it for Senior Teachers)
+            if ($selectedClass) {
+                $hasAccess = $user->isAssignedToClassroom($selectedClass);
+                if (!$hasAccess && $user->hasRole('Senior Teacher')) {
+                    $hasAccess = in_array($selectedClass, $user->getSupervisedClassroomIds());
+                }
+                if (!$hasAccess) {
+                    return redirect()->route('attendance.mark.form')
+                        ->with('error', 'You are not assigned to this class.');
+                }
             }
             
             $streams = $selectedClass
