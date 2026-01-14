@@ -51,6 +51,8 @@
             border-radius: 6px;
             font-size: 0.75rem;
             font-weight: 600;
+            white-space: nowrap;
+            display: inline-block;
         }
         
         .badge-has-plan {
@@ -175,9 +177,43 @@
             </div>
         </div>
 
+        {{-- View Tabs --}}
+        <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+            <div class="card-body p-0">
+                <ul class="nav nav-tabs nav-tabs-finance" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'all' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'all'] + request()->except('view')) }}">
+                            All <span class="badge bg-secondary">{{ $counts['all'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'cleared' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'cleared'] + request()->except('view')) }}">
+                            Cleared <span class="badge bg-success">{{ $counts['cleared'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'partial' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'partial'] + request()->except('view')) }}">
+                            Partial <span class="badge bg-warning">{{ $counts['partial'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'unpaid-present' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'unpaid-present'] + request()->except('view')) }}">
+                            Unpaid - Present <span class="badge bg-danger">{{ $counts['unpaid-present'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'unpaid-absent' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'unpaid-absent'] + request()->except('view')) }}">
+                            Unpaid - Absent <span class="badge bg-danger">{{ $counts['unpaid-absent'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
         {{-- Filters --}}
-        <div class="finance-filter-card finance-animate">
+        <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
             <form method="GET" action="{{ route('finance.fee-balances.index') }}" class="row g-3">
+                <input type="hidden" name="view" value="{{ $view ?? 'all' }}">
                 <div class="col-md-3">
                     <label class="finance-form-label">Classroom</label>
                     <select name="classroom_id" class="finance-form-select">
@@ -218,13 +254,12 @@
                         <option value="plan_on_track" {{ request('payment_plan_filter') === 'plan_on_track' ? 'selected' : '' }}>Plan On Track</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="finance-form-label">&nbsp;</label>
-                    <div class="d-flex gap-2">
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="d-flex gap-2 w-100">
                         <button type="submit" class="btn btn-finance btn-finance-primary">
                             <i class="bi bi-search"></i> Filter
                         </button>
-                        <a href="{{ route('finance.fee-balances.index') }}" class="btn btn-finance btn-finance-outline">
+                        <a href="{{ route('finance.fee-balances.index', ['view' => $view ?? 'all']) }}" class="btn btn-finance btn-finance-outline">
                             <i class="bi bi-x-circle"></i> Reset
                         </a>
                     </div>
@@ -232,17 +267,10 @@
             </form>
         </div>
 
-        {{-- Students Cleared Fees --}}
-        @if($clearedStudents->count() > 0)
-        <div class="finance-table-wrapper finance-animate mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-check-circle-fill text-success me-2"></i>
-                    Students with Cleared Fees ({{ $clearedStudents->count() }})
-                </h5>
-            </div>
+        {{-- Students Table --}}
+        <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
             <div class="table-responsive">
-                <table class="finance-table">
+                <table class="table table-hover finance-table">
                     <thead>
                         <tr>
                             <th>Adm No</th>
@@ -259,132 +287,20 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($clearedStudents as $student)
+                        @forelse($students as $student)
                             @include('finance.fee_balances.partials.student_row', ['student' => $student])
-                        @endforeach
+                        @empty
+                            <tr>
+                                <td colspan="11" class="text-center py-5">
+                                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                                    <p class="text-muted mt-2">No students found matching your criteria.</p>
+                                </td>
+                            </tr>
+                        @endforelse
                     </tbody>
                 </table>
             </div>
         </div>
-        @endif
-
-        {{-- Students Paid Partial --}}
-        @if($partialStudents->count() > 0)
-        <div class="finance-table-wrapper finance-animate mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-hourglass-split text-warning me-2"></i>
-                    Students Paid Partial ({{ $partialStudents->count() }})
-                </h5>
-            </div>
-            <div class="table-responsive">
-                <table class="finance-table">
-                    <thead>
-                        <tr>
-                            <th>Adm No</th>
-                            <th>Student Name</th>
-                            <th>Class</th>
-                            <th class="text-end">Invoiced</th>
-                            <th class="text-end">Paid</th>
-                            <th class="text-end">Balance</th>
-                            <th class="text-center">Status</th>
-                            <th class="text-center">Attendance</th>
-                            <th class="text-center">In School</th>
-                            <th class="text-center">Payment Plan</th>
-                            <th class="text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($partialStudents as $student)
-                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        @endif
-
-        {{-- Students Not Paid - Present --}}
-        @if($unpaidPresent->count() > 0)
-        <div class="finance-table-wrapper finance-animate mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
-                    Students Not Paid - Present in School ({{ $unpaidPresent->count() }})
-                </h5>
-            </div>
-            <div class="table-responsive">
-                <table class="finance-table">
-                    <thead>
-                        <tr>
-                            <th>Adm No</th>
-                            <th>Student Name</th>
-                            <th>Class</th>
-                            <th class="text-end">Invoiced</th>
-                            <th class="text-end">Paid</th>
-                            <th class="text-end">Balance</th>
-                            <th class="text-center">Status</th>
-                            <th class="text-center">Attendance</th>
-                            <th class="text-center">In School</th>
-                            <th class="text-center">Payment Plan</th>
-                            <th class="text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($unpaidPresent as $student)
-                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        @endif
-
-        {{-- Students Not Paid - Absent --}}
-        @if($unpaidAbsent->count() > 0)
-        <div class="finance-table-wrapper finance-animate mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">
-                    <i class="bi bi-x-circle-fill text-danger me-2"></i>
-                    Students Not Paid - Absent/Not Reported ({{ $unpaidAbsent->count() }})
-                </h5>
-            </div>
-            <div class="table-responsive">
-                <table class="finance-table">
-                    <thead>
-                        <tr>
-                            <th>Adm No</th>
-                            <th>Student Name</th>
-                            <th>Class</th>
-                            <th class="text-end">Invoiced</th>
-                            <th class="text-end">Paid</th>
-                            <th class="text-end">Balance</th>
-                            <th class="text-center">Status</th>
-                            <th class="text-center">Attendance</th>
-                            <th class="text-center">In School</th>
-                            <th class="text-center">Payment Plan</th>
-                            <th class="text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($unpaidAbsent as $student)
-                            @include('finance.fee_balances.partials.student_row', ['student' => $student])
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        @endif
-
-        {{-- No Students Message --}}
-        @if($clearedStudents->count() == 0 && $partialStudents->count() == 0 && $unpaidPresent->count() == 0 && $unpaidAbsent->count() == 0)
-        <div class="finance-table-wrapper finance-animate">
-            <div class="text-center py-5">
-                <i class="bi bi-inbox fs-1 text-muted"></i>
-                <p class="text-muted mt-2">No students found matching your criteria.</p>
-            </div>
-        </div>
-        @endif
 
         {{-- Legend --}}
         <div class="alert alert-info border-0 mt-4">
