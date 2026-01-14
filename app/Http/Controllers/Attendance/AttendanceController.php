@@ -47,10 +47,19 @@ class AttendanceController extends Controller
         // If user is a teacher or senior teacher, restrict to assigned classes/streams
         $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
         if ($isTeacher) {
-            $assignedClassIds = $user->getAssignedClassroomIds();
+            // For Senior Teachers, include both assigned and supervised classrooms
+            $assignedClassIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge(
+                    $user->getAssignedClassroomIds(),
+                    $user->getSupervisedClassroomIds()
+                ))
+                : $user->getAssignedClassroomIds();
+            
             $assignedStreamIds = $user->getAssignedStreamIds();
             
-            $classes = Classroom::whereIn('id', $assignedClassIds)->pluck('name', 'id');
+            $classes = !empty($assignedClassIds) 
+                ? Classroom::whereIn('id', $assignedClassIds)->orderBy('name')->pluck('name', 'id')
+                : collect();
             
             // If a class is selected, check if teacher is assigned to it
             if ($selectedClass && !$user->isAssignedToClassroom($selectedClass)) {
