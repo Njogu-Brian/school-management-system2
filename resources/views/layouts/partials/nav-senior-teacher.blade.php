@@ -57,8 +57,8 @@
   </a>
   
   {{-- Leave Approval --}}
-  <a href="{{ route('senior_teacher.staff_leaves.index') }}" 
-     class="{{ $leaveActive && Request::is('senior-teacher/staff-leaves*') ? 'active' : '' }}">
+  <a href="{{ route('supervisor.leave-requests.index') }}" 
+     class="{{ $leaveActive && Request::is('supervisor/leave-requests*') ? 'active' : '' }}">
     <i class="bi bi-check-circle"></i> Leave Approval
   </a>
 </div>
