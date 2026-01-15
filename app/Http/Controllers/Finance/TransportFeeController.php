@@ -373,6 +373,7 @@ class TransportFeeController extends Controller
             'dropoff_map' => 'array',
             'student_matches' => 'nullable|array', // For student matching: row_index => student_id
             'confirmations' => 'nullable|array', // For confirmations: row_index => 'use_new' or 'keep_existing'
+            'skip_rows' => 'nullable|array', // For skipping rows: row_index => 1
             'year' => 'required|integer',
             'term' => 'required|integer|in:1,2,3',
         ]);
@@ -381,6 +382,7 @@ class TransportFeeController extends Controller
         $map = $request->input('dropoff_map', []);
         $studentMatches = $request->input('student_matches', []);
         $confirmations = $request->input('confirmations', []);
+        $skipRows = $request->input('skip_rows', []);
         $createdOrUpdated = 0;
         $skipped = 0;
         $dropOffPointsCreated = 0;
@@ -413,19 +415,32 @@ class TransportFeeController extends Controller
                 $studentId = $studentMatches[$index];
             }
             
-            // Handle missing student - check if student was selected via search
+            // Handle missing student - check if student was selected via search or if row should be skipped
             if (!$studentId && ($row['status'] ?? '') === 'missing_student') {
+                // Check if row is marked to skip
+                if (isset($skipRows[$index]) && $skipRows[$index] == '1') {
+                    $skipped++;
+                    continue; // Skip this row
+                }
+                
                 // Check if student was selected via student_matches for missing students
                 if (isset($studentMatches[$index])) {
                     $studentId = $studentMatches[$index];
                 } else {
-                    // Skip rows without valid student
+                    // Skip rows without valid student (unless explicitly marked to skip)
+                    $skipped++;
                     continue;
                 }
             }
             
             // Skip rows without valid student (after checking for selection)
             if (!$studentId) {
+                // Check if row is marked to skip
+                if (isset($skipRows[$index]) && $skipRows[$index] == '1') {
+                    $skipped++;
+                    continue;
+                }
+                $skipped++;
                 continue;
             }
 

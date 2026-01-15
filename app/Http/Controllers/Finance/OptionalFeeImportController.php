@@ -297,6 +297,7 @@ class OptionalFeeImportController extends Controller
             'removals' => 'nullable|array',
             'student_matches' => 'nullable|array', // For student matching: row_index => student_id
             'confirmations' => 'nullable|array', // For confirmations: row_index => 'use_new' or 'keep_existing'
+            'skip_rows' => 'nullable|array', // For skipping rows: row_index => 1
             'year' => 'required|integer',
             'term' => 'required|integer|in:1,2,3',
         ]);
@@ -304,6 +305,7 @@ class OptionalFeeImportController extends Controller
         [$year, $term, $academicYearId] = $this->resolveYearAndTerm($request->year, $request->term);
         $studentMatches = $request->input('student_matches', []);
         $confirmations = $request->input('confirmations', []);
+        $skipRows = $request->input('skip_rows', []);
 
         // Create import batch
         $importBatch = OptionalFeeImport::create([
@@ -330,15 +332,29 @@ class OptionalFeeImportController extends Controller
 
             // Handle student matching
             $studentId = $row['student_id'] ?? null;
-            if (!$studentId && isset($row['row_index'])) {
+            $rowIndex = $row['row_index'] ?? null;
+            
+            if (!$studentId && $rowIndex !== null) {
+                // Check if row is marked to skip
+                if (isset($skipRows[$rowIndex]) && $skipRows[$rowIndex] == '1') {
+                    $skipped++;
+                    continue; // Skip this row
+                }
+                
                 // Check if student was selected via search for missing students
-                if (isset($studentMatches[$row['row_index']])) {
-                    $studentId = $studentMatches[$row['row_index']];
+                if (isset($studentMatches[$rowIndex])) {
+                    $studentId = $studentMatches[$rowIndex];
                 }
             }
             
-            // Skip rows without valid student
+            // Skip rows without valid student (unless explicitly marked to skip)
             if (!$studentId || ($row['status'] ?? '') === 'missing_student') {
+                // Check if row is marked to skip
+                if ($rowIndex !== null && isset($skipRows[$rowIndex]) && $skipRows[$rowIndex] == '1') {
+                    $skipped++;
+                    continue;
+                }
+                $skipped++;
                 continue;
             }
 

@@ -202,13 +202,19 @@
                                 @endforeach
                               </select>
                             @elseif($missingStudent || ($changeType === 'new' && !$row['student_id']))
-                              <button type="button" class="btn btn-sm btn-outline-primary search-student-btn" 
-                                      data-index="{{ $index }}"
-                                      data-student-name="{{ $row['student_name'] ?? '' }}"
-                                      data-admission="{{ $row['admission_number'] ?? '' }}">
-                                <i class="bi bi-search"></i> Search Student
-                              </button>
-                              <input type="hidden" name="student_matches[{{ $index }}]" class="selected-student-id" value="{{ $row['student_id'] ?? '' }}" required>
+                              <div class="d-flex flex-column gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary search-student-btn" 
+                                        data-index="{{ $index }}"
+                                        data-student-name="{{ $row['student_name'] ?? '' }}"
+                                        data-admission="{{ $row['admission_number'] ?? '' }}">
+                                  <i class="bi bi-search"></i> Search Student
+                                </button>
+                                <label class="form-check-label small">
+                                  <input type="checkbox" name="skip_rows[{{ $index }}]" value="1" class="form-check-input skip-row-checkbox" onchange="updateSkipRow({{ $index }})">
+                                  Skip this row
+                                </label>
+                              </div>
+                              <input type="hidden" name="student_matches[{{ $index }}]" class="selected-student-id" value="{{ $row['student_id'] ?? '' }}" data-skip-row="{{ $index }}">
                             @elseif($needsConfirmation)
                               <div class="btn-group btn-group-sm" role="group">
                                 <input type="radio" class="btn-check" name="confirmations[{{ $index }}]" id="use_new_{{ $index }}" value="use_new" checked>
