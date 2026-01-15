@@ -346,15 +346,19 @@ class OptionalFeeImportController extends Controller
                 continue;
             }
 
+            // For changed entries with 'use_new', ensure we use the new amount
+            // For new entries, always use the new amount from import
+            $finalAmount = $amount;
+            if (($row['change_type'] ?? '') === 'new') {
+                // New entries always use the new amount
+                $finalAmount = $amount;
+            } elseif (($row['change_type'] ?? '') === 'changed' && ($row['needs_confirmation'] ?? false)) {
+                // Changed entries with confirmation use new amount if 'use_new' selected
+                $finalAmount = $amount;
+            }
+
             try {
-                DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $amount, $importBatch, $row) {
-                    // For changed entries with 'use_new', ensure we use the new amount
-                    $finalAmount = $amount;
-                    if (($row['change_type'] ?? '') === 'changed' && ($row['needs_confirmation'] ?? false)) {
-                        // Use new amount (already set in $amount)
-                        $finalAmount = $amount;
-                    }
-                    
+                DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $finalAmount, $importBatch) {
                     // Create or update optional fee
                     OptionalFee::updateOrCreate(
                         [
