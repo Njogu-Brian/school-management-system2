@@ -36,10 +36,26 @@ class OptionalFeeImportController extends Controller
 
         $headerRow = array_shift($sheet);
         
-        // Get all optional voteheads and create a mapping by name (case-insensitive)
-        $voteheads = Votehead::where('is_mandatory', false)->get()->keyBy(function($v) {
-            return Str::lower($v->name);
-        });
+        // Get all optional voteheads (exclude transport fees - they are managed separately)
+        $transportVoteheadId = \App\Services\TransportFeeService::transportVotehead()->id;
+        $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardVoteheadId = $balanceBroughtForwardVotehead ? $balanceBroughtForwardVotehead->id : null;
+        
+        $voteheads = Votehead::where('is_mandatory', false)
+            ->where('id', '!=', $transportVoteheadId)
+            ->when($balanceBroughtForwardVoteheadId, function($q) use ($balanceBroughtForwardVoteheadId) {
+                return $q->where('id', '!=', $balanceBroughtForwardVoteheadId);
+            })
+            ->where(function($q) {
+                // Additional safeguard: exclude by name/code patterns
+                $q->whereRaw('LOWER(name) NOT LIKE ?', ['%transport%'])
+                  ->whereRaw('LOWER(code) NOT LIKE ?', ['%transport%'])
+                  ->whereRaw('LOWER(code) != ?', ['transport']);
+            })
+            ->get()
+            ->keyBy(function($v) {
+                return Str::lower($v->name);
+            });
         
         // Normalize header row - expect: Name, Admission Number, then votehead names
         $normalizedHeaders = [];
@@ -55,8 +71,14 @@ class OptionalFeeImportController extends Controller
                 continue;
             }
             
+            // Skip transport-related columns
+            $normalizedHeader = Str::lower($headerName);
+            if (Str::contains($normalizedHeader, 'transport') || Str::contains($normalizedHeader, 'trans')) {
+                continue; // Skip transport columns entirely
+            }
+            
             // Try to find matching votehead
-            $votehead = $voteheads->get(Str::lower($headerName));
+            $votehead = $voteheads->get($normalizedHeader);
             if ($votehead) {
                 $voteheadColumns[$i] = [
                     'votehead_id' => $votehead->id,
@@ -485,8 +507,24 @@ class OptionalFeeImportController extends Controller
 
     public function template()
     {
-        // Get all optional voteheads
-        $voteheads = Votehead::where('is_mandatory', false)->orderBy('name')->get();
+        // Get all optional voteheads (exclude transport fees - they are managed separately)
+        $transportVoteheadId = \App\Services\TransportFeeService::transportVotehead()->id;
+        $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardVoteheadId = $balanceBroughtForwardVotehead ? $balanceBroughtForwardVotehead->id : null;
+        
+        $voteheads = Votehead::where('is_mandatory', false)
+            ->where('id', '!=', $transportVoteheadId)
+            ->when($balanceBroughtForwardVoteheadId, function($q) use ($balanceBroughtForwardVoteheadId) {
+                return $q->where('id', '!=', $balanceBroughtForwardVoteheadId);
+            })
+            ->where(function($q) {
+                // Additional safeguard: exclude by name/code patterns
+                $q->whereRaw('LOWER(name) NOT LIKE ?', ['%transport%'])
+                  ->whereRaw('LOWER(code) NOT LIKE ?', ['%transport%'])
+                  ->whereRaw('LOWER(code) != ?', ['transport']);
+            })
+            ->orderBy('name')
+            ->get();
         
         // Build headers: Name, Admission Number, then all votehead names
         $headers = ['Name', 'Admission Number'];
