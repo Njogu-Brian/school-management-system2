@@ -124,6 +124,11 @@ class BankStatementController extends Controller
             case 'archived':
                 $query->where('is_archived', true);
                 break;
+            case 'swimming':
+                // Swimming transactions
+                $query->where('is_swimming_transaction', true)
+                      ->where('is_archived', false);
+                break;
             default:
                 // Show all non-archived by default
                 $query->where('is_archived', false);
@@ -152,6 +157,15 @@ class BankStatementController extends Controller
 
         if ($request->filled('date_to')) {
             $query->where('transaction_date', '<=', $request->date_to);
+        }
+
+        // Swimming transaction filter
+        if ($request->filled('is_swimming')) {
+            if ($request->is_swimming == '1') {
+                $query->where('is_swimming_transaction', true);
+            } elseif ($request->is_swimming == '0') {
+                $query->where('is_swimming_transaction', false);
+            }
         }
 
         if ($request->filled('search')) {
@@ -221,6 +235,9 @@ class BankStatementController extends Controller
                 ->where('is_archived', false)
                 ->count(),
             'archived' => BankStatementTransaction::where('is_archived', true)->count(),
+            'swimming' => BankStatementTransaction::where('is_swimming_transaction', true)
+                ->where('is_archived', false)
+                ->count(),
         ];
 
         return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount'));

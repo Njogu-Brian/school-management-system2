@@ -88,6 +88,11 @@
                         Archived <span class="badge bg-secondary">{{ $counts['archived'] ?? 0 }}</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ ($view ?? 'all') == 'swimming' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'swimming'] + request()->except('view')) }}">
+                        <i class="bi bi-water"></i> Swimming <span class="badge bg-info">{{ $counts['swimming'] ?? 0 }}</span>
+                    </a>
+                </li>
             </ul>
         </div>
     </div>
@@ -112,6 +117,14 @@
                     <option value="unmatched" {{ request('match_status') == 'unmatched' ? 'selected' : '' }}>Unmatched</option>
                     <option value="multiple_matches" {{ request('match_status') == 'multiple_matches' ? 'selected' : '' }}>Multiple Matches</option>
                     <option value="manual" {{ request('match_status') == 'manual' ? 'selected' : '' }}>Manual</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="finance-form-label">Swimming Transaction</label>
+                <select name="is_swimming" class="finance-form-select">
+                    <option value="">All Transactions</option>
+                    <option value="1" {{ request('is_swimming') == '1' ? 'selected' : '' }}>Swimming Only</option>
+                    <option value="0" {{ request('is_swimming') == '0' ? 'selected' : '' }}>Non-Swimming Only</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -153,6 +166,14 @@
                 <div id="bulkTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
                     <i class="bi bi-check-circle"></i> Confirm Selected
+                </button>
+            </form>
+            
+            <form id="bulkSwimmingForm" method="POST" action="{{ route('bulk-mark-swimming') }}">
+                @csrf
+                <div id="bulkSwimmingTransactionIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-info" onclick="bulkMarkSwimming()" id="bulkSwimmingBtn" style="display: none;">
+                    <i class="bi bi-water"></i> Mark as Swimming Transaction
                 </button>
             </form>
             
@@ -403,6 +424,9 @@
             if (bulkArchiveIdsContainer) {
                 bulkArchiveIdsContainer.innerHTML = '';
             }
+            if (bulkSwimmingIdsContainer) {
+                bulkSwimmingIdsContainer.innerHTML = '';
+            }
             
             // Separate transactions that can be confirmed vs archived
             const confirmableIds = [];
@@ -448,6 +472,17 @@
                 });
             }
             
+            // Create hidden inputs for swimming transactions (all checked)
+            if (bulkSwimmingIdsContainer) {
+                checkedIds.forEach(id => {
+                    const swimmingInput = document.createElement('input');
+                    swimmingInput.type = 'hidden';
+                    swimmingInput.name = 'transaction_ids[]';
+                    swimmingInput.value = id;
+                    bulkSwimmingIdsContainer.appendChild(swimmingInput);
+                });
+            }
+            
             // Show/hide bulk confirm button
             bulkActionsContainer.style.display = 'flex';
             
@@ -465,6 +500,41 @@
                     bulkArchiveBtn.style.display = 'none';
                 }
             }
+            
+            // Show/hide bulk swimming button
+            if (bulkSwimmingBtn) {
+                if (checkedIds.length > 0) {
+                    bulkSwimmingBtn.style.display = 'inline-block';
+                } else {
+                    bulkSwimmingBtn.style.display = 'none';
+                }
+            }
+        }
+        
+        function bulkMarkSwimming() {
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
+            
+            if (checked.length === 0) {
+                alert('Please select at least one transaction to mark as swimming');
+                return;
+            }
+            
+            if (!confirm(`Mark ${checked.length} transaction(s) as swimming transactions? This will exclude them from fee invoice allocation.`)) {
+                return;
+            }
+            
+            const form = document.getElementById('bulkSwimmingForm');
+            const bulkSwimmingIdsContainer = document.getElementById('bulkSwimmingTransactionIdsContainer');
+            bulkSwimmingIdsContainer.innerHTML = '';
+            checked.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'transaction_ids[]';
+                input.value = id;
+                bulkSwimmingIdsContainer.appendChild(input);
+            });
+            
+            form.submit();
         }
 
         function bulkConfirm() {
