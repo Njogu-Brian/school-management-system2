@@ -349,14 +349,27 @@
       });
       
       // Handle student selection from modal
-      window.addEventListener('studentSelected', function(event) {
+      function handleStudentSelection(event) {
         if (currentSearchIndex !== null) {
           const student = event.detail;
-          const hiddenInput = document.querySelector(`input[name="student_matches[${currentSearchIndex}]"]`);
+          // Try multiple methods to find the hidden input
+          let hiddenInput = document.querySelector(`input[name="student_matches[${currentSearchIndex}]"]`);
+          if (!hiddenInput) {
+            // Fallback: find by class within the same row
+            const btn = document.querySelector(`.search-student-btn[data-index="${currentSearchIndex}"]`);
+            if (btn) {
+              const row = btn.closest('tr');
+              if (row) {
+                hiddenInput = row.querySelector('input.selected-student-id');
+              }
+            }
+          }
+          
           const btn = document.querySelector(`.search-student-btn[data-index="${currentSearchIndex}"]`);
           
           if (hiddenInput) {
             hiddenInput.value = student.id;
+            hiddenInput.removeAttribute('required'); // Remove required after selection
           }
           
           if (btn) {
@@ -369,7 +382,11 @@
           checkIfReady();
           currentSearchIndex = null;
         }
-      });
+      }
+      
+      // Listen on both window and document for compatibility
+      window.addEventListener('studentSelected', handleStudentSelection);
+      document.addEventListener('studentSelected', handleStudentSelection);
       
       // Check if all required fields are filled
       function checkIfReady() {
