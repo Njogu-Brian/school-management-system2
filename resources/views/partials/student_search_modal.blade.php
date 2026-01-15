@@ -97,8 +97,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     classroom: student.classroom_name
                 };
                 // Dispatch on both window and document for compatibility with existing listeners
-                window.dispatchEvent(new CustomEvent('studentSelected', { detail }));
-                document.dispatchEvent(new CustomEvent('studentSelected', { detail }));
+                // Use setTimeout to ensure event listeners are ready
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('studentSelected', { detail }));
+                    document.dispatchEvent(new CustomEvent('studentSelected', { detail }));
+                }, 100);
 
                 const modalInstance = bootstrap.Modal.getInstance(modalEl);
                 modalInstance?.hide();
