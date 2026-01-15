@@ -201,14 +201,14 @@
                                   <option value="{{ $match['id'] }}">{{ $match['name'] }} ({{ $match['admission_number'] }})</option>
                                 @endforeach
                               </select>
-                            @elseif($missingStudent)
+                            @elseif($missingStudent || ($changeType === 'new' && !$row['student_id']))
                               <button type="button" class="btn btn-sm btn-outline-primary search-student-btn" 
                                       data-index="{{ $index }}"
                                       data-student-name="{{ $row['student_name'] ?? '' }}"
                                       data-admission="{{ $row['admission_number'] ?? '' }}">
                                 <i class="bi bi-search"></i> Search Student
                               </button>
-                              <input type="hidden" name="student_matches[{{ $index }}]" class="selected-student-id" value="" required>
+                              <input type="hidden" name="student_matches[{{ $index }}]" class="selected-student-id" value="{{ $row['student_id'] ?? '' }}" required>
                             @elseif($needsConfirmation)
                               <div class="btn-group btn-group-sm" role="group">
                                 <input type="radio" class="btn-check" name="confirmations[{{ $index }}]" id="use_new_{{ $index }}" value="use_new" checked>
