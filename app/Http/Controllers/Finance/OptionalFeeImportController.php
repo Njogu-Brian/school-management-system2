@@ -514,12 +514,17 @@ class OptionalFeeImportController extends Controller
             'total_amount' => $totalAmount,
         ]);
 
+        $keptCount = count($removals) - $removed;
+        
         $message = "{$createdOrUpdated} optional fee(s) imported";
         if ($skipped > 0) {
-            $message .= ", {$skipped} skipped (already billed)";
+            $message .= ", {$skipped} skipped (already billed or marked to skip)";
         }
         if ($removed > 0) {
             $message .= ", {$removed} removed";
+        }
+        if ($keptCount > 0) {
+            $message .= ", {$keptCount} kept (not removed)";
         }
         $message .= " for Term {$term}, {$year}.";
 
