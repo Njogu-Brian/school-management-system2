@@ -349,6 +349,7 @@ class TransportFeeController extends Controller
                         'admission_number' => $s->admission_number,
                     ];
                 })->toArray() : null,
+                'original_row_data' => $assoc, // Store original data for student search
             ];
         }
 
@@ -412,8 +413,19 @@ class TransportFeeController extends Controller
                 $studentId = $studentMatches[$index];
             }
             
-            // Skip rows without valid student
-            if (!$studentId || ($row['status'] ?? '') === 'missing_student') {
+            // Handle missing student - check if student was selected via search
+            if (!$studentId && ($row['status'] ?? '') === 'missing_student') {
+                // Check if student was selected via student_matches for missing students
+                if (isset($studentMatches[$index])) {
+                    $studentId = $studentMatches[$index];
+                } else {
+                    // Skip rows without valid student
+                    continue;
+                }
+            }
+            
+            // Skip rows without valid student (after checking for selection)
+            if (!$studentId) {
                 continue;
             }
 
@@ -502,7 +514,13 @@ class TransportFeeController extends Controller
                 // For own means, set amount to 0
                 // For missing amounts, also set to 0 but skip invoice
                 // For valid amounts (status 'ok'), use the actual amount
+                // For 'new' entries, always use the new amount from import
                 $finalAmount = $isOwnMeans ? 0 : ($amount ?? 0);
+                
+                // Ensure new entries use the new amount (not existing amount)
+                if (($row['change_type'] ?? '') === 'new' && $amount !== null && $amount > 0) {
+                    $finalAmount = $amount;
+                }
                 
                 // Log for debugging (only for status 'ok' to see what's happening)
                 if ($status === 'ok') {
