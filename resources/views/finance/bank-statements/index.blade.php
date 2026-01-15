@@ -243,9 +243,16 @@
                             </td>
                             <td>{{ $transaction->transaction_date->format('d M Y') }}</td>
                             <td>
-                                <strong class="{{ $transaction->transaction_type == 'credit' ? 'text-success' : 'text-danger' }}">
-                                    {{ $transaction->transaction_type == 'credit' ? '+' : '-' }}Ksh {{ number_format($transaction->amount, 2) }}
-                                </strong>
+                                <div class="d-flex align-items-center gap-2">
+                                    <strong class="{{ $transaction->transaction_type == 'credit' ? 'text-success' : 'text-danger' }}">
+                                        {{ $transaction->transaction_type == 'credit' ? '+' : '-' }}Ksh {{ number_format($transaction->amount, 2) }}
+                                    </strong>
+                                    @if($transaction->is_swimming_transaction)
+                                        <span class="badge bg-info" title="Swimming Transaction">
+                                            <i class="bi bi-water"></i>
+                                        </span>
+                                    @endif
+                                </div>
                             </td>
                             <td>
                                 <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $transaction->description }}">
