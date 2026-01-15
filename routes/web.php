@@ -81,6 +81,12 @@ use App\Http\Controllers\Finance\LegacyFinanceImportController;
 use App\Http\Controllers\Finance\TransportFeeController;
 use App\Http\Controllers\Finance\BankStatementController;
 
+// Swimming
+use App\Http\Controllers\Swimming\SwimmingAttendanceController;
+use App\Http\Controllers\Swimming\SwimmingWalletController;
+use App\Http\Controllers\Swimming\SwimmingReportController;
+use App\Http\Controllers\Swimming\SwimmingSettingsController;
+
 // Academics
 use App\Http\Controllers\Academics\ClassroomController;
 use App\Http\Controllers\Academics\StreamController;
@@ -318,11 +324,6 @@ Route::middleware('auth')->group(function () {
     | Swimming Management (teachers, senior teachers, admin)
     |----------------------------------------------------------------------
     */
-    use App\Http\Controllers\Swimming\SwimmingAttendanceController;
-    use App\Http\Controllers\Swimming\SwimmingWalletController;
-    use App\Http\Controllers\Swimming\SwimmingReportController;
-    use App\Http\Controllers\Swimming\SwimmingSettingsController;
-
     Route::prefix('swimming')
         ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
         ->group(function () {
