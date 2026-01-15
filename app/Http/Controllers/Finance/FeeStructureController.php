@@ -30,7 +30,14 @@ class FeeStructureController extends Controller
         $classrooms = \App\Models\Academics\Classroom::all();
         $categories = \App\Models\StudentCategory::orderBy('name')->get();
         $transportVoteheadId = TransportFeeService::transportVotehead()->id;
-        $voteheads = \App\Models\Votehead::where('id', '!=', $transportVoteheadId)->get();
+        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardVoteheadId = $balanceBroughtForwardVotehead ? $balanceBroughtForwardVotehead->id : null;
+        
+        $voteheads = \App\Models\Votehead::where('id', '!=', $transportVoteheadId)
+            ->when($balanceBroughtForwardVoteheadId, function($q) use ($balanceBroughtForwardVoteheadId) {
+                return $q->where('id', '!=', $balanceBroughtForwardVoteheadId);
+            })
+            ->get();
         $academicYears = \App\Models\AcademicYear::orderByDesc('year')->get();
 
         $selectedClassroom = $request->query('classroom_id');
@@ -99,8 +106,10 @@ class FeeStructureController extends Controller
             ]);
 
             $transportVoteheadId = TransportFeeService::transportVotehead()->id;
+            $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+            $balanceBroughtForwardVoteheadId = $balanceBroughtForwardVotehead ? $balanceBroughtForwardVotehead->id : null;
 
-            DB::transaction(function () use ($validated, $transportVoteheadId) {
+            DB::transaction(function () use ($validated, $transportVoteheadId, $balanceBroughtForwardVoteheadId) {
                 $yearValue = $validated['year'];
 
                 $structure = FeeStructure::updateOrCreate(
@@ -119,8 +128,10 @@ class FeeStructureController extends Controller
                 $structure->charges()->delete();
 
                 foreach ($validated['charges'] as $charge) {
-                    if (!isset($charge['votehead_id']) || (int) $charge['votehead_id'] === $transportVoteheadId) {
-                        // Transport is managed separately from fee structures
+                    if (!isset($charge['votehead_id']) 
+                        || (int) $charge['votehead_id'] === $transportVoteheadId
+                        || ($balanceBroughtForwardVoteheadId && (int) $charge['votehead_id'] === $balanceBroughtForwardVoteheadId)) {
+                        // Transport and balance brought forward are managed separately from fee structures
                         continue;
                     }
                     
@@ -385,7 +396,14 @@ class FeeStructureController extends Controller
         $terms = \App\Models\Term::all();
         $streams = \App\Models\Academics\Stream::all();
         $transportVoteheadId = TransportFeeService::transportVotehead()->id;
-        $voteheads = \App\Models\Votehead::where('id', '!=', $transportVoteheadId)->get();
+        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardVoteheadId = $balanceBroughtForwardVotehead ? $balanceBroughtForwardVotehead->id : null;
+        
+        $voteheads = \App\Models\Votehead::where('id', '!=', $transportVoteheadId)
+            ->when($balanceBroughtForwardVoteheadId, function($q) use ($balanceBroughtForwardVoteheadId) {
+                return $q->where('id', '!=', $balanceBroughtForwardVoteheadId);
+            })
+            ->get();
 
         return view('finance.fee_structures.import', compact('classrooms', 'academicYears', 'terms', 'streams', 'voteheads'));
     }

@@ -1036,6 +1036,19 @@ class FeePostingService
             ->get();
         
         foreach ($optional as $opt) {
+            // Skip optional fees with amount 0 or null - they shouldn't be posted
+            $amount = (float)($opt->amount ?? 0);
+            if ($amount <= 0) {
+                \Log::warning('Skipping optional fee with zero amount', [
+                    'optional_fee_id' => $opt->id,
+                    'student_id' => $opt->student_id,
+                    'votehead_id' => $opt->votehead_id,
+                    'term' => $term,
+                    'year' => $year,
+                ]);
+                continue;
+            }
+            
             // Check if this votehead is already in structure items to avoid double billing
             $alreadyInStructure = $items->contains('votehead_id', $opt->votehead_id);
             
@@ -1043,7 +1056,7 @@ class FeePostingService
                 // Only add if not already in structure charges
                 $items->push([
                     'votehead_id' => $opt->votehead_id,
-                    'amount' => (float)($opt->amount ?? 0),
+                    'amount' => $amount,
                     'origin' => 'optional',
                 ]);
             } else {

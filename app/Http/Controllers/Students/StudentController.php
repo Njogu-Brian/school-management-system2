@@ -350,6 +350,30 @@ class StudentController extends Controller
             
             $this->handleParentIdUploads($parent, $request);
 
+            // Auto-populate family details from parent if family was created
+            if ($familyId) {
+                $family = \App\Models\Family::find($familyId);
+                if ($family && (!$family->guardian_name || $family->guardian_name === 'New Family')) {
+                    $family->update([
+                        'guardian_name' => $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name ?? 'Family',
+                        'phone' => $family->phone ?: ($parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone),
+                        'email' => $family->email ?: ($parent->guardian_email ?? $parent->father_email ?? $parent->mother_email),
+                    ]);
+                }
+            }
+
+            $this->sendAdmissionCommunication($student, $parent);
+            
+            // Charge fees for newly admitted student (this will create the invoice)
+            try {
+                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student: ' . $e->getMessage(), [
+                    'student_id' => $student->id,
+                ]);
+            }
+            
+            // Create transport fee AFTER invoice is created, so it can be synced properly
             if ($request->boolean('needs_transport') && $request->filled('transport_fee_amount')) {
                 try {
                     TransportFeeService::upsertFee([
@@ -366,29 +390,6 @@ class StudentController extends Controller
                         'message' => $e->getMessage(),
                     ]);
                 }
-            }
-
-            // Auto-populate family details from parent if family was created
-            if ($familyId) {
-                $family = \App\Models\Family::find($familyId);
-                if ($family && (!$family->guardian_name || $family->guardian_name === 'New Family')) {
-                    $family->update([
-                        'guardian_name' => $parent->guardian_name ?? $parent->father_name ?? $parent->mother_name ?? 'Family',
-                        'phone' => $family->phone ?: ($parent->guardian_phone ?? $parent->father_phone ?? $parent->mother_phone),
-                        'email' => $family->email ?: ($parent->guardian_email ?? $parent->father_email ?? $parent->mother_email),
-                    ]);
-                }
-            }
-
-            $this->sendAdmissionCommunication($student, $parent);
-            
-            // Charge fees for newly admitted student
-            try {
-                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::warning('Failed to charge fees for new student: ' . $e->getMessage(), [
-                    'student_id' => $student->id,
-                ]);
             }
 
             if ($request->filled('save_add_another')) {

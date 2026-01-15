@@ -34,7 +34,19 @@ class OptionalFeeController extends Controller
     private function loadIndexData(Request $request = null, string $view = 'class')
     {
         $classrooms        = Classroom::orderBy('name')->get();
-        $optionalVoteheads = Votehead::where('is_mandatory', false)->orderBy('name')->get();
+        
+        // Exclude transport and balance brought forward voteheads from optional fees
+        $transportVoteheadId = \App\Services\TransportFeeService::transportVotehead()->id;
+        $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardVoteheadId = $balanceBroughtForwardVotehead ? $balanceBroughtForwardVotehead->id : null;
+        
+        $optionalVoteheads = Votehead::where('is_mandatory', false)
+            ->where('id', '!=', $transportVoteheadId)
+            ->when($balanceBroughtForwardVoteheadId, function($q) use ($balanceBroughtForwardVoteheadId) {
+                return $q->where('id', '!=', $balanceBroughtForwardVoteheadId);
+            })
+            ->orderBy('name')
+            ->get();
         // used by your student search modal (if it needs a preload list)
         $allStudents       = Student::select('id','first_name','last_name','admission_number')
             ->orderBy('first_name')->get();
@@ -125,17 +137,46 @@ class OptionalFeeController extends Controller
             $firstStudentId = array_key_first($request->students);
             $firstStudent   = Student::find($firstStudentId);
             $classroomId    = $firstStudent?->classroom_id;
+            $categoryId     = $firstStudent?->student_category_id;
 
-            $structure = FeeStructure::where('classroom_id', $classroomId)
-                ->where('year', $year)
-                ->first();
-
+            // Try to get amount from fee structure for this class and category
             $amount = 0;
-            if ($structure) {
-                $amount = (float) (FeeCharge::where('fee_structure_id', $structure->id)
-                    ->where('votehead_id', $voteheadId)
-                    ->where('term', $term)
-                    ->value('amount') ?? 0);
+            if ($classroomId && $categoryId) {
+                $structure = FeeStructure::where('classroom_id', $classroomId)
+                    ->where('student_category_id', $categoryId)
+                    ->where(function($q) use ($year) {
+                        $q->where('year', $year)
+                          ->orWhereHas('academicYear', function($aq) use ($year) {
+                              $aq->where('year', $year);
+                          });
+                    })
+                    ->first();
+
+                if ($structure) {
+                    $amount = (float) (FeeCharge::where('fee_structure_id', $structure->id)
+                        ->where('votehead_id', $voteheadId)
+                        ->where('term', $term)
+                        ->value('amount') ?? 0);
+                }
+            }
+            
+            // If amount is still 0, try to get from any fee structure for this votehead and term
+            if ($amount == 0 && $classroomId) {
+                $structure = FeeStructure::where('classroom_id', $classroomId)
+                    ->where(function($q) use ($year) {
+                        $q->where('year', $year)
+                          ->orWhereHas('academicYear', function($aq) use ($year) {
+                              $aq->where('year', $year);
+                          });
+                    })
+                    ->first();
+
+                if ($structure) {
+                    $amount = (float) (FeeCharge::where('fee_structure_id', $structure->id)
+                        ->where('votehead_id', $voteheadId)
+                        ->where('term', $term)
+                        ->value('amount') ?? 0);
+                }
             }
 
             foreach ($request->students as $studentId => $status) {
@@ -207,9 +248,31 @@ class OptionalFeeController extends Controller
             $year      = (int) $request->year;
             $statuses  = $request->input('statuses', []);
 
-            $structure = FeeStructure::where('classroom_id', $student->classroom_id)
-                ->where('year', $year)
-                ->first();
+            // Try to get amount from fee structure for this student's class and category
+            $structure = null;
+            if ($student->classroom_id && $student->student_category_id) {
+                $structure = FeeStructure::where('classroom_id', $student->classroom_id)
+                    ->where('student_category_id', $student->student_category_id)
+                    ->where(function($q) use ($year) {
+                        $q->where('year', $year)
+                          ->orWhereHas('academicYear', function($aq) use ($year) {
+                              $aq->where('year', $year);
+                          });
+                    })
+                    ->first();
+            }
+            
+            // If not found, try without category
+            if (!$structure && $student->classroom_id) {
+                $structure = FeeStructure::where('classroom_id', $student->classroom_id)
+                    ->where(function($q) use ($year) {
+                        $q->where('year', $year)
+                          ->orWhereHas('academicYear', function($aq) use ($year) {
+                              $aq->where('year', $year);
+                          });
+                    })
+                    ->first();
+            }
 
             foreach ($statuses as $voteheadId => $status) {
                 $status = $status === 'bill' ? 'billed' : $status; // tolerate "bill"
