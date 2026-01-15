@@ -247,7 +247,7 @@
                                     <strong class="{{ $transaction->transaction_type == 'credit' ? 'text-success' : 'text-danger' }}">
                                         {{ $transaction->transaction_type == 'credit' ? '+' : '-' }}Ksh {{ number_format($transaction->amount, 2) }}
                                     </strong>
-                                    @if($transaction->is_swimming_transaction)
+                                    @if(isset($transaction->is_swimming_transaction) && $transaction->is_swimming_transaction)
                                         <span class="badge bg-info" title="Swimming Transaction">
                                             <i class="bi bi-water"></i>
                                         </span>

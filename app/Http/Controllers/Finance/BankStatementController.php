@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class BankStatementController extends Controller
 {
@@ -125,9 +126,14 @@ class BankStatementController extends Controller
                 $query->where('is_archived', true);
                 break;
             case 'swimming':
-                // Swimming transactions
-                $query->where('is_swimming_transaction', true)
-                      ->where('is_archived', false);
+                // Swimming transactions (only if column exists)
+                if (Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
+                    $query->where('is_swimming_transaction', true)
+                          ->where('is_archived', false);
+                } else {
+                    // If column doesn't exist, return empty results
+                    $query->whereRaw('1 = 0');
+                }
                 break;
             default:
                 // Show all non-archived by default
@@ -159,8 +165,8 @@ class BankStatementController extends Controller
             $query->where('transaction_date', '<=', $request->date_to);
         }
 
-        // Swimming transaction filter
-        if ($request->filled('is_swimming')) {
+        // Swimming transaction filter (only if column exists)
+        if ($request->filled('is_swimming') && Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
             if ($request->is_swimming == '1') {
                 $query->where('is_swimming_transaction', true);
             } elseif ($request->is_swimming == '0') {
@@ -235,9 +241,11 @@ class BankStatementController extends Controller
                 ->where('is_archived', false)
                 ->count(),
             'archived' => BankStatementTransaction::where('is_archived', true)->count(),
-            'swimming' => BankStatementTransaction::where('is_swimming_transaction', true)
-                ->where('is_archived', false)
-                ->count(),
+            'swimming' => Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
+                ? BankStatementTransaction::where('is_swimming_transaction', true)
+                    ->where('is_archived', false)
+                    ->count()
+                : 0,
         ];
 
         return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount'));
