@@ -256,14 +256,20 @@
                 </tr>
               </thead>
               <tbody>
-                @foreach($removals ?? [] as $removal)
+                @foreach($removals ?? [] as $removalIndex => $removal)
                   <tr class="table-danger">
                     <td>{{ $removal['student_name'] ?? '—' }}</td>
                     <td>{{ $removal['admission_number'] ?? '—' }}</td>
                     <td>{{ $removal['votehead_name'] ?? '—' }}</td>
                     <td class="text-end">{{ number_format($removal['amount'], 2) }}</td>
                     <td>
-                      <span class="badge bg-danger">Will Be Removed</span>
+                      <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="removal_actions[{{ $removalIndex }}]" id="remove_{{ $removalIndex }}" value="remove" checked>
+                        <label class="btn btn-outline-danger" for="remove_{{ $removalIndex }}">Remove</label>
+                        
+                        <input type="radio" class="btn-check" name="removal_actions[{{ $removalIndex }}]" id="keep_{{ $removalIndex }}" value="keep">
+                        <label class="btn btn-outline-success" for="keep_{{ $removalIndex }}">Keep</label>
+                      </div>
                     </td>
                   </tr>
                   <input type="hidden" name="removals[]" value="{{ base64_encode(json_encode($removal)) }}">

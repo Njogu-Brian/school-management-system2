@@ -394,6 +394,36 @@
       window.addEventListener('studentSelected', handleStudentSelection);
       document.addEventListener('studentSelected', handleStudentSelection);
       
+      // Update skip row checkbox state
+      function updateSkipRow(index) {
+        const checkbox = document.querySelector(`input[name="skip_rows[${index}]"]`);
+        const hiddenInput = document.querySelector(`input.selected-student-id[data-skip-row="${index}"]`);
+        const btn = document.querySelector(`.search-student-btn[data-index="${index}"]`);
+        
+        if (checkbox && checkbox.checked) {
+          // If skipping, remove required and disable search button
+          if (hiddenInput) {
+            hiddenInput.removeAttribute('required');
+            hiddenInput.value = ''; // Clear value when skipping
+          }
+          if (btn) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+          }
+        } else {
+          // If not skipping, make required again and enable search button
+          if (hiddenInput && !hiddenInput.value) {
+            hiddenInput.setAttribute('required', 'required');
+          }
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+          }
+        }
+        
+        checkIfReady();
+      }
+      
       // Check if all required fields are filled
       function checkIfReady() {
         if (!submitBtn) return;
@@ -408,10 +438,19 @@
           }
         });
         
-        // Check hidden student inputs (for missing students)
-        const studentHiddenInputs = form.querySelectorAll('input.selected-student-id[required]');
+        // Check hidden student inputs (for missing students) - only if not skipped
+        const studentHiddenInputs = form.querySelectorAll('input.selected-student-id');
         studentHiddenInputs.forEach(input => {
-          if (!input.value) {
+          const skipRowIndex = input.getAttribute('data-skip-row');
+          if (skipRowIndex) {
+            const skipCheckbox = document.querySelector(`input[name="skip_rows[${skipRowIndex}]"]`);
+            // If row is not skipped and input has no value, it's not ready
+            if (!skipCheckbox || !skipCheckbox.checked) {
+              if (!input.value) {
+                allFilled = false;
+              }
+            }
+          } else if (input.hasAttribute('required') && !input.value) {
             allFilled = false;
           }
         });

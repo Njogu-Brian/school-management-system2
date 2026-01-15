@@ -295,6 +295,7 @@ class OptionalFeeImportController extends Controller
         $request->validate([
             'rows' => 'required|array',
             'removals' => 'nullable|array',
+            'removal_actions' => 'nullable|array', // For removal actions: removal_index => 'keep' or 'remove'
             'student_matches' => 'nullable|array', // For student matching: row_index => student_id
             'confirmations' => 'nullable|array', // For confirmations: row_index => 'use_new' or 'keep_existing'
             'skip_rows' => 'nullable|array', // For skipping rows: row_index => 1
@@ -306,6 +307,7 @@ class OptionalFeeImportController extends Controller
         $studentMatches = $request->input('student_matches', []);
         $confirmations = $request->input('confirmations', []);
         $skipRows = $request->input('skip_rows', []);
+        $removalActions = $request->input('removal_actions', []);
 
         // Create import batch
         $importBatch = OptionalFeeImport::create([
@@ -453,11 +455,17 @@ class OptionalFeeImportController extends Controller
 
         // Process removals
         $removals = $request->input('removals', []);
-        foreach ($removals as $encoded) {
+        foreach ($removals as $removalIndex => $encoded) {
             $removal = json_decode(base64_decode($encoded), true);
             
             if (!$removal || empty($removal['student_id']) || empty($removal['votehead_id'])) {
                 continue;
+            }
+
+            // Check if user wants to keep this removal (don't remove it)
+            $action = $removalActions[$removalIndex] ?? 'remove';
+            if ($action === 'keep') {
+                continue; // Skip removal, keep the optional fee
             }
 
             $studentId = $removal['student_id'];
