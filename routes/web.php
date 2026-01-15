@@ -315,6 +315,45 @@ Route::middleware('auth')->group(function () {
 
     /*
     |----------------------------------------------------------------------
+    | Swimming Management (teachers, senior teachers, admin)
+    |----------------------------------------------------------------------
+    */
+    use App\Http\Controllers\Swimming\SwimmingAttendanceController;
+    use App\Http\Controllers\Swimming\SwimmingWalletController;
+    use App\Http\Controllers\Swimming\SwimmingReportController;
+    use App\Http\Controllers\Swimming\SwimmingSettingsController;
+
+    Route::prefix('swimming')
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')
+        ->group(function () {
+            // Attendance
+            Route::get('/attendance', [SwimmingAttendanceController::class, 'create'])->name('swimming.attendance.create');
+            Route::post('/attendance', [SwimmingAttendanceController::class, 'store'])->name('swimming.attendance.store');
+            Route::get('/attendance/records', [SwimmingAttendanceController::class, 'index'])->name('swimming.attendance.index');
+            Route::post('/attendance/{attendance}/retry-payment', [SwimmingAttendanceController::class, 'retryPayment'])->name('swimming.attendance.retry-payment');
+            
+            // Wallets
+            Route::get('/wallets', [SwimmingWalletController::class, 'index'])->name('swimming.wallets.index');
+            Route::get('/wallets/student/{student}', [SwimmingWalletController::class, 'show'])->name('swimming.wallets.show');
+            Route::post('/wallets/student/{student}/adjust', [SwimmingWalletController::class, 'adjust'])->name('swimming.wallets.adjust');
+            
+            // Reports
+            Route::get('/reports/daily-attendance', [SwimmingReportController::class, 'dailyAttendance'])->name('swimming.reports.daily-attendance');
+            Route::get('/reports/unpaid-sessions', [SwimmingReportController::class, 'unpaidSessions'])->name('swimming.reports.unpaid-sessions');
+            Route::get('/reports/wallet-balances', [SwimmingReportController::class, 'walletBalances'])->name('swimming.reports.wallet-balances');
+            Route::get('/reports/revenue-vs-sessions', [SwimmingReportController::class, 'revenueVsSessions'])->name('swimming.reports.revenue-vs-sessions');
+            
+            // Settings (admin only)
+            Route::prefix('settings')
+                ->middleware('role:Super Admin|Admin')
+                ->group(function () {
+                    Route::get('/', [SwimmingSettingsController::class, 'index'])->name('swimming.settings.index');
+                    Route::post('/', [SwimmingSettingsController::class, 'update'])->name('swimming.settings.update');
+                });
+        });
+
+    /*
+    |----------------------------------------------------------------------
     | Academics (teachers included)
     |----------------------------------------------------------------------
     */
@@ -1178,6 +1217,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/{bankStatement}/archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'archive'])->name('archive');
             Route::post('/{bankStatement}/unarchive', [\App\Http\Controllers\Finance\BankStatementController::class, 'unarchive'])->name('unarchive');
             Route::post('/allocate-unallocated-payments', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateUnallocatedPayments'])->name('allocate-unallocated-payments');
+            // Swimming transaction reclassification
+            Route::post('/bulk-mark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkMarkAsSwimming'])->name('bulk-mark-swimming');
+            Route::post('/{bankStatement}/allocate-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateSwimmingTransaction'])->name('allocate-swimming');
         });
         
         // Document Settings

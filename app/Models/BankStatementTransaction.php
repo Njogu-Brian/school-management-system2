@@ -42,6 +42,8 @@ class BankStatementTransaction extends Model
         'raw_data',
         'notes',
         'created_by',
+        'is_swimming_transaction',
+        'swimming_allocated_amount',
     ];
 
     protected $casts = [
@@ -56,6 +58,8 @@ class BankStatementTransaction extends Model
         'is_archived' => 'boolean',
         'shared_allocations' => 'array',
         'raw_data' => 'array',
+        'is_swimming_transaction' => 'boolean',
+        'swimming_allocated_amount' => 'decimal:2',
     ];
 
     public function bankAccount(): BelongsTo
@@ -175,5 +179,15 @@ class BankStatementTransaction extends Model
     public function setSharedAllocationsAttribute($value)
     {
         $this->attributes['shared_allocations'] = is_array($value) ? json_encode($value) : $value;
+    }
+
+    public function swimmingAllocations()
+    {
+        return $this->hasMany(SwimmingTransactionAllocation::class);
+    }
+
+    public function isSwimmingTransaction(): bool
+    {
+        return $this->is_swimming_transaction ?? false;
     }
 }

@@ -274,6 +274,21 @@ class Student extends Model
         return $this->belongsTo(Student::class, 'previous_student_id');
     }
 
+    public function swimmingWallet()
+    {
+        return $this->hasOne(SwimmingWallet::class);
+    }
+
+    public function swimmingAttendance()
+    {
+        return $this->hasMany(SwimmingAttendance::class);
+    }
+
+    public function swimmingLedger()
+    {
+        return $this->hasMany(SwimmingLedger::class);
+    }
+
     protected static function booted()
     {
         static::addGlobalScope('active', function (Builder $builder) {

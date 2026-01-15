@@ -1,6 +1,7 @@
 {{-- Teacher-only navigation - Optimized arrangement --}}
 @php
   $attActive = Request::is('attendance*');
+  $swimmingActive = Request::is('swimming*');
   $marksActive = Request::is('exam-marks*');
   $reportsActive = Request::is('academics/report_cards*');
   $homeworkActive = Request::is('academics/homework*');
@@ -56,6 +57,27 @@
     @endif
   </div>
 @endif
+
+{{-- Swimming --}}
+<a href="#swimmingMenu" data-bs-toggle="collapse"
+   aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}"
+   class="{{ $swimmingActive ? 'parent-active' : '' }}">
+  <i class="bi bi-water"></i> Swimming
+</a>
+<div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu">
+  <a href="{{ route('swimming.attendance.create') }}"
+     class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}">
+    <i class="bi bi-calendar-check"></i> Mark Attendance
+  </a>
+  <a href="{{ route('swimming.attendance.index') }}"
+     class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}">
+    <i class="bi bi-journal-text"></i> View Records
+  </a>
+  <a href="{{ route('swimming.wallets.index') }}"
+     class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}">
+    <i class="bi bi-wallet2"></i> Wallets
+  </a>
+</div>
 
 {{-- Exam Marks --}}
 @if (can_access('exam_marks.view') || can_access('exam_marks.create'))

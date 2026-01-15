@@ -1477,7 +1477,8 @@ class BankStatementParser
         // Skip auto-allocation during bulk creation - it will be done later in batch
         // Auto-allocation is time-consuming and can be done asynchronously
         // This significantly speeds up bulk payment creation
-        if (!$skipAllocation) {
+        // Also skip if transaction is marked as swimming (will be allocated to swimming wallets instead)
+        if (!$skipAllocation && !$transaction->is_swimming_transaction) {
             try {
                 $allocationService = app(\App\Services\PaymentAllocationService::class);
                 $allocationService->autoAllocate($payment);

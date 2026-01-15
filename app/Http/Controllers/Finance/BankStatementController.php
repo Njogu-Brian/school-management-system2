@@ -8,6 +8,7 @@ use App\Models\{
 };
 use App\Services\BankStatementParser;
 use App\Services\PaymentAllocationService;
+use App\Services\SwimmingTransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -17,11 +18,13 @@ class BankStatementController extends Controller
 {
     protected $parser;
     protected $allocationService;
+    protected $swimmingTransactionService;
 
     public function __construct(BankStatementParser $parser, PaymentAllocationService $allocationService)
     {
         $this->parser = $parser;
         $this->allocationService = $allocationService;
+        $this->swimmingTransactionService = app(SwimmingTransactionService::class);
     }
 
     /**
@@ -1595,6 +1598,76 @@ class BankStatementController extends Controller
             ->route('finance.bank-statements.index')
             ->with('success', $message)
             ->with('errors', $errors);
+    }
+
+    /**
+     * Mark transactions as swimming transactions (bulk)
+     */
+    public function bulkMarkAsSwimming(Request $request)
+    {
+        $request->validate([
+            'transaction_ids' => 'required|array',
+            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        ]);
+
+        $transactionIds = $request->input('transaction_ids', []);
+        $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('is_swimming_transaction', false)
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'No valid transactions found to mark as swimming.');
+        }
+
+        $marked = 0;
+        foreach ($transactions as $transaction) {
+            try {
+                $this->swimmingTransactionService->markAsSwimming($transaction);
+                $marked++;
+            } catch (\Exception $e) {
+                Log::error('Failed to mark transaction as swimming', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with('success', "Marked {$marked} transaction(s) as swimming payments.");
+    }
+
+    /**
+     * Allocate swimming transaction to students
+     */
+    public function allocateSwimmingTransaction(Request $request, BankStatementTransaction $transaction)
+    {
+        $request->validate([
+            'allocations' => 'required|array|min:1',
+            'allocations.*.student_id' => 'required|exists:students,id',
+            'allocations.*.amount' => 'required|numeric|min:0.01',
+        ]);
+
+        try {
+            $allocations = $this->swimmingTransactionService->allocateToStudents(
+                $transaction,
+                $request->allocations
+            );
+
+            // Process pending allocations to credit wallets
+            $this->swimmingTransactionService->processPendingAllocations();
+
+            return redirect()
+                ->route('finance.bank-statements.show', $transaction)
+                ->with('success', 'Transaction allocated to swimming wallets successfully.');
+        } catch (\Exception $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Failed to allocate transaction: ' . $e->getMessage())
+                ->withInput();
+        }
     }
 
     /**
