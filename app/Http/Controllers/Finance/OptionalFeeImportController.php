@@ -75,6 +75,7 @@ class OptionalFeeImportController extends Controller
         $preview = [];
         $totalAmount = 0;
         $missingVoteheads = [];
+        $studentsToMatch = []; // For students with missing admission numbers
 
         // Process each row (each row is a student)
         foreach ($sheet as $rowIndex => $row) {
@@ -86,12 +87,46 @@ class OptionalFeeImportController extends Controller
             
             // Find student
             $student = null;
+            $matchedStudents = [];
+            
             if ($admission) {
                 $student = Student::where('admission_number', $admission)->first();
             }
             
+            // If no student found by admission, try to match by name
             if (!$student && $studentName) {
+                // Try exact match first
                 $student = Student::whereRaw('LOWER(CONCAT(first_name," ",last_name)) = ?', [Str::lower($studentName)])->first();
+                
+                // If still not found and no admission number, find potential matches
+                if (!$student && !$admission) {
+                    $nameParts = explode(' ', $studentName, 2);
+                    if (count($nameParts) >= 2) {
+                        $matchedStudents = Student::whereRaw('LOWER(first_name) = ?', [Str::lower($nameParts[0])])
+                            ->whereRaw('LOWER(last_name) LIKE ?', [Str::lower($nameParts[1] ?? '') . '%'])
+                            ->limit(10)
+                            ->get();
+                    } else {
+                        $matchedStudents = Student::whereRaw('LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ?', [
+                            Str::lower($studentName) . '%',
+                            Str::lower($studentName) . '%'
+                        ])
+                        ->limit(10)
+                        ->get();
+                    }
+                    
+                    if ($matchedStudents->count() === 1) {
+                        $student = $matchedStudents->first();
+                    } elseif ($matchedStudents->count() > 1) {
+                        // Store for user to select
+                        $studentsToMatch[] = [
+                            'row_index' => $rowIndex,
+                            'student_name' => $studentName,
+                            'admission_number' => $admission,
+                            'matched_students' => $matchedStudents,
+                        ];
+                    }
+                }
             }
             
             // Process each votehead column (starting from column 2)
@@ -118,12 +153,41 @@ class OptionalFeeImportController extends Controller
                 
                 $status = 'ok';
                 $message = null;
+                $changeType = 'new'; // new, existing, changed, removed
+                $existingAmount = null;
+                $existingBilling = null;
                 
                 if (!$student) {
-                    $status = 'missing_student';
-                    $message = 'Student not found';
+                    if (!empty($matchedStudents)) {
+                        $status = 'needs_matching';
+                        $message = 'Multiple students found - please select';
+                    } else {
+                        $status = 'missing_student';
+                        $message = 'Student not found';
+                    }
                 } else {
-                    $totalAmount += $amount;
+                    // Check if this optional fee already exists
+                    $existingBilling = OptionalFee::where('student_id', $student->id)
+                        ->where('votehead_id', $voteheadInfo['votehead_id'])
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->where('status', 'billed')
+                        ->first();
+                    
+                    if ($existingBilling) {
+                        $existingAmount = (float) $existingBilling->amount;
+                        if (abs($existingAmount - $amount) < 0.01) {
+                            $changeType = 'existing';
+                            $status = 'already_billed';
+                            $message = 'Already billed';
+                        } else {
+                            $changeType = 'changed';
+                            $message = "Amount changed from " . number_format($existingAmount, 2) . " to " . number_format($amount, 2);
+                        }
+                    } else {
+                        $changeType = 'new';
+                        $totalAmount += $amount;
+                    }
                 }
                 
                 $preview[] = [
@@ -133,17 +197,65 @@ class OptionalFeeImportController extends Controller
                     'votehead_id' => $voteheadInfo['votehead_id'],
                     'votehead_name' => $voteheadInfo['votehead_name'],
                     'amount' => $amount,
+                    'existing_amount' => $existingAmount,
+                    'change_type' => $changeType,
                     'status' => $status,
                     'message' => $message,
+                    'matched_students' => !empty($matchedStudents) ? $matchedStudents->map(function($s) {
+                        return [
+                            'id' => $s->id,
+                            'name' => $s->full_name,
+                            'admission_number' => $s->admission_number,
+                        ];
+                    })->toArray() : null,
                 ];
             }
         }
 
         $missingVoteheads = collect($missingVoteheads)->filter()->unique()->values();
 
+        // Get all existing optional fees for this year/term to detect removals
+        $existingOptionalFees = OptionalFee::where('year', $year)
+            ->where('term', $term)
+            ->where('status', 'billed')
+            ->with(['student', 'votehead'])
+            ->get()
+            ->groupBy('student_id');
+        
+        // Find optional fees that exist but are not in the import (removals)
+        $removals = [];
+        foreach ($existingOptionalFees as $studentId => $fees) {
+            $student = $fees->first()->student;
+            if (!$student) continue;
+            
+            foreach ($fees as $fee) {
+                // Check if this fee is in the preview
+                $inPreview = collect($preview)->contains(function($p) use ($studentId, $fee) {
+                    return ($p['student_id'] ?? null) == $studentId 
+                        && ($p['votehead_id'] ?? null) == $fee->votehead_id;
+                });
+                
+                if (!$inPreview) {
+                    $removals[] = [
+                        'student_id' => $studentId,
+                        'student_name' => $student->full_name,
+                        'admission_number' => $student->admission_number,
+                        'votehead_id' => $fee->votehead_id,
+                        'votehead_name' => $fee->votehead->name ?? 'Unknown',
+                        'amount' => (float) $fee->amount,
+                        'change_type' => 'removed',
+                        'status' => 'ok',
+                        'message' => 'Will be removed',
+                    ];
+                }
+            }
+        }
+
         return view('finance.optional_fees.import_preview', [
             'preview' => $preview,
+            'removals' => $removals,
             'missingVoteheads' => $missingVoteheads,
+            'studentsToMatch' => $studentsToMatch,
             'year' => $year,
             'term' => $term,
             'totalAmount' => $totalAmount,
@@ -154,11 +266,14 @@ class OptionalFeeImportController extends Controller
     {
         $request->validate([
             'rows' => 'required|array',
+            'removals' => 'nullable|array',
+            'student_matches' => 'nullable|array', // For student matching: row_index => student_id
             'year' => 'required|integer',
             'term' => 'required|integer|in:1,2,3',
         ]);
 
         [$year, $term, $academicYearId] = $this->resolveYearAndTerm($request->year, $request->term);
+        $studentMatches = $request->input('student_matches', []);
 
         // Create import batch
         $importBatch = OptionalFeeImport::create([
@@ -171,18 +286,40 @@ class OptionalFeeImportController extends Controller
         ]);
 
         $createdOrUpdated = 0;
+        $skipped = 0;
+        $removed = 0;
         $totalAmount = 0;
 
+        // Process additions and updates
         foreach ($request->rows as $encoded) {
             $row = json_decode(base64_decode($encoded), true);
             
-            if (!$row || ($row['status'] ?? '') !== 'ok' || empty($row['student_id']) || empty($row['votehead_id'])) {
+            if (!$row || empty($row['votehead_id'])) {
                 continue;
             }
 
-            $studentId = $row['student_id'];
+            // Handle student matching
+            $studentId = $row['student_id'] ?? null;
+            if (!$studentId && isset($row['row_index']) && isset($studentMatches[$row['row_index']])) {
+                $studentId = $studentMatches[$row['row_index']];
+            }
+            
+            if (!$studentId || ($row['status'] ?? '') === 'missing_student') {
+                continue;
+            }
+
+            // Skip if already billed with same amount
+            if (($row['status'] ?? '') === 'already_billed' && ($row['change_type'] ?? '') === 'existing') {
+                $skipped++;
+                continue;
+            }
+
             $voteheadId = $row['votehead_id'];
             $amount = (float) ($row['amount'] ?? 0);
+
+            if ($amount <= 0) {
+                continue;
+            }
 
             try {
                 DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $amount, $importBatch) {
@@ -211,7 +348,7 @@ class OptionalFeeImportController extends Controller
                         [
                             'invoice_id' => $invoice->id,
                             'votehead_id' => $voteheadId,
-                            'source' => 'optional_fee',
+                            'source' => 'optional',
                         ],
                         [
                             'amount' => $amount,
@@ -240,15 +377,73 @@ class OptionalFeeImportController extends Controller
             }
         }
 
+        // Process removals
+        $removals = $request->input('removals', []);
+        foreach ($removals as $encoded) {
+            $removal = json_decode(base64_decode($encoded), true);
+            
+            if (!$removal || empty($removal['student_id']) || empty($removal['votehead_id'])) {
+                continue;
+            }
+
+            $studentId = $removal['student_id'];
+            $voteheadId = $removal['votehead_id'];
+
+            try {
+                DB::transaction(function () use ($studentId, $voteheadId, $year, $term) {
+                    // Delete optional fee
+                    OptionalFee::where('student_id', $studentId)
+                        ->where('votehead_id', $voteheadId)
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->where('status', 'billed')
+                        ->delete();
+
+                    // Delete invoice item
+                    $invoice = Invoice::where('student_id', $studentId)
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->first();
+
+                    if ($invoice) {
+                        \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                            ->where('votehead_id', $voteheadId)
+                            ->where('source', 'optional')
+                            ->delete();
+
+                        // Recalculate invoice
+                        InvoiceService::recalc($invoice);
+                    }
+                });
+
+                $removed++;
+            } catch (\Throwable $e) {
+                Log::warning('Optional fee removal failed', [
+                    'student_id' => $studentId,
+                    'votehead_id' => $voteheadId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // Update import batch
         $importBatch->update([
             'fees_imported_count' => $createdOrUpdated,
             'total_amount' => $totalAmount,
         ]);
 
+        $message = "{$createdOrUpdated} optional fee(s) imported";
+        if ($skipped > 0) {
+            $message .= ", {$skipped} skipped (already billed)";
+        }
+        if ($removed > 0) {
+            $message .= ", {$removed} removed";
+        }
+        $message .= " for Term {$term}, {$year}.";
+
         return redirect()
             ->route('finance.optional_fees.index')
-            ->with('success', "{$createdOrUpdated} optional fee(s) imported for Term {$term}, {$year}.")
+            ->with('success', $message)
             ->with('import_batch_id', $importBatch->id);
     }
 
@@ -312,7 +507,7 @@ class OptionalFeeImportController extends Controller
                 if ($invoice) {
                     $deleted = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
                         ->where('votehead_id', $fee->votehead_id)
-                        ->where('source', 'optional_fee')
+                        ->where('source', 'optional')
                         ->delete();
                     
                     $itemsDeleted += $deleted;

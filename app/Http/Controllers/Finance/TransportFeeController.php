@@ -165,9 +165,10 @@ class TransportFeeController extends Controller
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $preview = [];
         $missingDropOffs = [];
+        $studentsToMatch = [];
         $total = 0;
 
-        foreach ($sheet as $row) {
+        foreach ($sheet as $rowIndex => $row) {
             $assoc = [];
             foreach ($headers as $i => $key) {
                 $assoc[$key] = $row[$i] ?? null;
@@ -178,10 +179,42 @@ class TransportFeeController extends Controller
                 ? Student::where('admission_number', $admission)->first()
                 : null;
 
+            $matchedStudents = [];
             if (!$student) {
                 $studentName = trim((string) ($assoc['student_name'] ?? $assoc['name'] ?? ''));
                 if ($studentName !== '') {
+                    // Try exact match first
                     $student = Student::whereRaw('LOWER(CONCAT(first_name," ",last_name)) = ?', [Str::lower($studentName)])->first();
+                    
+                    // If still not found and no admission number, find potential matches
+                    if (!$student && !$admission) {
+                        $nameParts = explode(' ', $studentName, 2);
+                        if (count($nameParts) >= 2) {
+                            $matchedStudents = Student::whereRaw('LOWER(first_name) = ?', [Str::lower($nameParts[0])])
+                                ->whereRaw('LOWER(last_name) LIKE ?', [Str::lower($nameParts[1] ?? '') . '%'])
+                                ->limit(10)
+                                ->get();
+                        } else {
+                            $matchedStudents = Student::whereRaw('LOWER(first_name) LIKE ? OR LOWER(last_name) LIKE ?', [
+                                Str::lower($studentName) . '%',
+                                Str::lower($studentName) . '%'
+                            ])
+                            ->limit(10)
+                            ->get();
+                        }
+                        
+                        if ($matchedStudents->count() === 1) {
+                            $student = $matchedStudents->first();
+                        } elseif ($matchedStudents->count() > 1) {
+                            // Store for user to select
+                            $studentsToMatch[] = [
+                                'row_index' => $rowIndex,
+                                'student_name' => $studentName,
+                                'admission_number' => $admission,
+                                'matched_students' => $matchedStudents,
+                            ];
+                        }
+                    }
                 }
             }
 
@@ -222,19 +255,76 @@ class TransportFeeController extends Controller
 
             $status = 'ok';
             $message = null;
+            $changeType = 'new'; // new, existing, changed_amount, changed_dropoff, changed_both
+            $existingAmount = null;
+            $existingDropOffPointId = null;
+            $existingDropOffPointName = null;
+            $needsConfirmation = false;
+            
             if (!$student) {
-                $status = 'missing_student';
-                $message = 'Student not found by admission number';
+                if (!empty($matchedStudents)) {
+                    $status = 'needs_matching';
+                    $message = 'Multiple students found - please select';
+                } else {
+                    $status = 'missing_student';
+                    $message = 'Student not found';
+                }
             } elseif ($isOwnMeans) {
                 $status = 'own_means';
                 $message = 'Own means transport (no fee)';
             } elseif ($amount === null) {
                 $status = 'missing_amount';
                 $message = 'Amount is missing or invalid (will create drop-off point only)';
+            } else {
+                // Check if transport fee already exists for this student/year/term
+                $existingTransportFee = \App\Models\TransportFee::where('student_id', $student->id)
+                    ->where('year', $year)
+                    ->where('term', $term)
+                    ->first();
+                
+                if ($existingTransportFee) {
+                    $existingAmount = (float) $existingTransportFee->amount;
+                    $existingDropOffPointId = $existingTransportFee->drop_off_point_id;
+                    $existingDropOffPointName = $existingTransportFee->drop_off_point_name;
+                    
+                    $amountChanged = abs($existingAmount - $amount) >= 0.01;
+                    $dropOffChanged = false;
+                    
+                    if ($dropName && !$isOwnMeans) {
+                        $dropOffChanged = ($matchedDrop?->id ?? null) !== $existingDropOffPointId 
+                            && Str::lower($dropName) !== Str::lower($existingDropOffPointName ?? '');
+                    } elseif (!$dropName && $existingDropOffPointId) {
+                        $dropOffChanged = true;
+                    } elseif ($dropName && $existingDropOffPointId && !$matchedDrop) {
+                        // New drop-off point name vs existing
+                        $dropOffChanged = Str::lower($dropName) !== Str::lower($existingDropOffPointName ?? '');
+                    }
+                    
+                    if (!$amountChanged && !$dropOffChanged) {
+                        $changeType = 'existing';
+                        $status = 'already_billed';
+                        $message = 'Already billed';
+                    } else {
+                        if ($amountChanged && $dropOffChanged) {
+                            $changeType = 'changed_both';
+                            $message = "Amount: " . number_format($existingAmount, 2) . " → " . number_format($amount, 2) . 
+                                      " | Drop-off: " . ($existingDropOffPointName ?? 'None') . " → " . ($dropName ?? 'None');
+                        } elseif ($amountChanged) {
+                            $changeType = 'changed_amount';
+                            $message = "Amount changed: " . number_format($existingAmount, 2) . " → " . number_format($amount, 2);
+                        } else {
+                            $changeType = 'changed_dropoff';
+                            $message = "Drop-off changed: " . ($existingDropOffPointName ?? 'None') . " → " . ($dropName ?? 'None');
+                        }
+                        $needsConfirmation = true;
+                    }
+                } else {
+                    $changeType = 'new';
+                }
             }
 
-            if ($status === 'ok') {
-                $total += $amount;
+            if ($status === 'ok' || $needsConfirmation) {
+                $total += $amount ?? 0;
             }
 
             $preview[] = [
@@ -242,11 +332,23 @@ class TransportFeeController extends Controller
                 'student_name' => $student?->full_name ?? ($assoc['student_name'] ?? $assoc['name'] ?? null),
                 'admission_number' => $admission ?: ($student?->admission_number ?? null),
                 'amount' => $amount,
+                'existing_amount' => $existingAmount,
                 'drop_off_point_id' => $matchedDrop?->id,
                 'drop_off_point_name' => $dropName,
+                'existing_drop_off_point_id' => $existingDropOffPointId,
+                'existing_drop_off_point_name' => $existingDropOffPointName,
                 'is_own_means' => $isOwnMeans,
+                'change_type' => $changeType,
+                'needs_confirmation' => $needsConfirmation,
                 'status' => $status,
                 'message' => $message,
+                'matched_students' => !empty($matchedStudents) ? $matchedStudents->map(function($s) {
+                    return [
+                        'id' => $s->id,
+                        'name' => $s->full_name,
+                        'admission_number' => $s->admission_number,
+                    ];
+                })->toArray() : null,
             ];
         }
 
@@ -256,6 +358,7 @@ class TransportFeeController extends Controller
             'preview' => $preview,
             'dropOffPoints' => $dropOffPoints,
             'missingDropOffs' => $missingDropOffs,
+            'studentsToMatch' => $studentsToMatch,
             'year' => $year,
             'term' => $term,
             'total' => $total,
@@ -267,13 +370,18 @@ class TransportFeeController extends Controller
         $request->validate([
             'rows' => 'required|array',
             'dropoff_map' => 'array',
+            'student_matches' => 'nullable|array', // For student matching: row_index => student_id
+            'confirmations' => 'nullable|array', // For confirmations: row_index => 'use_new' or 'keep_existing'
             'year' => 'required|integer',
             'term' => 'required|integer|in:1,2,3',
         ]);
 
         [$year, $term, $academicYearId] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
         $map = $request->input('dropoff_map', []);
+        $studentMatches = $request->input('student_matches', []);
+        $confirmations = $request->input('confirmations', []);
         $createdOrUpdated = 0;
+        $skipped = 0;
         $dropOffPointsCreated = 0;
         $totalAmount = 0;
 
@@ -291,16 +399,40 @@ class TransportFeeController extends Controller
             'is_reversed' => false,
         ]);
 
-        foreach ($request->rows as $encoded) {
+        foreach ($request->rows as $index => $encoded) {
             $row = json_decode(base64_decode($encoded), true);
             
-            // Skip rows without valid student
-            if (!$row || empty($row['student_id'])) {
+            if (!$row) {
                 continue;
             }
 
-            // Skip rows where student is not found
-            if (($row['status'] ?? '') === 'missing_student') {
+            // Handle student matching
+            $studentId = $row['student_id'] ?? null;
+            if (!$studentId && isset($studentMatches[$index])) {
+                $studentId = $studentMatches[$index];
+            }
+            
+            // Skip rows without valid student
+            if (!$studentId || ($row['status'] ?? '') === 'missing_student') {
+                continue;
+            }
+
+            // Skip if already billed with no changes
+            if (($row['status'] ?? '') === 'already_billed' && ($row['change_type'] ?? '') === 'existing') {
+                $skipped++;
+                continue;
+            }
+
+            // Handle confirmations for changes
+            if (($row['needs_confirmation'] ?? false) && isset($confirmations[$index])) {
+                $confirmation = $confirmations[$index];
+                if ($confirmation === 'keep_existing') {
+                    $skipped++;
+                    continue; // Skip this row, keep existing
+                }
+                // If 'use_new', proceed with update
+            } elseif (($row['needs_confirmation'] ?? false)) {
+                // If needs confirmation but not provided, skip
                 continue;
             }
 
@@ -375,7 +507,7 @@ class TransportFeeController extends Controller
                 // Log for debugging (only for status 'ok' to see what's happening)
                 if ($status === 'ok') {
                     Log::info('Transport fee import processing', [
-                        'student_id' => $row['student_id'],
+                        'student_id' => $studentId,
                         'status' => $status,
                         'raw_amount' => $row['amount'] ?? 'not set',
                         'parsed_amount' => $amount,
@@ -385,7 +517,7 @@ class TransportFeeController extends Controller
                 }
                 
                 TransportFeeService::upsertFee([
-                    'student_id' => $row['student_id'],
+                    'student_id' => $studentId,
                     'amount' => $finalAmount,
                     'year' => $year,
                     'term' => $term,
@@ -403,7 +535,7 @@ class TransportFeeController extends Controller
                 }
             } catch (\Throwable $e) {
                 Log::warning('Transport fee import failed', [
-                    'student_id' => $row['student_id'],
+                    'student_id' => $studentId ?? null,
                     'status' => $status,
                     'amount' => $amount,
                     'raw_amount' => $row['amount'] ?? 'not set',
@@ -420,9 +552,18 @@ class TransportFeeController extends Controller
             'total_amount' => $totalAmount,
         ]);
 
+        $message = "{$createdOrUpdated} transport fee(s)";
+        if ($skipped > 0) {
+            $message .= ", {$skipped} skipped (already billed or kept existing)";
+        }
+        if ($dropOffPointsCreated > 0) {
+            $message .= ", {$dropOffPointsCreated} drop-off point(s) created";
+        }
+        $message .= " for Term {$term}, {$year}.";
+
         return redirect()
             ->route('finance.transport-fees.index', ['term' => $term, 'year' => $year])
-            ->with('success', "{$createdOrUpdated} transport fee(s) and drop-off point(s) applied for Term {$term}, {$year}.")
+            ->with('success', $message)
             ->with('import_batch_id', $importBatch->id);
     }
     

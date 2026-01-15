@@ -51,6 +51,8 @@ class FeePostingService
             // Items with other sources (optional, manual, journal) are managed separately
             // BUT if they're also in the fee structure, they should be updated to match, not removed
             // CRITICAL: Respect votehead types - once_annually fees already charged this year should not be removed
+            // CRITICAL: For optional fees (source='optional'), check if they still exist in OptionalFee table
+            // If an optional fee was previously billed but is no longer in OptionalFee table, mark it for removal
             foreach ($existingItems as $existing) {
                 $source = $existing['source'] ?? 'structure';
                 $voteheadId = $existing['votehead_id'];
@@ -68,6 +70,31 @@ class FeePostingService
                     // The item exists and is also in fee structure - it will be handled by the diff calculation above
                     // No need to mark as removed
                     continue;
+                }
+                
+                // For optional fees (source='optional'), check if they still exist in OptionalFee table
+                // If an optional fee was previously billed but is no longer in OptionalFee table, mark it for removal
+                if ($source === 'optional') {
+                    $optionalFeeExists = OptionalFee::where('student_id', $student->id)
+                        ->where('votehead_id', $voteheadId)
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->where('status', 'billed')
+                        ->exists();
+                    
+                    // If optional fee no longer exists, mark the invoice item for removal
+                    if (!$optionalFeeExists) {
+                        $diff = $this->calculateDiff($student, $voteheadId, $existing, [
+                            'votehead_id' => $voteheadId,
+                            'amount' => 0,
+                            'origin' => 'optional',
+                        ]);
+                        if ($diff && isset($diff['action'])) {
+                            $diff['action'] = 'removed';
+                            $diffs->push($diff);
+                        }
+                        continue;
+                    }
                 }
                 
                 // CRITICAL: For once_annually voteheads, if already charged this year, don't remove them
@@ -194,6 +221,43 @@ class FeePostingService
                 $votehead = \App\Models\Votehead::find($diff['votehead_id']);
                 if ($votehead && ($votehead->code === 'BAL_BF' || strtoupper($votehead->code) === 'TRANSPORT')) {
                     continue;
+                }
+                
+                // Handle removals (for optional fees that were previously billed but are now removed)
+                if (isset($diff['action']) && $diff['action'] === 'removed' && $source === 'optional') {
+                    $invoice = Invoice::where('student_id', $diff['student_id'])
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->first();
+                    
+                    if ($invoice) {
+                        $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+                            ->where('votehead_id', $diff['votehead_id'])
+                            ->where('source', 'optional')
+                            ->first();
+                        
+                        if ($existingItem) {
+                            // Create diff record for removal
+                            PostingDiff::create([
+                                'posting_run_id' => $run->id,
+                                'student_id' => $diff['student_id'],
+                                'votehead_id' => $diff['votehead_id'],
+                                'action' => 'removed',
+                                'old_amount' => $existingItem->amount,
+                                'new_amount' => 0,
+                                'invoice_item_id' => $existingItem->id,
+                                'source' => 'optional',
+                            ]);
+                            
+                            // Delete the invoice item
+                            $existingItem->delete();
+                            
+                            // Recalculate invoice
+                            InvoiceService::recalc($invoice);
+                            $count++;
+                        }
+                    }
+                    continue; // Skip to next diff
                 }
                 
                 // Idempotency check: skip if item already exists and is active
