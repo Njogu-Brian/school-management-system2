@@ -21,11 +21,27 @@
     </div>
     <div class="finance-card-body p-4">
       @php
-        $newCount = collect($preview)->where('change_type', 'new')->count();
+        $newCount = collect($preview)->where('change_type', 'new')->where('status', 'ok')->count();
         $existingCount = collect($preview)->where('change_type', 'existing')->count();
         $changedCount = collect($preview)->where('change_type', 'changed')->count();
         $removedCount = count($removals ?? []);
         $needsMatchingCount = collect($preview)->where('status', 'needs_matching')->count();
+        $missingStudentCount = collect($preview)->where('status', 'missing_student')->count();
+        $needsConfirmationCount = collect($preview)->where('needs_confirmation', true)->count();
+        
+        // Group preview by category
+        $groupedPreview = [
+          'new' => collect($preview)->where('change_type', 'new')->where('status', 'ok')->values(),
+          'changed' => collect($preview)->where('change_type', 'changed')->values(),
+          'needs_matching' => collect($preview)->where('status', 'needs_matching')->values(),
+          'missing_student' => collect($preview)->where('status', 'missing_student')->values(),
+          'needs_confirmation' => collect($preview)->where('needs_confirmation', true)->where('status', '!=', 'needs_matching')->values(),
+          'other' => collect($preview)->whereNotIn('change_type', ['new', 'existing', 'changed'])
+            ->where('status', '!=', 'needs_matching')
+            ->where('status', '!=', 'missing_student')
+            ->where('needs_confirmation', false)
+            ->values(),
+        ];
       @endphp
 
       <div class="alert alert-info mb-3">
@@ -37,6 +53,8 @@
             @if($existingCount > 0) <span class="badge bg-secondary">{{ $existingCount }} Already Billed</span> @endif
             @if($removedCount > 0) <span class="badge bg-danger">{{ $removedCount }} Will Be Removed</span> @endif
             @if($needsMatchingCount > 0) <span class="badge bg-warning text-dark">{{ $needsMatchingCount }} Need Matching</span> @endif
+            @if($missingStudentCount > 0) <span class="badge bg-danger">{{ $missingStudentCount }} Missing Student</span> @endif
+            @if($needsConfirmationCount > 0) <span class="badge bg-info">{{ $needsConfirmationCount }} Need Confirmation</span> @endif
           </div>
           <div>
             <strong>Total Amount:</strong> <span class="fw-bold">{{ number_format($totalAmount, 2) }}</span>
@@ -63,95 +81,159 @@
         </div>
       @endif
 
+      @if($missingStudentCount > 0)
+        <div class="alert alert-danger mb-3">
+          <div class="fw-semibold mb-2">Students Not Found</div>
+          <p class="small mb-0">Some students were not found in the system. Please search and select the correct student for each row below.</p>
+        </div>
+      @endif
+
+      @if($needsConfirmationCount > 0)
+        <div class="alert alert-info mb-3">
+          <div class="fw-semibold mb-2">Changes Detected</div>
+          <p class="small mb-0">Some students already have optional fees with different amounts. Please confirm whether to use the new values or keep the existing ones.</p>
+        </div>
+      @endif
+
       <form method="POST" action="{{ route('finance.optional-fees.import.commit') }}" id="importForm">
         @csrf
         <input type="hidden" name="year" value="{{ $year }}">
         <input type="hidden" name="term" value="{{ $term }}">
 
-        @if($newCount > 0 || $changedCount > 0)
-        <h5 class="mb-2">New & Changed Billings</h5>
         <div class="finance-table-wrapper mb-4">
-          <div class="table-responsive">
-            <table class="finance-table align-middle">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Admission #</th>
-                  <th>Votehead Name</th>
-                  <th class="text-end">Amount</th>
-                  <th>Change Type</th>
-                  <th>Status</th>
-                  @if($needsMatchingCount > 0)
-                  <th>Select Student</th>
-                  @endif
-                </tr>
-              </thead>
-              <tbody>
-                @foreach($preview as $index => $row)
-                  @php 
-                    $isOk = in_array($row['status'] ?? '', ['ok', 'already_billed']);
-                    $changeType = $row['change_type'] ?? 'new';
-                    $needsMatching = ($row['status'] ?? '') === 'needs_matching';
-                  @endphp
-                  @if($changeType !== 'existing' || $needsMatching)
-                  <tr class="{{ $isOk ? '' : 'table-warning' }}">
-                    <td>{{ $row['student_name'] ?? '—' }}</td>
-                    <td>{{ $row['admission_number'] ?? '—' }}</td>
-                    <td>{{ $row['votehead_name'] ?? '—' }}</td>
-                    <td class="text-end">
-                      @if($row['existing_amount'] ?? null)
-                        <div>
-                          <span class="text-decoration-line-through text-muted">{{ number_format($row['existing_amount'], 2) }}</span>
-                          <span class="ms-2">{{ number_format($row['amount'], 2) }}</span>
-                        </div>
-                      @else
-                        {{ $row['amount'] !== null ? number_format($row['amount'], 2) : '—' }}
-                      @endif
-                    </td>
-                    <td>
-                      @if($changeType === 'new')
-                        <span class="badge bg-success">New</span>
-                      @elseif($changeType === 'changed')
-                        <span class="badge bg-warning text-dark">Changed</span>
-                      @elseif($changeType === 'existing')
-                        <span class="badge bg-secondary">Existing</span>
-                      @endif
-                    </td>
-                    <td>
-                      @if($isOk && !$needsMatching)
-                        <span class="badge bg-success">Ready</span>
-                      @elseif($needsMatching)
-                        <span class="badge bg-warning text-dark">Select Student</span>
-                      @else
-                        <span class="badge bg-warning text-dark">{{ $row['message'] ?? 'Needs attention' }}</span>
-                      @endif
-                    </td>
-                    @if($needsMatchingCount > 0)
-                    <td>
-                      @if($needsMatching && !empty($row['matched_students']))
-                        <select name="student_matches[{{ $index }}]" class="form-select form-select-sm" required>
-                          <option value="">Select...</option>
-                          @foreach($row['matched_students'] as $match)
-                            <option value="{{ $match['id'] }}">{{ $match['name'] }} ({{ $match['admission_number'] }})</option>
-                          @endforeach
-                        </select>
-                      @else
-                        —
-                      @endif
-                    </td>
-                    @endif
-                  </tr>
-                  @php
-                    $row['row_index'] = $index;
-                  @endphp
-                  <input type="hidden" name="rows[]" value="{{ base64_encode(json_encode($row)) }}">
-                  @endif
-                @endforeach
-              </tbody>
-            </table>
-          </div>
+          @foreach($groupedPreview as $category => $rows)
+            @if($rows->count() > 0)
+              @php
+                $categoryTitles = [
+                  'new' => 'New Entries',
+                  'changed' => 'Changed Entries',
+                  'needs_matching' => 'Students Need Matching',
+                  'missing_student' => 'Students Not Found',
+                  'needs_confirmation' => 'Needs Confirmation',
+                  'other' => 'Other',
+                ];
+                $categoryColors = [
+                  'new' => 'success',
+                  'changed' => 'warning',
+                  'needs_matching' => 'warning',
+                  'missing_student' => 'danger',
+                  'needs_confirmation' => 'info',
+                  'other' => 'secondary',
+                ];
+              @endphp
+              <div class="mb-4">
+                <h5 class="mb-3 d-flex align-items-center gap-2">
+                  <span class="badge bg-{{ $categoryColors[$category] }} fs-6">{{ $rows->count() }}</span>
+                  <span>{{ $categoryTitles[$category] }}</span>
+                </h5>
+                <div class="table-responsive">
+                  <table class="finance-table align-middle">
+                    <thead>
+                      <tr>
+                        <th style="min-width: 200px;">Student</th>
+                        <th style="min-width: 120px;">Admission #</th>
+                        <th style="min-width: 180px;">Votehead Name</th>
+                        <th class="text-end" style="min-width: 120px;">Amount</th>
+                        <th style="min-width: 150px;">Change Type</th>
+                        <th style="min-width: 150px;">Status</th>
+                        <th style="min-width: 200px;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @foreach($rows as $rowIndex => $row)
+                        @php 
+                          $index = array_search($row, $preview);
+                          $isOk = in_array($row['status'] ?? '', ['ok', 'already_billed']);
+                          $changeType = $row['change_type'] ?? 'new';
+                          $needsMatching = ($row['status'] ?? '') === 'needs_matching';
+                          $missingStudent = ($row['status'] ?? '') === 'missing_student';
+                          $needsConfirmation = $row['needs_confirmation'] ?? false;
+                        @endphp
+                        <tr class="{{ $isOk && !$needsMatching && !$needsConfirmation && !$missingStudent ? '' : ($needsConfirmation ? 'table-info' : ($missingStudent ? 'table-danger' : 'table-warning')) }}">
+                          <td>
+                            <div class="fw-semibold">{{ $row['student_name'] ?? '—' }}</div>
+                          </td>
+                          <td>
+                            <code>{{ $row['admission_number'] ?? '—' }}</code>
+                          </td>
+                          <td>{{ $row['votehead_name'] ?? '—' }}</td>
+                          <td class="text-end">
+                            @if($row['existing_amount'] ?? null)
+                              <div class="d-flex flex-column align-items-end">
+                                <span class="text-decoration-line-through text-muted small">
+                                  {{ number_format($row['existing_amount'], 2) }}
+                                </span>
+                                <span class="fw-bold text-success">
+                                  {{ number_format($row['amount'], 2) }}
+                                </span>
+                              </div>
+                            @else
+                              <span class="fw-semibold">{{ $row['amount'] !== null ? number_format($row['amount'], 2) : '—' }}</span>
+                            @endif
+                          </td>
+                          <td>
+                            @if($changeType === 'new')
+                              <span class="badge bg-success">New</span>
+                            @elseif($changeType === 'changed')
+                              <span class="badge bg-warning text-dark">Changed</span>
+                            @elseif($changeType === 'existing')
+                              <span class="badge bg-secondary">Existing</span>
+                            @endif
+                          </td>
+                          <td>
+                            @if($isOk && !$needsMatching && !$needsConfirmation && !$missingStudent)
+                              <span class="badge bg-success">Ready</span>
+                            @elseif($needsMatching)
+                              <span class="badge bg-warning text-dark">Select Student</span>
+                            @elseif($missingStudent)
+                              <span class="badge bg-danger">Student Not Found</span>
+                            @elseif($needsConfirmation)
+                              <span class="badge bg-info">Needs Confirmation</span>
+                            @else
+                              <span class="badge bg-warning text-dark">{{ $row['message'] ?? 'Needs attention' }}</span>
+                            @endif
+                          </td>
+                          <td>
+                            @if($needsMatching && !empty($row['matched_students']))
+                              <select name="student_matches[{{ $index }}]" class="form-select form-select-sm student-match-select" required>
+                                <option value="">Select Student...</option>
+                                @foreach($row['matched_students'] as $match)
+                                  <option value="{{ $match['id'] }}">{{ $match['name'] }} ({{ $match['admission_number'] }})</option>
+                                @endforeach
+                              </select>
+                            @elseif($missingStudent)
+                              <button type="button" class="btn btn-sm btn-outline-primary search-student-btn" 
+                                      data-index="{{ $index }}"
+                                      data-student-name="{{ $row['student_name'] ?? '' }}"
+                                      data-admission="{{ $row['admission_number'] ?? '' }}">
+                                <i class="bi bi-search"></i> Search Student
+                              </button>
+                              <input type="hidden" name="student_matches[{{ $index }}]" class="selected-student-id" value="" required>
+                            @elseif($needsConfirmation)
+                              <div class="btn-group btn-group-sm" role="group">
+                                <input type="radio" class="btn-check" name="confirmations[{{ $index }}]" id="use_new_{{ $index }}" value="use_new" checked>
+                                <label class="btn btn-outline-success" for="use_new_{{ $index }}">Use New</label>
+                                
+                                <input type="radio" class="btn-check" name="confirmations[{{ $index }}]" id="keep_existing_{{ $index }}" value="keep_existing">
+                                <label class="btn btn-outline-secondary" for="keep_existing_{{ $index }}">Keep Existing</label>
+                              </div>
+                            @else
+                              <span class="text-muted">—</span>
+                            @endif
+                          </td>
+                        </tr>
+                        @php
+                          $row['row_index'] = $index;
+                        @endphp
+                        <input type="hidden" name="rows[]" value="{{ base64_encode(json_encode($row)) }}">
+                      @endforeach
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            @endif
+          @endforeach
         </div>
-        @endif
 
         @if($removedCount > 0)
         <h5 class="mb-2 text-danger">Removals (Previously Billed, Not in Import)</h5>
@@ -191,7 +273,7 @@
             Cancel
           </a>
           <button type="submit" class="btn btn-finance btn-finance-primary" 
-            @if($missingVoteheads->count() || $needsMatchingCount > 0) 
+            @if($missingVoteheads->count() || $needsMatchingCount > 0 || $missingStudentCount > 0) 
               id="submitBtn" 
               disabled 
             @endif>
@@ -202,39 +284,98 @@
     </div>
   </div>
 
+  @include('partials.student_search_modal')
+
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const form = document.getElementById('importForm');
       const submitBtn = document.getElementById('submitBtn');
+      let currentSearchIndex = null;
+      
+      // Handle student search for missing students
+      document.querySelectorAll('.search-student-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          currentSearchIndex = this.dataset.index;
+          const studentName = this.dataset.studentName || '';
+          const admission = this.dataset.admission || '';
+          
+          // Pre-fill search input with student name or admission
+          const searchInput = document.getElementById('studentSearchInput');
+          if (searchInput) {
+            searchInput.value = admission || studentName;
+            searchInput.dispatchEvent(new Event('input'));
+          }
+          
+          // Show modal
+          const modal = new bootstrap.Modal(document.getElementById('studentSearchModal'));
+          modal.show();
+        });
+      });
+      
+      // Handle student selection from modal
+      window.addEventListener('studentSelected', function(event) {
+        if (currentSearchIndex !== null) {
+          const student = event.detail;
+          const hiddenInput = document.querySelector(`input[name="student_matches[${currentSearchIndex}]"]`);
+          const btn = document.querySelector(`.search-student-btn[data-index="${currentSearchIndex}"]`);
+          
+          if (hiddenInput) {
+            hiddenInput.value = student.id;
+          }
+          
+          if (btn) {
+            btn.innerHTML = `<i class="bi bi-check-circle"></i> ${student.name} (${student.adm})`;
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-success');
+            btn.disabled = true;
+          }
+          
+          checkIfReady();
+          currentSearchIndex = null;
+        }
+      });
+      
+      // Check if all required fields are filled
+      function checkIfReady() {
+        if (!submitBtn) return;
+        
+        let allFilled = true;
+        
+        // Check student match selects
+        const studentMatchSelects = form.querySelectorAll('select.student-match-select');
+        studentMatchSelects.forEach(select => {
+          if (!select.value) {
+            allFilled = false;
+          }
+        });
+        
+        // Check hidden student inputs (for missing students)
+        const studentHiddenInputs = form.querySelectorAll('input.selected-student-id[required]');
+        studentHiddenInputs.forEach(input => {
+          if (!input.value) {
+            allFilled = false;
+          }
+        });
+        
+        if (allFilled && {{ $missingVoteheads->count() }} === 0) {
+          submitBtn.disabled = false;
+        } else {
+          submitBtn.disabled = true;
+        }
+      }
       
       if (submitBtn && submitBtn.disabled) {
         // Check if all student matches are filled
-        const studentMatchSelects = form.querySelectorAll('select[name^="student_matches"]');
-        let allMatched = true;
+        const studentMatchSelects = form.querySelectorAll('select.student-match-select');
         
         studentMatchSelects.forEach(select => {
-          if (!select.value) {
-            allMatched = false;
-          }
           select.addEventListener('change', function() {
             checkIfReady();
           });
         });
         
-        function checkIfReady() {
-          let allFilled = true;
-          studentMatchSelects.forEach(select => {
-            if (!select.value) {
-              allFilled = false;
-            }
-          });
-          
-          if (allFilled && {{ $missingVoteheads->count() }} === 0) {
-            submitBtn.disabled = false;
-          } else {
-            submitBtn.disabled = true;
-          }
-        }
+        // Also check on page load
+        checkIfReady();
       }
     });
   </script>

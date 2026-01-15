@@ -198,9 +198,11 @@ class OptionalFeeImportController extends Controller
                     'votehead_name' => $voteheadInfo['votehead_name'],
                     'amount' => $amount,
                     'existing_amount' => $existingAmount,
+                    'existing_billing_id' => $existingBilling?->id,
                     'change_type' => $changeType,
                     'status' => $status,
                     'message' => $message,
+                    'needs_confirmation' => $changeType === 'changed',
                     'matched_students' => !empty($matchedStudents) ? $matchedStudents->map(function($s) {
                         return [
                             'id' => $s->id,
@@ -208,6 +210,10 @@ class OptionalFeeImportController extends Controller
                             'admission_number' => $s->admission_number,
                         ];
                     })->toArray() : null,
+                    'original_row_data' => [
+                        'student_name' => $studentName,
+                        'admission_number' => $admission,
+                    ],
                 ];
             }
         }
@@ -268,12 +274,14 @@ class OptionalFeeImportController extends Controller
             'rows' => 'required|array',
             'removals' => 'nullable|array',
             'student_matches' => 'nullable|array', // For student matching: row_index => student_id
+            'confirmations' => 'nullable|array', // For confirmations: row_index => 'use_new' or 'keep_existing'
             'year' => 'required|integer',
             'term' => 'required|integer|in:1,2,3',
         ]);
 
         [$year, $term, $academicYearId] = $this->resolveYearAndTerm($request->year, $request->term);
         $studentMatches = $request->input('student_matches', []);
+        $confirmations = $request->input('confirmations', []);
 
         // Create import batch
         $importBatch = OptionalFeeImport::create([
@@ -300,10 +308,14 @@ class OptionalFeeImportController extends Controller
 
             // Handle student matching
             $studentId = $row['student_id'] ?? null;
-            if (!$studentId && isset($row['row_index']) && isset($studentMatches[$row['row_index']])) {
-                $studentId = $studentMatches[$row['row_index']];
+            if (!$studentId && isset($row['row_index'])) {
+                // Check if student was selected via search for missing students
+                if (isset($studentMatches[$row['row_index']])) {
+                    $studentId = $studentMatches[$row['row_index']];
+                }
             }
             
+            // Skip rows without valid student
             if (!$studentId || ($row['status'] ?? '') === 'missing_student') {
                 continue;
             }
@@ -311,6 +323,19 @@ class OptionalFeeImportController extends Controller
             // Skip if already billed with same amount
             if (($row['status'] ?? '') === 'already_billed' && ($row['change_type'] ?? '') === 'existing') {
                 $skipped++;
+                continue;
+            }
+
+            // Handle confirmations for changed entries
+            if (($row['needs_confirmation'] ?? false) && isset($confirmations[$row['row_index'] ?? ''])) {
+                $confirmation = $confirmations[$row['row_index']];
+                if ($confirmation === 'keep_existing') {
+                    $skipped++;
+                    continue; // Skip this row, keep existing
+                }
+                // If 'use_new', proceed with update (discard old)
+            } elseif (($row['needs_confirmation'] ?? false)) {
+                // If needs confirmation but not provided, skip
                 continue;
             }
 
@@ -322,7 +347,14 @@ class OptionalFeeImportController extends Controller
             }
 
             try {
-                DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $amount, $importBatch) {
+                DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $amount, $importBatch, $row) {
+                    // For changed entries with 'use_new', ensure we use the new amount
+                    $finalAmount = $amount;
+                    if (($row['change_type'] ?? '') === 'changed' && ($row['needs_confirmation'] ?? false)) {
+                        // Use new amount (already set in $amount)
+                        $finalAmount = $amount;
+                    }
+                    
                     // Create or update optional fee
                     OptionalFee::updateOrCreate(
                         [
@@ -333,7 +365,7 @@ class OptionalFeeImportController extends Controller
                         ],
                         [
                             'academic_year_id' => $academicYearId,
-                            'amount' => $amount,
+                            'amount' => $finalAmount,
                             'status' => 'billed',
                             'assigned_by' => auth()->id(),
                             'assigned_at' => now(),
@@ -351,7 +383,7 @@ class OptionalFeeImportController extends Controller
                             'source' => 'optional',
                         ],
                         [
-                            'amount' => $amount,
+                            'amount' => $finalAmount,
                             'status' => 'active',
                             'posted_at' => now(),
                         ]
@@ -359,7 +391,7 @@ class OptionalFeeImportController extends Controller
 
                     // Store original amount if not set
                     if (!$invoiceItem->original_amount) {
-                        $invoiceItem->update(['original_amount' => $amount]);
+                        $invoiceItem->update(['original_amount' => $finalAmount]);
                     }
 
                     // Recalculate invoice
@@ -367,7 +399,7 @@ class OptionalFeeImportController extends Controller
                 });
 
                 $createdOrUpdated++;
-                $totalAmount += $amount;
+                $totalAmount += $finalAmount;
             } catch (\Throwable $e) {
                 Log::warning('Optional fee import failed', [
                     'student_id' => $studentId,
