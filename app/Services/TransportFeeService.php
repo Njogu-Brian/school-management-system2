@@ -228,6 +228,8 @@ class TransportFeeService
                 $item = $existingItem;
             } else {
                 // Create new item
+                $payload['invoice_id'] = $invoice->id;
+                $payload['votehead_id'] = $votehead->id;
                 $payload['original_amount'] = $fee->amount;
                 $item = InvoiceItem::create($payload);
             }
