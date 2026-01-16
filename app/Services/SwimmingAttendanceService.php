@@ -32,6 +32,14 @@ class SwimmingAttendanceService
     }
 
     /**
+     * Get per-visit cost for termly fee students from settings
+     */
+    public function getTermlyPerVisitCost(): float
+    {
+        return (float) setting('swimming_termly_per_visit_cost', 0);
+    }
+
+    /**
      * Check if student has active termly swimming optional fee
      */
     public function hasActiveTermlyFee(Student $student, ?int $year = null, ?int $term = null): ?OptionalFee
@@ -83,12 +91,47 @@ class SwimmingAttendanceService
             // Step 1: Check termly fee
             $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
             $termlyFeeCovered = false;
+            $sessionCost = $perVisitCost;
             
             if ($termlyFee) {
-                $paymentStatus = SwimmingAttendance::STATUS_PAID;
-                $termlyFeeCovered = true;
+                // Student has termly fee - deduct different amount from wallet
+                $termlyPerVisitCost = $this->getTermlyPerVisitCost();
+                $sessionCost = $termlyPerVisitCost > 0 ? $termlyPerVisitCost : 0;
+                
+                if ($sessionCost > 0 && $this->walletService->hasSufficientBalance($student, $sessionCost)) {
+                    // Debit wallet with termly per-visit cost
+                    $attendance = SwimmingAttendance::create([
+                        'student_id' => $student->id,
+                        'classroom_id' => $classroom->id,
+                        'attendance_date' => $date->toDateString(),
+                        'payment_status' => SwimmingAttendance::STATUS_UNPAID, // Will update after debit
+                        'session_cost' => $sessionCost,
+                        'termly_fee_covered' => true,
+                        'notes' => $notes,
+                        'marked_by' => $markedBy?->id ?? auth()->id(),
+                        'marked_at' => now(),
+                    ]);
+                    
+                    try {
+                        $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
+                        $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
+                        $paymentStatus = SwimmingAttendance::STATUS_PAID;
+                        $termlyFeeCovered = true;
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to debit wallet for termly fee attendance', [
+                            'attendance_id' => $attendance->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        // Attendance remains unpaid
+                    }
+                } else {
+                    // If no termly per-visit cost set or insufficient balance, mark as paid (covered by termly fee)
+                    $paymentStatus = SwimmingAttendance::STATUS_PAID;
+                    $termlyFeeCovered = true;
+                    $sessionCost = 0; // No deduction if termly fee covers it
+                }
             } else {
-                // Step 2: Check wallet balance
+                // Step 2: Check wallet balance for non-termly students
                 if ($perVisitCost > 0 && $this->walletService->hasSufficientBalance($student, $perVisitCost)) {
                     // Debit wallet
                     $attendance = SwimmingAttendance::create([
@@ -127,7 +170,7 @@ class SwimmingAttendanceService
                     'classroom_id' => $classroom->id,
                     'attendance_date' => $date->toDateString(),
                     'payment_status' => $paymentStatus,
-                    'session_cost' => $perVisitCost,
+                    'session_cost' => $sessionCost,
                     'termly_fee_covered' => $termlyFeeCovered,
                     'notes' => $notes,
                     'marked_by' => $markedBy?->id ?? auth()->id(),

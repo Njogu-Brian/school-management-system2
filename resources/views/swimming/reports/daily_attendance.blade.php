@@ -73,7 +73,7 @@
                                             {{ $record->student->first_name ?? '' }} {{ $record->student->last_name ?? '' }}
                                         </td>
                                         <td class="text-end">
-                                            <strong>Ksh {{ number_format($record->amount, 2) }}</strong>
+                                            <strong>Ksh {{ number_format($record->session_cost ?? 0, 2) }}</strong>
                                         </td>
                                         <td>
                                             @if($record->payment_status === 'paid')
@@ -91,7 +91,7 @@
                             <tfoot class="table-light">
                                 <tr>
                                     <td colspan="3" class="text-end"><strong>Total:</strong></td>
-                                    <td class="text-end"><strong>Ksh {{ number_format($records->sum('amount'), 2) }}</strong></td>
+                                    <td class="text-end"><strong>Ksh {{ number_format($records->sum('session_cost'), 2) }}</strong></td>
                                     <td colspan="2"></td>
                                 </tr>
                             </tfoot>
@@ -104,7 +104,7 @@
         <!-- Summary -->
         @php
             $totalStudents = $attendance->sum(function($records) { return $records->count(); });
-            $totalAmount = $attendance->flatten()->sum('amount');
+            $totalAmount = $attendance->flatten()->sum('session_cost');
             $paidCount = $attendance->flatten()->where('payment_status', 'paid')->count();
             $unpaidCount = $attendance->flatten()->where('payment_status', 'unpaid')->count();
         @endphp

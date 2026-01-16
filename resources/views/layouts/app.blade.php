@@ -556,16 +556,22 @@
                 const targetEl = document.querySelector(targetSelector);
                 if (!targetEl) return;
                 
-                // If menu should be open (has 'show' class), ensure it stays open
-                if (targetEl.classList.contains('show')) {
+                // Check if any child link is active (for swimming menu)
+                const isSwimmingMenu = targetSelector === '#swimmingMenu';
+                const hasActiveChild = targetEl.querySelector('.active') !== null;
+                const isOnSwimmingPage = window.location.pathname.includes('/swimming');
+                
+                // If menu should be open (has 'show' class or has active child), ensure it stays open
+                if (targetEl.classList.contains('show') || (isSwimmingMenu && isOnSwimmingPage) || hasActiveChild) {
+                    targetEl.classList.add('show');
                     trigger.setAttribute('aria-expanded', 'true');
                     trigger.classList.add('parent-active');
                 }
                 
                 targetEl.addEventListener('shown.bs.collapse', () => trigger.classList.add('parent-active'));
                 targetEl.addEventListener('hidden.bs.collapse', () => {
-                    // Don't close if we're on a swimming page
-                    if (targetSelector === '#swimmingMenu' && window.location.pathname.includes('/swimming')) {
+                    // Don't close if we're on a swimming page or has active child
+                    if ((isSwimmingMenu && isOnSwimmingPage) || targetEl.querySelector('.active')) {
                         targetEl.classList.add('show');
                         trigger.setAttribute('aria-expanded', 'true');
                         trigger.classList.add('parent-active');

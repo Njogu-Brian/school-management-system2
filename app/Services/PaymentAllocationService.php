@@ -4,10 +4,11 @@ namespace App\Services;
 
 use App\Models\{
     Payment, InvoiceItem, PaymentAllocation, Student, Family, User,
-    FeePaymentPlan, FeePaymentPlanInstallment, FeeReminder
+    FeePaymentPlan, FeePaymentPlanInstallment, FeeReminder, OptionalFee
 };
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Payment Allocation Service
@@ -41,13 +42,16 @@ class PaymentAllocationService
                 }
                 
                 // Create allocation
-                PaymentAllocation::create([
+                $paymentAllocation = PaymentAllocation::create([
                     'payment_id' => $payment->id,
                     'invoice_item_id' => $invoiceItem->id,
                     'amount' => $amount,
                     'allocated_by' => auth()->id(),
                     'allocated_at' => now(),
                 ]);
+                
+                // Check if this is a swimming optional fee payment and credit wallet
+                $this->handleSwimmingOptionalFeePayment($invoiceItem, $payment, $amount);
                 
                 $totalAllocated += $amount;
             }
@@ -376,6 +380,86 @@ class PaymentAllocationService
         // Create a new payment record for remaining amount or adjust allocation logic
         // For now, fall back to standard auto-allocation
         return $this->autoAllocate($payment, $studentId);
+    }
+
+    /**
+     * Handle swimming optional fee payment - credit wallet when paid
+     */
+    protected function handleSwimmingOptionalFeePayment(InvoiceItem $invoiceItem, Payment $payment, float $amount): void
+    {
+        try {
+            // Check if invoice item is fully paid
+            if ($invoiceItem->getBalance() > 0) {
+                return; // Not fully paid yet
+            }
+
+            // Check if this is a swimming votehead
+            $votehead = $invoiceItem->votehead;
+            if (!$votehead) {
+                return;
+            }
+
+            $isSwimmingVotehead = false;
+            if (stripos($votehead->name, 'swimming') !== false || 
+                stripos($votehead->code ?? '', 'SWIM') !== false) {
+                $isSwimmingVotehead = true;
+            }
+
+            if (!$isSwimmingVotehead || $votehead->is_mandatory) {
+                return; // Not a swimming optional fee
+            }
+
+            // Find the optional fee for this student and votehead
+            $student = $payment->student;
+            if (!$student) {
+                return;
+            }
+
+            $invoice = $invoiceItem->invoice;
+            $year = $invoice->year ?? (int) setting('current_year', date('Y'));
+            $term = $invoice->term ?? (int) setting('current_term', 1);
+
+            $optionalFee = OptionalFee::where('student_id', $student->id)
+                ->where('votehead_id', $votehead->id)
+                ->where('year', $year)
+                ->where('term', $term)
+                ->where('status', 'billed')
+                ->first();
+
+            if (!$optionalFee) {
+                return; // Optional fee not found
+            }
+
+            // Credit wallet with the full optional fee amount (only once)
+            // Check if wallet was already credited for this optional fee
+            $walletService = app(\App\Services\SwimmingWalletService::class);
+            $ledgerExists = \App\Models\SwimmingLedger::where('student_id', $student->id)
+                ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                ->where('source_id', $optionalFee->id)
+                ->exists();
+
+            if (!$ledgerExists) {
+                // Credit wallet with the full optional fee amount
+                $walletService->creditFromOptionalFee(
+                    $student,
+                    $optionalFee,
+                    (float) $optionalFee->amount,
+                    "Swimming termly fee payment for Term {$optionalFee->term}"
+                );
+
+                Log::info('Swimming wallet credited from termly fee payment', [
+                    'student_id' => $student->id,
+                    'optional_fee_id' => $optionalFee->id,
+                    'amount' => $optionalFee->amount,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to credit swimming wallet from optional fee payment', [
+                'invoice_item_id' => $invoiceItem->id,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
 
