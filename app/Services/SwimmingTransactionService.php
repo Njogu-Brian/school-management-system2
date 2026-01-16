@@ -7,6 +7,7 @@ use App\Models\{
 };
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Swimming Transaction Service
@@ -60,6 +61,16 @@ class SwimmingTransactionService
     public function unmarkAsSwimming(BankStatementTransaction $transaction): void
     {
         DB::transaction(function () use ($transaction) {
+            // Check if allocations table exists
+            if (!Schema::hasTable('swimming_transaction_allocations')) {
+                // Table doesn't exist, safe to unmark
+                $transaction->update([
+                    'is_swimming_transaction' => false,
+                    'swimming_allocated_amount' => 0,
+                ]);
+                return;
+            }
+            
             // Check if any allocations exist
             $allocations = SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
                 ->where('status', '!=', SwimmingTransactionAllocation::STATUS_REVERSED)
@@ -83,6 +94,11 @@ class SwimmingTransactionService
         BankStatementTransaction $transaction,
         array $allocations // [['student_id' => X, 'amount' => Y], ...]
     ): array {
+        // Check if allocations table exists
+        if (!Schema::hasTable('swimming_transaction_allocations')) {
+            throw new \Exception('swimming_transaction_allocations table does not exist. Please run migrations: php artisan migrate');
+        }
+        
         return DB::transaction(function () use ($transaction, $allocations) {
             $totalAllocated = 0;
             $createdAllocations = [];
@@ -133,6 +149,16 @@ class SwimmingTransactionService
      */
     public function processPendingAllocations(?int $allocationId = null): array
     {
+        // Check if allocations table exists
+        if (!Schema::hasTable('swimming_transaction_allocations')) {
+            Log::warning('swimming_transaction_allocations table does not exist. Please run migrations.');
+            return [
+                'processed' => 0,
+                'failed' => 0,
+                'errors' => ['Table swimming_transaction_allocations does not exist. Please run migrations.'],
+            ];
+        }
+        
         $query = SwimmingTransactionAllocation::where('status', SwimmingTransactionAllocation::STATUS_PENDING);
         
         if ($allocationId) {

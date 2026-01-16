@@ -1974,6 +1974,12 @@ class BankStatementController extends Controller
             return; // Not a swimming transaction
         }
         
+        // Check if allocations table exists
+        if (!Schema::hasTable('swimming_transaction_allocations')) {
+            Log::warning('swimming_transaction_allocations table does not exist. Please run migrations.');
+            return;
+        }
+        
         // Check if already processed
         $existingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
             ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
