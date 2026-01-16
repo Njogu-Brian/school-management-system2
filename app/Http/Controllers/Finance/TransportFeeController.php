@@ -446,13 +446,21 @@ class TransportFeeController extends Controller
                 continue;
             }
 
-            // Skip if already billed with no changes
-            if (($row['status'] ?? '') === 'already_billed' && ($row['change_type'] ?? '') === 'existing') {
+            // Determine change type and whether there are actual changes
+            $changeType = $row['change_type'] ?? '';
+            $isAlreadyBilled = ($row['status'] ?? '') === 'already_billed';
+            $hasChanges = in_array($changeType, ['changed_amount', 'changed_dropoff', 'changed_both', 'new']);
+            
+            // Skip ONLY if it's already billed AND has NO changes (change_type is 'existing')
+            // Records with changes (changed_amount, changed_dropoff, changed_both, new) should always be updated
+            if ($isAlreadyBilled && $changeType === 'existing') {
                 $skipped++;
                 continue;
             }
 
             // Handle confirmations for changes
+            // If there are changes, we should process them even if confirmation wasn't explicitly provided
+            // (user wants to update, so proceed with changes)
             if (($row['needs_confirmation'] ?? false) && isset($confirmations[$index])) {
                 $confirmation = $confirmations[$index];
                 if ($confirmation === 'keep_existing') {
@@ -461,8 +469,16 @@ class TransportFeeController extends Controller
                 }
                 // If 'use_new', proceed with update
             } elseif (($row['needs_confirmation'] ?? false)) {
-                // If needs confirmation but not provided, skip
-                continue;
+                // If needs confirmation but not provided:
+                // - If there are changes, proceed anyway (user wants updates)
+                // - If no changes (existing), skip
+                if ($hasChanges) {
+                    // Proceed with update even without explicit confirmation
+                    // User wants changes, so apply them
+                } else {
+                    // No changes and needs confirmation but not provided - skip
+                    continue;
+                }
             }
 
             $status = $row['status'] ?? '';
