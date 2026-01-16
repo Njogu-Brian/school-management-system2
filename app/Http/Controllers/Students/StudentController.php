@@ -1297,7 +1297,7 @@ class StudentController extends Controller
                         );
                     }
                 })
-                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'family_id')
+                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'family_id', 'archive', 'is_alumni')
                 ->orderBy('first_name')
                 ->limit(25)
                 ->get();

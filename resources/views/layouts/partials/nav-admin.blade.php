@@ -417,8 +417,8 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     @php
         $swimmingActive = Request::is('swimming*');
     @endphp
-    <a href="#swimmingMenu" data-bs-toggle="collapse" aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}" class="{{ $swimmingActive ? 'parent-active' : '' }}" @if($swimmingActive) onclick="return false;" @endif><i class="bi bi-water"></i> Swimming Management</a>
-    <div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu" style="padding-left: 20px;" @if($swimmingActive) data-bs-parent="" @endif>
+    <a href="#swimmingMenu" data-bs-toggle="collapse" aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}" class="{{ $swimmingActive ? 'parent-active' : '' }}"><i class="bi bi-water"></i> Swimming Management</a>
+    <div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu" style="padding-left: 20px;">
         <a href="{{ route('swimming.wallets.index') }}" class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Wallets</a>
         <a href="{{ route('swimming.payments.create') }}" class="sublink {{ Request::is('swimming/payments/create') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Create Payment</a>
         <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
