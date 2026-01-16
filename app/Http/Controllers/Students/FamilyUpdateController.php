@@ -253,7 +253,7 @@ class FamilyUpdateController extends Controller
                         
                         // Create document record
                         Document::create([
-                            'title' => "Father ID Document - {$parent->father_name ?? 'Father'}",
+                            'title' => "Father ID Document - " . ($parent->father_name ?: 'Father'),
                             'description' => "Father ID document uploaded via profile update form",
                             'file_path' => $path,
                             'file_name' => $file->getClientOriginalName(),
@@ -281,7 +281,7 @@ class FamilyUpdateController extends Controller
                         
                         // Create document record
                         Document::create([
-                            'title' => "Mother ID Document - {$parent->mother_name ?? 'Mother'}",
+                            'title' => "Mother ID Document - " . ($parent->mother_name ?: 'Mother'),
                             'description' => "Mother ID document uploaded via profile update form",
                             'file_path' => $path,
                             'file_name' => $file->getClientOriginalName(),
