@@ -126,7 +126,10 @@
 
     <div class="col-12 d-flex justify-content-end gap-2">
         <a href="{{ route('communication.logs') }}" class="btn btn-ghost-strong">Cancel</a>
-        <button class="btn btn-settings-primary"><i class="bi bi-send"></i> Send Email</button>
+        <button type="button" class="btn btn-outline-primary" id="preview-email-btn" style="min-width: 120px;">
+            <i class="bi bi-eye"></i> Preview
+        </button>
+        <button type="submit" class="btn btn-settings-primary"><i class="bi bi-send"></i> Send Email</button>
     </div>
 </form>
 
@@ -375,6 +378,71 @@ document.addEventListener('DOMContentLoaded', function() {
             selectedStudentsDisplay.classList.add('d-none');
         }
     });
+
+    // Preview functionality for email
+    const previewEmailBtn = document.getElementById('preview-email-btn');
+    if (previewEmailBtn) {
+        previewEmailBtn.addEventListener('click', function() {
+            const form = document.querySelector('form[action="{{ route("communication.send.email.submit") }}"]');
+            const formData = new FormData(form);
+            
+            let message = '';
+            const templateId = formData.get('template_id');
+            const emailMode = document.querySelector('input[name="email_mode"]:checked')?.value;
+            
+            if (templateId && emailMode === 'template') {
+                message = emailBody?.value || '';
+                if (!message) {
+                    alert('Please select a template or enter a message to preview.');
+                    return;
+                }
+            } else {
+                message = emailBody?.value || '';
+            }
+
+            if (!message) {
+                alert('Please enter a message to preview.');
+                return;
+            }
+
+            const previewForm = document.createElement('form');
+            previewForm.method = 'POST';
+            previewForm.action = '{{ route("communication.preview") }}';
+            previewForm.style.display = 'none';
+            
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = '_token';
+            csrfInput.value = '{{ csrf_token() }}';
+            previewForm.appendChild(csrfInput);
+
+            const messageInput = document.createElement('input');
+            messageInput.type = 'hidden';
+            messageInput.name = 'message';
+            messageInput.value = message;
+            previewForm.appendChild(messageInput);
+
+            const channelInput = document.createElement('input');
+            channelInput.type = 'hidden';
+            channelInput.name = 'channel';
+            channelInput.value = 'email';
+            previewForm.appendChild(channelInput);
+
+            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id'].forEach(field => {
+                const value = formData.get(field);
+                if (value) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = field;
+                    input.value = value;
+                    previewForm.appendChild(input);
+                }
+            });
+
+            document.body.appendChild(previewForm);
+            previewForm.submit();
+        });
+    }
 });
 </script>
 @endpush

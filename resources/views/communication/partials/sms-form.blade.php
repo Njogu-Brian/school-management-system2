@@ -128,7 +128,10 @@
 
     <div class="col-12 d-flex justify-content-end gap-2">
         <a href="{{ route('communication.logs') }}" class="btn btn-ghost-strong">Cancel</a>
-        <button class="btn btn-settings-primary"><i class="bi bi-send"></i> Send SMS</button>
+        <button type="button" class="btn btn-outline-primary" id="preview-sms-btn" style="min-width: 120px;">
+            <i class="bi bi-eye"></i> Preview
+        </button>
+        <button type="submit" class="btn btn-settings-primary"><i class="bi bi-send"></i> Send SMS</button>
     </div>
 </form>
 
@@ -290,6 +293,105 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (smsForm) {
         smsForm.addEventListener('submit', validatePlaceholders);
+    }
+
+    // Preview functionality for SMS
+    const previewBtn = document.getElementById('preview-sms-btn');
+    if (previewBtn) {
+        previewBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const form = smsForm;
+            if (!form) {
+                alert('Form not found. Please refresh the page.');
+                return;
+            }
+            
+            const formData = new FormData(form);
+            
+            // Get message from textarea (works for both template and manual mode)
+            let message = smsBody?.value || '';
+            
+            // If no message in textarea and template is selected, try to get from template
+            if (!message) {
+                const templateId = formData.get('template_id');
+                if (templateId) {
+                    alert('Please enter a message or ensure template content is loaded in the message field.');
+                    return;
+                } else {
+                    alert('Please enter a message to preview.');
+                    return;
+                }
+            }
+
+            // Validate target is selected
+            const target = formData.get('target');
+            if (!target) {
+                alert('Please select a target (e.g., Select Specific Students, Single Student, etc.)');
+                return;
+            }
+
+            // Check if we have student selection for student-specific targets
+            if (target === 'student' && !formData.get('student_id')) {
+                alert('Please select a student to preview the message.');
+                return;
+            }
+            
+            if (target === 'class' && !formData.get('classroom_id')) {
+                alert('Please select a classroom to preview the message.');
+                return;
+            }
+            
+            if (target === 'specific_students') {
+                const selectedIds = formData.get('selected_student_ids');
+                if (!selectedIds || selectedIds.trim() === '') {
+                    alert('Please select at least one student to preview the message.');
+                    return;
+                }
+            }
+
+            // Create preview form
+            const previewForm = document.createElement('form');
+            previewForm.method = 'POST';
+            previewForm.action = '{{ route("communication.preview") }}';
+            previewForm.style.display = 'none';
+            
+            // Add CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = '_token';
+            csrfInput.value = '{{ csrf_token() }}';
+            previewForm.appendChild(csrfInput);
+
+            // Add message
+            const messageInput = document.createElement('input');
+            messageInput.type = 'hidden';
+            messageInput.name = 'message';
+            messageInput.value = message;
+            previewForm.appendChild(messageInput);
+
+            // Add channel
+            const channelInput = document.createElement('input');
+            channelInput.type = 'hidden';
+            channelInput.name = 'channel';
+            channelInput.value = 'sms';
+            previewForm.appendChild(channelInput);
+
+            // Add target data
+            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id'].forEach(field => {
+                const value = formData.get(field);
+                if (value) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = field;
+                    input.value = value;
+                    previewForm.appendChild(input);
+                }
+            });
+
+            document.body.appendChild(previewForm);
+            previewForm.submit();
+        });
     }
 
     // Handle student selection from modal for SMS
