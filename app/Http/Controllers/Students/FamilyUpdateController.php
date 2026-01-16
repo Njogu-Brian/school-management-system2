@@ -193,11 +193,18 @@ class FamilyUpdateController extends Controller
             'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        DB::transaction(function () use ($validated, $family, $students, $link) {
-            $audits = [];
-            $now = now();
-            $source = auth()->check() ? 'admin' : 'public';
-            $userId = auth()->id();
+        try {
+            $result = DB::transaction(function () use ($validated, $family, $students, $link) {
+                $audits = [];
+                $now = now();
+                $source = auth()->check() ? 'admin' : 'public';
+                $userId = auth()->id();
+                
+                \Log::info('FamilyUpdate: Starting transaction', [
+                    'family_id' => $family->id,
+                    'students_count' => count($validated['students'] ?? []),
+                    'user_id' => $userId,
+                ]);
 
             // Update parent info for each student's parent (shared data)
             foreach ($students as $stu) {
@@ -287,9 +294,20 @@ class FamilyUpdateController extends Controller
                         }
                     }
 
-                    $parent->update($parentData);
-                    $parent->save(); // Ensure save happens
+                    \Log::info('FamilyUpdate: Updating parent', [
+                        'parent_id' => $parent->id,
+                        'update_data' => $parentData,
+                    ]);
+                    
+                    $result = $parent->update($parentData);
+                    $saveResult = $parent->save(); // Ensure save happens
                     $parent->refresh(); // Refresh to get updated values
+                    
+                    \Log::info('FamilyUpdate: Parent updated', [
+                        'parent_id' => $parent->id,
+                        'update_result' => $result,
+                        'save_result' => $saveResult,
+                    ]);
                     
                     // Compare after update for audit
                     foreach ($parentData as $field => $value) {
@@ -383,8 +401,12 @@ class FamilyUpdateController extends Controller
             // Update each student - reload from database to ensure fresh data
             foreach ($validated['students'] as $stuData) {
                 // Reload student from database to ensure we have latest data
-                $student = Student::find($stuData['id']);
+                // Use withArchived to bypass global scope in case student is archived
+                $student = Student::withArchived()->find($stuData['id']);
                 if (!$student) {
+                    \Log::warning('FamilyUpdate: Student not found', [
+                        'student_id' => $stuData['id'],
+                    ]);
                     continue;
                 }
                 
@@ -475,14 +497,40 @@ class FamilyUpdateController extends Controller
                     }
                 }
                 
+                \Log::info('FamilyUpdate: Updating student', [
+                    'student_id' => $student->id,
+                    'update_data' => $updateData,
+                ]);
+                
                 // Perform the update - ensure it actually saves
                 $result = $student->update($updateData);
                 
+                if (!$result) {
+                    \Log::error('FamilyUpdate: Student update returned false', [
+                        'student_id' => $student->id,
+                        'update_data' => $updateData,
+                    ]);
+                }
+                
                 // Explicitly save to ensure changes are persisted
-                $student->save();
+                $saveResult = $student->save();
+                
+                if (!$saveResult) {
+                    \Log::error('FamilyUpdate: Student save returned false', [
+                        'student_id' => $student->id,
+                    ]);
+                }
                 
                 // Refresh student to get updated values from database
                 $student->refresh();
+                
+                \Log::info('FamilyUpdate: Student updated', [
+                    'student_id' => $student->id,
+                    'first_name' => $student->first_name,
+                    'last_name' => $student->last_name,
+                    'gender' => $student->gender,
+                    'dob' => $student->dob,
+                ]);
                 
                 // Compare before and after, convert dates for comparison
                 foreach ($fieldsToCheck as $field) {
@@ -594,7 +642,22 @@ class FamilyUpdateController extends Controller
                 $link->last_updated_at = now();
                 $link->save();
             }
+            
+            \Log::info('FamilyUpdate: Transaction completed', [
+                'audits_count' => count($audits),
+                'family_id' => $family->id,
+            ]);
         });
+        
+        } catch (\Exception $e) {
+            \Log::error('FamilyUpdate: Exception during update', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return redirect()->route('family-update.form', $token)
+                ->with('error', 'An error occurred while updating. Please try again.');
+        }
 
         // Clear cached relationships - the redirect will reload fresh data from database
         $family->unsetRelation('students');
