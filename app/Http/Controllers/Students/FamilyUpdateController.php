@@ -193,7 +193,7 @@ class FamilyUpdateController extends Controller
             'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        DB::transaction(function () use ($validated, $family, $students) {
+        DB::transaction(function () use ($validated, $family, $students, $link) {
             $audits = [];
             $now = now();
             $source = auth()->check() ? 'admin' : 'public';
@@ -273,24 +273,51 @@ class FamilyUpdateController extends Controller
                         $parentData['marital_status'] = $validated['marital_status'] ?: null;
                     }
 
+                    // Get before snapshot for parent
+                    $parentBeforeSnapshot = [];
                     foreach ($parentData as $field => $value) {
-                        if ($parent->{$field} != $value) {
+                        $oldValue = $parent->{$field};
+                        // Convert dates/Carbon to string for comparison
+                        if ($oldValue instanceof \Carbon\Carbon) {
+                            $parentBeforeSnapshot[$field] = $oldValue->toDateString();
+                        } elseif ($oldValue instanceof \DateTime) {
+                            $parentBeforeSnapshot[$field] = $oldValue->format('Y-m-d');
+                        } else {
+                            $parentBeforeSnapshot[$field] = $oldValue;
+                        }
+                    }
+
+                    $parent->update($parentData);
+                    $parent->save(); // Ensure save happens
+                    $parent->refresh(); // Refresh to get updated values
+                    
+                    // Compare after update for audit
+                    foreach ($parentData as $field => $value) {
+                        $afterValue = $parent->{$field};
+                        // Convert dates/Carbon to string for comparison
+                        if ($afterValue instanceof \Carbon\Carbon) {
+                            $afterValue = $afterValue->toDateString();
+                        } elseif ($afterValue instanceof \DateTime) {
+                            $afterValue = $afterValue->format('Y-m-d');
+                        }
+                        
+                        $beforeValue = $parentBeforeSnapshot[$field] ?? null;
+                        
+                        // Compare as strings to handle type differences
+                        if ((string)$beforeValue !== (string)$afterValue) {
                             $audits[] = [
                                 'family_id' => $family->id,
                                 'student_id' => $stu->id,
                                 'changed_by_user_id' => $userId,
                                 'source' => $source,
                                 'field' => 'parent.' . $field,
-                                'before' => $parent->{$field},
-                                'after' => $value,
+                                'before' => $parentBeforeSnapshot[$field],
+                                'after' => $parent->{$field},
                                 'created_at' => $now,
                                 'updated_at' => $now,
                             ];
                         }
                     }
-
-                    $parent->update($parentData);
-                    $parent->refresh(); // Refresh to get updated values
 
                     // Handle parent ID uploads - save to Document model
                     if (request()->hasFile('father_id_document')) {
@@ -353,9 +380,10 @@ class FamilyUpdateController extends Controller
                 }
             }
 
-            // Update each student
+            // Update each student - reload from database to ensure fresh data
             foreach ($validated['students'] as $stuData) {
-                $student = $students->firstWhere('id', $stuData['id']);
+                // Reload student from database to ensure we have latest data
+                $student = Student::find($stuData['id']);
                 if (!$student) {
                     continue;
                 }
@@ -433,14 +461,43 @@ class FamilyUpdateController extends Controller
                 }
                 
                 $fieldsToCheck = array_keys($updateData);
-                $beforeSnapshot = $student->only($fieldsToCheck);
-                
-                $student->update($updateData);
-                
-                // Refresh student to get updated values
-                $student->refresh();
+                // Get before snapshot - convert dates to strings for comparison
+                $beforeSnapshot = [];
                 foreach ($fieldsToCheck as $field) {
-                    if ($beforeSnapshot[$field] != $student->{$field}) {
+                    $value = $student->{$field};
+                    // Convert dates/Carbon to string for comparison
+                    if ($value instanceof \Carbon\Carbon) {
+                        $beforeSnapshot[$field] = $value->toDateString();
+                    } elseif ($value instanceof \DateTime) {
+                        $beforeSnapshot[$field] = $value->format('Y-m-d');
+                    } else {
+                        $beforeSnapshot[$field] = $value;
+                    }
+                }
+                
+                // Perform the update - ensure it actually saves
+                $result = $student->update($updateData);
+                
+                // Explicitly save to ensure changes are persisted
+                $student->save();
+                
+                // Refresh student to get updated values from database
+                $student->refresh();
+                
+                // Compare before and after, convert dates for comparison
+                foreach ($fieldsToCheck as $field) {
+                    $afterValue = $student->{$field};
+                    // Convert dates/Carbon to string for comparison
+                    if ($afterValue instanceof \Carbon\Carbon) {
+                        $afterValue = $afterValue->toDateString();
+                    } elseif ($afterValue instanceof \DateTime) {
+                        $afterValue = $afterValue->format('Y-m-d');
+                    }
+                    
+                    $beforeValue = $beforeSnapshot[$field] ?? null;
+                    
+                    // Compare as strings to handle date differences
+                    if ((string)$beforeValue !== (string)$afterValue) {
                         $audits[] = [
                             'family_id' => $family->id,
                             'student_id' => $student->id,
@@ -516,12 +573,23 @@ class FamilyUpdateController extends Controller
                 }
                 
                 $student->save();
+                
+                // Ensure changes are persisted immediately
+                $student->refresh();
             }
 
+            // Always insert audits if we have any, even if empty
             if (!empty($audits)) {
-                FamilyUpdateAudit::insert($audits);
-                
-                // Track update count on the link
+                try {
+                    FamilyUpdateAudit::insert($audits);
+                } catch (\Exception $e) {
+                    // Log error but don't fail the transaction
+                    \Log::error('Failed to insert family update audits: ' . $e->getMessage());
+                }
+            }
+            
+            // Track update count on the link if we have any student updates
+            if (!empty($validated['students'])) {
                 $link->increment('update_count');
                 $link->last_updated_at = now();
                 $link->save();
