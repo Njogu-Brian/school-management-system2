@@ -4,8 +4,9 @@ namespace App\Http\Controllers\Swimming;
 
 use App\Http\Controllers\Controller;
 use App\Models\{
-    SwimmingAttendance, Student, Classroom
+    SwimmingAttendance, Student
 };
+use App\Models\Academics\Classroom;
 use App\Services\SwimmingAttendanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

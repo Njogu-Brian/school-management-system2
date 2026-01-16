@@ -19,14 +19,16 @@ class SwimmingReportController extends Controller
         $classroomId = $request->get('classroom_id');
         
         $query = SwimmingAttendance::with(['student', 'classroom'])
-            ->whereDate('attendance_date', $date);
+            ->join('students', 'swimming_attendance.student_id', '=', 'students.id')
+            ->whereDate('swimming_attendance.attendance_date', $date);
         
         if ($classroomId) {
-            $query->where('classroom_id', $classroomId);
+            $query->where('swimming_attendance.classroom_id', $classroomId);
         }
         
-        $attendance = $query->orderBy('classroom_id')
-            ->orderBy('student.first_name')
+        $attendance = $query->select('swimming_attendance.*')
+            ->orderBy('swimming_attendance.classroom_id')
+            ->orderBy('students.first_name')
             ->get()
             ->groupBy('classroom_id');
         
