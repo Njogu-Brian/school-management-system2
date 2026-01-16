@@ -1269,13 +1269,19 @@ class StudentController extends Controller
                 return response()->json([]);
             }
 
+            // Check if we should include alumni and archived students (for manual assignment only)
+            $includeAlumniArchived = $request->boolean('include_alumni_archived', false);
+
             // Normalize for case-insensitive name search and admission search without spaces/punctuation
             $searchTerm = '%' . addcslashes(mb_strtolower($q, 'UTF-8'), '%_\\') . '%';
             $normalizedAdmission = mb_strtolower(preg_replace('/[^a-zA-Z0-9]/', '', $q), 'UTF-8');
 
             $students = Student::query()
-                ->where('archive', 0) // Only non-archived students
-                ->where('is_alumni', false) // Exclude alumni students
+                ->when(!$includeAlumniArchived, function($query) {
+                    // Exclude alumni and archived students by default
+                    $query->where('archive', 0)
+                          ->where('is_alumni', false);
+                })
                 ->with('classroom')
                 ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
                     $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
@@ -1299,14 +1305,18 @@ class StudentController extends Controller
             return response()->json($students->map(function ($st) {
                 $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
                 
-                // Get siblings
+                // Get siblings (only include non-archived, non-alumni siblings unless include_alumni_archived is true)
                 $siblings = [];
                 if ($st->family_id) {
-                    $siblings = Student::where('family_id', $st->family_id)
-                        ->where('id', '!=', $st->id)
-                        ->where('archive', 0)
-                        ->where('is_alumni', false)
-                        ->select('id', 'first_name', 'last_name', 'admission_number')
+                    $siblingsQuery = Student::where('family_id', $st->family_id)
+                        ->where('id', '!=', $st->id);
+                    
+                    if (!$includeAlumniArchived) {
+                        $siblingsQuery->where('archive', 0)
+                                     ->where('is_alumni', false);
+                    }
+                    
+                    $siblings = $siblingsQuery->select('id', 'first_name', 'last_name', 'admission_number')
                         ->get()
                         ->toArray();
                 }
@@ -1320,6 +1330,8 @@ class StudentController extends Controller
                     'admission_number' => $st->admission_number ?? '',
                     'classroom_name' => optional($st->classroom)->name,
                     'family_id' => $st->family_id,
+                    'is_alumni' => $st->is_alumni ?? false,
+                    'is_archived' => $st->archive ?? false,
                 ];
             }));
         } catch (\Exception $e) {

@@ -429,14 +429,30 @@
                         </p>
                         <div id="siblingAllocations">
                             @php
-                                $currentStudentBalance = $bankStatement->student ? \App\Services\StudentBalanceService::getTotalOutstandingBalance($bankStatement->student) : 0;
+                                $isSwimming = \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+                                    && $bankStatement->is_swimming_transaction;
+                                
+                                if ($isSwimming) {
+                                    // Get swimming wallet balance
+                                    $currentStudentWallet = $bankStatement->student 
+                                        ? \App\Models\SwimmingWallet::getOrCreateForStudent($bankStatement->student->id) 
+                                        : null;
+                                    $currentStudentBalance = $currentStudentWallet ? $currentStudentWallet->balance : 0;
+                                    $balanceLabel = 'Swimming Balance';
+                                } else {
+                                    // Get fee balance
+                                    $currentStudentBalance = $bankStatement->student 
+                                        ? \App\Services\StudentBalanceService::getTotalOutstandingBalance($bankStatement->student) 
+                                        : 0;
+                                    $balanceLabel = 'Balance';
+                                }
                             @endphp
                             @if($bankStatement->student)
                                 <div class="mb-3 p-3 border rounded">
                                     <label class="form-label">
                                         <strong>{{ $bankStatement->student->first_name }} {{ $bankStatement->student->last_name }}</strong>
                                         <small class="text-muted">({{ $bankStatement->student->admission_number }})</small>
-                                        <br><small class="text-danger">Balance: Ksh {{ number_format($currentStudentBalance, 2) }}</small>
+                                        <br><small class="text-danger">{{ $balanceLabel }}: Ksh {{ number_format($currentStudentBalance, 2) }}</small>
                                     </label>
                                     <input type="hidden" name="allocations[0][student_id]" value="{{ $bankStatement->student->id }}">
                                     <input type="number" 
@@ -454,13 +470,22 @@
                             @endif
                             @foreach($siblings as $sibling)
                                 @php
-                                    $siblingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($sibling);
+                                    if ($isSwimming) {
+                                        // Get swimming wallet balance
+                                        $siblingWallet = \App\Models\SwimmingWallet::getOrCreateForStudent($sibling->id);
+                                        $siblingBalance = $siblingWallet->balance;
+                                        $siblingBalanceLabel = 'Swimming Balance';
+                                    } else {
+                                        // Get fee balance
+                                        $siblingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($sibling);
+                                        $siblingBalanceLabel = 'Balance';
+                                    }
                                 @endphp
                                 <div class="mb-3 p-3 border rounded">
                                     <label class="form-label">
                                         <strong>{{ $sibling->first_name }} {{ $sibling->last_name }}</strong>
                                         <small class="text-muted">({{ $sibling->admission_number }})</small>
-                                        <br><small class="text-danger">Balance: Ksh {{ number_format($siblingBalance, 2) }}</small>
+                                        <br><small class="text-danger">{{ $siblingBalanceLabel }}: Ksh {{ number_format($siblingBalance, 2) }}</small>
                                     </label>
                                     <input type="hidden" name="allocations[{{ $bankStatement->student ? $loop->index + 1 : $loop->index }}][student_id]" value="{{ $sibling->id }}">
                                     <input type="number" 
@@ -679,7 +704,8 @@ function searchStudents() {
     }
     
     searchTimeout = setTimeout(() => {
-        fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+        // Include alumni and archived students for manual assignment
+        fetch(`/api/students/search?q=${encodeURIComponent(query)}&include_alumni_archived=1`)
             .then(response => response.json())
             .then(data => {
                 displaySearchResults(data);
@@ -706,7 +732,8 @@ function searchStudentsForShare() {
     }
     
     searchTimeout = setTimeout(() => {
-        fetch(`/api/students/search?q=${encodeURIComponent(query)}`)
+        // Include alumni and archived students for manual assignment
+        fetch(`/api/students/search?q=${encodeURIComponent(query)}&include_alumni_archived=1`)
             .then(response => response.json())
             .then(data => {
                 displayShareSearchResults(data);
@@ -882,6 +909,64 @@ function updateShareTotal() {
 }
 
 function displaySearchResults(students) {
+    const resultsContainer = document.getElementById('studentSearchResults');
+    
+    if (students.length === 0) {
+        resultsContainer.innerHTML = '<div class="text-muted p-3">No students found</div>';
+        return;
+    }
+    
+    let html = '';
+    students.forEach((student, index) => {
+        const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
+        const isAlumni = student.is_alumni || false;
+        const isArchived = student.is_archived || false;
+        let statusBadges = '';
+        
+        if (isAlumni) {
+            statusBadges += '<span class="badge bg-warning text-dark ms-2">Alumni</span>';
+        }
+        if (isArchived) {
+            statusBadges += '<span class="badge bg-secondary ms-2">Archived</span>';
+        }
+        
+        html += `
+            <div class="list-group-item list-group-item-action" onclick="selectStudentForAssignment(${student.id}, '${escapeHtml(studentName)}', '${escapeHtml(student.admission_number || 'N/A')}')">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${escapeHtml(studentName)}</strong>${statusBadges}
+                        <br><small class="text-muted">Admission: ${escapeHtml(student.admission_number || 'N/A')}</small>
+                        ${student.classroom_name ? `<br><small class="text-muted">Class: ${escapeHtml(student.classroom_name)}</small>` : ''}
+                    </div>
+                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary">Select</button>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsContainer.innerHTML = html;
+}
+
+function selectStudentForAssignment(studentId, studentName, admissionNumber) {
+    // Create a form and submit it
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ route("finance.bank-statements.update", $bankStatement) }}';
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
+    
+    form.innerHTML = `
+        @csrf
+        @method('PUT')
+        <input type="hidden" name="student_id" value="${studentId}">
+        <input type="hidden" name="match_notes" value="Manually assigned">
+    `;
+    
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function displaySearchResultsOld(students) {
     const resultsContainer = document.getElementById('studentSearchResults');
     
     if (students.length === 0) {

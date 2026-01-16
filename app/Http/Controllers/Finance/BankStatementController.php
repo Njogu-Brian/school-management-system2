@@ -530,7 +530,12 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Transaction must be matched to a student or shared before confirming']);
         }
 
-        DB::transaction(function () use ($bankStatement) {
+        // Check if this is a swimming transaction (refresh to get latest value)
+        $bankStatement->refresh();
+        $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+            && $bankStatement->is_swimming_transaction;
+
+        DB::transaction(function () use ($bankStatement, $isSwimming) {
             // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
             $matchNotes = $bankStatement->match_notes ?? '';
             if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
@@ -544,8 +549,12 @@ class BankStatementController extends Controller
                 $bankStatement->update(['match_notes' => $matchNotes]);
             }
 
-            // Create payment if not already created
-            if (!$bankStatement->payment_created) {
+            if ($isSwimming) {
+                // Handle swimming transaction - allocate to swimming wallets
+                $this->processSwimmingTransaction($bankStatement);
+            } else {
+                // Create payment for fee allocation if not already created
+                if (!$bankStatement->payment_created) {
                 try {
                     // Check if payment already exists for this transaction
                     $existingPayment = null;
@@ -603,11 +612,16 @@ class BankStatementController extends Controller
                     throw $e;
                 }
             }
+            }
         });
 
+        $message = $isSwimming 
+            ? 'Transaction confirmed and allocated to swimming wallets'
+            : 'Transaction confirmed and payment created';
+            
         return redirect()
             ->route('finance.bank-statements.show', $bankStatement)
-            ->with('success', 'Transaction confirmed and payment created');
+            ->with('success', $message);
     }
 
     /**
@@ -893,18 +907,55 @@ class BankStatementController extends Controller
                     }
                 }
                 
-                $confirmed++;
+                // Refresh to get latest swimming status
+                $transaction->refresh();
                 
-                Log::info('Bulk confirmed transaction', [
-                    'transaction_id' => $transaction->id,
-                    'student_id' => $transaction->student_id,
-                ]);
+                // Check if this is a swimming transaction
+                $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+                    && $transaction->is_swimming_transaction;
+                
+                if ($isSwimming) {
+                    // Process swimming transaction - allocate to swimming wallets
+                    try {
+                        $this->processSwimmingTransaction($transaction);
+                        Log::info('Bulk confirmed swimming transaction', [
+                            'transaction_id' => $transaction->id,
+                            'student_id' => $transaction->student_id,
+                        ]);
+                    } catch (\Exception $e) {
+                        $errors[] = "Transaction #{$transactionId} (swimming): " . $e->getMessage();
+                        Log::error('Failed to process swimming transaction', [
+                            'transaction_id' => $transaction->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                } else {
+                    Log::info('Bulk confirmed transaction', [
+                        'transaction_id' => $transaction->id,
+                        'student_id' => $transaction->student_id,
+                    ]);
+                }
+                
+                $confirmed++;
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
             }
         }
 
-        $message = "Confirmed {$confirmed} transaction(s). Use Auto-Assign to create payments.";
+        $swimmingCount = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('is_swimming_transaction', true)
+            ->where('status', 'confirmed')
+            ->count();
+        
+        $feeCount = $confirmed - $swimmingCount;
+        
+        $message = "Confirmed {$confirmed} transaction(s).";
+        if ($swimmingCount > 0) {
+            $message .= " {$swimmingCount} allocated to swimming wallets.";
+        }
+        if ($feeCount > 0) {
+            $message .= " {$feeCount} ready for fee allocation (use Auto-Assign to create payments).";
+        }
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
         }
@@ -1049,13 +1100,22 @@ class BankStatementController extends Controller
 
         // Only process CONFIRMED transactions that need payment creation
         // Exclude rejected transactions - they should never be auto-assigned
+        // Exclude swimming transactions - they are handled during confirmation
         // Get ALL confirmed transactions with student_id or shared allocations, regardless of match_status
         // This includes: matched, manual, multiple_matches, draft (low confidence), and unmatched
         // As long as they have a student_id or are shared, they can be processed
+        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        
         $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
             ->where('is_duplicate', false)
             ->where('is_archived', false)
             ->where('payment_created', false)
+            ->when($hasSwimmingColumn, function($q) {
+                $q->where(function($subQ) {
+                    $subQ->where('is_swimming_transaction', false)
+                         ->orWhereNull('is_swimming_transaction');
+                });
+            })
             ->where(function($query) {
                 $query->whereNotNull('student_id')
                       ->orWhere(function($q) {
@@ -1064,18 +1124,25 @@ class BankStatementController extends Controller
                       });
             });
         
-        // Also get confirmed unmatched transactions to try matching first
-        // Exclude manually rejected transactions (they require manual assignment)
-        // Also exclude transactions that already have payments created
-        $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
-            ->where('match_status', 'unmatched')
-            ->where('payment_created', false) // Only process unmatched transactions without payments
-            ->where('is_duplicate', false)
-            ->where('is_archived', false)
-            ->where(function($query) {
-                $query->whereNull('match_notes')
-                      ->orWhere('match_notes', 'NOT LIKE', '%MANUALLY_REJECTED%');
-            });
+            // Also get confirmed unmatched transactions to try matching first
+            // Exclude manually rejected transactions (they require manual assignment)
+            // Also exclude transactions that already have payments created
+            // Exclude swimming transactions - they are handled during confirmation
+            $unmatchedQuery = BankStatementTransaction::where('status', 'confirmed')
+                ->where('match_status', 'unmatched')
+                ->where('payment_created', false) // Only process unmatched transactions without payments
+                ->where('is_duplicate', false)
+                ->where('is_archived', false)
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
+                ->where(function($query) {
+                    $query->whereNull('match_notes')
+                          ->orWhere('match_notes', 'NOT LIKE', '%MANUALLY_REJECTED%');
+                });
         
         // Get all confirmed transactions for re-analysis
         // Exclude rejected transactions and already collected ones
@@ -1213,17 +1280,30 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->whereIn('id', $transactionIds)
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->where(function($query) {
                     $query->whereNull('match_notes')
                           ->orWhere('match_notes', 'NOT LIKE', '%MANUALLY_REJECTED%');
                 });
             
             // Get ALL confirmed transactions with student_id or shared allocations, regardless of match_status
+            // Exclude swimming transactions - they are handled during confirmation
             $matchedQuery = BankStatementTransaction::where('status', 'confirmed')
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('payment_created', false)
                 ->whereIn('id', $transactionIds)
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->where(function($query) {
                     $query->whereNotNull('student_id')
                           ->orWhere(function($q) {
@@ -1881,6 +1961,63 @@ class BankStatementController extends Controller
         return redirect()
             ->route('finance.bank-statements.index')
             ->with($errors ? 'warning' : 'success', $message);
+    }
+
+    /**
+     * Process swimming transaction - allocate to swimming wallets
+     */
+    protected function processSwimmingTransaction(BankStatementTransaction $transaction): void
+    {
+        // Check if already allocated
+        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        if (!$hasSwimmingColumn || !$transaction->is_swimming_transaction) {
+            return; // Not a swimming transaction
+        }
+        
+        // Check if already processed
+        $existingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
+            ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+            ->exists();
+        
+        if ($existingAllocations) {
+            // Already allocated, just process pending allocations
+            $this->swimmingTransactionService->processPendingAllocations();
+            return;
+        }
+        
+        // Create allocations based on student assignment
+        $allocations = [];
+        
+        if ($transaction->is_shared && $transaction->shared_allocations) {
+            // Shared payment - allocate to multiple students
+            foreach ($transaction->shared_allocations as $allocation) {
+                $allocations[] = [
+                    'student_id' => $allocation['student_id'],
+                    'amount' => $allocation['amount'],
+                ];
+            }
+        } elseif ($transaction->student_id) {
+            // Single student payment
+            $allocations[] = [
+                'student_id' => $transaction->student_id,
+                'amount' => $transaction->amount,
+            ];
+        }
+        
+        if (empty($allocations)) {
+            throw new \Exception('No students assigned to transaction');
+        }
+        
+        // Create swimming allocations
+        $this->swimmingTransactionService->allocateToStudents($transaction, $allocations);
+        
+        // Process allocations to credit wallets
+        $this->swimmingTransactionService->processPendingAllocations();
+        
+        Log::info('Swimming transaction processed', [
+            'transaction_id' => $transaction->id,
+            'allocations_count' => count($allocations),
+        ]);
     }
 
     /**

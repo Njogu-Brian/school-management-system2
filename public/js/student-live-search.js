@@ -15,6 +15,7 @@
         const resultsId = wrapper.dataset.results;
         const enableId = wrapper.dataset.enable;
         const customUrl = wrapper.dataset.searchUrl || '';
+        const includeAlumniArchived = wrapper.dataset.includeAlumniArchived === '1';
 
         const hidden = document.getElementById(hiddenId);
         const input = document.getElementById(displayId);
@@ -32,7 +33,17 @@
                 const a = document.createElement('a');
                 a.href = '#';
                 a.className = 'list-group-item list-group-item-action';
-                a.textContent = `${stu.full_name} (${stu.admission_number})`;
+                
+                // Add badges for alumni/archived if applicable
+                let badges = '';
+                if (stu.is_alumni) {
+                    badges += ' <span class="badge bg-warning text-dark">Alumni</span>';
+                }
+                if (stu.is_archived) {
+                    badges += ' <span class="badge bg-secondary">Archived</span>';
+                }
+                
+                a.innerHTML = `${stu.full_name} (${stu.admission_number})${badges}`;
                 a.addEventListener('click', (e) => {
                     e.preventDefault();
                     hidden.value = stu.id;
@@ -61,9 +72,15 @@
             if (customUrl) urls.push(customUrl);
             urls.push(defaultUrl, apiFallback);
 
+            // Build query string with include_alumni_archived parameter if needed
+            const queryParams = new URLSearchParams({ q });
+            if (includeAlumniArchived) {
+                queryParams.append('include_alumni_archived', '1');
+            }
+
             for (const url of urls.filter(Boolean)) {
                 try {
-                    const res = await fetch(`${url}?q=${encodeURIComponent(q)}`, {
+                    const res = await fetch(`${url}?${queryParams.toString()}`, {
                         headers: {
                             Accept: 'application/json',
                             'X-Requested-With': 'XMLHttpRequest',
