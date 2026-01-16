@@ -385,6 +385,7 @@ class TransportFeeController extends Controller
         $skipRows = $request->input('skip_rows', []);
         $createdOrUpdated = 0;
         $skipped = 0;
+        $failed = 0;
         $dropOffPointsCreated = 0;
         $totalAmount = 0;
 

@@ -537,7 +537,7 @@ class OptionalFeeImportController extends Controller
 
         $keptCount = count($removals) - $removed;
         
-        $message = "{$createdOrUpdated} optional fee(s) imported";
+        $message = "{$createdOrUpdated} optional fee(s) imported successfully";
         if ($skipped > 0) {
             $message .= ", {$skipped} skipped (already billed or marked to skip)";
         }
@@ -547,11 +547,16 @@ class OptionalFeeImportController extends Controller
         if ($keptCount > 0) {
             $message .= ", {$keptCount} kept (not removed)";
         }
+        if ($failed > 0) {
+            $message .= ", {$failed} failed (check logs for details)";
+        }
         $message .= " for Term {$term}, {$year}.";
+
+        $alertType = $failed > 0 ? 'warning' : 'success';
 
         return redirect()
             ->route('finance.optional_fees.index')
-            ->with('success', $message)
+            ->with($alertType, $message)
             ->with('import_batch_id', $importBatch->id);
     }
 
