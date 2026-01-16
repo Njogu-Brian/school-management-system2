@@ -315,7 +315,7 @@
             <i class="bi bi-x-circle"></i> Cancel
           </a>
           <button type="submit" class="btn btn-finance btn-finance-primary" 
-            @if($needsMatchingCount > 0 || $missingStudentCount > 0) 
+            @if($needsMatchingCount > 0 || ($missingStudentCount > 0 && !request('allow_skip'))) 
               id="submitBtn" 
               disabled 
             @endif>
@@ -455,10 +455,14 @@
           }
         });
         
+        // Enable button if all required fields are filled
+        // Note: needs_confirmation items don't block since they have default values
         if (allFilled) {
           submitBtn.disabled = false;
+          submitBtn.classList.remove('opacity-50');
         } else {
           submitBtn.disabled = true;
+          submitBtn.classList.add('opacity-50');
         }
       }
       
