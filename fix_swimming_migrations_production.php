@@ -20,7 +20,8 @@ use Illuminate\Support\Facades\Schema;
 echo "Starting swimming migrations fix for production...\n\n";
 
 try {
-    DB::beginTransaction();
+    // Note: DDL operations (CREATE TABLE, ALTER TABLE) auto-commit in MySQL
+    // So we don't wrap everything in a transaction, but handle errors manually
 
     // Step 1: Check if swimming_attendance table exists
     $attendanceExists = Schema::hasTable('swimming_attendance');
@@ -140,8 +141,7 @@ try {
         }
     }
 
-    DB::commit();
-    
+    // All operations completed successfully
     echo "\n✅ All fixes applied successfully!\n";
     echo "\nNext steps:\n";
     echo "1. The migrations table has been updated with the correct order\n";
@@ -149,8 +149,9 @@ try {
     echo "3. The migration files should be renamed locally to match the corrected order\n";
     
 } catch (\Exception $e) {
-    DB::rollBack();
     echo "\n❌ Error: " . $e->getMessage() . "\n";
     echo "Stack trace:\n" . $e->getTraceAsString() . "\n";
+    echo "\n⚠️  Note: Some operations may have completed before the error.\n";
+    echo "Please check the database state and re-run if necessary.\n";
     exit(1);
 }

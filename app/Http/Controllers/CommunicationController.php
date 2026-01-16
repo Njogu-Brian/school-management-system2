@@ -606,10 +606,12 @@ class CommunicationController extends Controller
 
             return view('communication.preview', [
                 'message' => $previewMessage,
+                'originalMessage' => $data['message'],
                 'channel' => $data['channel'],
                 'student' => $firstStudent,
                 'parentName' => $parentName,
                 'parentContact' => $parentContact,
+                'formData' => $data, // Pass all form data for sending
             ]);
         } catch (\Exception $e) {
             \Log::error('Preview error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
