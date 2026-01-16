@@ -555,8 +555,24 @@
                 if (!targetSelector) return;
                 const targetEl = document.querySelector(targetSelector);
                 if (!targetEl) return;
+                
+                // If menu should be open (has 'show' class), ensure it stays open
+                if (targetEl.classList.contains('show')) {
+                    trigger.setAttribute('aria-expanded', 'true');
+                    trigger.classList.add('parent-active');
+                }
+                
                 targetEl.addEventListener('shown.bs.collapse', () => trigger.classList.add('parent-active'));
-                targetEl.addEventListener('hidden.bs.collapse', () => trigger.classList.remove('parent-active'));
+                targetEl.addEventListener('hidden.bs.collapse', () => {
+                    // Don't close if we're on a swimming page
+                    if (targetSelector === '#swimmingMenu' && window.location.pathname.includes('/swimming')) {
+                        targetEl.classList.add('show');
+                        trigger.setAttribute('aria-expanded', 'true');
+                        trigger.classList.add('parent-active');
+                    } else {
+                        trigger.classList.remove('parent-active');
+                    }
+                });
             });
         };
 
