@@ -5,7 +5,8 @@
       'title' => 'Transport Fees',
       'icon' => 'bi bi-bus-front',
       'subtitle' => 'Manage transport charges per term and keep invoices in sync',
-      'actions' => '<a href="' . route('finance.transport-fees.import-history') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-clock-history"></i> Import History</a>'
+      'actions' => '<a href="' . route('finance.transport-fees.import') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-upload"></i> Import</a>
+                    <a href="' . route('finance.transport-fees.import-history') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-clock-history"></i> Import History</a>'
   ])
 
   @if(session('success'))
@@ -217,7 +218,7 @@
                 </tr>
               </thead>
               <tbody>
-                @foreach($imports as $import)
+                @foreach($recentImports as $import)
                 <tr>
                   <td>{{ $import->imported_at ? $import->imported_at->format('M d, Y H:i') : '—' }}</td>
                   <td>{{ $import->importedBy->name ?? '—' }}</td>
@@ -234,17 +235,9 @@
                     @endif
                   </td>
                   <td>
-                    @if(!$import->is_reversed)
-                      <form method="POST" action="{{ route('finance.transport-fees.import.reverse', $import) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to reverse this import? This will delete all invoice line items and drop-off point assignments created by this import. Drop-off points will be retained.');">
-                        @csrf
-                        @method('POST')
-                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                          <i class="bi bi-arrow-counterclockwise"></i> Reverse
-                        </button>
-                      </form>
-                    @else
-                      <span class="text-muted small">—</span>
-                    @endif
+                    <a href="{{ route('finance.transport-fees.import-details', $import) }}" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-eye"></i> View
+                    </a>
                   </td>
                 </tr>
                 @endforeach

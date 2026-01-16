@@ -152,6 +152,19 @@ if (!function_exists('replace_placeholders')) {
                         ?? '';
             $fatherName = optional($entity->parent)->father_name ?? '';
             
+            // Get profile update link
+            $profileUpdateLink = '';
+            if ($entity->family && $entity->family->updateLink && $entity->family->updateLink->is_active) {
+                $profileUpdateLink = route('family-update.form', $entity->family->updateLink->token);
+            } elseif ($entity->family) {
+                // Create link if it doesn't exist
+                $link = \App\Models\FamilyUpdateLink::firstOrCreate(
+                    ['family_id' => $entity->family->id],
+                    ['token' => \App\Models\FamilyUpdateLink::generateToken(), 'is_active' => true]
+                );
+                $profileUpdateLink = route('family-update.form', $link->token);
+            }
+            
             $replacements += [
                 '{{student_name}}' => $studentName,
                 '{{admission_number}}' => $admissionNo,
@@ -160,6 +173,7 @@ if (!function_exists('replace_placeholders')) {
                 '{{grade}}'        => optional($entity->classroom)->section ?? '',
                 '{{parent_name}}'  => $parentName,
                 '{{father_name}}'  => $fatherName,
+                '{{profile_update_link}}' => $profileUpdateLink,
                 
                 // Legacy single brace
                 '{student_name}' => $studentName,
@@ -169,6 +183,7 @@ if (!function_exists('replace_placeholders')) {
                 '{grade}'        => optional($entity->classroom)->section ?? '',
                 '{parent_name}'  => $parentName,
                 '{father_name}'  => $fatherName,
+                '{profile_update_link}' => $profileUpdateLink,
             ];
         } elseif ($entity instanceof \App\Models\Staff) {
             $staffName = $entity->full_name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));

@@ -486,6 +486,106 @@ class CommunicationController extends Controller
         return redirect()->route('communication.send.whatsapp')->with($withData);
     }
 
+    /* ========== PREVIEW ========== */
+    public function preview(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        $data = $request->validate([
+            'message' => 'required|string',
+            'channel' => 'required|string|in:sms,whatsapp,email',
+            'target' => 'required|string',
+            'classroom_id' => 'nullable|integer',
+            'student_id' => 'nullable|integer',
+            'selected_student_ids' => 'nullable|string',
+            'template_id' => 'nullable|exists:communication_templates,id',
+        ]);
+
+        // Get recipients
+        $recipients = $this->collectRecipients($data, $data['channel']);
+        
+        if (empty($recipients)) {
+            return back()->with('error', 'No recipients found for preview.');
+        }
+
+        // Get first student entity from recipients
+        $firstStudent = null;
+        foreach ($recipients as $contact => $entity) {
+            if ($entity instanceof Student) {
+                $firstStudent = $entity;
+                break;
+            }
+        }
+
+        // If no student found, try to get one based on target
+        if (!$firstStudent) {
+            if ($data['target'] === 'student' && !empty($data['student_id'])) {
+                $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->find($data['student_id']);
+            } elseif ($data['target'] === 'class' && !empty($data['classroom_id'])) {
+                $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->where('classroom_id', $data['classroom_id'])
+                    ->first();
+            } elseif ($data['target'] === 'specific_students' && !empty($data['selected_student_ids'])) {
+                $studentIds = array_filter(explode(',', $data['selected_student_ids']));
+                if (!empty($studentIds)) {
+                    $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
+                        ->where('archive', 0)
+                        ->where('is_alumni', false)
+                        ->whereIn('id', $studentIds)
+                        ->first();
+                }
+            } else {
+                // Get any active student
+                $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->first();
+            }
+        } else {
+            // Load relationships if not already loaded
+            $firstStudent->load(['family.updateLink', 'classroom', 'parent']);
+        }
+
+        if (!$firstStudent) {
+            return back()->with('error', 'No student found for preview. Please select a student or class.');
+        }
+
+        // Replace placeholders
+        $previewMessage = replace_placeholders($data['message'], $firstStudent);
+
+        // Get parent contact info for display
+        $parentName = optional($firstStudent->parent)->father_name
+                    ?? optional($firstStudent->parent)->guardian_name
+                    ?? optional($firstStudent->parent)->mother_name
+                    ?? 'Parent';
+        
+        $parentContact = '';
+        if ($data['channel'] === 'email' && $firstStudent->parent) {
+            $parentContact = $firstStudent->parent->father_email 
+                          ?? $firstStudent->parent->mother_email 
+                          ?? $firstStudent->parent->guardian_email 
+                          ?? '';
+        } elseif ($firstStudent->parent) {
+            $parentContact = $firstStudent->parent->father_phone 
+                          ?? $firstStudent->parent->mother_phone 
+                          ?? $firstStudent->parent->guardian_phone 
+                          ?? '';
+        }
+
+        return view('communication.preview', [
+            'message' => $previewMessage,
+            'channel' => $data['channel'],
+            'student' => $firstStudent,
+            'parentName' => $parentName,
+            'parentContact' => $parentContact,
+        ]);
+    }
+
     /* ========== LOGS ========== */
     public function logs()
     {
@@ -526,6 +626,7 @@ class CommunicationController extends Controller
             ['key' => 'class_name',   'value' => 'Classroom name'],
             ['key' => 'parent_name',  'value' => "Parent's full name"],
             ['key' => 'father_name',  'value' => "Parent's full name"],
+            ['key' => 'profile_update_link', 'value' => 'Profile update link for parents'],
 
             // Staff
             ['key' => 'staff_name',   'value' => 'Staff full name'],

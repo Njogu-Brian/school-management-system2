@@ -347,8 +347,26 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Voteheads</a>
     <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
-    <a href="{{ route('finance.optional_fees.index') }}"class="{{ Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') ? 'active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
-    <a href="{{ route('finance.transport-fees.index') }}"class="{{ Request::is('finance/transport-fees*') ? 'active' : '' }}"><i class="bi bi-bus-front"></i> Transport Fees</a>
+    {{-- Optional Fees --}}
+    @php
+        $optionalFeesActive = Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*');
+    @endphp
+    <a href="#optionalFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $optionalFeesActive ? 'true' : 'false' }}" class="{{ $optionalFeesActive ? 'parent-active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
+    <div class="collapse {{ $optionalFeesActive ? 'show' : '' }}" id="optionalFeesMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.optional_fees.index') }}" class="sublink {{ Request::is('finance/optional-fees') && !Request::is('finance/optional-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Manage</a>
+        <a href="{{ route('finance.optional-fees.import-history') }}" class="sublink {{ Request::is('finance/optional-fees/import/history*') ? 'active' : '' }}"><i class="bi bi-clock-history"></i> Import History</a>
+    </div>
+    
+    {{-- Transport Fees --}}
+    @php
+        $transportFeesActive = Request::is('finance/transport-fees*');
+    @endphp
+    <a href="#transportFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $transportFeesActive ? 'true' : 'false' }}" class="{{ $transportFeesActive ? 'parent-active' : '' }}"><i class="bi bi-bus-front"></i> Transport Fees</a>
+    <div class="collapse {{ $transportFeesActive ? 'show' : '' }}" id="transportFeesMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.transport-fees.index') }}" class="sublink {{ Request::is('finance/transport-fees') && !Request::is('finance/transport-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Manage</a>
+        <a href="{{ route('finance.transport-fees.import') }}" class="sublink {{ Request::is('finance/transport-fees/import') && !Request::is('finance/transport-fees/import/*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Import</a>
+        <a href="{{ route('finance.transport-fees.import-history') }}" class="sublink {{ Request::is('finance/transport-fees/import/history*') ? 'active' : '' }}"><i class="bi bi-clock-history"></i> Import History</a>
+    </div>
     
     {{-- Discounts --}}
     @php

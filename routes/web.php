@@ -1069,6 +1069,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
         Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
         Route::post('send-whatsapp', [CommunicationController::class, 'sendWhatsApp'])->name('communication.send.whatsapp.submit');
+        
+        Route::post('preview', [CommunicationController::class, 'preview'])->name('communication.preview');
         Route::post('send-document', [CommunicationDocumentController::class, 'send'])->name('communication.send.document');
         Route::get('whatsapp-sessions', [WasenderSessionController::class, 'index'])->name('communication.wasender.sessions');
         Route::post('whatsapp-sessions', [WasenderSessionController::class, 'store'])->name('communication.wasender.sessions.store');
@@ -1164,6 +1166,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Transport Fees
         Route::get('transport-fees', [TransportFeeController::class, 'index'])->name('transport-fees.index');
         Route::post('transport-fees/bulk-update', [TransportFeeController::class, 'bulkUpdate'])->name('transport-fees.bulk-update');
+        Route::get('transport-fees/import', [TransportFeeController::class, 'importView'])->name('transport-fees.import');
         Route::post('transport-fees/import/preview', [TransportFeeController::class, 'importPreview'])->name('transport-fees.import.preview');
         Route::post('transport-fees/import/commit', [TransportFeeController::class, 'importCommit'])->name('transport-fees.import.commit');
         Route::get('transport-fees/import/history', [TransportFeeController::class, 'importHistory'])->name('transport-fees.import-history');
