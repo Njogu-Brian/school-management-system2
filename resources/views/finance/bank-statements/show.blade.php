@@ -240,32 +240,39 @@
                         <!-- Assign to Single Student Tab -->
                         <div class="tab-pane fade show active" id="assign-pane" role="tabpanel">
                             <p class="text-muted mb-3">Search and select a student to assign this transaction to:</p>
-                            <div class="mb-3">
-                                <label class="form-label">Search Student</label>
-                                <input type="text" 
-                                       id="studentSearch" 
-                                       class="form-control" 
-                                       placeholder="Search by name or admission number..."
-                                       onkeyup="searchStudents()">
-                            </div>
-                            <div id="studentSearchResults" class="list-group" style="max-height: 400px; overflow-y: auto;">
-                                <!-- Results will be populated here -->
-                            </div>
+                            <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}" id="assignStudentForm">
+                                @csrf
+                                @method('PUT')
+                                @include('partials.student_live_search', [
+                                    'hiddenInputId' => 'assign_student_id',
+                                    'displayInputId' => 'assignStudentSearch',
+                                    'resultsId' => 'assignStudentResults',
+                                    'placeholder' => 'Search by name or admission number...',
+                                    'includeAlumniArchived' => true
+                                ])
+                                <input type="hidden" name="match_notes" value="Manually assigned">
+                                <div class="mt-3">
+                                    <button type="submit" class="btn btn-finance btn-finance-primary" id="assignStudentBtn" disabled>
+                                        <i class="bi bi-check-circle"></i> Assign to Student
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                         
                         <!-- Share Among Siblings Tab -->
                         <div class="tab-pane fade" id="share-pane" role="tabpanel">
                             <p class="text-muted mb-3">Search for a student to find their siblings, then share the payment amount among them:</p>
                             <div class="mb-3">
-                                <label class="form-label">Search Student (to find siblings)</label>
-                                <input type="text" 
-                                       id="shareStudentSearch" 
-                                       class="form-control" 
-                                       placeholder="Search by name or admission number..."
-                                       onkeyup="searchStudentsForShare()">
+                                @include('partials.student_live_search', [
+                                    'hiddenInputId' => 'share_student_id',
+                                    'displayInputId' => 'shareStudentSearch',
+                                    'resultsId' => 'shareStudentResults',
+                                    'placeholder' => 'Search by name or admission number...',
+                                    'includeAlumniArchived' => true
+                                ])
                             </div>
-                            <div id="shareStudentSearchResults" class="list-group mb-3" style="max-height: 300px; overflow-y: auto;">
-                                <!-- Results will be populated here -->
+                            <div id="shareStudentSearchResults" class="list-group mb-3" style="max-height: 300px; overflow-y: auto; display: none;">
+                                <!-- Sibling results will be populated here -->
                             </div>
                             
                             <!-- Share Form (hidden until student selected) -->
@@ -691,111 +698,35 @@
 
 @push('scripts')
 <script>
-// Student search functionality
-let searchTimeout;
-function searchStudents() {
-    const query = document.getElementById('studentSearch').value;
+// Handle student selection for assignment
+window.addEventListener('student-selected', function(event) {
+    const student = event.detail;
+    const hiddenInput = document.getElementById('assign_student_id');
     
-    clearTimeout(searchTimeout);
-    
-    if (query.length < 2) {
-        document.getElementById('studentSearchResults').innerHTML = '<div class="text-muted p-3">Enter at least 2 characters to search</div>';
-        return;
+    // Check if this is from the assign tab
+    if (hiddenInput && hiddenInput.value == student.id) {
+        // Enable the assign button
+        const assignBtn = document.getElementById('assignStudentBtn');
+        if (assignBtn) {
+            assignBtn.disabled = false;
+        }
     }
-    
-    searchTimeout = setTimeout(() => {
-        // Include alumni and archived students for manual assignment
-        fetch(`/api/students/search?q=${encodeURIComponent(query)}&include_alumni_archived=1`)
-            .then(response => response.json())
-            .then(data => {
-                displaySearchResults(data);
-            })
-            .catch(error => {
-                console.error('Search error:', error);
-                document.getElementById('studentSearchResults').innerHTML = '<div class="text-danger p-3">Error searching students</div>';
-            });
-    }, 300);
-}
+});
 
 // Share functionality
 let selectedShareStudent = null;
 let selectedShareSiblings = [];
 
-function searchStudentsForShare() {
-    const query = document.getElementById('shareStudentSearch').value;
+// Handle student selection for sharing
+window.addEventListener('student-selected', function(event) {
+    const student = event.detail;
+    const hiddenInput = document.getElementById('share_student_id');
     
-    clearTimeout(searchTimeout);
-    
-    if (query.length < 2) {
-        document.getElementById('shareStudentSearchResults').innerHTML = '<div class="text-muted p-3">Enter at least 2 characters to search</div>';
-        return;
+    // Check if this is from the share tab
+    if (hiddenInput && hiddenInput.value == student.id) {
+        selectStudentForShare(student);
     }
-    
-    searchTimeout = setTimeout(() => {
-        // Include alumni and archived students for manual assignment
-        fetch(`/api/students/search?q=${encodeURIComponent(query)}&include_alumni_archived=1`)
-            .then(response => response.json())
-            .then(data => {
-                displayShareSearchResults(data);
-            })
-            .catch(error => {
-                console.error('Search error:', error);
-                document.getElementById('shareStudentSearchResults').innerHTML = '<div class="text-danger p-3">Error searching students</div>';
-            });
-    }, 300);
-}
-
-function displayShareSearchResults(students) {
-    const resultsContainer = document.getElementById('shareStudentSearchResults');
-    
-    if (students.length === 0) {
-        resultsContainer.innerHTML = '<div class="text-muted p-3">No students found</div>';
-        return;
-    }
-    
-    // Store students in a global array for access by index
-    window.shareSearchResults = students;
-    
-    let html = '';
-    students.forEach((student, index) => {
-        const hasSiblings = student.siblings && student.siblings.length > 0;
-        const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
-        
-        html += `
-            <div class="list-group-item">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${escapeHtml(studentName)}</strong>
-                        <br><small class="text-muted">Admission: ${escapeHtml(student.admission_number || 'N/A')}</small>
-                        ${student.classroom_name ? `<br><small class="text-muted">Class: ${escapeHtml(student.classroom_name)}</small>` : ''}
-                        ${hasSiblings ? `<br><small class="text-info"><i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s)</small>` : ''}
-                    </div>
-                    <button type="button" 
-                            class="btn btn-sm btn-finance btn-finance-primary share-student-btn" 
-                            data-index="${index}">
-                        ${hasSiblings ? '<i class="bi bi-share"></i> Share' : '<i class="bi bi-check"></i> Select'}
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-    
-    resultsContainer.innerHTML = html;
-    
-    // Attach event listeners to all share buttons
-    document.querySelectorAll('.share-student-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const index = parseInt(this.getAttribute('data-index'));
-            const student = window.shareSearchResults[index];
-            if (student) {
-                selectStudentForShare(student);
-            } else {
-                console.error('Student not found at index:', index);
-                alert('Error loading student data. Please try again.');
-            }
-        });
-    });
-}
+});
 
 function escapeHtml(text) {
     if (!text) return '';
@@ -807,19 +738,31 @@ function escapeHtml(text) {
 function selectStudentForShare(student) {
     selectedShareStudent = student;
     
-    // Get siblings from search result (already included)
+    // Get siblings from search result (already included in the API response)
     selectedShareSiblings = student.siblings || [];
     
-    // If no siblings in search result, try to fetch them
+    // If no siblings in search result but has family_id, fetch them
     if (selectedShareSiblings.length === 0 && student.family_id) {
-        // Siblings should already be in the search result, but just in case
-        selectedShareSiblings = [];
+        fetch(`/students/${student.id}/siblings?include_alumni_archived=1`)
+            .then(response => response.json())
+            .then(siblings => {
+                selectedShareSiblings = siblings || [];
+                populateShareForm();
+            })
+            .catch(error => {
+                console.error('Error fetching siblings:', error);
+                populateShareForm();
+            });
+    } else {
+        populateShareForm();
     }
     
-    populateShareForm();
-    
-    // Scroll to form
-    document.getElementById('shareFormContainer').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Show the share form container
+    const formContainer = document.getElementById('shareFormContainer');
+    if (formContainer) {
+        formContainer.style.display = 'block';
+        formContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 }
 
 function populateShareForm() {
@@ -908,69 +851,7 @@ function updateShareTotal() {
     }
 }
 
-function displaySearchResults(students) {
-    const resultsContainer = document.getElementById('studentSearchResults');
-    
-    if (students.length === 0) {
-        resultsContainer.innerHTML = '<div class="text-muted p-3">No students found</div>';
-        return;
-    }
-    
-    let html = '';
-    students.forEach(student => {
-        const hasSiblings = student.siblings && student.siblings.length > 0;
-        const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
-        const classroomName = student.classroom_name || (student.classroom ? student.classroom.name : '');
-        const isAlumni = student.is_alumni || false;
-        const isArchived = student.is_archived || false;
-        let statusBadges = '';
-        
-        if (isAlumni) {
-            statusBadges += '<span class="badge bg-warning text-dark ms-2">Alumni</span>';
-        }
-        if (isArchived) {
-            statusBadges += '<span class="badge bg-secondary ms-2">Archived</span>';
-        }
-        
-        html += `
-            <div class="list-group-item">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <h6 class="mb-1">${escapeHtml(studentName)}${statusBadges}</h6>
-                        <p class="text-muted mb-1 small">
-                            Admission: <code>${escapeHtml(student.admission_number || '')}</code>
-                            ${classroomName ? `| Class: ${escapeHtml(classroomName)}` : ''}
-                        </p>
-                        ${hasSiblings ? `
-                            <p class="text-info mb-1 small">
-                                <i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s):
-                                ${student.siblings.map(s => escapeHtml(`${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown')).join(', ')}
-                            </p>
-                        ` : ''}
-                    </div>
-                    <div class="ms-3">
-                        <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}" class="d-inline">
-                            @csrf
-                            @method('PUT')
-                            <input type="hidden" name="student_id" value="${student.id}">
-                            <input type="hidden" name="match_notes" value="Manually selected via search">
-                            <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
-                                <i class="bi bi-check-circle"></i> Select
-                            </button>
-                        </form>
-                        ${hasSiblings ? `
-                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent(${student.id}, ${JSON.stringify(studentName)}, ${JSON.stringify(student.siblings)})">
-                                <i class="bi bi-share"></i> Share
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    resultsContainer.innerHTML = html;
-}
+// Old displaySearchResults function removed - using student_live_search partial now
 
 function showShareModalForStudent(studentId, studentName, siblings) {
     // Ensure siblings is an array

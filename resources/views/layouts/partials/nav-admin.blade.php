@@ -424,6 +424,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
         <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> View Records</a>
         <a href="{{ route('swimming.reports.daily-attendance') }}" class="sublink {{ Request::is('swimming/reports*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Reports</a>
+        <a href="{{ route('swimming.settings.index') }}" class="sublink {{ Request::is('swimming/settings*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Settings</a>
     </div>
     
     {{-- Payment Setup --}}
