@@ -696,5 +696,13 @@ class TransportFeeController extends Controller
             'transportFees' => $transportFees,
         ]);
     }
+
+    /**
+     * Show import processing view
+     */
+    public function importView()
+    {
+        return view('finance.transport_fees.import');
+    }
 }
 
