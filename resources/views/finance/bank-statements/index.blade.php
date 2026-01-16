@@ -248,15 +248,21 @@
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
                                         && ($transaction->student_id || $transaction->is_shared);
-                                    // Allow draft transactions to be marked as swimming
+                                    // Allow draft transactions (including unmatched) to be marked as swimming
                                     $canMarkAsSwimming = ($transaction->status === 'draft' || $transaction->status === 'confirmed')
                                         && !($transaction->is_swimming_transaction ?? false)
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
                                         && ($transaction->student_id || $transaction->is_shared || $transaction->match_status === 'unmatched');
+                                    // Allow draft unmatched transactions to be selectable (for marking as swimming or other actions)
+                                    $canSelectDraftUnmatched = $transaction->status === 'draft'
+                                        && $transaction->match_status === 'unmatched'
+                                        && !$transaction->is_duplicate
+                                        && !$transaction->is_archived
+                                        && !($transaction->is_swimming_transaction ?? false);
                                 @endphp
-                                @if($canConfirm || $canArchive || $canTransferToSwimming || $canMarkAsSwimming)
-                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ $canMarkAsSwimming ? '1' : '0' }}">
+                                @if($canConfirm || $canArchive || $canTransferToSwimming || $canMarkAsSwimming || $canSelectDraftUnmatched)
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ ($canMarkAsSwimming || $canSelectDraftUnmatched) ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif

@@ -68,6 +68,17 @@ class BankStatementController extends Controller
 
         // View filters (all, auto-assigned, manual-assigned, draft, unassigned, confirmed, collected, archived)
         $view = $request->get('view', 'all');
+        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        
+        // Helper to exclude swimming transactions
+        $excludeSwimming = function($q) use ($hasSwimmingColumn) {
+            if ($hasSwimmingColumn) {
+                $q->where(function($subQ) {
+                    $subQ->where('is_swimming_transaction', false)
+                         ->orWhereNull('is_swimming_transaction');
+                });
+            }
+        };
         
         switch ($view) {
             case 'auto-assigned':
@@ -75,13 +86,17 @@ class BankStatementController extends Controller
                       ->where('match_confidence', '>=', 0.85)
                       ->where('payment_created', false) // Exclude collected transactions
                       ->where('is_duplicate', false)
-                      ->where('is_archived', false);
+                      ->where('is_archived', false)
+                      ->where('transaction_type', 'credit'); // Only credit transactions
+                $excludeSwimming($query);
                 break;
             case 'manual-assigned':
                 $query->where('match_status', 'manual')
                       ->where('payment_created', false) // Exclude collected transactions
                       ->where('is_duplicate', false)
-                      ->where('is_archived', false);
+                      ->where('is_archived', false)
+                      ->where('transaction_type', 'credit'); // Only credit transactions
+                $excludeSwimming($query);
                 break;
             case 'draft':
                 // Transactions that system has seen potential but not sure
@@ -96,27 +111,35 @@ class BankStatementController extends Controller
                 })
                 ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
-                ->where('is_archived', false);
+                ->where('is_archived', false)
+                ->where('transaction_type', 'credit'); // Only credit transactions
+                $excludeSwimming($query);
                 break;
             case 'unassigned':
                 $query->where('match_status', 'unmatched')
                       ->whereNull('student_id')
                       ->where('is_duplicate', false)
-                      ->where('is_archived', false);
+                      ->where('is_archived', false)
+                      ->where('transaction_type', 'credit'); // Only credit transactions
+                $excludeSwimming($query);
                 break;
             case 'confirmed':
                 // Confirmed transactions that haven't been collected yet
                 $query->where('status', 'confirmed')
                       ->where('payment_created', false) // Exclude collected transactions
                       ->where('is_duplicate', false)
-                      ->where('is_archived', false);
+                      ->where('is_archived', false)
+                      ->where('transaction_type', 'credit'); // Only credit transactions
+                $excludeSwimming($query);
                 break;
             case 'collected':
                 // Confirmed transactions where payment has been created
                 $query->where('status', 'confirmed')
                       ->where('payment_created', true)
                       ->where('is_duplicate', false)
-                      ->where('is_archived', false);
+                      ->where('is_archived', false)
+                      ->where('transaction_type', 'credit'); // Only credit transactions
+                $excludeSwimming($query);
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
@@ -127,7 +150,7 @@ class BankStatementController extends Controller
                 break;
             case 'swimming':
                 // Swimming transactions (only if column exists)
-                if (Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
+                if ($hasSwimmingColumn) {
                     $query->where('is_swimming_transaction', true)
                           ->where('is_archived', false);
                 } else {
@@ -136,8 +159,10 @@ class BankStatementController extends Controller
                 }
                 break;
             default:
-                // Show all non-archived by default
-                $query->where('is_archived', false);
+                // Show all non-archived, non-debit, non-swimming transactions by default
+                $query->where('is_archived', false)
+                      ->where('transaction_type', 'credit'); // Exclude debit transactions
+                $excludeSwimming($query);
         }
 
         // Additional filters
@@ -196,19 +221,43 @@ class BankStatementController extends Controller
         $totalAmount = (clone $query)->sum('amount');
         $totalCount = (clone $query)->count();
 
-        // Get counts for each view
+        // Get counts for each view (exclude swimming and debit transactions from non-swimming views)
+        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        
         $counts = [
-            'all' => BankStatementTransaction::where('is_archived', false)->count(),
+            'all' => BankStatementTransaction::where('is_archived', false)
+                ->where('transaction_type', 'credit') // Exclude debit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
+                ->count(),
             'auto-assigned' => BankStatementTransaction::where('match_status', 'matched')
                 ->where('match_confidence', '>=', 0.85)
                 ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
+                ->where('transaction_type', 'credit') // Only credit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
             'manual-assigned' => BankStatementTransaction::where('match_status', 'manual')
                 ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
+                ->where('transaction_type', 'credit') // Only credit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
             'draft' => BankStatementTransaction::where(function($q) {
                     $q->where('match_status', 'multiple_matches')
@@ -221,21 +270,49 @@ class BankStatementController extends Controller
                 ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
+                ->where('transaction_type', 'credit') // Only credit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
             'unassigned' => BankStatementTransaction::where('match_status', 'unmatched')
                 ->whereNull('student_id')
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
+                ->where('transaction_type', 'credit') // Only credit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
             'confirmed' => BankStatementTransaction::where('status', 'confirmed')
                 ->where('payment_created', false) // Exclude collected transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
+                ->where('transaction_type', 'credit') // Only credit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
             'collected' => BankStatementTransaction::where('status', 'confirmed')
                 ->where('payment_created', true)
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
+                ->where('transaction_type', 'credit') // Only credit transactions
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
             'duplicate' => BankStatementTransaction::where('is_duplicate', true)
                 ->where('is_archived', false)

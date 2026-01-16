@@ -69,6 +69,9 @@ class BankStatementParser
                 }
             }
             
+            // Auto-archive debit transactions
+            $isArchived = ($transactionType === 'debit');
+            
             $transaction = BankStatementTransaction::create([
                 'bank_account_id' => $bankAccountId,
                 'statement_file_path' => $pdfPath,
@@ -83,6 +86,9 @@ class BankStatementParser
                 'status' => 'draft',
                 'is_duplicate' => $isDuplicate,
                 'duplicate_of_payment_id' => $duplicatePayment?->id,
+                'is_archived' => $isArchived,
+                'archived_at' => $isArchived ? now() : null,
+                'archived_by' => $isArchived ? auth()->id() : null,
                 'raw_data' => $txnData,
                 'created_by' => auth()->id(),
             ]);
