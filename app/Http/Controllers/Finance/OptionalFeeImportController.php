@@ -675,5 +675,47 @@ class OptionalFeeImportController extends Controller
 
         return [$yearValue, $termValue, $academicYear?->id];
     }
+
+    /**
+     * Show import history for optional fees
+     */
+    public function importHistory(Request $request)
+    {
+        $year = $request->input('year');
+        $term = $request->input('term');
+        
+        $imports = OptionalFeeImport::with(['importedBy', 'reversedBy', 'academicYear', 'term'])
+            ->when($year, fn($q) => $q->where('year', $year))
+            ->when($term, fn($q) => $q->where('term', $term))
+            ->orderBy('imported_at', 'desc')
+            ->paginate(20);
+
+        return view('finance.optional_fees.import_history', [
+            'imports' => $imports,
+            'year' => $year,
+            'term' => $term,
+        ]);
+    }
+
+    /**
+     * Show details of a specific import
+     */
+    public function showImport(OptionalFeeImport $import)
+    {
+        $import->load(['importedBy', 'reversedBy', 'academicYear', 'term']);
+        
+        // Get optional fees created in this import period
+        $optionalFees = OptionalFee::where('year', $import->year)
+            ->where('term', $import->term)
+            ->where('assigned_at', '>=', $import->imported_at->subSeconds(1))
+            ->where('assigned_at', '<=', $import->imported_at->addMinutes(5))
+            ->with(['student.classroom', 'votehead'])
+            ->get();
+
+        return view('finance.optional_fees.import_details', [
+            'import' => $import,
+            'optionalFees' => $optionalFees,
+        ]);
+    }
 }
 

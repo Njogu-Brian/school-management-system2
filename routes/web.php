@@ -1156,6 +1156,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         });
         Route::post('optional-fees/import/preview', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importPreview'])->name('optional-fees.import.preview');
         Route::post('optional-fees/import/commit', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importCommit'])->name('optional-fees.import.commit');
+        Route::get('optional-fees/import/history', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importHistory'])->name('optional-fees.import-history');
+        Route::get('optional-fees/import/{import}', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'showImport'])->name('optional-fees.import-details');
         Route::post('optional-fees/import/{import}/reverse', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'reverse'])->name('optional-fees.import.reverse');
         Route::get('optional-fees/import/template', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'template'])->name('optional-fees.import.template');
 
@@ -1164,6 +1166,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('transport-fees/bulk-update', [TransportFeeController::class, 'bulkUpdate'])->name('transport-fees.bulk-update');
         Route::post('transport-fees/import/preview', [TransportFeeController::class, 'importPreview'])->name('transport-fees.import.preview');
         Route::post('transport-fees/import/commit', [TransportFeeController::class, 'importCommit'])->name('transport-fees.import.commit');
+        Route::get('transport-fees/import/history', [TransportFeeController::class, 'importHistory'])->name('transport-fees.import-history');
+        Route::get('transport-fees/import/{import}', [TransportFeeController::class, 'showImport'])->name('transport-fees.import-details');
         Route::post('transport-fees/import/{import}/reverse', [TransportFeeController::class, 'reverseImport'])->name('transport-fees.import.reverse');
         Route::get('transport-fees/template', [TransportFeeController::class, 'template'])->name('transport-fees.template');
 

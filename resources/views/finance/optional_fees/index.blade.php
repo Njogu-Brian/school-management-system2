@@ -6,7 +6,8 @@
     @include('finance.partials.header', [
         'title' => 'Optional Fees',
         'icon' => 'bi bi-toggle-on',
-        'subtitle' => 'Manage optional fees for classes and individual students'
+        'subtitle' => 'Manage optional fees for classes and individual students',
+        'actions' => '<a href="' . route('finance.optional-fees.import-history') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-clock-history"></i> Import History</a>'
     ])
 
     {{-- Tabs --}}

@@ -654,5 +654,47 @@ class TransportFeeController extends Controller
 
         return Excel::download(new ArrayExport($sample, $headers), 'transport_fees_template.xlsx');
     }
+
+    /**
+     * Show import history for transport fees
+     */
+    public function importHistory(Request $request)
+    {
+        $year = $request->input('year');
+        $term = $request->input('term');
+        
+        $imports = \App\Models\TransportFeeImport::with(['importedBy', 'reversedBy', 'academicYear', 'term'])
+            ->when($year, fn($q) => $q->where('year', $year))
+            ->when($term, fn($q) => $q->where('term', $term))
+            ->orderBy('imported_at', 'desc')
+            ->paginate(20);
+
+        return view('finance.transport_fees.import_history', [
+            'imports' => $imports,
+            'year' => $year,
+            'term' => $term,
+        ]);
+    }
+
+    /**
+     * Show details of a specific import
+     */
+    public function showImport(\App\Models\TransportFeeImport $import)
+    {
+        $import->load(['importedBy', 'reversedBy', 'academicYear', 'term']);
+        
+        // Get transport fees created in this import period
+        $transportFees = TransportFee::where('year', $import->year)
+            ->where('term', $import->term)
+            ->where('created_at', '>=', $import->imported_at->subSeconds(1))
+            ->where('created_at', '<=', $import->imported_at->addMinutes(5))
+            ->with(['student.classroom', 'dropOffPoint'])
+            ->get();
+
+        return view('finance.transport_fees.import_details', [
+            'import' => $import,
+            'transportFees' => $transportFees,
+        ]);
+    }
 }
 

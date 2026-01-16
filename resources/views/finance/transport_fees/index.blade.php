@@ -4,7 +4,8 @@
   @include('finance.partials.header', [
       'title' => 'Transport Fees',
       'icon' => 'bi bi-bus-front',
-      'subtitle' => 'Manage transport charges per term and keep invoices in sync'
+      'subtitle' => 'Manage transport charges per term and keep invoices in sync',
+      'actions' => '<a href="' . route('finance.transport-fees.import-history') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-clock-history"></i> Import History</a>'
   ])
 
   @if(session('success'))
