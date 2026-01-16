@@ -106,14 +106,18 @@ class FamilyUpdateController extends Controller
     {
         $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
         
-        // Track link click/access
-        $isFirstClick = $link->click_count === 0;
-        $link->increment('click_count');
-        if ($isFirstClick) {
-            $link->first_clicked_at = now();
+        // Track link click/access (if columns exist)
+        if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'click_count')) {
+            $isFirstClick = ($link->click_count ?? 0) === 0;
+            $link->increment('click_count');
+            if ($isFirstClick && \Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'first_clicked_at')) {
+                $link->first_clicked_at = now();
+            }
+            if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'last_clicked_at')) {
+                $link->last_clicked_at = now();
+            }
+            $link->save();
         }
-        $link->last_clicked_at = now();
-        $link->save();
         
         $family = $link->family()->with(['students' => function ($q) {
             $q->where('archive', 0)->with('classroom');
