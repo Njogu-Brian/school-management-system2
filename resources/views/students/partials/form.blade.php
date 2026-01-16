@@ -388,8 +388,8 @@
   <div class="col-md-3"><label class="form-label">Relationship</label>
     <input type="text" name="guardian_relationship" value="{{ old('guardian_relationship', $p->guardian_relationship ?? '') }}" class="form-control"></div>
     <div class="col-md-6">
-      <label class="form-label">Residential Area</label>
-      <input type="text" name="residential_area" value="{{ old('residential_area', $s->residential_area ?? '') }}" class="form-control" placeholder="Estate / Area">
+      <label class="form-label">Residential Area <span class="text-danger">*</span></label>
+      <input type="text" name="residential_area" value="{{ old('residential_area', $s->residential_area ?? '') }}" class="form-control" placeholder="Estate / Area" required>
     </div>
   </div>
 

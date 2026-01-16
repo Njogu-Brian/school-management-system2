@@ -429,13 +429,23 @@ class StudentController extends Controller
      */
    public function update(Request $request, $id)
     {
-        $student = Student::withArchived()->findOrFail($id);
+        \Log::info('Student Update: Method called', [
+            'student_id' => $id,
+            'method' => $request->method(),
+            'has_csrf' => $request->has('_token'),
+            'request_data_keys' => array_keys($request->all()),
+        ]);
 
-        if ($request->input('drop_off_point_id') === 'other') {
-            $request->merge(['drop_off_point_id' => null]);
-        }
+        try {
+            $student = Student::withArchived()->findOrFail($id);
+            \Log::info('Student Update: Student found', ['student_id' => $student->id, 'name' => $student->full_name]);
 
-        $request->validate([
+            if ($request->input('drop_off_point_id') === 'other') {
+                $request->merge(['drop_off_point_id' => null]);
+            }
+
+            \Log::info('Student Update: Starting validation');
+            $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -513,7 +523,25 @@ class StudentController extends Controller
             'status_change_reason' => 'nullable|string',
             'is_readmission' => 'nullable|boolean',
         ]);
+            \Log::info('Student Update: Validation passed', ['validated_keys' => array_keys($validated)]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Student Update: Validation failed', [
+                'student_id' => $id,
+                'errors' => $e->errors(),
+                'input' => $request->except(['_token', '_method', 'password', 'password_confirmation']),
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('Student Update: Exception during validation', [
+                'student_id' => $id,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+
+        try {
         $currentYear = get_current_academic_year();
         $currentTerm = get_current_term_number();
         $currentTermModel = get_current_term_model();
@@ -635,7 +663,13 @@ class StudentController extends Controller
             }
         }
         
+        \Log::info('Student Update: About to update student', [
+            'student_id' => $student->id,
+            'update_data' => $updateData,
+        ]);
+        
         $student->update($updateData);
+        \Log::info('Student Update: Student record updated', ['student_id' => $student->id]);
         
         // Handle photo upload
         if ($request->hasFile('photo')) {
@@ -706,10 +740,27 @@ class StudentController extends Controller
             ];
 
             $student->parent->update($parentUpdateData);
+            \Log::info('Student Update: Parent info updated', ['parent_id' => $student->parent->id]);
             $this->handleParentIdUploads($student->parent, $request);
         }
 
+        \Log::info('Student Update: Update completed successfully', [
+            'student_id' => $student->id,
+            'changes' => $student->getChanges(),
+        ]);
+
         return redirect()->route('students.index')->with('success', 'Student updated successfully.');
+        } catch (\Exception $e) {
+            \Log::error('Student Update: Exception during update process', [
+                'student_id' => $id,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return back()->withInput()->with('error', 'Failed to update student: ' . $e->getMessage());
+        }
     }
 
     /**
