@@ -917,8 +917,10 @@ function displaySearchResults(students) {
     }
     
     let html = '';
-    students.forEach((student, index) => {
+    students.forEach(student => {
+        const hasSiblings = student.siblings && student.siblings.length > 0;
         const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
+        const classroomName = student.classroom_name || (student.classroom ? student.classroom.name : '');
         const isAlumni = student.is_alumni || false;
         const isArchived = student.is_archived || false;
         let statusBadges = '';
@@ -931,67 +933,18 @@ function displaySearchResults(students) {
         }
         
         html += `
-            <div class="list-group-item list-group-item-action" onclick="selectStudentForAssignment(${student.id}, '${escapeHtml(studentName)}', '${escapeHtml(student.admission_number || 'N/A')}')">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${escapeHtml(studentName)}</strong>${statusBadges}
-                        <br><small class="text-muted">Admission: ${escapeHtml(student.admission_number || 'N/A')}</small>
-                        ${student.classroom_name ? `<br><small class="text-muted">Class: ${escapeHtml(student.classroom_name)}</small>` : ''}
-                    </div>
-                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary">Select</button>
-                </div>
-            </div>
-        `;
-    });
-    
-    resultsContainer.innerHTML = html;
-}
-
-function selectStudentForAssignment(studentId, studentName, admissionNumber) {
-    // Create a form and submit it
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '{{ route("finance.bank-statements.update", $bankStatement) }}';
-    
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}';
-    
-    form.innerHTML = `
-        @csrf
-        @method('PUT')
-        <input type="hidden" name="student_id" value="${studentId}">
-        <input type="hidden" name="match_notes" value="Manually assigned">
-    `;
-    
-    document.body.appendChild(form);
-    form.submit();
-}
-
-function displaySearchResultsOld(students) {
-    const resultsContainer = document.getElementById('studentSearchResults');
-    
-    if (students.length === 0) {
-        resultsContainer.innerHTML = '<div class="text-muted p-3">No students found</div>';
-        return;
-    }
-    
-    let html = '';
-    students.forEach(student => {
-        const hasSiblings = student.siblings && student.siblings.length > 0;
-        const studentName = student.full_name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Unknown';
-        const classroomName = student.classroom_name || (student.classroom ? student.classroom.name : '');
-        html += `
             <div class="list-group-item">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <h6 class="mb-1">${studentName}</h6>
+                        <h6 class="mb-1">${escapeHtml(studentName)}${statusBadges}</h6>
                         <p class="text-muted mb-1 small">
-                            Admission: <code>${student.admission_number || ''}</code>
-                            ${classroomName ? `| Class: ${classroomName}` : ''}
+                            Admission: <code>${escapeHtml(student.admission_number || '')}</code>
+                            ${classroomName ? `| Class: ${escapeHtml(classroomName)}` : ''}
                         </p>
                         ${hasSiblings ? `
                             <p class="text-info mb-1 small">
                                 <i class="bi bi-people"></i> Has ${student.siblings.length} sibling(s):
-                                ${student.siblings.map(s => `${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown').join(', ')}
+                                ${student.siblings.map(s => escapeHtml(`${s.first_name || ''} ${s.last_name || ''}`.trim() || 'Unknown')).join(', ')}
                             </p>
                         ` : ''}
                     </div>

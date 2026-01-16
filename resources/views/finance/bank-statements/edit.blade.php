@@ -78,7 +78,8 @@
                                 'displayInputId' => 'studentSearch',
                                 'resultsId' => 'studentResults',
                                 'placeholder' => 'Type name or admission number',
-                                'initialLabel' => $bankStatement->student ? ($bankStatement->student->first_name . ' ' . $bankStatement->student->last_name . ' (' . $bankStatement->student->admission_number . ')') : ''
+                                'initialLabel' => $bankStatement->student ? ($bankStatement->student->first_name . ' ' . $bankStatement->student->last_name . ' (' . $bankStatement->student->admission_number . ')') : '',
+                                'includeAlumniArchived' => true
                             ])
                             <small class="form-text text-muted">Search and select a student to assign this transaction</small>
                         </div>
