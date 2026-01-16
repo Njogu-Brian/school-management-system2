@@ -1636,22 +1636,44 @@ class BankStatementController extends Controller
         ]);
 
         $transactionIds = $request->input('transaction_ids', []);
-        $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
-            ->where('is_swimming_transaction', false)
-            ->get();
+        
+        // Check if column exists before using it
+        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        
+        $query = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('is_duplicate', false)
+            ->where('is_archived', false);
+        
+        // Only filter by is_swimming_transaction if column exists
+        if ($hasSwimmingColumn) {
+            $query->where(function($q) {
+                $q->where('is_swimming_transaction', false)
+                  ->orWhereNull('is_swimming_transaction');
+            });
+        }
+        
+        $transactions = $query->get();
 
         if ($transactions->isEmpty()) {
             return redirect()
                 ->route('finance.bank-statements.index')
-                ->with('error', 'No valid transactions found to mark as swimming.');
+                ->with('error', 'No valid transactions found to mark as swimming. Transactions may already be marked as swimming or are duplicates/archived.');
         }
 
         $marked = 0;
+        $errors = [];
+        
         foreach ($transactions as $transaction) {
             try {
+                // Skip if already marked as swimming (double-check)
+                if ($hasSwimmingColumn && $transaction->is_swimming_transaction) {
+                    continue;
+                }
+                
                 $this->swimmingTransactionService->markAsSwimming($transaction);
                 $marked++;
             } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
                 Log::error('Failed to mark transaction as swimming', [
                     'transaction_id' => $transaction->id,
                     'error' => $e->getMessage(),
@@ -1659,9 +1681,14 @@ class BankStatementController extends Controller
             }
         }
 
+        $message = "Marked {$marked} transaction(s) as swimming payments.";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 3));
+        }
+
         return redirect()
             ->route('finance.bank-statements.index')
-            ->with('success', "Marked {$marked} transaction(s) as swimming payments.");
+            ->with($errors ? 'warning' : 'success', $message);
     }
 
     /**

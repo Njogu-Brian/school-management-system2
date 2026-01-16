@@ -173,7 +173,7 @@
                 @csrf
                 <div id="bulkSwimmingTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-info" onclick="bulkMarkSwimming()" id="bulkSwimmingBtn" style="display: none;">
-                    <i class="bi bi-water"></i> Mark as Swimming Transaction
+                    <i class="bi bi-water"></i> Mark as Swimming (Draft/Confirmed)
                 </button>
             </form>
             
@@ -244,13 +244,19 @@
                                         && !$transaction->student_id;
                                     $canTransferToSwimming = $transaction->status === 'confirmed' 
                                         && $transaction->payment_created 
-                                        && !$transaction->is_swimming_transaction
+                                        && !($transaction->is_swimming_transaction ?? false)
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
                                         && ($transaction->student_id || $transaction->is_shared);
+                                    // Allow draft transactions to be marked as swimming
+                                    $canMarkAsSwimming = ($transaction->status === 'draft' || $transaction->status === 'confirmed')
+                                        && !($transaction->is_swimming_transaction ?? false)
+                                        && !$transaction->is_duplicate
+                                        && !$transaction->is_archived
+                                        && ($transaction->student_id || $transaction->is_shared || $transaction->match_status === 'unmatched');
                                 @endphp
-                                @if($canConfirm || $canArchive || $canTransferToSwimming)
-                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}">
+                                @if($canConfirm || $canArchive || $canTransferToSwimming || $canMarkAsSwimming)
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ $canMarkAsSwimming ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
@@ -450,16 +456,18 @@
                 bulkSwimmingIdsContainer.innerHTML = '';
             }
             
-            // Separate transactions that can be confirmed vs archived vs transfer to swimming
+            // Separate transactions that can be confirmed vs archived vs transfer to swimming vs mark as swimming
             const confirmableIds = [];
             const archivableIds = [];
             const transferableToSwimmingIds = [];
+            const markableAsSwimmingIds = [];
             
             checked.forEach(cb => {
                 const id = parseInt(cb.value);
                 const canConfirm = cb.getAttribute('data-can-confirm') === '1';
                 const canArchive = cb.getAttribute('data-can-archive') === '1';
                 const canTransferToSwimming = cb.getAttribute('data-can-transfer-swimming') === '1';
+                const canMarkAsSwimming = cb.getAttribute('data-can-mark-swimming') === '1';
                 
                 if (canConfirm) {
                     confirmableIds.push(id);
@@ -469,6 +477,9 @@
                 }
                 if (canTransferToSwimming) {
                     transferableToSwimmingIds.push(id);
+                }
+                if (canMarkAsSwimming) {
+                    markableAsSwimmingIds.push(id);
                 }
                 
                 // Add to auto-assign container (for all checked)
@@ -528,13 +539,25 @@
                 }
             }
             
-            // Show/hide bulk swimming button
+            // Show/hide bulk swimming button (for marking as swimming)
             if (bulkSwimmingBtn) {
-                if (checkedIds.length > 0) {
+                if (markableAsSwimmingIds.length > 0) {
                     bulkSwimmingBtn.style.display = 'inline-block';
                 } else {
                     bulkSwimmingBtn.style.display = 'none';
                 }
+            }
+            
+            // Update bulk swimming form with markable transaction IDs
+            if (bulkSwimmingIdsContainer) {
+                bulkSwimmingIdsContainer.innerHTML = '';
+                markableAsSwimmingIds.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'transaction_ids[]';
+                    input.value = id;
+                    bulkSwimmingIdsContainer.appendChild(input);
+                });
             }
             
             // Show/hide bulk transfer to swimming button
@@ -560,29 +583,20 @@
         }
         
         function bulkMarkSwimming() {
-            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
+                .filter(cb => cb.getAttribute('data-can-mark-swimming') === '1')
+                .map(cb => parseInt(cb.value));
             
             if (checked.length === 0) {
-                alert('Please select at least one transaction to mark as swimming');
+                alert('Please select at least one transaction to mark as swimming. Note: Transactions already marked as swimming cannot be selected.');
                 return;
             }
             
-            if (!confirm(`Mark ${checked.length} transaction(s) as swimming transactions? This will exclude them from fee invoice allocation.`)) {
+            if (!confirm(`Mark ${checked.length} transaction(s) as swimming transactions? This will exclude them from fee invoice allocation. Once marked, they cannot be moved again.`)) {
                 return;
             }
             
-            const form = document.getElementById('bulkSwimmingForm');
-            const bulkSwimmingIdsContainer = document.getElementById('bulkSwimmingTransactionIdsContainer');
-            bulkSwimmingIdsContainer.innerHTML = '';
-            checked.forEach(id => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'transaction_ids[]';
-                input.value = id;
-                bulkSwimmingIdsContainer.appendChild(input);
-            });
-            
-            form.submit();
+            document.getElementById('bulkSwimmingForm').submit();
         }
         
         function bulkTransferToSwimming() {

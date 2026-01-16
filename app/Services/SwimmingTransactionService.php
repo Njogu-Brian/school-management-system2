@@ -27,9 +27,25 @@ class SwimmingTransactionService
     public function markAsSwimming(BankStatementTransaction $transaction): void
     {
         DB::transaction(function () use ($transaction) {
-            $transaction->update([
-                'is_swimming_transaction' => true,
-            ]);
+            // Check if column exists before updating
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
+                // Column doesn't exist - need to run migration first
+                throw new \Exception('Swimming transaction column not found. Please run the migration: php artisan migrate');
+            }
+            
+            // Check if already marked as swimming
+            if ($transaction->is_swimming_transaction) {
+                throw new \Exception('Transaction is already marked as swimming.');
+            }
+            
+            $updateData = ['is_swimming_transaction' => true];
+            
+            // Also set swimming_allocated_amount if column exists
+            if (\Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'swimming_allocated_amount')) {
+                $updateData['swimming_allocated_amount'] = 0;
+            }
+            
+            $transaction->update($updateData);
             
             Log::info('Transaction marked as swimming', [
                 'transaction_id' => $transaction->id,
