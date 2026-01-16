@@ -748,9 +748,37 @@ class OnlineAdmissionController extends Controller
         }
         
         // Send WhatsApp (if template exists and WhatsApp is configured)
+        // Prioritize WhatsApp fields, fallback to father/mother phone
         if ($whatsappTemplate) {
             $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-            foreach ([$parent->father_whatsapp, $parent->mother_whatsapp, $parent->guardian_whatsapp] as $whatsapp) {
+            
+            // Build list with WhatsApp fields first, then phone fallbacks
+            $whatsappContacts = [];
+            
+            // Father: WhatsApp first, then phone
+            if (!empty($parent->father_whatsapp)) {
+                $whatsappContacts[] = $parent->father_whatsapp;
+            } elseif (!empty($parent->father_phone)) {
+                $whatsappContacts[] = $parent->father_phone;
+            }
+            
+            // Mother: WhatsApp first, then phone
+            if (!empty($parent->mother_whatsapp)) {
+                $whatsappContacts[] = $parent->mother_whatsapp;
+            } elseif (!empty($parent->mother_phone)) {
+                $whatsappContacts[] = $parent->mother_phone;
+            }
+            
+            // Guardian: WhatsApp first, then phone (only if father/mother not available)
+            if (empty($whatsappContacts)) {
+                if (!empty($parent->guardian_whatsapp)) {
+                    $whatsappContacts[] = $parent->guardian_whatsapp;
+                } elseif (!empty($parent->guardian_phone)) {
+                    $whatsappContacts[] = $parent->guardian_phone;
+                }
+            }
+            
+            foreach ($whatsappContacts as $whatsapp) {
                 if ($whatsapp) {
                     try {
                         // Use SMS service for WhatsApp as it might handle WhatsApp API

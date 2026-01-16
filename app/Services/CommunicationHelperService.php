@@ -43,9 +43,9 @@ class CommunicationHelperService
                             $contacts = match ($type) {
                                 'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
                                 'whatsapp' => [
-                                    $s->parent->father_whatsapp ?? $s->parent->father_phone,
-                                    $s->parent->mother_whatsapp ?? $s->parent->mother_phone,
-                                    $s->parent->guardian_whatsapp ?? $s->parent->guardian_phone,
+                                    !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
+                                    !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
+                                    !empty($s->parent->guardian_whatsapp) ? $s->parent->guardian_whatsapp : $s->parent->guardian_phone,
                                 ],
                                 default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
                             };
@@ -65,9 +65,9 @@ class CommunicationHelperService
                 $contacts = match ($type) {
                     'email' => [$student->parent->father_email, $student->parent->mother_email, $student->parent->guardian_email],
                     'whatsapp' => [
-                        $student->parent->father_whatsapp ?: $student->parent->father_phone,
-                        $student->parent->mother_whatsapp ?: $student->parent->mother_phone,
-                        $student->parent->guardian_whatsapp ?: $student->parent->guardian_phone,
+                        !empty($student->parent->father_whatsapp) ? $student->parent->father_whatsapp : $student->parent->father_phone,
+                        !empty($student->parent->mother_whatsapp) ? $student->parent->mother_whatsapp : $student->parent->mother_phone,
+                        !empty($student->parent->guardian_whatsapp) ? $student->parent->guardian_whatsapp : $student->parent->guardian_phone,
                     ],
                     default => [$student->parent->father_phone, $student->parent->mother_phone, $student->parent->guardian_phone],
                 };
@@ -87,9 +87,9 @@ class CommunicationHelperService
                         $contacts = match ($type) {
                             'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
                             'whatsapp' => [
-                                $s->parent->father_whatsapp ?? $s->parent->father_phone,
-                                $s->parent->mother_whatsapp ?? $s->parent->mother_phone,
-                                $s->parent->guardian_whatsapp ?? $s->parent->guardian_phone,
+                                !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
+                                !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
+                                !empty($s->parent->guardian_whatsapp) ? $s->parent->guardian_whatsapp : $s->parent->guardian_phone,
                             ],
                             default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
                         };
@@ -109,9 +109,9 @@ class CommunicationHelperService
                         $contacts = match ($type) {
                             'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
                             'whatsapp' => [
-                                $s->parent->father_whatsapp ?? $s->parent->father_phone,
-                                $s->parent->mother_whatsapp ?? $s->parent->mother_phone,
-                                $s->parent->guardian_whatsapp ?? $s->parent->guardian_phone,
+                                !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
+                                !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
+                                !empty($s->parent->guardian_whatsapp) ? $s->parent->guardian_whatsapp : $s->parent->guardian_phone,
                             ],
                             default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
                         };

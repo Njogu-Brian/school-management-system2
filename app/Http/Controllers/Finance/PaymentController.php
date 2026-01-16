@@ -711,9 +711,13 @@ class PaymentController extends Controller
         }
         
         // Send WhatsApp notification
-        // Get WhatsApp number with fallback to phone number
-        $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-            ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+        // Get WhatsApp number with fallback to phone number (prioritize father/mother)
+        $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
+            : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
+            : (!empty($parent->guardian_whatsapp) ? $parent->guardian_whatsapp 
+            : (!empty($parent->father_phone) ? $parent->father_phone 
+            : (!empty($parent->mother_phone) ? $parent->mother_phone 
+            : (!empty($parent->guardian_phone) ? $parent->guardian_phone : null)))));
         
         if ($whatsappPhone) {
             try {

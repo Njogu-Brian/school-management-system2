@@ -874,18 +874,36 @@ class MpesaPaymentController extends Controller
             );
         }
 
-        // WhatsApp
-        if (in_array('whatsapp', $channels) && $family->phone) {
-            $whatsappMessage = "*M-PESA Payment Notification*\n\n";
-            $whatsappMessage .= "Dear Parent,\n\n";
-            $whatsappMessage .= "$message for *$studentName*\n";
-            $whatsappMessage .= "Amount: *KES $amountFormatted*\n\n";
-            $whatsappMessage .= "Thank you,\nRoyal Kings School";
+        // WhatsApp - prioritize WhatsApp fields, fallback to father/mother phone
+        if (in_array('whatsapp', $channels)) {
+            $parent = $student->parent;
+            $whatsappPhone = null;
             
-            $this->whatsappService->sendMessage(
-                $family->phone,
-                $whatsappMessage
-            );
+            if ($parent) {
+                $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
+                    : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
+                    : (!empty($parent->guardian_whatsapp) ? $parent->guardian_whatsapp 
+                    : (!empty($parent->father_phone) ? $parent->father_phone 
+                    : (!empty($parent->mother_phone) ? $parent->mother_phone 
+                    : (!empty($parent->guardian_phone) ? $parent->guardian_phone : null)))));
+            }
+            
+            if ($whatsappPhone) {
+                $whatsappMessage = "*M-PESA Payment Notification*\n\n";
+                $whatsappMessage .= "Dear Parent,\n\n";
+                $whatsappMessage .= "$message for *$studentName*\n";
+                $whatsappMessage .= "Amount: *KES $amountFormatted*\n\n";
+                $whatsappMessage .= "Thank you,\nRoyal Kings School";
+                
+                try {
+                    $this->whatsappService->sendMessage(
+                        $whatsappPhone,
+                        $whatsappMessage
+                    );
+                } catch (\Exception $e) {
+                    Log::warning('WhatsApp send failed', ['phone' => $whatsappPhone, 'error' => $e->getMessage()]);
+                }
+            }
         }
     }
 
@@ -907,17 +925,25 @@ class MpesaPaymentController extends Controller
         $contacts = [];
         
         if (in_array('father', $parents)) {
+            $parent = $student->parent;
+            $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
+                : (!empty($parent->father_phone) ? $parent->father_phone : null);
+            
             $contacts[] = [
                 'name' => $family->father_name ?? 'Father',
-                'phone' => $family->father_phone,
+                'phone' => $whatsappPhone ?? $family->father_phone,
                 'email' => $family->father_email,
             ];
         }
         
         if (in_array('mother', $parents)) {
+            $parent = $student->parent;
+            $whatsappPhone = !empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
+                : (!empty($parent->mother_phone) ? $parent->mother_phone : null);
+            
             $contacts[] = [
                 'name' => $family->mother_name ?? 'Mother',
-                'phone' => $family->mother_phone,
+                'phone' => $whatsappPhone ?? $family->mother_phone,
                 'email' => $family->mother_email,
             ];
         }
