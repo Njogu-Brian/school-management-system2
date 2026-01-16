@@ -38,9 +38,10 @@ return new class extends Migration
                   ->on('users')
                   ->onDelete('set null');
             
-            $table->index(['bank_statement_transaction_id', 'student_id']);
-            $table->index('student_id');
-            $table->index('status');
+            // Add indexes with shorter names (MySQL limit is 64 chars)
+            $table->index(['bank_statement_transaction_id', 'student_id'], 'swim_txn_alloc_txn_student_idx');
+            $table->index('student_id', 'swim_txn_alloc_student_idx');
+            $table->index('status', 'swim_txn_alloc_status_idx');
         });
     }
 
