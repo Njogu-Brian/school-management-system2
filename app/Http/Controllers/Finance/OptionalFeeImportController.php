@@ -419,19 +419,35 @@ class OptionalFeeImportController extends Controller
                     // Ensure invoice exists
                     $invoice = InvoiceService::ensure($studentId, $year, $term);
 
-                    // Create or update invoice item
-                    $invoiceItem = \App\Models\InvoiceItem::updateOrCreate(
-                        [
-                            'invoice_id' => $invoice->id,
-                            'votehead_id' => $voteheadId,
-                            'source' => 'optional',
-                        ],
-                        [
+                    // Check for existing invoice item (including soft-deleted ones)
+                    $invoiceItem = \App\Models\InvoiceItem::withTrashed()
+                        ->where('invoice_id', $invoice->id)
+                        ->where('votehead_id', $voteheadId)
+                        ->where('source', 'optional')
+                        ->first();
+
+                    if ($invoiceItem) {
+                        // Restore if soft-deleted
+                        if ($invoiceItem->trashed()) {
+                            $invoiceItem->restore();
+                        }
+                        // Update existing item
+                        $invoiceItem->update([
                             'amount' => $finalAmount,
                             'status' => 'active',
                             'posted_at' => now(),
-                        ]
-                    );
+                        ]);
+                    } else {
+                        // Create new invoice item
+                        $invoiceItem = \App\Models\InvoiceItem::create([
+                            'invoice_id' => $invoice->id,
+                            'votehead_id' => $voteheadId,
+                            'source' => 'optional',
+                            'amount' => $finalAmount,
+                            'status' => 'active',
+                            'posted_at' => now(),
+                        ]);
+                    }
 
                     // Store original amount if not set
                     if (!$invoiceItem->original_amount) {

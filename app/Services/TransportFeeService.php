@@ -201,9 +201,10 @@ class TransportFeeService
         DB::transaction(function () use ($fee, $votehead) {
             $invoice = InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
 
-            // Only find existing transport invoice items (by source = 'transport')
+            // Check for existing transport invoice items (including soft-deleted ones)
             // This prevents accidentally replacing non-transport items
-            $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+            $existingItem = InvoiceItem::withTrashed()
+                ->where('invoice_id', $invoice->id)
                 ->where('votehead_id', $votehead->id)
                 ->where('source', 'transport')
                 ->first();
@@ -217,20 +218,19 @@ class TransportFeeService
             ];
 
             if ($existingItem) {
+                // Restore if soft-deleted
+                if ($existingItem->trashed()) {
+                    $existingItem->restore();
+                }
                 $payload['original_amount'] = $existingItem->original_amount ?? $existingItem->amount;
+                // Update existing item
+                $existingItem->update($payload);
+                $item = $existingItem;
             } else {
+                // Create new item
                 $payload['original_amount'] = $fee->amount;
+                $item = InvoiceItem::create($payload);
             }
-
-            // Only update/create items with source = 'transport' to avoid affecting other items
-            $item = InvoiceItem::updateOrCreate(
-                [
-                    'invoice_id' => $invoice->id, 
-                    'votehead_id' => $votehead->id,
-                    'source' => 'transport'
-                ],
-                $payload
-            );
 
             // Preserve original amount if it existed previously
             if ($item->wasRecentlyCreated === false && $item->original_amount === null) {
