@@ -177,6 +177,14 @@
                 </button>
             </form>
             
+            <form id="bulkTransferToSwimmingForm" method="POST" action="{{ route('finance.bank-statements.bulk-transfer-to-swimming') }}">
+                @csrf
+                <div id="bulkTransferToSwimmingTransactionIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-warning" onclick="bulkTransferToSwimming()" id="bulkTransferToSwimmingBtn" style="display: none;">
+                    <i class="bi bi-arrow-right-circle"></i> Transfer to Swimming
+                </button>
+            </form>
+            
             @if(request('view') == 'unassigned' || (!request('view') || request('view') == 'all'))
             <form id="bulkArchiveForm" method="POST" action="{{ route('finance.bank-statements.bulk-archive') }}">
                 @csrf
@@ -204,7 +212,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'unassigned', 'all']) || !request('view'))
+                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'unassigned', 'all', 'swimming']) || !request('view'))
                                 <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                             @else
                                 <span class="text-muted">—</span>
@@ -234,9 +242,15 @@
                                         && !$transaction->is_archived
                                         && !$transaction->is_duplicate
                                         && !$transaction->student_id;
+                                    $canTransferToSwimming = $transaction->status === 'confirmed' 
+                                        && $transaction->payment_created 
+                                        && !$transaction->is_swimming_transaction
+                                        && !$transaction->is_duplicate
+                                        && !$transaction->is_archived
+                                        && ($transaction->student_id || $transaction->is_shared);
                                 @endphp
-                                @if($canConfirm || $canArchive)
-                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}">
+                                @if($canConfirm || $canArchive || $canTransferToSwimming)
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
@@ -421,6 +435,7 @@
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
             const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
+            const bulkSwimmingIdsContainer = document.getElementById('bulkSwimmingTransactionIdsContainer');
             const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
             const bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
             const bulkActionsContainer = document.getElementById('bulkActionsContainer');
@@ -435,20 +450,25 @@
                 bulkSwimmingIdsContainer.innerHTML = '';
             }
             
-            // Separate transactions that can be confirmed vs archived
+            // Separate transactions that can be confirmed vs archived vs transfer to swimming
             const confirmableIds = [];
             const archivableIds = [];
+            const transferableToSwimmingIds = [];
             
             checked.forEach(cb => {
                 const id = parseInt(cb.value);
                 const canConfirm = cb.getAttribute('data-can-confirm') === '1';
                 const canArchive = cb.getAttribute('data-can-archive') === '1';
+                const canTransferToSwimming = cb.getAttribute('data-can-transfer-swimming') === '1';
                 
                 if (canConfirm) {
                     confirmableIds.push(id);
                 }
                 if (canArchive) {
                     archivableIds.push(id);
+                }
+                if (canTransferToSwimming) {
+                    transferableToSwimmingIds.push(id);
                 }
                 
                 // Add to auto-assign container (for all checked)
@@ -516,6 +536,27 @@
                     bulkSwimmingBtn.style.display = 'none';
                 }
             }
+            
+            // Show/hide bulk transfer to swimming button
+            const bulkTransferToSwimmingBtn = document.getElementById('bulkTransferToSwimmingBtn');
+            const bulkTransferToSwimmingIdsContainer = document.getElementById('bulkTransferToSwimmingTransactionIdsContainer');
+            if (bulkTransferToSwimmingIdsContainer) {
+                bulkTransferToSwimmingIdsContainer.innerHTML = '';
+                transferableToSwimmingIds.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'transaction_ids[]';
+                    input.value = id;
+                    bulkTransferToSwimmingIdsContainer.appendChild(input);
+                });
+            }
+            if (bulkTransferToSwimmingBtn) {
+                if (transferableToSwimmingIds.length > 0) {
+                    bulkTransferToSwimmingBtn.style.display = 'inline-block';
+                } else {
+                    bulkTransferToSwimmingBtn.style.display = 'none';
+                }
+            }
         }
         
         function bulkMarkSwimming() {
@@ -542,6 +583,23 @@
             });
             
             form.submit();
+        }
+        
+        function bulkTransferToSwimming() {
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
+                .filter(cb => cb.getAttribute('data-can-transfer-swimming') === '1')
+                .map(cb => parseInt(cb.value));
+            
+            if (checked.length === 0) {
+                alert('Please select at least one collected payment to transfer to swimming');
+                return;
+            }
+            
+            if (!confirm(`Transfer ${checked.length} collected payment(s) to swimming? This will reverse the payment and move it to swimming for wallet allocation.`)) {
+                return;
+            }
+            
+            document.getElementById('bulkTransferToSwimmingForm').submit();
         }
 
         function bulkConfirm() {

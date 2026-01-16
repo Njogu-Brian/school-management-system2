@@ -1665,6 +1665,121 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Bulk transfer collected payments to swimming
+     */
+    public function bulkTransferToSwimming(Request $request)
+    {
+        $request->validate([
+            'transaction_ids' => 'required|array',
+            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        ]);
+
+        $transactionIds = $request->input('transaction_ids', []);
+        $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('status', 'confirmed')
+            ->where('payment_created', true)
+            ->where('is_swimming_transaction', false)
+            ->where('is_duplicate', false)
+            ->where('is_archived', false)
+            ->with(['payment', 'student'])
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'No valid collected payments found to transfer to swimming.');
+        }
+
+        $transferred = 0;
+        $errors = [];
+
+        foreach ($transactions as $transaction) {
+            try {
+                DB::transaction(function () use ($transaction, &$transferred) {
+                    $payment = $transaction->payment;
+                    
+                    if (!$payment) {
+                        throw new \Exception('Payment not found for transaction');
+                    }
+
+                    // Reverse the payment (remove allocations from invoices)
+                    if ($payment->allocated_amount > 0) {
+                        // Get all allocations
+                        $allocations = \App\Models\PaymentAllocation::where('payment_id', $payment->id)->get();
+                        $invoiceIds = $allocations->pluck('invoice_item_id')
+                            ->map(function($itemId) {
+                                return \App\Models\InvoiceItem::find($itemId)?->invoice_id;
+                            })
+                            ->filter()
+                            ->unique();
+
+                        // Delete allocations
+                        \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
+
+                        // Recalculate affected invoices
+                        foreach ($invoiceIds as $invoiceId) {
+                            $invoice = \App\Models\Invoice::find($invoiceId);
+                            if ($invoice) {
+                                \App\Services\InvoiceService::recalc($invoice);
+                            }
+                        }
+                    }
+
+                    // Mark payment as reversed
+                    $payment->update([
+                        'reversed' => true,
+                        'narration' => ($payment->narration ?? '') . ' (Reversed - Transferred to Swimming)',
+                    ]);
+
+                    // Mark transaction as swimming
+                    $transaction->update([
+                        'is_swimming_transaction' => true,
+                        'payment_created' => false, // Reset so it can be recreated for swimming
+                    ]);
+
+                    // Create swimming allocations
+                    if ($transaction->is_shared && $transaction->shared_allocations) {
+                        // Shared payment - allocate to multiple students
+                        $allocations = [];
+                        foreach ($transaction->shared_allocations as $allocation) {
+                            $allocations[] = [
+                                'student_id' => $allocation['student_id'],
+                                'amount' => $allocation['amount'],
+                            ];
+                        }
+                        $this->swimmingTransactionService->allocateToStudents($transaction, $allocations);
+                    } elseif ($transaction->student_id) {
+                        // Single student payment
+                        $this->swimmingTransactionService->allocateToStudents($transaction, [
+                            ['student_id' => $transaction->student_id, 'amount' => $transaction->amount]
+                        ]);
+                    }
+
+                    // Process allocations to credit wallets
+                    $this->swimmingTransactionService->processPendingAllocations();
+
+                    $transferred++;
+                });
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
+                Log::error('Failed to transfer payment to swimming', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $message = "Transferred {$transferred} payment(s) to swimming.";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
+        }
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with($errors ? 'warning' : 'success', $message);
+    }
+
+    /**
      * Allocate swimming transaction to students
      */
     public function allocateSwimmingTransaction(Request $request, BankStatementTransaction $transaction)

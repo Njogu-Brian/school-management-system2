@@ -413,6 +413,19 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <a href="{{ route('finance.balance-brought-forward.index') }}"class="{{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
     <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>
     
+    {{-- Swimming Management --}}
+    @php
+        $swimmingActive = Request::is('swimming*');
+    @endphp
+    <a href="#swimmingMenu" data-bs-toggle="collapse" aria-expanded="{{ $swimmingActive ? 'true' : 'false' }}" class="{{ $swimmingActive ? 'parent-active' : '' }}"><i class="bi bi-water"></i> Swimming Management</a>
+    <div class="collapse {{ $swimmingActive ? 'show' : '' }}" id="swimmingMenu" style="padding-left: 20px;">
+        <a href="{{ route('swimming.wallets.index') }}" class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Wallets</a>
+        <a href="{{ route('swimming.payments.create') }}" class="sublink {{ Request::is('swimming/payments/create') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Create Payment</a>
+        <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
+        <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> View Records</a>
+        <a href="{{ route('swimming.reports.daily-attendance') }}" class="sublink {{ Request::is('swimming/reports*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Reports</a>
+    </div>
+    
     {{-- Payment Setup --}}
     <a href="{{ route('finance.bank-accounts.index') }}"class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
     <a href="{{ route('finance.payment-methods.index') }}"class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
