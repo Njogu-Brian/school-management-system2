@@ -247,6 +247,7 @@
                                     'hiddenInputId' => 'assign_student_id',
                                     'displayInputId' => 'assignStudentSearch',
                                     'resultsId' => 'assignStudentResults',
+                                    'enableButtonId' => 'assignStudentBtn',
                                     'placeholder' => 'Search by name or admission number...',
                                     'includeAlumniArchived' => true
                                 ])
@@ -698,20 +699,7 @@
 
 @push('scripts')
 <script>
-// Handle student selection for assignment
-window.addEventListener('student-selected', function(event) {
-    const student = event.detail;
-    const hiddenInput = document.getElementById('assign_student_id');
-    
-    // Check if this is from the assign tab
-    if (hiddenInput && hiddenInput.value == student.id) {
-        // Enable the assign button
-        const assignBtn = document.getElementById('assignStudentBtn');
-        if (assignBtn) {
-            assignBtn.disabled = false;
-        }
-    }
-});
+// The student_live_search partial already handles enabling the button via enableButtonId
 
 // Share functionality
 let selectedShareStudent = null;
@@ -741,21 +729,7 @@ function selectStudentForShare(student) {
     // Get siblings from search result (already included in the API response)
     selectedShareSiblings = student.siblings || [];
     
-    // If no siblings in search result but has family_id, fetch them
-    if (selectedShareSiblings.length === 0 && student.family_id) {
-        fetch(`/students/${student.id}/siblings?include_alumni_archived=1`)
-            .then(response => response.json())
-            .then(siblings => {
-                selectedShareSiblings = siblings || [];
-                populateShareForm();
-            })
-            .catch(error => {
-                console.error('Error fetching siblings:', error);
-                populateShareForm();
-            });
-    } else {
-        populateShareForm();
-    }
+    populateShareForm();
     
     // Show the share form container
     const formContainer = document.getElementById('shareFormContainer');
