@@ -464,11 +464,13 @@ class OptionalFeeImportController extends Controller
                 $createdOrUpdated++;
                 $totalAmount += $finalAmount;
             } catch (\Throwable $e) {
+                $failed++;
                 Log::warning('Optional fee import failed', [
                     'student_id' => $studentId,
                     'votehead_id' => $voteheadId,
                     'message' => $e->getMessage(),
                 ]);
+                // Continue processing other rows even if one fails
             }
         }
 
