@@ -475,8 +475,22 @@
           });
         });
         
-        // Also check on page load
-        checkIfReady();
+        // Listen for skip checkbox changes
+        const skipCheckboxes = form.querySelectorAll('input[name^="skip_rows["]');
+        skipCheckboxes.forEach(checkbox => {
+          checkbox.addEventListener('change', function() {
+            checkIfReady();
+          });
+        });
+        
+        // Check on page load - if no needs_matching or missing_student, enable button
+        // Otherwise, let checkIfReady() determine the state
+        if ({{ $needsMatchingCount }} === 0 && {{ $missingStudentCount }} === 0) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('opacity-50');
+        } else {
+          checkIfReady();
+        }
       }
     });
   </script>
