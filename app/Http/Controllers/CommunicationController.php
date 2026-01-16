@@ -456,10 +456,9 @@ class CommunicationController extends Controller
                 'skip_sent' => $skipSent,
             ]);
             
-            return redirect()->route('communication.send.whatsapp.progress', [
-                'tracking_id' => $trackingId,
-                'total' => count($recipients),
-            ])->with('info', 'Bulk send started. Processing in background...');
+            // Use URL directly to avoid route cache issues
+            $progressUrl = url('/communication/send-whatsapp/progress') . '?tracking_id=' . urlencode($trackingId) . '&total=' . count($recipients);
+            return redirect($progressUrl)->with('info', 'Bulk send started. Processing in background...');
         }
         $sentCount = 0;
         $failedCount = 0;
