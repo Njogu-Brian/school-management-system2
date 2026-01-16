@@ -13,14 +13,30 @@ return new class extends Migration
     {
         Schema::create('swimming_transaction_allocations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('bank_statement_transaction_id')->constrained('bank_statement_transactions')->onDelete('cascade');
-            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
+            $table->unsignedBigInteger('bank_statement_transaction_id');
+            $table->unsignedBigInteger('student_id');
             $table->decimal('amount', 10, 2)->comment('Amount allocated to this student from the transaction');
             $table->enum('status', ['pending', 'allocated', 'reversed'])->default('pending');
             $table->text('notes')->nullable();
-            $table->foreignId('allocated_by')->nullable()->constrained('users')->onDelete('set null');
+            $table->unsignedBigInteger('allocated_by')->nullable();
             $table->timestamp('allocated_at')->nullable();
             $table->timestamps();
+            
+            // Add foreign keys with shorter constraint names (MySQL limit is 64 chars)
+            $table->foreign('bank_statement_transaction_id', 'swim_txn_alloc_bank_txn_fk')
+                  ->references('id')
+                  ->on('bank_statement_transactions')
+                  ->onDelete('cascade');
+            
+            $table->foreign('student_id', 'swim_txn_alloc_student_fk')
+                  ->references('id')
+                  ->on('students')
+                  ->onDelete('cascade');
+            
+            $table->foreign('allocated_by', 'swim_txn_alloc_user_fk')
+                  ->references('id')
+                  ->on('users')
+                  ->onDelete('set null');
             
             $table->index(['bank_statement_transaction_id', 'student_id']);
             $table->index('student_id');
