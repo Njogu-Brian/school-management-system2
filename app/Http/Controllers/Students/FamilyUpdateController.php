@@ -29,13 +29,16 @@ class FamilyUpdateController extends Controller
             ->paginate(50);
         
         // Get statistics
+        $hasClickCount = \Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'click_count');
+        $hasUpdateCount = \Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'update_count');
+        
         $stats = [
             'total_links' => FamilyUpdateLink::count(),
             'active_links' => FamilyUpdateLink::where('is_active', true)->count(),
-            'total_clicks' => FamilyUpdateLink::sum('click_count'),
-            'total_updates' => FamilyUpdateLink::sum('update_count'),
-            'links_with_clicks' => FamilyUpdateLink::where('click_count', '>', 0)->count(),
-            'links_with_updates' => FamilyUpdateLink::where('update_count', '>', 0)->count(),
+            'total_clicks' => $hasClickCount ? FamilyUpdateLink::sum('click_count') : 0,
+            'total_updates' => $hasUpdateCount ? FamilyUpdateLink::sum('update_count') : 0,
+            'links_with_clicks' => $hasClickCount ? FamilyUpdateLink::where('click_count', '>', 0)->count() : 0,
+            'links_with_updates' => $hasUpdateCount ? FamilyUpdateLink::where('update_count', '>', 0)->count() : 0,
         ];
 
         return view('family_update.admin.index', compact('families', 'audits', 'stats'));
