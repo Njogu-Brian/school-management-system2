@@ -1302,7 +1302,7 @@ class StudentController extends Controller
                 ->limit(25)
                 ->get();
 
-            return response()->json($students->map(function ($st) {
+            return response()->json($students->map(function ($st) use ($includeAlumniArchived) {
                 $full = trim(implode(' ', array_filter([$st->first_name, $st->middle_name, $st->last_name])));
                 
                 // Get siblings (only include non-archived, non-alumni siblings unless include_alumni_archived is true)
