@@ -248,15 +248,15 @@
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
                                         && ($transaction->student_id || $transaction->is_shared);
-                                    // Allow draft transactions (including unmatched) to be marked as swimming
+                                    // Allow draft transactions (including unmatched and multiple_matches) to be marked as swimming
                                     $canMarkAsSwimming = ($transaction->status === 'draft' || $transaction->status === 'confirmed')
                                         && !($transaction->is_swimming_transaction ?? false)
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
-                                        && ($transaction->student_id || $transaction->is_shared || $transaction->match_status === 'unmatched');
-                                    // Allow draft unmatched transactions to be selectable (for marking as swimming or other actions)
+                                        && ($transaction->student_id || $transaction->is_shared || $transaction->match_status === 'unmatched' || $transaction->match_status === 'multiple_matches');
+                                    // Allow draft unmatched and multiple_matches transactions to be selectable (for marking as swimming or other actions)
                                     $canSelectDraftUnmatched = $transaction->status === 'draft'
-                                        && $transaction->match_status === 'unmatched'
+                                        && ($transaction->match_status === 'unmatched' || $transaction->match_status === 'multiple_matches')
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
                                         && !($transaction->is_swimming_transaction ?? false);

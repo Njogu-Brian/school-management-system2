@@ -469,6 +469,33 @@ class BankStatementParser
             }
         }
         
+        // Try to match using historical transaction data (previous successful matches)
+        // This uses patterns from past transactions to improve matching accuracy
+        if (empty($matches) || (count($matches) > 1 && max(array_column($matches, 'confidence')) < 0.90)) {
+            $historicalMatches = $this->matchByHistoricalData($transaction, $parsedData, $phoneNumber);
+            if (!empty($historicalMatches)) {
+                // Merge historical matches, boosting confidence for students with transaction history
+                foreach ($historicalMatches as $histMatch) {
+                    $existingMatchIndex = null;
+                    foreach ($matches as $idx => $match) {
+                        if ($match['student']->id === $histMatch['student']->id) {
+                            $existingMatchIndex = $idx;
+                            break;
+                        }
+                    }
+                    
+                    if ($existingMatchIndex !== null) {
+                        // Boost confidence for existing match
+                        $matches[$existingMatchIndex]['confidence'] = min(1.0, $matches[$existingMatchIndex]['confidence'] + 0.15);
+                        $matches[$existingMatchIndex]['match_type'] = $matches[$existingMatchIndex]['match_type'] . '+historical';
+                    } else {
+                        // Add new match from history
+                        $matches[] = $histMatch;
+                    }
+                }
+            }
+        }
+        
         // Try to match by parent name only (if no other matches found)
         // BUT: Only match by parent name if there's also a student name in the description
         // If only parent name exists (like "DOUGLAS NJOROGE KAMAU" without student name), don't match
@@ -1618,6 +1645,191 @@ class BankStatementParser
         }
         
         return false;
+    }
+    
+    /**
+     * Match transaction using historical transaction data
+     * Uses patterns from previous successful matches to improve accuracy
+     */
+    protected function matchByHistoricalData(BankStatementTransaction $transaction, array $parsedData, ?string $phoneNumber): array
+    {
+        $matches = [];
+        $description = $transaction->description ?? '';
+        $parentName = $parsedData['parent_name'] ?? null;
+        $childNames = $parsedData['child_names'] ?? [];
+        $partialPhone = $parsedData['partial_phone'] ?? null;
+        
+        // Get historical transactions that were successfully matched (confirmed and have student_id)
+        // Look for patterns: same parent name + child name, same partial phone, similar amounts
+        $historicalQuery = BankStatementTransaction::where('status', 'confirmed')
+            ->whereNotNull('student_id')
+            ->where('is_archived', false)
+            ->where('is_duplicate', false)
+            ->where('transaction_type', 'credit')
+            ->orderBy('transaction_date', 'desc')
+            ->limit(1000); // Look at last 1000 successful matches
+        
+        $historicalMatches = [];
+        
+        // Match by parent name + child name pattern
+        if ($parentName && !empty($childNames)) {
+            $parentNameLower = strtolower(trim($parentName));
+            
+            foreach ($childNames as $childName) {
+                $childNameLower = strtolower(trim($childName));
+                
+                // Find historical transactions with similar parent and child names
+                $similarTransactions = (clone $historicalQuery)
+                    ->where(function($q) use ($parentNameLower, $childNameLower) {
+                        $q->whereRaw('LOWER(payer_name) LIKE ?', ["%{$parentNameLower}%"])
+                          ->orWhereRaw('LOWER(description) LIKE ?', ["%{$parentNameLower}%"])
+                          ->orWhereRaw('LOWER(matched_student_name) LIKE ?', ["%{$childNameLower}%"])
+                          ->orWhereRaw('LOWER(description) LIKE ?', ["%{$childNameLower}%"]);
+                    })
+                    ->with('student')
+                    ->get();
+                
+                foreach ($similarTransactions as $histTxn) {
+                    if (!$histTxn->student || $histTxn->student->archive || $histTxn->student->is_alumni) {
+                        continue;
+                    }
+                    
+                    $student = $histTxn->student;
+                    $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                    
+                    // Check if child name matches student
+                    if (stripos($studentFullName, $childNameLower) !== false || 
+                        stripos($studentFullName, str_replace(' ', '', $childNameLower)) !== false ||
+                        stripos($childNameLower, strtolower($student->first_name)) !== false ||
+                        stripos($childNameLower, strtolower($student->last_name)) !== false) {
+                        
+                        // Check if parent name also matches
+                        $parentMatches = false;
+                        if ($student->parentInfo) {
+                            $parent = $student->parentInfo;
+                            $parentNames = [
+                                strtolower($parent->father_name ?? ''),
+                                strtolower($parent->mother_name ?? ''),
+                                strtolower($parent->guardian_name ?? ''),
+                            ];
+                            
+                            foreach ($parentNames as $pName) {
+                                if (!empty($pName) && (stripos($pName, $parentNameLower) !== false || 
+                                    stripos($parentNameLower, $pName) !== false)) {
+                                    $parentMatches = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        $confidence = 0.75; // Base confidence for historical match
+                        if ($parentMatches) {
+                            $confidence = 0.88; // Higher if parent name also matches
+                        }
+                        
+                        // Boost confidence if partial phone matches
+                        if ($partialPhone && $this->matchesPartialPhone($student, $partialPhone)) {
+                            $confidence = 0.92;
+                        }
+                        
+                        // Boost confidence if full phone matches
+                        if ($phoneNumber && $this->matchesPhone($student, $phoneNumber)) {
+                            $confidence = 0.95;
+                        }
+                        
+                        // Boost confidence based on number of historical matches (more history = higher confidence)
+                        $matchCount = (clone $historicalQuery)
+                            ->where('student_id', $student->id)
+                            ->where(function($q) use ($parentNameLower) {
+                                $q->whereRaw('LOWER(payer_name) LIKE ?', ["%{$parentNameLower}%"])
+                                  ->orWhereRaw('LOWER(description) LIKE ?', ["%{$parentNameLower}%"]);
+                            })
+                            ->count();
+                        
+                        if ($matchCount >= 3) {
+                            $confidence = min(0.98, $confidence + 0.10);
+                        } elseif ($matchCount >= 2) {
+                            $confidence = min(0.95, $confidence + 0.05);
+                        }
+                        
+                        $historicalMatches[] = [
+                            'student' => $student,
+                            'match_type' => 'historical',
+                            'confidence' => $confidence,
+                            'matched_value' => "Historical: {$parentName} + {$childName}",
+                            'match_count' => $matchCount,
+                        ];
+                    }
+                }
+            }
+        }
+        
+        // Match by partial phone + child name pattern
+        if ($partialPhone && !empty($childNames)) {
+            $phoneMatches = $this->findStudentsByPartialPhone($partialPhone);
+            $phoneMatches = array_filter($phoneMatches, fn($s) => $s->archive == 0 && $s->is_alumni == false);
+            
+            foreach ($phoneMatches as $student) {
+                $studentFullName = strtolower($student->first_name . ' ' . $student->last_name);
+                
+                foreach ($childNames as $childName) {
+                    $childNameLower = strtolower(trim($childName));
+                    
+                    if (stripos($studentFullName, $childNameLower) !== false || 
+                        stripos($studentFullName, str_replace(' ', '', $childNameLower)) !== false) {
+                        
+                        // Check historical transactions for this student with similar phone pattern
+                        $histCount = (clone $historicalQuery)
+                            ->where('student_id', $student->id)
+                            ->where(function($q) use ($partialPhone) {
+                                $parts = preg_split('/\.\.\.|\*+/', $partialPhone);
+                                if (count($parts) === 2) {
+                                    $q->where('phone_number', 'LIKE', "{$parts[0]}%{$parts[1]}")
+                                      ->orWhere('description', 'LIKE', "%{$parts[0]}%{$parts[1]}%");
+                                }
+                            })
+                            ->count();
+                        
+                        if ($histCount > 0) {
+                            $confidence = 0.80 + min(0.15, $histCount * 0.03);
+                            
+                            $historicalMatches[] = [
+                                'student' => $student,
+                                'match_type' => 'historical_phone',
+                                'confidence' => $confidence,
+                                'matched_value' => "Historical: {$partialPhone} + {$childName}",
+                                'match_count' => $histCount,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Remove duplicates, keeping highest confidence match for each student
+        $uniqueHistoricalMatches = [];
+        $seenStudentIds = [];
+        foreach ($historicalMatches as $match) {
+            $studentId = $match['student']->id;
+            if (!in_array($studentId, $seenStudentIds)) {
+                $uniqueHistoricalMatches[] = $match;
+                $seenStudentIds[] = $studentId;
+            } else {
+                // If duplicate, keep the one with higher confidence
+                $existingIndex = null;
+                foreach ($uniqueHistoricalMatches as $idx => $existing) {
+                    if ($existing['student']->id === $studentId) {
+                        $existingIndex = $idx;
+                        break;
+                    }
+                }
+                if ($existingIndex !== null && $match['confidence'] > $uniqueHistoricalMatches[$existingIndex]['confidence']) {
+                    $uniqueHistoricalMatches[$existingIndex] = $match;
+                }
+            }
+        }
+        
+        return $uniqueHistoricalMatches;
     }
 }
 
