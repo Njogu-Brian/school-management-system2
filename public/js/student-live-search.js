@@ -74,28 +74,46 @@
                 queryParams.append('include_alumni_archived', '1');
             }
 
-            // When including alumni/archived, prioritize API route (requires auth)
-            // Otherwise try public route first
+            // When including alumni/archived, ONLY use API route (requires auth)
+            // Otherwise try public route first, then API as fallback
             const urls = [];
             if (customUrl) urls.push(customUrl);
             if (includeAlumniArchived) {
-                urls.push(apiFallback, defaultUrl); // API first for alumni/archived
+                // When alumni/archived is needed, only use authenticated API route
+                urls.push(apiFallback);
             } else {
                 urls.push(defaultUrl, apiFallback); // Public first for regular search
             }
 
+            // Get CSRF token from meta tag if available
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            
             let lastError = null;
+            let lastStatusCode = null;
             for (const url of urls.filter(Boolean)) {
                 try {
+                    const headers = {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    };
+                    
+                    // Add CSRF token if available (Laravel might check it for authenticated routes)
+                    if (csrfToken) {
+                        headers['X-CSRF-TOKEN'] = csrfToken;
+                    }
+                    
                     const res = await fetch(`${url}?${queryParams.toString()}`, {
-                        headers: {
-                            Accept: 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
+                        headers,
                         credentials: 'same-origin',
                     });
+                    
                     if (!res.ok) {
                         lastError = `HTTP ${res.status}`;
+                        lastStatusCode = res.status;
+                        // If authentication is required (401/403) and we're trying alumni/archived, don't fall back
+                        if (includeAlumniArchived && (res.status === 401 || res.status === 403)) {
+                            break;
+                        }
                         continue; // try next URL
                     }
                     const data = await res.json();
@@ -103,14 +121,25 @@
                     return;
                 } catch (e) {
                     lastError = e.message;
+                    // If it's a network error and we're trying alumni/archived, don't fall back
+                    if (includeAlumniArchived && e.name === 'TypeError') {
+                        break;
+                    }
                     // try next URL
                 }
             }
 
             // All URLs failed
-            console.error('Student search failed for all URLs:', urls, 'Last error:', lastError);
-            results.innerHTML =
-                '<div class="list-group-item text-center text-danger">Search failed. Check connection or permissions.</div>';
+            console.error('Student search failed for all URLs:', urls, 'Last error:', lastError, 'Status:', lastStatusCode);
+            
+            let errorMessage = 'Search failed. Check connection or permissions.';
+            if (includeAlumniArchived && lastStatusCode === 401) {
+                errorMessage = 'Authentication required. Please refresh the page and try again.';
+            } else if (includeAlumniArchived && lastStatusCode === 403) {
+                errorMessage = 'Permission denied. You may not have access to search archived/alumni students.';
+            }
+            
+            results.innerHTML = `<div class="list-group-item text-center text-danger">${errorMessage}</div>`;
             results.classList.remove('d-none');
         });
 

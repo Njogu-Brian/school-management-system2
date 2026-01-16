@@ -209,23 +209,23 @@ class FamilyUpdateController extends Controller
                     $guardianCountryCode = $this->normalizeCountryCode($validated['guardian_phone_country_code'] ?? $parent->guardian_phone_country_code ?? '+254');
                     
                     $parentData = [
-                        'father_name' => !empty($validated['father_name']) ? $validated['father_name'] : $parent->father_name,
-                        'father_id_number' => isset($validated['father_id_number']) ? $validated['father_id_number'] : $parent->father_id_number,
-                        'father_phone' => !empty($validated['father_phone']) ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) : $parent->father_phone,
+                        'father_name' => array_key_exists('father_name', $validated) ? ($validated['father_name'] ?: null) : $parent->father_name,
+                        'father_id_number' => array_key_exists('father_id_number', $validated) ? ($validated['father_id_number'] ?: null) : $parent->father_id_number,
+                        'father_phone' => array_key_exists('father_phone', $validated) && !empty($validated['father_phone']) ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) : (array_key_exists('father_phone', $validated) ? null : $parent->father_phone),
                         'father_phone_country_code' => $fatherCountryCode,
-                        'father_whatsapp' => !empty($validated['father_whatsapp']) ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) : $parent->father_whatsapp,
-                        'father_email' => !empty($validated['father_email']) ? $validated['father_email'] : $parent->father_email,
-                        'mother_name' => !empty($validated['mother_name']) ? $validated['mother_name'] : $parent->mother_name,
-                        'mother_id_number' => isset($validated['mother_id_number']) ? $validated['mother_id_number'] : $parent->mother_id_number,
-                        'mother_phone' => !empty($validated['mother_phone']) ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) : $parent->mother_phone,
+                        'father_whatsapp' => array_key_exists('father_whatsapp', $validated) && !empty($validated['father_whatsapp']) ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) : (array_key_exists('father_whatsapp', $validated) ? null : $parent->father_whatsapp),
+                        'father_email' => array_key_exists('father_email', $validated) ? ($validated['father_email'] ?: null) : $parent->father_email,
+                        'mother_name' => array_key_exists('mother_name', $validated) ? ($validated['mother_name'] ?: null) : $parent->mother_name,
+                        'mother_id_number' => array_key_exists('mother_id_number', $validated) ? ($validated['mother_id_number'] ?: null) : $parent->mother_id_number,
+                        'mother_phone' => array_key_exists('mother_phone', $validated) && !empty($validated['mother_phone']) ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) : (array_key_exists('mother_phone', $validated) ? null : $parent->mother_phone),
                         'mother_phone_country_code' => $motherCountryCode,
-                        'mother_whatsapp' => !empty($validated['mother_whatsapp']) ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) : $parent->mother_whatsapp,
-                        'mother_email' => !empty($validated['mother_email']) ? $validated['mother_email'] : $parent->mother_email,
-                        'guardian_name' => !empty($validated['guardian_name']) ? $validated['guardian_name'] : $parent->guardian_name,
-                        'guardian_phone' => !empty($validated['guardian_phone']) ? $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode) : $parent->guardian_phone,
+                        'mother_whatsapp' => array_key_exists('mother_whatsapp', $validated) && !empty($validated['mother_whatsapp']) ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) : (array_key_exists('mother_whatsapp', $validated) ? null : $parent->mother_whatsapp),
+                        'mother_email' => array_key_exists('mother_email', $validated) ? ($validated['mother_email'] ?: null) : $parent->mother_email,
+                        'guardian_name' => array_key_exists('guardian_name', $validated) ? ($validated['guardian_name'] ?: null) : $parent->guardian_name,
+                        'guardian_phone' => array_key_exists('guardian_phone', $validated) && !empty($validated['guardian_phone']) ? $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode) : (array_key_exists('guardian_phone', $validated) ? null : $parent->guardian_phone),
                         'guardian_phone_country_code' => $guardianCountryCode,
-                        'guardian_relationship' => !empty($validated['guardian_relationship']) ? $validated['guardian_relationship'] : $parent->guardian_relationship,
-                        'marital_status' => !empty($validated['marital_status']) ? $validated['marital_status'] : $parent->marital_status,
+                        'guardian_relationship' => array_key_exists('guardian_relationship', $validated) ? ($validated['guardian_relationship'] ?: null) : $parent->guardian_relationship,
+                        'marital_status' => array_key_exists('marital_status', $validated) ? ($validated['marital_status'] ?: null) : $parent->marital_status,
                     ];
 
                     foreach ($parentData as $field => $value) {
@@ -349,20 +349,20 @@ class FamilyUpdateController extends Controller
                 
                 $student->update([
                     'first_name' => $stuData['first_name'],
-                    'middle_name' => $stuData['middle_name'] ?? null,
+                    'middle_name' => isset($stuData['middle_name']) ? ($stuData['middle_name'] ?: null) : null,
                     'last_name' => $stuData['last_name'],
                     'gender' => $gender,
                     'dob' => $dob,
                     'has_allergies' => isset($stuData['has_allergies']) ? (bool)$stuData['has_allergies'] : false,
-                    'allergies_notes' => !empty($stuData['allergies_notes']) ? $stuData['allergies_notes'] : null,
+                    'allergies_notes' => array_key_exists('allergies_notes', $stuData) ? ($stuData['allergies_notes'] ?: null) : $student->allergies_notes,
                     'is_fully_immunized' => isset($stuData['is_fully_immunized']) ? (bool)$stuData['is_fully_immunized'] : false,
-                    'residential_area' => isset($validated['residential_area']) ? ($validated['residential_area'] ?: null) : ($student->residential_area ?? null),
-                    'preferred_hospital' => isset($validated['preferred_hospital']) ? ($validated['preferred_hospital'] ?: null) : ($student->preferred_hospital ?? null),
-                    'emergency_contact_name' => isset($validated['emergency_contact_name']) ? ($validated['emergency_contact_name'] ?: null) : ($student->emergency_contact_name ?? null),
-                    'emergency_contact_phone' => !empty($validated['emergency_contact_phone']) ? $this->formatPhoneWithCode(
+                    'residential_area' => array_key_exists('residential_area', $validated) ? ($validated['residential_area'] ?: null) : $student->residential_area,
+                    'preferred_hospital' => array_key_exists('preferred_hospital', $validated) ? ($validated['preferred_hospital'] ?: null) : $student->preferred_hospital,
+                    'emergency_contact_name' => array_key_exists('emergency_contact_name', $validated) ? ($validated['emergency_contact_name'] ?: null) : $student->emergency_contact_name,
+                    'emergency_contact_phone' => array_key_exists('emergency_contact_phone', $validated) && !empty($validated['emergency_contact_phone']) ? $this->formatPhoneWithCode(
                         $validated['emergency_contact_phone'],
                         $this->normalizeCountryCode($validated['emergency_phone_country_code'] ?? '+254')
-                    ) : ($student->emergency_contact_phone ?? null),
+                    ) : (array_key_exists('emergency_contact_phone', $validated) ? null : $student->emergency_contact_phone),
                 ]);
 
                 $student->refresh();
