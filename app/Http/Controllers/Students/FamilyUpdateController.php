@@ -208,25 +208,70 @@ class FamilyUpdateController extends Controller
                     $motherCountryCode = $this->normalizeCountryCode($validated['mother_phone_country_code'] ?? $parent->mother_phone_country_code ?? '+254');
                     $guardianCountryCode = $this->normalizeCountryCode($validated['guardian_phone_country_code'] ?? $parent->guardian_phone_country_code ?? '+254');
                     
+                    // Build parent update data - only include fields that are in validated array
                     $parentData = [
-                        'father_name' => array_key_exists('father_name', $validated) ? ($validated['father_name'] ?: null) : $parent->father_name,
-                        'father_id_number' => array_key_exists('father_id_number', $validated) ? ($validated['father_id_number'] ?: null) : $parent->father_id_number,
-                        'father_phone' => array_key_exists('father_phone', $validated) && !empty($validated['father_phone']) ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) : (array_key_exists('father_phone', $validated) ? null : $parent->father_phone),
                         'father_phone_country_code' => $fatherCountryCode,
-                        'father_whatsapp' => array_key_exists('father_whatsapp', $validated) && !empty($validated['father_whatsapp']) ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) : (array_key_exists('father_whatsapp', $validated) ? null : $parent->father_whatsapp),
-                        'father_email' => array_key_exists('father_email', $validated) ? ($validated['father_email'] ?: null) : $parent->father_email,
-                        'mother_name' => array_key_exists('mother_name', $validated) ? ($validated['mother_name'] ?: null) : $parent->mother_name,
-                        'mother_id_number' => array_key_exists('mother_id_number', $validated) ? ($validated['mother_id_number'] ?: null) : $parent->mother_id_number,
-                        'mother_phone' => array_key_exists('mother_phone', $validated) && !empty($validated['mother_phone']) ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) : (array_key_exists('mother_phone', $validated) ? null : $parent->mother_phone),
                         'mother_phone_country_code' => $motherCountryCode,
-                        'mother_whatsapp' => array_key_exists('mother_whatsapp', $validated) && !empty($validated['mother_whatsapp']) ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) : (array_key_exists('mother_whatsapp', $validated) ? null : $parent->mother_whatsapp),
-                        'mother_email' => array_key_exists('mother_email', $validated) ? ($validated['mother_email'] ?: null) : $parent->mother_email,
-                        'guardian_name' => array_key_exists('guardian_name', $validated) ? ($validated['guardian_name'] ?: null) : $parent->guardian_name,
-                        'guardian_phone' => array_key_exists('guardian_phone', $validated) && !empty($validated['guardian_phone']) ? $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode) : (array_key_exists('guardian_phone', $validated) ? null : $parent->guardian_phone),
                         'guardian_phone_country_code' => $guardianCountryCode,
-                        'guardian_relationship' => array_key_exists('guardian_relationship', $validated) ? ($validated['guardian_relationship'] ?: null) : $parent->guardian_relationship,
-                        'marital_status' => array_key_exists('marital_status', $validated) ? ($validated['marital_status'] ?: null) : $parent->marital_status,
                     ];
+                    
+                    // Father fields
+                    if (array_key_exists('father_name', $validated)) {
+                        $parentData['father_name'] = $validated['father_name'] ?: null;
+                    }
+                    if (array_key_exists('father_id_number', $validated)) {
+                        $parentData['father_id_number'] = $validated['father_id_number'] ?: null;
+                    }
+                    if (array_key_exists('father_phone', $validated)) {
+                        $parentData['father_phone'] = !empty($validated['father_phone']) 
+                            ? $this->formatPhoneWithCode($validated['father_phone'], $fatherCountryCode) 
+                            : null;
+                    }
+                    if (array_key_exists('father_whatsapp', $validated)) {
+                        $parentData['father_whatsapp'] = !empty($validated['father_whatsapp']) 
+                            ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) 
+                            : null;
+                    }
+                    if (array_key_exists('father_email', $validated)) {
+                        $parentData['father_email'] = $validated['father_email'] ?: null;
+                    }
+                    
+                    // Mother fields
+                    if (array_key_exists('mother_name', $validated)) {
+                        $parentData['mother_name'] = $validated['mother_name'] ?: null;
+                    }
+                    if (array_key_exists('mother_id_number', $validated)) {
+                        $parentData['mother_id_number'] = $validated['mother_id_number'] ?: null;
+                    }
+                    if (array_key_exists('mother_phone', $validated)) {
+                        $parentData['mother_phone'] = !empty($validated['mother_phone']) 
+                            ? $this->formatPhoneWithCode($validated['mother_phone'], $motherCountryCode) 
+                            : null;
+                    }
+                    if (array_key_exists('mother_whatsapp', $validated)) {
+                        $parentData['mother_whatsapp'] = !empty($validated['mother_whatsapp']) 
+                            ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) 
+                            : null;
+                    }
+                    if (array_key_exists('mother_email', $validated)) {
+                        $parentData['mother_email'] = $validated['mother_email'] ?: null;
+                    }
+                    
+                    // Guardian fields
+                    if (array_key_exists('guardian_name', $validated)) {
+                        $parentData['guardian_name'] = $validated['guardian_name'] ?: null;
+                    }
+                    if (array_key_exists('guardian_phone', $validated)) {
+                        $parentData['guardian_phone'] = !empty($validated['guardian_phone']) 
+                            ? $this->formatPhoneWithCode($validated['guardian_phone'], $guardianCountryCode) 
+                            : null;
+                    }
+                    if (array_key_exists('guardian_relationship', $validated)) {
+                        $parentData['guardian_relationship'] = $validated['guardian_relationship'] ?: null;
+                    }
+                    if (array_key_exists('marital_status', $validated)) {
+                        $parentData['marital_status'] = $validated['marital_status'] ?: null;
+                    }
 
                     foreach ($parentData as $field => $value) {
                         if ($parent->{$field} != $value) {
@@ -314,56 +359,69 @@ class FamilyUpdateController extends Controller
                     continue;
                 }
                 
-                // Normalize gender to lowercase (form uses Male/Female, but we store as lowercase)
-                if (isset($stuData['gender'])) {
-                    $stuData['gender'] = strtolower(trim($stuData['gender']));
-                }
-                
-                // Normalize DOB - empty string to null
-                if (isset($stuData['dob']) && empty($stuData['dob'])) {
-                    $stuData['dob'] = null;
-                }
-
-                $fieldsToCheck = [
-                    'first_name',
-                    'middle_name',
-                    'last_name',
-                    'gender',
-                    'dob',
-                    'has_allergies',
-                    'allergies_notes',
-                    'is_fully_immunized',
-                    'residential_area',
-                    'preferred_hospital',
-                    'emergency_contact_name',
-                    'emergency_contact_phone',
-                ];
-
-                $beforeSnapshot = $student->only($fieldsToCheck);
-
-                // Normalize gender to lowercase (form uses Male/Female, but we store as lowercase)
-                $gender = isset($stuData['gender']) ? strtolower(trim($stuData['gender'])) : $student->gender;
-                
-                // Normalize DOB - empty string to null
-                $dob = !empty($stuData['dob']) ? $stuData['dob'] : null;
-                
-                $student->update([
+                // Prepare update data - always use validated values when they exist
+                $updateData = [
                     'first_name' => $stuData['first_name'],
-                    'middle_name' => isset($stuData['middle_name']) ? ($stuData['middle_name'] ?: null) : null,
                     'last_name' => $stuData['last_name'],
-                    'gender' => $gender,
-                    'dob' => $dob,
-                    'has_allergies' => isset($stuData['has_allergies']) ? (bool)$stuData['has_allergies'] : false,
-                    'allergies_notes' => array_key_exists('allergies_notes', $stuData) ? ($stuData['allergies_notes'] ?: null) : $student->allergies_notes,
-                    'is_fully_immunized' => isset($stuData['is_fully_immunized']) ? (bool)$stuData['is_fully_immunized'] : false,
-                    'residential_area' => array_key_exists('residential_area', $validated) ? ($validated['residential_area'] ?: null) : $student->residential_area,
-                    'preferred_hospital' => array_key_exists('preferred_hospital', $validated) ? ($validated['preferred_hospital'] ?: null) : $student->preferred_hospital,
-                    'emergency_contact_name' => array_key_exists('emergency_contact_name', $validated) ? ($validated['emergency_contact_name'] ?: null) : $student->emergency_contact_name,
-                    'emergency_contact_phone' => array_key_exists('emergency_contact_phone', $validated) && !empty($validated['emergency_contact_phone']) ? $this->formatPhoneWithCode(
-                        $validated['emergency_contact_phone'],
-                        $this->normalizeCountryCode($validated['emergency_phone_country_code'] ?? '+254')
-                    ) : (array_key_exists('emergency_contact_phone', $validated) ? null : $student->emergency_contact_phone),
-                ]);
+                ];
+                
+                // Middle name
+                if (array_key_exists('middle_name', $stuData)) {
+                    $updateData['middle_name'] = $stuData['middle_name'] ?: null;
+                }
+                
+                // Gender - normalize to lowercase (form uses Male/Female, but we store as lowercase)
+                if (isset($stuData['gender'])) {
+                    $updateData['gender'] = strtolower(trim($stuData['gender']));
+                }
+                
+                // DOB - normalize empty string to null
+                if (array_key_exists('dob', $stuData)) {
+                    $updateData['dob'] = !empty($stuData['dob']) ? $stuData['dob'] : null;
+                }
+                
+                // Checkboxes - only update if present in validated data
+                if (array_key_exists('has_allergies', $stuData)) {
+                    $updateData['has_allergies'] = (bool)$stuData['has_allergies'];
+                }
+                
+                if (array_key_exists('is_fully_immunized', $stuData)) {
+                    $updateData['is_fully_immunized'] = (bool)$stuData['is_fully_immunized'];
+                }
+                
+                // Allergies notes
+                if (array_key_exists('allergies_notes', $stuData)) {
+                    $updateData['allergies_notes'] = $stuData['allergies_notes'] ?: null;
+                }
+                
+                // Fields from top-level validated array
+                if (array_key_exists('residential_area', $validated)) {
+                    $updateData['residential_area'] = $validated['residential_area'] ?: null;
+                }
+                
+                if (array_key_exists('preferred_hospital', $validated)) {
+                    $updateData['preferred_hospital'] = $validated['preferred_hospital'] ?: null;
+                }
+                
+                if (array_key_exists('emergency_contact_name', $validated)) {
+                    $updateData['emergency_contact_name'] = $validated['emergency_contact_name'] ?: null;
+                }
+                
+                if (array_key_exists('emergency_contact_phone', $validated)) {
+                    if (!empty($validated['emergency_contact_phone'])) {
+                        $updateData['emergency_contact_phone'] = $this->formatPhoneWithCode(
+                            $validated['emergency_contact_phone'],
+                            $this->normalizeCountryCode($validated['emergency_phone_country_code'] ?? '+254')
+                        );
+                    } else {
+                        $updateData['emergency_contact_phone'] = null;
+                    }
+                }
+
+                $fieldsToCheck = array_keys($updateData);
+                $beforeSnapshot = $student->only($fieldsToCheck);
+                
+                $student->update($updateData);
 
                 $student->refresh();
                 foreach ($fieldsToCheck as $field) {
