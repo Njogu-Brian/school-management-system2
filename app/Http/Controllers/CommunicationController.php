@@ -415,6 +415,52 @@ class CommunicationController extends Controller
             $normalizedRecipients[$normalized] = $entity;
         }
         $recipients = $normalizedRecipients;
+        
+        // For bulk sends (>10 recipients), use queue job for reliability
+        $useQueue = count($recipients) > 10 || $request->has('use_queue');
+        $skipSent = $request->has('skip_sent') ? (bool)$request->skip_sent : true;
+        
+        if ($useQueue) {
+            // Generate tracking ID
+            $trackingId = 'whatsapp_bulk_' . uniqid() . '_' . time();
+            
+            // Prepare recipients data (serialize entities)
+            $recipientsData = [];
+            foreach ($recipients as $phone => $entity) {
+                // Store entity data for reconstruction in job
+                $recipientsData[$phone] = [
+                    'id' => $entity->id ?? null,
+                    'classroom_id' => $entity->classroom_id ?? null,
+                    'type' => get_class($entity),
+                    // Store additional data that might be needed for placeholders
+                    'first_name' => $entity->first_name ?? null,
+                    'last_name' => $entity->last_name ?? null,
+                    'admission_number' => $entity->admission_number ?? null,
+                ];
+            }
+            
+            // Dispatch job
+            \App\Jobs\BulkSendWhatsAppMessages::dispatch(
+                $trackingId,
+                $recipientsData,
+                $message,
+                $title,
+                $data['target'],
+                $mediaUrl,
+                $skipSent
+            );
+            
+            \Log::info('WhatsApp bulk send job dispatched', [
+                'tracking_id' => $trackingId,
+                'recipient_count' => count($recipients),
+                'skip_sent' => $skipSent,
+            ]);
+            
+            return redirect()->route('communication.send.whatsapp.progress', [
+                'tracking_id' => $trackingId,
+                'total' => count($recipients),
+            ])->with('info', 'Bulk send started. Processing in background...');
+        }
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
@@ -537,6 +583,82 @@ class CommunicationController extends Controller
         }
 
         return redirect()->route('communication.send.whatsapp')->with($withData);
+    }
+
+    /**
+     * Show progress for bulk WhatsApp send
+     */
+    public function whatsappProgress(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+        
+        $trackingId = $request->query('tracking_id');
+        if (!$trackingId) {
+            return redirect()->route('communication.send.whatsapp')->with('error', 'Invalid tracking ID');
+        }
+
+        $progress = \Cache::get("bulk_whatsapp_progress:{$trackingId}", [
+            'status' => 'processing',
+            'total' => $request->query('total', 0),
+            'sent' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+            'processed' => 0,
+        ]);
+
+        return view('communication.whatsapp-progress', compact('trackingId', 'progress'));
+    }
+
+    /**
+     * Retry failed WhatsApp sends
+     */
+    public function retryFailedWhatsApp(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+        
+        $trackingId = $request->input('tracking_id');
+        if (!$trackingId) {
+            return back()->with('error', 'Invalid tracking ID');
+        }
+
+        // Get failed logs from this tracking session
+        $failedLogs = CommunicationLog::where('channel', 'whatsapp')
+            ->where('status', 'failed')
+            ->where('created_at', '>=', now()->subHours(24))
+            ->get();
+
+        if ($failedLogs->isEmpty()) {
+            return back()->with('info', 'No failed messages to retry');
+        }
+
+        // Prepare recipients for retry
+        $recipients = [];
+        foreach ($failedLogs as $log) {
+            $recipients[$log->contact] = [
+                'id' => $log->recipient_id,
+                'classroom_id' => $log->classroom_id,
+                'type' => 'App\Models\Student', // Default, adjust if needed
+            ];
+        }
+
+        // Create new tracking ID for retry
+        $retryTrackingId = 'whatsapp_retry_' . uniqid() . '_' . time();
+
+        // Dispatch retry job
+        \App\Jobs\BulkSendWhatsAppMessages::dispatch(
+            $retryTrackingId,
+            $recipients,
+            $failedLogs->first()->message ?? '',
+            $failedLogs->first()->title ?? 'Retry',
+            $failedLogs->first()->recipient_type ?? 'student',
+            null,
+            false // Don't skip sent for retries
+        );
+
+        return redirect()->route('communication.send.whatsapp.progress', [
+            'tracking_id' => $retryTrackingId,
+            'total' => count($recipients),
+        ])->with('success', 'Retry job started for ' . count($recipients) . ' failed messages');
     }
 
     /* ========== PREVIEW ========== */

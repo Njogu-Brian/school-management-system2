@@ -1069,6 +1069,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
         Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
         Route::post('send-whatsapp', [CommunicationController::class, 'sendWhatsApp'])->name('communication.send.whatsapp.submit');
+        Route::get('send-whatsapp/progress', [CommunicationController::class, 'whatsappProgress'])->name('communication.send.whatsapp.progress');
+        Route::post('send-whatsapp/retry', [CommunicationController::class, 'retryFailedWhatsApp'])->name('communication.send.whatsapp.retry');
         
         Route::post('preview', [CommunicationController::class, 'preview'])->name('communication.preview');
         Route::post('send-document', [CommunicationDocumentController::class, 'send'])->name('communication.send.document');

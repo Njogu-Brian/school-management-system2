@@ -139,6 +139,25 @@
         <div id="wa-media-preview" class="mt-2 d-none"></div>
     </div>
 
+    <div class="col-12">
+        <div class="card bg-light p-3 mb-3">
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="use_queue" id="use_queue" value="1" checked>
+                <label class="form-check-label" for="use_queue">
+                    <strong>Use Queue Mode (Recommended for 10+ recipients)</strong>
+                </label>
+                <small class="text-muted d-block ms-4">Processes in background, handles failures better, can resume if interrupted.</small>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="skip_sent" id="skip_sent" value="1" checked>
+                <label class="form-check-label" for="skip_sent">
+                    <strong>Skip Already Sent Messages</strong>
+                </label>
+                <small class="text-muted d-block ms-4">Prevents sending duplicate messages to recipients who already received this message in the last 24 hours.</small>
+            </div>
+        </div>
+    </div>
+
     <div class="col-12 d-flex justify-content-end gap-2">
         <a href="{{ route('communication.logs') }}" class="btn btn-ghost-strong">Cancel</a>
         <button type="button" class="btn btn-outline-success" id="preview-whatsapp-btn" style="min-width: 120px;">

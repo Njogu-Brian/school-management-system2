@@ -27,8 +27,18 @@ class FamilyUpdateController extends Controller
         $audits = FamilyUpdateAudit::with(['family', 'student', 'user'])
             ->orderByDesc('created_at')
             ->paginate(50);
+        
+        // Get statistics
+        $stats = [
+            'total_links' => FamilyUpdateLink::count(),
+            'active_links' => FamilyUpdateLink::where('is_active', true)->count(),
+            'total_clicks' => FamilyUpdateLink::sum('click_count'),
+            'total_updates' => FamilyUpdateLink::sum('update_count'),
+            'links_with_clicks' => FamilyUpdateLink::where('click_count', '>', 0)->count(),
+            'links_with_updates' => FamilyUpdateLink::where('update_count', '>', 0)->count(),
+        ];
 
-        return view('family_update.admin.index', compact('families', 'audits'));
+        return view('family_update.admin.index', compact('families', 'audits', 'stats'));
     }
 
     /**
@@ -95,6 +105,16 @@ class FamilyUpdateController extends Controller
     public function publicForm($token)
     {
         $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
+        
+        // Track link click/access
+        $isFirstClick = $link->click_count === 0;
+        $link->increment('click_count');
+        if ($isFirstClick) {
+            $link->first_clicked_at = now();
+        }
+        $link->last_clicked_at = now();
+        $link->save();
+        
         $family = $link->family()->with(['students' => function ($q) {
             $q->where('archive', 0)->with('classroom');
         }, 'students.parent'])->firstOrFail();
@@ -324,6 +344,11 @@ class FamilyUpdateController extends Controller
 
             if (!empty($audits)) {
                 FamilyUpdateAudit::insert($audits);
+                
+                // Track update count on the link
+                $link->increment('update_count');
+                $link->last_updated_at = now();
+                $link->save();
             }
         });
 
