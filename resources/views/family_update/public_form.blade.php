@@ -97,6 +97,64 @@
             font-size: 0.85rem;
             color: var(--brand-muted);
         }
+        .file-upload-wrapper {
+            position: relative;
+        }
+        .file-upload-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .file-upload-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px dashed var(--brand-border);
+            border-radius: 8px;
+            background: #f9fafb;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+            color: var(--brand-text);
+        }
+        .file-upload-btn:hover {
+            border-color: var(--brand-primary);
+            background: #f0fdfa;
+        }
+        .file-upload-btn i {
+            display: block;
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+            color: var(--brand-primary);
+        }
+        .file-input-hidden {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .file-preview {
+            margin-top: 8px;
+            padding: 8px;
+            background: #f9fafb;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        .existing-docs {
+            margin-top: 8px;
+            padding: 8px;
+            background: #eff6ff;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        .existing-docs a {
+            color: var(--brand-primary);
+            text-decoration: none;
+            margin-right: 12px;
+        }
+        .existing-docs a:hover {
+            text-decoration: underline;
+        }
         @media (max-width: 576px) {
             .hero {
                 padding: 20px 18px;
@@ -164,7 +222,10 @@
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Date of Birth</label>
-                                    <input type="date" name="students[{{ $stu->id }}][dob]" class="form-control" value="{{ old('students.'.$stu->id.'.dob', $stu->dob ? \Carbon\Carbon::parse($stu->dob)->format('Y-m-d') : '') }}">
+                                    <input type="date" name="students[{{ $stu->id }}][dob]" class="form-control" value="{{ old('students.'.$stu->id.'.dob', $stu->dob ? ($stu->dob instanceof \Carbon\Carbon ? $stu->dob->format('Y-m-d') : \Carbon\Carbon::parse($stu->dob)->format('Y-m-d')) : '') }}">
+                                    @if($stu->dob)
+                                        <small class="text-muted d-block mt-1">Current: {{ $stu->dob instanceof \Carbon\Carbon ? $stu->dob->format('M d, Y') : \Carbon\Carbon::parse($stu->dob)->format('M d, Y') }}</small>
+                                    @endif
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">Classroom (view only)</label>
@@ -188,25 +249,82 @@
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Passport Photo</label>
-                                    <input type="file" name="students[{{ $stu->id }}][passport_photo]" class="form-control" accept="image/*" capture="environment">
-                                    @if($stu->photo_path)
-                                        <small class="upload-hint d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->photo_path) }}">Current photo</a></small>
-                                    @else
+                                    <div class="file-upload-wrapper">
+                                        <input type="file" name="students[{{ $stu->id }}][passport_photo]" id="passport_photo_{{ $stu->id }}" class="form-control file-input-hidden" accept="image/*">
+                                        <div class="file-upload-buttons">
+                                            <label for="passport_photo_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('passport_photo_{{ $stu->id }}').removeAttribute('capture')">
+                                                <i class="bi bi-image"></i>
+                                                <span>Choose File</span>
+                                            </label>
+                                            <label for="passport_photo_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('passport_photo_{{ $stu->id }}').setAttribute('capture', 'environment')">
+                                                <i class="bi bi-camera"></i>
+                                                <span>Take Photo</span>
+                                            </label>
+                                        </div>
+                                        <div id="passport_photo_preview_{{ $stu->id }}" class="file-preview" style="display:none;"></div>
+                                        @php
+                                            $passportDocs = $stu->documents()->where(function($q) {
+                                                $q->where('category', 'student_profile_photo')
+                                                  ->orWhere('document_type', 'photo');
+                                            })->latest()->get();
+                                        @endphp
+                                        @if($passportDocs->isNotEmpty() || $stu->photo_path)
+                                            <div class="existing-docs mt-2">
+                                                <strong>Existing photos:</strong><br>
+                                                @foreach($passportDocs as $doc)
+                                                    <a href="{{ $doc->file_url }}" target="_blank">
+                                                        <i class="bi bi-file-earmark-image"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
+                                                    </a>
+                                                @endforeach
+                                                @if($stu->photo_path && !$passportDocs->where('file_path', $stu->photo_path)->first())
+                                                    <a href="{{ Storage::url($stu->photo_path) }}" target="_blank">
+                                                        <i class="bi bi-image"></i> Legacy Photo
+                                                    </a>
+                                                @endif
+                                            </div>
+                                        @endif
                                         <small class="upload-hint d-block mt-1">Accepted: JPG/PNG up to 4 MB.</small>
-                                    @endif
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Birth Certificate / Notification</label>
-                                    <input type="file" name="students[{{ $stu->id }}][birth_certificate]" class="form-control" accept=".pdf,.jpg,.jpeg,.png" capture="environment">
-                                    @if($stu->birth_certificate_path)
-                                        <small class="upload-hint d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->birth_certificate_path) }}">Current file</a></small>
-                                    @else
-                                        <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
-                                    @endif
-                                        @if($stu->birth_certificate_path)
-                                            <small class="text-muted d-block mt-1"><a target="_blank" href="{{ Storage::url($stu->birth_certificate_path) }}">Current file</a></small>
+                                    <div class="file-upload-wrapper">
+                                        <input type="file" name="students[{{ $stu->id }}][birth_certificate]" id="birth_cert_{{ $stu->id }}" class="form-control file-input-hidden" accept=".pdf,.jpg,.jpeg,.png">
+                                        <div class="file-upload-buttons">
+                                            <label for="birth_cert_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('birth_cert_{{ $stu->id }}').removeAttribute('capture')">
+                                                <i class="bi bi-file-earmark"></i>
+                                                <span>Choose File</span>
+                                            </label>
+                                            <label for="birth_cert_{{ $stu->id }}" class="file-upload-btn" onclick="document.getElementById('birth_cert_{{ $stu->id }}').setAttribute('capture', 'environment')">
+                                                <i class="bi bi-camera"></i>
+                                                <span>Take Photo</span>
+                                            </label>
+                                        </div>
+                                        <div id="birth_cert_preview_{{ $stu->id }}" class="file-preview" style="display:none;"></div>
+                                        @php
+                                            $birthCertDocs = $stu->documents()->where(function($q) {
+                                                $q->where('category', 'student_birth_certificate')
+                                                  ->orWhere('document_type', 'birth_certificate');
+                                            })->latest()->get();
+                                        @endphp
+                                        @if($birthCertDocs->isNotEmpty() || $stu->birth_certificate_path)
+                                            <div class="existing-docs mt-2">
+                                                <strong>Existing certificates:</strong><br>
+                                                @foreach($birthCertDocs as $doc)
+                                                    <a href="{{ $doc->file_url }}" target="_blank">
+                                                        <i class="bi bi-file-earmark-pdf"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
+                                                    </a>
+                                                @endforeach
+                                                @if($stu->birth_certificate_path && !$birthCertDocs->where('file_path', $stu->birth_certificate_path)->first())
+                                                    <a href="{{ Storage::url($stu->birth_certificate_path) }}" target="_blank">
+                                                        <i class="bi bi-file-earmark"></i> Legacy Certificate
+                                                    </a>
+                                                @endif
+                                            </div>
                                         @endif
+                                        <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
                                     </div>
+                                </div>
                                 </div>
                             </div>
                         @endforeach
@@ -264,10 +382,46 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father ID Document</label>
-                                <input type="file" name="father_id_document" class="form-control" accept=".pdf,.jpg,.jpeg,.png" capture="environment">
-                                @if(optional($family->students->first()->parent)->father_id_document)
-                                    <small class="text-muted d-block mt-1"><a target="_blank" href="{{ Storage::url($family->students->first()->parent->father_id_document) }}">Current file</a></small>
-                                @endif
+                                <div class="file-upload-wrapper">
+                                    <input type="file" name="father_id_document" id="father_id_document" class="form-control file-input-hidden" accept=".pdf,.jpg,.jpeg,.png">
+                                    <div class="file-upload-buttons">
+                                        <label for="father_id_document" class="file-upload-btn" onclick="document.getElementById('father_id_document').removeAttribute('capture')">
+                                            <i class="bi bi-file-earmark"></i>
+                                            <span>Choose File</span>
+                                        </label>
+                                        <label for="father_id_document" class="file-upload-btn" onclick="document.getElementById('father_id_document').setAttribute('capture', 'environment')">
+                                            <i class="bi bi-camera"></i>
+                                            <span>Take Photo</span>
+                                        </label>
+                                    </div>
+                                    <div id="father_id_document_preview" class="file-preview" style="display:none;"></div>
+                                    @php
+                                        $parent = $family->students->first()->parent ?? null;
+                                        $fatherIdDocs = $parent ? $parent->documents()->where(function($q) {
+                                            $q->where('category', 'parent_id_card')
+                                              ->orWhere('document_type', 'id_card');
+                                        })->where(function($q) {
+                                            $q->where('title', 'like', '%father%')
+                                              ->orWhere('title', 'like', '%Father%');
+                                        })->latest()->get() : collect();
+                                    @endphp
+                                    @if($fatherIdDocs->isNotEmpty() || optional($parent)->father_id_document)
+                                        <div class="existing-docs mt-2">
+                                            <strong>Existing documents:</strong><br>
+                                            @foreach($fatherIdDocs as $doc)
+                                                <a href="{{ $doc->file_url }}" target="_blank">
+                                                    <i class="bi bi-file-earmark-pdf"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
+                                                </a>
+                                            @endforeach
+                                            @if(optional($parent)->father_id_document && !$fatherIdDocs->where('file_path', $parent->father_id_document)->first())
+                                                <a href="{{ Storage::url($parent->father_id_document) }}" target="_blank">
+                                                    <i class="bi bi-file-earmark"></i> Legacy Document
+                                                </a>
+                                            @endif
+                                        </div>
+                                    @endif
+                                    <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
+                                </div>
                             </div>
 
                             <div class="col-md-6">
@@ -312,10 +466,46 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother ID Document</label>
-                                <input type="file" name="mother_id_document" class="form-control" accept=".pdf,.jpg,.jpeg,.png" capture="environment">
-                                @if(optional($family->students->first()->parent)->mother_id_document)
-                                    <small class="text-muted d-block mt-1"><a target="_blank" href="{{ Storage::url($family->students->first()->parent->mother_id_document) }}">Current file</a></small>
-                                @endif
+                                <div class="file-upload-wrapper">
+                                    <input type="file" name="mother_id_document" id="mother_id_document" class="form-control file-input-hidden" accept=".pdf,.jpg,.jpeg,.png">
+                                    <div class="file-upload-buttons">
+                                        <label for="mother_id_document" class="file-upload-btn" onclick="document.getElementById('mother_id_document').removeAttribute('capture')">
+                                            <i class="bi bi-file-earmark"></i>
+                                            <span>Choose File</span>
+                                        </label>
+                                        <label for="mother_id_document" class="file-upload-btn" onclick="document.getElementById('mother_id_document').setAttribute('capture', 'environment')">
+                                            <i class="bi bi-camera"></i>
+                                            <span>Take Photo</span>
+                                        </label>
+                                    </div>
+                                    <div id="mother_id_document_preview" class="file-preview" style="display:none;"></div>
+                                    @php
+                                        $parent = $family->students->first()->parent ?? null;
+                                        $motherIdDocs = $parent ? $parent->documents()->where(function($q) {
+                                            $q->where('category', 'parent_id_card')
+                                              ->orWhere('document_type', 'id_card');
+                                        })->where(function($q) {
+                                            $q->where('title', 'like', '%mother%')
+                                              ->orWhere('title', 'like', '%Mother%');
+                                        })->latest()->get() : collect();
+                                    @endphp
+                                    @if($motherIdDocs->isNotEmpty() || optional($parent)->mother_id_document)
+                                        <div class="existing-docs mt-2">
+                                            <strong>Existing documents:</strong><br>
+                                            @foreach($motherIdDocs as $doc)
+                                                <a href="{{ $doc->file_url }}" target="_blank">
+                                                    <i class="bi bi-file-earmark-pdf"></i> {{ $doc->title }} ({{ $doc->created_at->format('M d, Y') }})
+                                                </a>
+                                            @endforeach
+                                            @if(optional($parent)->mother_id_document && !$motherIdDocs->where('file_path', $parent->mother_id_document)->first())
+                                                <a href="{{ Storage::url($parent->mother_id_document) }}" target="_blank">
+                                                    <i class="bi bi-file-earmark"></i> Legacy Document
+                                                </a>
+                                            @endif
+                                        </div>
+                                    @endif
+                                    <small class="upload-hint d-block mt-1">Accepted: PDF/JPG/PNG up to 5 MB.</small>
+                                </div>
                             </div>
 
                             <div class="col-md-6">
@@ -449,6 +639,32 @@
             applyRule();
         });
     });
+
+    // File preview handlers
+    function setupFilePreview(inputId, previewId) {
+        const input = document.getElementById(inputId);
+        const preview = document.getElementById(previewId);
+        
+        if (input && preview) {
+            input.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    preview.style.display = 'block';
+                    preview.innerHTML = `<i class="bi bi-file-earmark"></i> Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                } else {
+                    preview.style.display = 'none';
+                }
+            });
+        }
+    }
+
+    // Setup previews for all file inputs
+    @foreach($students as $stu)
+        setupFilePreview('passport_photo_{{ $stu->id }}', 'passport_photo_preview_{{ $stu->id }}');
+        setupFilePreview('birth_cert_{{ $stu->id }}', 'birth_cert_preview_{{ $stu->id }}');
+    @endforeach
+    setupFilePreview('father_id_document', 'father_id_document_preview');
+    setupFilePreview('mother_id_document', 'mother_id_document_preview');
 </script>
 </body>
 </html>

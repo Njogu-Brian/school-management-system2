@@ -1445,7 +1445,7 @@ class StudentController extends Controller
     public function show($id)
     {
         $student = Student::withArchived()
-            ->with(['parent','classroom','stream','category','family'])
+            ->with(['parent.documents','classroom','stream','category','family','documents'])
             ->findOrFail($id);
 
         // Ensure single students also have a family + profile update link

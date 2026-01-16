@@ -289,6 +289,11 @@ class Student extends Model
         return $this->hasMany(SwimmingLedger::class);
     }
 
+    public function documents()
+    {
+        return $this->morphMany(Document::class, 'documentable');
+    }
+
     protected static function booted()
     {
         static::addGlobalScope('active', function (Builder $builder) {

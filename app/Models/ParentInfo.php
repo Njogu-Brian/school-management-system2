@@ -47,4 +47,9 @@ class ParentInfo extends Model
             ?? $this->mother_email
             ?? $this->guardian_email;
     }
+
+    public function documents()
+    {
+        return $this->morphMany(Document::class, 'documentable');
+    }
 }

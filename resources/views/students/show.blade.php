@@ -73,32 +73,98 @@
         <div class="settings-card">
           <div class="card-header d-flex justify-content-between align-items-center">
             <span class="fw-bold">Documents</span>
-            <a class="btn btn-sm btn-ghost-strong" href="{{ route('students.edit', $student->id) }}"><i class="bi bi-upload"></i> Manage</a>
+            <div class="d-flex gap-2">
+              <a class="btn btn-sm btn-ghost-strong" href="{{ route('documents.index', ['documentable_type' => 'App\\Models\\Student', 'documentable_id' => $student->id]) }}"><i class="bi bi-folder"></i> All Documents</a>
+              <a class="btn btn-sm btn-ghost-strong" href="{{ route('students.edit', $student->id) }}"><i class="bi bi-upload"></i> Manage</a>
+            </div>
           </div>
           <div class="card-body small vstack gap-2">
             <div class="fw-semibold text-muted mb-2">Student Documents</div>
-            <div class="d-flex justify-content-between">
+            @php
+              $passportDocs = $student->documents()->where(function($q) {
+                $q->where('category', 'student_profile_photo')
+                  ->orWhere('document_type', 'photo');
+              })->latest()->take(3)->get();
+              $birthCertDocs = $student->documents()->where(function($q) {
+                $q->where('category', 'student_birth_certificate')
+                  ->orWhere('document_type', 'birth_certificate');
+              })->latest()->take(3)->get();
+            @endphp
+            <div class="d-flex justify-content-between align-items-start">
               <span class="fw-semibold">Passport Photo</span>
-              <span>{!! $student->photo_path ? '<a target="_blank" href="'.asset('storage/'.$student->photo_path).'">View</a>' : '—' !!}</span>
+              <div class="text-end">
+                @if($passportDocs->isNotEmpty())
+                  @foreach($passportDocs as $doc)
+                    <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
+                  @endforeach
+                @elseif($student->photo_path)
+                  <a target="_blank" href="{{ asset('storage/'.$student->photo_path) }}">Legacy Photo</a>
+                @else
+                  <span>—</span>
+                @endif
+              </div>
             </div>
-            <div class="d-flex justify-content-between">
+            <div class="d-flex justify-content-between align-items-start">
               <span class="fw-semibold">Birth Certificate</span>
-              <span>{!! $student->birth_certificate_path ? '<a target="_blank" href="'.asset('storage/'.$student->birth_certificate_path).'">View</a>' : '—' !!}</span>
+              <div class="text-end">
+                @if($birthCertDocs->isNotEmpty())
+                  @foreach($birthCertDocs as $doc)
+                    <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
+                  @endforeach
+                @elseif($student->birth_certificate_path)
+                  <a target="_blank" href="{{ asset('storage/'.$student->birth_certificate_path) }}">Legacy Certificate</a>
+                @else
+                  <span>—</span>
+                @endif
+              </div>
             </div>
             @if($student->parent)
+              @php
+                $parent = $student->parent;
+                $fatherIdDocs = $parent->documents()->where(function($q) {
+                  $q->where('category', 'parent_id_card')
+                    ->orWhere('document_type', 'id_card');
+                })->where(function($q) {
+                  $q->where('title', 'like', '%father%')
+                    ->orWhere('title', 'like', '%Father%');
+                })->latest()->take(3)->get();
+                $motherIdDocs = $parent->documents()->where(function($q) {
+                  $q->where('category', 'parent_id_card')
+                    ->orWhere('document_type', 'id_card');
+                })->where(function($q) {
+                  $q->where('title', 'like', '%mother%')
+                    ->orWhere('title', 'like', '%Mother%');
+                })->latest()->take(3)->get();
+              @endphp
               <div class="fw-semibold text-muted mb-2 mt-3">Parent Documents</div>
-              @if(optional($student->parent)->father_id_document)
-                <div class="d-flex justify-content-between">
-                  <span class="fw-semibold">Father ID Document</span>
-                  <span><a target="_blank" href="{{ asset('storage/'.$student->parent->father_id_document) }}">View</a></span>
+              <div class="d-flex justify-content-between align-items-start">
+                <span class="fw-semibold">Father ID Document</span>
+                <div class="text-end">
+                  @if($fatherIdDocs->isNotEmpty())
+                    @foreach($fatherIdDocs as $doc)
+                      <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
+                    @endforeach
+                  @elseif($parent->father_id_document)
+                    <a target="_blank" href="{{ asset('storage/'.$parent->father_id_document) }}">Legacy Document</a>
+                  @else
+                    <span>—</span>
+                  @endif
                 </div>
-              @endif
-              @if(optional($student->parent)->mother_id_document)
-                <div class="d-flex justify-content-between">
-                  <span class="fw-semibold">Mother ID Document</span>
-                  <span><a target="_blank" href="{{ asset('storage/'.$student->parent->mother_id_document) }}">View</a></span>
+              </div>
+              <div class="d-flex justify-content-between align-items-start">
+                <span class="fw-semibold">Mother ID Document</span>
+                <div class="text-end">
+                  @if($motherIdDocs->isNotEmpty())
+                    @foreach($motherIdDocs as $doc)
+                      <div><a target="_blank" href="{{ $doc->file_url }}">{{ $doc->title }}</a> <small class="text-muted">({{ $doc->created_at->format('M d, Y') }})</small></div>
+                    @endforeach
+                  @elseif($parent->mother_id_document)
+                    <a target="_blank" href="{{ asset('storage/'.$parent->mother_id_document) }}">Legacy Document</a>
+                  @else
+                    <span>—</span>
+                  @endif
                 </div>
-              @endif
+              </div>
             @endif
           </div>
         </div>
@@ -120,7 +186,7 @@
             <div class="row g-3">
               <div class="col-md-6"><div class="text-muted small">Admission No.</div><div class="fw-semibold">{{ $student->admission_number }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Gender</div><div class="fw-semibold">{{ $student->gender ? ucfirst($student->gender) : '—' }}</div></div>
-              <div class="col-md-6"><div class="text-muted small">Date of Birth</div><div class="fw-semibold">{{ $student->dob ? \Carbon\Carbon::parse($student->dob)->toFormattedDateString() : '—' }}</div></div>
+              <div class="col-md-6"><div class="text-muted small">Date of Birth</div><div class="fw-semibold">{{ $student->dob ? ($student->dob instanceof \Carbon\Carbon ? $student->dob->toFormattedDateString() : \Carbon\Carbon::parse($student->dob)->toFormattedDateString()) : '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Admission Date</div><div class="fw-semibold">{{ $student->admission_date ? \Carbon\Carbon::parse($student->admission_date)->format('M d, Y') : '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Class</div><div class="fw-semibold">{{ $student->classroom->name ?? '—' }}</div></div>
               <div class="col-md-6"><div class="text-muted small">Stream</div><div class="fw-semibold">{{ $student->stream->name ?? '—' }}</div></div>

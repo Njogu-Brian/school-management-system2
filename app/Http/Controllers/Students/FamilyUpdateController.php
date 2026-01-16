@@ -7,6 +7,7 @@ use App\Models\Family;
 use App\Models\FamilyUpdateLink;
 use App\Models\FamilyUpdateAudit;
 use App\Models\Student;
+use App\Models\Document;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -123,8 +124,8 @@ class FamilyUpdateController extends Controller
         }
         
         $family = $link->family()->with(['students' => function ($q) {
-            $q->where('archive', 0)->with('classroom');
-        }, 'students.parent'])->firstOrFail();
+            $q->where('archive', 0)->with(['classroom', 'documents']);
+        }, 'students.parent.documents'])->firstOrFail();
 
         $students = $family->students;
         if ($students->isEmpty()) {
@@ -245,13 +246,63 @@ class FamilyUpdateController extends Controller
 
                     $parent->update($parentData);
 
-                    // Handle parent ID uploads
+                    // Handle parent ID uploads - save to Document model
                     if (request()->hasFile('father_id_document')) {
-                        $parent->father_id_document = request()->file('father_id_document')->store('parents/id', 'private');
+                        $file = request()->file('father_id_document');
+                        $path = $file->store('documents', 'public');
+                        
+                        // Create document record
+                        Document::create([
+                            'title' => "Father ID Document - {$parent->father_name ?? 'Father'}",
+                            'description' => "Father ID document uploaded via profile update form",
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'file_type' => $file->getClientMimeType(),
+                            'file_size' => $file->getSize(),
+                            'category' => 'parent_id_card',
+                            'document_type' => 'id_card',
+                            'documentable_type' => \App\Models\ParentInfo::class,
+                            'documentable_id' => $parent->id,
+                            'version' => 1,
+                            'is_active' => true,
+                            'uploaded_by' => $userId,
+                        ]);
+                        
+                        // Also update legacy father_id_document for backward compatibility
+                        if ($parent->father_id_document) {
+                            Storage::disk('private')->delete($parent->father_id_document);
+                        }
+                        $parent->father_id_document = $path;
                     }
+                    
                     if (request()->hasFile('mother_id_document')) {
-                        $parent->mother_id_document = request()->file('mother_id_document')->store('parents/id', 'private');
+                        $file = request()->file('mother_id_document');
+                        $path = $file->store('documents', 'public');
+                        
+                        // Create document record
+                        Document::create([
+                            'title' => "Mother ID Document - {$parent->mother_name ?? 'Mother'}",
+                            'description' => "Mother ID document uploaded via profile update form",
+                            'file_path' => $path,
+                            'file_name' => $file->getClientOriginalName(),
+                            'file_type' => $file->getClientMimeType(),
+                            'file_size' => $file->getSize(),
+                            'category' => 'parent_id_card',
+                            'document_type' => 'id_card',
+                            'documentable_type' => \App\Models\ParentInfo::class,
+                            'documentable_id' => $parent->id,
+                            'version' => 1,
+                            'is_active' => true,
+                            'uploaded_by' => $userId,
+                        ]);
+                        
+                        // Also update legacy mother_id_document for backward compatibility
+                        if ($parent->mother_id_document) {
+                            Storage::disk('private')->delete($parent->mother_id_document);
+                        }
+                        $parent->mother_id_document = $path;
                     }
+                    
                     $parent->save();
                 }
             }
@@ -331,21 +382,66 @@ class FamilyUpdateController extends Controller
                     }
                 }
 
-                // File uploads for student
+                // File uploads for student - save to Document model
                 $fileKeyPhoto = "students.{$student->id}.passport_photo";
                 $fileKeyCert = "students.{$student->id}.birth_certificate";
+                
                 if (request()->hasFile($fileKeyPhoto)) {
+                    $file = request()->file($fileKeyPhoto);
+                    $path = $file->store('documents', 'public');
+                    
+                    // Create document record
+                    Document::create([
+                        'title' => "Passport Photo - {$student->first_name} {$student->last_name}",
+                        'description' => "Passport photo uploaded via profile update form",
+                        'file_path' => $path,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_type' => $file->getClientMimeType(),
+                        'file_size' => $file->getSize(),
+                        'category' => 'student_profile_photo',
+                        'document_type' => 'photo',
+                        'documentable_type' => Student::class,
+                        'documentable_id' => $student->id,
+                        'version' => 1,
+                        'is_active' => true,
+                        'uploaded_by' => $userId,
+                    ]);
+                    
+                    // Also update legacy photo_path for backward compatibility
                     if ($student->photo_path) {
                         Storage::disk('public')->delete($student->photo_path);
                     }
-                    $student->photo_path = request()->file($fileKeyPhoto)->store('students/photos', 'public');
+                    $student->photo_path = $path;
                 }
+                
                 if (request()->hasFile($fileKeyCert)) {
+                    $file = request()->file($fileKeyCert);
+                    $path = $file->store('documents', 'public');
+                    
+                    // Create document record
+                    Document::create([
+                        'title' => "Birth Certificate - {$student->first_name} {$student->last_name}",
+                        'description' => "Birth certificate uploaded via profile update form",
+                        'file_path' => $path,
+                        'file_name' => $file->getClientOriginalName(),
+                        'file_type' => $file->getClientMimeType(),
+                        'file_size' => $file->getSize(),
+                        'category' => 'student_birth_certificate',
+                        'document_type' => 'birth_certificate',
+                        'documentable_type' => Student::class,
+                        'documentable_id' => $student->id,
+                        'version' => 1,
+                        'is_active' => true,
+                        'uploaded_by' => $userId,
+                    ]);
+                    
+                    // Also update legacy birth_certificate_path for backward compatibility
                     if ($student->birth_certificate_path) {
                         Storage::disk('private')->delete($student->birth_certificate_path);
                     }
-                    $student->birth_certificate_path = request()->file($fileKeyCert)->store('students/documents', 'private');
+                    $student->birth_certificate_path = $path;
                 }
+                
                 $student->save();
             }
 
