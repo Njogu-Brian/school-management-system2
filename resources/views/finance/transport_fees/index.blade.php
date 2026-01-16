@@ -197,8 +197,8 @@
         </div>
       </div>
       
-      {{-- Import History --}}
-      @if(isset($imports) && $imports->count() > 0)
+      {{-- Recent Import History --}}
+      @if(isset($recentImports) && $recentImports->count() > 0)
       <div class="finance-card shadow-sm rounded-4 border-0 mt-4">
         <div class="finance-card-header d-flex align-items-center gap-2">
           <i class="bi bi-clock-history"></i>
