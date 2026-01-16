@@ -567,6 +567,7 @@ class TransportFeeController extends Controller
                     $totalAmount += $amount;
                 }
             } catch (\Throwable $e) {
+                $failed++;
                 Log::warning('Transport fee import failed', [
                     'student_id' => $studentId ?? null,
                     'status' => $status,
@@ -575,6 +576,7 @@ class TransportFeeController extends Controller
                     'message' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
+                // Continue processing other rows even if one fails
             }
         }
 
@@ -585,18 +587,23 @@ class TransportFeeController extends Controller
             'total_amount' => $totalAmount,
         ]);
 
-        $message = "{$createdOrUpdated} transport fee(s)";
+        $message = "{$createdOrUpdated} transport fee(s) imported successfully";
         if ($skipped > 0) {
             $message .= ", {$skipped} skipped (already billed or kept existing)";
         }
         if ($dropOffPointsCreated > 0) {
             $message .= ", {$dropOffPointsCreated} drop-off point(s) created";
         }
+        if ($failed > 0) {
+            $message .= ", {$failed} failed (check logs for details)";
+        }
         $message .= " for Term {$term}, {$year}.";
+
+        $alertType = $failed > 0 ? 'warning' : 'success';
 
         return redirect()
             ->route('finance.transport-fees.index', ['term' => $term, 'year' => $year])
-            ->with('success', $message)
+            ->with($alertType, $message)
             ->with('import_batch_id', $importBatch->id);
     }
     

@@ -322,6 +322,7 @@ class OptionalFeeImportController extends Controller
         $createdOrUpdated = 0;
         $skipped = 0;
         $removed = 0;
+        $failed = 0;
         $totalAmount = 0;
 
         // Process additions and updates
@@ -420,10 +421,11 @@ class OptionalFeeImportController extends Controller
                     $invoice = InvoiceService::ensure($studentId, $year, $term);
 
                     // Check for existing invoice item (including soft-deleted ones)
+                    // Note: Unique constraint is on ['invoice_id', 'votehead_id'], not including 'source'
+                    // So we must check for ANY item with this combination, regardless of source
                     $invoiceItem = \App\Models\InvoiceItem::withTrashed()
                         ->where('invoice_id', $invoice->id)
                         ->where('votehead_id', $voteheadId)
-                        ->where('source', 'optional')
                         ->first();
 
                     if ($invoiceItem) {
@@ -431,8 +433,9 @@ class OptionalFeeImportController extends Controller
                         if ($invoiceItem->trashed()) {
                             $invoiceItem->restore();
                         }
-                        // Update existing item
+                        // Update existing item (preserve source if it's not 'optional', otherwise update to 'optional')
                         $invoiceItem->update([
+                            'source' => 'optional', // Update source to optional for optional fee imports
                             'amount' => $finalAmount,
                             'status' => 'active',
                             'posted_at' => now(),
