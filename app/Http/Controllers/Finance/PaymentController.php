@@ -473,6 +473,17 @@ class PaymentController extends Controller
      */
     public function sendPaymentNotifications(Payment $payment)
     {
+        // Skip notifications for swimming payments
+        if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0 || 
+            strpos($payment->narration ?? '', 'Swimming') !== false ||
+            strpos($payment->narration ?? '', '(Swimming)') !== false) {
+            Log::info('Skipping payment notification for swimming payment', [
+                'payment_id' => $payment->id,
+                'receipt_number' => $payment->receipt_number,
+            ]);
+            return;
+        }
+        
         $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
         
