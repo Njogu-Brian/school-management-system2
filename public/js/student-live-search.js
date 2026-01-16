@@ -68,16 +68,23 @@
             results.innerHTML = '<div class="list-group-item text-center text-muted">Searching...</div>';
             results.classList.remove('d-none');
 
-            const urls = [];
-            if (customUrl) urls.push(customUrl);
-            urls.push(defaultUrl, apiFallback);
-
             // Build query string with include_alumni_archived parameter if needed
             const queryParams = new URLSearchParams({ q });
             if (includeAlumniArchived) {
                 queryParams.append('include_alumni_archived', '1');
             }
 
+            // When including alumni/archived, prioritize API route (requires auth)
+            // Otherwise try public route first
+            const urls = [];
+            if (customUrl) urls.push(customUrl);
+            if (includeAlumniArchived) {
+                urls.push(apiFallback, defaultUrl); // API first for alumni/archived
+            } else {
+                urls.push(defaultUrl, apiFallback); // Public first for regular search
+            }
+
+            let lastError = null;
             for (const url of urls.filter(Boolean)) {
                 try {
                     const res = await fetch(`${url}?${queryParams.toString()}`, {
@@ -87,15 +94,21 @@
                         },
                         credentials: 'same-origin',
                     });
-                    if (!res.ok) throw new Error(`search failed ${res.status}`);
+                    if (!res.ok) {
+                        lastError = `HTTP ${res.status}`;
+                        continue; // try next URL
+                    }
                     const data = await res.json();
                     render(Array.isArray(data) ? data : []);
                     return;
                 } catch (e) {
+                    lastError = e.message;
                     // try next URL
                 }
             }
 
+            // All URLs failed
+            console.error('Student search failed for all URLs:', urls, 'Last error:', lastError);
             results.innerHTML =
                 '<div class="list-group-item text-center text-danger">Search failed. Check connection or permissions.</div>';
             results.classList.remove('d-none');
