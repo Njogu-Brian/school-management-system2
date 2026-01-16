@@ -418,20 +418,73 @@ class CommunicationController extends Controller
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
+        $delayBetweenMessages = 5; // Default 5 seconds for account protection
+        $lastSentTime = 0;
+        $totalRecipients = count($recipients);
+        
+        $index = 0;
         foreach ($recipients as $phone => $entity) {
+            $index++;
             try {
+                // Calculate delay needed since last message (skip delay for first message)
+                if ($lastSentTime > 0) {
+                    $currentTime = time();
+                    $timeSinceLastMessage = $currentTime - $lastSentTime;
+                    
+                    // Check if we need to wait (respect rate limiting)
+                    if ($timeSinceLastMessage < $delayBetweenMessages) {
+                        $waitTime = $delayBetweenMessages - $timeSinceLastMessage;
+                        \Log::info("Rate limiting: waiting {$waitTime} seconds before sending to {$phone} ({$index}/{$totalRecipients})");
+                        sleep($waitTime);
+                    }
+                }
+                
                 $personalized = replace_placeholders($message, $entity);
                 $finalMessage = $mediaUrl ? ($personalized . "\n\nMedia: " . $mediaUrl) : $personalized;
                 $response = $whatsAppService->sendMessage($phone, $finalMessage);
 
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                
+                // Check for rate limiting error and adjust delay
+                $responseBody = data_get($response, 'body', []);
+                $isRateLimited = false;
+                $retryAfter = null;
+                
+                if (is_array($responseBody)) {
+                    $errorMessage = data_get($responseBody, 'message', '');
+                    if (is_string($errorMessage) && 
+                        (str_contains(strtolower($errorMessage), 'account protection') || 
+                         str_contains(strtolower($errorMessage), 'rate limit'))) {
+                        $isRateLimited = true;
+                        $retryAfter = data_get($responseBody, 'retry_after');
+                        if (is_numeric($retryAfter) && $retryAfter > $delayBetweenMessages) {
+                            $delayBetweenMessages = (int) ceil($retryAfter);
+                            \Log::info('WhatsApp rate limit detected, adjusting delay to ' . $delayBetweenMessages . ' seconds');
+                        }
+                    }
+                }
+                
+                if ($isRateLimited && $status === 'failed') {
+                    // Wait for the required time, then retry
+                    $waitTime = $retryAfter ?? $delayBetweenMessages;
+                    \Log::info("Rate limited, waiting {$waitTime} seconds before retry for {$phone}");
+                    sleep((int) ceil($waitTime));
+                    
+                    // Retry the message
+                    $response = $whatsAppService->sendMessage($phone, $finalMessage);
+                    $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                }
+                
                 $status === 'sent' ? $sentCount++ : $failedCount++;
                 if ($status !== 'sent') {
                     $failures[] = [
                         'phone' => $phone,
-                        'reason' => data_get($response, 'body') ?? 'unknown',
+                        'reason' => $isRateLimited ? 'Rate limited (retried)' : (data_get($response, 'body') ?? 'unknown'),
                     ];
                 }
+                
+                // Update last sent time after successful or failed send
+                $lastSentTime = time();
 
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],

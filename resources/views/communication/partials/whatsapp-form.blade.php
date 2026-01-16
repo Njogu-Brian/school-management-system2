@@ -5,6 +5,13 @@
     <div>
         <div class="fw-semibold">WhatsApp-style compose</div>
         <small class="text-muted">Templates plus personalized placeholders; falls back to phone if no WhatsApp field.</small>
+        <div class="mt-2">
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i> 
+                <strong>Bulk sending:</strong> Messages are automatically rate-limited (5 seconds between messages) to respect account protection. 
+                To send faster, disable account protection in <a href="{{ route('communication.wasender.sessions') }}" class="alert-link">WhatsApp Sessions</a>.
+            </small>
+        </div>
     </div>
 </div>
 

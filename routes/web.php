@@ -1076,6 +1076,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('whatsapp-sessions', [WasenderSessionController::class, 'store'])->name('communication.wasender.sessions.store');
         Route::post('whatsapp-sessions/{id}/connect', [WasenderSessionController::class, 'connect'])->name('communication.wasender.sessions.connect');
         Route::post('whatsapp-sessions/{id}/restart', [WasenderSessionController::class, 'restart'])->name('communication.wasender.sessions.restart');
+        Route::put('whatsapp-sessions/{id}/settings', [WasenderSessionController::class, 'updateSettings'])->name('communication.wasender.sessions.update-settings');
         Route::delete('whatsapp-sessions/{id}', [WasenderSessionController::class, 'destroy'])->name('communication.wasender.sessions.destroy');
 
         // Logs

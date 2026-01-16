@@ -77,6 +77,7 @@
                                     <th>Name</th>
                                     <th>Phone</th>
                                     <th>Status</th>
+                                    <th>Account Protection</th>
                                     <th>Webhook</th>
                                     <th>Updated</th>
                                     <th class="text-end">Actions</th>
@@ -88,6 +89,13 @@
                                         <td>{{ $s['name'] ?? '—' }}</td>
                                         <td>{{ $s['phone_number'] ?? '—' }}</td>
                                         <td><span class="badge bg-secondary text-uppercase">{{ $s['status'] ?? 'unknown' }}</span></td>
+                                        <td>
+                                            @if(!empty($s['account_protection']))
+                                                <span class="badge bg-warning" title="Rate limited: 1 message per 5 seconds">Enabled</span>
+                                            @else
+                                                <span class="badge bg-success">Disabled</span>
+                                            @endif
+                                        </td>
                                         <td>
                                             @if(!empty($s['webhook_enabled']))
                                                 <span class="badge bg-success">On</span>
@@ -105,6 +113,14 @@
                                                 @csrf
                                                 <button class="btn btn-sm btn-outline-secondary">Restart</button>
                                             </form>
+                                            @if(!empty($s['account_protection']))
+                                            <form method="POST" action="{{ route('communication.wasender.sessions.update-settings', $s['id']) }}" class="d-inline ms-1">
+                                                @csrf
+                                                @method('PUT')
+                                                <input type="hidden" name="account_protection" value="0">
+                                                <button class="btn btn-sm btn-outline-warning" title="Disable account protection to send faster (1 msg per 5 sec limit will be removed)">Disable Protection</button>
+                                            </form>
+                                            @endif
                                             <form method="POST" action="{{ route('communication.wasender.sessions.destroy', $s['id']) }}" class="d-inline ms-1" onsubmit="return confirm('Delete this session?');">
                                                 @csrf
                                                 @method('DELETE')

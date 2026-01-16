@@ -22,10 +22,16 @@ class WhatsAppService
 
     /**
     * Send a text message via WasenderAPI.
+    * @param int|null $delaySeconds Optional delay before sending (for rate limiting)
     */
-    public function sendMessage(string $to, string $text): array
+    public function sendMessage(string $to, string $text, ?int $delaySeconds = null): array
     {
         $this->ensureApiKey();
+
+        // Apply delay if specified (for rate limiting)
+        if ($delaySeconds && $delaySeconds > 0) {
+            sleep($delaySeconds);
+        }
 
         $payload = [
             'to' => $this->normalizeRecipient($to),

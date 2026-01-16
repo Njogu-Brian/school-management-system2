@@ -114,6 +114,32 @@ class WasenderSessionController extends Controller
             return back()->with('error', $e->getMessage());
         }
     }
+
+    public function updateSettings(Request $request, $id, WhatsAppService $wa)
+    {
+        abort_unless(can_access("communication", "sms", "add"), 403);
+        
+        $data = $request->validate([
+            'account_protection' => 'sometimes|boolean',
+            'log_messages' => 'sometimes|boolean',
+            'webhook_enabled' => 'sometimes|boolean',
+            'read_incoming_messages' => 'sometimes|boolean',
+            'auto_reject_calls' => 'sometimes|boolean',
+            'ignore_groups' => 'sometimes|boolean',
+            'ignore_channels' => 'sometimes|boolean',
+            'ignore_broadcasts' => 'sometimes|boolean',
+        ]);
+
+        try {
+            $resp = $wa->updateSession($id, $data);
+            if ($resp['status'] === 'success') {
+                return back()->with('success', 'Session settings updated successfully.');
+            }
+            return back()->with('error', 'Update failed: ' . json_encode($resp['body']));
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
 }
 
 
