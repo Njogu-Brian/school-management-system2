@@ -315,9 +315,8 @@
             <i class="bi bi-x-circle"></i> Cancel
           </a>
           <button type="submit" class="btn btn-finance btn-finance-primary" 
-            @if($needsMatchingCount > 0 || ($missingStudentCount > 0 && !request('allow_skip'))) 
+            @if($needsMatchingCount > 0 || $missingStudentCount > 0) 
               id="submitBtn" 
-              disabled 
             @endif>
             <i class="bi bi-check2-circle"></i> Apply Changes
           </button>
