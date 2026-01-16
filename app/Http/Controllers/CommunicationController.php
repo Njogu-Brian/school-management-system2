@@ -654,10 +654,9 @@ class CommunicationController extends Controller
             false // Don't skip sent for retries
         );
 
-        return redirect()->route('communication.send.whatsapp.progress', [
-            'tracking_id' => $retryTrackingId,
-            'total' => count($recipients),
-        ])->with('success', 'Retry job started for ' . count($recipients) . ' failed messages');
+        // Use URL directly to avoid route cache issues
+        $progressUrl = url('/communication/send-whatsapp/progress') . '?tracking_id=' . urlencode($retryTrackingId) . '&total=' . count($recipients);
+        return redirect($progressUrl)->with('success', 'Retry job started for ' . count($recipients) . ' failed messages');
     }
 
     /* ========== PREVIEW ========== */
