@@ -290,6 +290,7 @@ class FamilyUpdateController extends Controller
                     }
 
                     $parent->update($parentData);
+                    $parent->refresh(); // Refresh to get updated values
 
                     // Handle parent ID uploads - save to Document model
                     if (request()->hasFile('father_id_document')) {
@@ -375,9 +376,13 @@ class FamilyUpdateController extends Controller
                     $updateData['gender'] = strtolower(trim($stuData['gender']));
                 }
                 
-                // DOB - normalize empty string to null
+                // DOB - normalize empty string to null, but always update if key exists
                 if (array_key_exists('dob', $stuData)) {
-                    $updateData['dob'] = !empty($stuData['dob']) ? $stuData['dob'] : null;
+                    if (!empty($stuData['dob'])) {
+                        $updateData['dob'] = $stuData['dob'];
+                    } else {
+                        $updateData['dob'] = null;
+                    }
                 }
                 
                 // Checkboxes - only update if present in validated data
@@ -418,11 +423,21 @@ class FamilyUpdateController extends Controller
                     }
                 }
 
+                // Ensure DOB is properly formatted if it's a string (before snapshot)
+                if (isset($updateData['dob']) && is_string($updateData['dob']) && !empty($updateData['dob'])) {
+                    try {
+                        $updateData['dob'] = \Carbon\Carbon::parse($updateData['dob'])->toDateString();
+                    } catch (\Exception $e) {
+                        // If parsing fails, keep original value
+                    }
+                }
+                
                 $fieldsToCheck = array_keys($updateData);
                 $beforeSnapshot = $student->only($fieldsToCheck);
                 
                 $student->update($updateData);
-
+                
+                // Refresh student to get updated values
                 $student->refresh();
                 foreach ($fieldsToCheck as $field) {
                     if ($beforeSnapshot[$field] != $student->{$field}) {
@@ -513,6 +528,9 @@ class FamilyUpdateController extends Controller
             }
         });
 
+        // Clear cached relationships - the redirect will reload fresh data from database
+        $family->unsetRelation('students');
+        
         return redirect()->route('family-update.form', $token)
             ->with('success', 'Details updated successfully. You can revisit this link anytime to update again.');
     }
