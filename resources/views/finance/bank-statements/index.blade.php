@@ -169,7 +169,7 @@
                 </button>
             </form>
             
-            <form id="bulkSwimmingForm" method="POST" action="{{ route('bulk-mark-swimming') }}">
+            <form id="bulkSwimmingForm" method="POST" action="{{ route('finance.bank-statements.bulk-mark-swimming') }}">
                 @csrf
                 <div id="bulkSwimmingTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-info" onclick="bulkMarkSwimming()" id="bulkSwimmingBtn" style="display: none;">
