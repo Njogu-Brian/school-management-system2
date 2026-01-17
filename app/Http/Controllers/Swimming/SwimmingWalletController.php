@@ -307,14 +307,8 @@ class SwimmingWalletController extends Controller
                     $allocations = $payment->allocations;
 
                     if ($allocations->isEmpty()) {
-                        // Even if no allocations, mark as reversed if it's a swimming payment
-                        // Swimming payments should only credit wallets, not exist as regular payments
-                        $payment->update([
-                            'reversed' => true,
-                            'reversed_by' => auth()->id(),
-                            'reversed_at' => now(),
-                            'narration' => ($payment->narration ?? '') . ' (Reversed - Swimming payment should not exist in regular payments)',
-                        ]);
+                        // Payment has no invoice allocations - this is correct for swimming payments
+                        // They should only credit wallets, not allocate to invoices
                         $paymentsWithoutAllocations++;
                         continue;
                     }
