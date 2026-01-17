@@ -288,10 +288,8 @@ class SwimmingAttendanceService
      */
     public function bulkRetryPayments(?array $attendanceIds = null): array
     {
-        // Find unpaid attendance for students with optional fees OR students who should have wallets credited
-        // Remove termly_fee_covered restriction - check all unpaid attendance with session_cost > 0
+        // Find all unpaid attendance - process all of them
         $query = SwimmingAttendance::where('payment_status', SwimmingAttendance::STATUS_UNPAID)
-            ->where('session_cost', '>', 0)
             ->with(['student']);
         
         if ($attendanceIds) {
@@ -310,13 +308,25 @@ class SwimmingAttendanceService
                 $student = $attendance->student;
                 if (!$student) {
                     $failed++;
+                    $errors[] = "Attendance #{$attendance->id}: Student not found";
                     continue;
                 }
                 
-                $sessionCost = $attendance->session_cost ?? $this->getTermlyPerVisitCost();
+                // Determine session cost based on whether student has termly fee
+                $hasTermlyFee = $this->hasActiveTermlyFee($student);
+                $sessionCost = 0;
+                
+                if ($hasTermlyFee) {
+                    // Student has termly fee - debit 120 (termly per-visit cost)
+                    $sessionCost = $this->getTermlyPerVisitCost();
+                } else {
+                    // Student has no termly fee - debit 150 (per-visit cost)
+                    $sessionCost = $this->getPerVisitCost();
+                }
                 
                 if ($sessionCost <= 0) {
                     $failed++;
+                    $errors[] = "Attendance #{$attendance->id}: Session cost not set (termly: {$this->getTermlyPerVisitCost()}, regular: {$this->getPerVisitCost()})";
                     continue;
                 }
                 
@@ -327,6 +337,12 @@ class SwimmingAttendanceService
                 // Check if wallet has sufficient balance
                 if ($wallet->balance >= $sessionCost) {
                     try {
+                        // Update attendance record with correct session cost if different
+                        if ($attendance->session_cost != $sessionCost) {
+                            $attendance->update(['session_cost' => $sessionCost]);
+                        }
+                        
+                        // Debit wallet
                         $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
                         $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
                         $processed++;
@@ -335,6 +351,7 @@ class SwimmingAttendanceService
                             'attendance_id' => $attendance->id,
                             'student_id' => $student->id,
                             'amount' => $sessionCost,
+                            'has_termly_fee' => $hasTermlyFee,
                         ]);
                     } catch (\Exception $e) {
                         $failed++;
@@ -354,11 +371,17 @@ class SwimmingAttendanceService
                         'student_id' => $student->id,
                         'session_cost' => $sessionCost,
                         'wallet_balance' => $wallet->balance,
+                        'has_termly_fee' => $hasTermlyFee,
                     ]);
                 }
             } catch (\Exception $e) {
                 $failed++;
                 $errors[] = "Attendance #{$attendance->id}: {$e->getMessage()}";
+                Log::error('Exception in bulkRetryPayments', [
+                    'attendance_id' => $attendance->id,
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
         }
         

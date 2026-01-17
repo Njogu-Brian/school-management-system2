@@ -246,24 +246,35 @@ class SwimmingWalletController extends Controller
             $results = $attendanceService->bulkRetryPayments();
             
             $message = "Processed {$results['processed']} attendance record(s).";
+            
+            if ($results['processed'] > 0) {
+                $message .= " Debit amounts: Ksh 120 for students with termly fee, Ksh 150 for students without termly fee.";
+            }
+            
             if ($results['insufficient'] > 0) {
                 $message .= " {$results['insufficient']} had insufficient wallet balance (wallets need to be credited first).";
             }
+            
             if ($results['failed'] > 0) {
                 $message .= " {$results['failed']} failed.";
                 if (!empty($results['errors'])) {
-                    $message .= " Errors: " . implode('; ', array_slice($results['errors'], 0, 2));
+                    $message .= " First errors: " . implode('; ', array_slice($results['errors'], 0, 3));
                 }
             }
+            
             if ($results['processed'] == 0 && $results['insufficient'] == 0 && $results['failed'] == 0) {
-                $message = "No unpaid attendance records found for students with optional fees. This means either:\n";
-                $message .= "- All attendance is already paid, OR\n";
-                $message .= "- Attendance records don't have termly_fee_covered=true, OR\n";
-                $message .= "- Session costs are not set (session_cost = 0)";
+                $message = "No unpaid attendance records found. All attendance is already paid.";
+            }
+            
+            $status = 'success';
+            if ($results['failed'] > 0 || $results['insufficient'] > 0) {
+                $status = $results['processed'] > 0 ? 'warning' : 'error';
+            } elseif ($results['processed'] == 0) {
+                $status = 'info';
             }
             
             return redirect()->route('swimming.wallets.index')
-                ->with($results['failed'] > 0 || ($results['processed'] == 0 && $results['insufficient'] == 0) ? 'warning' : 'success', $message);
+                ->with($status, $message);
                 
         } catch (\Exception $e) {
             return redirect()->back()
