@@ -181,12 +181,21 @@ class SwimmingPaymentController extends Controller
             ->get();
 
         return response()->json([
+            'student' => [
+                'id' => $student->id,
+                'first_name' => $student->first_name,
+                'last_name' => $student->last_name,
+                'admission_number' => $student->admission_number,
+                'swimming_balance' => \App\Models\SwimmingWallet::getOrCreateForStudent($student->id)->balance ?? 0,
+            ],
             'siblings' => $siblings->map(function($sibling) {
+                $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($sibling->id);
                 return [
                     'id' => $sibling->id,
                     'first_name' => $sibling->first_name,
                     'last_name' => $sibling->last_name,
                     'admission_number' => $sibling->admission_number,
+                    'swimming_balance' => $wallet->balance ?? 0,
                 ];
             })
         ]);

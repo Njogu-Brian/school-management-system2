@@ -634,6 +634,12 @@
     </div>
 
     <script>
+        @php
+            $isSwimmingForJS = \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+                && $bankStatement->is_swimming_transaction;
+        @endphp
+        const isSwimmingTransaction = @json($isSwimmingForJS);
+        
         function updateTotal() {
             const amounts = Array.from(document.querySelectorAll('.sibling-amount')).map(input => parseFloat(input.value) || 0);
             const total = amounts.reduce((sum, amt) => sum + amt, 0);
@@ -705,16 +711,70 @@
 let selectedShareStudent = null;
 let selectedShareSiblings = [];
 
-// Handle student selection for sharing
-window.addEventListener('student-selected', function(event) {
+// Handle student selection for assigning to single student
+window.addEventListener('student-selected', async function(event) {
     const student = event.detail;
-    const hiddenInput = document.getElementById('share_student_id');
+    const assignHiddenInput = document.getElementById('assign_student_id');
+    const shareHiddenInput = document.getElementById('share_student_id');
+    
+    // Check if this is from the assign tab
+    if (assignHiddenInput && assignHiddenInput.value == student.id) {
+        await showStudentBalanceForAssign(student);
+    }
     
     // Check if this is from the share tab
-    if (hiddenInput && hiddenInput.value == student.id) {
+    if (shareHiddenInput && shareHiddenInput.value == student.id) {
         selectStudentForShare(student);
     }
 });
+
+// Show balance for single student assignment
+async function showStudentBalanceForAssign(student) {
+    // Check if balance container exists, if not create it
+    let balanceContainer = document.getElementById('assignStudentBalance');
+    if (!balanceContainer) {
+        const assignForm = document.getElementById('assignStudentForm');
+        if (assignForm) {
+            // Create balance display element
+            balanceContainer = document.createElement('div');
+            balanceContainer.id = 'assignStudentBalance';
+            balanceContainer.className = 'mt-3 p-3 border rounded bg-light';
+            
+            // Insert after the student search input
+            const searchInput = document.getElementById('assignStudentSearch');
+            if (searchInput && searchInput.parentElement) {
+                searchInput.parentElement.parentElement.appendChild(balanceContainer);
+            }
+        }
+    }
+    
+    if (!balanceContainer) return;
+    
+    // Show loading state
+    balanceContainer.innerHTML = '<small class="text-muted">Loading balance...</small>';
+    
+    try {
+        const url = `{{ route('finance.bank-statements.student-balance', ['student' => ':id']) }}`.replace(':id', student.id) + 
+                   (isSwimmingTransaction ? '?swimming=1' : '');
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        const balance = data.balance || 0;
+        const label = data.label || 'Balance';
+        
+        balanceContainer.innerHTML = `
+            <small class="text-muted">
+                <strong>${student.full_name || student.first_name + ' ' + student.last_name}</strong> 
+                (${student.admission_number || 'N/A'})
+                <br>
+                <span class="text-danger">${label}: Ksh ${parseFloat(balance).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+            </small>
+        `;
+    } catch (error) {
+        console.error('Error fetching balance:', error);
+        balanceContainer.innerHTML = '<small class="text-muted text-danger">Unable to load balance</small>';
+    }
+}
 
 function escapeHtml(text) {
     if (!text) return '';
@@ -739,7 +799,7 @@ function selectStudentForShare(student) {
     }
 }
 
-function populateShareForm() {
+async function populateShareForm() {
     const container = document.getElementById('shareSiblingAllocations');
     const formContainer = document.getElementById('shareFormContainer');
     const transactionAmount = {{ $bankStatement->amount }};
@@ -748,42 +808,48 @@ function populateShareForm() {
         return;
     }
     
+    // Show loading state
+    container.innerHTML = '<p class="text-muted">Loading balances...</p>';
+    
+    // Fetch balances for all students (selected student + siblings)
+    const allStudents = [selectedShareStudent, ...selectedShareSiblings];
+    const balancePromises = allStudents.map(async (student) => {
+        try {
+            const url = `{{ route('finance.bank-statements.student-balance', ['student' => ':id']) }}`.replace(':id', student.id) + 
+                       (isSwimmingTransaction ? '?swimming=1' : '');
+            const response = await fetch(url);
+            const data = await response.json();
+            return {
+                student: student,
+                balance: data.balance || 0,
+                label: data.label || 'Balance'
+            };
+        } catch (error) {
+            console.error('Error fetching balance for student:', student.id, error);
+            return {
+                student: student,
+                balance: 0,
+                label: isSwimmingTransaction ? 'Swimming Balance' : 'Balance'
+            };
+        }
+    });
+    
+    const studentsWithBalances = await Promise.all(balancePromises);
+    
     // Build form with selected student and siblings
     let html = '';
     let index = 0;
     
-    // Add selected student
-    html += `
-        <div class="mb-3 p-3 border rounded">
-            <label class="form-label">
-                <strong>${selectedShareStudent.first_name || ''} ${selectedShareStudent.last_name || ''}</strong>
-                <small class="text-muted">(${selectedShareStudent.admission_number || 'N/A'})</small>
-            </label>
-            <input type="hidden" name="allocations[${index}][student_id]" value="${selectedShareStudent.id}">
-            <input type="number" 
-                   name="allocations[${index}][amount]" 
-                   class="form-control share-sibling-amount" 
-                   step="0.01" 
-                   min="0" 
-                   max="${transactionAmount}"
-                   onchange="updateShareTotal()"
-                   oninput="updateShareTotal()"
-                   value=""
-                   placeholder="0.00 (leave 0 to exclude)">
-            <small class="text-muted">Enter 0.00 or leave empty to exclude this student</small>
-        </div>
-    `;
-    index++;
-    
-    // Add siblings
-    selectedShareSiblings.forEach(sibling => {
+    // Add selected student and siblings with balances
+    studentsWithBalances.forEach(({student, balance, label}) => {
         html += `
             <div class="mb-3 p-3 border rounded">
                 <label class="form-label">
-                    <strong>${sibling.first_name || ''} ${sibling.last_name || ''}</strong>
-                    <small class="text-muted">(${sibling.admission_number || 'N/A'})</small>
+                    <strong>${student.first_name || ''} ${student.last_name || ''}</strong>
+                    <small class="text-muted">(${student.admission_number || 'N/A'})</small>
+                    <br><small class="text-danger">${label}: Ksh ${parseFloat(balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                 </label>
-                <input type="hidden" name="allocations[${index}][student_id]" value="${sibling.id}">
+                <input type="hidden" name="allocations[${index}][student_id]" value="${student.id}">
                 <input type="number" 
                        name="allocations[${index}][amount]" 
                        class="form-control share-sibling-amount" 
@@ -827,16 +893,48 @@ function updateShareTotal() {
 
 // Old displaySearchResults function removed - using student_live_search partial now
 
-function showShareModalForStudent(studentId, studentName, siblings) {
+async function showShareModalForStudent(studentId, studentName, siblings) {
     // Ensure siblings is an array
     if (!Array.isArray(siblings)) {
         siblings = [];
     }
     
+    // Fetch balances for main student and siblings
+    const allStudents = [
+        {id: studentId, name: studentName},
+        ...siblings.map(s => ({id: s.id, name: `${s.first_name || ''} ${s.last_name || ''}`, admission: s.admission_number}))
+    ];
+    
+    const balancePromises = allStudents.map(async (student) => {
+        try {
+            const url = `{{ route('finance.bank-statements.student-balance', ['student' => ':id']) }}`.replace(':id', student.id) + 
+                       (isSwimmingTransaction ? '?swimming=1' : '');
+            const response = await fetch(url);
+            const data = await response.json();
+            return {
+                ...student,
+                balance: data.balance || 0,
+                label: data.label || 'Balance'
+            };
+        } catch (error) {
+            return {
+                ...student,
+                balance: 0,
+                label: isSwimmingTransaction ? 'Swimming Balance' : 'Balance'
+            };
+        }
+    });
+    
+    const studentsWithBalances = await Promise.all(balancePromises);
+    
     // Create modal for sharing payment with siblings
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.id = 'shareModal' + studentId;
+    
+    const mainStudent = studentsWithBalances[0];
+    const siblingsWithBalances = studentsWithBalances.slice(1);
+    
     modal.innerHTML = `
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -853,7 +951,8 @@ function showShareModalForStudent(studentId, studentName, siblings) {
                         </p>
                         <div class="mb-3 p-3 border rounded">
                             <label class="form-label">
-                                <strong>${studentName}</strong>
+                                <strong>${mainStudent.name}</strong>
+                                <br><small class="text-danger">${mainStudent.label}: Ksh ${parseFloat(mainStudent.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                             </label>
                             <input type="hidden" name="allocations[0][student_id]" value="${studentId}">
                             <input type="number" 
@@ -866,14 +965,14 @@ function showShareModalForStudent(studentId, studentName, siblings) {
                                    oninput="updateModalTotal()"
                                    placeholder="0.00 (leave 0 to exclude)">
                         </div>
-                        ${siblings.map((sib, idx) => {
-                            const sibName = `${sib.first_name || ''} ${sib.last_name || ''}`.trim() || 'Unknown';
-                            const sibAdmission = sib.admission_number || '';
+                        ${siblingsWithBalances.map((sib, idx) => {
+                            const sibAdmission = sib.admission || '';
                             return `
                             <div class="mb-3 p-3 border rounded">
                                 <label class="form-label">
-                                    <strong>${sibName}</strong>
+                                    <strong>${sib.name}</strong>
                                     ${sibAdmission ? `<small class="text-muted">(${sibAdmission})</small>` : ''}
+                                    <br><small class="text-danger">${sib.label}: Ksh ${parseFloat(sib.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                                 </label>
                                 <input type="hidden" name="allocations[${idx + 1}][student_id]" value="${sib.id}">
                                 <input type="number" 

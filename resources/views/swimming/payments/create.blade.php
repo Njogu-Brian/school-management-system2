@@ -231,13 +231,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 const container = document.getElementById('sibling_allocation_fields');
                 container.innerHTML = '';
                 
+                // Add main student first - always show even if no siblings
+                if (data.student) {
+                    const div = document.createElement('div');
+                    div.className = 'mb-3';
+                    div.innerHTML = `
+                        <label class="finance-form-label">
+                            ${data.student.first_name} ${data.student.last_name} (${data.student.admission_number})
+                            <br><small class="text-danger">Swimming Balance: Ksh ${parseFloat(data.student.swimming_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">Ksh</span>
+                            <input type="hidden" name="sibling_allocations[0][student_id]" value="${data.student.id}">
+                            <input type="number" 
+                                   name="sibling_allocations[0][amount]" 
+                                   step="0.01" 
+                                   min="0" 
+                                   class="form-control sibling-amount" 
+                                   value="0"
+                                   onchange="updateTotal()">
+                        </div>
+                    `;
+                    container.appendChild(div);
+                }
+                
+                // Add siblings if they exist
                 if (data.siblings && data.siblings.length > 0) {
-                    let index = 0;
+                    let index = data.student ? 1 : 0;
                     data.siblings.forEach(sibling => {
                         const div = document.createElement('div');
                         div.className = 'mb-3';
                         div.innerHTML = `
-                            <label class="finance-form-label">${sibling.first_name} ${sibling.last_name} (${sibling.admission_number})</label>
+                            <label class="finance-form-label">
+                                ${sibling.first_name} ${sibling.last_name} (${sibling.admission_number})
+                                <br><small class="text-danger">Swimming Balance: Ksh ${parseFloat(sibling.swimming_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
+                            </label>
                             <div class="input-group">
                                 <span class="input-group-text">Ksh</span>
                                 <input type="hidden" name="sibling_allocations[${index}][student_id]" value="${sibling.id}">
@@ -253,8 +281,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         container.appendChild(div);
                         index++;
                     });
-                } else {
+                } else if (!data.student) {
                     container.innerHTML = '<p class="text-muted">No siblings found for this student.</p>';
+                } else {
+                    // Show message if main student exists but no siblings
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'alert alert-info mt-2 mb-0';
+                    messageDiv.innerHTML = '<small><i class="bi bi-info-circle"></i> No siblings found. You can still allocate the full amount to this student.</small>';
+                    container.appendChild(messageDiv);
                 }
             })
             .catch(error => {

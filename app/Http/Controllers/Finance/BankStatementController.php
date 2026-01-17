@@ -2058,6 +2058,28 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Get student balance (fee or swimming)
+     */
+    public function getStudentBalance(Student $student, Request $request)
+    {
+        $isSwimming = $request->get('swimming', false);
+        
+        if ($isSwimming) {
+            $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($student->id);
+            return response()->json([
+                'balance' => $wallet->balance ?? 0,
+                'label' => 'Swimming Balance'
+            ]);
+        } else {
+            $balance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+            return response()->json([
+                'balance' => $balance,
+                'label' => 'Balance'
+            ]);
+        }
+    }
+
+    /**
      * Delete statement and all related records
      */
     public function destroy(BankStatementTransaction $bankStatement)
