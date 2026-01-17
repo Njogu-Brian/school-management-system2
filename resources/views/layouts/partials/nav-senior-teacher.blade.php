@@ -194,7 +194,7 @@
        class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}">
       <i class="bi bi-wallet2"></i> Wallets
     </a>
-    <a href="{{ route('swimming.reports.daily-attendance') }}"
+    <a href="{{ route('swimming.attendance.index') }}"
        class="sublink {{ Request::is('swimming/reports*') ? 'active' : '' }}">
       <i class="bi bi-file-earmark-text"></i> Reports
     </a>
