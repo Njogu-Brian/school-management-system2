@@ -191,6 +191,19 @@ class SwimmingTransactionService
                     'status' => SwimmingTransactionAllocation::STATUS_ALLOCATED,
                 ]);
                 
+                // Mark payment as fully allocated since it goes directly to wallet (no invoice allocation needed)
+                // Refresh payment to get latest values
+                $payment->refresh();
+                $payment->updateAllocationTotals();
+                
+                // If payment is fully allocated to wallet, ensure it's marked correctly
+                if ($payment->unallocated_amount <= 0.01) {
+                    $payment->update([
+                        'allocated_amount' => $payment->amount,
+                        'unallocated_amount' => 0,
+                    ]);
+                }
+                
                 $results['processed']++;
             } catch (\Exception $e) {
                 Log::error('Failed to process swimming allocation', [

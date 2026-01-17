@@ -42,7 +42,9 @@ class PaymentController extends Controller
         $query = Payment::with(['student.classroom', 'student.stream', 'paymentMethod', 'invoice'])
             ->whereHas('student', function($q) {
                 $q->where('archive', 0)->where('is_alumni', false);
-            });
+            })
+            // Exclude swimming payments - they are managed separately in Swimming Management
+            ->where('receipt_number', 'not like', 'SWIM-%');
         
         // Apply filters
         if ($request->filled('student_id')) {
@@ -2342,6 +2344,8 @@ class PaymentController extends Controller
                 $q->where('unallocated_amount', '>', 0)
                   ->orWhereRaw('amount > allocated_amount');
             })
+            // Exclude swimming payments - they are managed separately and allocated to wallets
+            ->where('receipt_number', 'not like', 'SWIM-%')
             ->with('student')
             ->get();
         
@@ -2503,7 +2507,9 @@ class PaymentController extends Controller
         
         // Build query based on filters (same as index method)
         $query = Payment::with(['student.parent', 'student.classroom', 'paymentMethod'])
-            ->where('reversed', false);
+            ->where('reversed', false)
+            // Exclude swimming payments - they are managed separately
+            ->where('receipt_number', 'not like', 'SWIM-%');
 
         if ($request->filled('student_id')) {
             $query->where('student_id', $request->student_id);
