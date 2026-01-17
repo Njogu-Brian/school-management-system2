@@ -349,4 +349,143 @@ class SwimmingAttendanceService
             'errors' => $errors,
         ];
     }
+
+    /**
+     * Send payment reminders for unpaid swimming attendance
+     */
+    public function sendPaymentReminders(array $channels, ?string $date = null, ?int $classroomId = null): array
+    {
+        $query = SwimmingAttendance::where('payment_status', SwimmingAttendance::STATUS_UNPAID)
+            ->where('session_cost', '>', 0)
+            ->with(['student.parent', 'classroom']);
+        
+        if ($date) {
+            $query->whereDate('attendance_date', $date);
+        }
+        
+        if ($classroomId) {
+            $query->where('classroom_id', $classroomId);
+        }
+        
+        $unpaidAttendance = $query->get();
+        
+        $sent = 0;
+        $failed = 0;
+        $groupedByParent = [];
+        
+        // Group attendance by student/parent to avoid duplicate messages
+        foreach ($unpaidAttendance as $attendance) {
+            $student = $attendance->student;
+            if (!$student || !$student->parent) {
+                $failed++;
+                continue;
+            }
+            
+            $parentId = $student->parent->id;
+            if (!isset($groupedByParent[$parentId])) {
+                $groupedByParent[$parentId] = [
+                    'parent' => $student->parent,
+                    'student' => $student,
+                    'attendances' => [],
+                    'total_amount' => 0,
+                ];
+            }
+            
+            $groupedByParent[$parentId]['attendances'][] = $attendance;
+            $groupedByParent[$parentId]['total_amount'] += $attendance->session_cost ?? 0;
+        }
+        
+        $commService = app(\App\Services\CommunicationService::class);
+        
+        foreach ($groupedByParent as $group) {
+            try {
+                $parent = $group['parent'];
+                $student = $group['student'];
+                $attendances = $group['attendances'];
+                $totalAmount = $group['total_amount'];
+                
+                $studentName = $student->first_name . ' ' . $student->last_name;
+                $sessionCount = count($attendances);
+                $amountFormatted = number_format($totalAmount, 2);
+                
+                // Get parent contact info
+                $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                
+                // Build attendance dates list
+                $dates = $attendances->map(function($att) {
+                    return $att->attendance_date->format('d M Y');
+                })->unique()->sort()->implode(', ');
+                
+                // SMS message
+                if (in_array('sms', $channels) && $parentPhone) {
+                    try {
+                        $smsMessage = "Dear Parent,\n\n";
+                        $smsMessage .= "Your child {$studentName} ({$student->admission_number}) has {$sessionCount} unpaid swimming session(s).\n\n";
+                        $smsMessage .= "Total Amount: KES {$amountFormatted}\n";
+                        $smsMessage .= "Dates: {$dates}\n\n";
+                        $smsMessage .= "Please make payment to credit your child's swimming wallet. Thank you.\n\n";
+                        $smsMessage .= "Royal Kings School";
+                        
+                        $commService->sendSMS('parent', $parent->id, $parentPhone, $smsMessage, 'Swimming Payment Reminder', 'RKS_FINANCE');
+                        $sent++;
+                    } catch (\Exception $e) {
+                        $failed++;
+                        Log::error('Failed to send swimming payment reminder SMS', [
+                            'parent_id' => $parent->id,
+                            'student_id' => $student->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+                
+                // Email message
+                if (in_array('email', $channels) && $parentEmail) {
+                    try {
+                        $emailSubject = "Swimming Payment Reminder - {$studentName}";
+                        $emailContent = "<p>Dear Parent,</p>";
+                        $emailContent .= "<p>Your child <strong>{$studentName}</strong> (Admission: {$student->admission_number}) has <strong>{$sessionCount}</strong> unpaid swimming session(s).</p>";
+                        $emailContent .= "<p><strong>Total Amount Due:</strong> KES {$amountFormatted}</p>";
+                        $emailContent .= "<p><strong>Session Dates:</strong> {$dates}</p>";
+                        $emailContent .= "<p>Please make payment to credit your child's swimming wallet. You can make payments through:</p>";
+                        $emailContent .= "<ul>";
+                        $emailContent .= "<li>Bank transfer/deposit (mark transaction as swimming)</li>";
+                        $emailContent .= "<li>M-PESA payment (mark as swimming)</li>";
+                        $emailContent .= "<li>Direct payment at the finance office</li>";
+                        $emailContent .= "</ul>";
+                        $emailContent .= "<p>Thank you for your continued support.</p>";
+                        $emailContent .= "<p>Royal Kings School</p>";
+                        
+                        $commService->sendEmail('parent', $parent->id, $parentEmail, $emailSubject, $emailContent);
+                        $sent++;
+                    } catch (\Exception $e) {
+                        $failed++;
+                        Log::error('Failed to send swimming payment reminder email', [
+                            'parent_id' => $parent->id,
+                            'student_id' => $student->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+                
+                if (!in_array('sms', $channels) && !in_array('email', $channels)) {
+                    $failed++;
+                } elseif (!$parentPhone && !$parentEmail) {
+                    $failed++;
+                }
+                
+            } catch (\Exception $e) {
+                $failed++;
+                Log::error('Failed to send swimming payment reminder', [
+                    'parent_id' => $group['parent']->id ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        return [
+            'sent' => $sent,
+            'failed' => $failed,
+        ];
+    }
 }

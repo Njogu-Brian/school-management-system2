@@ -236,6 +236,44 @@ class SwimmingAttendanceController extends Controller
     }
 
     /**
+     * Send payment reminders for unpaid swimming attendance
+     */
+    public function sendPaymentReminders(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can send payment reminders.');
+        }
+        
+        $request->validate([
+            'channels' => 'required|array',
+            'channels.*' => 'in:sms,email',
+            'date' => 'nullable|date',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+        ]);
+        
+        $channels = $request->input('channels', []);
+        $date = $request->input('date');
+        $classroomId = $request->input('classroom_id');
+        
+        try {
+            $results = $this->attendanceService->sendPaymentReminders($channels, $date, $classroomId);
+            
+            $message = "Payment reminders sent via " . implode(' and ', $channels) . ". ";
+            $message .= "Sent to {$results['sent']} parent(s). ";
+            if ($results['failed'] > 0) {
+                $message .= "{$results['failed']} failed (no contact info or errors).";
+            }
+            
+            return redirect()->back()
+                ->with($results['failed'] > 0 ? 'warning' : 'success', $message);
+                
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to send payment reminders: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Get accessible classrooms for user
      */
     protected function getAccessibleClassrooms($user)

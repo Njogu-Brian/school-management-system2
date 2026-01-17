@@ -13,29 +13,42 @@
     @include('finance.invoices.partials.alerts')
 
     @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
-    <!-- Bulk Retry Payments -->
+    <!-- Send Payment Reminders -->
     @php
-        $unpaidWithOptionalFees = $attendance->flatten()
+        $unpaidAttendance = $attendance->flatten()
             ->where('payment_status', 'unpaid')
-            ->where('termly_fee_covered', true)
             ->where('session_cost', '>', 0);
+        $totalUnpaidAmount = $unpaidAttendance->sum('session_cost');
     @endphp
-    @if($unpaidWithOptionalFees->isNotEmpty())
+    @if($unpaidAttendance->isNotEmpty())
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="finance-card-body">
-            <form method="POST" action="{{ route('swimming.attendance.bulk-retry-payments') }}" onsubmit="return confirm('Process payments for {{ $unpaidWithOptionalFees->count() }} unpaid attendance record(s) with optional fees? This will debit wallets for students who have sufficient balance.');">
+            <form method="POST" action="{{ route('swimming.attendance.send-payment-reminders') }}" onsubmit="return confirm('Send payment reminders via SMS/Email to parents for {{ $unpaidAttendance->count() }} unpaid attendance record(s)?');">
                 @csrf
+                <input type="hidden" name="date" value="{{ $selected_date }}">
+                <input type="hidden" name="classroom_id" value="{{ $selected_classroom_id ?? '' }}">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="mb-1">Unpaid Attendance with Optional Fees</h6>
+                        <h6 class="mb-1">Unpaid Swimming Attendance</h6>
                         <p class="text-muted small mb-0">
-                            {{ $unpaidWithOptionalFees->count() }} record(s) found. 
-                            Click to debit wallets for students who have sufficient balance.
+                            {{ $unpaidAttendance->count() }} record(s) unpaid. 
+                            Total amount: Ksh {{ number_format($totalUnpaidAmount, 2) }}. 
+                            Send payment reminders to parents via SMS/Email.
                         </p>
                     </div>
-                    <button type="submit" class="btn btn-finance btn-finance-success">
-                        <i class="bi bi-arrow-clockwise"></i> Process Payments
-                    </button>
+                    <div class="d-flex gap-2 align-items-center">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="channels[]" value="sms" id="channelSMS" checked>
+                            <label class="form-check-label" for="channelSMS">SMS</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="channels[]" value="email" id="channelEmail" checked>
+                            <label class="form-check-label" for="channelEmail">Email</label>
+                        </div>
+                        <button type="submit" class="btn btn-finance btn-finance-success">
+                            <i class="bi bi-send"></i> Send Reminders
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
