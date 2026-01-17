@@ -62,7 +62,7 @@
                 <p class="text-muted small mb-0">{{ $wallets->total() }} wallet(s) found</p>
             </div>
             @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
                 <form method="POST" action="{{ route('swimming.wallets.credit-from-optional-fees') }}" onsubmit="return confirm('Credit wallets for all students who have fully paid their swimming optional fees? This will add the optional fee amount to their wallets if not already credited.');">
                     @csrf
                     <button type="submit" class="btn btn-finance btn-finance-info">
@@ -73,6 +73,12 @@
                     @csrf
                     <button type="submit" class="btn btn-finance btn-finance-success">
                         <i class="bi bi-arrow-clockwise"></i> Debit Wallets for Unpaid Attendance
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('swimming.wallets.unallocate-payments') }}" onsubmit="return confirm('WARNING: This will unallocate ALL swimming payments from invoices and reverse the receipts. Swimming payments should only go to wallets, not invoices. Continue?');">
+                    @csrf
+                    <button type="submit" class="btn btn-finance btn-finance-warning">
+                        <i class="bi bi-x-circle"></i> Unallocate Swimming Payments from Invoices
                     </button>
                 </form>
             </div>

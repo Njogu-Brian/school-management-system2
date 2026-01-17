@@ -282,4 +282,91 @@ class SwimmingWalletController extends Controller
                 ->with('error', 'Failed to process unpaid attendance: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Unallocate all swimming payments from invoices
+     */
+    public function unallocateSwimmingPayments(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can unallocate swimming payments.');
+        }
+
+        try {
+            // Find all swimming payments
+            $swimmingPayments = Payment::where('receipt_number', 'like', 'SWIM-%')
+                ->where('reversed', false)
+                ->with(['allocations.invoiceItem.invoice'])
+                ->get();
+
+            if ($swimmingPayments->isEmpty()) {
+                return redirect()->route('swimming.wallets.index')
+                    ->with('info', 'No swimming payments found that need to be unallocated.');
+            }
+
+            $totalAllocations = 0;
+            $affectedInvoices = collect();
+            $reversedPayments = 0;
+
+            DB::transaction(function () use ($swimmingPayments, &$totalAllocations, &$affectedInvoices, &$reversedPayments) {
+                foreach ($swimmingPayments as $payment) {
+                    $allocations = $payment->allocations;
+
+                    if ($allocations->isEmpty()) {
+                        continue;
+                    }
+
+                    // Collect invoice IDs
+                    foreach ($allocations as $allocation) {
+                        if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                            $affectedInvoices->push($allocation->invoiceItem->invoice_id);
+                        }
+                        $totalAllocations++;
+                    }
+
+                    // Delete all allocations
+                    \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
+
+                    // Update payment allocation totals
+                    $payment->updateAllocationTotals();
+
+                    // Mark payment as reversed since it should not be allocated to invoices
+                    $payment->update([
+                        'reversed' => true,
+                        'reversed_by' => auth()->id(),
+                        'reversed_at' => now(),
+                        'narration' => ($payment->narration ?? '') . ' (Reversed - Swimming payment should not allocate to invoices)',
+                    ]);
+
+                    $reversedPayments++;
+                }
+
+                // Recalculate affected invoices
+                $uniqueInvoiceIds = $affectedInvoices->unique();
+                foreach ($uniqueInvoiceIds as $invoiceId) {
+                    $invoice = \App\Models\Invoice::find($invoiceId);
+                    if ($invoice) {
+                        \App\Services\InvoiceService::recalc($invoice);
+                    }
+                }
+            });
+
+            $message = "Unallocated {$totalAllocations} allocation(s) from {$reversedPayments} swimming payment(s). ";
+            $message .= "Recalculated {$affectedInvoices->unique()->count()} affected invoice(s).";
+
+            \Illuminate\Support\Facades\Log::info('Swimming payments unallocated from invoices', [
+                'allocations_removed' => $totalAllocations,
+                'payments_reversed' => $reversedPayments,
+                'invoices_recalculated' => $affectedInvoices->unique()->count(),
+                'user_id' => auth()->id(),
+            ]);
+
+            return redirect()->route('swimming.wallets.index')
+                ->with('success', $message);
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to unallocate swimming payments: ' . $e->getMessage());
+        }
+    }
 }
