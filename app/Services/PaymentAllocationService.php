@@ -23,6 +23,12 @@ class PaymentAllocationService
         Payment $payment,
         array $allocations // [['invoice_item_id' => X, 'amount' => Y], ...]
     ): Payment {
+        // Prevent swimming payments from being allocated to invoice items
+        // Swimming payments should only credit wallets, not invoice items
+        if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0) {
+            throw new \Exception('Swimming payments cannot be allocated to invoice items. They must be credited to swimming wallets only.');
+        }
+        
         return DB::transaction(function () use ($payment, $allocations) {
             $totalAllocated = 0;
             
@@ -87,6 +93,17 @@ class PaymentAllocationService
      */
     public function autoAllocate(Payment $payment, ?int $studentId = null): Payment
     {
+        // Prevent swimming payments from being auto-allocated to invoice items
+        // Swimming payments should only credit wallets, not invoice items
+        if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0) {
+            // Swimming payment - mark as allocated since it goes to wallet
+            $payment->update([
+                'allocated_amount' => $payment->amount,
+                'unallocated_amount' => 0,
+            ]);
+            return $payment->fresh();
+        }
+        
         $studentId = $studentId ?? $payment->student_id;
         
         // Get unpaid invoice items for student

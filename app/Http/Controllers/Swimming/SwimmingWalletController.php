@@ -174,27 +174,8 @@ class SwimmingWalletController extends Controller
                         continue;
                     }
 
-                    // Check if invoice item for this optional fee is fully paid
-                    $invoiceItem = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student, $optionalFee) {
-                        $q->where('student_id', $student->id)
-                          ->where('year', $optionalFee->year)
-                          ->where('term', $optionalFee->term);
-                    })
-                    ->where('votehead_id', $optionalFee->votehead_id)
-                    ->where('status', 'active')
-                    ->first();
-
-                    if (!$invoiceItem) {
-                        $skipped++;
-                        continue;
-                    }
-
-                    // Check if invoice item is fully paid
-                    $balance = $invoiceItem->getBalance();
-                    if ($balance > 0.01) {
-                        $skipped++;
-                        continue;
-                    }
+                    // Skip invoice payment check - credit wallet regardless of payment status
+                    // Wallets should be credited when optional fee is billed, not when invoice is paid
 
                     // Check if wallet was already credited for this optional fee
                     $ledgerExists = \App\Models\SwimmingLedger::where('student_id', $student->id)
@@ -300,26 +281,41 @@ class SwimmingWalletController extends Controller
         }
 
         try {
-            // Find all swimming payments
-            $swimmingPayments = Payment::where('receipt_number', 'like', 'SWIM-%')
-                ->where('reversed', false)
-                ->with(['allocations.invoiceItem.invoice'])
-                ->get();
+            // Find ALL swimming payments (including manually created ones)
+            // Check both receipt_number starting with SWIM- and narration containing (Swimming)
+            $swimmingPayments = Payment::where(function($q) {
+                $q->where('receipt_number', 'like', 'SWIM-%')
+                  ->orWhere('narration', 'like', '%(Swimming)%')
+                  ->orWhere('narration', 'like', '%Swimming%');
+            })
+            ->where('reversed', false)
+            ->with(['allocations.invoiceItem.invoice'])
+            ->get();
 
             if ($swimmingPayments->isEmpty()) {
                 return redirect()->route('swimming.wallets.index')
-                    ->with('info', 'No swimming payments found that need to be unallocated.');
+                    ->with('info', 'No swimming payments found.');
             }
 
             $totalAllocations = 0;
             $affectedInvoices = collect();
             $reversedPayments = 0;
+            $paymentsWithoutAllocations = 0;
 
-            DB::transaction(function () use ($swimmingPayments, &$totalAllocations, &$affectedInvoices, &$reversedPayments) {
+            DB::transaction(function () use ($swimmingPayments, &$totalAllocations, &$affectedInvoices, &$reversedPayments, &$paymentsWithoutAllocations) {
                 foreach ($swimmingPayments as $payment) {
                     $allocations = $payment->allocations;
 
                     if ($allocations->isEmpty()) {
+                        // Even if no allocations, mark as reversed if it's a swimming payment
+                        // Swimming payments should only credit wallets, not exist as regular payments
+                        $payment->update([
+                            'reversed' => true,
+                            'reversed_by' => auth()->id(),
+                            'reversed_at' => now(),
+                            'narration' => ($payment->narration ?? '') . ' (Reversed - Swimming payment should not exist in regular payments)',
+                        ]);
+                        $paymentsWithoutAllocations++;
                         continue;
                     }
 
@@ -359,6 +355,9 @@ class SwimmingWalletController extends Controller
             });
 
             $message = "Unallocated {$totalAllocations} allocation(s) from {$reversedPayments} swimming payment(s). ";
+            if ($paymentsWithoutAllocations > 0) {
+                $message .= "Reversed {$paymentsWithoutAllocations} swimming payment(s) that had no invoice allocations. ";
+            }
             $message .= "Recalculated {$affectedInvoices->unique()->count()} affected invoice(s).";
 
             \Illuminate\Support\Facades\Log::info('Swimming payments unallocated from invoices', [

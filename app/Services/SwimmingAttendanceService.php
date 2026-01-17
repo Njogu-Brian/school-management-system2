@@ -288,8 +288,9 @@ class SwimmingAttendanceService
      */
     public function bulkRetryPayments(?array $attendanceIds = null): array
     {
+        // Find unpaid attendance for students with optional fees OR students who should have wallets credited
+        // Remove termly_fee_covered restriction - check all unpaid attendance with session_cost > 0
         $query = SwimmingAttendance::where('payment_status', SwimmingAttendance::STATUS_UNPAID)
-            ->where('termly_fee_covered', true) // Only students with optional fees
             ->where('session_cost', '>', 0)
             ->with(['student']);
         
