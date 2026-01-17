@@ -281,4 +281,72 @@ class SwimmingAttendanceService
         
         return false;
     }
+
+    /**
+     * Bulk retry payment for unpaid attendance records
+     * This processes all unpaid attendance for students with optional fees who now have wallet balance
+     */
+    public function bulkRetryPayments(?array $attendanceIds = null): array
+    {
+        $query = SwimmingAttendance::where('payment_status', SwimmingAttendance::STATUS_UNPAID)
+            ->where('termly_fee_covered', true) // Only students with optional fees
+            ->where('session_cost', '>', 0)
+            ->with(['student']);
+        
+        if ($attendanceIds) {
+            $query->whereIn('id', $attendanceIds);
+        }
+        
+        $unpaidAttendance = $query->get();
+        
+        $processed = 0;
+        $failed = 0;
+        $insufficient = 0;
+        $errors = [];
+        
+        foreach ($unpaidAttendance as $attendance) {
+            try {
+                $student = $attendance->student;
+                if (!$student) {
+                    $failed++;
+                    continue;
+                }
+                
+                $sessionCost = $attendance->session_cost ?? $this->getTermlyPerVisitCost();
+                
+                if ($sessionCost <= 0) {
+                    $failed++;
+                    continue;
+                }
+                
+                // Check if wallet has sufficient balance
+                if ($this->walletService->hasSufficientBalance($student, $sessionCost)) {
+                    try {
+                        $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
+                        $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
+                        $processed++;
+                    } catch (\Exception $e) {
+                        $failed++;
+                        $errors[] = "Attendance #{$attendance->id}: {$e->getMessage()}";
+                        Log::error('Failed to debit wallet for attendance in bulk retry', [
+                            'attendance_id' => $attendance->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                } else {
+                    $insufficient++;
+                }
+            } catch (\Exception $e) {
+                $failed++;
+                $errors[] = "Attendance #{$attendance->id}: {$e->getMessage()}";
+            }
+        }
+        
+        return [
+            'processed' => $processed,
+            'failed' => $failed,
+            'insufficient' => $insufficient,
+            'errors' => $errors,
+        ];
+    }
 }

@@ -205,6 +205,37 @@ class SwimmingAttendanceController extends Controller
     }
 
     /**
+     * Bulk retry payments for unpaid attendance
+     */
+    public function bulkRetryPayments(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can bulk retry payments.');
+        }
+        
+        $attendanceIds = $request->input('attendance_ids', []);
+        
+        try {
+            $results = $this->attendanceService->bulkRetryPayments(!empty($attendanceIds) ? $attendanceIds : null);
+            
+            $message = "Processed {$results['processed']} attendance record(s).";
+            if ($results['insufficient'] > 0) {
+                $message .= " {$results['insufficient']} had insufficient wallet balance.";
+            }
+            if ($results['failed'] > 0) {
+                $message .= " {$results['failed']} failed.";
+            }
+            
+            return redirect()->back()
+                ->with($results['failed'] > 0 ? 'warning' : 'success', $message);
+                
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to bulk retry payments: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Get accessible classrooms for user
      */
     protected function getAccessibleClassrooms($user)

@@ -473,14 +473,13 @@ class PaymentController extends Controller
      */
     public function sendPaymentNotifications(Payment $payment)
     {
-        // Skip notifications for swimming payments
-        if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0 || 
+        // Check if this is a swimming payment - if so, use swimming-specific notification
+        $isSwimmingPayment = strpos($payment->receipt_number ?? '', 'SWIM-') === 0 || 
             strpos($payment->narration ?? '', 'Swimming') !== false ||
-            strpos($payment->narration ?? '', '(Swimming)') !== false) {
-            Log::info('Skipping payment notification for swimming payment', [
-                'payment_id' => $payment->id,
-                'receipt_number' => $payment->receipt_number,
-            ]);
+            strpos($payment->narration ?? '', '(Swimming)') !== false;
+        
+        if ($isSwimmingPayment) {
+            $this->sendSwimmingPaymentNotifications($payment);
             return;
         }
         
@@ -815,6 +814,89 @@ class PaymentController extends Controller
             }
         } else {
             Log::info('Payment WhatsApp skipped - no parent WhatsApp/phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
+        }
+    }
+
+    /**
+     * Send swimming payment notifications
+     */
+    protected function sendSwimmingPaymentNotifications(Payment $payment): void
+    {
+        $payment->load(['student.parent', 'paymentMethod']);
+        $student = $payment->student;
+        
+        if (!$student) {
+            Log::info('No student found for swimming payment notification', ['payment_id' => $payment->id]);
+            return;
+        }
+        
+        $parent = $student->parent;
+        if (!$parent) {
+            Log::info('No parent found for swimming payment notification', ['payment_id' => $payment->id, 'student_id' => $student->id]);
+            return;
+        }
+        
+        // Get parent contact info
+        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+        
+        if (!$parentPhone && !$parentEmail) {
+            Log::info('No parent contact info found for swimming payment notification', ['payment_id' => $payment->id]);
+            return;
+        }
+        
+        // Get swimming wallet balance
+        $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($student->id);
+        $walletBalance = $wallet->balance;
+        
+        // Prepare message
+        $studentName = $student->first_name . ' ' . $student->last_name;
+        $amountFormatted = number_format($payment->amount, 2);
+        $walletBalanceFormatted = number_format($walletBalance, 2);
+        
+        // SMS message
+        $smsMessage = "Dear Parent,\n\n";
+        $smsMessage .= "Swimming payment of KES {$amountFormatted} for {$studentName} ({$student->admission_number}) has been received.\n\n";
+        $smsMessage .= "Receipt: {$payment->receipt_number}\n";
+        $smsMessage .= "Date: " . $payment->payment_date->format('d M Y H:i') . "\n\n";
+        $smsMessage .= "Swimming Wallet Balance: KES {$walletBalanceFormatted}\n\n";
+        $smsMessage .= "Thank you!\nRoyal Kings School";
+        
+        // Email message
+        $emailSubject = "Swimming Payment Confirmation - {$payment->receipt_number}";
+        $emailContent = "<p>Dear Parent,</p>";
+        $emailContent .= "<p>Swimming payment of <strong>KES {$amountFormatted}</strong> for <strong>{$studentName}</strong> (Admission: {$student->admission_number}) has been received.</p>";
+        $emailContent .= "<p><strong>Receipt Number:</strong> {$payment->receipt_number}<br>";
+        $emailContent .= "<strong>Transaction Code:</strong> " . ($payment->transaction_code ?? 'N/A') . "<br>";
+        $emailContent .= "<strong>Payment Date:</strong> " . $payment->payment_date->format('d M Y H:i') . "</p>";
+        $emailContent .= "<p><strong>Swimming Wallet Balance:</strong> KES {$walletBalanceFormatted}</p>";
+        $emailContent .= "<p>Thank you for your continued support.</p>";
+        $emailContent .= "<p>Royal Kings School</p>";
+        
+        // Send SMS
+        if ($parentPhone) {
+            try {
+                $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, 'Swimming Payment Confirmation', 'RKS_FINANCE', $payment->id);
+                Log::info('Swimming payment SMS sent', ['payment_id' => $payment->id, 'phone' => $parentPhone]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send swimming payment SMS', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        // Send Email
+        if ($parentEmail) {
+            try {
+                $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent);
+                Log::info('Swimming payment email sent', ['payment_id' => $payment->id, 'email' => $parentEmail]);
+            } catch (\Exception $e) {
+                Log::error('Failed to send swimming payment email', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
     

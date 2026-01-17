@@ -332,6 +332,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/attendance', [SwimmingAttendanceController::class, 'store'])->name('swimming.attendance.store');
             Route::get('/attendance/records', [SwimmingAttendanceController::class, 'index'])->name('swimming.attendance.index');
             Route::post('/attendance/{attendance}/retry-payment', [SwimmingAttendanceController::class, 'retryPayment'])->name('swimming.attendance.retry-payment');
+            Route::post('/attendance/bulk-retry-payments', [SwimmingAttendanceController::class, 'bulkRetryPayments'])->name('swimming.attendance.bulk-retry-payments');
             
             // Wallets
             Route::get('/wallets', [SwimmingWalletController::class, 'index'])->name('swimming.wallets.index');

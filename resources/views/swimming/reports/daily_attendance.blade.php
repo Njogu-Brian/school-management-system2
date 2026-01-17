@@ -12,6 +12,37 @@
 
     @include('finance.invoices.partials.alerts')
 
+    @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
+    <!-- Bulk Retry Payments -->
+    @php
+        $unpaidWithOptionalFees = $attendance->flatten()
+            ->where('payment_status', 'unpaid')
+            ->where('termly_fee_covered', true)
+            ->where('session_cost', '>', 0);
+    @endphp
+    @if($unpaidWithOptionalFees->isNotEmpty())
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+        <div class="finance-card-body">
+            <form method="POST" action="{{ route('swimming.attendance.bulk-retry-payments') }}" onsubmit="return confirm('Process payments for {{ $unpaidWithOptionalFees->count() }} unpaid attendance record(s) with optional fees? This will debit wallets for students who have sufficient balance.');">
+                @csrf
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1">Unpaid Attendance with Optional Fees</h6>
+                        <p class="text-muted small mb-0">
+                            {{ $unpaidWithOptionalFees->count() }} record(s) found. 
+                            Click to debit wallets for students who have sufficient balance.
+                        </p>
+                    </div>
+                    <button type="submit" class="btn btn-finance btn-finance-success">
+                        <i class="bi bi-arrow-clockwise"></i> Process Payments
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
+    @endif
+
     <!-- Filters -->
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <form method="GET" action="{{ route('swimming.reports.daily-attendance') }}" class="row g-3">
