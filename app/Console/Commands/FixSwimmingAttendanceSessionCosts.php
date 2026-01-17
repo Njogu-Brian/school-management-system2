@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\Log;
 
 class FixSwimmingAttendanceSessionCosts extends Command
 {
-    protected $signature = 'swimming:fix-attendance-session-costs';
+    protected $signature = 'swimming:fix-attendance-session-costs {--recheck : Recheck all records and fix incorrect costs}';
     
-    protected $description = 'Fix swimming attendance records with missing session costs';
+    protected $description = 'Fix swimming attendance records with missing or incorrect session costs';
 
     protected $attendanceService;
 
@@ -26,13 +26,20 @@ class FixSwimmingAttendanceSessionCosts extends Command
     {
         $this->info('Fixing swimming attendance records with missing session costs...');
         
-        // Find all attendance records with session_cost = 0 or null
-        $attendances = SwimmingAttendance::where(function($q) {
-            $q->where('session_cost', 0)
-              ->orWhereNull('session_cost');
-        })
-        ->with('student')
-        ->get();
+        // Find all attendance records that need fixing
+        if ($this->option('recheck')) {
+            // Recheck all records - find those that might have incorrect costs
+            $attendances = SwimmingAttendance::with('student')->get();
+            $this->info('Rechecking ALL attendance records...');
+        } else {
+            // Only fix records with session_cost = 0 or null
+            $attendances = SwimmingAttendance::where(function($q) {
+                $q->where('session_cost', 0)
+                  ->orWhereNull('session_cost');
+            })
+            ->with('student')
+            ->get();
+        }
         
         if ($attendances->isEmpty()) {
             $this->info('No attendance records with missing session costs found.');
@@ -95,15 +102,27 @@ class FixSwimmingAttendanceSessionCosts extends Command
                     $termlyFeeCovered = false;
                 }
                 
-                // Update attendance record
-                $attendance->update([
-                    'session_cost' => $sessionCost,
-                    'termly_fee_covered' => $termlyFeeCovered,
-                ]);
-                
-                $fixed++;
-                
-                $this->line("Fixed attendance #{$attendance->id} - Student: {$student->admission_number}, Cost: Ksh {$sessionCost}");
+                // Only update if cost is different (for recheck mode) or if cost is 0/null (normal mode)
+                if ($this->option('recheck')) {
+                    // In recheck mode, only update if the cost doesn't match what it should be
+                    if ($attendance->session_cost != $sessionCost || $attendance->termly_fee_covered != $termlyFeeCovered) {
+                        $oldCost = $attendance->session_cost ?? 0;
+                        $attendance->update([
+                            'session_cost' => $sessionCost,
+                            'termly_fee_covered' => $termlyFeeCovered,
+                        ]);
+                        $fixed++;
+                        $this->line("Fixed attendance #{$attendance->id} - Student: {$student->admission_number}, Old Cost: Ksh {$oldCost}, New Cost: Ksh {$sessionCost}");
+                    }
+                } else {
+                    // Normal mode - always update (since we only select 0/null costs)
+                    $attendance->update([
+                        'session_cost' => $sessionCost,
+                        'termly_fee_covered' => $termlyFeeCovered,
+                    ]);
+                    $fixed++;
+                    $this->line("Fixed attendance #{$attendance->id} - Student: {$student->admission_number}, Cost: Ksh {$sessionCost}");
+                }
                 
             } catch (\Exception $e) {
                 $failed++;
