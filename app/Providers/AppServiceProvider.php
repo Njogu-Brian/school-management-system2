@@ -7,6 +7,8 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
+use App\Models\OptionalFee;
+use App\Observers\OptionalFeeObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Global activity logging for web routes (accountability & auditing)
         $this->app['router']->pushMiddlewareToGroup('web', \App\Http\Middleware\ActivityLogger::class);
+
+        // Register OptionalFee observer for automatic wallet crediting/debiting
+        OptionalFee::observe(OptionalFeeObserver::class);
     }
 
     protected function ensureCriticalPermissions(): void
