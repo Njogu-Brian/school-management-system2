@@ -29,8 +29,22 @@ class SwimmingReportController extends Controller
         $attendance = $query->select('swimming_attendance.*')
             ->orderBy('swimming_attendance.classroom_id')
             ->orderBy('students.first_name')
-            ->get()
-            ->groupBy('classroom_id');
+            ->get();
+        
+        // Load wallet balances for all students to determine actual payment status
+        $studentIds = $attendance->pluck('student_id')->unique();
+        $wallets = SwimmingWallet::whereIn('student_id', $studentIds)
+            ->pluck('balance', 'student_id');
+        
+        // Add wallet balance to each attendance record for the view
+        $attendance->each(function($record) use ($wallets) {
+            $walletBalance = $wallets->get($record->student_id, 0);
+            $record->wallet_balance = $walletBalance;
+            // If attendance is marked paid but wallet is negative, they still owe money
+            $record->is_actually_paid = $record->payment_status === 'paid' && $walletBalance >= 0;
+        });
+        
+        $attendance = $attendance->groupBy('classroom_id');
         
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
         

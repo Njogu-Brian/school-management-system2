@@ -382,8 +382,8 @@ class SwimmingAttendanceService
      */
     public function sendPaymentReminders(array $channels, ?string $date = null, ?int $classroomId = null): array
     {
-        $query = SwimmingAttendance::where('payment_status', SwimmingAttendance::STATUS_UNPAID)
-            ->where('session_cost', '>', 0)
+        // Get attendance records that are unpaid OR where student has negative wallet balance
+        $query = SwimmingAttendance::where('session_cost', '>', 0)
             ->with(['student.parent', 'classroom']);
         
         if ($date) {
@@ -394,7 +394,28 @@ class SwimmingAttendanceService
             $query->where('classroom_id', $classroomId);
         }
         
-        $unpaidAttendance = $query->get();
+        $allAttendance = $query->get();
+        
+        // Get wallet balances for students
+        $studentIds = $allAttendance->pluck('student_id')->unique();
+        $wallets = \App\Models\SwimmingWallet::whereIn('student_id', $studentIds)
+            ->pluck('balance', 'student_id');
+        
+        // Filter to only unpaid attendance: payment_status = unpaid OR wallet balance < 0
+        $unpaidAttendance = $allAttendance->filter(function($attendance) use ($wallets) {
+            // If payment status is unpaid, include it
+            if ($attendance->payment_status === SwimmingAttendance::STATUS_UNPAID) {
+                return true;
+            }
+            
+            // If payment status is paid but wallet is negative, they still owe money - include it
+            $walletBalance = $wallets->get($attendance->student_id, 0);
+            if ($walletBalance < 0) {
+                return true;
+            }
+            
+            return false;
+        });
         
         $sent = 0;
         $failed = 0;

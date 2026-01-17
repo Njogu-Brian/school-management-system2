@@ -15,9 +15,18 @@
     @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
     <!-- Send Payment Reminders -->
     @php
-        $unpaidAttendance = $attendance->flatten()
-            ->where('payment_status', 'unpaid')
-            ->where('session_cost', '>', 0);
+        // Unpaid = payment_status = unpaid OR wallet balance < 0 (student owes money)
+        $unpaidAttendance = $attendance->flatten()->filter(function($record) {
+            if ($record->payment_status === 'unpaid') {
+                return true;
+            }
+            // Check wallet balance if available
+            $walletBalance = $record->wallet_balance ?? 0;
+            if ($walletBalance < 0) {
+                return true; // Student owes money even if marked as paid
+            }
+            return false;
+        })->where('session_cost', '>', 0);
         $totalUnpaidAmount = $unpaidAttendance->sum('session_cost');
     @endphp
     @if($unpaidAttendance->isNotEmpty())
@@ -120,8 +129,14 @@
                                             <strong>Ksh {{ number_format($record->session_cost ?? 0, 2) }}</strong>
                                         </td>
                                         <td>
-                                            @if($record->payment_status === 'paid')
+                                            @php
+                                                $walletBalance = $record->wallet_balance ?? 0;
+                                                $isActuallyPaid = $record->payment_status === 'paid' && $walletBalance >= 0;
+                                            @endphp
+                                            @if($isActuallyPaid)
                                                 <span class="badge bg-success">Paid</span>
+                                            @elseif($record->payment_status === 'paid' && $walletBalance < 0)
+                                                <span class="badge bg-warning text-dark">Unpaid (Balance: Ksh {{ number_format($walletBalance, 2) }})</span>
                                             @else
                                                 <span class="badge bg-danger">Unpaid</span>
                                             @endif
@@ -149,8 +164,19 @@
         @php
             $totalStudents = $attendance->sum(function($records) { return $records->count(); });
             $totalAmount = $attendance->flatten()->sum('session_cost');
-            $paidCount = $attendance->flatten()->where('payment_status', 'paid')->count();
-            $unpaidCount = $attendance->flatten()->where('payment_status', 'unpaid')->count();
+            // Actually paid = payment_status = paid AND wallet balance >= 0
+            $paidCount = $attendance->flatten()->filter(function($record) {
+                $walletBalance = $record->wallet_balance ?? 0;
+                return $record->payment_status === 'paid' && $walletBalance >= 0;
+            })->count();
+            // Unpaid = payment_status = unpaid OR wallet balance < 0
+            $unpaidCount = $attendance->flatten()->filter(function($record) {
+                if ($record->payment_status === 'unpaid') {
+                    return true;
+                }
+                $walletBalance = $record->wallet_balance ?? 0;
+                return $walletBalance < 0;
+            })->count();
         @endphp
         <div class="row g-3 mb-4">
             <div class="col-md-3">
