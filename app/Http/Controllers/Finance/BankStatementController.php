@@ -1829,6 +1829,19 @@ class BankStatementController extends Controller
                 
                 $this->swimmingTransactionService->markAsSwimming($transaction);
                 $marked++;
+                
+                // If transaction is already confirmed, process it immediately
+                if ($transaction->status === 'confirmed' && $transaction->student_id) {
+                    try {
+                        $this->processSwimmingTransaction($transaction);
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to process already-confirmed swimming transaction', [
+                            'transaction_id' => $transaction->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        // Don't add to errors - marking succeeded, processing can be retried
+                    }
+                }
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
                 Log::error('Failed to mark transaction as swimming', [
@@ -1839,6 +1852,15 @@ class BankStatementController extends Controller
         }
 
         $message = "Marked {$marked} transaction(s) as swimming payments.";
+        if ($marked > 0) {
+            $confirmedProcessed = BankStatementTransaction::whereIn('id', $transactionIds)
+                ->where('status', 'confirmed')
+                ->where('is_swimming_transaction', true)
+                ->count();
+            if ($confirmedProcessed > 0) {
+                $message .= " Processing {$confirmedProcessed} confirmed transaction(s) for wallet allocation.";
+            }
+        }
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 3));
         }
@@ -1970,8 +1992,14 @@ class BankStatementController extends Controller
     {
         // Check if already allocated
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
-        if (!$hasSwimmingColumn || !$transaction->is_swimming_transaction) {
-            return; // Not a swimming transaction
+        if (!$hasSwimmingColumn) {
+            Log::warning('is_swimming_transaction column does not exist on bank_statement_transactions table.');
+            return;
+        }
+        
+        // Ensure transaction is marked as swimming
+        if (!$transaction->is_swimming_transaction) {
+            $transaction->update(['is_swimming_transaction' => true]);
         }
         
         // Check if allocations table exists
@@ -1983,12 +2011,16 @@ class BankStatementController extends Controller
         // Check if already processed
         $existingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
             ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
-            ->exists();
+            ->get();
         
-        if ($existingAllocations) {
-            // Already allocated, just process pending allocations
-            $this->swimmingTransactionService->processPendingAllocations();
-            return;
+        if ($existingAllocations->isNotEmpty()) {
+            // Check if there are pending allocations to process
+            $pendingAllocations = $existingAllocations->where('status', \App\Models\SwimmingTransactionAllocation::STATUS_PENDING);
+            if ($pendingAllocations->isNotEmpty()) {
+                // Process pending allocations
+                $this->swimmingTransactionService->processPendingAllocations();
+            }
+            return; // Already allocated
         }
         
         // Create allocations based on student assignment
@@ -2018,12 +2050,25 @@ class BankStatementController extends Controller
         $this->swimmingTransactionService->allocateToStudents($transaction, $allocations);
         
         // Process allocations to credit wallets
-        $this->swimmingTransactionService->processPendingAllocations();
+        $results = $this->swimmingTransactionService->processPendingAllocations();
         
         Log::info('Swimming transaction processed', [
             'transaction_id' => $transaction->id,
             'allocations_count' => count($allocations),
+            'processed' => $results['processed'] ?? 0,
+            'failed' => $results['failed'] ?? 0,
+            'errors' => $results['errors'] ?? [],
         ]);
+        
+        // Log any errors
+        if (!empty($results['errors'])) {
+            foreach ($results['errors'] as $error) {
+                Log::error('Swimming allocation processing error', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $error,
+                ]);
+            }
+        }
     }
 
     /**
@@ -2055,6 +2100,76 @@ class BankStatementController extends Controller
                 ->with('error', 'Failed to allocate transaction: ' . $e->getMessage())
                 ->withInput();
         }
+    }
+
+    /**
+     * Reprocess confirmed swimming transactions
+     * This helps fix transactions that were confirmed before being marked as swimming
+     */
+    public function reprocessSwimmingTransactions(Request $request)
+    {
+        $request->validate([
+            'transaction_ids' => 'nullable|array',
+            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        ]);
+        
+        $transactionIds = $request->input('transaction_ids', []);
+        
+        // If no IDs provided, find all confirmed swimming transactions that might need processing
+        if (empty($transactionIds)) {
+            $query = BankStatementTransaction::where('status', 'confirmed')
+                ->where('is_swimming_transaction', true)
+                ->where(function($q) {
+                    $q->whereNotNull('student_id')
+                      ->orWhere('is_shared', true);
+                });
+            
+            // Only get transactions that might not have been processed
+            if (Schema::hasTable('swimming_transaction_allocations')) {
+                $processedIds = \App\Models\SwimmingTransactionAllocation::where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                    ->pluck('bank_statement_transaction_id')
+                    ->unique();
+                $query->whereNotIn('id', $processedIds);
+            }
+            
+            $transactions = $query->get();
+        } else {
+            $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
+                ->where('status', 'confirmed')
+                ->where('is_swimming_transaction', true)
+                ->get();
+        }
+        
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('info', 'No confirmed swimming transactions found that need processing.');
+        }
+        
+        $processed = 0;
+        $errors = [];
+        
+        foreach ($transactions as $transaction) {
+            try {
+                $this->processSwimmingTransaction($transaction);
+                $processed++;
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
+                Log::error('Failed to reprocess swimming transaction', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        $message = "Reprocessed {$processed} swimming transaction(s).";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
+        }
+        
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with($errors ? 'warning' : 'success', $message);
     }
 
     /**

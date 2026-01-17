@@ -131,35 +131,72 @@ class SwimmingAttendanceService
                     $sessionCost = 0; // No deduction if termly fee covers it
                 }
             } else {
-                // Step 2: Check wallet balance for non-termly students
-                if ($perVisitCost > 0 && $this->walletService->hasSufficientBalance($student, $perVisitCost)) {
-                    // Debit wallet
+                // Step 2: For students WITHOUT optional fees - create invoice item for daily rate
+                // Students without swimming optional fees should be invoiced (not debited from wallet)
+                if ($perVisitCost > 0) {
+                    // Find or create swimming votehead for invoice
+                    $swimmingVotehead = \App\Models\Votehead::where(function($q) {
+                        $q->where('name', 'like', '%swimming%')
+                          ->orWhere('code', 'like', '%SWIM%');
+                    })->where('is_mandatory', false)->first();
+                    
+                    if ($swimmingVotehead) {
+                        // Create invoice item for daily swimming attendance
+                        $year = (int) setting('current_year', date('Y'));
+                        $term = (int) setting('current_term', 1);
+                        
+                        // Get or create invoice for current term
+                        $invoice = \App\Models\Invoice::firstOrCreate([
+                            'student_id' => $student->id,
+                            'year' => $year,
+                            'term' => $term,
+                            'status' => 'active',
+                        ], [
+                            'issued_date' => now(),
+                            'due_date' => now()->addDays(30),
+                            'total' => 0,
+                            'paid_amount' => 0,
+                            'balance' => 0,
+                        ]);
+                        
+                        // Create invoice item for this swimming session
+                        \App\Models\InvoiceItem::create([
+                            'invoice_id' => $invoice->id,
+                            'votehead_id' => $swimmingVotehead->id,
+                            'amount' => $perVisitCost,
+                            'original_amount' => $perVisitCost,
+                            'discount_amount' => 0,
+                            'status' => 'active',
+                            'source' => 'swimming_attendance',
+                            'effective_date' => $date->toDateString(),
+                        ]);
+                        
+                        // Update invoice totals
+                        $invoice->refresh();
+                        $invoice->update([
+                            'total' => $invoice->items()->sum('amount'),
+                            'balance' => $invoice->total - $invoice->paid_amount,
+                        ]);
+                        
+                        // Mark attendance as unpaid (will be paid when invoice is paid)
+                        $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
+                    }
+                    
+                    // Create attendance record
                     $attendance = SwimmingAttendance::create([
                         'student_id' => $student->id,
                         'classroom_id' => $classroom->id,
                         'attendance_date' => $date->toDateString(),
-                        'payment_status' => SwimmingAttendance::STATUS_UNPAID, // Will update after debit
+                        'payment_status' => $paymentStatus,
                         'session_cost' => $perVisitCost,
                         'termly_fee_covered' => false,
                         'notes' => $notes,
                         'marked_by' => $markedBy?->id ?? auth()->id(),
                         'marked_at' => now(),
                     ]);
-                    
-                    try {
-                        $this->walletService->debitForAttendance($student, $perVisitCost, $attendance->id);
-                        $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
-                        $paymentStatus = SwimmingAttendance::STATUS_PAID;
-                    } catch (\Exception $e) {
-                        Log::warning('Failed to debit wallet for attendance', [
-                            'attendance_id' => $attendance->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                        // Attendance remains unpaid
-                    }
                 } else {
-                    // Insufficient balance - mark as unpaid
-                    $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
+                    // No cost set - mark as paid
+                    $paymentStatus = SwimmingAttendance::STATUS_PAID;
                 }
             }
             

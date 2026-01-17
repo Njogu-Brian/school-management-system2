@@ -185,6 +185,13 @@
                 </button>
             </form>
             
+            <form id="reprocessSwimmingForm" method="POST" action="{{ route('finance.bank-statements.reprocess-swimming') }}" onsubmit="return confirm('Reprocess all confirmed swimming transactions that haven\'t been allocated yet? This will credit student wallets.');">
+                @csrf
+                <button type="submit" class="btn btn-finance btn-finance-info" title="Reprocess confirmed swimming transactions to credit wallets">
+                    <i class="bi bi-arrow-clockwise"></i> Reprocess Swimming Transactions
+                </button>
+            </form>
+            
             @if(request('view') == 'unassigned' || (!request('view') || request('view') == 'all'))
             <form id="bulkArchiveForm" method="POST" action="{{ route('finance.bank-statements.bulk-archive') }}">
                 @csrf

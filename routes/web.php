@@ -337,6 +337,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/wallets', [SwimmingWalletController::class, 'index'])->name('swimming.wallets.index');
             Route::get('/wallets/student/{student}', [SwimmingWalletController::class, 'show'])->name('swimming.wallets.show');
             Route::post('/wallets/student/{student}/adjust', [SwimmingWalletController::class, 'adjust'])->name('swimming.wallets.adjust');
+            Route::post('/wallets/credit-from-optional-fees', [SwimmingWalletController::class, 'creditFromOptionalFees'])->name('swimming.wallets.credit-from-optional-fees');
             
             // Payments
             Route::get('/payments/create', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'create'])->name('swimming.payments.create');
@@ -1236,6 +1237,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             // Swimming transaction reclassification
             Route::post('/bulk-mark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkMarkAsSwimming'])->name('bulk-mark-swimming');
             Route::post('/bulk-transfer-to-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkTransferToSwimming'])->name('bulk-transfer-to-swimming');
+            Route::post('/reprocess-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'reprocessSwimmingTransactions'])->name('reprocess-swimming');
             Route::post('/{bankStatement}/allocate-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateSwimmingTransaction'])->name('allocate-swimming');
             Route::get('/student/{student}/balance', [\App\Http\Controllers\Finance\BankStatementController::class, 'getStudentBalance'])->name('student-balance');
         });

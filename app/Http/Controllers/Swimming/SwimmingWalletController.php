@@ -131,4 +131,117 @@ class SwimmingWalletController extends Controller
                 ->withInput();
         }
     }
+
+    /**
+     * Credit wallets for students who have paid swimming optional fees
+     * This fixes wallets that were empty due to payments made before wallet crediting was implemented
+     */
+    public function creditFromOptionalFees(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can credit wallets from optional fees.');
+        }
+
+        try {
+            // Find swimming votehead
+            $swimmingVotehead = \App\Models\Votehead::where(function($q) {
+                $q->where('name', 'like', '%swimming%')
+                  ->orWhere('code', 'like', '%SWIM%');
+            })->where('is_mandatory', false)->first();
+
+            if (!$swimmingVotehead) {
+                return redirect()->back()
+                    ->with('error', 'Swimming votehead not found. Please ensure a swimming optional fee votehead exists.');
+            }
+
+            // Get all swimming optional fees that are fully paid but wallets not credited
+            $optionalFees = \App\Models\OptionalFee::where('votehead_id', $swimmingVotehead->id)
+                ->where('status', 'billed')
+                ->with(['student'])
+                ->get();
+
+            $credited = 0;
+            $skipped = 0;
+            $failed = 0;
+            $errors = [];
+
+            foreach ($optionalFees as $optionalFee) {
+                try {
+                    $student = $optionalFee->student;
+                    if (!$student) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Check if invoice item for this optional fee is fully paid
+                    $invoiceItem = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student, $optionalFee) {
+                        $q->where('student_id', $student->id)
+                          ->where('year', $optionalFee->year)
+                          ->where('term', $optionalFee->term);
+                    })
+                    ->where('votehead_id', $optionalFee->votehead_id)
+                    ->where('status', 'active')
+                    ->first();
+
+                    if (!$invoiceItem) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Check if invoice item is fully paid
+                    $balance = $invoiceItem->getBalance();
+                    if ($balance > 0.01) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Check if wallet was already credited for this optional fee
+                    $ledgerExists = \App\Models\SwimmingLedger::where('student_id', $student->id)
+                        ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                        ->where('source_id', $optionalFee->id)
+                        ->exists();
+
+                    if ($ledgerExists) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    // Credit wallet
+                    $this->walletService->creditFromOptionalFee(
+                        $student,
+                        $optionalFee,
+                        (float) $optionalFee->amount,
+                        "Swimming termly fee payment for Term {$optionalFee->term} (backfilled)"
+                    );
+                    
+                    $credited++;
+                } catch (\Exception $e) {
+                    $failed++;
+                    $errors[] = "Student {$student->admission_number ?? 'Unknown'}: {$e->getMessage()}";
+                    \Illuminate\Support\Facades\Log::error('Failed to credit swimming wallet from optional fee', [
+                        'optional_fee_id' => $optionalFee->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            $message = "Credited wallets for {$credited} student(s).";
+            if ($skipped > 0) {
+                $message .= " Skipped {$skipped} (already credited or not fully paid).";
+            }
+            if ($failed > 0) {
+                $message .= " Failed {$failed}.";
+                if (count($errors) > 0) {
+                    $message .= " Errors: " . implode('; ', array_slice($errors, 0, 3));
+                }
+            }
+
+            return redirect()->route('swimming.wallets.index')
+                ->with($failed > 0 ? 'warning' : 'success', $message);
+                
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to credit wallets: ' . $e->getMessage());
+        }
+    }
 }
