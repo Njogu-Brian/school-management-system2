@@ -217,7 +217,8 @@ class SwimmingWalletController extends Controller
                     $credited++;
                 } catch (\Exception $e) {
                     $failed++;
-                    $errors[] = "Student {$student->admission_number ?? 'Unknown'}: {$e->getMessage()}";
+                    $studentAdmission = $student->admission_number ?? 'Unknown';
+                    $errors[] = "Student {$studentAdmission}: {$e->getMessage()}";
                     \Illuminate\Support\Facades\Log::error('Failed to credit swimming wallet from optional fee', [
                         'optional_fee_id' => $optionalFee->id,
                         'error' => $e->getMessage(),
