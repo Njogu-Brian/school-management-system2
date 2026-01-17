@@ -53,9 +53,15 @@ class FeePostingService
             // CRITICAL: Respect votehead types - once_annually fees already charged this year should not be removed
             // CRITICAL: For optional fees (source='optional'), check if they still exist in OptionalFee table
             // If an optional fee was previously billed but is no longer in OptionalFee table, mark it for removal
+            // CRITICAL: If votehead_id filter is applied, only check removal for that votehead
             foreach ($existingItems as $existing) {
                 $source = $existing['source'] ?? 'structure';
                 $voteheadId = $existing['votehead_id'];
+                
+                // If votehead filter is applied, only process this existing item if it matches the filter
+                if (!empty($filters['votehead_id']) && $voteheadId != (int)$filters['votehead_id']) {
+                    continue;
+                }
                 
                 // Get the votehead to check its charge type
                 $votehead = \App\Models\Votehead::find($voteheadId);
@@ -1013,7 +1019,13 @@ class FeePostingService
         }
         
         // Match student category strictly (no general structures)
-        $structureQuery->where('student_category_id', $student->category_id);
+        // Handle NULL category_id properly - if student has no category, match structures with NULL category_id
+        // If student has a category, match structures with that exact category_id
+        if ($student->category_id === null) {
+            $structureQuery->whereNull('student_category_id');
+        } else {
+            $structureQuery->where('student_category_id', $student->category_id);
+        }
         
         // Match stream if set; if none, require structures without stream
         if ($student->stream_id) {
