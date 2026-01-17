@@ -251,6 +251,9 @@ class SwimmingTransactionService
             'narration' => $transaction->description . ' (Swimming)',
             'payment_date' => $transaction->transaction_date,
             'bank_account_id' => $transaction->bank_account_id,
+            // Mark as allocated since swimming payments go directly to wallet (not to invoice items)
+            'allocated_amount' => $transaction->amount,
+            'unallocated_amount' => 0,
         ]);
         
         // Link transaction to payment
