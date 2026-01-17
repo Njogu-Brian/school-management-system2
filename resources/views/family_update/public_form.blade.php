@@ -214,10 +214,10 @@
                                     <label class="form-label">Gender</label>
                                     <select name="students[{{ $stu->id }}][gender]" class="form-select" required>
                                         @php 
-                                            $currentGender = old('students.'.$stu->id.'.gender', strtolower($stu->gender ?? ''));
+                                            $currentGender = old('students.'.$stu->id.'.gender', ucfirst(strtolower($stu->gender ?? '')));
                                         @endphp
-                                        <option value="male" @selected($currentGender=='male')>Male</option>
-                                        <option value="female" @selected($currentGender=='female')>Female</option>
+                                        <option value="Male" @selected($currentGender=='Male')>Male</option>
+                                        <option value="Female" @selected($currentGender=='Female')>Female</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -372,9 +372,21 @@
                                 <label class="form-label">Father WhatsApp</label>
                                     @php
                                         $fatherWhatsapp = old('father_whatsapp', $family->students->first()->parent->father_whatsapp ?? '');
-                                        $fatherWhatsappLocal = extract_local_phone($fatherWhatsapp, $fatherCountryCode);
+                                        $fatherWhatsappCountryCode = old('father_whatsapp_country_code', $family->students->first()->parent->father_whatsapp_country_code ?? $fatherCountryCode);
+                                        // Normalize +KE to +254
+                                        $fatherWhatsappCountryCode = strtolower($fatherWhatsappCountryCode) === '+ke' || strtolower($fatherWhatsappCountryCode) === 'ke' ? '+254' : $fatherWhatsappCountryCode;
+                                        $fatherWhatsappLocal = extract_local_phone($fatherWhatsapp, $fatherWhatsappCountryCode);
                                     @endphp
-                                    <input type="text" name="father_whatsapp" id="father_whatsapp" class="form-control phone-input" value="{{ $fatherWhatsappLocal }}" placeholder="Same code as phone">
+                                    <div class="input-group phone-input-group">
+                                        <span class="input-group-text phone-flag" id="father_whatsapp_prefix">+254</span>
+                                        <select name="father_whatsapp_country_code" class="form-select flex-grow-0 phone-code-select" data-target="father_whatsapp" style="max-width:170px">
+                                            @foreach($countryCodes as $code => $label)
+                                                <option value="{{ $code }}" @selected($fatherWhatsappCountryCode==$code)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" name="father_whatsapp" id="father_whatsapp" class="form-control phone-input" value="{{ $fatherWhatsappLocal }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="father_whatsapp_help">
+                                    </div>
+                                    <small class="upload-hint d-block" id="father_whatsapp_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father Email</label>
@@ -456,9 +468,21 @@
                                 <label class="form-label">Mother WhatsApp</label>
                                     @php
                                         $motherWhatsapp = old('mother_whatsapp', $family->students->first()->parent->mother_whatsapp ?? '');
-                                        $motherWhatsappLocal = extract_local_phone($motherWhatsapp, $motherCountryCode);
+                                        $motherWhatsappCountryCode = old('mother_whatsapp_country_code', $family->students->first()->parent->mother_whatsapp_country_code ?? $motherCountryCode);
+                                        // Normalize +KE to +254
+                                        $motherWhatsappCountryCode = strtolower($motherWhatsappCountryCode) === '+ke' || strtolower($motherWhatsappCountryCode) === 'ke' ? '+254' : $motherWhatsappCountryCode;
+                                        $motherWhatsappLocal = extract_local_phone($motherWhatsapp, $motherWhatsappCountryCode);
                                     @endphp
-                                    <input type="text" name="mother_whatsapp" id="mother_whatsapp" class="form-control phone-input" value="{{ $motherWhatsappLocal }}" placeholder="Same code as phone">
+                                    <div class="input-group phone-input-group">
+                                        <span class="input-group-text phone-flag" id="mother_whatsapp_prefix">+254</span>
+                                        <select name="mother_whatsapp_country_code" class="form-select flex-grow-0 phone-code-select" data-target="mother_whatsapp" style="max-width:170px">
+                                            @foreach($countryCodes as $code => $label)
+                                                <option value="{{ $code }}" @selected($motherWhatsappCountryCode==$code)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="text" name="mother_whatsapp" id="mother_whatsapp" class="form-control phone-input" value="{{ $motherWhatsappLocal }}" placeholder="7XXXXXXXX" inputmode="numeric" pattern="(7|1)[0-9]{8}" aria-describedby="mother_whatsapp_help">
+                                    </div>
+                                    <small class="upload-hint d-block" id="mother_whatsapp_help">Kenyan format: 7/1 + 8 digits. Other countries: 6-12 digits.</small>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother Email</label>

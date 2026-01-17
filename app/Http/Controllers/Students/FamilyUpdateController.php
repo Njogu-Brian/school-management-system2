@@ -124,7 +124,7 @@ class FamilyUpdateController extends Controller
         }
         
         $family = $link->family()->with(['students' => function ($q) {
-            $q->where('archive', 0)->with(['classroom', 'documents']);
+            $q->where('archive', 0)->with(['classroom', 'documents', 'parent']);
         }, 'students.parent.documents'])->firstOrFail();
 
         $students = $family->students;
@@ -142,30 +142,56 @@ class FamilyUpdateController extends Controller
      */
     public function submit(Request $request, $token)
     {
-        $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
-        $family = $link->family()->with(['students' => function ($q) {
-            $q->where('archive', 0)->with('parent');
-        }])->firstOrFail();
-        $students = $family->students;
-        if ($students->isEmpty()) {
-            abort(404);
-        }
+        \Log::info('FamilyUpdate Submit: Method called', [
+            'token' => $token,
+            'method' => $request->method(),
+            'has_csrf' => $request->has('_token'),
+            'request_data_keys' => array_keys($request->all()),
+            'ip' => $request->ip(),
+        ]);
 
-        $studentIds = $students->pluck('id')->toArray();
+        try {
+            $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
+            \Log::info('FamilyUpdate Submit: Link found', [
+                'link_id' => $link->id,
+                'family_id' => $link->family_id,
+                'is_active' => $link->is_active,
+            ]);
 
-        $validated = $request->validate([
+            $family = $link->family()->with(['students' => function ($q) {
+                $q->where('archive', 0)->with('parent');
+            }])->firstOrFail();
+            \Log::info('FamilyUpdate Submit: Family found', ['family_id' => $family->id]);
+
+            $students = $family->students;
+            if ($students->isEmpty()) {
+                \Log::warning('FamilyUpdate Submit: No students found for family', ['family_id' => $family->id]);
+                abort(404);
+            }
+
+            \Log::info('FamilyUpdate Submit: Students found', [
+                'students_count' => $students->count(),
+                'student_ids' => $students->pluck('id')->toArray(),
+            ]);
+
+            $studentIds = $students->pluck('id')->toArray();
+
+            \Log::info('FamilyUpdate Submit: Starting validation');
+            $validated = $request->validate([
             'residential_area' => 'nullable|string|max:255',
             'father_name' => 'nullable|string|max:255',
             'father_id_number' => 'nullable|string|max:255',
             'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
             'father_phone_country_code' => 'nullable|string|max:8',
             'father_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'father_whatsapp_country_code' => 'nullable|string|max:8',
             'father_email' => 'nullable|email|max:255',
             'mother_name' => 'nullable|string|max:255',
             'mother_id_number' => 'nullable|string|max:255',
             'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
             'mother_phone_country_code' => 'nullable|string|max:8',
             'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'mother_whatsapp_country_code' => 'nullable|string|max:8',
             'mother_email' => 'nullable|email|max:255',
             'guardian_name' => 'nullable|string|max:255',
             'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
@@ -192,6 +218,28 @@ class FamilyUpdateController extends Controller
             'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
             'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
+            \Log::info('FamilyUpdate Submit: Validation passed', [
+                'validated_keys' => array_keys($validated),
+                'students_count' => count($validated['students'] ?? []),
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('FamilyUpdate Submit: Validation failed', [
+                'token' => $token,
+                'errors' => $e->errors(),
+                'input' => $request->except(['_token', '_method']),
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            \Log::error('FamilyUpdate Submit: Exception during validation', [
+                'token' => $token,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
 
         try {
             $result = DB::transaction(function () use ($validated, $family, $students, $link) {
@@ -208,18 +256,39 @@ class FamilyUpdateController extends Controller
 
             // Update parent info for each student's parent (shared data)
             foreach ($students as $stu) {
+                \Log::info('FamilyUpdate: Checking parent', [
+                    'student_id' => $stu->id,
+                    'has_parent' => $stu->parent ? 'yes' : 'no',
+                    'parent_id' => $stu->parent ? $stu->parent->id : null,
+                ]);
+                
+                // Get or create parent
                 if ($stu->parent) {
                     $parent = $stu->parent;
+                } else {
+                    // Create parent if doesn't exist
+                    \Log::info('FamilyUpdate: Creating parent for student', ['student_id' => $stu->id]);
+                    $parent = \App\Models\ParentInfo::create([]);
+                    $stu->parent_id = $parent->id;
+                    $stu->save();
+                    \Log::info('FamilyUpdate: Parent created', ['parent_id' => $parent->id, 'student_id' => $stu->id]);
+                }
+                
+                if ($parent) {
                     // Normalize country codes before using them
                     $fatherCountryCode = $this->normalizeCountryCode($validated['father_phone_country_code'] ?? $parent->father_phone_country_code ?? '+254');
                     $motherCountryCode = $this->normalizeCountryCode($validated['mother_phone_country_code'] ?? $parent->mother_phone_country_code ?? '+254');
                     $guardianCountryCode = $this->normalizeCountryCode($validated['guardian_phone_country_code'] ?? $parent->guardian_phone_country_code ?? '+254');
+                    $fatherWhatsappCountryCode = $this->normalizeCountryCode($validated['father_whatsapp_country_code'] ?? $parent->father_whatsapp_country_code ?? $fatherCountryCode);
+                    $motherWhatsappCountryCode = $this->normalizeCountryCode($validated['mother_whatsapp_country_code'] ?? $parent->mother_whatsapp_country_code ?? $motherCountryCode);
                     
                     // Build parent update data - only include fields that are in validated array
                     $parentData = [
                         'father_phone_country_code' => $fatherCountryCode,
                         'mother_phone_country_code' => $motherCountryCode,
                         'guardian_phone_country_code' => $guardianCountryCode,
+                        'father_whatsapp_country_code' => $fatherWhatsappCountryCode,
+                        'mother_whatsapp_country_code' => $motherWhatsappCountryCode,
                     ];
                     
                     // Father fields
@@ -236,7 +305,7 @@ class FamilyUpdateController extends Controller
                     }
                     if (array_key_exists('father_whatsapp', $validated)) {
                         $parentData['father_whatsapp'] = !empty($validated['father_whatsapp']) 
-                            ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherCountryCode) 
+                            ? $this->formatPhoneWithCode($validated['father_whatsapp'], $fatherWhatsappCountryCode) 
                             : null;
                     }
                     if (array_key_exists('father_email', $validated)) {
@@ -257,7 +326,7 @@ class FamilyUpdateController extends Controller
                     }
                     if (array_key_exists('mother_whatsapp', $validated)) {
                         $parentData['mother_whatsapp'] = !empty($validated['mother_whatsapp']) 
-                            ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherCountryCode) 
+                            ? $this->formatPhoneWithCode($validated['mother_whatsapp'], $motherWhatsappCountryCode) 
                             : null;
                     }
                     if (array_key_exists('mother_email', $validated)) {
@@ -661,6 +730,21 @@ class FamilyUpdateController extends Controller
 
         // Clear cached relationships - the redirect will reload fresh data from database
         $family->unsetRelation('students');
+        
+        \Log::info('FamilyUpdate Submit: Update completed successfully', [
+            'token' => $token,
+            'family_id' => $family->id,
+            'students_updated' => $students->count(),
+        ]);
+
+        // Track update count (if column exists)
+        if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'update_count')) {
+            $link->increment('update_count');
+            if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'last_updated_at')) {
+                $link->last_updated_at = now();
+            }
+            $link->save();
+        }
         
         return redirect()->route('family-update.form', $token)
             ->with('success', 'Details updated successfully. You can revisit this link anytime to update again.');

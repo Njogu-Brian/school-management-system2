@@ -48,7 +48,7 @@
                 <span class="pill-badge pill-{{ $student->archive ? 'danger' : 'info' }} text-capitalize">{{ $student->archive ? 'Inactive' : $student->status }}</span>
               @endif
             </div>
-            <h2 class="mb-0">{{ $student->first_name }} {{ $student->last_name }}</h2>
+            <h2 class="mb-0">{{ $student->first_name }}@if($student->middle_name) {{ $student->middle_name }}@endif {{ $student->last_name }}</h2>
             <div class="text-muted d-flex gap-3 flex-wrap">
               <span><i class="bi bi-mortarboard me-1"></i>{{ $student->classroom->name ?? '—' }}</span>
               <span><i class="bi bi-diagram-3 me-1"></i>{{ $student->stream->name ?? '—' }}</span>

@@ -1,0 +1,51 @@
+{
+  "test_runs": [],
+  "current_run": {
+    "timestamp": "2026-01-17T04:15:09Z",
+    "fields_filled": {
+      "middle_name": "James",
+      "allergies_notes": "No known allergies",
+      "marital_status": "Married (attempted - dropdown not working)",
+      "father_name": "John Were",
+      "father_id_number": "12345678",
+      "father_email": "john.were@email.com",
+      "father_phone": "712345678",
+      "mother_name": "Jane Were",
+      "mother_id_number": "87654321",
+      "mother_email": "jane.were@email.com",
+      "mother_phone": "723456789",
+      "guardian_name": "Guardian Smith",
+      "guardian_relationship": "Uncle",
+      "guardian_phone": "734567890",
+      "emergency_contact_name": "Emergency Contact",
+      "emergency_contact_phone": "745678901",
+      "preferred_hospital": "City Hospital",
+      "residential_area": "Westlands, Nairobi"
+    },
+    "verification_results": {
+      "saved_fields": [
+        "middle_name",
+        "allergies_notes",
+        "emergency_contact_name",
+        "preferred_hospital",
+        "residential_area"
+      ],
+      "failed_fields": [
+        "marital_status",
+        "father_name",
+        "father_id_number",
+        "father_email",
+        "father_phone",
+        "mother_name",
+        "mother_id_number",
+        "mother_email",
+        "mother_phone",
+        "guardian_name",
+        "guardian_relationship",
+        "guardian_phone"
+      ],
+      "issue": "Parent update code not executing - likely parent doesn't exist for student"
+    },
+    "failures": []
+  }
+}
