@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Swimming;
 
 use App\Http\Controllers\Controller;
-use App\Models\{SwimmingWallet, Student};
+use App\Models\{SwimmingWallet, Student, Payment};
 use App\Services\SwimmingWalletService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SwimmingWalletController extends Controller
 {

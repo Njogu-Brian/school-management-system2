@@ -319,22 +319,41 @@ class SwimmingAttendanceService
                     continue;
                 }
                 
+                // Refresh wallet to get latest balance
+                $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($student->id);
+                $wallet->refresh();
+                
                 // Check if wallet has sufficient balance
-                if ($this->walletService->hasSufficientBalance($student, $sessionCost)) {
+                if ($wallet->balance >= $sessionCost) {
                     try {
                         $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
                         $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
                         $processed++;
+                        
+                        Log::info('Debited wallet for unpaid attendance', [
+                            'attendance_id' => $attendance->id,
+                            'student_id' => $student->id,
+                            'amount' => $sessionCost,
+                        ]);
                     } catch (\Exception $e) {
                         $failed++;
                         $errors[] = "Attendance #{$attendance->id}: {$e->getMessage()}";
                         Log::error('Failed to debit wallet for attendance in bulk retry', [
                             'attendance_id' => $attendance->id,
+                            'student_id' => $student->id,
+                            'session_cost' => $sessionCost,
+                            'wallet_balance' => $wallet->balance,
                             'error' => $e->getMessage(),
                         ]);
                     }
                 } else {
                     $insufficient++;
+                    Log::debug('Insufficient wallet balance for attendance debit', [
+                        'attendance_id' => $attendance->id,
+                        'student_id' => $student->id,
+                        'session_cost' => $sessionCost,
+                        'wallet_balance' => $wallet->balance,
+                    ]);
                 }
             } catch (\Exception $e) {
                 $failed++;
