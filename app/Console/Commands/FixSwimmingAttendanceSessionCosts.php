@@ -53,8 +53,35 @@ class FixSwimmingAttendanceSessionCosts extends Command
                     continue;
                 }
                 
-                // Determine correct session cost based on whether student has termly fee
-                $termlyFee = $this->attendanceService->hasActiveTermlyFee($student, null, $attendance->attendance_date->year ?? null);
+                // Determine year and term from attendance date
+                $attendanceDate = $attendance->attendance_date;
+                $year = $attendanceDate->year;
+                
+                // Find which term the attendance date falls in
+                $term = \App\Models\Term::whereNotNull('opening_date')
+                    ->whereNotNull('closing_date')
+                    ->whereDate('opening_date', '<=', $attendanceDate->toDateString())
+                    ->whereDate('closing_date', '>=', $attendanceDate->toDateString())
+                    ->first();
+                
+                $termNumber = $term ? $term->name : null;
+                // Extract term number from term name (e.g., "Term 1" -> 1, "Term 2" -> 2)
+                if ($termNumber && preg_match('/term\s*(\d+)/i', $termNumber, $matches)) {
+                    $termNumber = (int) $matches[1];
+                } else {
+                    // Fallback: try to determine term from month
+                    $month = $attendanceDate->month;
+                    if ($month >= 1 && $month <= 4) {
+                        $termNumber = 1;
+                    } elseif ($month >= 5 && $month <= 8) {
+                        $termNumber = 2;
+                    } else {
+                        $termNumber = 3;
+                    }
+                }
+                
+                // Determine correct session cost based on whether student has termly fee for that term/year
+                $termlyFee = $this->attendanceService->hasActiveTermlyFee($student, $year, $termNumber);
                 
                 if ($termlyFee) {
                     // Student has termly fee - use termly per-visit cost (default: 120)
