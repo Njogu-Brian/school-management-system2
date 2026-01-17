@@ -61,7 +61,7 @@
                 <h5 class="mb-0">Student Wallets</h5>
                 <p class="text-muted small mb-0">{{ $wallets->total() }} wallet(s) found</p>
             </div>
-        </div>
+b       </div>
         <div class="finance-card-body p-0">
             <div class="table-responsive">
                 <table class="table table-modern align-middle mb-0">

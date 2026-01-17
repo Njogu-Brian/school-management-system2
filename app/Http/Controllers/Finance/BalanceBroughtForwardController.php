@@ -147,9 +147,10 @@ class BalanceBroughtForwardController extends Controller
         $systemData = [];
 
         // Build system data map (admission_number => balance)
-        $allStudentIds = Student::pluck('id');
+        // Include archived and alumni students for complete comparison
+        $allStudentIds = Student::withArchived()->pluck('id');
         foreach ($allStudentIds as $studentId) {
-            $student = Student::find($studentId);
+            $student = Student::withArchived()->find($studentId);
             if (!$student) continue;
             
             $legacyBf = StudentBalanceService::getBalanceBroughtForward($student);
@@ -203,9 +204,18 @@ class BalanceBroughtForwardController extends Controller
         foreach ($allAdmissions as $admission) {
             $systemBalance = $systemData[$admission]['balance'] ?? 0;
             $importBalance = $importData[$admission] ?? 0;
-            $student = isset($systemData[$admission]) 
-                ? Student::find($systemData[$admission]['student_id'])
-                : Student::where('admission_number', $admission)->first();
+            // Try to find student - check active first, then archived/alumni
+            $student = null;
+            if (isset($systemData[$admission])) {
+                $student = Student::find($systemData[$admission]['student_id']);
+            }
+            
+            // If not found, search by admission number (including archived/alumni)
+            if (!$student) {
+                $student = Student::withArchived()
+                    ->where('admission_number', $admission)
+                    ->first();
+            }
             
             if (!$student) {
                 $preview[] = [
@@ -215,7 +225,7 @@ class BalanceBroughtForwardController extends Controller
                     'system_balance' => null,
                     'import_balance' => $importBalance,
                     'status' => 'student_not_found',
-                    'message' => 'Student not found in system',
+                    'message' => 'Student not found in system (searched active, archived, and alumni)',
                     'difference' => null,
                 ];
                 continue;
@@ -279,6 +289,7 @@ class BalanceBroughtForwardController extends Controller
     {
         $request->validate([
             'rows' => 'required|array',
+            'skip' => 'nullable|array',
         ]);
 
         $balanceBroughtForwardVotehead = Votehead::firstOrCreate(
@@ -305,37 +316,66 @@ class BalanceBroughtForwardController extends Controller
             $snapshot = $this->createSnapshot($balanceBroughtForwardVotehead, $year, $termNumber);
 
             // Step 2: Parse import rows
+            $skippedIndices = $request->input('skip', []);
             $importStudentIds = [];
             $importData = [];
-            foreach ($request->rows as $encoded) {
-                $row = json_decode(base64_decode($encoded), true);
-                
-                if (!$row || empty($row['student_id']) || !isset($row['import_balance'])) {
+            $errors = [];
+            
+            foreach ($request->rows as $index => $rowData) {
+                // Skip if this row is marked to skip
+                if (in_array($index, $skippedIndices)) {
                     continue;
                 }
 
-                $studentId = $row['student_id'];
-                $importBalance = (float) ($row['import_balance'] ?? 0);
+                // Determine student ID: use matched student if provided, otherwise use original
+                $studentId = null;
+                if (!empty($rowData['matched_student_id'])) {
+                    $studentId = (int) $rowData['matched_student_id'];
+                } elseif (!empty($rowData['original_student_id'])) {
+                    $studentId = (int) $rowData['original_student_id'];
+                }
 
-                if ($importBalance > 0) {
+                if (!$studentId) {
+                    $admission = $rowData['original_admission_number'] ?? 'Unknown';
+                    $errors[] = "Row {$index} (Admission: {$admission}): No student matched";
+                    continue;
+                }
+
+                // Determine which balance to use: import or system
+                $useBalance = $rowData['use_balance'] ?? 'import';
+                $finalBalance = 0;
+
+                if ($useBalance === 'system') {
+                    $finalBalance = (float) ($rowData['system_balance'] ?? 0);
+                } else {
+                    $finalBalance = (float) ($rowData['import_balance'] ?? 0);
+                }
+
+                // Only process if balance > 0
+                if ($finalBalance > 0) {
                     $importStudentIds[] = $studentId;
-                    $importData[$studentId] = $importBalance;
+                    $importData[$studentId] = $finalBalance;
+                } elseif ($finalBalance == 0 && !empty($rowData['system_balance']) && $rowData['system_balance'] > 0) {
+                    // If using import balance but it's 0, we might want to remove the system balance
+                    // Add to list so it gets deleted
+                    $importStudentIds[] = $studentId;
                 }
             }
 
-            // Step 3: Delete balances for students NOT in import
+            // Step 3: Delete balances for students NOT in import (only if they had balances)
             $deletedCount = $this->deleteBalancesNotInImport($balanceBroughtForwardVotehead, $year, $termNumber, $importStudentIds);
 
             // Step 4: Update/create balances for students IN import
             $updated = 0;
-            $errors = [];
+            $skipped = 0;
             $totalAmount = 0;
 
-            foreach ($importData as $studentId => $importBalance) {
+            foreach ($importData as $studentId => $balance) {
                 try {
-                    $student = Student::find($studentId);
+                    // Find student (including archived/alumni)
+                    $student = Student::withArchived()->find($studentId);
                     if (!$student) {
-                        $errors[] = "Student ID {$studentId}: Student not found";
+                        $errors[] = "Student ID {$studentId}: Student not found (including archived/alumni)";
                         continue;
                     }
 
@@ -349,28 +389,53 @@ class BalanceBroughtForwardController extends Controller
                         'source' => 'balance_brought_forward',
                     ]);
 
-                    $invoiceItem->amount = $importBalance;
+                    $oldAmount = $invoiceItem->exists ? (float) $invoiceItem->amount : 0;
+                    $invoiceItem->amount = $balance;
                     $invoiceItem->status = 'active';
                     $invoiceItem->effective_date = $invoice->issued_date ?? now();
                     
-                    if (!$invoiceItem->original_amount && $invoiceItem->exists) {
-                        $invoiceItem->original_amount = $invoiceItem->amount;
+                    // Store original amount if not set
+                    if (!$invoiceItem->original_amount) {
+                        $invoiceItem->original_amount = $oldAmount > 0 ? $oldAmount : $balance;
                     }
                     
                     $invoiceItem->save();
 
-                    // Recalculate invoice
+                    // Recalculate invoice (this will update student fee balances, statements, and receipts automatically)
+                    // Enable auto-allocation to ensure payments are allocated properly
+                    app()->instance('auto_allocating', true);
                     InvoiceService::recalc($invoice);
+                    app()->instance('auto_allocating', false);
+
+                    // Also recalculate all invoices for this student to ensure statements are updated
+                    $studentInvoices = \App\Models\Invoice::where('student_id', $studentId)->get();
+                    foreach ($studentInvoices as $studentInvoice) {
+                        try {
+                            app()->instance('auto_allocating', true);
+                            InvoiceService::recalc($studentInvoice);
+                            app()->instance('auto_allocating', false);
+                        } catch (\Exception $e) {
+                            Log::warning('Failed to recalculate student invoice during balance import', [
+                                'invoice_id' => $studentInvoice->id,
+                                'student_id' => $studentId,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+
                     $updated++;
-                    $totalAmount += $importBalance;
+                    $totalAmount += $balance;
                 } catch (\Exception $e) {
                     Log::error('Balance brought forward import error', [
                         'student_id' => $studentId,
                         'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
                     ]);
                     $errors[] = "Student ID {$studentId}: " . $e->getMessage();
                 }
             }
+
+            $skipped = count($skippedIndices);
 
             // Step 5: Create import batch record
             $importBatch = BalanceBroughtForwardImport::create([
@@ -388,6 +453,9 @@ class BalanceBroughtForwardController extends Controller
             ]);
 
             $message = "{$updated} balance(s) updated and {$deletedCount} balance(s) deleted successfully.";
+            if ($skipped > 0) {
+                $message .= " {$skipped} row(s) were skipped.";
+            }
             if (!empty($errors)) {
                 $message .= " " . count($errors) . " error(s) occurred.";
             }
