@@ -132,10 +132,7 @@ class SwimmingWalletService
         return DB::transaction(function () use ($student, $amount, $attendanceId, $description) {
             $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
             
-            if ($wallet->balance < $amount) {
-                throw new \Exception("Insufficient swimming wallet balance. Required: {$amount}, Available: {$wallet->balance}");
-            }
-            
+            // Allow negative balances - this allows tracking unpaid amounts owed by parents
             $oldBalance = $wallet->balance;
             $newBalance = $oldBalance - $amount;
             

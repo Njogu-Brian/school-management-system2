@@ -330,48 +330,32 @@ class SwimmingAttendanceService
                     continue;
                 }
                 
-                // Refresh wallet to get latest balance
-                $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($student->id);
-                $wallet->refresh();
-                
-                // Check if wallet has sufficient balance
-                if ($wallet->balance >= $sessionCost) {
-                    try {
-                        // Update attendance record with correct session cost if different
-                        if ($attendance->session_cost != $sessionCost) {
-                            $attendance->update(['session_cost' => $sessionCost]);
-                        }
-                        
-                        // Debit wallet
-                        $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
-                        $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
-                        $processed++;
-                        
-                        Log::info('Debited wallet for unpaid attendance', [
-                            'attendance_id' => $attendance->id,
-                            'student_id' => $student->id,
-                            'amount' => $sessionCost,
-                            'has_termly_fee' => $hasTermlyFee,
-                        ]);
-                    } catch (\Exception $e) {
-                        $failed++;
-                        $errors[] = "Attendance #{$attendance->id}: {$e->getMessage()}";
-                        Log::error('Failed to debit wallet for attendance in bulk retry', [
-                            'attendance_id' => $attendance->id,
-                            'student_id' => $student->id,
-                            'session_cost' => $sessionCost,
-                            'wallet_balance' => $wallet->balance,
-                            'error' => $e->getMessage(),
-                        ]);
+                // Always debit wallet - allow negative balances to track unpaid amounts
+                try {
+                    // Update attendance record with correct session cost if different
+                    if ($attendance->session_cost != $sessionCost) {
+                        $attendance->update(['session_cost' => $sessionCost]);
                     }
-                } else {
-                    $insufficient++;
-                    Log::debug('Insufficient wallet balance for attendance debit', [
+                    
+                    // Debit wallet (even if balance goes negative - this tracks what parents owe)
+                    $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
+                    $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
+                    $processed++;
+                    
+                    Log::info('Debited wallet for unpaid attendance', [
+                        'attendance_id' => $attendance->id,
+                        'student_id' => $student->id,
+                        'amount' => $sessionCost,
+                        'has_termly_fee' => $hasTermlyFee,
+                    ]);
+                } catch (\Exception $e) {
+                    $failed++;
+                    $errors[] = "Attendance #{$attendance->id}: {$e->getMessage()}";
+                    Log::error('Failed to debit wallet for attendance in bulk retry', [
                         'attendance_id' => $attendance->id,
                         'student_id' => $student->id,
                         'session_cost' => $sessionCost,
-                        'wallet_balance' => $wallet->balance,
-                        'has_termly_fee' => $hasTermlyFee,
+                        'error' => $e->getMessage(),
                     ]);
                 }
             } catch (\Exception $e) {
@@ -388,7 +372,7 @@ class SwimmingAttendanceService
         return [
             'processed' => $processed,
             'failed' => $failed,
-            'insufficient' => $insufficient,
+            'insufficient' => 0, // No longer tracking insufficient balance - always debit
             'errors' => $errors,
         ];
     }

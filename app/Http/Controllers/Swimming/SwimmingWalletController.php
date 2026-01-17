@@ -210,7 +210,7 @@ class SwimmingWalletController extends Controller
 
             $message = "Credited wallets for {$credited} student(s).";
             if ($skipped > 0) {
-                $message .= " Skipped {$skipped} (wallet already credited from optional fee payment, or optional fee invoice item not fully paid yet, or no invoice item found).";
+                $message .= " Skipped {$skipped} wallet(s) - already credited from optional fee payment (no duplicate credits).";
             }
             if ($failed > 0) {
                 $message .= " Failed {$failed}.";
@@ -249,10 +249,7 @@ class SwimmingWalletController extends Controller
             
             if ($results['processed'] > 0) {
                 $message .= " Debit amounts: Ksh 120 for students with termly fee, Ksh 150 for students without termly fee.";
-            }
-            
-            if ($results['insufficient'] > 0) {
-                $message .= " {$results['insufficient']} had insufficient wallet balance (wallets need to be credited first).";
+                $message .= " Wallets can have negative balances to track unpaid amounts owed by parents.";
             }
             
             if ($results['failed'] > 0) {
