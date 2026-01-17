@@ -340,6 +340,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/wallets/student/{student}', [SwimmingWalletController::class, 'show'])->name('swimming.wallets.show');
             Route::post('/wallets/student/{student}/adjust', [SwimmingWalletController::class, 'adjust'])->name('swimming.wallets.adjust');
             Route::post('/wallets/credit-from-optional-fees', [SwimmingWalletController::class, 'creditFromOptionalFees'])->name('swimming.wallets.credit-from-optional-fees');
+            Route::post('/wallets/process-unpaid-attendance', [SwimmingWalletController::class, 'processUnpaidAttendance'])->name('swimming.wallets.process-unpaid-attendance');
             
             // Payments
             Route::get('/payments/create', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'create'])->name('swimming.payments.create');

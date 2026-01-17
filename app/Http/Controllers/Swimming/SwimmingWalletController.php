@@ -228,13 +228,16 @@ class SwimmingWalletController extends Controller
 
             $message = "Credited wallets for {$credited} student(s).";
             if ($skipped > 0) {
-                $message .= " Skipped {$skipped} (already credited or not fully paid).";
+                $message .= " Skipped {$skipped} (wallet already credited from optional fee payment, or optional fee invoice item not fully paid yet, or no invoice item found).";
             }
             if ($failed > 0) {
                 $message .= " Failed {$failed}.";
                 if (count($errors) > 0) {
                     $message .= " Errors: " . implode('; ', array_slice($errors, 0, 3));
                 }
+            }
+            if ($credited == 0 && $skipped > 0) {
+                $message .= " Note: All wallets were already credited. No action needed.";
             }
 
             return redirect()->route('swimming.wallets.index')
@@ -243,6 +246,40 @@ class SwimmingWalletController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Failed to credit wallets: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process unpaid attendance and debit wallets for students with optional fees
+     * This debits wallets for attendance that was marked but not yet paid
+     */
+    public function processUnpaidAttendance(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can process unpaid attendance.');
+        }
+
+        try {
+            $attendanceService = app(\App\Services\SwimmingAttendanceService::class);
+            $results = $attendanceService->bulkRetryPayments();
+            
+            $message = "Processed {$results['processed']} attendance record(s).";
+            if ($results['insufficient'] > 0) {
+                $message .= " {$results['insufficient']} had insufficient wallet balance.";
+            }
+            if ($results['failed'] > 0) {
+                $message .= " {$results['failed']} failed.";
+            }
+            if ($results['processed'] == 0 && $results['insufficient'] == 0 && $results['failed'] == 0) {
+                $message = "No unpaid attendance records found for students with optional fees.";
+            }
+            
+            return redirect()->route('swimming.wallets.index')
+                ->with($results['failed'] > 0 || ($results['processed'] == 0 && $results['insufficient'] == 0) ? 'warning' : 'success', $message);
+                
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to process unpaid attendance: ' . $e->getMessage());
         }
     }
 }

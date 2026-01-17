@@ -62,12 +62,20 @@
                 <p class="text-muted small mb-0">{{ $wallets->total() }} wallet(s) found</p>
             </div>
             @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin']))
-            <form method="POST" action="{{ route('swimming.wallets.credit-from-optional-fees') }}" onsubmit="return confirm('Credit wallets for all students who have fully paid their swimming optional fees? This will add the optional fee amount to their wallets if not already credited.');">
-                @csrf
-                <button type="submit" class="btn btn-finance btn-finance-info">
-                    <i class="bi bi-wallet2"></i> Credit Wallets from Optional Fees
-                </button>
-            </form>
+            <div class="d-flex gap-2">
+                <form method="POST" action="{{ route('swimming.wallets.credit-from-optional-fees') }}" onsubmit="return confirm('Credit wallets for all students who have fully paid their swimming optional fees? This will add the optional fee amount to their wallets if not already credited.');">
+                    @csrf
+                    <button type="submit" class="btn btn-finance btn-finance-info">
+                        <i class="bi bi-wallet2"></i> Credit Wallets from Optional Fees
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('swimming.wallets.process-unpaid-attendance') }}" onsubmit="return confirm('Process unpaid attendance and debit wallets for students with optional fees? This will debit wallets for attendance that was already marked but not yet paid. Only students with sufficient wallet balance will be processed.');">
+                    @csrf
+                    <button type="submit" class="btn btn-finance btn-finance-success">
+                        <i class="bi bi-arrow-clockwise"></i> Debit Wallets for Unpaid Attendance
+                    </button>
+                </form>
+            </div>
             @endif
         </div>
         <div class="finance-card-body p-0">
