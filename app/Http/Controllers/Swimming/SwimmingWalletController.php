@@ -266,13 +266,19 @@ class SwimmingWalletController extends Controller
             
             $message = "Processed {$results['processed']} attendance record(s).";
             if ($results['insufficient'] > 0) {
-                $message .= " {$results['insufficient']} had insufficient wallet balance.";
+                $message .= " {$results['insufficient']} had insufficient wallet balance (wallets need to be credited first).";
             }
             if ($results['failed'] > 0) {
                 $message .= " {$results['failed']} failed.";
+                if (!empty($results['errors'])) {
+                    $message .= " Errors: " . implode('; ', array_slice($results['errors'], 0, 2));
+                }
             }
             if ($results['processed'] == 0 && $results['insufficient'] == 0 && $results['failed'] == 0) {
-                $message = "No unpaid attendance records found for students with optional fees.";
+                $message = "No unpaid attendance records found for students with optional fees. This means either:\n";
+                $message .= "- All attendance is already paid, OR\n";
+                $message .= "- Attendance records don't have termly_fee_covered=true, OR\n";
+                $message .= "- Session costs are not set (session_cost = 0)";
             }
             
             return redirect()->route('swimming.wallets.index')
