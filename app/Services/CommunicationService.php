@@ -11,11 +11,13 @@ class CommunicationService
 {
     protected $emailService;
     protected $smsService;
+    protected $whatsAppService;
 
-    public function __construct(EmailService $emailService, SMSService $smsService)
+    public function __construct(EmailService $emailService, SMSService $smsService, WhatsAppService $whatsAppService)
     {
         $this->emailService = $emailService;
         $this->smsService   = $smsService;
+        $this->whatsAppService = $whatsAppService;
     }
 
     public function sendSMS($recipientType, $recipientId, $phone, $message, $title = null, $senderId = null, $paymentId = null)
@@ -205,6 +207,61 @@ class CommunicationService
                 'response'       => ['error' => $e->getMessage()],
                 'scope'          => 'email',
                 'sent_at'        => now(),
+            ]);
+            
+            throw $e; // Re-throw to allow caller to handle
+        }
+    }
+
+    public function sendWhatsApp($recipientType, $recipientId, $phone, $message, $title = null, $paymentId = null)
+    {
+        try {
+            $result = $this->whatsAppService->sendMessage($phone, $message);
+            
+            $status = data_get($result, 'status') === 'success' ? 'sent' : 'failed';
+            
+            CommunicationLog::create([
+                'recipient_type' => $recipientType,
+                'recipient_id'   => $recipientId,
+                'contact'        => $phone,
+                'channel'        => 'whatsapp',
+                'title'          => $title ?? 'WhatsApp Notification',
+                'message'        => $message,
+                'type'           => 'whatsapp',
+                'status'         => $status,
+                'response'       => is_array($result) ? $result : ['response' => (string) $result],
+                'scope'          => 'whatsapp',
+                'sent_at'        => now(),
+                'provider_id'    => data_get($result, 'body.id') ?? data_get($result, 'body.message_id'),
+                'provider_status' => data_get($result, 'status'),
+                'payment_id'     => $paymentId,
+            ]);
+            
+            if ($status !== 'sent') {
+                Log::warning('WhatsApp sending failed', [
+                    'phone' => $phone,
+                    'result' => $result,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error("WhatsApp sending threw exception: " . $e->getMessage(), [
+                'phone' => $phone,
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            CommunicationLog::create([
+                'recipient_type' => $recipientType,
+                'recipient_id'   => $recipientId,
+                'contact'        => $phone,
+                'channel'        => 'whatsapp',
+                'title'          => $title ?? 'WhatsApp Notification',
+                'message'        => $message,
+                'type'           => 'whatsapp',
+                'status'         => 'failed',
+                'response'       => ['error' => $e->getMessage()],
+                'scope'          => 'whatsapp',
+                'sent_at'        => now(),
+                'payment_id'     => $paymentId ?? null,
             ]);
             
             throw $e; // Re-throw to allow caller to handle

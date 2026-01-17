@@ -82,6 +82,13 @@ class BulkSendWhatsAppMessages implements ShouldQueue
     protected $skipSent;
 
     /**
+     * User ID who created the job
+     *
+     * @var int|null
+     */
+    protected $userId;
+
+    /**
      * Create a new job instance.
      */
     public function __construct(
@@ -91,7 +98,8 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         string $title,
         string $target,
         ?string $mediaUrl = null,
-        bool $skipSent = true
+        bool $skipSent = true,
+        ?int $userId = null
     ) {
         $this->trackingId = $trackingId;
         $this->recipients = $recipients;
@@ -100,6 +108,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         $this->target = $target;
         $this->mediaUrl = $mediaUrl;
         $this->skipSent = $skipSent;
+        $this->userId = $userId ?? auth()->id();
     }
 
     /**

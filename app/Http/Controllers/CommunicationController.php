@@ -439,7 +439,7 @@ class CommunicationController extends Controller
                 ];
             }
             
-            // Dispatch job
+            // Dispatch job with user_id
             \App\Jobs\BulkSendWhatsAppMessages::dispatch(
                 $trackingId,
                 $recipientsData,
@@ -447,7 +447,8 @@ class CommunicationController extends Controller
                 $title,
                 $data['target'],
                 $mediaUrl,
-                $skipSent
+                $skipSent,
+                auth()->id()
             );
             
             \Log::info('WhatsApp bulk send job dispatched', [
@@ -1000,101 +1001,228 @@ class CommunicationController extends Controller
     }
 
     /**
-     * View pending queue jobs
+     * View all queue jobs (pending, failed, completed)
      */
     public function pendingJobs(Request $request)
     {
         abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
 
-        // Get pending jobs from the jobs table
-        $jobs = \DB::table('jobs')
-            ->where('queue', 'default')
-            ->orderBy('created_at', 'desc')
-            ->paginate(20);
+        $statusFilter = $request->query('status', 'all'); // all, pending, failed, completed
 
-        // Parse job payloads to extract useful information
-        $jobsWithDetails = [];
-        foreach ($jobs->items() as $job) {
-            $payload = json_decode($job->payload, true);
-            $displayName = $payload['displayName'] ?? '';
+        // Helper function to extract job details from payload
+        $extractJobDetails = function($payload, $source = 'jobs') {
+            $payloadData = json_decode($payload, true);
+            $displayName = $payloadData['displayName'] ?? '';
             
-            // Extract job class from displayName (format: "App\Jobs\BulkSendWhatsAppMessages")
+            // Extract job class
             $jobClass = '';
             if (preg_match('/(App\\\\Jobs\\\\.+?)(?:\@|\s|$)/', $displayName, $matches)) {
                 $jobClass = $matches[1];
             }
 
-            $jobDetails = [
-                'id' => $job->id,
-                'queue' => $job->queue,
-                'attempts' => $job->attempts,
-                'available_at' => $job->available_at,
-                'created_at' => $job->created_at,
+            $details = [
                 'displayName' => $displayName,
-                'job' => $payload['job'] ?? null,
-                'data' => $payload['data'] ?? [],
                 'job_class' => $jobClass,
+                'payload_data' => $payloadData,
             ];
 
-            // Check if this is a communication job
-            $isCommunicationJob = false;
-            $jobType = null;
-            $jobSummary = null;
-
-            if (str_contains($displayName, 'BulkSendWhatsAppMessages') || str_contains($jobClass, 'BulkSendWhatsAppMessages')) {
-                $isCommunicationJob = true;
-                $jobType = 'whatsapp';
-                // Try to extract recipient count from serialized command
+            // Check if communication job and extract details
+            $isCommunicationJob = str_contains($displayName, 'BulkSendWhatsAppMessages') || str_contains($jobClass, 'BulkSendWhatsAppMessages');
+            
+            if ($isCommunicationJob) {
+                $details['is_communication_job'] = true;
+                $details['job_type'] = 'whatsapp';
+                
+                // Extract job properties using reflection
                 try {
-                    if (isset($payload['data']['command'])) {
-                        $commandData = unserialize($payload['data']['command']);
+                    if (isset($payloadData['data']['command'])) {
+                        $commandData = unserialize($payloadData['data']['command']);
                         if (is_object($commandData)) {
-                            // Try reflection to get protected properties
-                            try {
-                                $reflection = new \ReflectionClass($commandData);
-                                if ($reflection->hasProperty('recipients')) {
-                                    $prop = $reflection->getProperty('recipients');
+                            $reflection = new \ReflectionClass($commandData);
+                            
+                            // Extract all job properties
+                            $properties = ['recipients', 'message', 'title', 'target', 'mediaUrl', 'trackingId', 'userId'];
+                            foreach ($properties as $propName) {
+                                if ($reflection->hasProperty($propName)) {
+                                    $prop = $reflection->getProperty($propName);
                                     $prop->setAccessible(true);
-                                    $recipients = $prop->getValue($commandData);
-                                    if (is_array($recipients)) {
-                                        $jobSummary = 'WhatsApp bulk send to ' . count($recipients) . ' recipients';
-                                    }
+                                    $details[$propName] = $prop->getValue($commandData);
                                 }
-                            } catch (\Exception $e) {
-                                // Fallback: try direct property access
-                                if (property_exists($commandData, 'recipients')) {
-                                    $recipients = $commandData->recipients ?? [];
-                                    if (is_array($recipients)) {
-                                        $jobSummary = 'WhatsApp bulk send to ' . count($recipients) . ' recipients';
-                                    }
+                            }
+                            
+                            // If userId not found, try skipSent property
+                            if (!isset($details['userId'])) {
+                                if ($reflection->hasProperty('skipSent')) {
+                                    // Try to get userId from a different approach
+                                    // For now, we'll try to extract from logs later
                                 }
                             }
                         }
                     }
                 } catch (\Exception $e) {
-                    // Continue without recipient count
+                    \Log::warning('Failed to extract job details', ['error' => $e->getMessage()]);
                 }
-                
-                if (!$jobSummary) {
-                    $jobSummary = 'WhatsApp bulk send job';
-                }
-            } elseif (str_contains($displayName, 'SendScheduledCommunicationsJob') || str_contains($jobClass, 'SendScheduledCommunicationsJob')) {
-                $isCommunicationJob = true;
-                $jobType = 'scheduled';
-                $jobSummary = 'Scheduled communications';
             }
 
-            $jobDetails['is_communication_job'] = $isCommunicationJob;
-            $jobDetails['job_type'] = $jobType;
-            $jobDetails['job_summary'] = $jobSummary ?: ($displayName ?: 'Unknown Job');
+            return $details;
+        };
 
-            $jobsWithDetails[] = $jobDetails;
+        // Get pending jobs
+        $pendingJobs = [];
+        if ($statusFilter === 'all' || $statusFilter === 'pending') {
+            $pending = \DB::table('jobs')
+                ->where('queue', 'default')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            foreach ($pending as $job) {
+                $jobDetails = $extractJobDetails($job->payload, 'jobs');
+                $jobDetails['id'] = $job->id;
+                $jobDetails['uuid'] = null;
+                $jobDetails['status'] = 'pending';
+                $jobDetails['queue'] = $job->queue;
+                $jobDetails['attempts'] = $job->attempts;
+                $jobDetails['available_at'] = $job->available_at;
+                $jobDetails['created_at'] = $job->created_at;
+                $jobDetails['reserved_at'] = $job->reserved_at;
+                $jobDetails['exception'] = null;
+                $jobDetails['failed_at'] = null;
+                
+                $pendingJobs[] = $jobDetails;
+            }
         }
 
-        // Replace items with detailed jobs
-        $jobs->setCollection(collect($jobsWithDetails));
+        // Get failed jobs
+        $failedJobs = [];
+        if ($statusFilter === 'all' || $statusFilter === 'failed') {
+            $failed = \DB::table('failed_jobs')
+                ->orderBy('failed_at', 'desc')
+                ->get();
+            
+            foreach ($failed as $job) {
+                $jobDetails = $extractJobDetails($job->payload, 'failed_jobs');
+                $jobDetails['id'] = null;
+                $jobDetails['uuid'] = $job->uuid;
+                $jobDetails['status'] = 'failed';
+                $jobDetails['queue'] = $job->queue;
+                $jobDetails['attempts'] = 0;
+                $jobDetails['available_at'] = null;
+                $jobDetails['created_at'] = strtotime($job->failed_at) - 3600; // Estimate
+                $jobDetails['reserved_at'] = null;
+                $jobDetails['exception'] = $job->exception;
+                $jobDetails['failed_at'] = strtotime($job->failed_at);
+                
+                $failedJobs[] = $jobDetails;
+            }
+        }
 
-        return view('communication.pending-jobs', compact('jobs'));
+        // Combine and sort by created_at
+        $allJobs = array_merge($pendingJobs, $failedJobs);
+        
+        // Filter to only show communication jobs
+        $allJobs = array_filter($allJobs, function($job) {
+            return ($job['is_communication_job'] ?? false) === true;
+        });
+
+        // Sort by created_at descending
+        usort($allJobs, function($a, $b) {
+            return ($b['created_at'] ?? 0) - ($a['created_at'] ?? 0);
+        });
+
+        // Paginate manually
+        $perPage = 20;
+        $currentPage = (int) $request->query('page', 1);
+        $offset = ($currentPage - 1) * $perPage;
+        $paginatedJobs = array_slice($allJobs, $offset, $perPage);
+
+        // Create paginator manually
+        $jobs = new \Illuminate\Pagination\LengthAwarePaginator(
+            $paginatedJobs,
+            count($allJobs),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        // Enrich jobs with user info and completion status
+        foreach ($jobs->items() as &$job) {
+            // Get user info
+            $userId = $job['userId'] ?? null;
+            if ($userId) {
+                $user = \App\Models\User::find($userId);
+                $job['user_name'] = $user ? $user->name : 'Unknown User';
+                $job['user_email'] = $user ? $user->email : null;
+            } else {
+                $job['user_name'] = 'Unknown';
+                $job['user_email'] = null;
+            }
+
+            // Check completion status for pending jobs
+            if ($job['status'] === 'pending' && isset($job['trackingId'])) {
+                // Check if job completed by looking at cache progress
+                $progress = \Cache::get("bulk_whatsapp_progress:{$job['trackingId']}", null);
+                if ($progress && isset($progress['status']) && $progress['status'] === 'completed') {
+                    $job['status'] = 'completed';
+                    $job['sent_count'] = $progress['sent'] ?? 0;
+                    $job['failed_count'] = $progress['failed'] ?? 0;
+                    $job['skipped_count'] = $progress['skipped'] ?? 0;
+                } elseif ($progress && isset($progress['status']) && $progress['status'] === 'failed') {
+                    $job['status'] = 'failed';
+                    $job['error'] = $progress['error'] ?? 'Job failed';
+                } else {
+                    // Check CommunicationLogs for completed jobs (jobs that finished but cache expired)
+                    // Look for logs with similar message/title within 1 hour of job creation
+                    $jobCreatedAt = \Carbon\Carbon::createFromTimestamp($job['created_at']);
+                    if ($job['message'] && $job['title']) {
+                        $logsCount = CommunicationLog::where('channel', 'whatsapp')
+                            ->where('title', $job['title'])
+                            ->where('message', 'like', '%' . substr($job['message'], 0, 50) . '%')
+                            ->whereBetween('created_at', [
+                                $jobCreatedAt->copy()->subMinutes(5),
+                                $jobCreatedAt->copy()->addHours(2)
+                            ])
+                            ->count();
+                        
+                        // If we have logs matching this job and job is not in jobs table anymore, likely completed
+                        if ($logsCount > 0 && $logsCount >= ($recipientCount * 0.8)) { // At least 80% of recipients logged
+                            $sentCount = CommunicationLog::where('channel', 'whatsapp')
+                                ->where('title', $job['title'])
+                                ->where('message', 'like', '%' . substr($job['message'], 0, 50) . '%')
+                                ->where('status', 'sent')
+                                ->whereBetween('created_at', [
+                                    $jobCreatedAt->copy()->subMinutes(5),
+                                    $jobCreatedAt->copy()->addHours(2)
+                                ])
+                                ->count();
+                            
+                            $failedCount = CommunicationLog::where('channel', 'whatsapp')
+                                ->where('title', $job['title'])
+                                ->where('message', 'like', '%' . substr($job['message'], 0, 50) . '%')
+                                ->where('status', 'failed')
+                                ->whereBetween('created_at', [
+                                    $jobCreatedAt->copy()->subMinutes(5),
+                                    $jobCreatedAt->copy()->addHours(2)
+                                ])
+                                ->count();
+                            
+                            $job['status'] = 'completed';
+                            $job['sent_count'] = $sentCount;
+                            $job['failed_count'] = $failedCount;
+                        }
+                    }
+                }
+            }
+
+            // Get recipient count
+            $job['recipient_count'] = count($job['recipients'] ?? []);
+            
+            // Format dates
+            $job['created_at_formatted'] = $job['created_at'] ? \Carbon\Carbon::createFromTimestamp($job['created_at'])->format('Y-m-d H:i:s') : '-';
+            $job['available_at_formatted'] = $job['available_at'] ? \Carbon\Carbon::createFromTimestamp($job['available_at'])->format('Y-m-d H:i:s') : '-';
+            $job['failed_at_formatted'] = $job['failed_at'] ? \Carbon\Carbon::createFromTimestamp($job['failed_at'])->format('Y-m-d H:i:s') : null;
+        }
+
+        return view('communication.pending-jobs', compact('jobs', 'statusFilter'));
     }
 
     /**

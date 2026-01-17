@@ -246,7 +246,7 @@ class SwimmingAttendanceController extends Controller
         
         $request->validate([
             'channels' => 'required|array',
-            'channels.*' => 'in:sms,email',
+            'channels.*' => 'in:sms,email,whatsapp',
             'date' => 'nullable|date',
             'classroom_id' => 'nullable|exists:classrooms,id',
         ]);

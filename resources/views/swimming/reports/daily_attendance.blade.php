@@ -32,7 +32,7 @@
     @if($unpaidAttendance->isNotEmpty())
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="finance-card-body">
-            <form method="POST" action="{{ route('swimming.attendance.send-payment-reminders') }}" onsubmit="return confirm('Send payment reminders via SMS/Email to parents for {{ $unpaidAttendance->count() }} unpaid attendance record(s)?');">
+            <form method="POST" action="{{ route('swimming.attendance.send-payment-reminders') }}" onsubmit="return confirm('Send payment reminders to parents for {{ $unpaidAttendance->count() }} unpaid attendance record(s)?');">
                 @csrf
                 <input type="hidden" name="date" value="{{ $selected_date }}">
                 <input type="hidden" name="classroom_id" value="{{ $selected_classroom_id ?? '' }}">
@@ -42,7 +42,7 @@
                         <p class="text-muted small mb-0">
                             {{ $unpaidAttendance->count() }} record(s) unpaid. 
                             Total amount: Ksh {{ number_format($totalUnpaidAmount, 2) }}. 
-                            Send payment reminders to parents via SMS/Email.
+                            Send payment reminders to parents via SMS/Email/WhatsApp.
                         </p>
                     </div>
                     <div class="d-flex gap-2 align-items-center">
@@ -53,6 +53,10 @@
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="channels[]" value="email" id="channelEmail" checked>
                             <label class="form-check-label" for="channelEmail">Email</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="channels[]" value="whatsapp" id="channelWhatsApp">
+                            <label class="form-check-label" for="channelWhatsApp">WhatsApp</label>
                         </div>
                         <button type="submit" class="btn btn-finance btn-finance-success">
                             <i class="bi bi-send"></i> Send Reminders

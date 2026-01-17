@@ -454,6 +454,7 @@ class SwimmingAttendanceService
                 // Get parent contact info
                 $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
                 $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                $parentWhatsApp = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp ?? $parentPhone ?? null;
                 
                 // Build attendance dates list
                 $dates = $attendances->map(function($att) {
@@ -511,9 +512,35 @@ class SwimmingAttendanceService
                     }
                 }
                 
-                if (!in_array('sms', $channels) && !in_array('email', $channels)) {
+                // WhatsApp message
+                if (in_array('whatsapp', $channels) && $parentWhatsApp) {
+                    try {
+                        $whatsappMessage = "Dear Parent,\n\n";
+                        $whatsappMessage .= "Your child {$studentName} ({$student->admission_number}) has {$sessionCount} unpaid swimming session(s).\n\n";
+                        $whatsappMessage .= "Total Amount: KES {$amountFormatted}\n";
+                        $whatsappMessage .= "Dates: {$dates}\n\n";
+                        $whatsappMessage .= "Please make payment to credit your child's swimming wallet. You can make payments through:\n";
+                        $whatsappMessage .= "• Bank transfer/deposit (mark transaction as swimming)\n";
+                        $whatsappMessage .= "• M-PESA payment (mark as swimming)\n";
+                        $whatsappMessage .= "• Direct payment at the finance office\n\n";
+                        $whatsappMessage .= "Thank you for your continued support.\n\n";
+                        $whatsappMessage .= "Royal Kings School";
+                        
+                        $commService->sendWhatsApp('parent', $parent->id, $parentWhatsApp, $whatsappMessage, 'Swimming Payment Reminder');
+                        $sent++;
+                    } catch (\Exception $e) {
+                        $failed++;
+                        Log::error('Failed to send swimming payment reminder WhatsApp', [
+                            'parent_id' => $parent->id,
+                            'student_id' => $student->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+                
+                if (!in_array('sms', $channels) && !in_array('email', $channels) && !in_array('whatsapp', $channels)) {
                     $failed++;
-                } elseif (!$parentPhone && !$parentEmail) {
+                } elseif (!$parentPhone && !$parentEmail && !$parentWhatsApp) {
                     $failed++;
                 }
                 
