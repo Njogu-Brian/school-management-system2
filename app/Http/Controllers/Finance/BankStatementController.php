@@ -1871,6 +1871,37 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Unmark individual transaction as swimming
+     */
+    public function unmarkAsSwimming(Request $request, BankStatementTransaction $bankStatement)
+    {
+        // Check if column exists
+        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        
+        if (!$hasSwimmingColumn) {
+            return redirect()->back()
+                ->with('error', 'Swimming transaction column does not exist.');
+        }
+
+        if (!$bankStatement->is_swimming_transaction) {
+            return redirect()->back()
+                ->with('error', 'Transaction is not marked as swimming.');
+        }
+
+        try {
+            $this->swimmingTransactionService->unmarkAsSwimming($bankStatement);
+            
+            return redirect()
+                ->route('finance.bank-statements.show', $bankStatement)
+                ->with('success', 'Transaction unmarked as swimming successfully.');
+                
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->with('error', 'Failed to unmark transaction: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Bulk transfer collected payments to swimming
      */
     public function bulkTransferToSwimming(Request $request)

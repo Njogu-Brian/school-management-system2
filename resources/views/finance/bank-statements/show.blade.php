@@ -589,6 +589,25 @@
                         @endif
                     @endif
 
+                    @php
+                        $isSwimming = \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+                            && $bankStatement->is_swimming_transaction;
+                        $hasAllocations = false;
+                        if ($isSwimming && \Illuminate\Support\Facades\Schema::hasTable('swimming_transaction_allocations')) {
+                            $hasAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
+                                ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                                ->exists();
+                        }
+                    @endphp
+                    @if($isSwimming && !$hasAllocations && $bankStatement->status !== 'rejected')
+                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement) }}" class="mb-2" onsubmit="return confirm('Unmark this transaction as swimming? This will allow it to be processed as a regular fee payment.')">
+                            @csrf
+                            <button type="submit" class="btn btn-finance btn-finance-warning w-100">
+                                <i class="bi bi-x-circle"></i> Unmark as Swimming
+                            </button>
+                        </form>
+                    @endif
+                    
                     @if($bankStatement->statement_file_path)
                         <a href="{{ route('finance.bank-statements.view-pdf', $bankStatement) }}" target="_blank" class="btn btn-finance btn-finance-info w-100 mb-2">
                             <i class="bi bi-file-pdf"></i> View Statement PDF

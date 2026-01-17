@@ -404,6 +404,25 @@
                                             <i class="bi bi-file-pdf"></i>
                                         </a>
                                     @endif
+                                    @if(isset($transaction->is_swimming_transaction) && $transaction->is_swimming_transaction && $transaction->status !== 'rejected')
+                                        @php
+                                            // Check if allocations exist (if so, cannot unmark)
+                                            $hasAllocations = false;
+                                            if (\Illuminate\Support\Facades\Schema::hasTable('swimming_transaction_allocations')) {
+                                                $hasAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
+                                                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                                                    ->exists();
+                                            }
+                                        @endphp
+                                        @if(!$hasAllocations)
+                                            <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $transaction) }}" class="d-inline" onsubmit="return confirm('Unmark this transaction as swimming? This will allow it to be processed as a regular fee payment.')">
+                                                @csrf
+                                                <button type="submit" class="btn btn-finance btn-finance-warning btn-sm" title="Unmark as Swimming">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    @endif
                                     @if(!$transaction->is_archived)
                                         <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
                                             @csrf
