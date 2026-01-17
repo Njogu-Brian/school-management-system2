@@ -348,8 +348,8 @@ Route::middleware('auth')->group(function () {
             Route::post('/payments', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'store'])->name('swimming.payments.store');
             Route::get('/payments/student/{student}/siblings', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'getSiblings'])->name('swimming.payments.siblings');
             
-            // Reports
-            Route::get('/reports/daily-attendance', [SwimmingReportController::class, 'dailyAttendance'])->name('swimming.reports.daily-attendance');
+            // Reports (merged into attendance index)
+            // Route removed - use swimming.attendance.index with date parameter for daily view
             Route::get('/reports/unpaid-sessions', [SwimmingReportController::class, 'unpaidSessions'])->name('swimming.reports.unpaid-sessions');
             Route::get('/reports/wallet-balances', [SwimmingReportController::class, 'walletBalances'])->name('swimming.reports.wallet-balances');
             Route::get('/reports/revenue-vs-sessions', [SwimmingReportController::class, 'revenueVsSessions'])->name('swimming.reports.revenue-vs-sessions');

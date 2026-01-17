@@ -128,12 +128,70 @@ class SwimmingAttendanceController extends Controller
     }
 
     /**
-     * View attendance records
+     * View attendance records - merged with daily report
      */
     public function index(Request $request)
     {
         $user = Auth::user();
+        $classrooms = $this->getAccessibleClassrooms($user);
         
+        // Check if viewing a single date (daily report mode)
+        $viewMode = $request->get('view_mode', 'list'); // 'list' or 'daily'
+        $date = $request->get('date', $request->get('date_from'));
+        $classroomId = $request->get('classroom_id');
+        
+        // If date is provided and date_from == date_to (or only date provided), use daily report mode
+        if ($date && (!$request->filled('date_to') || $request->date_from == $request->date_to)) {
+            $viewMode = 'daily';
+            
+            $query = SwimmingAttendance::with(['student', 'classroom'])
+                ->join('students', 'swimming_attendance.student_id', '=', 'students.id')
+                ->whereDate('swimming_attendance.attendance_date', $date);
+            
+            // Filter by classroom access
+            if (!$user->hasAnyRole(['Super Admin', 'Admin'])) {
+                $classroomIds = $this->getAccessibleClassroomIds($user);
+                if (empty($classroomIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('swimming_attendance.classroom_id', $classroomIds);
+                }
+            }
+            
+            if ($classroomId && $this->canAccessClassroom($user, $classroomId)) {
+                $query->where('swimming_attendance.classroom_id', $classroomId);
+            }
+            
+            $attendance = $query->select('swimming_attendance.*')
+                ->orderBy('swimming_attendance.classroom_id')
+                ->orderBy('students.first_name')
+                ->get();
+            
+            // Load wallet balances for all students to determine actual payment status
+            $studentIds = $attendance->pluck('student_id')->unique();
+            $wallets = \App\Models\SwimmingWallet::whereIn('student_id', $studentIds)
+                ->pluck('balance', 'student_id');
+            
+            // Add wallet balance to each attendance record for the view
+            $attendance->each(function($record) use ($wallets) {
+                $walletBalance = $wallets->get($record->student_id, 0);
+                $record->wallet_balance = $walletBalance;
+                $record->is_actually_paid = $record->payment_status === 'paid' && $walletBalance >= 0;
+            });
+            
+            $attendance = $attendance->groupBy('classroom_id');
+            
+            return view('swimming.attendance.index', [
+                'attendance' => $attendance,
+                'classrooms' => $classrooms,
+                'filters' => $request->only(['classroom_id', 'date', 'date_from', 'date_to', 'payment_status']),
+                'view_mode' => $viewMode,
+                'selected_date' => $date,
+                'selected_classroom_id' => $classroomId,
+            ]);
+        }
+        
+        // List mode - paginated records
         $query = SwimmingAttendance::with(['student', 'classroom', 'markedBy']);
         
         // Filter by classroom access
@@ -147,11 +205,8 @@ class SwimmingAttendanceController extends Controller
         }
         
         // Filters
-        if ($request->filled('classroom_id')) {
-            $classroomId = $request->classroom_id;
-            if ($this->canAccessClassroom($user, $classroomId)) {
-                $query->where('classroom_id', $classroomId);
-            }
+        if ($classroomId && $this->canAccessClassroom($user, $classroomId)) {
+            $query->where('classroom_id', $classroomId);
         }
         
         if ($request->filled('date_from')) {
@@ -170,12 +225,13 @@ class SwimmingAttendanceController extends Controller
             ->orderBy('classroom_id')
             ->paginate(50);
         
-        $classrooms = $this->getAccessibleClassrooms($user);
-        
         return view('swimming.attendance.index', [
             'attendance' => $attendance,
             'classrooms' => $classrooms,
-            'filters' => $request->only(['classroom_id', 'date_from', 'date_to', 'payment_status']),
+            'filters' => $request->only(['classroom_id', 'date', 'date_from', 'date_to', 'payment_status']),
+            'view_mode' => 'list',
+            'selected_date' => null,
+            'selected_classroom_id' => $classroomId,
         ]);
     }
 
