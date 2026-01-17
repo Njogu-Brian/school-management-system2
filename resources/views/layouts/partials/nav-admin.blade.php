@@ -536,6 +536,10 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Logs
     </a>
+    <a href="{{ route('communication.pending-jobs') }}" 
+    class="sublink {{ Request::is('communication/pending-jobs*') ? 'active' : '' }}">
+    <i class="bi bi-hourglass-split"></i> Pending Jobs
+    </a>
     <a href="{{ route('announcements.index') }}" 
     class="sublink {{ Request::is('communication/announcements*') ? 'active' : '' }}">
     <i class="bi bi-megaphone"></i> Announcements

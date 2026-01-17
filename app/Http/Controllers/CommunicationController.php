@@ -998,4 +998,330 @@ class CommunicationController extends Controller
 
         return response()->json(['ok' => true]);
     }
+
+    /**
+     * View pending queue jobs
+     */
+    public function pendingJobs(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        // Get pending jobs from the jobs table
+        $jobs = \DB::table('jobs')
+            ->where('queue', 'default')
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        // Parse job payloads to extract useful information
+        $jobsWithDetails = [];
+        foreach ($jobs->items() as $job) {
+            $payload = json_decode($job->payload, true);
+            $displayName = $payload['displayName'] ?? '';
+            
+            // Extract job class from displayName (format: "App\Jobs\BulkSendWhatsAppMessages")
+            $jobClass = '';
+            if (preg_match('/(App\\\\Jobs\\\\.+?)(?:\@|\s|$)/', $displayName, $matches)) {
+                $jobClass = $matches[1];
+            }
+
+            $jobDetails = [
+                'id' => $job->id,
+                'queue' => $job->queue,
+                'attempts' => $job->attempts,
+                'available_at' => $job->available_at,
+                'created_at' => $job->created_at,
+                'displayName' => $displayName,
+                'job' => $payload['job'] ?? null,
+                'data' => $payload['data'] ?? [],
+                'job_class' => $jobClass,
+            ];
+
+            // Check if this is a communication job
+            $isCommunicationJob = false;
+            $jobType = null;
+            $jobSummary = null;
+
+            if (str_contains($displayName, 'BulkSendWhatsAppMessages') || str_contains($jobClass, 'BulkSendWhatsAppMessages')) {
+                $isCommunicationJob = true;
+                $jobType = 'whatsapp';
+                // Try to extract recipient count from serialized command
+                try {
+                    if (isset($payload['data']['command'])) {
+                        $commandData = unserialize($payload['data']['command']);
+                        if (is_object($commandData)) {
+                            // Try reflection to get protected properties
+                            try {
+                                $reflection = new \ReflectionClass($commandData);
+                                if ($reflection->hasProperty('recipients')) {
+                                    $prop = $reflection->getProperty('recipients');
+                                    $prop->setAccessible(true);
+                                    $recipients = $prop->getValue($commandData);
+                                    if (is_array($recipients)) {
+                                        $jobSummary = 'WhatsApp bulk send to ' . count($recipients) . ' recipients';
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                // Fallback: try direct property access
+                                if (property_exists($commandData, 'recipients')) {
+                                    $recipients = $commandData->recipients ?? [];
+                                    if (is_array($recipients)) {
+                                        $jobSummary = 'WhatsApp bulk send to ' . count($recipients) . ' recipients';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // Continue without recipient count
+                }
+                
+                if (!$jobSummary) {
+                    $jobSummary = 'WhatsApp bulk send job';
+                }
+            } elseif (str_contains($displayName, 'SendScheduledCommunicationsJob') || str_contains($jobClass, 'SendScheduledCommunicationsJob')) {
+                $isCommunicationJob = true;
+                $jobType = 'scheduled';
+                $jobSummary = 'Scheduled communications';
+            }
+
+            $jobDetails['is_communication_job'] = $isCommunicationJob;
+            $jobDetails['job_type'] = $jobType;
+            $jobDetails['job_summary'] = $jobSummary ?: ($displayName ?: 'Unknown Job');
+
+            $jobsWithDetails[] = $jobDetails;
+        }
+
+        // Replace items with detailed jobs
+        $jobs->setCollection(collect($jobsWithDetails));
+
+        return view('communication.pending-jobs', compact('jobs'));
+    }
+
+    /**
+     * Cancel a pending job
+     */
+    public function cancelJob(Request $request, $id)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        try {
+            $deleted = \DB::table('jobs')->where('id', $id)->delete();
+
+            if ($deleted) {
+                return back()->with('success', 'Job cancelled successfully.');
+            } else {
+                return back()->with('error', 'Job not found or already processed.');
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to cancel job', [
+                'job_id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Failed to cancel job: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send job immediately without queue (extract job data and send directly)
+     */
+    public function sendJobImmediately(Request $request, $id, WhatsAppService $whatsAppService, SMSService $smsService)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        try {
+            $job = \DB::table('jobs')->where('id', $id)->first();
+
+            if (!$job) {
+                return back()->with('error', 'Job not found or already processed.');
+            }
+
+            $payload = json_decode($job->payload, true);
+            $displayName = $payload['displayName'] ?? '';
+
+            // Handle BulkSendWhatsAppMessages
+            if (str_contains($displayName, 'BulkSendWhatsAppMessages')) {
+                // Extract job data from serialized command
+                // Laravel stores jobs with a serialized command object
+                $commandData = null;
+                if (isset($payload['data']['command'])) {
+                    try {
+                        $commandData = unserialize($payload['data']['command']);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to unserialize job command', ['error' => $e->getMessage()]);
+                    }
+                }
+
+                // Extract job properties - Laravel serializes the job instance
+                if (is_object($commandData)) {
+                    // Use reflection to access protected properties
+                    $recipients = null;
+                    $message = null;
+                    $title = null;
+                    $target = null;
+                    $mediaUrl = null;
+
+                    try {
+                        $reflection = new \ReflectionClass($commandData);
+                        
+                        // Try to get protected properties
+                        if ($reflection->hasProperty('recipients')) {
+                            $prop = $reflection->getProperty('recipients');
+                            $prop->setAccessible(true);
+                            $recipients = $prop->getValue($commandData);
+                        }
+                        if ($reflection->hasProperty('message')) {
+                            $prop = $reflection->getProperty('message');
+                            $prop->setAccessible(true);
+                            $message = $prop->getValue($commandData);
+                        }
+                        if ($reflection->hasProperty('title')) {
+                            $prop = $reflection->getProperty('title');
+                            $prop->setAccessible(true);
+                            $title = $prop->getValue($commandData);
+                        }
+                        if ($reflection->hasProperty('target')) {
+                            $prop = $reflection->getProperty('target');
+                            $prop->setAccessible(true);
+                            $target = $prop->getValue($commandData);
+                        }
+                        if ($reflection->hasProperty('mediaUrl')) {
+                            $prop = $reflection->getProperty('mediaUrl');
+                            $prop->setAccessible(true);
+                            $mediaUrl = $prop->getValue($commandData);
+                        }
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to extract job properties via reflection', ['error' => $e->getMessage()]);
+                    }
+
+                    // Fallback: try direct property access if reflection fails
+                    if (!$recipients || !$message) {
+                        $recipients = $recipients ?? ($commandData->recipients ?? []);
+                        $message = $message ?? ($commandData->message ?? '');
+                        $title = $title ?? ($commandData->title ?? 'WhatsApp');
+                        $target = $target ?? ($commandData->target ?? 'student');
+                        $mediaUrl = $mediaUrl ?? ($commandData->mediaUrl ?? null);
+                    }
+
+                    if (empty($recipients) || empty($message)) {
+                        return back()->with('error', 'Unable to extract job data. Job payload may be incomplete.');
+                    }
+                } else {
+                    return back()->with('error', 'Unable to extract job data. Job may not be a valid communication job.');
+                }
+
+                // Delete job from queue
+                \DB::table('jobs')->where('id', $id)->delete();
+
+                // Send directly using the same logic as non-queued sends
+                $sentCount = 0;
+                $failedCount = 0;
+                $failures = [];
+                $delayBetweenMessages = 5;
+                $lastSentTime = 0;
+                $totalRecipients = count($recipients);
+
+                foreach ($recipients as $phone => $entityData) {
+                    try {
+                        // Calculate delay
+                        if ($lastSentTime > 0) {
+                            $currentTime = time();
+                            $timeSinceLastMessage = $currentTime - $lastSentTime;
+                            if ($timeSinceLastMessage < $delayBetweenMessages) {
+                                $waitTime = $delayBetweenMessages - $timeSinceLastMessage;
+                                sleep($waitTime);
+                            }
+                        }
+
+                        // Reconstruct entity from data
+                        $entity = null;
+                        if (is_array($entityData) && isset($entityData['type']) && isset($entityData['id'])) {
+                            $entityClass = $entityData['type'];
+                            if (class_exists($entityClass)) {
+                                try {
+                                    $entity = $entityClass::find($entityData['id']);
+                                } catch (\Exception $e) {
+                                    // Continue with object data
+                                }
+                            }
+                        }
+                        if (!$entity) {
+                            $entity = is_array($entityData) ? (object)$entityData : $entityData;
+                        }
+
+                        // Replace placeholders and send
+                        $personalized = replace_placeholders($message, $entity);
+                        $finalMessage = $mediaUrl ? ($personalized . "\n\nMedia: " . $mediaUrl) : $personalized;
+                        $response = $whatsAppService->sendMessage($phone, $finalMessage);
+
+                        $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
+                        $status === 'sent' ? $sentCount++ : $failedCount++;
+
+                        if ($status !== 'sent') {
+                            $failures[] = ['phone' => $phone, 'reason' => data_get($response, 'body') ?? 'unknown'];
+                        }
+
+                        // Log the communication
+                        CommunicationLog::create([
+                            'recipient_type' => $target,
+                            'recipient_id'   => $entity->id ?? null,
+                            'contact'        => $phone,
+                            'channel'        => 'whatsapp',
+                            'title'          => $title,
+                            'message'        => $finalMessage,
+                            'type'           => 'whatsapp',
+                            'status'         => $status,
+                            'response'       => $response,
+                            'classroom_id'   => $entity->classroom_id ?? null,
+                            'scope'          => 'whatsapp',
+                            'sent_at'        => now(),
+                            'provider_id'    => data_get($response, 'body.data.id') 
+                                                ?? data_get($response, 'body.data.message.id')
+                                                ?? data_get($response, 'body.messageId')
+                                                ?? data_get($response, 'body.id'),
+                            'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                        ]);
+
+                        $lastSentTime = time();
+
+                    } catch (\Throwable $e) {
+                        $failedCount++;
+                        $failures[] = ['phone' => $phone, 'reason' => $e->getMessage()];
+                        CommunicationLog::create([
+                            'recipient_type' => $target,
+                            'recipient_id'   => $entity->id ?? null,
+                            'contact'        => $phone,
+                            'channel'        => 'whatsapp',
+                            'title'          => $title,
+                            'message'        => $message,
+                            'type'           => 'whatsapp',
+                            'status'         => 'failed',
+                            'response'       => $e->getMessage(),
+                            'scope'          => 'whatsapp',
+                            'sent_at'        => now(),
+                        ]);
+                    }
+                }
+
+                $summary = "WhatsApp: sent {$sentCount}, failed {$failedCount}";
+                $flashType = $failedCount > 0 ? 'warning' : 'success';
+                $withData = [$flashType => $summary];
+                if ($failedCount > 0) {
+                    $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
+                }
+
+                return redirect()->route('communication.pending-jobs')->with($withData);
+
+            } else {
+                return back()->with('error', 'This job type is not supported for immediate sending. Only BulkSendWhatsAppMessages jobs are supported.');
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Failed to send job immediately', [
+                'job_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->with('error', 'Failed to send job immediately: ' . $e->getMessage());
+        }
+    }
 }

@@ -30,8 +30,34 @@ class OptionalFeeObserver
     public function updated(OptionalFee $optionalFee): void
     {
         // Check if status changed from non-billed to billed, or vice versa
-        if ($optionalFee->wasChanged('status') || $optionalFee->wasChanged('votehead_id')) {
-            $this->handleBillingChange($optionalFee, 'updated');
+        if ($optionalFee->wasChanged('status')) {
+            $oldStatus = $optionalFee->getOriginal('status');
+            $newStatus = $optionalFee->status;
+            
+            // If changed from billed to non-billed (unbilled), handle unbilling
+            if ($oldStatus === 'billed' && $newStatus !== 'billed') {
+                $this->handleUnbilling($optionalFee, 'updated');
+            }
+            // If changed to billed, handle billing
+            elseif ($newStatus === 'billed' && $oldStatus !== 'billed') {
+                $this->handleBillingChange($optionalFee, 'updated');
+            }
+        }
+        
+        // If votehead changed, we need to check if it's still swimming
+        if ($optionalFee->wasChanged('votehead_id')) {
+            $oldVoteheadId = $optionalFee->getOriginal('votehead_id');
+            // If old votehead was swimming and status was billed, handle unbilling
+            if ($optionalFee->getOriginal('status') === 'billed' && $this->isSwimmingVotehead($oldVoteheadId)) {
+                // Create a temporary optionalFee with old votehead for unbilling
+                $tempOptionalFee = clone $optionalFee;
+                $tempOptionalFee->votehead_id = $oldVoteheadId;
+                $this->handleUnbilling($tempOptionalFee, 'updated');
+            }
+            // If new votehead is swimming and status is billed, handle billing
+            if ($optionalFee->status === 'billed' && $this->isSwimmingVotehead($optionalFee->votehead_id)) {
+                $this->handleBillingChange($optionalFee, 'updated');
+            }
         }
     }
 
@@ -58,16 +84,17 @@ class OptionalFeeObserver
             return;
         }
 
-        try {
-            DB::transaction(function () use ($optionalFee, $student, $action) {
-                if ($optionalFee->status === 'billed') {
-                    // Check if wallet was already credited for this optional fee
-                    $ledgerExists = \App\Models\SwimmingLedger::where('student_id', $student->id)
-                        ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
-                        ->where('source_id', $optionalFee->id)
-                        ->exists();
+            try {
+                DB::transaction(function () use ($optionalFee, $student, $action) {
+                    if ($optionalFee->status === 'billed') {
+                        // Check if wallet was already credited for this optional fee
+                        $ledgerExists = \App\Models\SwimmingLedger::where('student_id', $student->id)
+                            ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                            ->where('source_id', $optionalFee->id)
+                            ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                            ->exists();
 
-                    if (!$ledgerExists) {
+                        if (!$ledgerExists && $optionalFee->amount > 0) {
                         // Credit wallet with the optional fee amount (typically 1200)
                         $this->walletService->creditFromOptionalFee(
                             $student,

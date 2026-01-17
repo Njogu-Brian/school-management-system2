@@ -1095,6 +1095,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('logs',           [CommunicationController::class, 'logs'])->name('communication.logs');
         Route::get('logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
 
+        // Pending Jobs
+        Route::get('pending-jobs', [CommunicationController::class, 'pendingJobs'])->name('communication.pending-jobs');
+        Route::post('pending-jobs/{id}/cancel', [CommunicationController::class, 'cancelJob'])->name('communication.pending-jobs.cancel');
+        Route::post('pending-jobs/{id}/send-immediately', [CommunicationController::class, 'sendJobImmediately'])->name('communication.pending-jobs.send-immediately');
+
         // Announcements
         Route::resource('announcements', CommunicationAnnouncementController::class)->except(['show']);
 
