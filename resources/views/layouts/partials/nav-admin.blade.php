@@ -422,8 +422,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('swimming.wallets.index') }}" class="sublink {{ Request::is('swimming/wallets*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Wallets</a>
         <a href="{{ route('swimming.payments.create') }}" class="sublink {{ Request::is('swimming/payments/create') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Create Payment</a>
         <a href="{{ route('swimming.attendance.create') }}" class="sublink {{ Request::is('swimming/attendance') && !Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Mark Attendance</a>
-        <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> View Records</a>
-        <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Attendance Records</a>
+        <a href="{{ route('swimming.attendance.index') }}" class="sublink {{ Request::is('swimming/attendance/records*') ? 'active' : '' }}"><i class="bi bi-journal-text"></i> View Records & Reports</a>
         <a href="{{ route('swimming.settings.index') }}" class="sublink {{ Request::is('swimming/settings*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Settings</a>
     </div>
     
