@@ -59,14 +59,45 @@ class BankStatementParser
             $phoneNumber = $this->extractPhoneNumber($particulars);
             
             // Check for duplicate using transaction_code
+            // Check both existing payments AND existing bank statement transactions
             $isDuplicate = false;
             $duplicatePayment = null;
+            $duplicateTransaction = null;
             if ($transactionCode) {
-                $existingPayment = Payment::where('transaction_code', $transactionCode)->first();
-                if ($existingPayment) {
+                // First check if a bank statement transaction with this reference already exists
+                // Check for exact match: same reference_number, amount, and transaction_date
+                $duplicateTransaction = \App\Models\BankStatementTransaction::where('reference_number', $transactionCode)
+                    ->where('amount', $amount)
+                    ->whereDate('transaction_date', $transactionDate)
+                    ->first();
+                
+                if ($duplicateTransaction) {
                     $isDuplicate = true;
-                    $duplicatePayment = $existingPayment;
+                    // Also check if there's a payment linked to the duplicate transaction
+                    if ($duplicateTransaction->payment_id) {
+                        $duplicatePayment = Payment::find($duplicateTransaction->payment_id);
+                    }
+                } else {
+                    // Check for existing payment with same transaction code
+                    $existingPayment = Payment::where('transaction_code', $transactionCode)->first();
+                    if ($existingPayment) {
+                        $isDuplicate = true;
+                        $duplicatePayment = $existingPayment;
+                    }
                 }
+            }
+            
+            // Skip creating transaction if it's a duplicate
+            if ($isDuplicate && $duplicateTransaction) {
+                $duplicates++;
+                // Log the duplicate for reference
+                \Log::info('Skipping duplicate bank statement transaction', [
+                    'reference_number' => $transactionCode,
+                    'amount' => $amount,
+                    'transaction_date' => $transactionDate,
+                    'duplicate_transaction_id' => $duplicateTransaction->id,
+                ]);
+                continue; // Skip to next transaction
             }
             
             // Auto-archive debit transactions
@@ -84,7 +115,7 @@ class BankStatementParser
                 'phone_number' => $phoneNumber,
                 'payer_name' => $payerName,
                 'status' => 'draft',
-                'is_duplicate' => $isDuplicate,
+                'is_duplicate' => $isDuplicate, // This will be true if duplicate of payment, false if duplicate of transaction (since we skip those)
                 'duplicate_of_payment_id' => $duplicatePayment?->id,
                 'is_archived' => $isArchived,
                 'archived_at' => $isArchived ? now() : null,
@@ -94,6 +125,7 @@ class BankStatementParser
             ]);
             
             if ($isDuplicate) {
+                // This means it's a duplicate of a payment (but transaction was still created)
                 $duplicates++;
             } else {
                 // Attempt to match transaction only if not duplicate

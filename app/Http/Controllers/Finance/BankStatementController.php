@@ -2017,6 +2017,131 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Bulk transfer swimming payments back to ordinary payments
+     */
+    public function bulkTransferFromSwimming(Request $request)
+    {
+        $request->validate([
+            'transaction_ids' => 'required|array',
+            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+        ]);
+
+        $transactionIds = $request->input('transaction_ids', []);
+        $transactions = BankStatementTransaction::whereIn('id', $transactionIds)
+            ->where('status', 'confirmed')
+            ->where('is_swimming_transaction', true)
+            ->where('is_duplicate', false)
+            ->where('is_archived', false)
+            ->with(['swimmingAllocations', 'student'])
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('error', 'No valid swimming transactions found to transfer back to ordinary payments.');
+        }
+
+        $transferred = 0;
+        $errors = [];
+
+        foreach ($transactions as $transaction) {
+            try {
+                DB::transaction(function () use ($transaction, &$transferred) {
+                    // Get swimming allocations
+                    $swimmingAllocations = $transaction->swimmingAllocations()
+                        ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                        ->get();
+
+                    if ($swimmingAllocations->isEmpty()) {
+                        throw new \Exception('No swimming allocations found for transaction');
+                    }
+
+                    // Reverse swimming wallet allocations
+                    foreach ($swimmingAllocations as $allocation) {
+                        if ($allocation->status === \App\Models\SwimmingTransactionAllocation::STATUS_PROCESSED) {
+                            // Debit the wallet if it was credited
+                            $wallet = \App\Models\SwimmingWallet::where('student_id', $allocation->student_id)->first();
+                            if ($wallet) {
+                                $oldBalance = $wallet->balance;
+                                $newBalance = $oldBalance - $allocation->amount;
+                                
+                                // Update wallet balance and totals
+                                $wallet->update([
+                                    'balance' => $newBalance,
+                                    'total_debited' => $wallet->total_debited + $allocation->amount,
+                                    'last_transaction_at' => now(),
+                                ]);
+                                
+                                // Create a ledger entry to record the debit
+                                if (Schema::hasTable('swimming_ledgers')) {
+                                    $student = \App\Models\Student::find($allocation->student_id);
+                                    if ($student) {
+                                        \App\Models\SwimmingLedger::create([
+                                            'student_id' => $allocation->student_id,
+                                            'type' => \App\Models\SwimmingLedger::TYPE_DEBIT,
+                                            'amount' => $allocation->amount,
+                                            'balance_after' => $newBalance,
+                                            'source' => \App\Models\SwimmingLedger::SOURCE_ADJUSTMENT,
+                                            'description' => 'Payment transferred from swimming to ordinary payments - ' . ($transaction->reference_number ?? 'N/A'),
+                                            'created_by' => auth()->id(),
+                                        ]);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Mark allocation as reversed
+                        $allocation->update([
+                            'status' => \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED,
+                            'reversed_at' => now(),
+                            'reversed_by' => auth()->id(),
+                        ]);
+                    }
+
+                    // Mark transaction as NOT swimming
+                    $transaction->update([
+                        'is_swimming_transaction' => false,
+                        'payment_created' => false, // Reset so payment can be recreated
+                    ]);
+
+                    // If transaction has a student assigned, create payment for ordinary allocation
+                    if ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations)) {
+                        // Create payment using the parser service
+                        $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                        
+                        if ($payment) {
+                            // Auto-allocate to invoices
+                            $allocationService = app(\App\Services\PaymentAllocationService::class);
+                            $allocationService->autoAllocate($payment);
+                            
+                            // Queue receipt generation and notifications
+                            \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                                ->onQueue('default');
+                        }
+                    }
+
+                    $transferred++;
+                });
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
+                Log::error('Failed to transfer payment from swimming', [
+                    'transaction_id' => $transaction->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $message = "Transferred {$transferred} payment(s) from swimming back to ordinary payments.";
+        if (!empty($errors)) {
+            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
+        }
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with($errors ? 'warning' : 'success', $message);
+    }
+
+    /**
      * Process swimming transaction - allocate to swimming wallets
      */
     protected function processSwimmingTransaction(BankStatementTransaction $transaction): void

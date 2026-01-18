@@ -1246,6 +1246,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             // Swimming transaction reclassification
             Route::post('/bulk-mark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkMarkAsSwimming'])->name('bulk-mark-swimming');
             Route::post('/bulk-transfer-to-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkTransferToSwimming'])->name('bulk-transfer-to-swimming');
+            Route::post('/bulk-transfer-from-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkTransferFromSwimming'])->name('bulk-transfer-from-swimming');
             Route::post('/{bankStatement}/unmark-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'unmarkAsSwimming'])->name('unmark-swimming');
             Route::post('/reprocess-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'reprocessSwimmingTransactions'])->name('reprocess-swimming');
             Route::post('/{bankStatement}/allocate-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateSwimmingTransaction'])->name('allocate-swimming');

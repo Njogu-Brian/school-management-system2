@@ -185,6 +185,14 @@
                 </button>
             </form>
             
+            <form id="bulkTransferFromSwimmingForm" method="POST" action="{{ route('finance.bank-statements.bulk-transfer-from-swimming') }}">
+                @csrf
+                <div id="bulkTransferFromSwimmingTransactionIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkTransferFromSwimming()" id="bulkTransferFromSwimmingBtn" style="display: none;">
+                    <i class="bi bi-arrow-left-circle"></i> Transfer from Swimming
+                </button>
+            </form>
+            
             <form id="reprocessSwimmingForm" method="POST" action="{{ route('finance.bank-statements.reprocess-swimming') }}" onsubmit="return confirm('Reprocess all confirmed swimming transactions that haven\'t been allocated yet? This will credit student wallets.');">
                 @csrf
                 <button type="submit" class="btn btn-finance btn-finance-info" title="Reprocess confirmed swimming transactions to credit wallets">
@@ -255,6 +263,11 @@
                                         && !$transaction->is_duplicate
                                         && !$transaction->is_archived
                                         && ($transaction->student_id || $transaction->is_shared);
+                                    $canTransferFromSwimming = $transaction->status === 'confirmed' 
+                                        && ($transaction->is_swimming_transaction ?? false)
+                                        && !$transaction->is_duplicate
+                                        && !$transaction->is_archived
+                                        && ($transaction->student_id || $transaction->is_shared);
                                     // Allow draft transactions (including unmatched and multiple_matches) to be marked as swimming
                                     $canMarkAsSwimming = ($transaction->status === 'draft' || $transaction->status === 'confirmed')
                                         && !($transaction->is_swimming_transaction ?? false)
@@ -268,8 +281,8 @@
                                         && !$transaction->is_archived
                                         && !($transaction->is_swimming_transaction ?? false);
                                 @endphp
-                                @if($canConfirm || $canArchive || $canTransferToSwimming || $canMarkAsSwimming || $canSelectDraftUnmatched)
-                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ ($canMarkAsSwimming || $canSelectDraftUnmatched) ? '1' : '0' }}">
+                                @if($canConfirm || $canArchive || $canTransferToSwimming || $canTransferFromSwimming || $canMarkAsSwimming || $canSelectDraftUnmatched)
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-transfer-from-swimming="{{ $canTransferFromSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ ($canMarkAsSwimming || $canSelectDraftUnmatched) ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
@@ -492,6 +505,7 @@
             const confirmableIds = [];
             const archivableIds = [];
             const transferableToSwimmingIds = [];
+            const transferableFromSwimmingIds = [];
             const markableAsSwimmingIds = [];
             
             checked.forEach(cb => {
@@ -499,6 +513,7 @@
                 const canConfirm = cb.getAttribute('data-can-confirm') === '1';
                 const canArchive = cb.getAttribute('data-can-archive') === '1';
                 const canTransferToSwimming = cb.getAttribute('data-can-transfer-swimming') === '1';
+                const canTransferFromSwimming = cb.getAttribute('data-can-transfer-from-swimming') === '1';
                 const canMarkAsSwimming = cb.getAttribute('data-can-mark-swimming') === '1';
                 
                 if (canConfirm) {
@@ -509,6 +524,9 @@
                 }
                 if (canTransferToSwimming) {
                     transferableToSwimmingIds.push(id);
+                }
+                if (canTransferFromSwimming) {
+                    transferableFromSwimmingIds.push(id);
                 }
                 if (canMarkAsSwimming) {
                     markableAsSwimmingIds.push(id);
@@ -612,6 +630,27 @@
                     bulkTransferToSwimmingBtn.style.display = 'none';
                 }
             }
+            
+            // Show/hide bulk transfer from swimming button
+            const bulkTransferFromSwimmingBtn = document.getElementById('bulkTransferFromSwimmingBtn');
+            const bulkTransferFromSwimmingIdsContainer = document.getElementById('bulkTransferFromSwimmingTransactionIdsContainer');
+            if (bulkTransferFromSwimmingIdsContainer) {
+                bulkTransferFromSwimmingIdsContainer.innerHTML = '';
+                transferableFromSwimmingIds.forEach(id => {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'transaction_ids[]';
+                    input.value = id;
+                    bulkTransferFromSwimmingIdsContainer.appendChild(input);
+                });
+            }
+            if (bulkTransferFromSwimmingBtn) {
+                if (transferableFromSwimmingIds.length > 0) {
+                    bulkTransferFromSwimmingBtn.style.display = 'inline-block';
+                } else {
+                    bulkTransferFromSwimmingBtn.style.display = 'none';
+                }
+            }
         }
         
         function bulkMarkSwimming() {
@@ -646,6 +685,23 @@
             }
             
             document.getElementById('bulkTransferToSwimmingForm').submit();
+        }
+        
+        function bulkTransferFromSwimming() {
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
+                .filter(cb => cb.getAttribute('data-can-transfer-from-swimming') === '1')
+                .map(cb => parseInt(cb.value));
+            
+            if (checked.length === 0) {
+                alert('Please select at least one swimming transaction to transfer back to ordinary payments');
+                return;
+            }
+            
+            if (!confirm(`Transfer ${checked.length} swimming payment(s) back to ordinary payments? This will reverse the swimming wallet allocation and create/restore the payment for invoice allocation.`)) {
+                return;
+            }
+            
+            document.getElementById('bulkTransferFromSwimmingForm').submit();
         }
 
         function bulkConfirm() {
