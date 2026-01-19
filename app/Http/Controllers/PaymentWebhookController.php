@@ -162,6 +162,13 @@ class PaymentWebhookController extends Controller
                             'narration' => 'M-PESA Payment - ' . ($result['mpesa_receipt_number'] ?? $transaction->reference),
                             'payment_date' => now(),
                             'receipt_date' => now(),
+                            'status' => 'approved',
+                            'created_by' => $transaction->initiated_by,
+                        ]);
+
+                        // Update transaction with payment_id
+                        $transaction->update([
+                            'payment_id' => $payment->id,
                         ]);
 
                         // Auto-allocate payment using PaymentAllocationService

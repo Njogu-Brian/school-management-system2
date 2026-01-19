@@ -273,8 +273,9 @@ window.addEventListener('beforeunload', function (e) {
 
 // Start polling on page load
 $(document).ready(function() {
-    startPolling();
+    console.log('Waiting screen initialized', { transactionId: transactionId });
     startCountdown();
+    startPolling();
 });
 
 function startPolling() {
@@ -315,6 +316,13 @@ function startCountdown() {
     // Reset time remaining to 120 seconds
     timeRemaining = 120;
     
+    // Update display immediately
+    const minutes = Math.floor(timeRemaining / 60);
+    const seconds = timeRemaining % 60;
+    $('#countdown').text(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    
+    console.log('Countdown started', { timeRemaining });
+    
     countdownInterval = setInterval(function() {
         if (timeRemaining > 0) {
             timeRemaining--;
@@ -324,7 +332,7 @@ function startCountdown() {
             $('#countdown').text(`${minutes}:${seconds.toString().padStart(2, '0')}`);
         } else {
             clearInterval(countdownInterval);
-            clearInterval(pollInterval);
+            if (pollInterval) clearInterval(pollInterval);
             $('#countdown').text('0:00');
             showFailed({ message: 'Transaction timeout', failure_reason: 'The payment request has timed out. Please try again.' });
         }
@@ -332,8 +340,8 @@ function startCountdown() {
 }
 
 function showSuccess(data) {
-    clearInterval(pollInterval);
-    clearInterval(countdownInterval);
+    if (pollInterval) clearInterval(pollInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
     
     $('#waitingState').hide();
     $('#successState').show();
@@ -345,6 +353,11 @@ function showSuccess(data) {
     if (data.mpesa_code) {
         $('#mpesaCode').text(data.mpesa_code);
     }
+    
+    // Auto-close after 5 seconds
+    setTimeout(function() {
+        window.location.href = '{{ route("finance.mpesa.dashboard") }}';
+    }, 5000);
 }
 
 function showFailed(data) {
@@ -363,11 +376,16 @@ function showFailed(data) {
 }
 
 function showCancelled() {
-    clearInterval(pollInterval);
-    clearInterval(countdownInterval);
+    if (pollInterval) clearInterval(pollInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
     
     $('#waitingState').hide();
     $('#cancelledState').show();
+    
+    // Auto-redirect after 3 seconds
+    setTimeout(function() {
+        window.location.href = '{{ route("finance.mpesa.dashboard") }}';
+    }, 3000);
 }
 
 function cancelTransaction() {

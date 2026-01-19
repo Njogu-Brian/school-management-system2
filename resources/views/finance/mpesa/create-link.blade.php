@@ -285,7 +285,7 @@ $(document).ready(function() {
             $('#invoiceSelectionSection').show();
             
             // Bind checkbox change event
-            $('.invoice-checkbox').on('change', updateTotal);
+            $(document).off('change', '.invoice-checkbox').on('change', '.invoice-checkbox', updateTotal);
         });
     }
 
@@ -385,11 +385,27 @@ $(document).ready(function() {
         let hasParents = $('.parent-checkbox:checked').length > 0;
         let hasChannels = $('input[name="send_channels[]"]:checked').length > 0;
         
-        $('#submitBtn').prop('disabled', !(hasInvoices && hasParents && hasChannels));
+        const shouldEnable = hasInvoices && hasParents && hasChannels;
+        $('#submitBtn').prop('disabled', !shouldEnable);
+        
+        console.log('Submit button state updated', {
+            hasInvoices,
+            hasParents,
+            hasChannels,
+            shouldEnable
+        });
     }
 
     // Listen to parent and channel changes
-    $(document).on('change', '.parent-checkbox, input[name="send_channels[]"]', updateSubmitButton);
+    $(document).on('change', '.parent-checkbox, input[name="send_channels[]"]', function() {
+        console.log('Parent or channel changed');
+        updateSubmitButton();
+    });
+    
+    // Also check on page load if parents/channels are pre-selected
+    setTimeout(function() {
+        updateSubmitButton();
+    }, 500);
 
     // Form submission
     $('#createLinkForm').on('submit', function(e) {

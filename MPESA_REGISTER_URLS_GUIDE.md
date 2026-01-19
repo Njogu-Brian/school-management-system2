@@ -23,8 +23,7 @@ You can register URLs directly from your application:
 
 **Via Browser/Postman:**
 ```
-POST https://erp.royalkingsschools.sc.ke/finance/mpesa/c2b/register-urls
-```
+POST image.png
 
 **With Custom URLs (optional):**
 ```json

@@ -567,7 +567,7 @@ class MpesaPaymentController extends Controller
                 if ($payment) {
                     $response['receipt_number'] = $payment->receipt_number;
                     $response['receipt_id'] = $payment->id;
-                    $response['mpesa_code'] = $transaction->external_transaction_id;
+                    $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
                 }
             }
 
