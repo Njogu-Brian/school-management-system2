@@ -249,60 +249,78 @@ class FamilyUpdateController extends Controller
 
             $studentIds = $students->pluck('id')->toArray();
 
-            \Log::info('FamilyUpdate Submit: Starting validation');
+            \Log::info('FamilyUpdate Submit: Starting validation', [
+                'student_ids_expected' => $studentIds,
+                'request_keys' => array_keys($request->all()),
+            ]);
+            
             $validated = $request->validate([
-            'residential_area' => 'nullable|string|max:255',
-            'father_name' => 'nullable|string|max:255',
-            'father_id_number' => 'nullable|string|max:255',
-            'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'father_phone_country_code' => 'nullable|string|max:8',
-            'father_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'father_whatsapp_country_code' => 'nullable|string|max:8',
-            'father_email' => 'nullable|email|max:255',
-            'mother_name' => 'nullable|string|max:255',
-            'mother_id_number' => 'nullable|string|max:255',
-            'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'mother_phone_country_code' => 'nullable|string|max:8',
-            'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'mother_whatsapp_country_code' => 'nullable|string|max:8',
-            'mother_email' => 'nullable|email|max:255',
-            'guardian_name' => 'nullable|string|max:255',
-            'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'guardian_phone_country_code' => 'nullable|string|max:8',
-            'guardian_relationship' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|in:married,single_parent,co_parenting',
-            'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
-            'emergency_phone_country_code' => 'nullable|string|max:8',
-            'preferred_hospital' => 'nullable|string|max:255',
-            'residential_area' => 'nullable|string|max:255',
-            'students' => 'required|array|min:1',
-            'students.*.id' => 'required|integer|in:' . implode(',', $studentIds),
-            'students.*.first_name' => 'required|string|max:255',
-            'students.*.middle_name' => 'nullable|string|max:255',
-            'students.*.last_name' => 'required|string|max:255',
-            'students.*.gender' => 'required|in:Male,Female',
-            'students.*.dob' => 'nullable|date',
-            'students.*.has_allergies' => 'nullable|boolean',
-            'students.*.allergies_notes' => 'nullable|string',
-            'students.*.is_fully_immunized' => 'nullable|boolean',
-            'students.*.passport_photo' => 'nullable|image|max:4096',
-            'students.*.birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-        ]);
+                'residential_area' => 'nullable|string|max:255',
+                'father_name' => 'nullable|string|max:255',
+                'father_id_number' => 'nullable|string|max:255',
+                'father_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'father_phone_country_code' => 'nullable|string|max:8',
+                'father_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'father_whatsapp_country_code' => 'nullable|string|max:8',
+                'father_email' => 'nullable|email|max:255',
+                'mother_name' => 'nullable|string|max:255',
+                'mother_id_number' => 'nullable|string|max:255',
+                'mother_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'mother_phone_country_code' => 'nullable|string|max:8',
+                'mother_whatsapp' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'mother_whatsapp_country_code' => 'nullable|string|max:8',
+                'mother_email' => 'nullable|email|max:255',
+                'guardian_name' => 'nullable|string|max:255',
+                'guardian_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'guardian_phone_country_code' => 'nullable|string|max:8',
+                'guardian_relationship' => 'nullable|string|max:255',
+                'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+                'emergency_contact_name' => 'nullable|string|max:255',
+                'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'emergency_phone_country_code' => 'nullable|string|max:8',
+                'preferred_hospital' => 'nullable|string|max:255',
+                'students' => 'required|array|min:1',
+                'students.*.id' => 'required|integer|in:' . implode(',', $studentIds),
+                'students.*.first_name' => 'required|string|max:255',
+                'students.*.middle_name' => 'nullable|string|max:255',
+                'students.*.last_name' => 'required|string|max:255',
+                'students.*.gender' => 'required|in:Male,Female',
+                'students.*.dob' => 'nullable|date',
+                'students.*.has_allergies' => 'nullable|boolean',
+                'students.*.allergies_notes' => 'nullable|string',
+                'students.*.is_fully_immunized' => 'nullable|boolean',
+                'students.*.passport_photo' => 'nullable|image|max:4096',
+                'students.*.birth_certificate' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'father_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+                'mother_id_document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            ]);
+            
             \Log::info('FamilyUpdate Submit: Validation passed', [
                 'validated_keys' => array_keys($validated),
                 'students_count' => count($validated['students'] ?? []),
+                'students_data' => array_map(function($stu) {
+                    return ['id' => $stu['id'] ?? null, 'first_name' => $stu['first_name'] ?? null];
+                }, $validated['students'] ?? []),
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
+            $errorDetails = [];
+            foreach ($e->errors() as $field => $messages) {
+                $errorDetails[$field] = $messages;
+            }
+            
             \Log::error('FamilyUpdate Submit: Validation failed', [
                 'token' => $token,
-                'errors' => $e->errors(),
-                'input' => $request->except(['_token', '_method']),
+                'errors' => $errorDetails,
+                'error_count' => count($e->errors()),
+                'input_sample' => array_slice($request->except(['_token', '_method', 'students']), 0, 5),
             ]);
-            throw $e;
+            
+            return redirect()->route('family-update.form', $token)
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Please correct the validation errors below.');
+                
         } catch (\Exception $e) {
             \Log::error('FamilyUpdate Submit: Exception during validation', [
                 'token' => $token,
@@ -311,11 +329,20 @@ class FamilyUpdateController extends Controller
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            throw $e;
+            
+            return redirect()->route('family-update.form', $token)
+                ->with('error', 'Validation error: ' . $e->getMessage() . '. Please check the form and try again.');
         }
 
+        $transactionSuccess = false;
+        $transactionError = null;
+        $transactionResult = null;
+        
         try {
-            $result = DB::transaction(function () use ($validated, $family, $students, $link) {
+            $transactionResult = DB::transaction(function () use ($validated, $family, $students, $link) {
+                $auditsCreated = 0;
+                $studentsUpdated = 0;
+                $parentsUpdated = 0;
                 $audits = [];
                 $now = now();
                 $source = auth()->check() ? 'admin' : 'public';
@@ -325,6 +352,7 @@ class FamilyUpdateController extends Controller
                     'family_id' => $family->id,
                     'students_count' => count($validated['students'] ?? []),
                     'user_id' => $userId,
+                    'validated_data_keys' => array_keys($validated),
                 ]);
 
             // Update parent info for each student's parent (shared data)
@@ -449,7 +477,19 @@ class FamilyUpdateController extends Controller
                         'parent_id' => $parent->id,
                         'update_result' => $result,
                         'save_result' => $saveResult,
+                        'updated_fields' => array_keys($parentData),
                     ]);
+                    
+                    if ($result || $saveResult) {
+                        $parentsUpdated++;
+                        \Log::info('FamilyUpdate: Parent update counted', ['parent_id' => $parent->id]);
+                    } else {
+                        \Log::warning('FamilyUpdate: Parent update may have failed', [
+                            'parent_id' => $parent->id,
+                            'update_result' => $result,
+                            'save_result' => $saveResult,
+                        ]);
+                    }
                     
                     // Compare after update for audit
                     foreach ($parentData as $field => $value) {
@@ -672,7 +712,21 @@ class FamilyUpdateController extends Controller
                     'last_name' => $student->last_name,
                     'gender' => $student->gender,
                     'dob' => $student->dob,
+                    'update_result' => $result,
+                    'save_result' => $saveResult,
+                    'updated_fields' => array_keys($updateData),
                 ]);
+                
+                if ($result || $saveResult) {
+                    $studentsUpdated++;
+                    \Log::info('FamilyUpdate: Student update counted', ['student_id' => $student->id]);
+                } else {
+                    \Log::warning('FamilyUpdate: Student update may have failed', [
+                        'student_id' => $student->id,
+                        'update_result' => $result,
+                        'save_result' => $saveResult,
+                    ]);
+                }
                 
                 // Compare before and after, convert dates for comparison
                 foreach ($fieldsToCheck as $field) {
@@ -768,14 +822,39 @@ class FamilyUpdateController extends Controller
                 $student->refresh();
             }
 
-            // Always insert audits if we have any, even if empty
+            // Always insert audits if we have any
             if (!empty($audits)) {
                 try {
-                    FamilyUpdateAudit::insert($audits);
+                    \Log::info('FamilyUpdate: Inserting audits', [
+                        'audits_count' => count($audits),
+                        'sample_audit' => $audits[0] ?? null,
+                    ]);
+                    
+                    $inserted = FamilyUpdateAudit::insert($audits);
+                    $auditsCreated = count($audits);
+                    
+                    \Log::info('FamilyUpdate: Audits inserted successfully', [
+                        'audits_inserted' => $auditsCreated,
+                    ]);
                 } catch (\Exception $e) {
-                    // Log error but don't fail the transaction
-                    \Log::error('Failed to insert family update audits: ' . $e->getMessage());
+                    // Log detailed error but don't fail the transaction
+                    \Log::error('FamilyUpdate: Failed to insert audits', [
+                        'error' => $e->getMessage(),
+                        'error_code' => $e->getCode(),
+                        'file' => $e->getFile(),
+                        'line' => $e->getLine(),
+                        'audits_count' => count($audits),
+                        'audits_sample' => $audits[0] ?? null,
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+                    // Re-throw to fail transaction if audit insertion is critical
+                    throw new \Exception('Failed to save audit records: ' . $e->getMessage(), 0, $e);
                 }
+            } else {
+                \Log::warning('FamilyUpdate: No audits to insert - no changes detected', [
+                    'family_id' => $family->id,
+                    'students_count' => count($validated['students'] ?? []),
+                ]);
             }
             
             // Track update count on the link if we have any student updates
@@ -785,42 +864,142 @@ class FamilyUpdateController extends Controller
                 $link->save();
             }
             
-            \Log::info('FamilyUpdate: Transaction completed', [
+            \Log::info('FamilyUpdate: Transaction completed successfully', [
                 'audits_count' => count($audits),
+                'audits_created' => $auditsCreated,
+                'students_updated' => $studentsUpdated,
+                'parents_updated' => $parentsUpdated,
                 'family_id' => $family->id,
             ]);
+            
+            return [
+                'success' => true,
+                'audits_created' => $auditsCreated,
+                'students_updated' => $studentsUpdated,
+                'parents_updated' => $parentsUpdated,
+            ];
         });
         
-        } catch (\Exception $e) {
-            \Log::error('FamilyUpdate: Exception during update', [
+        // Transaction completed successfully
+        $transactionSuccess = true;
+        
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // This should not happen here as validation is done before transaction
+            // But handle it just in case
+            $transactionError = 'Validation failed in transaction: ' . implode(', ', array_map(function($errors) {
+                return implode(', ', $errors);
+            }, $e->errors()));
+            
+            \Log::error('FamilyUpdate: Validation exception in transaction (unexpected)', [
+                'errors' => $e->errors(),
+                'token' => $token,
+            ]);
+            
+            return redirect()->route('family-update.form', $token)
+                ->withErrors($e->errors())
+                ->withInput()
+                ->with('error', 'Validation error: Please correct the errors below and try again.');
+                
+        } catch (\Illuminate\Database\QueryException $e) {
+            $transactionError = 'Database error: ' . $e->getMessage();
+            
+            \Log::error('FamilyUpdate: Database exception during transaction', [
                 'message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'sql' => $e->getSql() ?? 'N/A',
+                'bindings' => $e->getBindings() ?? [],
+                'token' => $token,
                 'trace' => $e->getTraceAsString(),
             ]);
             
             return redirect()->route('family-update.form', $token)
-                ->with('error', 'An error occurred while updating. Please try again.');
+                ->with('error', 'Database error occurred: ' . $e->getMessage() . '. Please try again or contact support.');
+                
+        } catch (\Exception $e) {
+            $transactionError = $e->getMessage();
+            
+            \Log::error('FamilyUpdate: Exception during transaction', [
+                'message' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'token' => $token,
+                'family_id' => $family->id ?? null,
+            ]);
+            
+            return redirect()->route('family-update.form', $token)
+                ->with('error', 'An error occurred while updating: ' . $e->getMessage() . '. Please check the logs for details.');
         }
 
+        // Check if transaction was successful
+        if (!$transactionSuccess || !$transactionResult || !($transactionResult['success'] ?? false)) {
+            $errorMsg = $transactionError ?? 'Transaction failed without error message';
+            \Log::error('FamilyUpdate: Transaction failed', [
+                'token' => $token,
+                'error' => $errorMsg,
+                'result' => $transactionResult,
+                'success_flag' => $transactionSuccess,
+            ]);
+            
+            return redirect()->route('family-update.form', $token)
+                ->with('error', 'Update failed: ' . $errorMsg . '. Please try again or contact support. Check logs for details.');
+        }
+        
+        // Verify updates were actually made
+        $studentsUpdated = $transactionResult['students_updated'] ?? 0;
+        $auditsCreated = $transactionResult['audits_created'] ?? 0;
+        $parentsUpdated = $transactionResult['parents_updated'] ?? 0;
+        
+        if ($studentsUpdated === 0 && $auditsCreated === 0 && $parentsUpdated === 0) {
+            \Log::warning('FamilyUpdate: No updates detected after transaction', [
+                'token' => $token,
+                'family_id' => $family->id,
+                'result' => $transactionResult,
+            ]);
+            
+            return redirect()->route('family-update.form', $token)
+                ->with('warning', 'No changes were detected. Please make sure you modified at least one field before submitting.');
+        }
+        
         // Clear cached relationships - the redirect will reload fresh data from database
         $family->unsetRelation('students');
         
         \Log::info('FamilyUpdate Submit: Update completed successfully', [
             'token' => $token,
             'family_id' => $family->id,
-            'students_updated' => $students->count(),
+            'students_updated' => $studentsUpdated,
+            'parents_updated' => $parentsUpdated,
+            'audits_created' => $auditsCreated,
         ]);
 
-        // Track update count (if column exists)
+        // Track update count (if column exists) - only if we haven't already done it in transaction
         if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'update_count')) {
-            $link->increment('update_count');
+            $link->refresh();
+            if (!$link->wasRecentlyCreated) {
+                // Only increment if not already incremented in transaction
+                $link->increment('update_count');
+            }
             if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'last_updated_at')) {
                 $link->last_updated_at = now();
             }
             $link->save();
         }
         
+        $successMessage = 'Details updated successfully! ';
+        if ($auditsCreated > 0) {
+            $successMessage .= "{$auditsCreated} change(s) recorded. ";
+        }
+        if ($studentsUpdated > 0) {
+            $successMessage .= "{$studentsUpdated} student(s) updated. ";
+        }
+        if ($parentsUpdated > 0) {
+            $successMessage .= "{$parentsUpdated} parent record(s) updated. ";
+        }
+        $successMessage .= 'You can revisit this link anytime to update again.';
+        
         return redirect()->route('family-update.form', $token)
-            ->with('success', 'Details updated successfully. You can revisit this link anytime to update again.');
+            ->with('success', $successMessage);
     }
 
     private function getCountryCodes(): array

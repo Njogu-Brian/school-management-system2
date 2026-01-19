@@ -183,9 +183,39 @@
 
             <div class="form-shell p-4">
                 @if(session('success'))
-                    <div class="alert alert-success">{{ session('success') }}</div>
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
                 @endif
-                <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data" novalidate>
+                
+                @if(session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <i class="bi bi-exclamation-triangle me-2"></i><strong>Error:</strong> {{ session('error') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+                
+                @if(session('warning'))
+                    <div class="alert alert-warning alert-dismissible fade show">
+                        <i class="bi bi-exclamation-circle me-2"></i>{{ session('warning') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+                
+                @if($errors->any())
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <i class="bi bi-exclamation-triangle me-2"></i><strong>Validation Errors:</strong>
+                        <ul class="mb-0 mt-2">
+                            @foreach($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+                
+                <form action="{{ route('family-update.submit', $link->token) }}" method="POST" enctype="multipart/form-data" novalidate id="familyUpdateForm">
                     @csrf
                     @foreach($students as $stu)
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -689,6 +719,28 @@
     @endforeach
     setupFilePreview('father_id_document', 'father_id_document_preview');
     setupFilePreview('mother_id_document', 'mother_id_document_preview');
+    
+    // Form submission handling with loading state
+    const form = document.getElementById('familyUpdateForm');
+    const submitBtn = document.getElementById('submitBtn');
+    
+    if (form && submitBtn) {
+        const submitText = submitBtn.querySelector('.submit-text');
+        const submitLoading = submitBtn.querySelector('.submit-loading');
+        
+        form.addEventListener('submit', function(e) {
+            // Show loading state
+            submitBtn.disabled = true;
+            if (submitText) submitText.style.display = 'none';
+            if (submitLoading) submitLoading.style.display = 'inline';
+            
+            // Log form submission for debugging
+            console.log('Family Update Form: Submitting...', {
+                students_count: document.querySelectorAll('input[name^="students["][name$="[id]"]').length,
+                form_action: form.action
+            });
+        });
+    }
 </script>
 </body>
 </html>
