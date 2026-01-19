@@ -75,7 +75,8 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>
-    <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') ? 'active' : '' }}">Bulk Upload</a>
+    <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') && !Request::is('students/update-import*') ? 'active' : '' }}">Bulk Upload</a>
+    <a href="{{ route('students.update-import') }}" class="{{ Request::is('students/update-import*') ? 'active' : '' }}"><i class="bi bi-arrow-repeat"></i> Update Import</a>
     @if(Route::has('students.archived'))
     <a href="{{ route('students.archived') }}" class="{{ Request::is('students/archived*') ? 'active' : '' }}">
         <i class="bi bi-archive"></i> Archived Students
