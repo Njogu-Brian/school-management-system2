@@ -44,7 +44,12 @@ class FamilyUpdateLink extends Model
 
     public static function generateToken(): string
     {
-        return Str::random(12);
+        // Generate a unique token - keep trying until we get a unique one
+        do {
+            $token = Str::random(32); // Increased length for better uniqueness
+        } while (static::where('token', $token)->exists());
+        
+        return $token;
     }
 
     public function family()

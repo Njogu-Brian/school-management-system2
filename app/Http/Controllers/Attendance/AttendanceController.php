@@ -781,4 +781,99 @@ private function applyPlaceholders(string $content, Student $student, string $hu
 
         return back()->with('success', "Notifications sent to {$notified} parent(s) for consecutive absences.");
     }
+
+    /**
+     * Show edit form for attendance record
+     */
+    public function edit($id)
+    {
+        $attendance = Attendance::with('student.classroom', 'student.stream', 'reasonCode', 'markedBy')->findOrFail($id);
+        
+        // Check permissions - only Senior Teachers and Admins can edit
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher'])) {
+            return redirect()->route('attendance.records')
+                ->with('error', 'You do not have permission to edit attendance records.');
+        }
+
+        return view('attendance.edit', compact('attendance'));
+    }
+
+    /**
+     * Update attendance record
+     */
+    public function update(Request $request, $id)
+    {
+        $attendance = Attendance::with('student')->findOrFail($id);
+        
+        // Check permissions - only Senior Teachers and Admins can update
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher'])) {
+            return redirect()->route('attendance.records')
+                ->with('error', 'You do not have permission to update attendance records.');
+        }
+
+        $request->validate([
+            'status' => 'required|in:present,absent,late',
+            'reason' => 'nullable|string|max:500',
+        ]);
+
+        $oldStatus = $attendance->status;
+        $attendance->status = $request->status;
+        $attendance->reason = $request->status === 'present' ? null : $request->reason;
+        $attendance->marked_by = auth()->id();
+        $attendance->marked_at = now();
+        
+        // Clear reason code if status is present
+        if ($request->status === 'present') {
+            $attendance->reason_code_id = null;
+            $attendance->is_excused = false;
+            $attendance->is_medical_leave = false;
+            $attendance->excuse_notes = null;
+        }
+        
+        $attendance->save();
+
+        // Update consecutive absence count
+        $consecutive = $this->analyticsService->getConsecutiveAbsences($attendance->student, $attendance->date);
+        $attendance->update(['consecutive_absence_count' => $consecutive]);
+
+        return redirect()->route('attendance.records')
+            ->with('success', 'Attendance record updated successfully.');
+    }
+
+    /**
+     * Unmark/Delete attendance record
+     */
+    public function unmark($id)
+    {
+        $attendance = Attendance::with('student')->findOrFail($id);
+        
+        // Check permissions - only Senior Teachers and Admins can unmark
+        $user = auth()->user();
+        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher'])) {
+            return redirect()->route('attendance.records')
+                ->with('error', 'You do not have permission to unmark attendance records.');
+        }
+
+        $student = $attendance->student;
+        $date = $attendance->date;
+        
+        $attendance->delete();
+
+        // Update consecutive absence count for the student
+        if ($student) {
+            $consecutive = $this->analyticsService->getConsecutiveAbsences($student, $date);
+            // Update any remaining attendance records for this date
+            $remainingAttendance = Attendance::where('student_id', $student->id)
+                ->where('date', $date)
+                ->first();
+            if ($remainingAttendance) {
+                $remainingAttendance->update(['consecutive_absence_count' => $consecutive]);
+            }
+        }
+
+        return redirect()->route('attendance.records')
+            ->with('success', 'Attendance record unmarked successfully.');
+    }
 }

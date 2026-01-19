@@ -47,27 +47,81 @@ class FamilyUpdateController extends Controller
 
     /**
      * Admin: reset/generate links for all families.
+     * Ensures all students have families and all families have active links.
      */
     public function resetAll()
     {
-        $families = Family::with('updateLink')->get();
-        foreach ($families as $family) {
-            if ($family->updateLink) {
-                $family->updateLink->update([
-                    'token' => FamilyUpdateLink::generateToken(),
-                    'is_active' => true,
-                    'last_sent_at' => null,
+        DB::beginTransaction();
+        try {
+            // Step 1: Ensure all active students have families
+            $studentsWithoutFamilies = Student::where('archive', 0)
+                ->where('is_alumni', false)
+                ->whereNull('family_id')
+                ->get();
+            
+            $familiesCreated = 0;
+            foreach ($studentsWithoutFamilies as $student) {
+                // Create a family for this student
+                $family = Family::create([
+                    'guardian_name' => $student->parent 
+                        ? ($student->parent->guardian_name ?? $student->parent->father_name ?? $student->parent->mother_name ?? 'Family ' . $student->admission_number)
+                        : 'Family ' . $student->admission_number,
+                    'phone' => $student->parent 
+                        ? ($student->parent->guardian_phone ?? $student->parent->father_phone ?? $student->parent->mother_phone)
+                        : null,
+                    'email' => $student->parent 
+                        ? ($student->parent->guardian_email ?? $student->parent->father_email ?? $student->parent->mother_email)
+                        : null,
                 ]);
-            } else {
-                FamilyUpdateLink::create([
-                    'family_id' => $family->id,
-                    'token' => FamilyUpdateLink::generateToken(),
-                    'is_active' => true,
-                ]);
+                
+                $student->update(['family_id' => $family->id]);
+                $familiesCreated++;
             }
+            
+            // Step 2: Get all families (including newly created ones)
+            $families = Family::with('updateLink')->get();
+            $linksCreated = 0;
+            $linksReset = 0;
+            
+            foreach ($families as $family) {
+                if ($family->updateLink) {
+                    // Reset existing link - generate new token and ensure it's active
+                    $family->updateLink->update([
+                        'token' => FamilyUpdateLink::generateToken(),
+                        'is_active' => true,
+                        'last_sent_at' => null,
+                    ]);
+                    $linksReset++;
+                } else {
+                    // Create new link for family
+                    FamilyUpdateLink::create([
+                        'family_id' => $family->id,
+                        'token' => FamilyUpdateLink::generateToken(),
+                        'is_active' => true,
+                    ]);
+                    $linksCreated++;
+                }
+            }
+            
+            DB::commit();
+            
+            $message = 'All profile update links have been regenerated.';
+            if ($familiesCreated > 0) {
+                $message .= " Created {$familiesCreated} new families for students without families.";
+            }
+            if ($linksCreated > 0) {
+                $message .= " Created {$linksCreated} new links.";
+            }
+            if ($linksReset > 0) {
+                $message .= " Reset {$linksReset} existing links.";
+            }
+            
+            return back()->with('success', $message);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Error resetting profile update links: ' . $e->getMessage());
+            return back()->with('error', 'An error occurred while resetting links: ' . $e->getMessage());
         }
-
-        return back()->with('success', 'All profile update links have been regenerated.');
     }
 
     /**
@@ -108,7 +162,26 @@ class FamilyUpdateController extends Controller
      */
     public function publicForm($token)
     {
-        $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->firstOrFail();
+        $link = FamilyUpdateLink::where('token', $token)->where('is_active', true)->first();
+        
+        if (!$link) {
+            // Check if link exists but is inactive
+            $inactiveLink = FamilyUpdateLink::where('token', $token)->first();
+            if ($inactiveLink) {
+                \Log::warning('FamilyUpdate: Inactive link accessed', [
+                    'token' => $token,
+                    'link_id' => $inactiveLink->id,
+                    'is_active' => $inactiveLink->is_active,
+                ]);
+                abort(404, 'This profile update link has been deactivated. Please contact the school for a new link.');
+            }
+            
+            \Log::warning('FamilyUpdate: Invalid link token accessed', [
+                'token' => $token,
+                'token_length' => strlen($token),
+            ]);
+            abort(404, 'This profile update link is invalid or has expired. Please contact the school for a new link.');
+        }
         
         // Track link click/access (if columns exist)
         if (\Illuminate\Support\Facades\Schema::hasColumn('family_update_links', 'click_count')) {

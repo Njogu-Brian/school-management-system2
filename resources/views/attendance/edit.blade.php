@@ -11,17 +11,42 @@
       <div>
         <div class="crumb">Attendance</div>
         <h1 class="mb-1">Edit Attendance</h1>
-        <p class="text-muted mb-0">{{ $attendance->student->full_name }}</p>
+        <div class="d-flex align-items-center gap-2 flex-wrap mt-2" style="color: #ffffff; font-size: 15px;">
+          <span style="color: #ffffff; font-weight: 500;">
+            <i class="bi bi-person"></i> <strong>{{ $attendance->student->full_name }}</strong>
+          </span>
+          <span style="color: rgba(255, 255, 255, 0.7);">|</span>
+          <span style="color: #ffffff; font-weight: 500;">
+            <i class="bi bi-building"></i> {{ $attendance->student->classroom->name ?? 'N/A' }}
+            @if($attendance->student->stream)
+              - {{ $attendance->student->stream->name }}
+            @endif
+          </span>
+          <span style="color: rgba(255, 255, 255, 0.7);">|</span>
+          <span style="color: #ffffff; font-weight: 500;">
+            <i class="bi bi-card-text"></i> {{ $attendance->student->admission_number }}
+          </span>
+        </div>
       </div>
-      <a href="{{ route('attendance.mark.form') }}" class="btn btn-ghost-strong">
-        <i class="bi bi-arrow-left"></i> Back to Marking
+      <a href="{{ route('attendance.records') }}" class="btn btn-ghost-strong">
+        <i class="bi bi-arrow-left"></i> Back to Records
       </a>
     </div>
 
     <div class="settings-card">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <h5 class="mb-0">Update Status</h5>
-        <span class="pill-badge pill-secondary">Admission #{{ $attendance->student->admission_number }}</span>
+        <div>
+          <h5 class="mb-0">Update Status</h5>
+          <p class="small mb-0" style="color: #6b7280;">
+            Date: <strong style="color: #0f172a;">{{ $attendance->date->format('l, F d, Y') }}</strong>
+          </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="pill-badge pill-info">{{ $attendance->student->classroom->name ?? 'N/A' }}</span>
+          @if($attendance->student->stream)
+            <span class="pill-badge pill-secondary">{{ $attendance->student->stream->name }}</span>
+          @endif
+        </div>
       </div>
       <div class="card-body">
         <form method="POST" action="{{ route('attendance.update', $attendance->id) }}" class="row g-3">
@@ -50,10 +75,8 @@
           </div>
 
           <div class="col-12 d-flex justify-content-end gap-2">
-            <a href="{{ route('attendance.mark.form') }}" class="btn btn-ghost-strong">Cancel</a>
-            @if(can_access('attendance', 'record', 'edit'))
+            <a href="{{ route('attendance.records') }}" class="btn btn-ghost-strong">Cancel</a>
             <button type="submit" class="btn btn-settings-primary">Update Attendance</button>
-            @endif
           </div>
         </form>
       </div>

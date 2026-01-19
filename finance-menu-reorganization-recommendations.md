@@ -143,14 +143,14 @@ The finance module menu has been reorganized into 3 major groups:
 ## Priority Recommendations (Quick Wins)
 
 ### High Priority (Easy to implement, high impact):
-1. ✅ **Merge M-PESA Payment Links** - Combine "Generate" and "View" into one page
-2. ✅ **Consolidate Reports** - Group all reports under a collapsible "Reports" submenu
-3. ✅ **Merge Fee Concessions & Payment Plans** - Group under "Billing Options"
+1. ✅ **Merge M-PESA Payment Links** - Combined "Generate" and "View" into single "Payment Links" menu item (IMPLEMENTED)
+2. ✅ **Consolidate Reports** - Grouped all reports under a collapsible "Financial Reports" submenu (IMPLEMENTED)
+3. ✅ **Merge Fee Concessions & Payment Plans** - Grouped under "Billing Options" submenu (IMPLEMENTED)
 
 ### Medium Priority (Moderate effort, good impact):
-4. ⚠️ **Simplify Discounts submenu** - Reduce from 5 to 3-4 items
-5. ⚠️ **Consolidate Bank Statements** - Merge "Imported Statements" and "Transactions"
-6. ⚠️ **Group Optional & Transport Fees** - Under "Additional Fees"
+4. ✅ **Simplify Discounts submenu** - Reduced from 5 to 4 items by merging "Bulk Sibling" into "Allocations" (IMPLEMENTED)
+5. ✅ **Consolidate Bank Statements** - Merged "Imported Statements" and "Transactions" into "View Statements & Transactions" (IMPLEMENTED)
+6. ✅ **Group Optional & Transport Fees** - Grouped under "Additional Fees" submenu (IMPLEMENTED)
 
 ### Low Priority (Requires more planning):
 7. 💡 **Reorganize Swimming Management** - Better logical grouping
@@ -168,10 +168,29 @@ The finance module menu has been reorganized into 3 major groups:
 
 ---
 
+## Implementation Status
+
+### ✅ Completed Changes:
+1. **Menu Reorganization** - Finance menu organized into 3 clear groups with section headers
+2. **Additional Fees** - Optional Fees and Transport Fees grouped together
+3. **Discounts Simplification** - Reduced from 5 to 4 menu items
+4. **Billing Options** - Payment Plans and Fee Concessions grouped together
+5. **M-PESA Payment Links** - Merged Generate and View into single menu item
+6. **Bank Statements** - Consolidated into "View Statements & Transactions"
+7. **Financial Reports** - All reports grouped under collapsible submenu
+8. **Page Updates** - Updated bank statements page title to reflect merged functionality
+
+### 📝 Notes:
+- All routes and functionality remain unchanged
+- Menu structure is purely organizational for better navigation
+- The M-PESA Payment Links page should have a "Create New" button to access the create form
+- Bank Statements index page already has navigation buttons to access statements view
+
 ## Next Steps
 
-1. Review the current reorganization
+1. ✅ Review the current reorganization - COMPLETED
 2. Test navigation flow with end users
-3. Implement high-priority menu merges
+3. ✅ Implement high-priority menu merges - COMPLETED
 4. Gather feedback on menu structure
 5. Iterate based on usage patterns
+6. Consider adding "Create New" button to M-PESA Payment Links index page if not already present

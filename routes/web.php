@@ -290,6 +290,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/notify-consecutive', [AttendanceController::class, 'notifyConsecutiveAbsences'])->name('attendance.notify-consecutive');
             Route::get('/edit/{id}',     [AttendanceController::class, 'edit'])->name('attendance.edit');
             Route::post('/update/{id}',  [AttendanceController::class, 'update'])->name('attendance.update');
+            Route::delete('/unmark/{id}', [AttendanceController::class, 'unmark'])->name('attendance.unmark');
         });
 
     // Attendance notifications (admin only)

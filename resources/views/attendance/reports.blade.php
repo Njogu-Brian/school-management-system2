@@ -187,6 +187,9 @@
                           <th>Reason Code</th>
                           <th>Reason</th>
                           <th>Marked By</th>
+                          @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher']))
+                          <th class="text-center">Actions</th>
+                          @endif
                         </tr>
                       </thead>
                       <tbody>
@@ -210,6 +213,22 @@
                             <td>{{ $a->reasonCode->name ?? '—' }}</td>
                             <td class="text-muted small">{{ Str::limit($a->reason ?? '—', 30) }}</td>
                             <td class="small">{{ $a->markedBy->name ?? '—' }}</td>
+                            @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher']))
+                            <td class="text-center">
+                              <div class="d-flex gap-1 justify-content-center">
+                                <a href="{{ route('attendance.edit', $a->id) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
+                                  <i class="bi bi-pencil"></i>
+                                </a>
+                                <form action="{{ route('attendance.unmark', $a->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to unmark this attendance record? This action cannot be undone.');">
+                                  @csrf
+                                  @method('DELETE')
+                                  <button type="submit" class="btn btn-sm btn-ghost-danger" title="Unmark">
+                                    <i class="bi bi-x-circle"></i>
+                                  </button>
+                                </form>
+                              </div>
+                            </td>
+                            @endif
                           </tr>
                         @endforeach
                       </tbody>
@@ -377,6 +396,9 @@
                        <th>Reason Code</th>
                        <th>Reason</th>
                        <th>Marked By</th>
+                       @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher']))
+                       <th class="text-center">Actions</th>
+                       @endif
                     </tr>
                   </thead>
                   <tbody>
@@ -398,6 +420,22 @@
                          <td>{{ $r->reasonCode->name ?? '—' }}</td>
                          <td class="text-muted small">{{ Str::limit($r->reason ?? '—', 40) }}</td>
                          <td class="small">{{ $r->markedBy->name ?? '—' }}</td>
+                         @if(auth()->user()->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher']))
+                         <td class="text-center">
+                           <div class="d-flex gap-1 justify-content-center">
+                             <a href="{{ route('attendance.edit', $r->id) }}" class="btn btn-sm btn-ghost-strong" title="Edit">
+                               <i class="bi bi-pencil"></i>
+                             </a>
+                             <form action="{{ route('attendance.unmark', $r->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to unmark this attendance record? This action cannot be undone.');">
+                               @csrf
+                               @method('DELETE')
+                               <button type="submit" class="btn btn-sm btn-ghost-danger" title="Unmark">
+                                 <i class="bi bi-x-circle"></i>
+                               </button>
+                             </form>
+                           </div>
+                         </td>
+                         @endif
                       </tr>
                     @empty
                       <tr>
