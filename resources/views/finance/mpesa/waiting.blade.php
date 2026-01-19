@@ -272,7 +272,7 @@ window.addEventListener('beforeunload', function (e) {
 });
 
 // Start polling on page load
-$(document).ready(function() {
+document.addEventListener('DOMContentLoaded', function() {
     console.log('Waiting screen initialized', { transactionId: transactionId });
     startCountdown();
     startPolling();
@@ -286,29 +286,34 @@ function startPolling() {
 }
 
 function checkTransactionStatus() {
-    $.ajax({
-        url: '/api/finance/mpesa/transaction/' + transactionId + '/status',
+    fetch('/api/finance/mpesa/transaction/' + transactionId + '/status', {
         method: 'GET',
-        success: function(response) {
-            console.log('Transaction status:', response);
-            
-            if (response.status === 'completed') {
-                showSuccess(response);
-            } else if (response.status === 'failed') {
-                showFailed(response);
-            } else if (response.status === 'cancelled') {
-                showCancelled();
-            }
-            // Continue polling if still processing/pending
-        },
-        error: function(xhr, status, error) {
-            // Continue polling even on error
-            console.error('Error checking status:', {
-                status: status,
-                error: error,
-                response: xhr.responseText
-            });
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Transaction status:', data);
+        
+        if (data.status === 'completed') {
+            showSuccess(data);
+        } else if (data.status === 'failed') {
+            showFailed(data);
+        } else if (data.status === 'cancelled') {
+            showCancelled();
+        }
+        // Continue polling if still processing/pending
+    })
+    .catch(error => {
+        // Continue polling even on error
+        console.error('Error checking status:', error);
     });
 }
 
@@ -317,9 +322,12 @@ function startCountdown() {
     timeRemaining = 120;
     
     // Update display immediately
-    const minutes = Math.floor(timeRemaining / 60);
-    const seconds = timeRemaining % 60;
-    $('#countdown').text(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    const countdownEl = document.getElementById('countdown');
+    if (countdownEl) {
+        const minutes = Math.floor(timeRemaining / 60);
+        const seconds = timeRemaining % 60;
+        countdownEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
     
     console.log('Countdown started', { timeRemaining });
     
@@ -327,13 +335,17 @@ function startCountdown() {
         if (timeRemaining > 0) {
             timeRemaining--;
             
-            const minutes = Math.floor(timeRemaining / 60);
-            const seconds = timeRemaining % 60;
-            $('#countdown').text(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+            const countdownEl = document.getElementById('countdown');
+            if (countdownEl) {
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                countdownEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
         } else {
             clearInterval(countdownInterval);
             if (pollInterval) clearInterval(pollInterval);
-            $('#countdown').text('0:00');
+            const countdownEl = document.getElementById('countdown');
+            if (countdownEl) countdownEl.textContent = '0:00';
             showFailed({ message: 'Transaction timeout', failure_reason: 'The payment request has timed out. Please try again.' });
         }
     }, 1000);
@@ -343,15 +355,19 @@ function showSuccess(data) {
     if (pollInterval) clearInterval(pollInterval);
     if (countdownInterval) clearInterval(countdownInterval);
     
-    $('#waitingState').hide();
-    $('#successState').show();
+    const waitingState = document.getElementById('waitingState');
+    const successState = document.getElementById('successState');
+    if (waitingState) waitingState.style.display = 'none';
+    if (successState) successState.style.display = 'block';
     
     if (data.receipt_number) {
-        $('#receiptNumber').text(data.receipt_number);
+        const receiptEl = document.getElementById('receiptNumber');
+        if (receiptEl) receiptEl.textContent = data.receipt_number;
         receiptId = data.receipt_id;
     }
     if (data.mpesa_code) {
-        $('#mpesaCode').text(data.mpesa_code);
+        const mpesaCodeEl = document.getElementById('mpesaCode');
+        if (mpesaCodeEl) mpesaCodeEl.textContent = data.mpesa_code;
     }
     
     // Auto-close after 5 seconds
@@ -361,17 +377,21 @@ function showSuccess(data) {
 }
 
 function showFailed(data) {
-    clearInterval(pollInterval);
-    clearInterval(countdownInterval);
+    if (pollInterval) clearInterval(pollInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
     
-    $('#waitingState').hide();
-    $('#failedState').show();
+    const waitingState = document.getElementById('waitingState');
+    const failedState = document.getElementById('failedState');
+    if (waitingState) waitingState.style.display = 'none';
+    if (failedState) failedState.style.display = 'block';
     
     if (data.message) {
-        $('#errorMessage').text(data.message);
+        const errorMsgEl = document.getElementById('errorMessage');
+        if (errorMsgEl) errorMsgEl.textContent = data.message;
     }
     if (data.failure_reason) {
-        $('#failureReason').text(data.failure_reason);
+        const failureReasonEl = document.getElementById('failureReason');
+        if (failureReasonEl) failureReasonEl.textContent = data.failure_reason;
     }
 }
 
@@ -379,8 +399,10 @@ function showCancelled() {
     if (pollInterval) clearInterval(pollInterval);
     if (countdownInterval) clearInterval(countdownInterval);
     
-    $('#waitingState').hide();
-    $('#cancelledState').show();
+    const waitingState = document.getElementById('waitingState');
+    const cancelledState = document.getElementById('cancelledState');
+    if (waitingState) waitingState.style.display = 'none';
+    if (cancelledState) cancelledState.style.display = 'block';
     
     // Auto-redirect after 3 seconds
     setTimeout(function() {
@@ -394,45 +416,54 @@ function cancelTransaction() {
     }
     
     // Disable button to prevent double-click
-    $('.btn-cancel').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Cancelling...');
+    const cancelBtn = document.querySelector('.btn-cancel');
+    if (cancelBtn) {
+        cancelBtn.disabled = true;
+        cancelBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Cancelling...';
+    }
     
-    $.ajax({
-        url: '/api/finance/mpesa/transaction/' + transactionId + '/cancel',
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+    
+    fetch('/api/finance/mpesa/transaction/' + transactionId + '/cancel', {
         method: 'POST',
         headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') || '{{ csrf_token() }}'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-TOKEN': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
         },
-        data: {
-            _token: '{{ csrf_token() }}'
-        },
-        success: function(response) {
-            console.log('Cancel response:', response);
-            if (response.success) {
-                showCancelled();
-            } else {
-                alert(response.message || 'Failed to cancel transaction');
-                $('.btn-cancel').prop('disabled', false).html('<i class="bi bi-x-circle"></i> Cancel Transaction');
+        body: JSON.stringify({
+            _token: csrfToken
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw err; });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Cancel response:', data);
+        if (data.success) {
+            showCancelled();
+        } else {
+            alert(data.message || 'Failed to cancel transaction');
+            if (cancelBtn) {
+                cancelBtn.disabled = false;
+                cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> Cancel Transaction';
             }
-        },
-        error: function(xhr, status, error) {
-            console.error('Cancel error:', {
-                status: status,
-                error: error,
-                response: xhr.responseText
-            });
-            
-            let errorMessage = 'Failed to cancel transaction. Please contact support.';
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.message) {
-                    errorMessage = response.message;
-                }
-            } catch(e) {
-                // Use default message
-            }
-            
-            alert(errorMessage);
-            $('.btn-cancel').prop('disabled', false).html('<i class="bi bi-x-circle"></i> Cancel Transaction');
+        }
+    })
+    .catch(error => {
+        console.error('Cancel error:', error);
+        let errorMessage = 'Failed to cancel transaction. Please try again.';
+        if (error.message) {
+            errorMessage = error.message;
+        }
+        alert(errorMessage);
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.innerHTML = '<i class="bi bi-x-circle"></i> Cancel Transaction';
         }
     });
 }
