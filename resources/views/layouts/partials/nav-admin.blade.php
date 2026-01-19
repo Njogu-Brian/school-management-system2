@@ -343,29 +343,30 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 @endphp
 <a href="#financeMenu" data-bs-toggle="collapse"aria-expanded="{{ $financeActive ? 'true' : 'false' }}"class="{{ $financeActive ? 'parent-active' : '' }}"><i class="bi bi-currency-dollar"></i> Finance</a>
 <div class="collapse {{ $financeActive ? 'show' : '' }}" id="financeMenu">
+    
+    {{-- ============================================ --}}
+    {{-- INVOICE & BILLING RELATED --}}
+    {{-- ============================================ --}}
+    <span class="small text-muted text-uppercase px-3 d-block mt-2 mb-1 fw-bold">Invoice & Billing</span>
+    
     {{-- Fee Setup --}}
     <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Voteheads</a>
     <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
     <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
-    {{-- Optional Fees --}}
-    @php
-        $optionalFeesActive = Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*');
-    @endphp
-    <a href="#optionalFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $optionalFeesActive ? 'true' : 'false' }}" class="{{ $optionalFeesActive ? 'parent-active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
-    <div class="collapse {{ $optionalFeesActive ? 'show' : '' }}" id="optionalFeesMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.optional_fees.index') }}" class="sublink {{ Request::is('finance/optional-fees') && !Request::is('finance/optional-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Manage</a>
-        <a href="{{ route('finance.optional-fees.import-history') }}" class="sublink {{ Request::is('finance/optional-fees/import/history*') ? 'active' : '' }}"><i class="bi bi-clock-history"></i> Import History</a>
-    </div>
     
-    {{-- Transport Fees --}}
+    {{-- Additional Fees (Optional & Transport) --}}
     @php
+        $additionalFeesActive = Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*') || Request::is('finance/transport-fees*');
+        $optionalFeesActive = Request::is('finance/optional-fees*') || Request::is('finance/optional_fees*');
         $transportFeesActive = Request::is('finance/transport-fees*');
     @endphp
-    <a href="#transportFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $transportFeesActive ? 'true' : 'false' }}" class="{{ $transportFeesActive ? 'parent-active' : '' }}"><i class="bi bi-bus-front"></i> Transport Fees</a>
-    <div class="collapse {{ $transportFeesActive ? 'show' : '' }}" id="transportFeesMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.transport-fees.index') }}" class="sublink {{ Request::is('finance/transport-fees') && !Request::is('finance/transport-fees/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Manage</a>
-        <a href="{{ route('finance.transport-fees.import') }}" class="sublink {{ Request::is('finance/transport-fees/import') && !Request::is('finance/transport-fees/import/*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Import</a>
-        <a href="{{ route('finance.transport-fees.import-history') }}" class="sublink {{ Request::is('finance/transport-fees/import/history*') ? 'active' : '' }}"><i class="bi bi-clock-history"></i> Import History</a>
+    <a href="#additionalFeesMenu" data-bs-toggle="collapse" aria-expanded="{{ $additionalFeesActive ? 'true' : 'false' }}" class="{{ $additionalFeesActive ? 'parent-active' : '' }}"><i class="bi bi-layers"></i> Additional Fees</a>
+    <div class="collapse {{ $additionalFeesActive ? 'show' : '' }}" id="additionalFeesMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.optional_fees.index') }}" class="sublink {{ Request::is('finance/optional-fees') && !Request::is('finance/optional-fees/*') ? 'active' : '' }}"><i class="bi bi-toggle-on"></i> Optional Fees</a>
+        <a href="{{ route('finance.optional-fees.import-history') }}" class="sublink {{ Request::is('finance/optional-fees/import/history*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-clock-history"></i> Optional Fees Import History</a>
+        <a href="{{ route('finance.transport-fees.index') }}" class="sublink {{ Request::is('finance/transport-fees') && !Request::is('finance/transport-fees/*') && !Request::is('finance/transport-fees/import*') ? 'active' : '' }}"><i class="bi bi-bus-front"></i> Transport Fees</a>
+        <a href="{{ route('finance.transport-fees.import') }}" class="sublink {{ Request::is('finance/transport-fees/import') && !Request::is('finance/transport-fees/import/*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-upload"></i> Import Transport Fees</a>
+        <a href="{{ route('finance.transport-fees.import-history') }}" class="sublink {{ Request::is('finance/transport-fees/import/history*') ? 'active' : '' }}" style="padding-left: 40px;"><i class="bi bi-clock-history"></i> Transport Fees Import History</a>
     </div>
     
     {{-- Discounts --}}
@@ -376,14 +377,32 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <div class="collapse {{ $discountsActive ? 'show' : '' }}" id="discountsMenu" style="padding-left: 20px;">
         <a href="{{ route('finance.discounts.index') }}" class="sublink {{ Request::is('finance/discounts') && !Request::is('finance/discounts/*') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
         <a href="{{ route('finance.discounts.templates.index') }}" class="sublink {{ Request::is('finance/discounts/templates*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Templates</a>
-        <a href="{{ route('finance.discounts.allocations.index') }}" class="sublink {{ Request::is('finance/discounts/allocations*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations & Allocate</a>
-        <a href="{{ route('finance.discounts.bulk-allocate-sibling') }}" class="sublink {{ Request::is('finance/discounts/bulk-allocate-sibling*') ? 'active' : '' }}"><i class="bi bi-people"></i> Bulk Sibling</a>
+        <a href="{{ route('finance.discounts.allocations.index') }}" class="sublink {{ Request::is('finance/discounts/allocations*') || Request::is('finance/discounts/bulk-allocate-sibling*') ? 'active' : '' }}"><i class="bi bi-list-check"></i> Allocations</a>
         <a href="{{ route('finance.discounts.replicate.form') }}" class="sublink {{ Request::is('finance/discounts/replicate*') ? 'active' : '' }}"><i class="bi bi-copy"></i> Replicate</a>
     </div>
     
-    {{-- Invoicing & Payments --}}
+    {{-- Invoicing --}}
     <a href="{{ route('finance.invoices.index') }}"class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.journals.index') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
+    
+    {{-- Billing Configuration --}}
+    @php
+        $billingOptionsActive = Request::is('finance/fee-payment-plans*') || Request::is('finance/fee-concessions*');
+    @endphp
+    <a href="#billingOptionsMenu" data-bs-toggle="collapse" aria-expanded="{{ $billingOptionsActive ? 'true' : 'false' }}" class="{{ $billingOptionsActive ? 'parent-active' : '' }}"><i class="bi bi-gear"></i> Billing Options</a>
+    <div class="collapse {{ $billingOptionsActive ? 'show' : '' }}" id="billingOptionsMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.fee-payment-plans.index') }}" class="sublink {{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
+        <a href="{{ route('finance.fee-concessions.index') }}" class="sublink {{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
+    </div>
+    <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
+    <a href="{{ route('finance.document-settings.index') }}"class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
+    
+    {{-- ============================================ --}}
+    {{-- PAYMENT RELATED --}}
+    {{-- ============================================ --}}
+    <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Payments</span>
+    
+    {{-- Payment Processing --}}
     <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') && !Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
     
     {{-- M-PESA Payments --}}
@@ -394,8 +413,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <div class="collapse {{ $mpesaActive ? 'show' : '' }}" id="mpesaMenu" style="padding-left: 20px;">
         <a href="{{ route('finance.mpesa.dashboard') }}" class="sublink {{ Request::is('finance/mpesa/dashboard') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
         <a href="{{ route('finance.mpesa.prompt-payment.form') }}" class="sublink {{ Request::is('finance/mpesa/prompt-payment*') ? 'active' : '' }}"><i class="bi bi-phone-vibrate"></i> Prompt Parent to Pay</a>
-        <a href="{{ route('finance.mpesa.links.create') }}" class="sublink {{ Request::is('finance/mpesa/links/create') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Generate Payment Link</a>
-        <a href="{{ route('finance.mpesa.links.index') }}" class="sublink {{ Request::is('finance/mpesa/links') && !Request::is('finance/mpesa/links/create') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> View Payment Links</a>
+        <a href="{{ route('finance.mpesa.links.index') }}" class="sublink {{ Request::is('finance/mpesa/links*') ? 'active' : '' }}"><i class="bi bi-link-45deg"></i> Payment Links</a>
     </div>
     
     {{-- Bank Statements --}}
@@ -404,16 +422,15 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     @endphp
     <a href="#bankStatementsMenu" data-bs-toggle="collapse" aria-expanded="{{ $bankStatementsActive ? 'true' : 'false' }}" class="{{ $bankStatementsActive ? 'parent-active' : '' }}"><i class="bi bi-file-earmark-pdf"></i> Bank Statements</a>
     <div class="collapse {{ $bankStatementsActive ? 'show' : '' }}" id="bankStatementsMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.bank-statements.statements') }}" class="sublink {{ Request::is('finance/bank-statements/statements') ? 'active' : '' }}"><i class="bi bi-folder2-open"></i> Imported Statements</a>
-        <a href="{{ route('finance.bank-statements.index') }}" class="sublink {{ Request::is('finance/bank-statements') && !Request::is('finance/bank-statements/statements') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Transactions</a>
+        <a href="{{ route('finance.bank-statements.index') }}" class="sublink {{ Request::is('finance/bank-statements') && !Request::is('finance/bank-statements/create') && !Request::is('finance/bank-statements/statements') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> View Statements & Transactions</a>
         <a href="{{ route('finance.bank-statements.create') }}" class="sublink {{ Request::is('finance/bank-statements/create') ? 'active' : '' }}"><i class="bi bi-upload"></i> Upload Statement</a>
     </div>
-    <a href="{{ route('finance.student-statements.index') }}"class="{{ Request::is('finance/student-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Student Statements</a>
-    <a href="{{ route('finance.fee-balances.index') }}"class="{{ Request::is('finance/fee-balances*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Fee Balance Report</a>
-    <a href="{{ route('finance.balance-brought-forward.index') }}"class="{{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
-    <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>
     
-    {{-- Swimming Management --}}
+    {{-- Payment Setup --}}
+    <a href="{{ route('finance.bank-accounts.index') }}"class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
+    <a href="{{ route('finance.payment-methods.index') }}"class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
+    
+    {{-- Swimming Management (Payment Related) --}}
     @php
         $swimmingActive = Request::is('swimming*');
     @endphp
@@ -426,16 +443,23 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('swimming.settings.index') }}" class="sublink {{ Request::is('swimming/settings*') ? 'active' : '' }}"><i class="bi bi-gear"></i> Settings</a>
     </div>
     
-    {{-- Payment Setup --}}
-    <a href="{{ route('finance.bank-accounts.index') }}"class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
-    <a href="{{ route('finance.payment-methods.index') }}"class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
+    {{-- Legacy Imports (Payment Related) --}}
+    <a href="{{ route('finance.legacy-imports.index') }}" class="{{ Request::is('finance/legacy-imports*') ? 'active' : '' }}"><i class="bi bi-upload"></i> Legacy Imports</a>
     
-    {{-- Other Features --}}
-    <a href="{{ route('finance.fee-payment-plans.index') }}"class="{{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
-    <a href="{{ route('finance.fee-concessions.index') }}"class="{{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
-    <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
-    <a href="{{ route('finance.accountant-dashboard.index') }}"class="{{ Request::is('finance/accountant-dashboard*') ? 'active' : '' }}"><i class="bi bi-graph-up"></i> Accountant Dashboard</a>
-    <a href="{{ route('finance.document-settings.index') }}"class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
+    {{-- ============================================ --}}
+    {{-- REPORTS RELATED --}}
+    {{-- ============================================ --}}
+    @php
+        $reportsActive = Request::is('finance/accountant-dashboard*') || Request::is('finance/student-statements*') || Request::is('finance/fee-balances*') || Request::is('finance/balance-brought-forward*');
+    @endphp
+    <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Reports</span>
+    <a href="#reportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $reportsActive ? 'true' : 'false' }}" class="{{ $reportsActive ? 'parent-active' : '' }}"><i class="bi bi-graph-up"></i> Financial Reports</a>
+    <div class="collapse {{ $reportsActive ? 'show' : '' }}" id="reportsMenu" style="padding-left: 20px;">
+        <a href="{{ route('finance.accountant-dashboard.index') }}" class="sublink {{ Request::is('finance/accountant-dashboard*') ? 'active' : '' }}"><i class="bi bi-speedometer2"></i> Accountant Dashboard</a>
+        <a href="{{ route('finance.student-statements.index') }}" class="sublink {{ Request::is('finance/student-statements*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Student Statements</a>
+        <a href="{{ route('finance.fee-balances.index') }}" class="sublink {{ Request::is('finance/fee-balances*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Fee Balance Report</a>
+        <a href="{{ route('finance.balance-brought-forward.index') }}" class="sublink {{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
+    </div>
 </div>
 
 <!-- Transport -->

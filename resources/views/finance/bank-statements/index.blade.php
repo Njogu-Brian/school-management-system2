@@ -2,10 +2,10 @@
 
 @section('content')
     @include('finance.partials.header', [
-        'title' => 'Bank Statement Transactions',
+        'title' => 'Bank Statements & Transactions',
         'icon' => 'bi bi-bank',
-        'subtitle' => 'Upload and reconcile bank statements',
-        'actions' => '<a href="' . route('finance.bank-statements.statements') . '" class="btn btn-finance btn-finance-info"><i class="bi bi-folder2-open"></i> View Statements</a>
+        'subtitle' => 'View statements, transactions, and upload new statements',
+        'actions' => '<a href="' . route('finance.bank-statements.statements') . '" class="btn btn-finance btn-finance-info"><i class="bi bi-folder2-open"></i> View Imported Statements</a>
                       <a href="' . route('finance.bank-statements.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-upload"></i> Upload Statement</a>'
     ])
 
