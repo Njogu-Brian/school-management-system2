@@ -912,6 +912,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/students/bulk-import',  [StudentController::class, 'bulkImport'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.import');
     Route::get('/students/bulk-template', [StudentController::class, 'bulkTemplate'])->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.template');
     
+    // Update existing students import
+    Route::get('/students/update-import', [StudentController::class, 'updateImportForm'])->middleware('role:Super Admin|Admin|Secretary')->name('students.update-import');
+    Route::get('/students/update-import/template', [StudentController::class, 'updateImportTemplate'])->middleware('role:Super Admin|Admin|Secretary')->name('students.update-import.template');
+    Route::post('/students/update-import/preview', [StudentController::class, 'updateImportPreview'])->middleware('role:Super Admin|Admin|Secretary')->name('students.update-import.preview');
+    Route::post('/students/update-import/process', [StudentController::class, 'updateImportProcess'])->middleware('role:Super Admin|Admin|Secretary')->name('students.update-import.process');
+    
     // Bulk category assignment
     Route::get('/students/bulk-assign-categories', [StudentController::class, 'bulkAssignCategories'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-categories');

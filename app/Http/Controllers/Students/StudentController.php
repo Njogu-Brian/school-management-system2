@@ -19,6 +19,7 @@ use App\Models\FeeConcession;
 use App\Services\FeePostingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Services\SMSService;
 use App\Services\ArchiveStudentService;
 use App\Services\RestoreStudentService;
@@ -1908,5 +1909,291 @@ class StudentController extends Controller
         
         // If it's already just local digits, return as is
         return $digits;
+    }
+
+    /**
+     * Show form for updating existing students via import
+     */
+    public function updateImportForm()
+    {
+        return view('students.update_import');
+    }
+
+    /**
+     * Download template for updating existing students
+     */
+    public function updateImportTemplate()
+    {
+        return Excel::download(new \App\Exports\StudentUpdateTemplateExport(), 'student_update_template.xlsx');
+    }
+
+    /**
+     * Preview the import file before processing
+     */
+    public function updateImportPreview(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+        ]);
+
+        try {
+            $rows = Excel::toArray([], $request->file('file'))[0];
+            if (empty($rows) || count($rows) < 2) {
+                return back()->with('error', 'The file appears to be empty or has no data rows.');
+            }
+
+            $headers = array_map('trim', array_map('strtolower', $rows[0]));
+            unset($rows[0]);
+
+            // Check if admission_number column exists
+            $admissionColIndex = array_search('admission_number', $headers);
+            if ($admissionColIndex === false) {
+                return back()->with('error', 'The file must contain an "admission_number" column to identify students.');
+            }
+
+            $preview = [];
+            $errors = [];
+            $successCount = 0;
+
+            foreach ($rows as $rowIndex => $row) {
+                $rowData = [];
+                foreach ($headers as $index => $header) {
+                    $rowData[$header] = $row[$index] ?? null;
+                }
+
+                $admissionNumber = trim($rowData['admission_number'] ?? '');
+                if (empty($admissionNumber)) {
+                    $errors[] = "Row " . ($rowIndex + 2) . ": Missing admission number";
+                    continue;
+                }
+
+                $student = Student::where('admission_number', $admissionNumber)->first();
+                if (!$student) {
+                    $errors[] = "Row " . ($rowIndex + 2) . ": Student with admission number '{$admissionNumber}' not found";
+                    continue;
+                }
+
+                // Map the data
+                $updateData = [
+                    'admission_number' => $admissionNumber,
+                    'student_name' => $student->first_name . ' ' . $student->last_name,
+                    'current_classroom' => $student->classroom ? $student->classroom->name : '',
+                    'row_data' => $rowData,
+                    'student' => $student,
+                ];
+
+                $preview[] = $updateData;
+                $successCount++;
+            }
+
+            return view('students.update_import_preview', compact('preview', 'errors', 'successCount'));
+        } catch (\Exception $e) {
+            \Log::error('Student update import preview error: ' . $e->getMessage());
+            return back()->with('error', 'Error processing file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process the import and update students
+     */
+    public function updateImportProcess(Request $request)
+    {
+        $request->validate([
+            'students' => 'required|array',
+        ]);
+
+        $updated = 0;
+        $errors = [];
+        $skipped = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->input('students', []) as $encoded) {
+                $rowData = json_decode(base64_decode($encoded), true);
+                if (!$rowData) continue;
+
+                $admissionNumber = trim($rowData['admission_number'] ?? '');
+                if (empty($admissionNumber)) {
+                    $skipped++;
+                    continue;
+                }
+
+                $student = Student::where('admission_number', $admissionNumber)->first();
+                if (!$student) {
+                    $errors[] = "Student with admission number '{$admissionNumber}' not found";
+                    $skipped++;
+                    continue;
+                }
+
+                // Update student fields
+                $studentUpdateData = [];
+                $parentUpdateData = [];
+
+                // Student basic info
+                if (!empty($rowData['first_name'])) $studentUpdateData['first_name'] = $rowData['first_name'];
+                if (!empty($rowData['middle_name']) || isset($rowData['middle_name'])) $studentUpdateData['middle_name'] = $rowData['middle_name'] ?: null;
+                if (!empty($rowData['last_name'])) $studentUpdateData['last_name'] = $rowData['last_name'];
+                if (!empty($rowData['gender'])) $studentUpdateData['gender'] = strtolower($rowData['gender']);
+                if (!empty($rowData['dob'])) {
+                    try {
+                        $studentUpdateData['dob'] = \Carbon\Carbon::parse($rowData['dob'])->toDateString();
+                    } catch (\Exception $e) {
+                        // Skip invalid date
+                    }
+                }
+
+                // Academic info
+                if (!empty($rowData['classroom'])) {
+                    $classroom = Classroom::where('name', $rowData['classroom'])->first();
+                    if ($classroom) $studentUpdateData['classroom_id'] = $classroom->id;
+                }
+                if (!empty($rowData['stream'])) {
+                    $stream = Stream::where('name', $rowData['stream'])->first();
+                    if ($stream) $studentUpdateData['stream_id'] = $stream->id;
+                }
+                if (!empty($rowData['category'])) {
+                    $category = StudentCategory::where('name', $rowData['category'])->first();
+                    if ($category) $studentUpdateData['category_id'] = $category->id;
+                }
+
+                // Identifiers
+                if (!empty($rowData['nemis_number']) || isset($rowData['nemis_number'])) {
+                    $studentUpdateData['nemis_number'] = $rowData['nemis_number'] ?: null;
+                }
+                if (!empty($rowData['knec_assessment_number']) || isset($rowData['knec_assessment_number'])) {
+                    $studentUpdateData['knec_assessment_number'] = $rowData['knec_assessment_number'] ?: null;
+                }
+
+                // Extended demographics
+                if (!empty($rowData['religion']) || isset($rowData['religion'])) {
+                    $studentUpdateData['religion'] = $rowData['religion'] ?: null;
+                }
+                if (!empty($rowData['residential_area']) || isset($rowData['residential_area'])) {
+                    $studentUpdateData['residential_area'] = $rowData['residential_area'] ?: null;
+                }
+
+                // Medical
+                if (isset($rowData['has_allergies'])) {
+                    $studentUpdateData['has_allergies'] = in_array(strtolower($rowData['has_allergies']), ['yes', '1', 'true', 'y']) ? 1 : 0;
+                }
+                if (!empty($rowData['allergies_notes']) || isset($rowData['allergies_notes'])) {
+                    $studentUpdateData['allergies_notes'] = $rowData['allergies_notes'] ?: null;
+                }
+                if (isset($rowData['is_fully_immunized'])) {
+                    $studentUpdateData['is_fully_immunized'] = in_array(strtolower($rowData['is_fully_immunized']), ['yes', '1', 'true', 'y']) ? 1 : 0;
+                }
+                if (!empty($rowData['preferred_hospital']) || isset($rowData['preferred_hospital'])) {
+                    $studentUpdateData['preferred_hospital'] = $rowData['preferred_hospital'] ?: null;
+                }
+                if (!empty($rowData['emergency_contact_name']) || isset($rowData['emergency_contact_name'])) {
+                    $studentUpdateData['emergency_contact_name'] = $rowData['emergency_contact_name'] ?: null;
+                }
+                if (!empty($rowData['emergency_contact_phone'])) {
+                    $countryCode = $this->normalizeCountryCode($rowData['emergency_phone_country_code'] ?? '+254');
+                    $studentUpdateData['emergency_contact_phone'] = $this->formatPhoneWithCode($rowData['emergency_contact_phone'], $countryCode);
+                }
+
+                // Update student
+                if (!empty($studentUpdateData)) {
+                    $student->update($studentUpdateData);
+                }
+
+                // Get or create parent
+                $parent = $student->parent;
+                if (!$parent) {
+                    $parent = ParentInfo::create([]);
+                    $student->parent_id = $parent->id;
+                    $student->save();
+                }
+
+                // Parent/Guardian info
+                if (!empty($rowData['father_name']) || isset($rowData['father_name'])) {
+                    $parentUpdateData['father_name'] = $rowData['father_name'] ?: null;
+                }
+                if (!empty($rowData['father_phone'])) {
+                    $countryCode = $this->normalizeCountryCode($rowData['father_phone_country_code'] ?? '+254');
+                    $parentUpdateData['father_phone'] = $this->formatPhoneWithCode($rowData['father_phone'], $countryCode);
+                    $parentUpdateData['father_phone_country_code'] = $countryCode;
+                }
+                if (!empty($rowData['father_whatsapp'])) {
+                    $countryCode = $this->normalizeCountryCode($rowData['father_whatsapp_country_code'] ?? $rowData['father_phone_country_code'] ?? '+254');
+                    $parentUpdateData['father_whatsapp'] = $this->formatPhoneWithCode($rowData['father_whatsapp'], $countryCode);
+                    $parentUpdateData['father_whatsapp_country_code'] = $countryCode;
+                }
+                if (!empty($rowData['father_email']) || isset($rowData['father_email'])) {
+                    $parentUpdateData['father_email'] = $rowData['father_email'] ?: null;
+                }
+                if (!empty($rowData['father_id_number']) || isset($rowData['father_id_number'])) {
+                    $parentUpdateData['father_id_number'] = $rowData['father_id_number'] ?: null;
+                }
+
+                // Mother info
+                if (!empty($rowData['mother_name']) || isset($rowData['mother_name'])) {
+                    $parentUpdateData['mother_name'] = $rowData['mother_name'] ?: null;
+                }
+                if (!empty($rowData['mother_phone'])) {
+                    $countryCode = $this->normalizeCountryCode($rowData['mother_phone_country_code'] ?? '+254');
+                    $parentUpdateData['mother_phone'] = $this->formatPhoneWithCode($rowData['mother_phone'], $countryCode);
+                    $parentUpdateData['mother_phone_country_code'] = $countryCode;
+                }
+                if (!empty($rowData['mother_whatsapp'])) {
+                    $countryCode = $this->normalizeCountryCode($rowData['mother_whatsapp_country_code'] ?? $rowData['mother_phone_country_code'] ?? '+254');
+                    $parentUpdateData['mother_whatsapp'] = $this->formatPhoneWithCode($rowData['mother_whatsapp'], $countryCode);
+                    $parentUpdateData['mother_whatsapp_country_code'] = $countryCode;
+                }
+                if (!empty($rowData['mother_email']) || isset($rowData['mother_email'])) {
+                    $parentUpdateData['mother_email'] = $rowData['mother_email'] ?: null;
+                }
+                if (!empty($rowData['mother_id_number']) || isset($rowData['mother_id_number'])) {
+                    $parentUpdateData['mother_id_number'] = $rowData['mother_id_number'] ?: null;
+                }
+
+                // Guardian info
+                if (!empty($rowData['guardian_name']) || isset($rowData['guardian_name'])) {
+                    $parentUpdateData['guardian_name'] = $rowData['guardian_name'] ?: null;
+                }
+                if (!empty($rowData['guardian_phone'])) {
+                    $countryCode = $this->normalizeCountryCode($rowData['guardian_phone_country_code'] ?? '+254');
+                    $parentUpdateData['guardian_phone'] = $this->formatPhoneWithCode($rowData['guardian_phone'], $countryCode);
+                    $parentUpdateData['guardian_phone_country_code'] = $countryCode;
+                }
+                if (!empty($rowData['guardian_relationship']) || isset($rowData['guardian_relationship'])) {
+                    $parentUpdateData['guardian_relationship'] = $rowData['guardian_relationship'] ?: null;
+                }
+                if (!empty($rowData['guardian_email']) || isset($rowData['guardian_email'])) {
+                    $parentUpdateData['guardian_email'] = $rowData['guardian_email'] ?: null;
+                }
+
+                // Marital status
+                if (!empty($rowData['marital_status']) || isset($rowData['marital_status'])) {
+                    $parentUpdateData['marital_status'] = $rowData['marital_status'] ?: null;
+                }
+
+                // Update parent
+                if (!empty($parentUpdateData)) {
+                    $parent->update($parentUpdateData);
+                }
+
+                $updated++;
+            }
+
+            DB::commit();
+
+            $message = "Successfully updated {$updated} student(s).";
+            if ($skipped > 0) {
+                $message .= " {$skipped} row(s) skipped.";
+            }
+            if (!empty($errors)) {
+                $message .= " " . count($errors) . " error(s) occurred.";
+            }
+
+            return redirect()->route('students.update-import')
+                ->with('success', $message)
+                ->with('errors', $errors);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Student update import error: ' . $e->getMessage());
+            return back()->with('error', 'Error processing import: ' . $e->getMessage());
+        }
     }
 }

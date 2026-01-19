@@ -10,6 +10,13 @@ class MpesaC2BTransaction extends Model
 {
     use HasFactory;
 
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'mpesa_c2b_transactions';
+
     protected $fillable = [
         'transaction_type',
         'trans_id',

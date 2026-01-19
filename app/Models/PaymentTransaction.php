@@ -10,8 +10,13 @@ class PaymentTransaction extends Model
     protected $fillable = [
         'student_id',
         'invoice_id',
+        'payment_link_id',
+        'initiated_by',
         'gateway',
         'transaction_id',
+        'mpesa_receipt_number',
+        'phone_number',
+        'account_reference',
         'reference',
         'amount',
         'currency',
@@ -19,7 +24,9 @@ class PaymentTransaction extends Model
         'gateway_response',
         'webhook_data',
         'failure_reason',
+        'admin_notes',
         'paid_at',
+        'mpesa_transaction_date',
     ];
 
     protected $casts = [
@@ -27,6 +34,7 @@ class PaymentTransaction extends Model
         'gateway_response' => 'array',
         'webhook_data' => 'array',
         'paid_at' => 'datetime',
+        'mpesa_transaction_date' => 'datetime',
     ];
 
     /**
@@ -43,6 +51,22 @@ class PaymentTransaction extends Model
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    /**
+     * Get the payment link for this transaction
+     */
+    public function paymentLink(): BelongsTo
+    {
+        return $this->belongsTo(PaymentLink::class);
+    }
+
+    /**
+     * Get the user who initiated this transaction
+     */
+    public function initiator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'initiated_by');
     }
 
     /**

@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 
@@ -642,10 +643,16 @@ class MpesaPaymentController extends Controller
      */
     public function cancelTransaction(PaymentTransaction $transaction)
     {
+        Log::info('Cancel transaction requested', [
+            'transaction_id' => $transaction->id,
+            'current_status' => $transaction->status,
+        ]);
+
         if (!in_array($transaction->status, ['pending', 'processing'])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Transaction cannot be cancelled in its current state.',
+                'current_status' => $transaction->status,
             ], 400);
         }
 
@@ -655,19 +662,25 @@ class MpesaPaymentController extends Controller
                 'failure_reason' => 'Cancelled by user',
             ]);
 
+            Log::info('Transaction cancelled successfully', [
+                'transaction_id' => $transaction->id,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Transaction cancelled successfully',
+                'status' => 'cancelled',
             ]);
         } catch (\Exception $e) {
             Log::error('Transaction cancellation failed', [
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to cancel transaction',
+                'message' => 'Failed to cancel transaction: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -1227,6 +1240,23 @@ class MpesaPaymentController extends Controller
      */
     public function c2bDashboard(Request $request)
     {
+        // Check if table exists, if not return empty stats
+        if (!Schema::hasTable('mpesa_c2b_transactions')) {
+            $stats = [
+                'today_count' => 0,
+                'today_amount' => 0,
+                'unallocated_count' => 0,
+                'unallocated_amount' => 0,
+                'auto_matched_count' => 0,
+                'duplicates_count' => 0,
+            ];
+
+            $unallocatedTransactions = collect();
+
+            return view('finance.mpesa.c2b-dashboard', compact('stats', 'unallocatedTransactions'))
+                ->with('warning', 'C2B transactions table does not exist. Please run migrations: php artisan migrate');
+        }
+
         $stats = [
             'today_count' => MpesaC2BTransaction::today()->count(),
             'today_amount' => MpesaC2BTransaction::today()->sum('trans_amount'),

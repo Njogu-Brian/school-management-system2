@@ -20,6 +20,11 @@ class PaymentWebhookController extends Controller
             $payload = $request->all();
             $signature = $request->header('X-Mpesa-Signature', '');
 
+            Log::info('M-PESA Webhook received', [
+                'payload' => $payload,
+                'headers' => $request->headers->all(),
+            ]);
+
             // Log webhook
             $webhook = PaymentWebhook::create([
                 'gateway' => 'mpesa',
@@ -33,13 +38,44 @@ class PaymentWebhookController extends Controller
             $gateway = new MpesaGateway();
             $result = $gateway->processWebhook($payload, $signature);
 
+            Log::info('M-PESA Webhook processed', [
+                'success' => $result['success'] ?? false,
+                'checkout_request_id' => $result['checkout_request_id'] ?? null,
+            ]);
+
             if ($result['success']) {
                 // Find transaction by checkout request ID
-                $transaction = PaymentTransaction::where('transaction_id', $result['checkout_request_id'])
+                $checkoutRequestId = $result['checkout_request_id'] ?? null;
+                
+                if (!$checkoutRequestId) {
+                    Log::warning('M-PESA webhook: Missing checkout_request_id', [
+                        'result' => $result,
+                    ]);
+                    $webhook->markAsProcessed('Missing checkout_request_id');
+                    return response()->json(['success' => false, 'message' => 'Missing checkout_request_id'], 400);
+                }
+
+                $transaction = PaymentTransaction::where('transaction_id', $checkoutRequestId)
                     ->where('gateway', 'mpesa')
                     ->first();
 
+                Log::info('M-PESA webhook: Transaction lookup', [
+                    'checkout_request_id' => $checkoutRequestId,
+                    'transaction_found' => $transaction !== null,
+                    'transaction_id' => $transaction?->id,
+                ]);
+
                 if ($transaction) {
+                    // Skip if already processed
+                    if ($transaction->status === 'completed') {
+                        Log::info('M-Pesa webhook: Transaction already processed', [
+                            'transaction_id' => $transaction->id,
+                            'checkout_request_id' => $result['checkout_request_id'],
+                        ]);
+                        $webhook->markAsProcessed('Already processed');
+                        return response()->json(['success' => true], 200);
+                    }
+
                     DB::transaction(function () use ($transaction, $result, $webhook) {
                         // Update transaction with M-PESA receipt details
                         $transaction->update([
@@ -51,6 +87,9 @@ class PaymentWebhookController extends Controller
                                 ? \Carbon\Carbon::parse($result['transaction_date']) 
                                 : now(),
                         ]);
+
+                        // Reload transaction to get fresh relationships
+                        $transaction->refresh();
 
                         // Determine payment channel
                         $paymentChannel = 'stk_push';
@@ -132,7 +171,11 @@ class PaymentWebhookController extends Controller
                 } else {
                     $webhook->markAsProcessed('Transaction not found');
                     Log::warning('M-Pesa webhook: Transaction not found', [
-                        'checkout_request_id' => $result['checkout_request_id'],
+                        'checkout_request_id' => $checkoutRequestId,
+                        'available_transactions' => PaymentTransaction::where('gateway', 'mpesa')
+                            ->where('status', 'processing')
+                            ->pluck('transaction_id', 'id')
+                            ->toArray(),
                     ]);
                 }
             } else {

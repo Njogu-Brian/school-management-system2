@@ -491,28 +491,50 @@ class FamilyUpdateController extends Controller
                         ]);
                     }
                     
-                    // Compare after update for audit
-                    foreach ($parentData as $field => $value) {
-                        $afterValue = $parent->{$field};
-                        // Convert dates/Carbon to string for comparison
-                        if ($afterValue instanceof \Carbon\Carbon) {
-                            $afterValue = $afterValue->toDateString();
-                        } elseif ($afterValue instanceof \DateTime) {
-                            $afterValue = $afterValue->format('Y-m-d');
-                        }
-                        
+                    // Compare after update for audit - use the actual new value from parentData
+                    foreach ($parentData as $field => $newValue) {
                         $beforeValue = $parentBeforeSnapshot[$field] ?? null;
                         
-                        // Compare as strings to handle type differences
-                        if ((string)$beforeValue !== (string)$afterValue) {
+                        // Normalize both values for comparison
+                        $beforeNormalized = $beforeValue;
+                        if ($beforeNormalized instanceof \Carbon\Carbon) {
+                            $beforeNormalized = $beforeNormalized->toDateString();
+                        } elseif ($beforeNormalized instanceof \DateTime) {
+                            $beforeNormalized = $beforeNormalized->format('Y-m-d');
+                        } elseif ($beforeNormalized !== null) {
+                            $beforeNormalized = (string)$beforeNormalized;
+                        }
+                        
+                        $afterNormalized = $newValue;
+                        if ($afterNormalized instanceof \Carbon\Carbon) {
+                            $afterNormalized = $afterNormalized->toDateString();
+                        } elseif ($afterNormalized instanceof \DateTime) {
+                            $afterNormalized = $afterNormalized->format('Y-m-d');
+                        } elseif ($afterNormalized !== null) {
+                            $afterNormalized = (string)$afterNormalized;
+                        }
+                        
+                        // Compare normalized values - handle null cases
+                        $beforeStr = $beforeNormalized === null ? '' : (string)$beforeNormalized;
+                        $afterStr = $afterNormalized === null ? '' : (string)$afterNormalized;
+                        
+                        if ($beforeStr !== $afterStr) {
+                            \Log::info('FamilyUpdate: Parent field change detected', [
+                                'field' => $field,
+                                'before' => $beforeValue,
+                                'after' => $newValue,
+                                'before_str' => $beforeStr,
+                                'after_str' => $afterStr,
+                            ]);
+                            
                             $audits[] = [
                                 'family_id' => $family->id,
                                 'student_id' => $stu->id,
                                 'changed_by_user_id' => $userId,
                                 'source' => $source,
                                 'field' => 'parent.' . $field,
-                                'before' => $parentBeforeSnapshot[$field],
-                                'after' => $parent->{$field},
+                                'before' => $beforeValue === null ? null : (string)$beforeValue,
+                                'after' => $newValue === null ? null : (string)$newValue,
                                 'created_at' => $now,
                                 'updated_at' => $now,
                             ];
@@ -728,28 +750,51 @@ class FamilyUpdateController extends Controller
                     ]);
                 }
                 
-                // Compare before and after, convert dates for comparison
+                // Compare before and after - use the actual new value from updateData
                 foreach ($fieldsToCheck as $field) {
-                    $afterValue = $student->{$field};
-                    // Convert dates/Carbon to string for comparison
-                    if ($afterValue instanceof \Carbon\Carbon) {
-                        $afterValue = $afterValue->toDateString();
-                    } elseif ($afterValue instanceof \DateTime) {
-                        $afterValue = $afterValue->format('Y-m-d');
+                    $beforeValue = $beforeSnapshot[$field] ?? null;
+                    $newValue = $updateData[$field] ?? null;
+                    
+                    // Normalize both values for comparison
+                    $beforeNormalized = $beforeValue;
+                    if ($beforeNormalized instanceof \Carbon\Carbon) {
+                        $beforeNormalized = $beforeNormalized->toDateString();
+                    } elseif ($beforeNormalized instanceof \DateTime) {
+                        $beforeNormalized = $beforeNormalized->format('Y-m-d');
+                    } elseif ($beforeNormalized !== null) {
+                        $beforeNormalized = (string)$beforeNormalized;
                     }
                     
-                    $beforeValue = $beforeSnapshot[$field] ?? null;
+                    $afterNormalized = $newValue;
+                    if ($afterNormalized instanceof \Carbon\Carbon) {
+                        $afterNormalized = $afterNormalized->toDateString();
+                    } elseif ($afterNormalized instanceof \DateTime) {
+                        $afterNormalized = $afterNormalized->format('Y-m-d');
+                    } elseif ($afterNormalized !== null) {
+                        $afterNormalized = (string)$afterNormalized;
+                    }
                     
-                    // Compare as strings to handle date differences
-                    if ((string)$beforeValue !== (string)$afterValue) {
+                    // Compare normalized values - handle null cases
+                    $beforeStr = $beforeNormalized === null ? '' : (string)$beforeNormalized;
+                    $afterStr = $afterNormalized === null ? '' : (string)$afterNormalized;
+                    
+                    if ($beforeStr !== $afterStr) {
+                        \Log::info('FamilyUpdate: Student field change detected', [
+                            'field' => $field,
+                            'before' => $beforeValue,
+                            'after' => $newValue,
+                            'before_str' => $beforeStr,
+                            'after_str' => $afterStr,
+                        ]);
+                        
                         $audits[] = [
                             'family_id' => $family->id,
                             'student_id' => $student->id,
                             'changed_by_user_id' => $userId,
                             'source' => $source,
                             'field' => 'student.' . $field,
-                            'before' => $beforeSnapshot[$field],
-                            'after' => $student->{$field},
+                            'before' => $beforeValue === null ? null : (string)$beforeValue,
+                            'after' => $newValue === null ? null : (string)$newValue,
                             'created_at' => $now,
                             'updated_at' => $now,
                         ];
