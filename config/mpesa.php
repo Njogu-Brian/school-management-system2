@@ -47,8 +47,8 @@ return [
     | URLs for Customer to Business payment confirmations
     |
     */
-    'validation_url' => env('MPESA_VALIDATION_URL', env('APP_URL') . '/webhooks/payment/mpesa/validation'),
-    'confirmation_url' => env('MPESA_CONFIRMATION_URL', env('APP_URL') . '/webhooks/payment/mpesa/confirmation'),
+    'validation_url' => env('MPESA_VALIDATION_URL', env('APP_URL') . '/webhooks/payment/mpesa/c2b'),
+    'confirmation_url' => env('MPESA_CONFIRMATION_URL', env('APP_URL') . '/webhooks/payment/mpesa/c2b'),
 
     /*
     |--------------------------------------------------------------------------

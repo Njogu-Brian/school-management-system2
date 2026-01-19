@@ -179,7 +179,8 @@ Route::post('/webhooks/sms/dlr', [CommunicationController::class, 'smsDeliveryRe
 Route::post('/webhooks/whatsapp/wasender', [WhatsAppWebhookController::class, 'handle'])->name('webhooks.whatsapp.wasender');
 
 // Payment Webhooks (public, no auth required)
-Route::post('/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
+// Support both GET (for validation/testing) and POST (for actual callbacks)
+Route::match(['GET', 'POST'], '/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
 Route::post('/webhooks/payment/mpesa/c2b', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'handleC2BCallback'])->name('payment.webhook.mpesa.c2b');
 Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookController::class, 'handleStripe'])->name('payment.webhook.stripe');
 Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
@@ -1318,6 +1319,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('c2b/transactions', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bTransactions'])->name('c2b.transactions');
             Route::get('c2b/transactions/{id}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bTransactionShow'])->name('c2b.transaction.show');
             Route::post('c2b/transactions/{id}/allocate', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bAllocate'])->name('c2b.allocate');
+            Route::post('c2b/register-urls', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'registerC2BUrls'])->name('c2b.register-urls');
         });
         
         // M-PESA API endpoints (for AJAX)

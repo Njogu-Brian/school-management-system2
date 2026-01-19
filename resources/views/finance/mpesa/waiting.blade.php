@@ -289,6 +289,8 @@ function checkTransactionStatus() {
         url: '/api/finance/mpesa/transaction/' + transactionId + '/status',
         method: 'GET',
         success: function(response) {
+            console.log('Transaction status:', response);
+            
             if (response.status === 'completed') {
                 showSuccess(response);
             } else if (response.status === 'failed') {
@@ -298,22 +300,29 @@ function checkTransactionStatus() {
             }
             // Continue polling if still processing/pending
         },
-        error: function() {
+        error: function(xhr, status, error) {
             // Continue polling even on error
-            console.log('Error checking status, will retry...');
+            console.error('Error checking status:', {
+                status: status,
+                error: error,
+                response: xhr.responseText
+            });
         }
     });
 }
 
 function startCountdown() {
+    // Reset time remaining to 120 seconds
+    timeRemaining = 120;
+    
     countdownInterval = setInterval(function() {
-        timeRemaining--;
-        
-        const minutes = Math.floor(timeRemaining / 60);
-        const seconds = timeRemaining % 60;
-        $('#countdown').text(`${minutes}:${seconds.toString().padStart(2, '0')}`);
-        
-        if (timeRemaining <= 0) {
+        if (timeRemaining > 0) {
+            timeRemaining--;
+            
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            $('#countdown').text(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+        } else {
             clearInterval(countdownInterval);
             clearInterval(pollInterval);
             $('#countdown').text('0:00');
@@ -366,17 +375,46 @@ function cancelTransaction() {
         return;
     }
     
+    // Disable button to prevent double-click
+    $('.btn-cancel').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Cancelling...');
+    
     $.ajax({
         url: '/api/finance/mpesa/transaction/' + transactionId + '/cancel',
         method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') || '{{ csrf_token() }}'
+        },
         data: {
             _token: '{{ csrf_token() }}'
         },
-        success: function() {
-            showCancelled();
+        success: function(response) {
+            console.log('Cancel response:', response);
+            if (response.success) {
+                showCancelled();
+            } else {
+                alert(response.message || 'Failed to cancel transaction');
+                $('.btn-cancel').prop('disabled', false).html('<i class="bi bi-x-circle"></i> Cancel Transaction');
+            }
         },
-        error: function() {
-            alert('Failed to cancel transaction. Please contact support.');
+        error: function(xhr, status, error) {
+            console.error('Cancel error:', {
+                status: status,
+                error: error,
+                response: xhr.responseText
+            });
+            
+            let errorMessage = 'Failed to cancel transaction. Please contact support.';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.message) {
+                    errorMessage = response.message;
+                }
+            } catch(e) {
+                // Use default message
+            }
+            
+            alert(errorMessage);
+            $('.btn-cancel').prop('disabled', false).html('<i class="bi bi-x-circle"></i> Cancel Transaction');
         }
     });
 }

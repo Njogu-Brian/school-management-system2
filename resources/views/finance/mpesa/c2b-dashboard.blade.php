@@ -187,8 +187,16 @@ function checkForNewTransactions() {
         data: {
             since: lastUpdateTime.toISOString()
         },
-        success: function(transactions) {
-            if (transactions.length > 0) {
+        success: function(response) {
+            // Handle both array and object responses
+            let transactions = Array.isArray(response) ? response : (response.transactions || []);
+            
+            if (response.error) {
+                console.error('C2B API Error:', response.message || response.error);
+                if (response.message && response.message.includes('migrations')) {
+                    showNotification('⚠️ Database migration required. Please contact administrator.', 'warning');
+                }
+            } else if (transactions.length > 0) {
                 // Update stats
                 updateStats();
                 
@@ -202,8 +210,18 @@ function checkForNewTransactions() {
             }
             $('#refreshSpinner').hide();
         },
-        error: function() {
+        error: function(xhr, status, error) {
+            console.error('C2B Polling Error:', {
+                status: status,
+                error: error,
+                response: xhr.responseText
+            });
             $('#refreshSpinner').hide();
+            
+            // Show error notification only if it's not a network error
+            if (xhr.status !== 0) {
+                showNotification('⚠️ Failed to fetch transactions. Check console for details.', 'danger');
+            }
         }
     });
 }
@@ -272,10 +290,21 @@ function prependNewTransactions(transactions) {
     });
 }
 
-function showNotification(message) {
+function showNotification(message, type = 'primary') {
+    // Map type to Bootstrap classes
+    const typeClasses = {
+        'primary': 'bg-primary',
+        'success': 'bg-success',
+        'warning': 'bg-warning',
+        'danger': 'bg-danger',
+        'info': 'bg-info'
+    };
+    
+    const bgClass = typeClasses[type] || typeClasses['primary'];
+    
     // Create a toast notification
     const toast = $(`
-        <div class="toast align-items-center text-white bg-primary border-0" role="alert" style="position: fixed; top: 80px; right: 20px; z-index: 9999;">
+        <div class="toast align-items-center text-white ${bgClass} border-0" role="alert" style="position: fixed; top: 80px; right: 20px; z-index: 9999;">
             <div class="d-flex">
                 <div class="toast-body">
                     <i class="bi bi-bell-fill me-2"></i>${message}

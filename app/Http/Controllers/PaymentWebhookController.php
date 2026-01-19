@@ -13,16 +13,49 @@ class PaymentWebhookController extends Controller
 {
     /**
      * Handle M-Pesa webhook
+     * Supports both GET (validation/testing) and POST (actual callbacks)
      */
     public function handleMpesa(Request $request)
     {
+        // Log ALL requests to this endpoint
+        Log::info('M-PESA Webhook Endpoint Accessed', [
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'headers' => $request->headers->all(),
+            'query_params' => $request->query->all(),
+            'payload' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
+            'timestamp' => now()->toDateTimeString(),
+        ]);
+
+        // Handle GET requests (validation, testing, or browser access)
+        if ($request->isMethod('GET')) {
+            Log::info('M-PESA Webhook GET Request', [
+                'message' => 'GET request received - this is normal for validation or testing',
+                'query_params' => $request->query->all(),
+            ]);
+
+            // Return success response for GET requests (M-PESA validation)
+            return response()->json([
+                'status' => 'ok',
+                'message' => 'M-PESA webhook endpoint is active',
+                'method' => 'GET',
+                'timestamp' => now()->toIso8601String(),
+            ], 200);
+        }
+
+        // Handle POST requests (actual webhook callbacks)
         try {
             $payload = $request->all();
             $signature = $request->header('X-Mpesa-Signature', '');
 
-            Log::info('M-PESA Webhook received', [
+            Log::info('M-PESA Webhook POST Request Received', [
                 'payload' => $payload,
-                'headers' => $request->headers->all(),
+                'signature' => $signature ? 'present' : 'missing',
+                'content_length' => $request->header('Content-Length'),
+                'content_type' => $request->header('Content-Type'),
             ]);
 
             // Log webhook
@@ -204,9 +237,12 @@ class PaymentWebhookController extends Controller
         } catch (\Exception $e) {
             Log::error('M-Pesa webhook error', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'payload' => $request->all(),
+                'headers' => $request->headers->all(),
             ]);
 
+            // Still return success to M-PESA to avoid retries
             return response()->json(['error' => 'Webhook processing failed'], 500);
         }
     }

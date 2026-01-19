@@ -795,48 +795,74 @@ class MpesaGateway implements PaymentGatewayInterface
      * Register C2B URLs
      * 
      * This registers the validation and confirmation URLs for C2B payments
+     * Uses C2B v2 API as per Safaricom documentation
      * 
+     * @param string|null $confirmationUrl Optional confirmation URL (defaults to config)
+     * @param string|null $validationUrl Optional validation URL (defaults to config)
+     * @param string|null $responseType Optional response type (defaults to config, must be "Completed" or "Cancelled")
      * @return array
      */
-    public function registerC2BUrls(): array
+    public function registerC2BUrls(?string $confirmationUrl = null, ?string $validationUrl = null, ?string $responseType = null): array
     {
-        $url = $this->getUrl('c2b_register');
+        // Use v2 endpoint for C2B registration
+        $baseUrl = $this->environment === 'production' 
+            ? 'https://api.safaricom.co.ke/mpesa/c2b/v2/registerurl'
+            : 'https://sandbox.safaricom.co.ke/mpesa/c2b/v2/registerurl';
 
         $payload = [
             'ShortCode' => $this->shortcode,
-            'ResponseType' => config('mpesa.c2b.response_type', 'Completed'),
-            'ConfirmationURL' => config('mpesa.confirmation_url'),
-            'ValidationURL' => config('mpesa.validation_url'),
+            'ResponseType' => $responseType ?? config('mpesa.c2b.response_type', 'Completed'),
+            'ConfirmationURL' => $confirmationUrl ?? config('mpesa.confirmation_url'),
+            'ValidationURL' => $validationUrl ?? config('mpesa.validation_url'),
         ];
 
+        Log::info('Registering C2B URLs', [
+            'environment' => $this->environment,
+            'shortcode' => $this->shortcode,
+            'payload' => $payload,
+        ]);
+
         try {
-            $response = Http::withToken($this->getAccessToken())
-                ->post($url, $payload);
+            $accessToken = $this->getAccessToken();
+            $response = Http::withToken($accessToken)
+                ->post($baseUrl, $payload);
 
             if ($response->successful()) {
+                $responseData = $response->json();
+                
                 Log::info('M-PESA C2B URLs registered successfully', [
-                    'response' => $response->json(),
+                    'response' => $responseData,
+                    'urls_registered' => [
+                        'confirmation' => $payload['ConfirmationURL'],
+                        'validation' => $payload['ValidationURL'],
+                    ],
                 ]);
 
                 return [
                     'success' => true,
                     'message' => 'C2B URLs registered successfully',
-                    'response' => $response->json(),
+                    'response' => $responseData,
+                    'originator_conversation_id' => $responseData['OriginatorCoversationID'] ?? null,
                 ];
             }
 
+            $errorResponse = $response->json();
             Log::error('M-PESA C2B URL registration failed', [
-                'response' => $response->json(),
+                'status' => $response->status(),
+                'response' => $errorResponse,
+                'payload' => $payload,
             ]);
 
             return [
                 'success' => false,
-                'message' => 'Failed to register C2B URLs',
-                'error' => $response->json(),
+                'message' => $errorResponse['errorMessage'] ?? $errorResponse['ResponseDescription'] ?? 'Failed to register C2B URLs',
+                'error' => $errorResponse,
+                'status_code' => $response->status(),
             ];
         } catch (\Exception $e) {
             Log::error('M-PESA C2B URL registration exception', [
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return [

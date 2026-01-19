@@ -21,6 +21,18 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
         ]);
+
+        // Exempt M-PESA webhook endpoints from CSRF verification
+        // M-PESA sends webhooks from external servers without CSRF tokens
+        $middleware->validateCsrfTokens(except: [
+            'webhooks/payment/mpesa',
+            'webhooks/payment/mpesa/c2b',
+            'webhooks/payment/mpesa/timeout',
+            'webhooks/payment/mpesa/result',
+            'webhooks/payment/mpesa/queue-timeout',
+            'webhooks/payment/mpesa/validation',
+            'webhooks/payment/mpesa/confirmation',
+        ]);
     })
 
     ->withExceptions(function (Exceptions $exceptions) {

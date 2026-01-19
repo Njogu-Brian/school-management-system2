@@ -178,15 +178,10 @@ class MpesaPaymentController extends Controller
                     );
                 }
 
+                // Automatically redirect to waiting screen
                 return redirect()
-                    ->route('finance.mpesa.prompt-payment.form', [
-                        'student_id' => $request->student_id,
-                        'invoice_id' => $request->invoice_id
-                    ])
-                    ->with('success', 'STK Push sent successfully! The parent will receive a prompt on their phone.')
-                    ->with('transaction_id', $result['transaction_id'])
-                    ->with('checkout_request_id', $result['checkout_request_id'] ?? null)
-                    ->with('transaction_status', 'processing');
+                    ->route('finance.mpesa.waiting', $result['transaction_id'])
+                    ->with('success', 'STK Push sent successfully! Please check your phone for the M-PESA prompt.');
             }
 
             // Failed - return user-friendly error
@@ -587,6 +582,11 @@ class MpesaPaymentController extends Controller
         try {
             $result = $this->mpesaGateway->queryStkPushStatus($transaction->transaction_id);
 
+            Log::info('M-PESA Query Response', [
+                'transaction_id' => $transaction->id,
+                'result' => $result,
+            ]);
+
             if ($result['success'] && isset($result['data'])) {
                 $data = $result['data'];
                 
@@ -594,7 +594,11 @@ class MpesaPaymentController extends Controller
                 if (isset($data['ResultCode'])) {
                     if ($data['ResultCode'] == 0) {
                         // Success - process payment
-                        $this->processSuccessfulPayment($transaction, $data);
+                        // Check if already processed
+                        if ($transaction->status !== 'completed') {
+                            $this->processSuccessfulPayment($transaction, $data);
+                            $transaction->refresh();
+                        }
                         
                         $payment = Payment::find($transaction->payment_id);
                         return response()->json([
@@ -602,7 +606,7 @@ class MpesaPaymentController extends Controller
                             'message' => 'Payment completed successfully',
                             'receipt_number' => $payment->receipt_number ?? null,
                             'receipt_id' => $payment->id ?? null,
-                            'mpesa_code' => $transaction->external_transaction_id,
+                            'mpesa_code' => $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id,
                         ]);
                     } else {
                         // Failed
@@ -629,6 +633,7 @@ class MpesaPaymentController extends Controller
             Log::error('Transaction status check failed', [
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([
@@ -692,6 +697,10 @@ class MpesaPaymentController extends Controller
     {
         // Skip if already processed
         if ($transaction->payment_id) {
+            Log::info('Payment already processed', [
+                'transaction_id' => $transaction->id,
+                'payment_id' => $transaction->payment_id,
+            ]);
             return;
         }
 
@@ -699,15 +708,41 @@ class MpesaPaymentController extends Controller
             DB::beginTransaction();
 
             // Extract M-PESA receipt number
+            // Handle both webhook callback format and query response format
             $mpesaReceiptNumber = null;
-            if (isset($mpesaData['CallbackMetadata']['Item'])) {
+            
+            // Webhook callback format: CallbackMetadata.Item[]
+            if (isset($mpesaData['CallbackMetadata']['Item']) && is_array($mpesaData['CallbackMetadata']['Item'])) {
                 foreach ($mpesaData['CallbackMetadata']['Item'] as $item) {
-                    if ($item['Name'] === 'MpesaReceiptNumber') {
-                        $mpesaReceiptNumber = $item['Value'];
+                    if (isset($item['Name']) && $item['Name'] === 'MpesaReceiptNumber') {
+                        $mpesaReceiptNumber = $item['Value'] ?? null;
                         break;
                     }
                 }
             }
+            
+            // Query response format: might have different structure
+            // Check if receipt number is directly in the data
+            if (!$mpesaReceiptNumber && isset($mpesaData['MpesaReceiptNumber'])) {
+                $mpesaReceiptNumber = $mpesaData['MpesaReceiptNumber'];
+            }
+            
+            // Also check for ReceiptNumber (alternative field name)
+            if (!$mpesaReceiptNumber && isset($mpesaData['ReceiptNumber'])) {
+                $mpesaReceiptNumber = $mpesaData['ReceiptNumber'];
+            }
+            
+            // If still no receipt number, use transaction_id as fallback
+            // The receipt number might come later via webhook
+            if (!$mpesaReceiptNumber) {
+                $mpesaReceiptNumber = $transaction->transaction_id;
+            }
+            
+            Log::info('Processing successful payment', [
+                'transaction_id' => $transaction->id,
+                'mpesa_receipt_number' => $mpesaReceiptNumber,
+                'data_keys' => array_keys($mpesaData),
+            ]);
 
             // Create payment record
             $payment = Payment::create([
@@ -1166,6 +1201,19 @@ class MpesaPaymentController extends Controller
         try {
             Log::info('M-PESA C2B Callback received', ['data' => $request->all()]);
 
+            // Check if table exists
+            if (!Schema::hasTable('mpesa_c2b_transactions')) {
+                Log::error('M-PESA C2B Callback: Table does not exist', [
+                    'message' => 'mpesa_c2b_transactions table not found. Please run migrations.',
+                ]);
+                
+                // Still return success to M-PESA to avoid retries
+                return response()->json([
+                    'ResultCode' => 0,
+                    'ResultDesc' => 'Accepted',
+                ]);
+            }
+
             $data = $request->all();
 
             // Extract transaction details
@@ -1414,29 +1462,127 @@ class MpesaPaymentController extends Controller
      */
     public function getLatestC2BTransactions(Request $request)
     {
-        $since = $request->input('since', now()->subMinutes(5));
-        
-        $transactions = MpesaC2BTransaction::where('created_at', '>=', $since)
-            ->with(['student'])
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($transaction) {
-                return [
-                    'id' => $transaction->id,
-                    'trans_id' => $transaction->trans_id,
-                    'trans_time' => $transaction->trans_time->format('Y-m-d H:i:s'),
-                    'amount' => number_format($transaction->trans_amount, 2),
-                    'payer_name' => $transaction->full_name,
-                    'phone' => $transaction->formatted_phone,
-                    'reference' => $transaction->bill_ref_number,
-                    'student_name' => $transaction->student ? $transaction->student->first_name . ' ' . $transaction->student->last_name : null,
-                    'allocation_status' => $transaction->allocation_status,
-                    'match_confidence' => $transaction->match_confidence,
-                    'is_duplicate' => $transaction->is_duplicate,
-                ];
-            });
+        try {
+            // Check if table exists
+            if (!Schema::hasTable('mpesa_c2b_transactions')) {
+                return response()->json([
+                    'error' => 'Table does not exist',
+                    'message' => 'Please run migrations: php artisan migrate',
+                    'transactions' => []
+                ], 200);
+            }
 
-        return response()->json($transactions);
+            $since = $request->input('since', now()->subMinutes(5));
+            
+            // Parse the since parameter if it's a string
+            if (is_string($since)) {
+                try {
+                    $since = Carbon::parse($since);
+                } catch (\Exception $e) {
+                    $since = now()->subMinutes(5);
+                }
+            }
+            
+            $transactions = MpesaC2BTransaction::where('created_at', '>=', $since)
+                ->with(['student'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($transaction) {
+                    return [
+                        'id' => $transaction->id,
+                        'trans_id' => $transaction->trans_id,
+                        'trans_time' => $transaction->trans_time ? $transaction->trans_time->format('Y-m-d H:i:s') : null,
+                        'amount' => number_format($transaction->trans_amount, 2),
+                        'payer_name' => $transaction->full_name,
+                        'phone' => $transaction->formatted_phone,
+                        'reference' => $transaction->bill_ref_number,
+                        'student_name' => $transaction->student ? $transaction->student->first_name . ' ' . $transaction->student->last_name : null,
+                        'allocation_status' => $transaction->allocation_status,
+                        'match_confidence' => $transaction->match_confidence,
+                        'is_duplicate' => $transaction->is_duplicate,
+                    ];
+                });
+
+            return response()->json($transactions);
+        } catch (\Exception $e) {
+            Log::error('Failed to get latest C2B transactions', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'error' => 'Failed to fetch transactions',
+                'message' => $e->getMessage(),
+                'transactions' => []
+            ], 500);
+        }
+    }
+
+    /**
+     * Register C2B URLs with M-PESA
+     * This registers the validation and confirmation URLs for C2B payments
+     */
+    public function registerC2BUrls(Request $request)
+    {
+        try {
+            // Get URLs from request or use config defaults
+            $confirmationUrl = $request->input('confirmation_url') 
+                ?? config('mpesa.confirmation_url')
+                ?? route('payment.webhook.mpesa.c2b');
+            
+            $validationUrl = $request->input('validation_url') 
+                ?? config('mpesa.validation_url')
+                ?? route('payment.webhook.mpesa.c2b') . '/validation';
+            
+            $responseType = $request->input('response_type') 
+                ?? config('mpesa.c2b.response_type', 'Completed');
+
+            // Validate response type
+            if (!in_array($responseType, ['Completed', 'Cancelled'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ResponseType must be either "Completed" or "Cancelled"',
+                ], 400);
+            }
+
+            // Register URLs
+            $result = $this->mpesaGateway->registerC2BUrls(
+                $confirmationUrl,
+                $validationUrl,
+                $responseType
+            );
+
+            if ($result['success']) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'C2B URLs registered successfully',
+                    'data' => [
+                        'confirmation_url' => $confirmationUrl,
+                        'validation_url' => $validationUrl,
+                        'response_type' => $responseType,
+                        'originator_conversation_id' => $result['originator_conversation_id'] ?? null,
+                    ],
+                    'response' => $result['response'] ?? null,
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $result['message'] ?? 'Failed to register C2B URLs',
+                'error' => $result['error'] ?? null,
+            ], $result['status_code'] ?? 500);
+
+        } catch (\Exception $e) {
+            Log::error('C2B URL registration failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to register C2B URLs: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
