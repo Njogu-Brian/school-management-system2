@@ -339,6 +339,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/wallets', [SwimmingWalletController::class, 'index'])->name('swimming.wallets.index');
             Route::get('/wallets/student/{student}', [SwimmingWalletController::class, 'show'])->name('swimming.wallets.show');
             Route::post('/wallets/student/{student}/adjust', [SwimmingWalletController::class, 'adjust'])->name('swimming.wallets.adjust');
+            Route::post('/wallets/student/{student}/fix-orphaned-credits', [SwimmingWalletController::class, 'fixOrphanedCredits'])->name('swimming.wallets.fix-orphaned-credits');
             Route::post('/wallets/credit-from-optional-fees', [SwimmingWalletController::class, 'creditFromOptionalFees'])->name('swimming.wallets.credit-from-optional-fees');
             Route::post('/wallets/process-unpaid-attendance', [SwimmingWalletController::class, 'processUnpaidAttendance'])->name('swimming.wallets.process-unpaid-attendance');
             Route::post('/wallets/unallocate-swimming-payments', [SwimmingWalletController::class, 'unallocateSwimmingPayments'])->name('swimming.wallets.unallocate-payments');

@@ -24,6 +24,25 @@ class MpesaGateway implements PaymentGatewayInterface
         $this->shortcode = config('mpesa.shortcode') ?? config('services.mpesa.shortcode');
         $this->passkey = config('mpesa.passkey') ?? config('services.mpesa.passkey');
         $this->environment = config('mpesa.environment') ?? config('services.mpesa.environment', 'sandbox');
+        
+        // Verify environment configuration (simplified logging)
+        $urls = $this->environment === 'production' 
+            ? config('mpesa.production_urls')
+            : config('mpesa.sandbox_urls');
+        $oauthUrl = $urls['oauth'] ?? 'unknown';
+        
+        // Check for configuration errors
+        if ($this->environment === 'production' && strpos($oauthUrl, 'sandbox.safaricom.co.ke') !== false) {
+            Log::error('M-PESA CONFIGURATION ERROR: Environment is production but using sandbox URLs! Set MPESA_ENVIRONMENT=production in .env and clear cache.');
+        }
+        
+        // Validate credentials are configured
+        if (empty($this->consumerKey) || empty($this->consumerSecret)) {
+            Log::warning('M-PESA credentials not fully configured', [
+                'has_consumer_key' => !empty($this->consumerKey),
+                'has_consumer_secret' => !empty($this->consumerSecret),
+            ]);
+        }
     }
 
     /**
@@ -39,17 +58,11 @@ class MpesaGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Get access token (with caching)
+     * Get access token (always fresh - no caching)
+     * Fetches a new token from M-PESA for every request
      */
     protected function getAccessToken(): string
     {
-        // Check if we have a cached token
-        $cacheKey = 'mpesa_access_token_' . md5($this->consumerKey);
-        
-        if ($cachedToken = cache($cacheKey)) {
-            return $cachedToken;
-        }
-
         // Validate credentials before attempting
         if (empty($this->consumerKey) || empty($this->consumerSecret)) {
             Log::error('M-PESA credentials missing', [
@@ -63,11 +76,7 @@ class MpesaGateway implements PaymentGatewayInterface
         try {
             $url = $this->getUrl('oauth') . '?grant_type=client_credentials';
 
-            Log::info('Requesting M-PESA access token', [
-                'url' => $url,
-                'environment' => $this->environment,
-                'consumer_key_length' => strlen($this->consumerKey),
-            ]);
+            // Get fresh token (logging simplified)
 
             $response = Http::timeout(30)
                 ->withBasicAuth($this->consumerKey, $this->consumerSecret)
@@ -76,10 +85,11 @@ class MpesaGateway implements PaymentGatewayInterface
             if ($response->successful() && $response->json('access_token')) {
                 $accessToken = $response->json('access_token');
                 
-                // Cache for 55 minutes (tokens are valid for 1 hour)
-                cache([$cacheKey => $accessToken], now()->addMinutes(55));
-                
-                Log::info('M-PESA access token obtained successfully');
+                // Log token obtained (simplified)
+                Log::debug('M-PESA access token obtained', [
+                    'environment' => $this->environment,
+                    'token_length' => strlen($accessToken),
+                ]);
                 
                 return $accessToken;
             }
@@ -106,13 +116,120 @@ class MpesaGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Clear cached access token (useful for forcing refresh)
+     * Clear cached access token (no-op since we don't cache anymore)
+     * Kept for backward compatibility with existing code
      */
     public function clearAccessToken(): void
     {
+        // No longer caching tokens, so nothing to clear
+        // But we clear the instance variable if it exists
+        $this->accessToken = null;
+        
+        // Also clear any existing cache entry (in case it was cached before)
         $cacheKey = 'mpesa_access_token_' . md5($this->consumerKey);
         cache()->forget($cacheKey);
-        $this->accessToken = null;
+        
+        Log::debug('M-PESA access token cache cleared (tokens are now always fresh)', [
+            'environment' => $this->environment,
+        ]);
+    }
+
+    /**
+     * Validate M-PESA credentials configuration
+     */
+    public function validateCredentials(): array
+    {
+        $issues = [];
+        $warnings = [];
+        
+        // Check environment
+        if (empty($this->environment)) {
+            $issues[] = 'MPESA_ENVIRONMENT is not set';
+        } elseif ($this->environment !== 'production' && $this->environment !== 'sandbox') {
+            $issues[] = "MPESA_ENVIRONMENT must be 'production' or 'sandbox', got: {$this->environment}";
+        }
+        
+        // Check credentials
+        if (empty($this->consumerKey)) {
+            $issues[] = 'MPESA_CONSUMER_KEY is missing';
+        }
+        if (empty($this->consumerSecret)) {
+            $issues[] = 'MPESA_CONSUMER_SECRET is missing';
+        }
+        if (empty($this->shortcode)) {
+            $issues[] = 'MPESA_SHORTCODE is missing';
+        }
+        if (empty($this->passkey)) {
+            $issues[] = 'MPESA_PASSKEY is missing';
+        }
+        
+        // Check environment-specific requirements
+        if ($this->environment === 'production') {
+            $urls = config('mpesa.production_urls');
+            $oauthUrl = $urls['oauth'] ?? null;
+            
+            if (strpos($oauthUrl, 'sandbox.safaricom.co.ke') !== false) {
+                $issues[] = 'Production environment but using sandbox URLs - Check MPESA_ENVIRONMENT setting';
+            }
+            
+            if ($this->shortcode == '174379') {
+                $warnings[] = 'Shortcode 174379 is the sandbox test number - Are you using production credentials?';
+            }
+        }
+        
+        // Try to get access token
+        $tokenObtained = false;
+        $tokenError = null;
+        try {
+            $token = $this->getAccessToken();
+            $tokenObtained = !empty($token);
+        } catch (\Exception $e) {
+            $tokenError = $e->getMessage();
+            $issues[] = "Failed to get access token: {$tokenError}";
+        }
+        
+        return [
+            'valid' => empty($issues) && $tokenObtained,
+            'environment' => $this->environment ?? 'not set',
+            'has_consumer_key' => !empty($this->consumerKey),
+            'has_consumer_secret' => !empty($this->consumerSecret),
+            'shortcode' => $this->shortcode ?? 'NOT SET',
+            'has_passkey' => !empty($this->passkey),
+            'oauth_url' => $this->getUrl('oauth'),
+            'stk_push_url' => $this->getUrl('stk_push'),
+            'token_obtained' => $tokenObtained,
+            'token_error' => $tokenError,
+            'issues' => $issues,
+            'warnings' => $warnings,
+            'recommendations' => $this->getRecommendations($issues, $warnings),
+        ];
+    }
+    
+    /**
+     * Get recommendations based on validation issues
+     */
+    protected function getRecommendations(array $issues, array $warnings): array
+    {
+        $recommendations = [];
+        
+        if (!empty($issues)) {
+            if (in_array('Failed to get access token', $issues)) {
+                $recommendations[] = 'Verify your IP address is whitelisted in Safaricom Daraja portal';
+                $recommendations[] = 'Ensure your Consumer Key and Secret match the shortcode and passkey';
+                $recommendations[] = 'Check that your app is approved for production environment';
+            }
+            
+            if (strpos(implode(', ', $issues), 'environment') !== false) {
+                $recommendations[] = "Set MPESA_ENVIRONMENT=production in .env file";
+                $recommendations[] = 'Run: php artisan config:clear && php artisan cache:clear';
+            }
+        }
+        
+        if (!empty($warnings)) {
+            $recommendations[] = 'Review your credentials - ensure they are from the production Daraja app';
+        }
+        
+        return $recommendations;
     }
 
     /**
@@ -164,29 +281,45 @@ class MpesaGateway implements PaymentGatewayInterface
     }
 
     /**
-     * Initiate STK Push
+     * Initiate STK Push - Simplified version
      */
     public function initiatePayment(PaymentTransaction $transaction, array $options = []): array
     {
+        // Validate required fields
         $phoneNumber = $options['phone_number'] ?? null;
         if (!$phoneNumber) {
             throw new \Exception('Phone number is required for M-Pesa payment');
         }
 
-        // Format phone number (254XXXXXXXXX)
+        // Format phone number to 254XXXXXXXXX
         $phoneNumber = $this->formatPhoneNumber($phoneNumber);
 
+        // Validate credentials are configured
+        if (empty($this->shortcode) || empty($this->passkey)) {
+            throw new \Exception('M-PESA shortcode and passkey are required. Please configure in settings.');
+        }
+
+        // Get fresh access token
+        try {
+            $accessToken = $this->getAccessToken();
+        } catch (\Exception $e) {
+            $transaction->update([
+                'status' => 'failed',
+                'failure_reason' => 'Failed to authenticate with M-PESA: ' . $e->getMessage(),
+            ]);
+            throw new \Exception('M-PESA authentication failed. Please check your credentials.');
+        }
+
+        // Prepare STK Push payload
         $timestamp = now()->format('YmdHis');
         $password = base64_encode($this->shortcode . $this->passkey . $timestamp);
-
-        $url = $this->getUrl('stk_push');
 
         $payload = [
             'BusinessShortCode' => $this->shortcode,
             'Password' => $password,
             'Timestamp' => $timestamp,
             'TransactionType' => 'CustomerPayBillOnline',
-            'Amount' => (int) $transaction->amount,
+            'Amount' => (int) round($transaction->amount),
             'PartyA' => $phoneNumber,
             'PartyB' => $this->shortcode,
             'PhoneNumber' => $phoneNumber,
@@ -195,86 +328,72 @@ class MpesaGateway implements PaymentGatewayInterface
             'TransactionDesc' => 'School Fee Payment - ' . $transaction->reference,
         ];
 
-        // Try to get fresh token and make request
-        $maxRetries = 2;
-        $attempt = 0;
-        $response = null;
-        
-        while ($attempt < $maxRetries) {
-            try {
-                $accessToken = $this->getAccessToken();
-                
-                $response = Http::timeout(60)
-                    ->withToken($accessToken)
-                    ->post($url, $payload);
+        $url = $this->getUrl('stk_push');
 
-                $responseData = $response->json();
+        // Make STK Push request
+        try {
+            $response = Http::timeout(60)
+                ->withToken($accessToken)
+                ->post($url, $payload);
 
-                // Check for invalid token error and retry once with fresh token
-                if (isset($responseData['errorCode']) && $responseData['errorCode'] == '404.001.03' && $attempt < 1) {
-                    Log::warning('M-PESA token invalid, clearing cache and retrying', [
-                        'attempt' => $attempt + 1,
-                        'response' => $responseData,
-                    ]);
-                    
-                    // Clear cached token and retry
-                    $this->clearAccessToken();
-                    $attempt++;
-                    continue;
-                }
+            $responseData = $response->json();
 
-                // If we get here, we have a response (successful or not)
-                break;
-                
-            } catch (\Exception $e) {
-                Log::error('M-PESA STK Push request failed', [
-                    'attempt' => $attempt + 1,
-                    'error' => $e->getMessage(),
+            // Handle successful response
+            if ($response->successful() && isset($responseData['ResponseCode']) && $responseData['ResponseCode'] == '0') {
+                $transaction->update([
+                    'transaction_id' => $responseData['CheckoutRequestID'],
+                    'gateway_response' => $responseData,
+                    'status' => 'processing',
                 ]);
-                
-                if ($attempt >= $maxRetries - 1) {
-                    throw $e;
-                }
-                
-                $attempt++;
+
+                return [
+                    'success' => true,
+                    'checkout_request_id' => $responseData['CheckoutRequestID'],
+                    'message' => 'STK Push sent successfully. Please check your phone.',
+                ];
             }
-        }
 
-        if (!$response) {
-            throw new \Exception('Failed to get response from M-PESA after ' . $maxRetries . ' attempts');
-        }
+            // Handle error response
+            $errorCode = $responseData['errorCode'] ?? null;
+            $errorMessage = $responseData['errorMessage'] ?? $responseData['ResponseDescription'] ?? 'STK Push failed';
 
-        $responseData = $response->json();
+            // Special handling for common errors
+            if ($errorCode == '404.001.03') {
+                $errorMessage = 'M-PESA authentication failed. Please verify: 1) Your IP is whitelisted in Daraja portal, 2) Credentials match the app, 3) App is approved for production.';
+            }
 
-        if ($response->successful() && isset($responseData['ResponseCode']) && $responseData['ResponseCode'] == '0') {
-            // Update transaction with CheckoutRequestID
             $transaction->update([
-                'transaction_id' => $responseData['CheckoutRequestID'],
-                'gateway_response' => $responseData,
-                'status' => 'processing',
+                'status' => 'failed',
+                'failure_reason' => $errorMessage,
+            ]);
+
+            // Log error (simplified)
+            Log::error('M-PESA STK Push failed', [
+                'transaction_id' => $transaction->id,
+                'error_code' => $errorCode,
+                'error_message' => $errorMessage,
+                'phone' => $phoneNumber,
+                'amount' => $transaction->amount,
             ]);
 
             return [
-                'success' => true,
-                'checkout_request_id' => $responseData['CheckoutRequestID'],
-                'message' => 'STK Push sent successfully. Please check your phone.',
+                'success' => false,
+                'message' => $errorMessage,
             ];
+
+        } catch (\Exception $e) {
+            $transaction->update([
+                'status' => 'failed',
+                'failure_reason' => 'Network error: ' . $e->getMessage(),
+            ]);
+
+            Log::error('M-PESA STK Push network error', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new \Exception('Failed to send STK Push: ' . $e->getMessage());
         }
-
-        Log::error('M-Pesa STK Push failed', [
-            'transaction_id' => $transaction->id,
-            'response' => $responseData,
-        ]);
-
-        $transaction->update([
-            'status' => 'failed',
-            'failure_reason' => $responseData['errorMessage'] ?? 'STK Push failed',
-        ]);
-
-        return [
-            'success' => false,
-            'message' => $responseData['errorMessage'] ?? 'Payment initiation failed',
-        ];
     }
 
     /**
@@ -564,22 +683,39 @@ class MpesaGateway implements PaymentGatewayInterface
 
     /**
      * Validate phone number
+     * Accepts: 254XXXXXXXXX (12 digits), 07XXXXXXXX (10 digits), 7XXXXXXXX (9 digits)
+     * Kenyan mobile prefixes: 7X (Safaricom/Airtel), 1X (Airtel/Telkom)
+     * Format breakdown:
+     * - 254XXXXXXXXX = 254 (3) + 7XXXXXXXX or 1XXXXXXXX (9) = 12 total
+     * - 07XXXXXXXX = 0 (1) + 7XXXXXXX or 1XXXXXXX (8) = 10 total  
+     * - 7XXXXXXXX = 7XXXXXXX or 1XXXXXXX (9) = 9 total
      */
     public static function isValidKenyanPhone(string $phone): bool
     {
         $phone = preg_replace('/[^0-9]/', '', $phone);
         
-        // Check if it's a valid Kenyan number (254XXXXXXXXX or 07XXXXXXXX or 01XXXXXXXX)
+        // Format: 254XXXXXXXXX (12 digits) - International format
+        // After 254 (3 digits), we need 9 more digits starting with 7 or 1
         if (strlen($phone) == 12 && substr($phone, 0, 3) == '254') {
-            return in_array(substr($phone, 3, 2), ['07', '01', '11']);
+            // Check if the 4th character (after 254) is 7 or 1
+            $fourthChar = substr($phone, 3, 1);
+            if (in_array($fourthChar, ['7', '1'])) {
+                // Verify it's exactly 12 digits: 254 + 9 digits starting with 7 or 1
+                return preg_match('/^254[17]\d{8}$/', $phone);
+            }
+            return false;
         }
         
-        if (strlen($phone) == 10 && in_array(substr($phone, 0, 2), ['07', '01', '11'])) {
-            return true;
+        // Format: 07XXXXXXXX or 01XXXXXXXX (10 digits) - Local format with leading 0
+        if (strlen($phone) == 10 && substr($phone, 0, 1) == '0') {
+            // Check if it's 07XXXXXXXX or 01XXXXXXXX
+            return preg_match('/^0[17]\d{8}$/', $phone);
         }
         
-        if (strlen($phone) == 9 && in_array(substr($phone, 0, 1), ['7', '1'])) {
-            return true;
+        // Format: 7XXXXXXXX or 1XXXXXXXX (9 digits) - Without leading 0
+        if (strlen($phone) == 9) {
+            // Check if it starts with 7 or 1
+            return preg_match('/^[17]\d{8}$/', $phone);
         }
         
         return false;

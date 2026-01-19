@@ -377,4 +377,123 @@ class SwimmingWalletController extends Controller
                 ->with('error', 'Failed to unallocate swimming payments: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Fix wallet for a student by reversing orphaned optional fee credits
+     * This fixes cases where OptionalFee was deleted but wallet wasn't debited
+     */
+    public function fixOrphanedCredits(Request $request, Student $student)
+    {
+        if (!Auth::user()->hasAnyRole(['Super Admin', 'Admin'])) {
+            abort(403, 'Only administrators can fix orphaned credits.');
+        }
+
+        $request->validate([
+            'term' => 'required|in:1,2,3',
+            'year' => 'required|integer',
+        ]);
+
+        try {
+            $term = (int) $request->term;
+            $year = (int) $request->year;
+
+            // Find swimming votehead
+            $swimmingVotehead = \App\Models\Votehead::where(function($q) {
+                $q->where('name', 'like', '%swimming%')
+                  ->orWhere('code', 'like', '%SWIM%');
+            })->where('is_mandatory', false)->first();
+
+            if (!$swimmingVotehead) {
+                return redirect()->back()
+                    ->with('error', 'Swimming votehead not found.');
+            }
+
+            // Find unreversed credit ledger entries for this student from optional fees
+            // that match the term pattern and haven't been reversed
+            $ledgers = \App\Models\SwimmingLedger::where('student_id', $student->id)
+                ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                ->whereNull('swimming_attendance_id')
+                ->whereRaw("description NOT LIKE ?", ["%Reversed%"])
+                ->whereRaw("description LIKE ?", ["%Term {$term}%"])
+                ->get();
+
+            $reversed = 0;
+            $totalAmount = 0;
+
+            DB::transaction(function () use ($ledgers, $student, $term, $year, &$reversed, &$totalAmount) {
+                foreach ($ledgers as $ledger) {
+                    // Check if the OptionalFee still exists
+                    $optionalFee = \App\Models\OptionalFee::find($ledger->source_id);
+                    
+                    // If OptionalFee doesn't exist or is not billed, reverse the credit
+                    if (!$optionalFee || $optionalFee->status !== 'billed') {
+                        // Check if already reversed
+                        $alreadyReversed = \App\Models\SwimmingLedger::where('student_id', $student->id)
+                            ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                            ->where('source_id', $ledger->source_id)
+                            ->where('type', \App\Models\SwimmingLedger::TYPE_DEBIT)
+                            ->whereRaw("description LIKE ?", ["%credit reversed%"])
+                            ->exists();
+
+                        if ($alreadyReversed) {
+                            continue;
+                        }
+
+                        $creditAmount = $ledger->amount;
+                        $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
+                        $wallet->refresh();
+                        
+                        $oldBalance = $wallet->balance;
+                        $newBalance = max(0, $oldBalance - $creditAmount);
+                        
+                        // Update wallet
+                        $wallet->update([
+                            'balance' => $newBalance,
+                            'total_debited' => $wallet->total_debited + $creditAmount,
+                            'last_transaction_at' => now(),
+                        ]);
+                        
+                        // Create ledger entry to reverse the credit
+                        \App\Models\SwimmingLedger::create([
+                            'student_id' => $student->id,
+                            'type' => \App\Models\SwimmingLedger::TYPE_DEBIT,
+                            'amount' => $creditAmount,
+                            'balance_after' => $newBalance,
+                            'source' => \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE,
+                            'source_id' => $ledger->source_id,
+                            'source_type' => \App\Models\OptionalFee::class,
+                            'description' => "Swimming termly fee unbilled - credit reversed (Term {$term}, manual fix)",
+                            'created_by' => auth()->id(),
+                        ]);
+
+                        // Mark the original credit ledger entry as reversed
+                        $ledger->update([
+                            'description' => ($ledger->description ?? '') . ' (Reversed - unbilled, manual fix)',
+                        ]);
+
+                        $reversed++;
+                        $totalAmount += $creditAmount;
+                    }
+                }
+            });
+
+            if ($reversed > 0) {
+                $message = "Reversed {$reversed} orphaned credit(s) totaling Ksh " . number_format($totalAmount, 2) . ".";
+                return redirect()->route('swimming.wallets.show', $student)
+                    ->with('success', $message);
+            } else {
+                return redirect()->route('swimming.wallets.show', $student)
+                    ->with('info', 'No orphaned credits found to reverse.');
+            }
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to fix orphaned credits', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()
+                ->with('error', 'Failed to fix orphaned credits: ' . $e->getMessage());
+        }
+    }
 }

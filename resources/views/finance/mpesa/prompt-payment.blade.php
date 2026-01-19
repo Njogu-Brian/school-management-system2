@@ -19,12 +19,143 @@
                     </h5>
                 </div>
                 <div class="finance-card-body">
+                    @includeIf('finance.invoices.partials.alerts')
+                    
+                    <!-- Success Alert -->
+                    @if(session('success'))
+                    <div class="alert alert-success alert-dismissible fade show border-0 mb-4" role="alert">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-check-circle-fill fs-4 me-3"></i>
+                            <div class="flex-grow-1">
+                                <strong>Success!</strong> {{ session('success') }}
+                                @if(session('transaction_id'))
+                                    <div class="mt-2">
+                                        <small class="d-block">
+                                            <strong>Transaction ID:</strong> #{{ session('transaction_id') }}
+                                        </small>
+                                        @if(session('checkout_request_id'))
+                                        <small class="d-block">
+                                            <strong>Checkout Request ID:</strong> {{ session('checkout_request_id') }}
+                                        </small>
+                                        @endif
+                                        @if(session('transaction_status'))
+                                        <small class="d-block">
+                                            <strong>Status:</strong> 
+                                            <span class="badge bg-warning text-dark">{{ ucfirst(session('transaction_status')) }}</span>
+                                        </small>
+                                        @endif
+                                        <div class="mt-2">
+                                            <a href="{{ route('finance.mpesa.waiting', session('transaction_id')) }}" class="btn btn-sm btn-success">
+                                                <i class="bi bi-eye"></i> View Transaction Status
+                                            </a>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    </div>
+                    @endif
+
+                    <!-- Error Alert -->
+                    @if(session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show border-0 mb-4" role="alert">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                            <div class="flex-grow-1">
+                                <strong>Error!</strong>
+                                <p class="mb-2">{{ session('error') }}</p>
+                                @if(str_contains(session('error'), 'authentication') || str_contains(session('error'), 'configuration'))
+                                <div class="mt-2 p-2 bg-light rounded">
+                                    <small class="text-muted d-block mb-1">
+                                        <i class="bi bi-info-circle"></i> <strong>Possible causes:</strong>
+                                    </small>
+                                    <ul class="small text-muted mb-0 ps-3">
+                                        <li>IP address not whitelisted in Safaricom Daraja portal</li>
+                                        <li>M-PESA credentials mismatch</li>
+                                        <li>App not approved for production environment</li>
+                                    </ul>
+                                    <small class="text-muted d-block mt-2">
+                                        Please contact your system administrator to verify M-PESA configuration.
+                                    </small>
+                                </div>
+                                @else
+                                <small class="text-muted d-block mt-2">
+                                    <i class="bi bi-info-circle"></i> Please check the information above and try again.
+                                </small>
+                                @endif
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    </div>
+                    @endif
+
+                    <!-- M-PESA Configuration Status -->
+                    @php
+                        $configValidation = app(\App\Services\PaymentGateways\MpesaGateway::class)->validateCredentials();
+                    @endphp
+                    @if(!$configValidation['valid'])
+                    <div class="alert alert-warning border-0 mb-4">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-exclamation-triangle fs-4 me-3"></i>
+                            <div class="flex-grow-1">
+                                <strong>M-PESA Configuration Issues Detected</strong>
+                                @if(!empty($configValidation['issues']))
+                                <ul class="mb-2 mt-2">
+                                    @foreach($configValidation['issues'] as $issue)
+                                    <li>{{ $issue }}</li>
+                                    @endforeach
+                                </ul>
+                                @endif
+                                @if(!empty($configValidation['recommendations']))
+                                <div class="mt-2">
+                                    <strong>Action Required:</strong>
+                                    <ul class="mb-0">
+                                        @foreach($configValidation['recommendations'] as $rec)
+                                        <li>{{ $rec }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    @endif
+
                     <!-- Info Alert -->
                     <div class="alert alert-info border-0 mb-4">
                         <div class="d-flex align-items-start">
                             <i class="bi bi-info-circle fs-4 me-3"></i>
                             <div>
                                 <strong>How it works:</strong> When you submit this form, the parent will receive an STK push prompt on their phone to enter their M-PESA PIN and complete the payment.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Configuration Summary (Non-sensitive) -->
+                    <div class="alert alert-light border mb-4">
+                        <div class="row g-2 small">
+                            <div class="col-md-6">
+                                <strong>Environment:</strong> 
+                                <span class="badge {{ $configValidation['environment'] === 'production' ? 'bg-success' : 'bg-warning text-dark' }}">
+                                    {{ strtoupper($configValidation['environment'] ?? 'Not Set') }}
+                                </span>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Shortcode:</strong> 
+                                <code>{{ $configValidation['shortcode'] ?? 'Not Set' }}</code>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>OAuth URL:</strong> 
+                                <code class="small">{{ $configValidation['oauth_url'] ?? 'N/A' }}</code>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Status:</strong> 
+                                @if($configValidation['valid'] ?? false)
+                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Valid</span>
+                                @else
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Issues Found</span>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -241,6 +372,77 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Recent STK Push Requests -->
+            @if($student && $recentTransactions->count() > 0)
+            <div class="finance-card finance-animate mt-4" id="recentTransactionsCard">
+                <div class="finance-card-header">
+                    <h5 class="finance-card-title">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Recent STK Push Requests
+                    </h5>
+                </div>
+                <div class="finance-card-body">
+                    <div class="list-group list-group-flush">
+                        @foreach($recentTransactions as $transaction)
+                        <div class="list-group-item px-0 py-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <strong class="d-block">
+                                        KES {{ number_format($transaction->amount, 2) }}
+                                    </strong>
+                                    <small class="text-muted">
+                                        {{ $transaction->created_at->format('M d, Y H:i') }}
+                                    </small>
+                                </div>
+                                <div>
+                                    @if($transaction->status === 'completed')
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Completed
+                                        </span>
+                                    @elseif($transaction->status === 'processing' || $transaction->status === 'pending')
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-hourglass-split"></i> Processing
+                                        </span>
+                                    @elseif($transaction->status === 'failed' || $transaction->status === 'cancelled')
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-x-circle"></i> Failed
+                                        </span>
+                                    @else
+                                        <span class="badge bg-secondary">
+                                            {{ ucfirst($transaction->status) }}
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+                            @if($transaction->invoice)
+                                <small class="text-muted d-block">
+                                    Invoice: {{ $transaction->invoice->invoice_number }}
+                                </small>
+                            @endif
+                            @if($transaction->failure_reason)
+                                <small class="text-danger d-block mt-1">
+                                    <i class="bi bi-exclamation-triangle"></i> {{ $transaction->failure_reason }}
+                                </small>
+                            @endif
+                            @if($transaction->status === 'completed' && $transaction->paid_at)
+                                <small class="text-success d-block mt-1">
+                                    <i class="bi bi-check-circle"></i> Paid at {{ $transaction->paid_at->format('M d, Y H:i') }}
+                                </small>
+                            @endif
+                            @if(in_array($transaction->status, ['pending', 'processing']))
+                                <div class="mt-2">
+                                    <a href="{{ route('finance.mpesa.waiting', $transaction) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-arrow-right-circle"></i> Check Status
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 @endsection
@@ -344,9 +546,31 @@ $(document).ready(function() {
     // Form submission
     $('#promptPaymentForm').on('submit', function(e) {
         let btn = $(this).find('button[type="submit"]');
+        let form = $(this);
+        
+        // Disable button and show loading state
         btn.prop('disabled', true);
-        btn.html('<i class="bi bi-hourglass-split"></i> Sending...');
+        btn.html('<i class="bi bi-hourglass-split"></i> Sending STK Push...');
+        
+        // Clear any previous alerts
+        $('.alert').alert('close');
+        
+        // Scroll to top to show any messages
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        
+        // Re-enable button after 5 seconds (in case of network issues)
+        setTimeout(function() {
+            if (btn.prop('disabled')) {
+                btn.prop('disabled', false);
+                btn.html('<i class="bi bi-send"></i> Send STK Push');
+            }
+        }, 5000);
     });
+    
+    // Auto-scroll to top if there's a success/error message
+    @if(session('success') || session('error'))
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    @endif
 });
 </script>
 @endsection

@@ -201,12 +201,18 @@ class OptionalFeeController extends Controller
                     // This ensures optional fees appear in the preview correctly
                 } else {
                     // Exempt: remove optional fee + invoice item (and invoice if empty)
-                    OptionalFee::where([
+                    // Find and delete the model instance (not bulk delete) so observer fires
+                    $optionalFee = OptionalFee::where([
                         'student_id' => $studentId,
                         'votehead_id'=> $voteheadId,
                         'term'       => $term,
                         'year'       => $year,
-                    ])->delete();
+                    ])->first();
+
+                    if ($optionalFee) {
+                        // Delete the model instance so the observer fires and handles wallet reversal
+                        $optionalFee->delete();
+                    }
 
                     $invoice = Invoice::where([
                         'student_id' => $studentId,
@@ -304,12 +310,18 @@ class OptionalFeeController extends Controller
                     // DO NOT create invoice items here - they will be created during posting commit
                     // This ensures optional fees appear in the preview correctly
                 } else {
-                    OptionalFee::where([
+                    // Find and delete the model instance (not bulk delete) so observer fires
+                    $optionalFee = OptionalFee::where([
                         'student_id' => $student->id,
                         'votehead_id'=> $voteheadId,
                         'term'       => $term,
                         'year'       => $year,
-                    ])->delete();
+                    ])->first();
+
+                    if ($optionalFee) {
+                        // Delete the model instance so the observer fires and handles wallet reversal
+                        $optionalFee->delete();
+                    }
 
                     $invoice = Invoice::where([
                         'student_id' => $student->id,

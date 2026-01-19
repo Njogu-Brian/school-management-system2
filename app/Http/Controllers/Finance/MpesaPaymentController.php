@@ -68,6 +68,9 @@ class MpesaPaymentController extends Controller
             'active_payment_links' => PaymentLink::active()->count(),
         ];
 
+        // Validate M-PESA configuration
+        $configValidation = $this->mpesaGateway->validateCredentials();
+
         // Recent transactions
         $recentTransactions = PaymentTransaction::with(['student', 'invoice'])
             ->where('gateway', 'mpesa')
@@ -82,7 +85,7 @@ class MpesaPaymentController extends Controller
             ->take(10)
             ->get();
 
-        return view('finance.mpesa.dashboard', compact('stats', 'recentTransactions', 'activeLinks'));
+        return view('finance.mpesa.dashboard', compact('stats', 'recentTransactions', 'activeLinks', 'configValidation'));
     }
 
     /**
@@ -92,6 +95,7 @@ class MpesaPaymentController extends Controller
     {
         $student = null;
         $invoice = null;
+        $recentTransactions = collect();
 
         if ($request->filled('student_id')) {
             $student = Student::with(['family', 'invoices' => function($q) {
@@ -103,8 +107,25 @@ class MpesaPaymentController extends Controller
             $invoice = Invoice::with('student')->findOrFail($request->invoice_id);
             $student = $invoice->student;
         }
+        
+        // Get recent transactions if student is available
+        if ($student) {
+            $query = PaymentTransaction::with(['invoice'])
+                ->where('gateway', 'mpesa')
+                ->where('student_id', $student->id);
+            
+            // If invoice is specified, filter by invoice as well
+            if ($invoice) {
+                $query->where(function($q) use ($invoice) {
+                    $q->where('invoice_id', $invoice->id)
+                      ->orWhereNull('invoice_id'); // Include transactions without invoice
+                });
+            }
+            
+            $recentTransactions = $query->latest()->take(5)->get();
+        }
 
-        return view('finance.mpesa.prompt-payment', compact('student', 'invoice'));
+        return view('finance.mpesa.prompt-payment', compact('student', 'invoice', 'recentTransactions'));
     }
 
     /**
@@ -122,15 +143,23 @@ class MpesaPaymentController extends Controller
             'send_channels.*' => 'in:sms,email,whatsapp',
         ]);
 
-        // Validate phone number
-        if (!MpesaGateway::isValidKenyanPhone($request->phone_number)) {
-            return back()->with('error', 'Invalid phone number. Please use a valid Kenyan mobile number.');
+        // Clean and validate phone number
+        $phoneNumber = trim($request->phone_number);
+        
+        if (!MpesaGateway::isValidKenyanPhone($phoneNumber)) {
+            return redirect()
+                ->route('finance.mpesa.prompt-payment.form', [
+                    'student_id' => $request->student_id,
+                    'invoice_id' => $request->invoice_id
+                ])
+                ->with('error', 'Invalid phone number. Please use a valid Kenyan mobile number (e.g., 0712345678 or 254712345678).')
+                ->withInput();
         }
 
         try {
             $result = $this->mpesaGateway->initiateAdminPromptedPayment(
                 studentId: $request->student_id,
-                phoneNumber: $request->phone_number,
+                phoneNumber: $phoneNumber,
                 amount: $request->amount,
                 invoiceId: $request->invoice_id,
                 adminId: Auth::id(),
@@ -148,20 +177,38 @@ class MpesaPaymentController extends Controller
                     );
                 }
 
-                // Redirect to waiting screen
                 return redirect()
-                    ->route('finance.mpesa.waiting', $result['transaction_id'])
-                    ->with('success', 'STK Push sent successfully');
+                    ->route('finance.mpesa.prompt-payment.form', [
+                        'student_id' => $request->student_id,
+                        'invoice_id' => $request->invoice_id
+                    ])
+                    ->with('success', 'STK Push sent successfully! The parent will receive a prompt on their phone.')
+                    ->with('transaction_id', $result['transaction_id'])
+                    ->with('checkout_request_id', $result['checkout_request_id'] ?? null)
+                    ->with('transaction_status', 'processing');
             }
 
-            return back()->with('error', $result['message'] ?? 'Failed to initiate payment.');
-        } catch (\Exception $e) {
-            Log::error('Admin-prompted STK push failed', [
-                'student_id' => $request->student_id,
-                'error' => $e->getMessage(),
-            ]);
+            // Failed - return user-friendly error
+            $errorMessage = $this->formatErrorMessage($result['message'] ?? 'Failed to initiate STK Push.');
 
-            return back()->with('error', 'An error occurred: ' . $e->getMessage());
+            return redirect()
+                ->route('finance.mpesa.prompt-payment.form', [
+                    'student_id' => $request->student_id,
+                    'invoice_id' => $request->invoice_id
+                ])
+                ->with('error', $errorMessage)
+                ->withInput();
+
+        } catch (\Exception $e) {
+            $errorMessage = $this->formatErrorMessage($e->getMessage());
+
+            return redirect()
+                ->route('finance.mpesa.prompt-payment.form', [
+                    'student_id' => $request->student_id,
+                    'invoice_id' => $request->invoice_id
+                ])
+                ->with('error', $errorMessage)
+                ->withInput();
         }
     }
 
@@ -838,6 +885,28 @@ class MpesaPaymentController extends Controller
     /**
      * Send payment notifications via selected channels
      */
+    /**
+     * Format error message for user display
+     */
+    protected function formatErrorMessage(string $message): string
+    {
+        // Make error messages more user-friendly
+        $userFriendlyErrors = [
+            'M-PESA authentication failed' => 'M-PESA authentication failed. Please contact administrator to verify credentials.',
+            'Invalid Access Token' => 'M-PESA service configuration error. Please contact administrator.',
+            'Network error' => 'Unable to connect to M-PESA. Please check your internet connection and try again.',
+            'Failed to authenticate' => 'M-PESA authentication failed. Please contact administrator.',
+        ];
+
+        foreach ($userFriendlyErrors as $key => $friendly) {
+            if (stripos($message, $key) !== false) {
+                return $friendly;
+            }
+        }
+
+        return $message;
+    }
+
     protected function sendPaymentNotifications($student, $amount, $channels, $message)
     {
         if (!$student->family) {

@@ -494,13 +494,18 @@ class OptionalFeeImportController extends Controller
 
             try {
                 DB::transaction(function () use ($studentId, $voteheadId, $year, $term) {
-                    // Delete optional fee
-                    OptionalFee::where('student_id', $studentId)
+                    // Find and delete the model instance (not bulk delete) so observer fires
+                    $optionalFee = OptionalFee::where('student_id', $studentId)
                         ->where('votehead_id', $voteheadId)
                         ->where('year', $year)
                         ->where('term', $term)
                         ->where('status', 'billed')
-                        ->delete();
+                        ->first();
+                    
+                    if ($optionalFee) {
+                        // Delete the model instance so the observer fires and handles wallet reversal
+                        $optionalFee->delete();
+                    }
 
                     // Delete invoice item
                     $invoice = Invoice::where('student_id', $studentId)

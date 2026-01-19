@@ -134,29 +134,77 @@ class OptionalFeeObserver
             return;
         }
 
-        $student = $optionalFee->student;
-        if (!$student) {
+        // Get student ID - try relationship first, fallback to attribute
+        $studentId = $optionalFee->student_id ?? ($optionalFee->student ? $optionalFee->student->id : null);
+        if (!$studentId) {
+            Log::warning('Cannot handle unbilling: student_id not available', [
+                'optional_fee_id' => $optionalFee->id,
+                'action' => $action,
+            ]);
             return;
         }
 
         try {
-            DB::transaction(function () use ($optionalFee, $student, $action) {
-                // Find ledger entry for this optional fee credit
-                $ledger = \App\Models\SwimmingLedger::where('student_id', $student->id)
+            DB::transaction(function () use ($optionalFee, $studentId, $action) {
+                // First, try to find ledger entry by source_id (most direct match)
+                $ledger = \App\Models\SwimmingLedger::where('student_id', $studentId)
                     ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
                     ->where('source_id', $optionalFee->id)
+                    ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                    ->whereNull('swimming_attendance_id') // Only reverse optional fee credits, not attendance debits
                     ->first();
+
+                // If not found by source_id, try to find by matching student, votehead, term, and year
+                // This handles cases where the OptionalFee ID might not match exactly
+                // We'll match by finding ledger entries that haven't been reversed and match the amount/term pattern
+                if (!$ledger && $optionalFee->votehead_id && $optionalFee->term && $optionalFee->amount > 0) {
+                    // Find credit ledger entries for this student from optional fees that match the amount
+                    // and have a description indicating the same term
+                    $potentialLedgers = \App\Models\SwimmingLedger::where('student_id', $studentId)
+                        ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                        ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                        ->where('amount', $optionalFee->amount)
+                        ->whereNull('swimming_attendance_id')
+                        ->whereRaw("description NOT LIKE ?", ["%Reversed%"])
+                        ->get();
+
+                    // Try to match by term in description
+                    foreach ($potentialLedgers as $potentialLedger) {
+                        if (stripos($potentialLedger->description ?? '', "Term {$optionalFee->term}") !== false) {
+                            $ledger = $potentialLedger;
+                            break;
+                        }
+                    }
+                }
+
 
                 if ($ledger) {
                     $creditAmount = $ledger->amount;
                     
+                    // Check if this credit has already been reversed
+                    $alreadyReversed = \App\Models\SwimmingLedger::where('student_id', $studentId)
+                        ->where('source', \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE)
+                        ->where('source_id', $optionalFee->id)
+                        ->where('type', \App\Models\SwimmingLedger::TYPE_DEBIT)
+                        ->whereRaw("description LIKE ?", ["%credit reversed%"])
+                        ->exists();
+
+                    if ($alreadyReversed) {
+                        Log::info('Swimming wallet credit already reversed for optional fee', [
+                            'optional_fee_id' => $optionalFee->id,
+                            'student_id' => $studentId,
+                            'ledger_id' => $ledger->id,
+                        ]);
+                        return;
+                    }
+                    
                     // Debit the wallet by the same amount that was credited
                     // This effectively reverses the credit
-                    $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($student->id);
+                    $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($studentId);
                     $wallet->refresh();
                     
                     $oldBalance = $wallet->balance;
-                    $newBalance = $oldBalance - $creditAmount;
+                    $newBalance = max(0, $oldBalance - $creditAmount); // Ensure balance doesn't go negative
                     
                     // Update wallet
                     $wallet->update([
@@ -167,14 +215,14 @@ class OptionalFeeObserver
                     
                     // Create ledger entry to reverse the credit
                     \App\Models\SwimmingLedger::create([
-                        'student_id' => $student->id,
+                        'student_id' => $studentId,
                         'type' => \App\Models\SwimmingLedger::TYPE_DEBIT,
                         'amount' => $creditAmount,
                         'balance_after' => $newBalance,
                         'source' => \App\Models\SwimmingLedger::SOURCE_OPTIONAL_FEE,
                         'source_id' => $optionalFee->id,
                         'source_type' => OptionalFee::class,
-                        'description' => "Swimming termly fee unbilied - credit reversed (Term {$optionalFee->term})",
+                        'description' => "Swimming termly fee unbilled - credit reversed (Term {$optionalFee->term})",
                         'created_by' => auth()->id(),
                     ]);
 
@@ -185,9 +233,20 @@ class OptionalFeeObserver
 
                     Log::info('Automatically debited swimming wallet from optional fee unbilling', [
                         'optional_fee_id' => $optionalFee->id,
-                        'student_id' => $student->id,
+                        'student_id' => $studentId,
                         'amount' => $creditAmount,
+                        'old_balance' => $oldBalance,
                         'new_balance' => $newBalance,
+                        'ledger_id' => $ledger->id,
+                    ]);
+                } else {
+                    Log::warning('Could not find swimming ledger entry to reverse for optional fee', [
+                        'optional_fee_id' => $optionalFee->id,
+                        'student_id' => $studentId,
+                        'votehead_id' => $optionalFee->votehead_id,
+                        'term' => $optionalFee->term,
+                        'year' => $optionalFee->year,
+                        'amount' => $optionalFee->amount,
                     ]);
                 }
 
@@ -197,9 +256,10 @@ class OptionalFeeObserver
         } catch (\Exception $e) {
             Log::error('Failed to automatically debit swimming wallet from optional fee unbilling', [
                 'optional_fee_id' => $optionalFee->id,
-                'student_id' => $optionalFee->student_id,
+                'student_id' => $studentId,
                 'action' => $action,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
