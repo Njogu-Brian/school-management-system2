@@ -197,16 +197,15 @@
             padding: 20px;
             min-height: 100vh;
         }
+        /* Remove padding for finance pages - they handle their own spacing */
+        .content.finance-content {
+            padding: 0;
+        }
         .page-wrapper {
             margin-left: 0;
             min-height: 100vh;
         }
-        /* Finance pages need to compensate for .content padding */
         .page-wrapper.finance-wrapper {
-            margin: -20px;
-            width: calc(100% + 40px);
-        }
-        .page-wrapper.finance-wrapper .finance-page {
             margin: 0;
             width: 100%;
         }
@@ -215,12 +214,15 @@
                 margin-left: 0;
                 padding: 20px;
             }
+            .content.finance-content {
+                padding: 0;
+            }
             .page-wrapper {
                 margin-left: 0;
             }
             .page-wrapper.finance-wrapper {
-                margin: -20px;
-                width: calc(100% + 40px);
+                margin: 0;
+                width: 100%;
             }
         }
         .sidebar-toggle {
@@ -422,7 +424,8 @@
     </div>
      @endauth
 
-    <div class="content">
+    @php $isFinance = request()->is('finance*') || request()->is('voteheads*'); @endphp
+    <div class="content @if($isFinance) finance-content @endif">
         @auth
         <div class="app-header d-flex align-items-center gap-3 mb-3">
             <div class="header-actions ms-auto">
@@ -473,7 +476,6 @@
             </div>
         </div>
         @endauth
-        @php $isFinance = request()->is('finance*') || request()->is('voteheads*'); @endphp
         <div class="page-wrapper @if($isFinance) finance-wrapper @endif">
             @if($isFinance)
                 <div class="finance-page">
