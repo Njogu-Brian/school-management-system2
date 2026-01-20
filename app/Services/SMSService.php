@@ -28,7 +28,8 @@ class SMSService
         // HostPinnacle API base URL
         $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
         // Use "Read Account Status" API for balance check (from HostPinnacle documentation)
-        $this->balanceUrl = env('SMS_BALANCE_URL', $apiBase . '/readAccountStatus');
+        // Updated to use correct endpoint: GET /SMSApi/account/readstatus
+        $this->balanceUrl = env('SMS_BALANCE_URL', $apiBase . '/account/readstatus');
     }
 
     /**
@@ -516,7 +517,9 @@ class SMSService
 
             Log::info("Account status retrieved successfully", [
                 'endpoint' => $endpoint,
-                'response' => $decoded
+                'method' => 'GET',
+                'response' => $decoded,
+                'code_version' => 'v2.0 - Using correct HostPinnacle endpoint'
             ]);
             return $decoded;
         } catch (\Exception $e) {
