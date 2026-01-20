@@ -201,9 +201,26 @@
             margin-left: 0;
             min-height: 100vh;
         }
+        /* Finance pages need to compensate for .content padding */
+        .page-wrapper.finance-wrapper {
+            margin: -20px;
+            width: calc(100% + 40px);
+        }
+        .page-wrapper.finance-wrapper .finance-page {
+            margin: 0;
+            width: 100%;
+        }
         @media(max-width:992px){
+            .content {
+                margin-left: 0;
+                padding: 20px;
+            }
             .page-wrapper {
                 margin-left: 0;
+            }
+            .page-wrapper.finance-wrapper {
+                margin: -20px;
+                width: calc(100% + 40px);
             }
         }
         .sidebar-toggle {
@@ -457,7 +474,7 @@
         </div>
         @endauth
         @php $isFinance = request()->is('finance*') || request()->is('voteheads*'); @endphp
-        <div class="page-wrapper">
+        <div class="page-wrapper @if($isFinance) finance-wrapper @endif">
             @if($isFinance)
                 <div class="finance-page">
                     <div class="finance-shell">
