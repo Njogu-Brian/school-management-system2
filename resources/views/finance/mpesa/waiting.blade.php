@@ -279,32 +279,39 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function startPolling() {
-    // Aggressive polling strategy for faster webhook detection:
-    // - First 60 seconds: poll every 0.5 seconds (webhook usually arrives within 10-30 seconds)
-    // - Next 60 seconds: poll every 1 second
-    // - After that: poll every 2 seconds
+    // Smart polling strategy:
+    // - Wait 5 seconds before first query (give user time to see prompt)
+    // - First 60 seconds: poll every 1 second (webhook usually arrives within 10-30 seconds)
+    // - Next 60 seconds: poll every 2 seconds
+    // - After that: poll every 3 seconds
     
     const startTime = Date.now();
     let pollCount = 0;
+    let hasStartedPolling = false;
     
     function scheduleNextPoll() {
         const elapsed = (Date.now() - startTime) / 1000; // seconds
         
         let nextInterval;
-        if (elapsed < 60) {
-            // First 60 seconds: poll every 0.5 seconds for fastest detection
-            nextInterval = 500;
-        } else if (elapsed < 120) {
-            // Next 60 seconds: poll every 1 second
+        if (!hasStartedPolling && elapsed < 5) {
+            // Wait 5 seconds before first query to give user time to see prompt
+            nextInterval = 5000 - (elapsed * 1000);
+            hasStartedPolling = true;
+        } else if (elapsed < 65) {
+            // First 60 seconds after initial wait: poll every 1 second
             nextInterval = 1000;
-        } else {
-            // After 120 seconds: poll every 2 seconds
+        } else if (elapsed < 125) {
+            // Next 60 seconds: poll every 2 seconds
             nextInterval = 2000;
+        } else {
+            // After 120 seconds: poll every 3 seconds
+            nextInterval = 3000;
         }
         
         pollInterval = setTimeout(function() {
             pollCount++;
-            console.log('Polling attempt #' + pollCount + ' at ' + elapsed.toFixed(1) + 's');
+            const currentElapsed = (Date.now() - startTime) / 1000;
+            console.log('Polling attempt #' + pollCount + ' at ' + currentElapsed.toFixed(1) + 's');
             
             checkTransactionStatus().then(function() {
                 // Status changed, stop polling
@@ -323,16 +330,19 @@ function startPolling() {
         }, nextInterval);
     }
     
-    // Check immediately
-    console.log('Starting initial status check');
-    checkTransactionStatus().then(function() {
-        // Already completed, no need to poll
-        console.log('Transaction already completed');
-    }).catch(function() {
-        // Start progressive polling
-        console.log('Transaction still processing, starting polling');
-        scheduleNextPoll();
-    });
+    // Don't check immediately - wait 5 seconds first
+    console.log('Waiting 5 seconds before first status check (to give user time to see prompt)');
+    setTimeout(function() {
+        console.log('Starting initial status check');
+        checkTransactionStatus().then(function() {
+            // Already completed, no need to poll
+            console.log('Transaction already completed');
+        }).catch(function() {
+            // Start progressive polling
+            console.log('Transaction still processing, starting polling');
+            scheduleNextPoll();
+        });
+    }, 5000);
 }
 
 function checkTransactionStatus() {

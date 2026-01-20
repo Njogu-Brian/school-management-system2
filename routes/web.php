@@ -182,6 +182,8 @@ Route::post('/webhooks/whatsapp/wasender', [WhatsAppWebhookController::class, 'h
 // Support both GET (for validation/testing) and POST (for actual callbacks)
 Route::match(['GET', 'POST'], '/webhooks/payment/mpesa', [\App\Http\Controllers\PaymentWebhookController::class, 'handleMpesa'])->name('payment.webhook.mpesa');
 Route::post('/webhooks/payment/mpesa/c2b', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'handleC2BCallback'])->name('payment.webhook.mpesa.c2b');
+// Alternative C2B route without "mpesa" in path (required by Safaricom - they don't allow "mpesa" in URLs)
+Route::post('/webhooks/payment/c2b', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'handleC2BCallback'])->name('payment.webhook.c2b');
 Route::post('/webhooks/payment/stripe', [\App\Http\Controllers\PaymentWebhookController::class, 'handleStripe'])->name('payment.webhook.stripe');
 Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookController::class, 'handlePaypal'])->name('payment.webhook.paypal');
 

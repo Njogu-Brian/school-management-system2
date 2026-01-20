@@ -12,10 +12,36 @@ This guide shows you how to register your C2B (Customer to Business) callback UR
 
 Based on your configuration, your URLs should be:
 
-- **Confirmation URL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b`
-- **Validation URL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b` (same as confirmation, validation is optional)
+- **Confirmation URL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b`
+- **Validation URL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b` (same as confirmation, validation is optional)
 
-## 🚀 Method 1: Using the Built-in API Endpoint (Recommended)
+> **⚠️ Important**: Safaricom does NOT allow the word "mpesa" in callback URLs. The URL uses `/webhooks/payment/c2b` instead of `/webhooks/payment/mpesa/c2b`.
+
+## 🚀 Method 1: Using Artisan Command (Easiest - Recommended)
+
+### Step 1: Run the Registration Command
+
+You can register URLs directly from your terminal:
+
+```bash
+php artisan mpesa:register-c2b-urls
+```
+
+**With Custom Options:**
+```bash
+php artisan mpesa:register-c2b-urls \
+  --confirmation-url="https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b" \
+  --validation-url="https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b" \
+  --response-type="Completed"
+```
+
+The command will:
+- Show you what will be registered
+- Ask for confirmation
+- Register the URLs with M-PESA
+- Display the registration result
+
+## 🚀 Method 2: Using the Built-in API Endpoint
 
 ### Step 1: Access the Registration Endpoint
 
@@ -23,13 +49,14 @@ You can register URLs directly from your application:
 
 **Via Browser/Postman:**
 ```
-POST image.png
+POST https://erp.royalkingsschools.sc.ke/finance/mpesa/c2b/register-urls
+```
 
 **With Custom URLs (optional):**
 ```json
 {
-  "confirmation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b",
-  "validation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b",
+  "confirmation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b",
+  "validation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b",
   "response_type": "Completed"
 }
 ```
@@ -40,8 +67,8 @@ POST image.png
   "success": true,
   "message": "C2B URLs registered successfully",
   "data": {
-    "confirmation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b",
-    "validation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b",
+    "confirmation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b",
+    "validation_url": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b",
     "response_type": "Completed",
     "originator_conversation_id": "6e86-45dd-91ac-fd5d4178ab523408729"
   }
@@ -54,7 +81,7 @@ After registration, check the Safaricom Daraja Portal:
 1. Go to https://developer.safaricom.co.ke/dashboard/urlmanagement
 2. Your registered URLs should appear in the list
 
-## 🛠️ Method 2: Using Safaricom Daraja Portal
+## 🛠️ Method 3: Using Safaricom Daraja Portal
 
 ### Step 1: Log in to Daraja Portal
 1. Visit https://developer.safaricom.co.ke
@@ -68,8 +95,8 @@ After registration, check the Safaricom Daraja Portal:
 4. Fill in:
    - **ShortCode**: Your paybill number (from `.env` file)
    - **ResponseType**: `Completed` (or `Cancelled` if you want to reject by default)
-   - **ConfirmationURL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b`
-   - **ValidationURL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b`
+   - **ConfirmationURL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b`
+   - **ValidationURL**: `https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b`
 5. Click **Send Request**
 
 ### Step 3: Verify Response
@@ -82,7 +109,7 @@ You should see:
 }
 ```
 
-## 🔧 Method 3: Using cURL Command
+## 🔧 Method 4: Using cURL Command
 
 ### For Sandbox:
 ```bash
@@ -92,8 +119,8 @@ curl -X POST 'https://sandbox.safaricom.co.ke/mpesa/c2b/v2/registerurl' \
   -d '{
     "ShortCode": "YOUR_SHORTCODE",
     "ResponseType": "Completed",
-    "ConfirmationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b",
-    "ValidationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b"
+    "ConfirmationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b",
+    "ValidationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b"
   }'
 ```
 
@@ -105,8 +132,8 @@ curl -X POST 'https://api.safaricom.co.ke/mpesa/c2b/v2/registerurl' \
   -d '{
     "ShortCode": "YOUR_SHORTCODE",
     "ResponseType": "Completed",
-    "ConfirmationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b",
-    "ValidationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b"
+    "ConfirmationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b",
+    "ValidationURL": "https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b"
   }'
 ```
 
@@ -131,8 +158,9 @@ MPESA_PASSKEY=your_passkey
 MPESA_ENVIRONMENT=production  # or 'sandbox' for testing
 
 # C2B URLs (optional - defaults will be used if not set)
-MPESA_CONFIRMATION_URL=https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b
-MPESA_VALIDATION_URL=https://erp.royalkingsschools.sc.ke/webhooks/payment/mpesa/c2b
+# Note: Safaricom does NOT allow "mpesa" in URLs, so use /webhooks/payment/c2b
+MPESA_CONFIRMATION_URL=https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b
+MPESA_VALIDATION_URL=https://erp.royalkingsschools.sc.ke/webhooks/payment/c2b
 MPESA_C2B_RESPONSE_TYPE=Completed
 ```
 
@@ -154,8 +182,9 @@ MPESA_C2B_RESPONSE_TYPE=Completed
 4. **URL Requirements**:
    - Must be publicly accessible
    - Production must use HTTPS
-   - Cannot contain keywords: M-PESA, Safaricom, exe, exec, cmd, SQL, query
+   - **Cannot contain keywords: M-PESA, Safaricom, exe, exec, cmd, SQL, query** ⚠️
    - Cannot use public URL testers (ngrok, mockbin, requestbin) in production
+   - **Important**: The word "mpesa" (case-insensitive) is NOT allowed in callback URLs. Use `/webhooks/payment/c2b` instead of `/webhooks/payment/mpesa/c2b`
 
 5. **Deleting URLs**:
    - Go to: https://developer.safaricom.co.ke/SelfServices?tab=urlmanagement

@@ -618,7 +618,10 @@ class MpesaPaymentController extends Controller
                 
                 // Update transaction based on M-PESA response
                 if (isset($data['ResultCode'])) {
-                    if ($data['ResultCode'] == 0) {
+                    $resultCode = (int)$data['ResultCode'];
+                    $resultDesc = $data['ResultDesc'] ?? '';
+                    
+                    if ($resultCode == 0) {
                         // Success - process payment
                         // Check if already processed
                         if ($transaction->status !== 'completed') {
@@ -634,19 +637,43 @@ class MpesaPaymentController extends Controller
                             'receipt_id' => $payment->id ?? null,
                             'mpesa_code' => $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id,
                         ]);
-                    } else {
-                        // Failed
-                        $transaction->update([
-                            'status' => 'failed',
-                            'failure_reason' => $data['ResultDesc'] ?? 'Payment failed',
+                    } 
+                    
+                    // Check if it's a pending/waiting status (not a real failure yet)
+                    // ResultCode 1032 can mean "request cancelled" OR "still waiting for user"
+                    // ResultCode 1037 = timeout waiting for PIN
+                    // We should only mark as failed if it's a definitive failure
+                    $pendingCodes = [1032, 1037]; // These might be pending, not failures
+                    $isPending = in_array($resultCode, $pendingCodes) && 
+                                 (stripos($resultDesc, 'pending') !== false || 
+                                  stripos($resultDesc, 'waiting') !== false ||
+                                  stripos($resultDesc, 'timeout') !== false);
+                    
+                    if ($isPending) {
+                        // Still waiting for user to enter PIN - don't mark as failed yet
+                        Log::debug('M-PESA transaction still pending', [
+                            'transaction_id' => $transaction->id,
+                            'result_code' => $resultCode,
+                            'result_desc' => $resultDesc,
                         ]);
                         
                         return response()->json([
-                            'status' => 'failed',
-                            'message' => 'Payment failed',
-                            'failure_reason' => $transaction->failure_reason,
+                            'status' => 'processing',
+                            'message' => 'Waiting for you to enter your M-PESA PIN',
                         ]);
                     }
+                    
+                    // Actual failure - mark as failed
+                    $transaction->update([
+                        'status' => 'failed',
+                        'failure_reason' => $resultDesc ?: 'Payment failed',
+                    ]);
+                    
+                    return response()->json([
+                        'status' => 'failed',
+                        'message' => 'Payment failed',
+                        'failure_reason' => $transaction->failure_reason,
+                    ]);
                 }
             }
 

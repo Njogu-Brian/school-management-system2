@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/payment/mpesa',
             'webhooks/payment/mpesa/c2b',
+            'webhooks/payment/c2b', // Alternative route without "mpesa" in path (Safaricom requirement)
             'webhooks/payment/mpesa/timeout',
             'webhooks/payment/mpesa/result',
             'webhooks/payment/mpesa/queue-timeout',
