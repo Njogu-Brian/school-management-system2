@@ -369,7 +369,7 @@
                                 @elseif($txnIsShared && !empty($txnSharedAllocations))
                                     <div class="text-primary">
                                         <i class="bi bi-people"></i> <strong>Shared Payment</strong>
-                                        <br><small class="text-info">({{ count($transaction->shared_allocations) }} sibling{{ count($transaction->shared_allocations) === 1 ? '' : 's' }})</small>
+                                        <br><small class="text-info">({{ count($txnSharedAllocations) }} sibling{{ count($txnSharedAllocations) === 1 ? '' : 's' }})</small>
                                     </div>
                                     @foreach($txnSharedAllocations as $allocation)
                                         @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
@@ -495,20 +495,21 @@
                                             </form>
                                         @endif
                                     @endif
-                                    @if(!$transaction->is_archived)
-                                        <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
-                                            @csrf
-                                            <button type="submit" class="btn btn-finance btn-finance-secondary" title="Archive">
-                                                <i class="bi bi-archive"></i>
-                                            </button>
-                                        </form>
-                                    @else
-                                        <form method="POST" action="{{ route('finance.bank-statements.unarchive', $transaction) }}" class="d-inline">
-                                            @csrf
-                                            <button type="submit" class="btn btn-finance btn-finance-success" title="Unarchive">
-                                                <i class="bi bi-archive-fill"></i>
-                                            </button>
-                                        </form>
+                                        @if(!$txnIsArchived)
+                                            <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
+                                                @csrf
+                                                <button type="submit" class="btn btn-finance btn-finance-secondary" title="Archive">
+                                                    <i class="bi bi-archive"></i>
+                                                </button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('finance.bank-statements.unarchive', $transaction) }}" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-finance btn-finance-success" title="Unarchive">
+                                                    <i class="bi bi-archive-fill"></i>
+                                                </button>
+                                            </form>
+                                        @endif
                                     @endif
                                 </div>
                             </td>
