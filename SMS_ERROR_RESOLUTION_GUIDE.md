@@ -8,16 +8,14 @@
 
 ## Fixes Implemented
 
-### 1. Enhanced Account Status Checking (`getAccountStatus()`)
-- Now tries multiple possible endpoints:
-  - `/readAccountStatus`
-  - `/accountStatus`
-  - `/getAccountStatus`
-  - `/balance`
-  - `/getBalance`
-  - `/checkBalance`
-- Improved error logging with full response bodies for 404 errors
-- Provides clear diagnostic information when all endpoints fail
+### 1. Fixed Account Status Checking (`getAccountStatus()`)
+- **Updated to use correct endpoint from HostPinnacle documentation:**
+  - `GET /SMSApi/account/readstatus` (primary method)
+  - `POST /SMSApi/account/readcredithistory` (fallback)
+- **Fixed HTTP method:** Changed from POST to GET (as per documentation)
+- **Removed API key from GET requests:** Documentation states "You cannot use API key in GET Method"
+- **Improved error logging** with full response bodies for debugging
+- **Better response parsing** to handle various balance field names
 
 ### 2. Improved Empty msgId Detection
 - When `msgId` is empty despite success, the system now:
