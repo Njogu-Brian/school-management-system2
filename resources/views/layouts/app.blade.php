@@ -197,6 +197,15 @@
             padding: 20px;
             min-height: 100vh;
         }
+        .page-wrapper {
+            margin-left: 240px;
+            min-height: 100vh;
+        }
+        @media(max-width:992px){
+            .page-wrapper {
+                margin-left: 0;
+            }
+        }
         .sidebar-toggle {
             position: fixed;
             top: 15px; left: 15px;
@@ -336,6 +345,7 @@
             .sidebar{ left:-240px; }
             .sidebar.active{ left:0; }
             .content{ margin-left:0; }
+            .page-wrapper{ margin-left:0; }
         }
     </style>
 </head>
