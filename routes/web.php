@@ -946,6 +946,15 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     // Archived list must be defined before the resource route to avoid being captured by /students/{student}
     Route::get('/students/archived', [StudentController::class, 'archived'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.archived');
+    
+    // Alumni and Archived students comprehensive view
+    Route::get('/students/alumni-and-archived', [StudentController::class, 'alumniAndArchived'])
+        ->middleware('role:Super Admin|Admin|Secretary')->name('students.alumni-and-archived');
+    
+    // AJAX endpoint for student details
+    Route::get('/students/{id}/details-ajax', [StudentController::class, 'detailsAjax'])
+        ->middleware('role:Super Admin|Admin|Secretary')
+        ->name('students.details-ajax');
 
     Route::resource('students', StudentController::class)
         ->except(['destroy'])
@@ -1221,6 +1230,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('payments/communications/resend-multiple', [PaymentController::class, 'resendMultipleCommunications'])->name('payments.communications.resend-multiple');
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
         Route::post('payments/{payment}/allocate', [PaymentController::class, 'allocate'])->name('payments.allocate');
+        Route::put('payments/{payment}/update-shared-allocations', [PaymentController::class, 'updateSharedAllocations'])->name('payments.update-shared-allocations');
         Route::delete('payments/{payment}/reverse', [PaymentController::class, 'reverse'])->name('payments.reverse');
         Route::post('payments/{payment}/transfer', [PaymentController::class, 'transfer'])->name('payments.transfer');
         

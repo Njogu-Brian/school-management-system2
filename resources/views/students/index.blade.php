@@ -16,9 +16,9 @@
         <p class="text-muted mb-0">Browse, filter, and manage student records.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        @if(Route::has('students.archived'))
-          <a href="{{ route('students.archived') }}" class="btn btn-ghost-strong">
-            <i class="bi bi-archive"></i> Archived
+        @if(Route::has('students.alumni-and-archived'))
+          <a href="{{ route('students.alumni-and-archived') }}" class="btn btn-ghost-strong">
+            <i class="bi bi-archive"></i> Alumni & Archived
           </a>
         @endif
         @if(Route::has('students.export'))

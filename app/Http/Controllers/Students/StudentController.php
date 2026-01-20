@@ -124,12 +124,144 @@ class StudentController extends Controller
         $perPage = (int) $request->input('per_page', 20);
         $students = Student::withArchived()
             ->where('archive', 1)
+            ->where('is_alumni', false)
             ->with(['parent','classroom','stream','category'])
             ->orderByDesc('archived_at')
             ->paginate($perPage)
             ->withQueryString();
 
         return view('students.archived', compact('students'));
+    }
+
+    /**
+     * Alumni and archived students listing with comprehensive view
+     */
+    public function alumniAndArchived(Request $request)
+    {
+        $perPage = (int) $request->input('per_page', 20);
+        $type = $request->input('type', 'all'); // all, alumni, archived
+        
+        $query = Student::withArchived()
+            ->where(function($q) use ($type) {
+                if ($type === 'alumni') {
+                    $q->where('is_alumni', true);
+                } elseif ($type === 'archived') {
+                    $q->where('archive', 1)->where('is_alumni', false);
+                } else {
+                    // Show both alumni and archived
+                    $q->where(function($subQ) {
+                        $subQ->where('is_alumni', true)
+                             ->orWhere('archive', 1);
+                    });
+                }
+            })
+            ->with(['parent','classroom','stream','category']);
+
+        // Apply filters
+        if ($request->filled('name')) {
+            $name = $request->name;
+            $searchTerm = '%' . addcslashes($name, '%_\\') . '%';
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('first_name', 'like', $searchTerm)
+                  ->orWhere('middle_name', 'like', $searchTerm)
+                  ->orWhere('last_name', 'like', $searchTerm);
+            });
+        }
+
+        if ($request->filled('admission_number')) {
+            $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
+            $query->where('admission_number', 'like', $searchTerm);
+        }
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
+
+        // Order by: alumni_date for alumni, archived_at for archived
+        $students = $query->orderByRaw('CASE 
+            WHEN is_alumni = 1 THEN alumni_date 
+            WHEN archive = 1 THEN archived_at 
+            ELSE created_at 
+        END DESC')
+        ->paginate($perPage)
+        ->withQueryString();
+
+        $classrooms = Classroom::orderBy('name')->get();
+        $streams = Stream::orderBy('name')->get();
+
+        return view('students.alumni_and_archived', compact('students', 'type', 'classrooms', 'streams'));
+    }
+
+    /**
+     * Get student details for AJAX modal view
+     */
+    public function detailsAjax($id)
+    {
+        try {
+            $student = Student::withArchived()
+                ->with(['parent', 'classroom', 'stream', 'category', 'family'])
+                ->findOrFail($id);
+
+            // Financial data
+            $totalOutstanding = $student->getTotalOutstandingBalance();
+            $invoiceBalance = $student->getInvoiceBalance();
+            $balanceBroughtForward = $student->getBalanceBroughtForward();
+            $recentInvoices = \App\Models\Invoice::where('student_id', $student->id)->latest()->limit(10)->get();
+            $recentPayments = \App\Models\Payment::where('student_id', $student->id)->latest()->limit(10)->get();
+
+            // Attendance data
+            $recentAttendance = \App\Models\Attendance::where('student_id', $student->id)
+                ->latest('date')
+                ->limit(30)
+                ->get();
+            $attendanceStats = [
+                'present' => $recentAttendance->where('status', 'present')->count(),
+                'absent' => $recentAttendance->where('status', 'absent')->count(),
+                'late' => $recentAttendance->where('status', 'late')->count(),
+                'total' => $recentAttendance->count(),
+            ];
+            if ($attendanceStats['total'] > 0) {
+                $attendanceStats['percent'] = round(($attendanceStats['present'] / $attendanceStats['total']) * 100, 1);
+            } else {
+                $attendanceStats['percent'] = 0;
+            }
+
+            // Academic history
+            $academicHistory = \App\Models\StudentAcademicHistory::where('student_id', $student->id)
+                ->with(['classroom', 'stream', 'academicYear'])
+                ->latest('enrollment_date')
+                ->limit(10)
+                ->get();
+
+            // Disciplinary records
+            $disciplinaryRecords = \App\Models\StudentDisciplinaryRecord::where('student_id', $student->id)
+                ->with(['reportedBy', 'actionTakenBy'])
+                ->latest()
+                ->limit(10)
+                ->get();
+
+            $html = view('students.partials.details_modal_content', compact(
+                'student',
+                'totalOutstanding',
+                'invoiceBalance',
+                'balanceBroughtForward',
+                'recentInvoices',
+                'recentPayments',
+                'recentAttendance',
+                'attendanceStats',
+                'academicHistory',
+                'disciplinaryRecords'
+            ))->render();
+
+            return response()->json(['success' => true, 'html' => $html]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading student details: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error loading student details']);
+        }
     }
 
     /**
