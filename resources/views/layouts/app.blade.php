@@ -198,7 +198,7 @@
             min-height: 100vh;
         }
         .page-wrapper {
-            margin-left: 240px;
+            margin-left: 0;
             min-height: 100vh;
         }
         @media(max-width:992px){
@@ -457,7 +457,7 @@
         </div>
         @endauth
         @php $isFinance = request()->is('finance*') || request()->is('voteheads*'); @endphp
-        <div class="page-wrapper @if($isFinance) finance-page @endif">
+        <div class="page-wrapper">
             @if($isFinance)
                 <div class="finance-page">
                     <div class="finance-shell">
