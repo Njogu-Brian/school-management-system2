@@ -401,35 +401,65 @@ class MpesaGateway implements PaymentGatewayInterface
      */
     public function verifyPayment(string $transactionId): array
     {
-        $url = $this->getUrl('stk_push_query');
+        try {
+            $url = $this->getUrl('stk_push_query');
 
-        $timestamp = now()->format('YmdHis');
-        $password = base64_encode($this->shortcode . $this->passkey . $timestamp);
+            $timestamp = now()->format('YmdHis');
+            $password = base64_encode($this->shortcode . $this->passkey . $timestamp);
 
-        $payload = [
-            'BusinessShortCode' => $this->shortcode,
-            'Password' => $password,
-            'Timestamp' => $timestamp,
-            'CheckoutRequestID' => $transactionId,
-        ];
+            $payload = [
+                'BusinessShortCode' => $this->shortcode,
+                'Password' => $password,
+                'Timestamp' => $timestamp,
+                'CheckoutRequestID' => $transactionId,
+            ];
 
-        $response = Http::withToken($this->getAccessToken())
-            ->post($url, $payload);
+            try {
+                $accessToken = $this->getAccessToken();
+            } catch (\Exception $e) {
+                Log::warning('M-PESA access token failed during query', [
+                    'transaction_id' => $transactionId,
+                    'error' => $e->getMessage(),
+                ]);
+                
+                return [
+                    'success' => false,
+                    'message' => 'Failed to authenticate with M-PESA',
+                    'error' => $e->getMessage(),
+                ];
+            }
 
-        if ($response->successful()) {
-            return $response->json();
+            $response = Http::timeout(10)
+                ->withToken($accessToken)
+                ->post($url, $payload);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::warning('M-PESA STK Push Query failed', [
+                'transaction_id' => $transactionId,
+                'status' => $response->status(),
+                'response' => $response->json(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Failed to query payment status',
+                'response' => $response->json(),
+            ];
+        } catch (\Exception $e) {
+            Log::error('M-PESA STK Push Query exception', [
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Query failed: ' . $e->getMessage(),
+            ];
         }
-
-        Log::error('M-PESA STK Push Query failed', [
-            'transaction_id' => $transactionId,
-            'response' => $response->json(),
-        ]);
-
-        return [
-            'success' => false,
-            'message' => 'Failed to query payment status',
-            'response' => $response->json(),
-        ];
     }
 
     /**

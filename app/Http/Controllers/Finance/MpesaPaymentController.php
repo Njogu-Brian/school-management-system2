@@ -572,7 +572,7 @@ class MpesaPaymentController extends Controller
             'updated_at' => $transaction->updated_at,
         ]);
 
-        // Check if already completed/failed/cancelled
+        // Check if already completed/failed/cancelled (webhook may have updated it)
         if (in_array($transaction->status, ['completed', 'failed', 'cancelled'])) {
             $response = [
                 'status' => $transaction->status,
@@ -596,7 +596,15 @@ class MpesaPaymentController extends Controller
             return response()->json($response);
         }
 
-        // Still processing - query M-PESA API
+        // Still processing - query M-PESA API (but handle errors gracefully)
+        // Only query if we have a transaction_id
+        if (!$transaction->transaction_id) {
+            return response()->json([
+                'status' => $transaction->status,
+                'message' => 'Waiting for M-PESA response...',
+            ]);
+        }
+
         try {
             $result = $this->mpesaGateway->queryStkPushStatus($transaction->transaction_id);
 
@@ -642,18 +650,59 @@ class MpesaPaymentController extends Controller
                 }
             }
 
+            // Still pending - check one more time if webhook updated it
+            // Refresh transaction to see if webhook processed it while we were querying
+            $transaction = PaymentTransaction::find($transaction->id);
+            if (in_array($transaction->status, ['completed', 'failed', 'cancelled'])) {
+                $response = [
+                    'status' => $transaction->status,
+                    'message' => $transaction->failure_reason ?? 'Transaction ' . $transaction->status,
+                ];
+                
+                if ($transaction->status === 'completed' && $transaction->payment_id) {
+                    $payment = Payment::find($transaction->payment_id);
+                    if ($payment) {
+                        $response['receipt_number'] = $payment->receipt_number;
+                        $response['receipt_id'] = $payment->id;
+                        $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
+                    }
+                }
+                
+                return response()->json($response);
+            }
+            
             // Still pending
             return response()->json([
                 'status' => $transaction->status,
                 'message' => 'Payment is being processed',
             ]);
         } catch (\Exception $e) {
-            Log::error('Transaction status check failed', [
+            Log::warning('M-PESA API query failed (non-critical)', [
                 'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
 
+            // Check transaction status one more time in case webhook updated it
+            $transaction = PaymentTransaction::find($transaction->id);
+            if (in_array($transaction->status, ['completed', 'failed', 'cancelled'])) {
+                $response = [
+                    'status' => $transaction->status,
+                    'message' => $transaction->failure_reason ?? 'Transaction ' . $transaction->status,
+                ];
+                
+                if ($transaction->status === 'completed' && $transaction->payment_id) {
+                    $payment = Payment::find($transaction->payment_id);
+                    if ($payment) {
+                        $response['receipt_number'] = $payment->receipt_number;
+                        $response['receipt_id'] = $payment->id;
+                        $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
+                    }
+                }
+                
+                return response()->json($response);
+            }
+
+            // API query failed but transaction still processing - return current status
             return response()->json([
                 'status' => $transaction->status,
                 'message' => 'Checking status...',
