@@ -48,7 +48,7 @@ class PaymentController extends Controller
         
         // Apply filters
         if ($request->filled('student_id')) {
-            $query->where('student_id', $request->student_id);
+            $query->where('student_id', (int) $request->student_id);
         }
         
         if ($request->filled('class_id')) {
