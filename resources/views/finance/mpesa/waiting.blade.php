@@ -323,7 +323,7 @@ function startPolling() {
 }
 
 function checkTransactionStatus() {
-    return fetch('/api/finance/mpesa/transaction/' + transactionId + '/status', {
+    return fetch('{{ route("finance.api.transaction.status", ":id") }}'.replace(':id', transactionId), {
         method: 'GET',
         headers: {
             'Accept': 'application/json',
@@ -525,7 +525,7 @@ function cancelTransaction() {
     
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
     
-    fetch('/api/finance/mpesa/transaction/' + transactionId + '/cancel', {
+    fetch('{{ route("finance.api.transaction.cancel", ":id") }}'.replace(':id', transactionId), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

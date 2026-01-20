@@ -1324,9 +1324,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         // M-PESA API endpoints (for AJAX)
         Route::prefix('api/finance/mpesa')->group(function () {
-            Route::get('transaction/{transaction}/status', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getTransactionStatus']);
-            Route::post('transaction/{transaction}/cancel', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'cancelTransaction']);
-            Route::get('c2b/latest', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getLatestC2BTransactions']);
+            Route::get('transaction/{transaction}/status', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getTransactionStatus'])->name('api.transaction.status');
+            Route::post('transaction/{transaction}/cancel', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'cancelTransaction'])->name('api.transaction.cancel');
+            Route::get('c2b/latest', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getLatestC2BTransactions'])->name('api.c2b.latest');
         });
 
         // Credit & Debit Notes (manual)
