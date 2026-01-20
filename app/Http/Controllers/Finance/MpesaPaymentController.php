@@ -554,6 +554,9 @@ class MpesaPaymentController extends Controller
             ], 400);
         }
 
+        // Refresh transaction from database to get latest status (webhook may have updated it)
+        $transaction->refresh();
+
         // Check if already completed/failed/cancelled
         if (in_array($transaction->status, ['completed', 'failed', 'cancelled'])) {
             $response = [
