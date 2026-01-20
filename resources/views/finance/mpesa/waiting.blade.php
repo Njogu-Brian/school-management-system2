@@ -279,45 +279,58 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function startPolling() {
-    // Progressive polling strategy for faster detection:
-    // - First 30 seconds: poll every 1 second (webhook usually arrives quickly)
-    // - Next 60 seconds: poll every 2 seconds
-    // - After that: poll every 3 seconds
+    // Aggressive polling strategy for faster webhook detection:
+    // - First 60 seconds: poll every 0.5 seconds (webhook usually arrives within 10-30 seconds)
+    // - Next 60 seconds: poll every 1 second
+    // - After that: poll every 2 seconds
     
-    let pollCount = 0;
     const startTime = Date.now();
+    let pollCount = 0;
     
     function scheduleNextPoll() {
         const elapsed = (Date.now() - startTime) / 1000; // seconds
         
         let nextInterval;
-        if (elapsed < 30) {
-            // First 30 seconds: poll every 1 second
+        if (elapsed < 60) {
+            // First 60 seconds: poll every 0.5 seconds for fastest detection
+            nextInterval = 500;
+        } else if (elapsed < 120) {
+            // Next 60 seconds: poll every 1 second
             nextInterval = 1000;
-        } else if (elapsed < 90) {
-            // Next 60 seconds: poll every 2 seconds
-            nextInterval = 2000;
         } else {
-            // After 90 seconds: poll every 3 seconds
-            nextInterval = 3000;
+            // After 120 seconds: poll every 2 seconds
+            nextInterval = 2000;
         }
         
         pollInterval = setTimeout(function() {
+            pollCount++;
+            console.log('Polling attempt #' + pollCount + ' at ' + elapsed.toFixed(1) + 's');
+            
             checkTransactionStatus().then(function() {
                 // Status changed, stop polling
-                clearTimeout(pollInterval);
-            }).catch(function() {
+                console.log('Status changed, stopping polling');
+                if (pollInterval) {
+                    clearTimeout(pollInterval);
+                    pollInterval = null;
+                }
+            }).catch(function(error) {
                 // Still processing, continue polling
+                if (error !== 'Still processing') {
+                    console.warn('Polling error:', error);
+                }
                 scheduleNextPoll();
             });
         }, nextInterval);
     }
     
     // Check immediately
+    console.log('Starting initial status check');
     checkTransactionStatus().then(function() {
         // Already completed, no need to poll
+        console.log('Transaction already completed');
     }).catch(function() {
         // Start progressive polling
+        console.log('Transaction still processing, starting polling');
         scheduleNextPoll();
     });
 }

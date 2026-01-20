@@ -554,8 +554,23 @@ class MpesaPaymentController extends Controller
             ], 400);
         }
 
-        // Refresh transaction from database to get latest status (webhook may have updated it)
-        $transaction->refresh();
+        // Force fresh query from database to get latest status (webhook may have updated it)
+        // Don't use refresh() as route model binding might cache the instance
+        $transaction = PaymentTransaction::find($transaction->id);
+        
+        if (!$transaction) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Transaction not found.',
+            ], 404);
+        }
+
+        Log::debug('Transaction status check', [
+            'transaction_id' => $transaction->id,
+            'status' => $transaction->status,
+            'payment_id' => $transaction->payment_id,
+            'updated_at' => $transaction->updated_at,
+        ]);
 
         // Check if already completed/failed/cancelled
         if (in_array($transaction->status, ['completed', 'failed', 'cancelled'])) {
