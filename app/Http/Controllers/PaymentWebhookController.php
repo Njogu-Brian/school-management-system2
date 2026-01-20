@@ -197,8 +197,23 @@ class PaymentWebhookController extends Controller
                             $paymentLink->save();
                         }
 
-                        // Send payment confirmation to parent
-                        $this->sendPaymentConfirmation($payment);
+                        // Generate receipt PDF
+                        try {
+                            $receiptService = app(\App\Services\ReceiptService::class);
+                            $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
+                            Log::info('Receipt generated for M-PESA payment', [
+                                'payment_id' => $payment->id,
+                                'pdf_path' => $pdfPath,
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error('Failed to generate receipt for M-PESA payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+
+                        // Send payment confirmation to parent (with receipt PDF)
+                        $this->sendPaymentConfirmation($payment, $pdfPath ?? null);
 
                         // Handle POS order payment if exists
                         $posOrder = \App\Models\Pos\Order::where('payment_transaction_id', $transaction->id)->first();
@@ -331,7 +346,7 @@ class PaymentWebhookController extends Controller
     /**
      * Send payment confirmation notification
      */
-    protected function sendPaymentConfirmation(\App\Models\Payment $payment)
+    protected function sendPaymentConfirmation(\App\Models\Payment $payment, ?string $pdfPath = null)
     {
         try {
             $student = $payment->student;
@@ -346,7 +361,7 @@ class PaymentWebhookController extends Controller
             $message = "Dear Parent,\n\n";
             $message .= "Payment of KES " . number_format($payment->amount, 2) . " ";
             $message .= "for {$student->first_name} {$student->last_name} has been received.\n\n";
-            $message .= "M-PESA Ref: " . $payment->mpesa_receipt_number . "\n";
+            $message .= "M-PESA Ref: " . ($payment->mpesa_receipt_number ?? 'N/A') . "\n";
             $message .= "Receipt No: " . $payment->receipt_number . "\n";
             $message .= "Date: " . $payment->payment_date->format('d M Y H:i') . "\n\n";
             
@@ -369,10 +384,30 @@ class PaymentWebhookController extends Controller
                 $commService->sendSMS('parent', $parent->id, $parent->primary_phone, $message, 'Payment Confirmation');
             }
 
-            // Send Email
+            // Send Email with receipt PDF attachment
             if ($parent->primary_email) {
                 $htmlMessage = nl2br($message);
-                $commService->sendEmail('parent', $parent->id, $parent->primary_email, 'Payment Confirmation - ' . $payment->receipt_number, $htmlMessage);
+                $commService->sendEmail(
+                    'parent', 
+                    $parent->id, 
+                    $parent->primary_email, 
+                    'Payment Confirmation - ' . $payment->receipt_number, 
+                    $htmlMessage,
+                    $pdfPath // Attach receipt PDF if available
+                );
+            }
+
+            // Send WhatsApp if available
+            try {
+                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->primary_phone ?? null;
+                if ($whatsappPhone) {
+                    $commService->sendWhatsApp('parent', $parent->id, $whatsappPhone, $message, 'Payment Confirmation');
+                }
+            } catch (\Exception $e) {
+                Log::warning('WhatsApp sending failed for payment confirmation', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
         } catch (\Exception $e) {
             Log::error('Failed to send payment confirmation', [

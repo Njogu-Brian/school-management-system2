@@ -286,7 +286,7 @@ function startPolling() {
 }
 
 function checkTransactionStatus() {
-    fetch('/api/finance/mpesa/transaction/' + transactionId + '/status', {
+    return fetch('/api/finance/mpesa/transaction/' + transactionId + '/status', {
         method: 'GET',
         headers: {
             'Accept': 'application/json',
@@ -304,16 +304,21 @@ function checkTransactionStatus() {
         
         if (data.status === 'completed') {
             showSuccess(data);
+            return Promise.resolve(); // Signal that state changed
         } else if (data.status === 'failed') {
             showFailed(data);
+            return Promise.resolve(); // Signal that state changed
         } else if (data.status === 'cancelled') {
             showCancelled();
+            return Promise.resolve(); // Signal that state changed
         }
         // Continue polling if still processing/pending
+        return Promise.reject('Still processing'); // Signal no state change
     })
     .catch(error => {
         // Continue polling even on error
         console.error('Error checking status:', error);
+        return Promise.reject(error);
     });
 }
 
@@ -331,24 +336,38 @@ function startCountdown() {
     
     console.log('Countdown started', { timeRemaining });
     
-    countdownInterval = setInterval(function() {
-        if (timeRemaining > 0) {
-            timeRemaining--;
-            
-            const countdownEl = document.getElementById('countdown');
-            if (countdownEl) {
-                const minutes = Math.floor(timeRemaining / 60);
-                const seconds = timeRemaining % 60;
-                countdownEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        countdownInterval = setInterval(function() {
+            if (timeRemaining > 0) {
+                timeRemaining--;
+                
+                const countdownEl = document.getElementById('countdown');
+                if (countdownEl) {
+                    const minutes = Math.floor(timeRemaining / 60);
+                    const seconds = timeRemaining % 60;
+                    countdownEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+            } else {
+                // Before showing timeout, check status one more time
+                clearInterval(countdownInterval);
+                if (pollInterval) clearInterval(pollInterval);
+                
+                // Final status check before showing timeout
+                checkTransactionStatus().then(function() {
+                    // If status check didn't change state, show timeout
+                    const waitingState = document.getElementById('waitingState');
+                    if (waitingState && waitingState.style.display !== 'none') {
+                        const countdownEl = document.getElementById('countdown');
+                        if (countdownEl) countdownEl.textContent = '0:00';
+                        showFailed({ message: 'Transaction timeout', failure_reason: 'The payment request has timed out. Please try again.' });
+                    }
+                }).catch(function() {
+                    // On error, show timeout anyway
+                    const countdownEl = document.getElementById('countdown');
+                    if (countdownEl) countdownEl.textContent = '0:00';
+                    showFailed({ message: 'Transaction timeout', failure_reason: 'The payment request has timed out. Please try again.' });
+                });
             }
-        } else {
-            clearInterval(countdownInterval);
-            if (pollInterval) clearInterval(pollInterval);
-            const countdownEl = document.getElementById('countdown');
-            if (countdownEl) countdownEl.textContent = '0:00';
-            showFailed({ message: 'Transaction timeout', failure_reason: 'The payment request has timed out. Please try again.' });
-        }
-    }, 1000);
+        }, 1000);
 }
 
 function showSuccess(data) {
@@ -368,6 +387,24 @@ function showSuccess(data) {
     if (data.mpesa_code) {
         const mpesaCodeEl = document.getElementById('mpesaCode');
         if (mpesaCodeEl) mpesaCodeEl.textContent = data.mpesa_code;
+    }
+    
+    // Open receipt print window if receipt ID is available
+    if (receiptId) {
+        setTimeout(function() {
+            const receiptUrl = '/finance/payments/receipt/' + receiptId + '/view';
+            const printWindow = window.open(
+                receiptUrl,
+                'ReceiptWindow',
+                'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'
+            );
+            
+            if (!printWindow || printWindow.closed || typeof printWindow.closed == 'undefined') {
+                console.warn('Popup blocked. Receipt will not open automatically.');
+            } else {
+                printWindow.focus();
+            }
+        }, 500); // Small delay to ensure page is ready
     }
     
     // Auto-close after 5 seconds

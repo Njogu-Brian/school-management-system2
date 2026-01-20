@@ -774,6 +774,31 @@ class MpesaPaymentController extends Controller
 
             DB::commit();
 
+            // Generate receipt PDF (outside transaction to avoid locking)
+            try {
+                $receiptService = app(\App\Services\ReceiptService::class);
+                $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
+                Log::info('Receipt generated for M-PESA payment (query response)', [
+                    'payment_id' => $payment->id,
+                    'pdf_path' => $pdfPath,
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Failed to generate receipt for M-PESA payment (query response)', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Send payment confirmation
+            try {
+                $this->sendPaymentConfirmation($payment);
+            } catch (\Exception $e) {
+                Log::error('Failed to send payment confirmation', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             Log::info('Payment processed successfully', [
                 'transaction_id' => $transaction->id,
                 'payment_id' => $payment->id,
@@ -1603,6 +1628,73 @@ class MpesaPaymentController extends Controller
         } catch (\Exception $e) {
             Log::warning('Failed to parse M-PESA time', ['time' => $timeString]);
             return now();
+        }
+    }
+
+    /**
+     * Send payment confirmation notification
+     */
+    protected function sendPaymentConfirmation(\App\Models\Payment $payment)
+    {
+        try {
+            $student = $payment->student;
+            $parent = $student->family;
+
+            if (!$parent) {
+                return;
+            }
+
+            $commService = app(\App\Services\CommunicationService::class);
+
+            $message = "Dear Parent,\n\n";
+            $message .= "Payment of KES " . number_format($payment->amount, 2) . " ";
+            $message .= "for {$student->first_name} {$student->last_name} has been received.\n\n";
+            $message .= "M-PESA Ref: " . ($payment->mpesa_receipt_number ?? 'N/A') . "\n";
+            $message .= "Receipt No: " . $payment->receipt_number . "\n";
+            $message .= "Date: " . $payment->payment_date->format('d M Y H:i') . "\n\n";
+            
+            // Add balance information
+            $balance = \App\Models\Invoice::where('student_id', $student->id)
+                ->where('status', '!=', 'paid')
+                ->sum('balance');
+            
+            if ($balance > 0) {
+                $message .= "Outstanding Balance: KES " . number_format($balance, 2) . "\n";
+            } else {
+                $message .= "✅ All fees paid. Thank you!\n";
+            }
+            
+            $message .= "\nView receipt: " . route('receipts.public', $payment->public_token);
+            $message .= "\n\nThank you!";
+
+            // Send SMS
+            if ($parent->primary_phone) {
+                $commService->sendSMS('parent', $parent->id, $parent->primary_phone, $message, 'Payment Confirmation');
+            }
+
+            // Send Email
+            if ($parent->primary_email) {
+                $htmlMessage = nl2br($message);
+                $commService->sendEmail('parent', $parent->id, $parent->primary_email, 'Payment Confirmation - ' . $payment->receipt_number, $htmlMessage);
+            }
+
+            // Send WhatsApp if available
+            try {
+                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->primary_phone ?? null;
+                if ($whatsappPhone) {
+                    $commService->sendWhatsApp('parent', $parent->id, $whatsappPhone, $message, 'Payment Confirmation');
+                }
+            } catch (\Exception $e) {
+                Log::warning('WhatsApp sending failed for payment confirmation', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to send payment confirmation', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 }
