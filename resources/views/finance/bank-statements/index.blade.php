@@ -1,5 +1,21 @@
 @extends('layouts.app')
 
+@push('styles')
+<style>
+    /* Fix for sticky header overlapping transactions table in bank statements view */
+    /* The sticky .app-header (position: sticky, top: 0, z-index: 950) was covering the transactions table */
+    
+    /* Ensure the transactions table section is properly positioned and visible */
+    /* Using ID selector ensures this only affects this specific view */
+    #bank-statements-transactions-section {
+        position: relative;
+        z-index: 1;
+        margin-top: 0;
+        scroll-margin-top: 100px; /* Add scroll margin to account for sticky header when scrolling to table */
+    }
+</style>
+@endpush
+
 @section('content')
     @include('finance.partials.header', [
         'title' => 'Bank Statements & Transactions',
@@ -221,7 +237,7 @@
     </div>
 
     <!-- Transactions Table -->
-    <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
+    <div id="bank-statements-transactions-section" class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
         <div class="card-header d-flex justify-content-between align-items-center mb-3">
             <h5 class="mb-0"><i class="bi bi-table me-2"></i>Transactions</h5>
             <button type="button" class="btn btn-sm btn-finance btn-finance-outline" id="refreshBtn" onclick="refreshTransactions()">
@@ -495,21 +511,21 @@
                                             </form>
                                         @endif
                                     @endif
-                                        @if(!$txnIsArchived)
-                                            <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
-                                                @csrf
-                                                <button type="submit" class="btn btn-finance btn-finance-secondary" title="Archive">
-                                                    <i class="bi bi-archive"></i>
-                                                </button>
-                                            </form>
-                                        @else
-                                            <form method="POST" action="{{ route('finance.bank-statements.unarchive', $transaction) }}" class="d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-finance btn-finance-success" title="Unarchive">
-                                                    <i class="bi bi-archive-fill"></i>
-                                                </button>
-                                            </form>
-                                        @endif
+                                    @endif
+                                    @if(!$isC2B && !$txnIsArchived)
+                                        <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
+                                            @csrf
+                                            <button type="submit" class="btn btn-finance btn-finance-secondary" title="Archive">
+                                                <i class="bi bi-archive"></i>
+                                            </button>
+                                        </form>
+                                    @elseif(!$isC2B && $txnIsArchived)
+                                        <form method="POST" action="{{ route('finance.bank-statements.unarchive', $transaction) }}" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-finance btn-finance-success" title="Unarchive">
+                                                <i class="bi bi-archive-fill"></i>
+                                            </button>
+                                        </form>
                                     @endif
                                 </div>
                             </td>
@@ -875,6 +891,8 @@
             updateBulkIds();
         });
     </script>
+@endsection
+
 @section('js')
 <script>
 let isRefreshing = false;

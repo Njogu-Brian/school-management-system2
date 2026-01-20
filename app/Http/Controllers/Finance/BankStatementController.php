@@ -466,13 +466,18 @@ class BankStatementController extends Controller
             // Check against bank statement transactions
             $duplicate = BankStatementTransaction::where('reference_number', $c2bTxn->trans_id)
                 ->orWhere(function($q) use ($c2bTxn) {
-                    $q->where('amount', $c2bTxn->trans_amount)
-                      ->where('transaction_date', $c2bTxn->trans_time->format('Y-m-d'))
-                      ->where(function($subQ) use ($c2bTxn) {
-                          if ($c2bTxn->msisdn && strlen($c2bTxn->msisdn) > 4) {
-                              $subQ->where('phone_number', 'LIKE', '%' . substr($c2bTxn->msisdn, -4) . '%');
-                          }
-                      });
+                    $q->where('amount', $c2bTxn->trans_amount);
+                    
+                    // Only add date filter if trans_time exists
+                    if ($c2bTxn->trans_time) {
+                        $q->where('transaction_date', $c2bTxn->trans_time->format('Y-m-d'));
+                    }
+                    
+                    $q->where(function($subQ) use ($c2bTxn) {
+                        if ($c2bTxn->msisdn && strlen($c2bTxn->msisdn) > 4) {
+                            $subQ->where('phone_number', 'LIKE', '%' . substr($c2bTxn->msisdn, -4) . '%');
+                        }
+                    });
                 })
                 ->where('is_duplicate', false)
                 ->first();

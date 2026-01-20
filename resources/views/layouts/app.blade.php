@@ -200,9 +200,16 @@
         /* Remove padding for finance pages - they handle their own spacing */
         .content.finance-content {
             padding: 0;
+            margin-left: 240px; /* Keep sidebar margin */
         }
         .page-wrapper {
             margin-left: 0;
+            width: 100%;
+            position: relative;
+        }
+        /* Ensure finance pages don't have positioning issues */
+        .content.finance-content .page-wrapper {
+            margin: 0;
             width: 100%;
         }
         .sidebar-toggle {
@@ -225,6 +232,11 @@
             padding: 10px 14px;
             box-shadow: 0 12px 24px rgba(0,0,0,0.06);
             flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        /* App header for finance pages needs padding since content has none */
+        .content.finance-content .app-header {
+            margin: 0 20px 20px 20px;
         }
         /* Ensure modals/backdrops sit above the header/sidebar */
         .modal-backdrop { z-index: 2050 !important; }
@@ -344,7 +356,10 @@
             .sidebar{ left:-240px; }
             .sidebar.active{ left:0; }
             .content{ margin-left:0; }
-            .content.finance-content { padding: 0; }
+            .content.finance-content { 
+                padding: 0;
+                margin-left: 0; /* Remove margin on mobile */
+            }
         }
     </style>
 </head>
@@ -456,7 +471,7 @@
             </div>
         </div>
         @endauth
-        <div class="page-wrapper @if($isFinance) finance-page @endif">
+        <div class="page-wrapper">
             @if($isFinance)
                 <div class="finance-page">
                     <div class="finance-shell">
