@@ -279,10 +279,47 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function startPolling() {
-    // Poll every 3 seconds
-    pollInterval = setInterval(checkTransactionStatus, 3000);
-    // Also check immediately
-    checkTransactionStatus();
+    // Progressive polling strategy for faster detection:
+    // - First 30 seconds: poll every 1 second (webhook usually arrives quickly)
+    // - Next 60 seconds: poll every 2 seconds
+    // - After that: poll every 3 seconds
+    
+    let pollCount = 0;
+    const startTime = Date.now();
+    
+    function scheduleNextPoll() {
+        const elapsed = (Date.now() - startTime) / 1000; // seconds
+        
+        let nextInterval;
+        if (elapsed < 30) {
+            // First 30 seconds: poll every 1 second
+            nextInterval = 1000;
+        } else if (elapsed < 90) {
+            // Next 60 seconds: poll every 2 seconds
+            nextInterval = 2000;
+        } else {
+            // After 90 seconds: poll every 3 seconds
+            nextInterval = 3000;
+        }
+        
+        pollInterval = setTimeout(function() {
+            checkTransactionStatus().then(function() {
+                // Status changed, stop polling
+                clearTimeout(pollInterval);
+            }).catch(function() {
+                // Still processing, continue polling
+                scheduleNextPoll();
+            });
+        }, nextInterval);
+    }
+    
+    // Check immediately
+    checkTransactionStatus().then(function() {
+        // Already completed, no need to poll
+    }).catch(function() {
+        // Start progressive polling
+        scheduleNextPoll();
+    });
 }
 
 function checkTransactionStatus() {
@@ -349,7 +386,13 @@ function startCountdown() {
             } else {
                 // Before showing timeout, check status one more time
                 clearInterval(countdownInterval);
-                if (pollInterval) clearInterval(pollInterval);
+                if (pollInterval) {
+                    if (typeof pollInterval === 'number') {
+                        clearTimeout(pollInterval);
+                    } else {
+                        clearInterval(pollInterval);
+                    }
+                }
                 
                 // Final status check before showing timeout
                 checkTransactionStatus().then(function() {
@@ -371,7 +414,14 @@ function startCountdown() {
 }
 
 function showSuccess(data) {
-    if (pollInterval) clearInterval(pollInterval);
+    // Stop polling
+    if (pollInterval) {
+        if (typeof pollInterval === 'number') {
+            clearTimeout(pollInterval);
+        } else {
+            clearInterval(pollInterval);
+        }
+    }
     if (countdownInterval) clearInterval(countdownInterval);
     
     const waitingState = document.getElementById('waitingState');
@@ -414,7 +464,14 @@ function showSuccess(data) {
 }
 
 function showFailed(data) {
-    if (pollInterval) clearInterval(pollInterval);
+    // Stop polling
+    if (pollInterval) {
+        if (typeof pollInterval === 'number') {
+            clearTimeout(pollInterval);
+        } else {
+            clearInterval(pollInterval);
+        }
+    }
     if (countdownInterval) clearInterval(countdownInterval);
     
     const waitingState = document.getElementById('waitingState');
@@ -433,7 +490,14 @@ function showFailed(data) {
 }
 
 function showCancelled() {
-    if (pollInterval) clearInterval(pollInterval);
+    // Stop polling
+    if (pollInterval) {
+        if (typeof pollInterval === 'number') {
+            clearTimeout(pollInterval);
+        } else {
+            clearInterval(pollInterval);
+        }
+    }
     if (countdownInterval) clearInterval(countdownInterval);
     
     const waitingState = document.getElementById('waitingState');
