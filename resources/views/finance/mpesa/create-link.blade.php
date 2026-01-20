@@ -193,7 +193,16 @@ $(document).ready(function() {
     let selectedInvoices = [];
     let studentData = null;
 
-    // Watch for student selection from live search
+    // Watch for student selection from live search (vanilla JS event)
+    window.addEventListener('student-selected', function(e) {
+        const student = e.detail;
+        console.log('Student selected:', student);
+        if (student && student.id) {
+            loadStudentData(student.id);
+        }
+    });
+
+    // Also listen for jQuery event for compatibility
     $(document).on('studentSelected', function(e, student) {
         if (student && student.id) {
             loadStudentData(student.id);
@@ -207,86 +216,116 @@ $(document).ready(function() {
 
     // Load student data function
     function loadStudentData(studentId) {
+        console.log('Loading student data for ID:', studentId);
         $('#invoiceSelectionSection').hide();
         $('#parentSelectionSection').hide();
         $('#channelSelectionSection').hide();
         $('#optionsSection').hide();
         $('#studentInfoCard').show();
+        $('#invoicesList').html('<div class="text-center text-muted py-3"><i class="bi bi-hourglass-split"></i> Loading invoices...</div>');
+        $('#parentsList').html('<div class="text-center text-muted py-2">Loading parent information...</div>');
 
-        $.get('/api/students/' + studentId, function(student) {
-            studentData = student;
-            
-            // Update student info card
-            let infoHtml = `
-                <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.first_name} ${student.last_name}</span></div>
-                <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number}</span></div>
-                <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${student.classroom?.name || 'N/A'}</span></div>
-            `;
-            if (student.family) {
-                if (student.family.phone) {
-                    infoHtml += `<div class="mb-2"><strong>Parent Phone:</strong> <span class="text-muted">${student.family.phone}</span></div>`;
+        $.get('/api/students/' + studentId)
+            .done(function(student) {
+                console.log('Student data loaded:', student);
+                studentData = student;
+                
+                // Update student info card
+                let infoHtml = `
+                    <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.first_name} ${student.last_name}</span></div>
+                    <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number}</span></div>
+                    <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${student.classroom?.name || 'N/A'}</span></div>
+                `;
+                if (student.family) {
+                    if (student.family.phone) {
+                        infoHtml += `<div class="mb-2"><strong>Parent Phone:</strong> <span class="text-muted">${student.family.phone}</span></div>`;
+                    }
+                    if (student.family.email) {
+                        infoHtml += `<div class="mb-0"><strong>Parent Email:</strong> <span class="text-muted">${student.family.email}</span></div>`;
+                    }
                 }
-                if (student.family.email) {
-                    infoHtml += `<div class="mb-0"><strong>Parent Email:</strong> <span class="text-muted">${student.family.email}</span></div>`;
-                }
-            }
-            $('#studentInfoBody').html(infoHtml);
+                $('#studentInfoBody').html(infoHtml);
 
-            // Load invoices
-            loadInvoices(studentId);
-            // Load parents
-            loadParents(student);
-        });
+                // Load invoices and parents
+                loadInvoices(studentId).then(function() {
+                    loadParents(student);
+                    console.log('All data loaded, updating submit button');
+                    updateSubmitButton();
+                });
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Failed to load student data:', error);
+                alert('Failed to load student data. Please try again.');
+                $('#studentInfoBody').html('<div class="text-danger">Error loading student data</div>');
+            });
     }
 
     // Load invoices with checkboxes
     function loadInvoices(studentId) {
-        $.get('/api/students/' + studentId + '/invoices', function(invoices) {
-            let unpaidInvoices = invoices.filter(inv => inv.balance > 0);
-            
-            if (unpaidInvoices.length === 0) {
+        return $.get('/api/students/' + studentId + '/invoices')
+            .done(function(invoices) {
+                console.log('Invoices loaded:', invoices);
+                let unpaidInvoices = invoices.filter(inv => inv.balance > 0);
+                
+                if (unpaidInvoices.length === 0) {
+                    $('#invoicesList').html(`
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-check-circle fs-2 text-success"></i>
+                            <p class="mb-0">No outstanding invoices</p>
+                        </div>
+                    `);
+                    $('#invoiceSelectionSection').show();
+                    updateSubmitButton();
+                    return;
+                }
+
+                let html = '<div class="list-group list-group-flush">';
+                unpaidInvoices.forEach(function(invoice) {
+                    html += `
+                        <div class="list-group-item p-3">
+                            <div class="form-check">
+                                <input class="form-check-input invoice-checkbox" type="checkbox" 
+                                       value="${invoice.id}" 
+                                       data-amount="${invoice.balance}"
+                                       id="invoice_${invoice.id}">
+                                <label class="form-check-label w-100" for="invoice_${invoice.id}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>${invoice.invoice_number}</strong>
+                                            <br><small class="text-muted">Due: ${invoice.due_date || 'N/A'}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <strong class="text-primary">KES ${parseFloat(invoice.balance).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                
+                $('#invoicesList').html(html);
+                $('#invoiceSelectionSection').show();
+                
+                // Bind checkbox change event
+                $(document).off('change', '.invoice-checkbox').on('change', '.invoice-checkbox', function() {
+                    updateTotal();
+                    updateSubmitButton();
+                });
+                
+                updateSubmitButton();
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Failed to load invoices:', error);
                 $('#invoicesList').html(`
-                    <div class="text-center text-muted py-3">
-                        <i class="bi bi-check-circle fs-2 text-success"></i>
-                        <p class="mb-0">No outstanding invoices</p>
+                    <div class="text-center text-danger py-3">
+                        <i class="bi bi-exclamation-circle fs-2"></i>
+                        <p class="mb-0">Failed to load invoices. Please try again.</p>
                     </div>
                 `);
                 $('#invoiceSelectionSection').show();
-                return;
-            }
-
-            let html = '<div class="list-group list-group-flush">';
-            unpaidInvoices.forEach(function(invoice) {
-                html += `
-                    <div class="list-group-item p-3">
-                        <div class="form-check">
-                            <input class="form-check-input invoice-checkbox" type="checkbox" 
-                                   value="${invoice.id}" 
-                                   data-amount="${invoice.balance}"
-                                   id="invoice_${invoice.id}">
-                            <label class="form-check-label w-100" for="invoice_${invoice.id}">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <strong>${invoice.invoice_number}</strong>
-                                        <br><small class="text-muted">Due: ${invoice.due_date || 'N/A'}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <strong class="text-primary">KES ${parseFloat(invoice.balance).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</strong>
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-                `;
             });
-            html += '</div>';
-            
-            $('#invoicesList').html(html);
-            $('#invoiceSelectionSection').show();
-            
-            // Bind checkbox change event
-            $(document).off('change', '.invoice-checkbox').on('change', '.invoice-checkbox', updateTotal);
-        });
     }
 
     // Load parents
@@ -357,6 +396,14 @@ $(document).ready(function() {
         $('#parentSelectionSection').show();
         $('#channelSelectionSection').show();
         $('#optionsSection').show();
+        
+        // Bind parent checkbox change event
+        $(document).off('change', '.parent-checkbox').on('change', '.parent-checkbox', function() {
+            console.log('Parent checkbox changed');
+            updateSubmitButton();
+        });
+        
+        updateSubmitButton();
     }
 
     // Update total amount
@@ -374,9 +421,6 @@ $(document).ready(function() {
         $('#totalAmount').text('KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         $('#amount').val(total.toFixed(2));
         $('#selected_invoices').val(selectedInvoices.join(','));
-        
-        // Enable submit button if at least one invoice and one parent and one channel selected
-        updateSubmitButton();
     }
 
     // Update submit button state
@@ -396,16 +440,16 @@ $(document).ready(function() {
         });
     }
 
-    // Listen to parent and channel changes
-    $(document).on('change', '.parent-checkbox, input[name="send_channels[]"]', function() {
-        console.log('Parent or channel changed');
+    // Listen to channel changes
+    $(document).on('change', 'input[name="send_channels[]"]', function() {
+        console.log('Channel changed');
         updateSubmitButton();
     });
     
     // Also check on page load if parents/channels are pre-selected
     setTimeout(function() {
         updateSubmitButton();
-    }, 500);
+    }, 1000);
 
     // Form submission
     $('#createLinkForm').on('submit', function(e) {
