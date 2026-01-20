@@ -132,9 +132,18 @@ class MpesaC2BTransaction extends Model
     public function getFormattedPhoneAttribute()
     {
         $phone = $this->msisdn;
+        
+        // M-PESA sends hashed phone numbers (SHA-256, 64 chars) in production for privacy
+        // If it's a hash, return a masked version
+        if (strlen($phone) == 64 && ctype_xdigit($phone)) {
+            return '***' . substr($phone, -8); // Show last 8 chars of hash
+        }
+        
+        // Format regular phone numbers
         if (strlen($phone) == 12 && substr($phone, 0, 3) == '254') {
             return '0' . substr($phone, 3);
         }
+        
         return $phone;
     }
 

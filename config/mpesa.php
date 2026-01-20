@@ -45,10 +45,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | URLs for Customer to Business payment confirmations
+    | Note: Safaricom does NOT allow "mpesa" in callback URLs, so we use /webhooks/payment/c2b
     |
     */
-    'validation_url' => env('MPESA_VALIDATION_URL', env('APP_URL') . '/webhooks/payment/mpesa/c2b'),
-    'confirmation_url' => env('MPESA_CONFIRMATION_URL', env('APP_URL') . '/webhooks/payment/mpesa/c2b'),
+    'validation_url' => env('MPESA_VALIDATION_URL', env('APP_URL') . '/webhooks/payment/c2b'),
+    'confirmation_url' => env('MPESA_CONFIRMATION_URL', env('APP_URL') . '/webhooks/payment/c2b'),
 
     /*
     |--------------------------------------------------------------------------

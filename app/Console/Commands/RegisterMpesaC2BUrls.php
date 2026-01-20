@@ -35,13 +35,14 @@ class RegisterMpesaC2BUrls extends Command
         $gateway = app(MpesaGateway::class);
 
         // Get URLs from options or use defaults from config
+        // Note: Use route without "mpesa" in path (Safaricom requirement)
         $confirmationUrl = $this->option('confirmation-url') 
             ?? config('mpesa.confirmation_url')
-            ?? route('payment.webhook.mpesa.c2b');
+            ?? route('payment.webhook.c2b');
         
         $validationUrl = $this->option('validation-url') 
             ?? config('mpesa.validation_url')
-            ?? route('payment.webhook.mpesa.c2b');
+            ?? route('payment.webhook.c2b');
         
         $responseType = $this->option('response-type') 
             ?? config('mpesa.c2b.response_type', 'Completed');

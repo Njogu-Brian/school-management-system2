@@ -596,8 +596,13 @@ class MpesaPaymentController extends Controller
             return response()->json($response);
         }
 
-        // Still processing - query M-PESA API (but handle errors gracefully)
-        // Only query if we have a transaction_id
+        // Still processing - rely on webhook for updates (don't query API too early)
+        // Only query M-PESA API as fallback after 60 seconds if webhook hasn't arrived
+        // This prevents premature failure detection
+        
+        $secondsSinceCreated = $transaction->created_at->diffInSeconds(now());
+        $shouldQueryAPI = $secondsSinceCreated > 60; // Only query after 60 seconds
+        
         if (!$transaction->transaction_id) {
             return response()->json([
                 'status' => $transaction->status,
@@ -605,10 +610,25 @@ class MpesaPaymentController extends Controller
             ]);
         }
 
+        // For first 60 seconds, only check database (webhook will update it)
+        // Don't query M-PESA API yet as it may return pending status incorrectly
+        if (!$shouldQueryAPI) {
+            Log::debug('Skipping API query - waiting for webhook', [
+                'transaction_id' => $transaction->id,
+                'seconds_since_created' => $secondsSinceCreated,
+            ]);
+            
+            return response()->json([
+                'status' => 'processing',
+                'message' => 'Waiting for payment confirmation...',
+            ]);
+        }
+
+        // After 60 seconds, query API as fallback (webhook might be delayed)
         try {
             $result = $this->mpesaGateway->queryStkPushStatus($transaction->transaction_id);
 
-            Log::info('M-PESA Query Response', [
+            Log::info('M-PESA Query Response (fallback after 60s)', [
                 'transaction_id' => $transaction->id,
                 'result' => $result,
             ]);
@@ -640,21 +660,24 @@ class MpesaPaymentController extends Controller
                     } 
                     
                     // Check if it's a pending/waiting status (not a real failure yet)
-                    // ResultCode 1032 can mean "request cancelled" OR "still waiting for user"
+                    // ResultCode 1032 = request cancelled OR still waiting
                     // ResultCode 1037 = timeout waiting for PIN
-                    // We should only mark as failed if it's a definitive failure
-                    $pendingCodes = [1032, 1037]; // These might be pending, not failures
-                    $isPending = in_array($resultCode, $pendingCodes) && 
-                                 (stripos($resultDesc, 'pending') !== false || 
-                                  stripos($resultDesc, 'waiting') !== false ||
-                                  stripos($resultDesc, 'timeout') !== false);
+                    // Any code with "processing", "pending", "waiting" in description = still pending
+                    $pendingCodes = [1032, 1037];
+                    $pendingKeywords = ['pending', 'waiting', 'timeout', 'processing', 'under process'];
                     
-                    if ($isPending) {
+                    $isPending = in_array($resultCode, $pendingCodes) || 
+                                 collect($pendingKeywords)->contains(function($keyword) use ($resultDesc) {
+                                     return stripos($resultDesc, $keyword) !== false;
+                                 });
+                    
+                    if ($isPending && $secondsSinceCreated < 120) {
                         // Still waiting for user to enter PIN - don't mark as failed yet
                         Log::debug('M-PESA transaction still pending', [
                             'transaction_id' => $transaction->id,
                             'result_code' => $resultCode,
                             'result_desc' => $resultDesc,
+                            'seconds_since_created' => $secondsSinceCreated,
                         ]);
                         
                         return response()->json([
@@ -663,6 +686,7 @@ class MpesaPaymentController extends Controller
                         ]);
                     }
                     
+                    // After 120 seconds, treat as actual failure
                     // Actual failure - mark as failed
                     $transaction->update([
                         'status' => 'failed',
@@ -1645,13 +1669,14 @@ class MpesaPaymentController extends Controller
     {
         try {
             // Get URLs from request or use config defaults
+            // Note: Use route without "mpesa" in path (Safaricom requirement)
             $confirmationUrl = $request->input('confirmation_url') 
                 ?? config('mpesa.confirmation_url')
-                ?? route('payment.webhook.mpesa.c2b');
+                ?? route('payment.webhook.c2b');
             
             $validationUrl = $request->input('validation_url') 
                 ?? config('mpesa.validation_url')
-                ?? route('payment.webhook.mpesa.c2b') . '/validation';
+                ?? route('payment.webhook.c2b');
             
             $responseType = $request->input('response_type') 
                 ?? config('mpesa.c2b.response_type', 'Completed');
