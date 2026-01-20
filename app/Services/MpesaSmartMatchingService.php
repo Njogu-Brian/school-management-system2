@@ -169,8 +169,7 @@ class MpesaSmartMatchingService
         $students = Student::whereHas('family', function ($query) use ($phone, $normalizedPhone) {
             $query->where('phone', 'LIKE', '%' . $normalizedPhone . '%')
                 ->orWhere('father_phone', 'LIKE', '%' . $normalizedPhone . '%')
-                ->orWhere('mother_phone', 'LIKE', '%' . $normalizedPhone . '%')
-                ->orWhere('whatsapp_phone', 'LIKE', '%' . $normalizedPhone . '%');
+                ->orWhere('mother_phone', 'LIKE', '%' . $normalizedPhone . '%');
         })->with('family')->get();
 
         foreach ($students as $student) {
