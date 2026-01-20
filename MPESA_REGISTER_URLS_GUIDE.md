@@ -202,7 +202,13 @@ After registration:
 ## 🐛 Troubleshooting
 
 ### Error: "Urls are already registered"
-- **Solution**: Delete existing URLs first via URL Management portal, then re-register
+- **Status**: ✅ This is actually GOOD news! It means your URLs are already registered and active.
+- **In Production**: M-PESA only allows one URL registration per shortcode. This error means registration was successful earlier.
+- **To Change URLs**: 
+  1. Go to https://developer.safaricom.co.ke/dashboard/urlmanagement
+  2. Delete the existing URLs (requires Business Manager or Business Administrator role)
+  3. Then re-register with new URLs
+- **To Verify**: Check the URL Management portal to see your registered URLs
 
 ### Error: "Invalid Access Token"
 - **Solution**: Generate a new access token (they expire after 1 hour)

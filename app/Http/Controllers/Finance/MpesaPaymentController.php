@@ -164,7 +164,8 @@ class MpesaPaymentController extends Controller
                 amount: $request->amount,
                 invoiceId: $request->invoice_id,
                 adminId: Auth::id(),
-                notes: $request->notes
+                notes: $request->notes,
+                isSwimming: $request->boolean('is_swimming', false)
             );
 
             if ($result['success']) {
@@ -239,6 +240,7 @@ class MpesaPaymentController extends Controller
             'student_id' => 'required|exists:students,id',
             'amount' => 'required|numeric|min:1',
             'selected_invoices' => 'nullable|string',
+            'is_swimming' => 'nullable|boolean',
             'parents' => 'required|array|min:1',
             'parents.*' => 'in:father,mother,primary',
             'expires_in_days' => 'nullable|integer|min:1|max:365',
@@ -263,28 +265,38 @@ class MpesaPaymentController extends Controller
                 $expiresAt = now()->addDays((int) $request->expires_in_days);
             }
 
-            // Create description from invoices
-            $description = 'School Fee Payment';
-            if (!empty($invoiceIds)) {
+            // Determine if this is a swimming payment
+            $isSwimming = $request->boolean('is_swimming', false);
+            
+            // Create description from invoices or swimming
+            $description = $isSwimming ? 'Swimming Fee Payment' : 'School Fee Payment';
+            if (!empty($invoiceIds) && !$isSwimming) {
                 $invoices = Invoice::whereIn('id', $invoiceIds)->get();
                 $invoiceNumbers = $invoices->pluck('invoice_number')->toArray();
                 $description = 'Payment for ' . implode(', ', $invoiceNumbers);
             }
 
+            // Set account reference
+            $accountReference = $isSwimming 
+                ? 'SWIM-' . $student->admission_number 
+                : $student->admission_number;
+
             $paymentLink = PaymentLink::create([
                 'student_id' => $request->student_id,
-                'invoice_id' => $primaryInvoiceId,
+                'invoice_id' => $isSwimming ? null : $primaryInvoiceId, // No invoice for swimming
                 'family_id' => $student->family_id,
                 'amount' => $request->amount,
                 'currency' => 'KES',
                 'description' => $description,
+                'account_reference' => $accountReference,
                 'expires_at' => $expiresAt,
                 'max_uses' => $request->max_uses ?? 1,
                 'created_by' => Auth::id(),
                 'status' => 'active',
                 'metadata' => [
-                    'invoice_ids' => $invoiceIds,
+                    'invoice_ids' => $isSwimming ? [] : $invoiceIds,
                     'selected_parents' => $request->parents,
+                    'is_swimming' => $isSwimming,
                 ],
             ]);
 
@@ -1172,7 +1184,11 @@ class MpesaPaymentController extends Controller
      */
     protected function sendPaymentLinkToParents($student, $paymentLink, $channels, $parents)
     {
+        // Load family and parent info
+        $student->load(['family', 'parentInfo']);
+        
         if (!$student->family) {
+            Log::warning('Cannot send payment link: student has no family', ['student_id' => $student->id]);
             return;
         }
 
@@ -1184,36 +1200,59 @@ class MpesaPaymentController extends Controller
         // Prepare parent contacts
         $contacts = [];
         
+        // Load parent info if available (for WhatsApp numbers)
+        $parentInfo = $student->parentInfo ?? null;
+        
         if (in_array('father', $parents)) {
-            $parent = $student->parent;
-            $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
-                : (!empty($parent->father_phone) ? $parent->father_phone : null);
+            // Try to get WhatsApp number from ParentInfo, fallback to family phone
+            $phone = $family->father_phone;
+            if ($parentInfo && $parentInfo->father_whatsapp) {
+                $phone = $parentInfo->father_whatsapp;
+            } elseif ($parentInfo && $parentInfo->father_phone) {
+                $phone = $parentInfo->father_phone;
+            }
             
-            $contacts[] = [
-                'name' => $family->father_name ?? 'Father',
-                'phone' => $whatsappPhone ?? $family->father_phone,
-                'email' => $family->father_email,
-            ];
+            if ($phone) {
+                $contacts[] = [
+                    'name' => $family->father_name ?? 'Father',
+                    'phone' => $phone,
+                    'email' => $family->father_email ?? ($parentInfo->father_email ?? null),
+                ];
+            }
         }
         
         if (in_array('mother', $parents)) {
-            $parent = $student->parent;
-            $whatsappPhone = !empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
-                : (!empty($parent->mother_phone) ? $parent->mother_phone : null);
+            // Try to get WhatsApp number from ParentInfo, fallback to family phone
+            $phone = $family->mother_phone;
+            if ($parentInfo && $parentInfo->mother_whatsapp) {
+                $phone = $parentInfo->mother_whatsapp;
+            } elseif ($parentInfo && $parentInfo->mother_phone) {
+                $phone = $parentInfo->mother_phone;
+            }
             
-            $contacts[] = [
-                'name' => $family->mother_name ?? 'Mother',
-                'phone' => $whatsappPhone ?? $family->mother_phone,
-                'email' => $family->mother_email,
-            ];
+            if ($phone) {
+                $contacts[] = [
+                    'name' => $family->mother_name ?? 'Mother',
+                    'phone' => $phone,
+                    'email' => $family->mother_email ?? ($parentInfo->mother_email ?? null),
+                ];
+            }
         }
         
         if (in_array('primary', $parents)) {
-            $contacts[] = [
-                'name' => 'Parent',
-                'phone' => $family->phone,
-                'email' => $family->email,
-            ];
+            $phone = $family->phone;
+            // Try to get WhatsApp from ParentInfo if available
+            if ($parentInfo) {
+                $phone = $parentInfo->primary_contact_phone ?? $parentInfo->father_phone ?? $parentInfo->mother_phone ?? $family->phone;
+            }
+            
+            if ($phone) {
+                $contacts[] = [
+                    'name' => 'Parent',
+                    'phone' => $phone,
+                    'email' => $family->email ?? ($parentInfo->primary_contact_email ?? null),
+                ];
+            }
         }
 
         // Send to each contact
@@ -1283,7 +1322,30 @@ class MpesaPaymentController extends Controller
      */
     public function getStudentData(Student $student)
     {
-        $student->load(['family', 'classroom']);
+        $student->load(['family', 'classroom', 'parentInfo']);
+        
+        $familyData = null;
+        if ($student->family) {
+            $familyData = [
+                'id' => $student->family->id,
+                'phone' => $student->family->phone,
+                'email' => $student->family->email,
+                'father_name' => $student->family->father_name,
+                'father_phone' => $student->family->father_phone,
+                'father_email' => $student->family->father_email,
+                'mother_name' => $student->family->mother_name,
+                'mother_phone' => $student->family->mother_phone,
+                'mother_email' => $student->family->mother_email,
+            ];
+            
+            // Add WhatsApp numbers from ParentInfo if available
+            if ($student->parentInfo) {
+                $familyData['father_whatsapp'] = $student->parentInfo->father_whatsapp;
+                $familyData['mother_whatsapp'] = $student->parentInfo->mother_whatsapp;
+                $familyData['guardian_phone'] = $student->parentInfo->guardian_phone;
+                $familyData['guardian_whatsapp'] = $student->parentInfo->guardian_whatsapp;
+            }
+        }
         
         return response()->json([
             'id' => $student->id,
@@ -1294,17 +1356,7 @@ class MpesaPaymentController extends Controller
                 'id' => $student->classroom->id,
                 'name' => $student->classroom->name,
             ] : null,
-            'family' => $student->family ? [
-                'id' => $student->family->id,
-                'phone' => $student->family->phone,
-                'email' => $student->family->email,
-                'father_name' => $student->family->father_name,
-                'father_phone' => $student->family->father_phone,
-                'father_email' => $student->family->father_email,
-                'mother_name' => $student->family->mother_name,
-                'mother_phone' => $student->family->mother_phone,
-                'mother_email' => $student->family->mother_email,
-            ] : null,
+            'family' => $familyData,
         ]);
     }
 
@@ -1319,18 +1371,26 @@ class MpesaPaymentController extends Controller
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($invoice) {
+                // Calculate balance if not already set
+                $balance = $invoice->balance ?? ($invoice->total_amount - $invoice->amount_paid);
+                
                 return [
                     'id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
-                    'total_amount' => $invoice->total_amount,
-                    'amount_paid' => $invoice->amount_paid,
-                    'balance' => $invoice->balance,
+                    'total_amount' => (float) $invoice->total_amount,
+                    'amount_paid' => (float) $invoice->amount_paid,
+                    'balance' => max(0, (float) $balance), // Ensure balance is not negative
                     'status' => $invoice->status,
                     'due_date' => $invoice->due_date ? $invoice->due_date->format('Y-m-d') : null,
                     'academic_year' => $invoice->academicYear?->name,
                     'term' => $invoice->term?->name,
                 ];
-            });
+            })
+            ->filter(function ($invoice) {
+                // Only return invoices with outstanding balance
+                return $invoice['balance'] > 0;
+            })
+            ->values(); // Re-index array
 
         return response()->json($invoices);
     }
@@ -1391,12 +1451,31 @@ class MpesaPaymentController extends Controller
                 'raw_data' => $data,
             ]);
 
-            // Check for duplicates
+            // Check for duplicates (including cross-type with bank statements)
             $isDuplicate = $c2bTransaction->checkForDuplicate();
             
+            // Also check against bank statement transactions
             if (!$isDuplicate) {
-                // Attempt smart matching
-                $this->smartMatchingService->matchTransaction($c2bTransaction);
+                $unifiedService = app(\App\Services\UnifiedTransactionService::class);
+                $crossDuplicate = $unifiedService->checkDuplicateAcrossTypes(
+                    $transId,
+                    $transAmount,
+                    $msisdn,
+                    $c2bTransaction->trans_time,
+                    $c2bTransaction->id,
+                    'c2b'
+                );
+                
+                if ($crossDuplicate) {
+                    $isDuplicate = true;
+                    $c2bTransaction->markAsDuplicate($crossDuplicate['id']);
+                }
+            }
+            
+            if (!$isDuplicate) {
+                // Attempt smart matching using unified service
+                $unifiedService = app(\App\Services\UnifiedTransactionService::class);
+                $unifiedService->matchC2BTransaction($c2bTransaction);
             }
 
             Log::info('C2B transaction created', [

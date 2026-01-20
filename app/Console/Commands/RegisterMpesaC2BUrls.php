@@ -80,22 +80,33 @@ class RegisterMpesaC2BUrls extends Command
         );
 
         if ($result['success']) {
-            $this->info('✅ C2B URLs registered successfully!');
-            $this->newLine();
-            
-            $this->line('<options=bold>Registration Response:</>');
-            $this->line('  <fg=green>Originator Conversation ID:</> ' . ($result['originator_conversation_id'] ?? 'N/A'));
-            
-            if (isset($result['response'])) {
-                $this->line('  <fg=green>Response Code:</> ' . ($result['response']['ResponseCode'] ?? 'N/A'));
-                $this->line('  <fg=green>Response Description:</> ' . ($result['response']['ResponseDescription'] ?? 'N/A'));
+            // Check if URLs were already registered
+            if (isset($result['already_registered']) && $result['already_registered']) {
+                $this->info('✅ C2B URLs are already registered!');
+                $this->newLine();
+                $this->line('<fg=cyan>Note:</> In production, M-PESA only allows one URL registration per shortcode.');
+                $this->line('The "already registered" message means your URLs are active and working.');
+                $this->newLine();
+            } else {
+                $this->info('✅ C2B URLs registered successfully!');
+                $this->newLine();
+                
+                $this->line('<options=bold>Registration Response:</>');
+                $this->line('  <fg=green>Originator Conversation ID:</> ' . ($result['originator_conversation_id'] ?? 'N/A'));
+                
+                if (isset($result['response'])) {
+                    $this->line('  <fg=green>Response Code:</> ' . ($result['response']['ResponseCode'] ?? 'N/A'));
+                    $this->line('  <fg=green>Response Description:</> ' . ($result['response']['ResponseDescription'] ?? 'N/A'));
+                }
+                $this->newLine();
             }
             
-            $this->newLine();
             $this->line('<fg=yellow>Next Steps:</>');
             $this->line('  1. Verify registration at: https://developer.safaricom.co.ke/dashboard/urlmanagement');
             $this->line('  2. Make a test payment to your paybill');
             $this->line('  3. Check the C2B Dashboard to see if the transaction appears');
+            $this->newLine();
+            $this->line('<fg=cyan>To change URLs:</> Delete existing URLs first via the Daraja Portal, then re-register.');
             
             return Command::SUCCESS;
         } else {

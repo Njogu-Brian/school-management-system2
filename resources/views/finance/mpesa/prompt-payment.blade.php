@@ -233,6 +233,26 @@
                             @enderror
                         </div>
 
+                        <!-- Payment Type -->
+                        <div class="mb-4" id="paymentTypeGroup" style="display: {{ $student ? 'block' : 'none' }};">
+                            <label class="finance-form-label">Payment Type</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_swimming" id="paymentTypeFees" value="0" checked>
+                                    <label class="form-check-label" for="paymentTypeFees">
+                                        <i class="bi bi-book"></i> School Fees
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_swimming" id="paymentTypeSwimming" value="1">
+                                    <label class="form-check-label" for="paymentTypeSwimming">
+                                        <i class="bi bi-water"></i> Swimming Fees
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="text-muted">Account reference will be: <span id="accountReferencePreview">{{ $student ? $student->admission_number : 'N/A' }}</span></small>
+                        </div>
+
                         <!-- Invoice Selection (Optional) -->
                         <div class="mb-4" id="invoiceSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
                             <label for="invoice_id" class="finance-form-label">Invoice (Optional)</label>
@@ -244,7 +264,7 @@
                                     </option>
                                 @endif
                             </select>
-                            <small class="text-muted">If selected, payment will be allocated to this invoice</small>
+                            <small class="text-muted">If selected, payment will be allocated to this invoice (only for school fees)</small>
                         </div>
 
                         <!-- Amount -->
@@ -487,15 +507,26 @@ $(document).ready(function() {
             phoneSelect.append('<option value="">-- Select Phone Number --</option>');
             
             if (student.family) {
-                if (student.family.father_phone) {
+                // Father's phone (prefer WhatsApp if available)
+                let fatherPhone = student.family.father_whatsapp || student.family.father_phone;
+                if (fatherPhone) {
                     let fatherName = student.family.father_name ? ` (${student.family.father_name})` : '';
-                    phoneSelect.append(`<option value="father" data-phone="${student.family.father_phone}">Father's Phone - ${student.family.father_phone}${fatherName}</option>`);
+                    let phoneLabel = student.family.father_whatsapp ? 'Father\'s WhatsApp' : 'Father\'s Phone';
+                    phoneSelect.append(`<option value="father" data-phone="${fatherPhone}">${phoneLabel} - ${fatherPhone}${fatherName}</option>`);
                 }
-                if (student.family.mother_phone) {
+                
+                // Mother's phone (prefer WhatsApp if available)
+                let motherPhone = student.family.mother_whatsapp || student.family.mother_phone;
+                if (motherPhone) {
                     let motherName = student.family.mother_name ? ` (${student.family.mother_name})` : '';
-                    phoneSelect.append(`<option value="mother" data-phone="${student.family.mother_phone}">Mother's Phone - ${student.family.mother_phone}${motherName}</option>`);
+                    let phoneLabel = student.family.mother_whatsapp ? 'Mother\'s WhatsApp' : 'Mother\'s Phone';
+                    phoneSelect.append(`<option value="mother" data-phone="${motherPhone}">${phoneLabel} - ${motherPhone}${motherName}</option>`);
                 }
-                if (student.family.phone && student.family.phone != student.family.father_phone && student.family.phone != student.family.mother_phone) {
+                
+                // Primary phone (if different from father/mother)
+                if (student.family.phone && 
+                    student.family.phone != fatherPhone && 
+                    student.family.phone != motherPhone) {
                     phoneSelect.append(`<option value="primary" data-phone="${student.family.phone}">Primary Phone - ${student.family.phone}</option>`);
                 }
             }

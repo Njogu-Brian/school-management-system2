@@ -76,6 +76,9 @@ class CommunicationService
             // CRITICAL: If msgId is empty, the message was NOT queued for delivery
             // This often happens when balance is 0 - provider accepts request but doesn't process it
             if ($isSuccess && empty($msgId)) {
+                // Immediately check balance to get current status
+                $balance = $this->smsService->checkBalance(true); // Force fresh check
+                
                 Log::error('SMS provider returned success but msgId is empty - message NOT queued for delivery', [
                     'phone' => $phone,
                     'transaction_id' => $transactionId,
@@ -83,7 +86,17 @@ class CommunicationService
                     'statusCode' => $statusCode,
                     'reason' => $reason,
                     'result' => $result,
-                    'likely_cause' => 'Insufficient balance or account issue'
+                    'balance_check' => $balance,
+                    'likely_cause' => $balance === null 
+                        ? 'Unable to check balance - account may be suspended or API endpoint incorrect'
+                        : ($balance <= 0 
+                            ? 'Insufficient balance (current balance: ' . $balance . ' credits)' 
+                            : 'Account configuration issue - contact SMS provider'),
+                    'action_required' => $balance === null 
+                        ? 'Verify SMS API endpoints and account status with provider (HostPinnacle)'
+                        : ($balance <= 0 
+                            ? 'Top up SMS account balance' 
+                            : 'Contact SMS provider to verify account status')
                 ]);
                 
                 // Treat as failed - message won't be delivered

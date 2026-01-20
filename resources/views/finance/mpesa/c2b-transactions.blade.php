@@ -11,8 +11,13 @@
     <div class="finance-card finance-animate">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-table me-2"></i>All Transactions</h5>
-            <div class="text-muted small">
-                Total: {{ $transactions->total() }} transaction(s)
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-finance btn-finance-outline" id="refreshBtn" onclick="refreshTransactions()">
+                    <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> Refresh Now
+                </button>
+                <div class="text-muted small">
+                    Total: <span id="transactionCount">{{ $transactions->total() }}</span> transaction(s)
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -128,4 +133,66 @@
         </div>
         @endif
     </div>
+
+@section('js')
+<script>
+let isRefreshing = false;
+
+function refreshTransactions() {
+    if (isRefreshing) return;
+    
+    const refreshBtn = document.getElementById('refreshBtn');
+    const refreshIcon = document.getElementById('refreshIcon');
+    
+    // Disable button and show loading
+    refreshBtn.disabled = true;
+    refreshIcon.classList.add('spinning');
+    
+    isRefreshing = true;
+    
+    // Fetch latest transactions
+    fetch('{{ route("api.c2b.latest") }}?since=' + encodeURIComponent(new Date(Date.now() - 5 * 60 * 1000).toISOString()), {
+        method: 'GET',
+        headers: {
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            console.error('Refresh error:', data.error);
+            // Still reload page to show any new transactions
+            window.location.reload();
+            return;
+        }
+        
+        // Reload page to show updated transactions
+        window.location.reload();
+    })
+    .catch(error => {
+        console.error('Refresh failed:', error);
+        // Reload page anyway
+        window.location.reload();
+    })
+    .finally(() => {
+        isRefreshing = false;
+        refreshBtn.disabled = false;
+        refreshIcon.classList.remove('spinning');
+    });
+}
+
+// Add spinning animation
+const style = document.createElement('style');
+style.textContent = `
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
+</script>
 @endsection

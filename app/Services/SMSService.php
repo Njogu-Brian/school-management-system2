@@ -108,10 +108,22 @@ class SMSService
                     curl_close($curl);
 
                     if ($err || $httpCode !== 200) {
-                        Log::debug("SMS Balance Check Failed for endpoint: $endpoint", [
-                            'http_code' => $httpCode,
-                            'error' => $err
-                        ]);
+                        // Log more details for 404 errors to help diagnose
+                        if ($httpCode === 404) {
+                            Log::warning("SMS Balance endpoint returned 404", [
+                                'endpoint' => $endpoint,
+                                'http_code' => $httpCode,
+                                'response_body' => substr($response, 0, 500),
+                                'error' => $err,
+                                'note' => 'This endpoint may not exist. Trying alternatives...'
+                            ]);
+                        } else {
+                            Log::debug("SMS Balance Check Failed for endpoint: $endpoint", [
+                                'http_code' => $httpCode,
+                                'error' => $err,
+                                'response_body' => substr($response, 0, 500)
+                            ]);
+                        }
                         continue; // Try next endpoint
                     }
 
@@ -170,8 +182,18 @@ class SMSService
                 }
             }
 
-            // If all endpoints failed, log warning
-            Log::warning("Unable to check SMS balance from any endpoint");
+            // If all endpoints failed, log comprehensive error
+            Log::error("Unable to check SMS balance from any endpoint", [
+                'tried_endpoints' => array_merge(
+                    [$this->balanceUrl],
+                    array_map(fn($base) => $base . '/readAccountStatus', [$apiBase]),
+                    array_map(fn($base) => $base . '/balance', [$apiBase]),
+                    array_map(fn($base) => $base . '/getBalance', [$apiBase])
+                ),
+                'userid' => $this->userId ? 'set' : 'missing',
+                'api_key' => $this->apiKey ? 'set' : 'missing',
+                'suggestion' => 'Please verify the correct balance endpoint with your SMS provider (HostPinnacle). The endpoint may have changed or require different parameters.'
+            ]);
             return null;
         });
     }
@@ -341,12 +363,23 @@ class SMSService
             return ['status' => 'unknown', 'raw' => $response];
         }
 
-        // Log warning if msgId is empty - this might indicate the message wasn't queued
+        // CRITICAL: If msgId is empty despite success, the message was NOT queued
+        // This typically happens when balance is 0 or account has issues
         if (empty($decoded['msgId']) && isset($decoded['status']) && $decoded['status'] === 'success') {
-            Log::warning("SMS provider returned success but msgId is empty - message may not be queued for delivery", [
+            // Immediately check balance to diagnose the issue
+            $balance = $this->checkBalance(true); // Force fresh check
+            
+            Log::error("SMS provider returned success but msgId is empty - message may not be queued for delivery", [
                 'phone' => $phoneNumber,
                 'transaction_id' => $decoded['transactionId'] ?? null,
-                'response' => $decoded
+                'response' => $decoded,
+                'balance_check' => $balance,
+                'likely_cause' => $balance === null 
+                    ? 'Unable to check balance - account may be suspended or endpoint incorrect'
+                    : ($balance <= 0 
+                        ? 'Insufficient balance (balance: ' . $balance . ')' 
+                        : 'Account issue - contact SMS provider'),
+                'action_required' => 'Check SMS account balance and status with provider'
             ]);
         }
 
@@ -458,62 +491,105 @@ class SMSService
     }
 
     /**
-     * Get account status (includes balance) using HostPinnacle's "Read Account Status" API
+     * Get account status (includes balance) using HostPinnacle's API
+     * Tries multiple possible endpoints as the API structure may vary
      */
     public function getAccountStatus(): ?array
     {
-        try {
-            $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
-            $endpoint = $apiBase . '/readAccountStatus';
-            
-            $payload = http_build_query([
-                'userid'   => $this->userId,
-                'password' => $this->password,
-                'output'   => 'json',
-            ]);
+        $apiBase = 'https://smsportal.hostpinnacle.co.ke/SMSApi';
+        
+        // Try multiple possible endpoints - different providers may use different paths
+        $possibleEndpoints = [
+            $apiBase . '/readAccountStatus',
+            $apiBase . '/accountStatus',
+            $apiBase . '/getAccountStatus',
+            $apiBase . '/balance',
+            $apiBase . '/getBalance',
+            $apiBase . '/checkBalance',
+        ];
 
-            $curl = curl_init();
-            curl_setopt_array($curl, [
-                CURLOPT_URL            => $endpoint,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 10,
-                CURLOPT_POST           => true,
-                CURLOPT_POSTFIELDS     => $payload,
-                CURLOPT_HTTPHEADER     => [
-                    "apikey: {$this->apiKey}",
-                    "cache-control: no-cache",
-                    "content-type: application/x-www-form-urlencoded",
-                ],
-            ]);
-
-            $response = curl_exec($curl);
-            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            $err      = curl_error($curl);
-            curl_close($curl);
-
-            if ($err || $httpCode !== 200) {
-                Log::warning("Account status check failed", [
-                    'http_code' => $httpCode,
-                    'error' => $err
+        foreach ($possibleEndpoints as $endpoint) {
+            try {
+                $payload = http_build_query([
+                    'userid'   => $this->userId,
+                    'password' => $this->password,
+                    'output'   => 'json',
                 ]);
-                return null;
-            }
 
-            $decoded = json_decode($response, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                Log::warning("Invalid JSON response from account status API", [
-                    'raw_response' => $response
+                $curl = curl_init();
+                curl_setopt_array($curl, [
+                    CURLOPT_URL            => $endpoint,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT        => 10,
+                    CURLOPT_POST           => true,
+                    CURLOPT_POSTFIELDS     => $payload,
+                    CURLOPT_HTTPHEADER     => [
+                        "apikey: {$this->apiKey}",
+                        "cache-control: no-cache",
+                        "content-type: application/x-www-form-urlencoded",
+                    ],
                 ]);
-                return null;
-            }
 
-            Log::info("Account status retrieved", ['response' => $decoded]);
-            return $decoded;
-        } catch (\Exception $e) {
-            Log::error("Exception getting account status: " . $e->getMessage());
-            return null;
+                $response = curl_exec($curl);
+                $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+                $err      = curl_error($curl);
+                curl_close($curl);
+
+                // Log detailed info for 404 errors to help diagnose endpoint issues
+                if ($httpCode === 404) {
+                    Log::warning("Account status endpoint returned 404", [
+                        'endpoint' => $endpoint,
+                        'http_code' => $httpCode,
+                        'response_body' => $response,
+                        'error' => $err,
+                        'note' => 'This endpoint may not exist. Trying alternatives...'
+                    ]);
+                    continue; // Try next endpoint
+                }
+
+                if ($err || $httpCode !== 200) {
+                    Log::debug("Account status check failed for endpoint", [
+                        'endpoint' => $endpoint,
+                        'http_code' => $httpCode,
+                        'error' => $err,
+                        'response_body' => substr($response, 0, 500) // Log first 500 chars
+                    ]);
+                    continue; // Try next endpoint
+                }
+
+                $decoded = json_decode($response, true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    Log::debug("Invalid JSON response from account status API", [
+                        'endpoint' => $endpoint,
+                        'raw_response' => substr($response, 0, 500),
+                        'json_error' => json_last_error_msg()
+                    ]);
+                    continue; // Try next endpoint
+                }
+
+                // If we got a valid response, log it and return
+                Log::info("Account status retrieved successfully", [
+                    'endpoint' => $endpoint,
+                    'response' => $decoded
+                ]);
+                return $decoded;
+            } catch (\Exception $e) {
+                Log::debug("Exception getting account status from endpoint: " . $e->getMessage(), [
+                    'endpoint' => $endpoint
+                ]);
+                continue; // Try next endpoint
+            }
         }
+
+        // If all endpoints failed, log comprehensive error
+        Log::error("Account status check failed from all endpoints", [
+            'tried_endpoints' => $possibleEndpoints,
+            'userid' => $this->userId ? 'set' : 'missing',
+            'api_key' => $this->apiKey ? 'set' : 'missing',
+            'suggestion' => 'Please verify the correct endpoint with your SMS provider (HostPinnacle)'
+        ]);
+        return null;
     }
 
     /**

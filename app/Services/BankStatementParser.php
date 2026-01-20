@@ -66,6 +66,7 @@ class BankStatementParser
             if ($transactionCode) {
                 // First check if a bank statement transaction with this reference already exists
                 // Check for exact match: same reference_number, amount, and transaction_date
+                // Check for duplicates in both bank statements and C2B transactions
                 $duplicateTransaction = \App\Models\BankStatementTransaction::where('reference_number', $transactionCode)
                     ->where('amount', $amount)
                     ->whereDate('transaction_date', $transactionDate)
@@ -78,11 +79,25 @@ class BankStatementParser
                         $duplicatePayment = Payment::find($duplicateTransaction->payment_id);
                     }
                 } else {
-                    // Check for existing payment with same transaction code
-                    $existingPayment = Payment::where('transaction_code', $transactionCode)->first();
-                    if ($existingPayment) {
+                    // Check C2B transactions for duplicates
+                    $c2bDuplicate = \App\Models\MpesaC2BTransaction::where('trans_id', $transactionCode)
+                        ->where('trans_amount', $amount)
+                        ->whereDate('trans_time', $transactionDate)
+                        ->first();
+                    
+                    if ($c2bDuplicate) {
                         $isDuplicate = true;
-                        $duplicatePayment = $existingPayment;
+                        $duplicateTransaction = $c2bDuplicate;
+                        if ($c2bDuplicate->payment_id) {
+                            $duplicatePayment = Payment::find($c2bDuplicate->payment_id);
+                        }
+                    } else {
+                        // Check for existing payment with same transaction code
+                        $existingPayment = Payment::where('transaction_code', $transactionCode)->first();
+                        if ($existingPayment) {
+                            $isDuplicate = true;
+                            $duplicatePayment = $existingPayment;
+                        }
                     }
                 }
             }

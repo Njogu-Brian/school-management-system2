@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\{
-    BankStatementTransaction, BankAccount, Student, Family
+    BankStatementTransaction, BankAccount, Student, Family, MpesaC2BTransaction
 };
 use App\Services\BankStatementParser;
 use App\Services\PaymentAllocationService;
 use App\Services\SwimmingTransactionService;
+use App\Services\UnifiedTransactionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
@@ -20,12 +21,14 @@ class BankStatementController extends Controller
     protected $parser;
     protected $allocationService;
     protected $swimmingTransactionService;
+    protected $unifiedService;
 
     public function __construct(BankStatementParser $parser, PaymentAllocationService $allocationService)
     {
         $this->parser = $parser;
         $this->allocationService = $allocationService;
         $this->swimmingTransactionService = app(SwimmingTransactionService::class);
+        $this->unifiedService = app(UnifiedTransactionService::class);
     }
 
     /**
@@ -214,12 +217,38 @@ class BankStatementController extends Controller
             });
         }
 
-        $transactions = $query->paginate(25)->withQueryString();
+        // Get C2B transactions with same filters
+        $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
+        $c2bTransactions = $c2bQuery->get();
+        
+        // Check for duplicates across both types
+        $this->checkCrossTypeDuplicates($c2bTransactions);
+        
+        // Combine transactions
+        $bankTransactions = $query->get();
+        $allTransactions = $bankTransactions->concat($c2bTransactions)
+            ->sortByDesc(function($txn) {
+                return $txn->trans_time ?? $txn->transaction_date ?? $txn->created_at;
+            })
+            ->values();
+        
+        // Paginate manually
+        $perPage = 25;
+        $currentPage = $request->get('page', 1);
+        $items = $allTransactions->slice(($currentPage - 1) * $perPage, $perPage)->values();
+        $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items,
+            $allTransactions->count(),
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+        
         $bankAccounts = BankAccount::where('is_active', true)->get();
 
         // Calculate total amount for current filtered results
-        $totalAmount = (clone $query)->sum('amount');
-        $totalCount = (clone $query)->count();
+        $totalAmount = $bankTransactions->sum('amount') + $c2bTransactions->sum('trans_amount');
+        $totalCount = $bankTransactions->count() + $c2bTransactions->count();
 
         // Get counts for each view (exclude swimming and debit transactions from non-swimming views)
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
@@ -325,7 +354,144 @@ class BankStatementController extends Controller
                 : 0,
         ];
 
+        // Add C2B counts to existing counts
+        $c2bCounts = $this->getC2BCounts($view);
+        foreach ($c2bCounts as $key => $count) {
+            $counts[$key] = ($counts[$key] ?? 0) + $count;
+        }
+        
         return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount'));
+    }
+
+    /**
+     * Get C2B transactions query with filters
+     */
+    protected function getC2BTransactionsQuery(Request $request, string $view)
+    {
+        $query = MpesaC2BTransaction::with(['student', 'payment', 'invoice']);
+
+        switch ($view) {
+            case 'auto-assigned':
+                $query->where('match_confidence', '>=', 80)
+                    ->where('allocation_status', 'auto_matched')
+                    ->whereNull('payment_id')
+                    ->where('is_duplicate', false);
+                break;
+            case 'manual-assigned':
+                $query->where('allocation_status', 'manually_allocated')
+                    ->whereNull('payment_id')
+                    ->where('is_duplicate', false);
+                break;
+            case 'unassigned':
+                $query->where('allocation_status', 'unallocated')
+                    ->whereNull('student_id')
+                    ->where('is_duplicate', false);
+                break;
+            case 'duplicate':
+                $query->where('is_duplicate', true);
+                break;
+            case 'swimming':
+                // C2B doesn't have swimming flag, exclude
+                $query->whereRaw('1 = 0');
+                break;
+            default:
+                $query->where('is_duplicate', false);
+        }
+
+        // Apply search filter
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('trans_id', 'LIKE', "%{$search}%")
+                  ->orWhere('bill_ref_number', 'LIKE', "%{$search}%")
+                  ->orWhere('msisdn', 'LIKE', "%{$search}%")
+                  ->orWhere('first_name', 'LIKE', "%{$search}%")
+                  ->orWhere('last_name', 'LIKE', "%{$search}%")
+                  ->orWhereHas('student', function($q) use ($search) {
+                      $q->where('admission_number', 'LIKE', "%{$search}%")
+                        ->orWhere('first_name', 'LIKE', "%{$search}%")
+                        ->orWhere('last_name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // Date filters
+        if ($request->filled('date_from')) {
+            $query->whereDate('trans_time', '>=', $request->date_from);
+        }
+        if ($request->filled('date_to')) {
+            $query->whereDate('trans_time', '<=', $request->date_to);
+        }
+
+        return $query->orderBy('trans_time', 'desc')->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get C2B transaction counts
+     */
+    protected function getC2BCounts(string $view): array
+    {
+        $counts = [
+            'all' => MpesaC2BTransaction::where('is_duplicate', false)->count(),
+            'auto-assigned' => MpesaC2BTransaction::where('match_confidence', '>=', 80)
+                ->where('allocation_status', 'auto_matched')
+                ->whereNull('payment_id')
+                ->where('is_duplicate', false)
+                ->count(),
+            'manual-assigned' => MpesaC2BTransaction::where('allocation_status', 'manually_allocated')
+                ->whereNull('payment_id')
+                ->where('is_duplicate', false)
+                ->count(),
+            'unassigned' => MpesaC2BTransaction::where('allocation_status', 'unallocated')
+                ->whereNull('student_id')
+                ->where('is_duplicate', false)
+                ->count(),
+            'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)->count(),
+            'swimming' => 0, // C2B doesn't support swimming
+        ];
+
+        return $counts;
+    }
+
+    /**
+     * Check for duplicates across transaction types
+     */
+    protected function checkCrossTypeDuplicates($c2bTransactions)
+    {
+        foreach ($c2bTransactions as $c2bTxn) {
+            if ($c2bTxn->is_duplicate) {
+                continue;
+            }
+
+            // Check against bank statement transactions
+            $duplicate = BankStatementTransaction::where('reference_number', $c2bTxn->trans_id)
+                ->orWhere(function($q) use ($c2bTxn) {
+                    $q->where('amount', $c2bTxn->trans_amount)
+                      ->where('transaction_date', $c2bTxn->trans_time->format('Y-m-d'))
+                      ->where(function($subQ) use ($c2bTxn) {
+                          if ($c2bTxn->msisdn && strlen($c2bTxn->msisdn) > 4) {
+                              $subQ->where('phone_number', 'LIKE', '%' . substr($c2bTxn->msisdn, -4) . '%');
+                          }
+                      });
+                })
+                ->where('is_duplicate', false)
+                ->first();
+
+            if ($duplicate) {
+                // Mark C2B as duplicate
+                $c2bTxn->update([
+                    'is_duplicate' => true,
+                    'status' => 'ignored',
+                    'allocation_status' => 'duplicate',
+                ]);
+                
+                Log::info('Cross-type duplicate detected', [
+                    'c2b_id' => $c2bTxn->id,
+                    'bank_id' => $duplicate->id,
+                    'trans_code' => $c2bTxn->trans_id,
+                ]);
+            }
+        }
     }
 
     /**

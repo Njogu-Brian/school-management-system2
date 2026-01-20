@@ -50,10 +50,33 @@
                             @enderror
                         </div>
 
-                        <!-- Step 2: Select Invoices -->
-                        <div class="mb-4" id="invoiceSelectionSection" style="display: none;">
+                        <!-- Step 2: Payment Type -->
+                        <div class="mb-4" id="paymentTypeSection" style="display: none;">
                             <label class="finance-form-label">
                                 <span class="badge bg-primary me-2">2</span>
+                                Payment Type
+                            </label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_swimming" id="linkPaymentTypeFees" value="0" checked>
+                                    <label class="form-check-label" for="linkPaymentTypeFees">
+                                        <i class="bi bi-book"></i> School Fees
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_swimming" id="linkPaymentTypeSwimming" value="1">
+                                    <label class="form-check-label" for="linkPaymentTypeSwimming">
+                                        <i class="bi bi-water"></i> Swimming Fees
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="text-muted">Account reference: <span id="linkAccountReferencePreview">-</span></small>
+                        </div>
+
+                        <!-- Step 3: Select Invoices -->
+                        <div class="mb-4" id="invoiceSelectionSection" style="display: none;">
+                            <label class="finance-form-label">
+                                <span class="badge bg-primary me-2">3</span>
                                 Select Invoices to Pay
                             </label>
                             <div id="invoicesList" class="border rounded p-3 bg-light">
@@ -72,10 +95,10 @@
                             @enderror
                         </div>
 
-                        <!-- Step 3: Select Parents -->
+                        <!-- Step 4: Select Parents -->
                         <div class="mb-4" id="parentSelectionSection" style="display: none;">
                             <label class="finance-form-label">
-                                <span class="badge bg-primary me-2">3</span>
+                                <span class="badge bg-primary me-2">4</span>
                                 Select Parent(s) to Notify <span class="text-danger">*</span>
                             </label>
                             <div id="parentsList" class="border rounded p-3">
@@ -88,10 +111,10 @@
                             @enderror
                         </div>
 
-                        <!-- Step 4: Select Communication Channels -->
+                        <!-- Step 5: Select Communication Channels -->
                         <div class="mb-4" id="channelSelectionSection" style="display: none;">
                             <label class="finance-form-label">
-                                <span class="badge bg-primary me-2">4</span>
+                                <span class="badge bg-primary me-2">5</span>
                                 Send Link Via <span class="text-danger">*</span>
                             </label>
                             <div class="d-flex gap-3 flex-wrap">
@@ -217,6 +240,7 @@ $(document).ready(function() {
     // Load student data function
     function loadStudentData(studentId) {
         console.log('Loading student data for ID:', studentId);
+        $('#paymentTypeSection').hide();
         $('#invoiceSelectionSection').hide();
         $('#parentSelectionSection').hide();
         $('#channelSelectionSection').hide();
@@ -246,6 +270,10 @@ $(document).ready(function() {
                 }
                 $('#studentInfoBody').html(infoHtml);
 
+                // Show payment type section
+                $('#paymentTypeSection').show();
+                updateAccountReference(student);
+                
                 // Load invoices and parents
                 loadInvoices(studentId).then(function() {
                     loadParents(student);
@@ -338,32 +366,54 @@ $(document).ready(function() {
         let html = '';
         let hasParents = false;
 
-        // Father
-        if (student.family.father_name || student.family.father_phone) {
+        // Father (check for phone or WhatsApp)
+        let fatherPhone = student.family.father_whatsapp || student.family.father_phone;
+        if (student.family.father_name || fatherPhone) {
             hasParents = true;
+            let phoneDisplay = '';
+            if (student.family.father_whatsapp) {
+                phoneDisplay = `<br><small class="text-muted">WhatsApp: ${student.family.father_whatsapp}</small>`;
+                if (student.family.father_phone && student.family.father_phone !== student.family.father_whatsapp) {
+                    phoneDisplay += `<br><small class="text-muted">Phone: ${student.family.father_phone}</small>`;
+                }
+            } else if (student.family.father_phone) {
+                phoneDisplay = `<br><small class="text-muted">Phone: ${student.family.father_phone}</small>`;
+            }
+            
             html += `
                 <div class="form-check mb-2">
                     <input class="form-check-input parent-checkbox" type="checkbox" name="parents[]" value="father" 
                            id="parent_father" checked>
                     <label class="form-check-label" for="parent_father">
                         <strong>Father${student.family.father_name ? ': ' + student.family.father_name : ''}</strong>
-                        ${student.family.father_phone ? '<br><small class="text-muted">Phone: ' + student.family.father_phone + '</small>' : ''}
+                        ${phoneDisplay}
                         ${student.family.father_email ? '<br><small class="text-muted">Email: ' + student.family.father_email + '</small>' : ''}
                     </label>
                 </div>
             `;
         }
 
-        // Mother
-        if (student.family.mother_name || student.family.mother_phone) {
+        // Mother (check for phone or WhatsApp)
+        let motherPhone = student.family.mother_whatsapp || student.family.mother_phone;
+        if (student.family.mother_name || motherPhone) {
             hasParents = true;
+            let phoneDisplay = '';
+            if (student.family.mother_whatsapp) {
+                phoneDisplay = `<br><small class="text-muted">WhatsApp: ${student.family.mother_whatsapp}</small>`;
+                if (student.family.mother_phone && student.family.mother_phone !== student.family.mother_whatsapp) {
+                    phoneDisplay += `<br><small class="text-muted">Phone: ${student.family.mother_phone}</small>`;
+                }
+            } else if (student.family.mother_phone) {
+                phoneDisplay = `<br><small class="text-muted">Phone: ${student.family.mother_phone}</small>`;
+            }
+            
             html += `
                 <div class="form-check mb-2">
                     <input class="form-check-input parent-checkbox" type="checkbox" name="parents[]" value="mother" 
                            id="parent_mother" checked>
                     <label class="form-check-label" for="parent_mother">
                         <strong>Mother${student.family.mother_name ? ': ' + student.family.mother_name : ''}</strong>
-                        ${student.family.mother_phone ? '<br><small class="text-muted">Phone: ' + student.family.mother_phone + '</small>' : ''}
+                        ${phoneDisplay}
                         ${student.family.mother_email ? '<br><small class="text-muted">Email: ' + student.family.mother_email + '</small>' : ''}
                     </label>
                 </div>
@@ -454,9 +504,12 @@ $(document).ready(function() {
     // Form submission
     $('#createLinkForm').on('submit', function(e) {
         // Validate
-        if ($('.invoice-checkbox:checked').length === 0) {
+        let isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
+        
+        // Only require invoices for school fees, not swimming
+        if (!isSwimming && $('.invoice-checkbox:checked').length === 0) {
             e.preventDefault();
-            alert('Please select at least one invoice.');
+            alert('Please select at least one invoice for school fees payment.');
             return false;
         }
         

@@ -23,6 +23,7 @@ class PaymentLink extends Model
         'currency',
         'description',
         'payment_reference',
+        'account_reference',
         'status',
         'expires_at',
         'used_at',
@@ -55,6 +56,13 @@ class PaymentLink extends Model
             }
             if (!$link->payment_reference) {
                 $link->payment_reference = 'LINK-' . strtoupper(Str::random(10));
+            }
+            // Set account_reference based on student and swimming flag
+            if ($link->student && !$link->account_reference) {
+                $isSwimming = isset($link->metadata['is_swimming']) && $link->metadata['is_swimming'];
+                $link->account_reference = $isSwimming 
+                    ? 'SWIM-' . $link->student->admission_number 
+                    : $link->student->admission_number;
             }
         });
     }

@@ -324,8 +324,8 @@ class MpesaGateway implements PaymentGatewayInterface
             'PartyB' => $this->shortcode,
             'PhoneNumber' => $phoneNumber,
             'CallBackURL' => route('payment.webhook.mpesa'),
-            'AccountReference' => $transaction->reference,
-            'TransactionDesc' => 'School Fee Payment - ' . $transaction->reference,
+            'AccountReference' => $transaction->account_reference ?? $transaction->reference,
+            'TransactionDesc' => 'School Fee Payment - ' . ($transaction->account_reference ?? $transaction->reference),
         ];
 
         $url = $this->getUrl('stk_push');
@@ -540,23 +540,29 @@ class MpesaGateway implements PaymentGatewayInterface
         float $amount,
         ?int $invoiceId = null,
         ?int $adminId = null,
-        ?string $notes = null
+        ?string $notes = null,
+        bool $isSwimming = false
     ): array {
         $student = \App\Models\Student::findOrFail($studentId);
+        
+        // Set account reference: SWIM-{admission} for swimming, {admission} for regular fees
+        $accountReference = $isSwimming 
+            ? 'SWIM-' . $student->admission_number 
+            : $student->admission_number;
         
         // Create payment transaction record
         $transaction = \App\Models\PaymentTransaction::create([
             'student_id' => $studentId,
             'invoice_id' => $invoiceId,
             'gateway' => 'mpesa',
-            'reference' => 'ADM-' . $student->admission_number . '-' . time(),
+            'reference' => $accountReference . '-' . time(),
             'amount' => $amount,
             'currency' => 'KES',
             'status' => 'pending',
             'initiated_by' => $adminId,
             'admin_notes' => $notes,
             'phone_number' => $phoneNumber,
-            'account_reference' => $student->admission_number,
+            'account_reference' => $accountReference,
         ]);
 
         try {
@@ -624,7 +630,7 @@ class MpesaGateway implements PaymentGatewayInterface
             'currency' => $paymentLink->currency,
             'status' => 'pending',
             'phone_number' => $phoneNumber,
-            'account_reference' => $paymentLink->student->admission_number,
+            'account_reference' => $paymentLink->account_reference ?? $paymentLink->student->admission_number,
         ]);
 
         try {
@@ -877,6 +883,28 @@ class MpesaGateway implements PaymentGatewayInterface
             }
 
             $errorResponse = $response->json();
+            
+            // Check if URLs are already registered (this is actually OK - means registration was successful)
+            $errorCode = $errorResponse['errorCode'] ?? null;
+            $errorMessage = $errorResponse['errorMessage'] ?? '';
+            
+            if ($errorCode === '500.003.1001' || str_contains($errorMessage, 'already registered')) {
+                Log::info('M-PESA C2B URLs already registered', [
+                    'response' => $errorResponse,
+                    'urls' => [
+                        'confirmation' => $payload['ConfirmationURL'],
+                        'validation' => $payload['ValidationURL'],
+                    ],
+                ]);
+
+                return [
+                    'success' => true,
+                    'message' => 'C2B URLs are already registered (this is expected in production)',
+                    'already_registered' => true,
+                    'response' => $errorResponse,
+                ];
+            }
+            
             Log::error('M-PESA C2B URL registration failed', [
                 'status' => $response->status(),
                 'response' => $errorResponse,

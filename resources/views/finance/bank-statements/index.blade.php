@@ -222,6 +222,12 @@
 
     <!-- Transactions Table -->
     <div class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
+        <div class="card-header d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="bi bi-table me-2"></i>Transactions</h5>
+            <button type="button" class="btn btn-sm btn-finance btn-finance-outline" id="refreshBtn" onclick="refreshTransactions()">
+                <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> Refresh Now
+            </button>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover finance-table">
                 <thead>
@@ -246,81 +252,126 @@
                 </thead>
                 <tbody>
                     @forelse($transactions as $transaction)
+                        @php
+                            // Detect transaction type
+                            $isC2B = $transaction instanceof \App\Models\MpesaC2BTransaction;
+                            $isBank = $transaction instanceof \App\Models\BankStatementTransaction;
+                            
+                            // Normalize fields for both types
+                            $txnDate = $isC2B ? ($transaction->trans_time ?? $transaction->created_at) : ($transaction->transaction_date ?? $transaction->created_at);
+                            $txnAmount = $isC2B ? $transaction->trans_amount : $transaction->amount;
+                            $txnDescription = $isC2B ? ($transaction->bill_ref_number ?? 'M-PESA Payment') : $transaction->description;
+                            $txnReference = $isC2B ? $transaction->trans_id : ($transaction->reference_number ?? 'N/A');
+                            $txnPhone = $isC2B ? ($transaction->formatted_phone ?? $transaction->msisdn) : $transaction->phone_number;
+                            $txnStatus = $isC2B ? ($transaction->status === 'processed' ? 'confirmed' : ($transaction->status === 'failed' ? 'rejected' : 'draft')) : $transaction->status;
+                            $txnMatchStatus = $isC2B ? ($transaction->allocation_status === 'auto_matched' ? 'matched' : ($transaction->allocation_status === 'manually_allocated' ? 'manual' : 'unmatched')) : $transaction->match_status;
+                            $txnMatchConfidence = $isC2B ? ($transaction->match_confidence ?? 0) : ($transaction->match_confidence ?? 0);
+                            $txnIsDuplicate = $isC2B ? $transaction->is_duplicate : $transaction->is_duplicate;
+                            $txnIsArchived = $isC2B ? false : ($transaction->is_archived ?? false);
+                            $txnPaymentCreated = $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false);
+                            $txnIsSwimming = $isC2B ? false : ($transaction->is_swimming_transaction ?? false);
+                            $txnStudentId = $transaction->student_id;
+                            $txnIsShared = $isC2B ? false : ($transaction->is_shared ?? false);
+                            $txnSharedAllocations = $isC2B ? [] : ($transaction->shared_allocations ?? []);
+                            
+                            // Permission checks
+                            $canConfirm = $txnStatus === 'draft' 
+                                && !$txnIsDuplicate 
+                                && !$txnIsArchived
+                                && ($txnStudentId || $txnIsShared);
+                            $canArchive = $txnMatchStatus === 'unmatched'
+                                && !$txnIsArchived
+                                && !$txnIsDuplicate
+                                && !$txnStudentId
+                                && !$isC2B; // C2B transactions can't be archived
+                            $canTransferToSwimming = $txnStatus === 'confirmed' 
+                                && $txnPaymentCreated 
+                                && !$txnIsSwimming
+                                && !$txnIsDuplicate
+                                && !$txnIsArchived
+                                && ($txnStudentId || $txnIsShared)
+                                && !$isC2B; // C2B doesn't support swimming
+                            $canTransferFromSwimming = $txnStatus === 'confirmed' 
+                                && $txnIsSwimming
+                                && !$txnIsDuplicate
+                                && !$txnIsArchived
+                                && ($txnStudentId || $txnIsShared)
+                                && !$isC2B;
+                            $canMarkAsSwimming = ($txnStatus === 'draft' || $txnStatus === 'confirmed')
+                                && !$txnIsSwimming
+                                && !$txnIsDuplicate
+                                && !$txnIsArchived
+                                && ($txnStudentId || $txnIsShared || $txnMatchStatus === 'unmatched' || $txnMatchStatus === 'multiple_matches')
+                                && !$isC2B;
+                            $canSelectDraftUnmatched = $txnStatus === 'draft'
+                                && ($txnMatchStatus === 'unmatched' || $txnMatchStatus === 'multiple_matches')
+                                && !$txnIsDuplicate
+                                && !$txnIsArchived
+                                && !$txnIsSwimming;
+                        @endphp
                         <tr>
                             <td>
-                                @php
-                                    $canConfirm = $transaction->status === 'draft' 
-                                        && !$transaction->is_duplicate 
-                                        && !$transaction->is_archived
-                                        && ($transaction->student_id || $transaction->is_shared);
-                                    $canArchive = $transaction->match_status === 'unmatched'
-                                        && !$transaction->is_archived
-                                        && !$transaction->is_duplicate
-                                        && !$transaction->student_id;
-                                    $canTransferToSwimming = $transaction->status === 'confirmed' 
-                                        && $transaction->payment_created 
-                                        && !($transaction->is_swimming_transaction ?? false)
-                                        && !$transaction->is_duplicate
-                                        && !$transaction->is_archived
-                                        && ($transaction->student_id || $transaction->is_shared);
-                                    $canTransferFromSwimming = $transaction->status === 'confirmed' 
-                                        && ($transaction->is_swimming_transaction ?? false)
-                                        && !$transaction->is_duplicate
-                                        && !$transaction->is_archived
-                                        && ($transaction->student_id || $transaction->is_shared);
-                                    // Allow draft transactions (including unmatched and multiple_matches) to be marked as swimming
-                                    $canMarkAsSwimming = ($transaction->status === 'draft' || $transaction->status === 'confirmed')
-                                        && !($transaction->is_swimming_transaction ?? false)
-                                        && !$transaction->is_duplicate
-                                        && !$transaction->is_archived
-                                        && ($transaction->student_id || $transaction->is_shared || $transaction->match_status === 'unmatched' || $transaction->match_status === 'multiple_matches');
-                                    // Allow draft unmatched and multiple_matches transactions to be selectable (for marking as swimming or other actions)
-                                    $canSelectDraftUnmatched = $transaction->status === 'draft'
-                                        && ($transaction->match_status === 'unmatched' || $transaction->match_status === 'multiple_matches')
-                                        && !$transaction->is_duplicate
-                                        && !$transaction->is_archived
-                                        && !($transaction->is_swimming_transaction ?? false);
-                                @endphp
                                 @if($canConfirm || $canArchive || $canTransferToSwimming || $canTransferFromSwimming || $canMarkAsSwimming || $canSelectDraftUnmatched)
-                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-transfer-from-swimming="{{ $canTransferFromSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ ($canMarkAsSwimming || $canSelectDraftUnmatched) ? '1' : '0' }}">
+                                    <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" data-txn-type="{{ $isC2B ? 'c2b' : 'bank' }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-transfer-from-swimming="{{ $canTransferFromSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ ($canMarkAsSwimming || $canSelectDraftUnmatched) ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td>{{ $transaction->transaction_date->format('d M Y') }}</td>
+                            <td>
+                                @if($isC2B)
+                                    <span class="badge bg-success mb-1 d-block" style="font-size: 0.7rem;">C2B</span>
+                                @endif
+                                {{ $txnDate instanceof \Carbon\Carbon ? $txnDate->format('d M Y') : \Carbon\Carbon::parse($txnDate)->format('d M Y') }}
+                                @if($isC2B && $transaction->trans_time)
+                                    <br><small class="text-muted">{{ $transaction->trans_time->format('h:i A') }}</small>
+                                @endif
+                            </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
-                                    <strong class="{{ $transaction->transaction_type == 'credit' ? 'text-success' : 'text-danger' }}">
-                                        {{ $transaction->transaction_type == 'credit' ? '+' : '-' }}Ksh {{ number_format($transaction->amount, 2) }}
+                                    <strong class="text-success">
+                                        +Ksh {{ number_format($txnAmount, 2) }}
                                     </strong>
-                                    @if(isset($transaction->is_swimming_transaction) && $transaction->is_swimming_transaction)
+                                    @if($txnIsSwimming)
                                         <span class="badge bg-info" title="Swimming Transaction">
                                             <i class="bi bi-water"></i>
+                                        </span>
+                                    @endif
+                                    @if($isC2B)
+                                        <span class="badge bg-primary" title="Real-time M-PESA Transaction">
+                                            <i class="bi bi-broadcast"></i>
                                         </span>
                                     @endif
                                 </div>
                             </td>
                             <td>
-                                <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $transaction->description }}">
-                                    {{ $transaction->description }}
+                                <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $txnDescription }}">
+                                    {{ $txnDescription }}
+                                    @if($isC2B && $transaction->first_name)
+                                        <br><small class="text-muted">Payer: {{ $transaction->full_name }}</small>
+                                    @endif
                                 </div>
                             </td>
-                            <td><code>{{ $transaction->reference_number ?? 'N/A' }}</code></td>
-                            <td>{{ $transaction->phone_number ?? 'N/A' }}</td>
                             <td>
-                                @if($transaction->is_duplicate)
+                                <code>{{ $txnReference }}</code>
+                                @if($isC2B && $transaction->bill_ref_number && $transaction->bill_ref_number !== $transaction->trans_id)
+                                    <br><small class="text-muted">Ref: {{ $transaction->bill_ref_number }}</small>
+                                @endif
+                            </td>
+                            <td>{{ $txnPhone ?? 'N/A' }}</td>
+                            <td>
+                                @if($txnIsDuplicate)
                                     <span class="text-danger">
                                         <i class="bi bi-exclamation-triangle"></i> Duplicate
-                                        @if($transaction->duplicateOfPayment)
+                                        @if(!$isC2B && $transaction->duplicateOfPayment)
                                             <br><small>Payment: {{ $transaction->duplicateOfPayment->receipt_number ?? $transaction->duplicateOfPayment->transaction_code }}</small>
                                         @endif
                                     </span>
-                                @elseif($transaction->is_shared && $transaction->shared_allocations)
+                                @elseif($txnIsShared && !empty($txnSharedAllocations))
                                     <div class="text-primary">
                                         <i class="bi bi-people"></i> <strong>Shared Payment</strong>
                                         <br><small class="text-info">({{ count($transaction->shared_allocations) }} sibling{{ count($transaction->shared_allocations) === 1 ? '' : 's' }})</small>
                                     </div>
-                                    @foreach($transaction->shared_allocations as $allocation)
+                                    @foreach($txnSharedAllocations as $allocation)
                                         @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
                                         @if($student)
                                             <div class="mt-1">
@@ -332,7 +383,7 @@
                                             </div>
                                         @endif
                                     @endforeach
-                                @elseif($transaction->student_id)
+                                @elseif($txnStudentId)
                                     @php
                                         $student = $transaction->student;
                                         $siblings = [];
@@ -344,59 +395,57 @@
                                                 ->get();
                                         }
                                     @endphp
-                                    @if($transaction->student)
-                                        <a href="{{ route('students.show', $transaction->student) }}">
-                                            {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
-                                            <br><small class="text-muted">{{ $transaction->student->admission_number }}</small>
+                                    @if($student)
+                                        <a href="{{ route('students.show', $student) }}">
+                                            {{ $student->first_name }} {{ $student->last_name }}
+                                            <br><small class="text-muted">{{ $student->admission_number }}</small>
                                         </a>
-                                        @if(count($siblings) > 0 && !$transaction->is_shared)
+                                        @if(count($siblings) > 0 && !$txnIsShared)
                                             <br><small class="text-info">
                                                 <i class="bi bi-people"></i> {{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }} available
                                             </small>
                                         @endif
                                     @else
                                         <span class="text-muted">
-                                            Student #{{ $transaction->student_id }}
+                                            Student #{{ $txnStudentId }}
                                             <br><small>(Archived/Alumni)</small>
                                         </span>
                                     @endif
-                                @elseif($transaction->student)
-                                    <a href="{{ route('students.show', $transaction->student) }}">
-                                        {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
-                                        <br><small class="text-muted">{{ $transaction->student->admission_number }}</small>
-                                    </a>
                                 @else
                                     <span class="text-muted">Unmatched</span>
                                 @endif
-                                @if($transaction->payer_name)
+                                @if(!$isC2B && $transaction->payer_name)
                                     <br><small class="text-info">Payer: {{ $transaction->payer_name }}</small>
                                 @endif
                             </td>
                             <td>
-                                @if($transaction->match_status == 'matched')
+                                @if($txnMatchStatus == 'matched')
                                     <span class="badge bg-success">Matched</span>
-                                @elseif($transaction->match_status == 'multiple_matches')
+                                    @if($txnMatchConfidence > 0)
+                                        <br><small class="text-muted">{{ round($txnMatchConfidence * 100) }}%</small>
+                                    @endif
+                                @elseif($txnMatchStatus == 'multiple_matches')
                                     <span class="badge bg-warning">Multiple</span>
-                                @elseif($transaction->match_status == 'manual')
+                                @elseif($txnMatchStatus == 'manual')
                                     <span class="badge bg-info">Manual</span>
                                 @else
                                     <span class="badge bg-secondary">Unmatched</span>
                                 @endif
                             </td>
                             <td>
-                                @if($transaction->is_archived)
+                                @if($txnIsArchived)
                                     <span class="badge bg-secondary">Archived</span>
-                                @elseif($transaction->is_duplicate)
+                                @elseif($txnIsDuplicate)
                                     <span class="badge bg-danger">Duplicate</span>
-                                @elseif($transaction->status == 'confirmed' && $transaction->payment_created)
+                                @elseif($txnStatus == 'confirmed' && $txnPaymentCreated)
                                     <span class="badge bg-success">Collected</span>
-                                @elseif($transaction->status == 'confirmed')
+                                @elseif($txnStatus == 'confirmed')
                                     <span class="badge bg-primary">Confirmed</span>
-                                @elseif($transaction->status == 'rejected')
+                                @elseif($txnStatus == 'rejected')
                                     <span class="badge bg-danger">Rejected</span>
-                                @elseif($transaction->match_status == 'matched' && ($transaction->student_id || $transaction->is_shared))
+                                @elseif($txnMatchStatus == 'matched' && ($txnStudentId || $txnIsShared))
                                     <span class="badge bg-success">Auto Assigned</span>
-                                @elseif($transaction->match_status == 'manual' && ($transaction->student_id || $transaction->is_shared))
+                                @elseif($txnMatchStatus == 'manual' && ($txnStudentId || $txnIsShared))
                                     <span class="badge bg-info">Manual Assigned</span>
                                 @else
                                     <span class="badge bg-warning">Draft</span>
@@ -404,20 +453,30 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('finance.bank-statements.show', $transaction) }}" class="btn btn-finance btn-finance-secondary" title="View">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    @if($transaction->isDraft() && !$transaction->is_duplicate && !$transaction->is_archived)
-                                        <a href="{{ route('finance.bank-statements.edit', $transaction) }}" class="btn btn-finance btn-finance-primary" title="Edit">
-                                            <i class="bi bi-pencil"></i>
+                                    @if($isC2B)
+                                        <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" class="btn btn-finance btn-finance-secondary" title="View">
+                                            <i class="bi bi-eye"></i>
                                         </a>
-                                    @endif
-                                    @if($transaction->statement_file_path)
-                                        <a href="{{ route('finance.bank-statements.view-pdf', $transaction) }}" target="_blank" class="btn btn-finance btn-finance-info" title="View PDF">
-                                            <i class="bi bi-file-pdf"></i>
+                                        @if($txnMatchStatus === 'unmatched' || !$txnStudentId)
+                                            <a href="{{ route('finance.mpesa.c2b.allocate', $transaction->id) }}" class="btn btn-finance btn-finance-primary" title="Allocate">
+                                                <i class="bi bi-person-plus"></i>
+                                            </a>
+                                        @endif
+                                    @else
+                                        <a href="{{ route('finance.bank-statements.show', $transaction) }}" class="btn btn-finance btn-finance-secondary" title="View">
+                                            <i class="bi bi-eye"></i>
                                         </a>
-                                    @endif
-                                    @if(isset($transaction->is_swimming_transaction) && $transaction->is_swimming_transaction && $transaction->status !== 'rejected')
+                                        @if($transaction->isDraft() && !$transaction->is_duplicate && !$transaction->is_archived)
+                                            <a href="{{ route('finance.bank-statements.edit', $transaction) }}" class="btn btn-finance btn-finance-primary" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                        @endif
+                                        @if($transaction->statement_file_path)
+                                            <a href="{{ route('finance.bank-statements.view-pdf', $transaction) }}" target="_blank" class="btn btn-finance btn-finance-info" title="View PDF">
+                                                <i class="bi bi-file-pdf"></i>
+                                            </a>
+                                        @endif
+                                        @if($txnIsSwimming && $txnStatus !== 'rejected')
                                         @php
                                             // Check if allocations exist (if so, cannot unmark)
                                             $hasAllocations = false;
@@ -815,5 +874,38 @@
             updateBulkIds();
         });
     </script>
+@section('js')
+<script>
+let isRefreshing = false;
+
+function refreshTransactions() {
+    if (isRefreshing) return;
+    
+    const refreshBtn = document.getElementById('refreshBtn');
+    const refreshIcon = document.getElementById('refreshIcon');
+    
+    // Disable button and show loading
+    refreshBtn.disabled = true;
+    refreshIcon.classList.add('spinning');
+    
+    isRefreshing = true;
+    
+    // Reload page to show updated transactions
+    window.location.reload();
+}
+
+// Add spinning animation
+const style = document.createElement('style');
+style.textContent = `
+    .spinning {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
+</script>
 @endsection
 
