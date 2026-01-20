@@ -73,35 +73,34 @@ class CommunicationService
                 $isSuccess = true;
             }
             
-            // CRITICAL: If msgId is empty, the message was NOT queued for delivery
-            // This often happens when balance is 0 - provider accepts request but doesn't process it
+            // NOTE: Empty msgId in initial response is normal for HostPinnacle
+            // The messageId will be provided later via DLR webhook when delivery status is updated
+            // If status is success and transactionId is present, message is queued successfully
             if ($isSuccess && empty($msgId)) {
-                // Immediately check balance to get current status
-                $balance = $this->smsService->checkBalance(true); // Force fresh check
+                // This is expected behavior - msgId comes via webhook
+                // Only check balance if we want to log low balance warnings
+                $balance = $this->smsService->checkBalance();
                 
-                Log::error('SMS provider returned success but msgId is empty - message NOT queued for delivery', [
+                Log::info('SMS sent successfully - msgId will be provided via DLR webhook', [
                     'phone' => $phone,
                     'transaction_id' => $transactionId,
                     'status' => $providerStatus,
                     'statusCode' => $statusCode,
-                    'reason' => $reason,
-                    'result' => $result,
-                    'balance_check' => $balance,
-                    'likely_cause' => $balance === null 
-                        ? 'Unable to check balance - account may be suspended or API endpoint incorrect'
-                        : ($balance <= 0 
-                            ? 'Insufficient balance (current balance: ' . $balance . ' credits)' 
-                            : 'Account configuration issue - contact SMS provider'),
-                    'action_required' => $balance === null 
-                        ? 'Verify SMS API endpoints and account status with provider (HostPinnacle)'
-                        : ($balance <= 0 
-                            ? 'Top up SMS account balance' 
-                            : 'Contact SMS provider to verify account status')
+                    'note' => 'Empty msgId in initial response is normal. MessageId will be received via DLR webhook.'
                 ]);
                 
-                // Treat as failed - message won't be delivered
-                $isSuccess = false;
-                $finalStatus = 'failed';
+                // Log warning only if balance is low
+                if ($balance !== null && $balance <= 10) {
+                    Log::warning('SMS sent but account balance is low', [
+                        'phone' => $phone,
+                        'transaction_id' => $transactionId,
+                        'balance' => $balance,
+                        'recommendation' => 'Consider topping up account balance soon'
+                    ]);
+                }
+                
+                // Still treat as success - message is queued, msgId will come via webhook
+                $finalStatus = 'sent';
             } else {
                 $finalStatus = $isSuccess ? 'sent' : 'failed';
             }

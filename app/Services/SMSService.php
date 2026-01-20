@@ -53,10 +53,13 @@ class SMSService
             
             if ($accountStatus) {
                 // Try different possible response formats for balance
-                $balance = data_get($accountStatus, 'balance') 
+                // HostPinnacle returns: response.account.smsBalance
+                $balance = data_get($accountStatus, 'response.account.smsBalance')
+                    ?? data_get($accountStatus, 'account.smsBalance')
+                    ?? data_get($accountStatus, 'smsBalance')
+                    ?? data_get($accountStatus, 'balance') 
                     ?? data_get($accountStatus, 'credits') 
                     ?? data_get($accountStatus, 'sms_balance')
-                    ?? data_get($accountStatus, 'smsBalance')
                     ?? data_get($accountStatus, 'data.balance')
                     ?? data_get($accountStatus, 'data.credits')
                     ?? data_get($accountStatus, 'result.balance')
@@ -315,24 +318,29 @@ class SMSService
             return ['status' => 'unknown', 'raw' => $response];
         }
 
-        // CRITICAL: If msgId is empty despite success, the message was NOT queued
-        // This typically happens when balance is 0 or account has issues
+        // NOTE: Empty msgId in initial response is normal for HostPinnacle
+        // The messageId will be provided later via DLR webhook when delivery status is updated
+        // If status is success and transactionId is present, message is queued successfully
         if (empty($decoded['msgId']) && isset($decoded['status']) && $decoded['status'] === 'success') {
-            // Immediately check balance to diagnose the issue
-            $balance = $this->checkBalance(true); // Force fresh check
-            
-            Log::error("SMS provider returned success but msgId is empty - message may not be queued for delivery", [
+            // Log as info (not error) since this is expected behavior
+            // msgId will come via webhook in the DLR (Delivery Report)
+            Log::info("SMS sent successfully - msgId will be provided via DLR webhook", [
                 'phone' => $phoneNumber,
                 'transaction_id' => $decoded['transactionId'] ?? null,
                 'response' => $decoded,
-                'balance_check' => $balance,
-                'likely_cause' => $balance === null 
-                    ? 'Unable to check balance - account may be suspended or endpoint incorrect'
-                    : ($balance <= 0 
-                        ? 'Insufficient balance (balance: ' . $balance . ')' 
-                        : 'Account issue - contact SMS provider'),
-                'action_required' => 'Check SMS account balance and status with provider'
+                'note' => 'Empty msgId in initial response is normal. MessageId will be received via DLR webhook when delivery status is updated.'
             ]);
+            
+            // Only log warning if balance is low (potential issue)
+            $balance = $this->checkBalance();
+            if ($balance !== null && $balance <= 10) {
+                Log::warning("SMS sent but account balance is low", [
+                    'phone' => $phoneNumber,
+                    'transaction_id' => $decoded['transactionId'] ?? null,
+                    'balance' => $balance,
+                    'recommendation' => 'Consider topping up account balance soon'
+                ]);
+            }
         }
 
         return $decoded;
