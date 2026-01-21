@@ -353,6 +353,11 @@ Route::middleware('auth')->group(function () {
             Route::post('/payments', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'store'])->name('swimming.payments.store');
             Route::get('/payments/student/{student}/siblings', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'getSiblings'])->name('swimming.payments.siblings');
             
+            // Balance Communications
+            Route::post('/payments/student/{student}/send-balance', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'sendBalanceCommunication'])->name('swimming.payments.send-balance');
+            Route::post('/payments/bulk-send-balance', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'bulkSendBalanceCommunications'])->name('swimming.payments.bulk-send-balance');
+            Route::get('/payments/bulk-send-progress', [\App\Http\Controllers\Swimming\SwimmingPaymentController::class, 'getBulkSendProgress'])->name('swimming.payments.bulk-send-progress');
+            
             // Reports (merged into attendance index)
             // Route removed - use swimming.attendance.index with date parameter for daily view
             Route::get('/reports/unpaid-sessions', [SwimmingReportController::class, 'unpaidSessions'])->name('swimming.reports.unpaid-sessions');

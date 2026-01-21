@@ -161,6 +161,158 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Shared Transaction Information -->
+            @if(isset($sharedInfo) && $sharedInfo && $sharedInfo['is_shared'])
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-people me-2"></i>Shared Among Siblings
+                    </h5>
+                    <button type="button" class="btn btn-sm btn-finance btn-finance-primary" onclick="toggleEditSharedAllocations()">
+                        <i class="bi bi-pencil"></i> Edit Amounts
+                    </button>
+                </div>
+                <div class="finance-card-body p-4">
+                    <div class="mb-3">
+                        <p class="text-muted mb-0">
+                            <strong>Total Payment Amount:</strong> 
+                            <span class="text-success">Ksh {{ number_format($sharedInfo['total_amount'], 2) }}</span>
+                        </p>
+                        <p class="text-muted mb-0">
+                            <strong>Shared with:</strong> {{ count($sharedInfo['shared_allocations']) }} sibling(s)
+                        </p>
+                    </div>
+                    
+                    <div id="sharedAllocationsDisplay">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Admission Number</th>
+                                        <th class="text-end">Amount</th>
+                                        <th class="text-center">Receipt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($sharedInfo['shared_allocations'] as $allocation)
+                                    @php
+                                        $student = \App\Models\Student::find($allocation['student_id']);
+                                        $siblingPayment = collect([$payment])->merge($sharedInfo['sibling_payments'])->firstWhere('student_id', $allocation['student_id']);
+                                    @endphp
+                                    <tr class="{{ $payment->student_id == $allocation['student_id'] ? 'table-primary' : '' }}">
+                                        <td>
+                                            @if($student)
+                                                <a href="{{ route('students.show', $student) }}">
+                                                    {{ $student->first_name }} {{ $student->last_name }}
+                                                </a>
+                                                @if($payment->student_id == $allocation['student_id'])
+                                                    <span class="badge bg-primary ms-2">Current</span>
+                                                @endif
+                                            @else
+                                                <span class="text-muted">Student #{{ $allocation['student_id'] }}</span>
+                                            @endif
+                                        </td>
+                                        <td>{{ $student->admission_number ?? 'N/A' }}</td>
+                                        <td class="text-end">
+                                            <strong>Ksh {{ number_format($allocation['amount'], 2) }}</strong>
+                                        </td>
+                                        <td class="text-center">
+                                            @if($siblingPayment)
+                                                <a href="{{ route('finance.payments.show', $siblingPayment) }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-receipt"></i> View
+                                                </a>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <form id="editSharedAllocationsForm" method="POST" action="{{ route('finance.payments.update-shared-allocations', $payment) }}" style="display: none;">
+                        @csrf
+                        @method('PUT')
+                        <div class="mb-3">
+                            <p class="text-muted">
+                                <strong>Total amount:</strong> 
+                                <span class="text-success">Ksh {{ number_format($sharedInfo['total_amount'], 2) }}</span>
+                            </p>
+                            <p class="text-warning small mb-3">
+                                <i class="bi bi-exclamation-triangle"></i> 
+                                Total shared amounts must equal exactly <strong>Ksh {{ number_format($sharedInfo['total_amount'], 2) }}</strong>
+                            </p>
+                        </div>
+                        
+                        @foreach($sharedInfo['shared_allocations'] as $index => $allocation)
+                        @php
+                            $student = \App\Models\Student::find($allocation['student_id']);
+                        @endphp
+                        <div class="mb-3 p-3 border rounded {{ $payment->student_id == $allocation['student_id'] ? 'bg-light' : '' }}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <strong>
+                                        @if($student)
+                                            {{ $student->first_name }} {{ $student->last_name }}
+                                        @else
+                                            Student #{{ $allocation['student_id'] }}
+                                        @endif
+                                    </strong>
+                                    @if($payment->student_id == $allocation['student_id'])
+                                        <span class="badge bg-primary ms-2">Current Payment</span>
+                                    @endif
+                                    <br>
+                                    <small class="text-muted">{{ $student->admission_number ?? 'N/A' }}</small>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <span class="input-group-text">Ksh</span>
+                                <input type="number" 
+                                       step="0.01" 
+                                       min="0" 
+                                       class="form-control shared-allocation-amount" 
+                                       name="allocations[{{ $index }}][amount]" 
+                                       value="{{ number_format($allocation['amount'], 2, '.', '') }}"
+                                       oninput="updateTotalSharedAllocations()"
+                                       required>
+                                <input type="hidden" name="allocations[{{ $index }}][student_id]" value="{{ $allocation['student_id'] }}">
+                            </div>
+                        </div>
+                        @endforeach
+                        
+                        <div class="mt-3 p-3 bg-light rounded">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>Total Allocated:</strong>
+                                    <span id="totalSharedAllocationsAmount" class="fs-5">Ksh 0.00</span>
+                                </div>
+                                <div>
+                                    <strong>Remaining:</strong>
+                                    <span id="remainingSharedAllocationsAmount" class="fs-5">Ksh {{ number_format($sharedInfo['total_amount'], 2) }}</span>
+                                </div>
+                            </div>
+                            <div class="progress mt-2" style="height: 8px;">
+                                <div id="sharedAllocationsProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <small id="sharedAllocationsStatus" class="text-muted">Allocate exactly Ksh {{ number_format($sharedInfo['total_amount'], 2) }}</small>
+                        </div>
+                        
+                        <div class="mt-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-finance btn-finance-primary" id="submitSharedAllocationsBtn" disabled>
+                                <i class="bi bi-check-circle"></i> Update Allocations
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="toggleEditSharedAllocations()">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            @endif
         </div>
 
         <div class="col-md-4">
@@ -853,6 +1005,131 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
         });
     }
+});
+    
+    @if(isset($sharedInfo) && $sharedInfo && $sharedInfo['is_shared'])
+    // Shared Allocations functionality
+    function toggleEditSharedAllocations() {
+        const display = document.getElementById('sharedAllocationsDisplay');
+        const form = document.getElementById('editSharedAllocationsForm');
+        
+        if (display.style.display === 'none') {
+            display.style.display = 'block';
+            form.style.display = 'none';
+        } else {
+            display.style.display = 'none';
+            form.style.display = 'block';
+            updateTotalSharedAllocations();
+        }
+    }
+    
+    function updateTotalSharedAllocations() {
+        const amounts = document.querySelectorAll('.shared-allocation-amount');
+        const totalAmount = {{ $sharedInfo['total_amount'] }};
+        let total = 0;
+        
+        amounts.forEach(input => {
+            const amount = parseFloat(input.value) || 0;
+            total += amount;
+        });
+        
+        const remaining = totalAmount - total;
+        const tolerance = 0.01;
+        
+        // Update UI elements
+        const totalElement = document.getElementById('totalSharedAllocationsAmount');
+        const remainingElement = document.getElementById('remainingSharedAllocationsAmount');
+        const statusElement = document.getElementById('sharedAllocationsStatus');
+        const progressBar = document.getElementById('sharedAllocationsProgress');
+        const submitBtn = document.getElementById('submitSharedAllocationsBtn');
+        
+        if (totalElement) {
+            totalElement.textContent = `Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        
+        if (remainingElement) {
+            remainingElement.textContent = `Ksh ${Math.max(0, remaining).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        }
+        
+        // Calculate percentage
+        const percentage = Math.min(100, (total / totalAmount) * 100);
+        if (progressBar) {
+            progressBar.style.width = `${percentage}%`;
+        }
+        
+        // Validate and update status
+        if (Math.abs(remaining) < tolerance) {
+            // Exact match - valid
+            if (progressBar) {
+                progressBar.className = 'progress-bar bg-success';
+            }
+            if (statusElement) {
+                statusElement.textContent = '✓ Total matches payment amount exactly';
+                statusElement.className = 'text-success';
+            }
+            if (submitBtn) submitBtn.disabled = false;
+            
+            // Clear validation errors
+            amounts.forEach(input => input.setCustomValidity(''));
+        } else if (remaining < -tolerance) {
+            // Over-allocated - invalid
+            if (progressBar) {
+                progressBar.className = 'progress-bar bg-danger';
+            }
+            if (statusElement) {
+                statusElement.textContent = `⚠ Total exceeds payment amount by Ksh ${Math.abs(remaining).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                statusElement.className = 'text-danger';
+            }
+            if (submitBtn) submitBtn.disabled = true;
+            
+            // Set validation error
+            amounts.forEach(input => {
+                if (parseFloat(input.value) > 0) {
+                    input.setCustomValidity('Total shared amount exceeds payment amount');
+                }
+            });
+        } else {
+            // Under-allocated - invalid
+            if (progressBar) {
+                progressBar.className = 'progress-bar bg-warning';
+            }
+            if (statusElement) {
+                statusElement.textContent = `⚠ Need to allocate Ksh ${remaining.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} more`;
+                statusElement.className = 'text-warning';
+            }
+            if (submitBtn) submitBtn.disabled = true;
+            
+            // Clear validation errors but disable submit
+            amounts.forEach(input => input.setCustomValidity(''));
+        }
+    }
+    
+    // Initialize shared allocation validation
+    document.querySelectorAll('.shared-allocation-amount').forEach(input => {
+        input.addEventListener('input', updateTotalSharedAllocations);
+    });
+    
+    // Form validation on submit
+    const sharedAllocationsForm = document.getElementById('editSharedAllocationsForm');
+    if (sharedAllocationsForm) {
+        sharedAllocationsForm.addEventListener('submit', function(e) {
+            const amounts = document.querySelectorAll('.shared-allocation-amount');
+            const totalAmount = {{ $sharedInfo['total_amount'] }};
+            let total = 0;
+            
+            amounts.forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+            
+            const tolerance = 0.01;
+            if (Math.abs(total - totalAmount) > tolerance) {
+                e.preventDefault();
+                alert(`Total shared amounts (Ksh ${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}) must equal exactly the payment amount of Ksh ${totalAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
+                return false;
+            }
+        });
+    }
+    @endif
 });
 </script>
 @endpush

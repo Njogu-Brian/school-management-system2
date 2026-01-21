@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Swimming;
 
 use App\Http\Controllers\Controller;
-use App\Models\{Student, Payment, PaymentMethod, BankAccount};
+use App\Models\{Student, Payment, PaymentMethod, BankAccount, SwimmingWallet, PaymentLink, CommunicationTemplate};
 use App\Services\SwimmingWalletService;
+use App\Services\CommunicationService;
+use App\Jobs\BulkSendSwimmingBalanceNotifications;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class SwimmingPaymentController extends Controller
 {
@@ -199,5 +203,305 @@ class SwimmingPaymentController extends Controller
                 ];
             })
         ]);
+    }
+
+    /**
+     * Send balance communication for a single student
+     */
+    public function sendBalanceCommunication(Request $request, Student $student)
+    {
+        $request->validate([
+            'channels' => 'required|array',
+            'channels.*' => 'in:sms,email,whatsapp',
+            'amount' => 'nullable|numeric|min:0.01',
+            'expiration_days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        try {
+            $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
+            $balance = (float) $wallet->balance;
+
+            // Only send for negative balances
+            if ($balance >= 0) {
+                return redirect()->back()
+                    ->with('error', 'Student has no outstanding balance. Balance: Ksh ' . number_format($balance, 2));
+            }
+
+            $linkAmount = $request->amount ?? abs($balance);
+            $expirationDays = $request->expiration_days ?? 30;
+
+            // Create payment link
+            $paymentLink = $this->createSwimmingPaymentLink($student, $linkAmount, $expirationDays);
+
+            // Send communications
+            $sentChannels = $this->sendBalanceNotification(
+                $student,
+                $wallet,
+                $paymentLink,
+                $request->channels
+            );
+
+            if (empty($sentChannels)) {
+                return redirect()->back()
+                    ->with('warning', 'No communications sent. Please check parent contact information.');
+            }
+
+            return redirect()->back()
+                ->with('success', 'Balance communication sent via: ' . implode(', ', $sentChannels));
+
+        } catch (\Exception $e) {
+            Log::error('Failed to send swimming balance communication', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()
+                ->with('error', 'Failed to send communication: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Bulk send balance communications
+     */
+    public function bulkSendBalanceCommunications(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'channels' => 'required|array',
+            'channels.*' => 'in:sms,email,whatsapp',
+            'amount' => 'nullable|numeric|min:0.01',
+            'expiration_days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        try {
+            // Filter students with negative balances
+            $studentIds = [];
+            foreach ($request->student_ids as $studentId) {
+                $wallet = SwimmingWallet::getOrCreateForStudent($studentId);
+                if ($wallet->balance < 0) {
+                    $studentIds[] = $studentId;
+                }
+            }
+
+            if (empty($studentIds)) {
+                return redirect()->back()
+                    ->with('error', 'No students with outstanding balances found.');
+            }
+
+            $trackingId = 'SWIM-BAL-' . Str::random(8);
+            $linkAmount = $request->amount;
+            $expirationDays = $request->expiration_days ?? 30;
+
+            // Dispatch job
+            BulkSendSwimmingBalanceNotifications::dispatch(
+                $trackingId,
+                $studentIds,
+                $request->channels,
+                Auth::id(),
+                $linkAmount,
+                $expirationDays
+            );
+
+            return redirect()->back()
+                ->with('success', 'Bulk send job queued for ' . count($studentIds) . ' student(s). Tracking ID: ' . $trackingId)
+                ->with('tracking_id', $trackingId);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to queue bulk send swimming balance', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()
+                ->with('error', 'Failed to queue bulk send: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get progress of bulk send operation
+     */
+    public function getBulkSendProgress(Request $request)
+    {
+        $request->validate([
+            'tracking_id' => 'required|string',
+        ]);
+
+        $cacheKey = "bulk_send_swimming_balance_progress_{$request->tracking_id}";
+        $progress = \Illuminate\Support\Facades\Cache::get($cacheKey, [
+            'status' => 'not_found',
+            'message' => 'Progress not found or expired',
+        ]);
+
+        return response()->json($progress);
+    }
+
+    /**
+     * Create payment link for swimming balance
+     */
+    protected function createSwimmingPaymentLink(Student $student, float $amount, int $expirationDays = 30): PaymentLink
+    {
+        $expiresAt = now()->addDays($expirationDays);
+        
+        return PaymentLink::create([
+            'student_id' => $student->id,
+            'invoice_id' => null,
+            'family_id' => $student->family_id,
+            'amount' => $amount,
+            'currency' => 'KES',
+            'description' => 'Swimming balance payment',
+            'account_reference' => 'SWIM-' . $student->admission_number,
+            'expires_at' => $expiresAt,
+            'max_uses' => 1,
+            'created_by' => Auth::id(),
+            'status' => 'active',
+            'metadata' => [
+                'is_swimming' => true,
+                'swimming_balance' => $amount,
+            ],
+        ]);
+    }
+
+    /**
+     * Send balance notification via specified channels
+     */
+    protected function sendBalanceNotification(
+        Student $student,
+        SwimmingWallet $wallet,
+        PaymentLink $paymentLink,
+        array $channels
+    ): array {
+        $balance = abs((float) $wallet->balance);
+        $paymentLinkUrl = $paymentLink->getPaymentUrl();
+        $parent = $student->parent ?? null;
+
+        if (!$parent) {
+            return [];
+        }
+
+        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
+        $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
+        $schoolName = DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
+
+        $variables = [
+            'parent_name' => $parentName ?? 'Parent',
+            'greeting' => $greeting,
+            'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
+            'admission_number' => $student->admission_number,
+            'balance' => 'Ksh ' . number_format($balance, 2),
+            'payment_link' => $paymentLinkUrl,
+            'school_name' => $schoolName,
+        ];
+
+        $replacePlaceholders = function($text, $vars) {
+            foreach ($vars as $key => $value) {
+                $text = str_replace('{{' . $key . '}}', $value, $text);
+            }
+            return $text;
+        };
+
+        $commService = app(CommunicationService::class);
+        $sentChannels = [];
+
+        // SMS
+        if (in_array('sms', $channels)) {
+            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            if ($parentPhone) {
+                try {
+                    $smsTemplate = CommunicationTemplate::where('code', 'swimming_balance_sms')->first();
+                    
+                    if (!$smsTemplate) {
+                        $smsTemplate = CommunicationTemplate::firstOrCreate(
+                            ['code' => 'swimming_balance_sms'],
+                            [
+                                'title' => 'Swimming Balance SMS',
+                                'type' => 'sms',
+                                'subject' => null,
+                                'content' => "{{greeting}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of {{balance}}.\n\nPay now: {{payment_link}}\n\nThank you.\n{{school_name}}",
+                            ]
+                        );
+                    }
+
+                    $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                    $smsService = app(\App\Services\SMSService::class);
+                    $financeSenderId = $smsService->getFinanceSenderId();
+                    $commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId);
+                    $sentChannels[] = 'sms';
+                } catch (\Exception $e) {
+                    Log::error('Failed to send SMS for swimming balance', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        // Email
+        if (in_array('email', $channels)) {
+            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+            if ($parentEmail) {
+                try {
+                    $emailTemplate = CommunicationTemplate::where('code', 'swimming_balance_email')->first();
+                    
+                    if (!$emailTemplate) {
+                        $emailTemplate = CommunicationTemplate::firstOrCreate(
+                            ['code' => 'swimming_balance_email'],
+                            [
+                                'title' => 'Swimming Balance Email',
+                                'type' => 'email',
+                                'subject' => 'Outstanding Swimming Balance – {{student_name}}',
+                                'content' => "{{greeting}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of {{balance}}.\n\nPlease make payment using the link below:\n{{payment_link}}\n\nThank you for your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                            ]
+                        );
+                    }
+
+                    $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+                    $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+                    $emailContent = nl2br($emailContent);
+                    $commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent);
+                    $sentChannels[] = 'email';
+                } catch (\Exception $e) {
+                    Log::error('Failed to send email for swimming balance', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        // WhatsApp
+        if (in_array('whatsapp', $channels)) {
+            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
+                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            
+            if ($whatsappPhone) {
+                try {
+                    $whatsappTemplate = CommunicationTemplate::where('code', 'swimming_balance_whatsapp')->first();
+                    
+                    if (!$whatsappTemplate) {
+                        $whatsappTemplate = CommunicationTemplate::firstOrCreate(
+                            ['code' => 'swimming_balance_whatsapp'],
+                            [
+                                'title' => 'Swimming Balance WhatsApp',
+                                'type' => 'whatsapp',
+                                'subject' => null,
+                                'content' => "{{greeting}},\n\n{{student_name}} ({{admission_number}}) has an outstanding swimming balance of *{{balance}}*.\n\nPay now: {{payment_link}}\n\nThank you.\n{{school_name}}",
+                            ]
+                        );
+                    }
+
+                    $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+                    $whatsappService = app(\App\Services\WhatsAppService::class);
+                    $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
+                    $sentChannels[] = 'whatsapp';
+                } catch (\Exception $e) {
+                    Log::error('Failed to send WhatsApp for swimming balance', [
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        return $sentChannels;
     }
 }

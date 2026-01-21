@@ -923,7 +923,159 @@ class PaymentController extends Controller
     public function show(Payment $payment)
     {
         $payment->load(['student', 'invoice', 'paymentMethod', 'allocations.invoiceItem.votehead']);
-        return view('finance.payments.show', compact('payment'));
+        
+        // Check if this payment is part of a shared transaction
+        $sharedInfo = $this->getSharedTransactionInfo($payment);
+        
+        return view('finance.payments.show', compact('payment', 'sharedInfo'));
+    }
+    
+    /**
+     * Get shared transaction information for a payment
+     */
+    protected function getSharedTransactionInfo(Payment $payment): ?array
+    {
+        if (!$payment->transaction_code) {
+            return null;
+        }
+        
+        // Find all payments with the same transaction_code (sibling payments)
+        $siblingPayments = Payment::where('transaction_code', $payment->transaction_code)
+            ->where('id', '!=', $payment->id)
+            ->with('student')
+            ->get();
+        
+        if ($siblingPayments->isEmpty()) {
+            return null;
+        }
+        
+        // Find the source bank statement transaction
+        $bankTransaction = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)
+            ->where('is_shared', true)
+            ->whereNotNull('shared_allocations')
+            ->first();
+        
+        if (!$bankTransaction) {
+            // If no bank transaction found, construct from payments
+            $allPayments = collect([$payment])->merge($siblingPayments);
+            $sharedAllocations = $allPayments->map(function($p) {
+                return [
+                    'student_id' => $p->student_id,
+                    'amount' => (float) $p->amount,
+                ];
+            })->toArray();
+            
+            return [
+                'is_shared' => true,
+                'bank_transaction' => null,
+                'sibling_payments' => $siblingPayments,
+                'shared_allocations' => $sharedAllocations,
+                'total_amount' => $allPayments->sum('amount'),
+            ];
+        }
+        
+        return [
+            'is_shared' => true,
+            'bank_transaction' => $bankTransaction,
+            'sibling_payments' => $siblingPayments,
+            'shared_allocations' => $bankTransaction->shared_allocations ?? [],
+            'total_amount' => $bankTransaction->amount,
+        ];
+    }
+    
+    /**
+     * Update shared allocations for a payment
+     */
+    public function updateSharedAllocations(Request $request, Payment $payment)
+    {
+        $validated = $request->validate([
+            'allocations' => 'required|array|min:1',
+            'allocations.*.student_id' => 'required|exists:students,id',
+            'allocations.*.amount' => 'required|numeric|min:0.01',
+        ]);
+        
+        // Filter out allocations with 0 or empty amounts
+        $activeAllocations = array_filter($validated['allocations'], function($allocation) {
+            $amount = $allocation['amount'] ?? 0;
+            return !empty($amount) && (float)$amount > 0;
+        });
+        
+        if (empty($activeAllocations)) {
+            return redirect()->back()
+                ->withErrors(['allocations' => 'At least one sibling must have an amount greater than 0']);
+        }
+        
+        // Re-index the array
+        $activeAllocations = array_values($activeAllocations);
+        
+        // Get shared transaction info
+        $sharedInfo = $this->getSharedTransactionInfo($payment);
+        if (!$sharedInfo || !$sharedInfo['is_shared']) {
+            return redirect()->back()
+                ->with('error', 'This payment is not part of a shared transaction.');
+        }
+        
+        $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
+        $expectedTotal = $sharedInfo['total_amount'];
+        
+        if (abs($totalAmount - $expectedTotal) > 0.01) {
+            return redirect()->back()
+                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Expected: Ksh ' . number_format($expectedTotal, 2)]);
+        }
+        
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $activeAllocations, $sharedInfo) {
+            // Update bank statement transaction if it exists
+            if ($sharedInfo['bank_transaction']) {
+                $sharedInfo['bank_transaction']->update([
+                    'shared_allocations' => $activeAllocations,
+                ]);
+            }
+            
+            // Update all sibling payments
+            $allPayments = collect([$payment])->merge($sharedInfo['sibling_payments']);
+            
+            foreach ($activeAllocations as $allocation) {
+                $siblingPayment = $allPayments->firstWhere('student_id', $allocation['student_id']);
+                
+                if ($siblingPayment) {
+                    // Update payment amount
+                    $oldAmount = $siblingPayment->amount;
+                    $newAmount = (float) $allocation['amount'];
+                    
+                    if (abs($oldAmount - $newAmount) > 0.01) {
+                        $siblingPayment->update([
+                            'amount' => $newAmount,
+                        ]);
+                        
+                        // Recalculate allocations if amount decreased
+                        if ($newAmount < $oldAmount) {
+                            $siblingPayment->updateAllocationTotals();
+                        }
+                        
+                        // Regenerate receipt if it exists
+                        if ($siblingPayment->receipt) {
+                            try {
+                                $receiptService = app(\App\Services\ReceiptService::class);
+                                $receiptService->generateReceipt($siblingPayment, ['save' => true, 'regenerate' => true]);
+                            } catch (\Exception $e) {
+                                \Log::warning('Failed to regenerate receipt after allocation update', [
+                                    'payment_id' => $siblingPayment->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                        
+                        // Note: Student statements are generated on-the-fly from database data,
+                        // so they will automatically reflect the updated payment amounts
+                    }
+                }
+            }
+            
+            $siblingCount = count($activeAllocations);
+            return redirect()
+                ->route('finance.payments.show', $payment)
+                ->with('success', "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s). Receipts and statements have been regenerated.");
+        });
     }
 
     public function edit(Payment $payment)
