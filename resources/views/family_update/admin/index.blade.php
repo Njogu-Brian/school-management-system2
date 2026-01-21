@@ -246,7 +246,7 @@
                 <tr>
                   <td class="text-muted small">{{ $audit->created_at?->format('M d, Y H:i') }}</td>
                   <td>#{{ $audit->family_id }}</td>
-                  <td>{{ optional($audit->student)->first_name }} {{ optional($audit->student)->last_name }}</td>
+                  <td>{{ optional($audit->student)->full_name }}</td>
                   <td>
                     @if($audit->user)
                       <div class="fw-semibold">{{ $audit->user->name }}</div>

@@ -49,7 +49,7 @@
             <div class="col-md-8">
                 <h2>Welcome to the School Shop</h2>
                 @if($student)
-                    <p class="text-muted">Shopping for: {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }})</p>
+                    <p class="text-muted">Shopping for: {{ $student->full_name }} ({{ $student->admission_number }})</p>
                 @endif
             </div>
             <div class="col-md-4">

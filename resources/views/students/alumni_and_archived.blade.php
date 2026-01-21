@@ -145,7 +145,7 @@
                     </div>
                     <div>
                       <a href="{{ route('students.show', $s->id) }}" class="fw-semibold text-reset d-block">
-                        {{ $s->first_name }} {{ $s->middle_name }} {{ $s->last_name }}
+                        {{ $s->full_name }}
                       </a>
                       <div class="text-muted small">
                         <span class="me-2">{{ $s->category->name ?? '—' }}</span>

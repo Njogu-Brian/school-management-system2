@@ -126,7 +126,7 @@
                     @forelse($overduePlans as $plan)
                         <tr>
                             <td>
-                                <strong>{{ $plan->student->first_name }} {{ $plan->student->last_name }}</strong><br>
+                                <strong>{{ $plan->student->full_name }}</strong><br>
                                 <small class="text-muted">{{ $plan->student->admission_number }}</small>
                             </td>
                             <td>{{ $plan->student->classroom->name ?? 'N/A' }}</td>
@@ -192,7 +192,7 @@
                     @forelse($upcomingInstallments as $installment)
                         <tr>
                             <td>
-                                <strong>{{ $installment->paymentPlan->student->first_name }} {{ $installment->paymentPlan->student->last_name }}</strong><br>
+                                <strong>{{ $installment->paymentPlan->student->full_name }}</strong><br>
                                 <small class="text-muted">{{ $installment->paymentPlan->student->admission_number }}</small>
                             </td>
                             <td>{{ $installment->paymentPlan->student->classroom->name ?? 'N/A' }}</td>
@@ -256,7 +256,7 @@
                     @foreach($highRiskPlans as $plan)
                         <tr>
                             <td>
-                                <strong>{{ $plan->student->first_name }} {{ $plan->student->last_name }}</strong><br>
+                                <strong>{{ $plan->student->full_name }}</strong><br>
                                 <small class="text-muted">{{ $plan->student->admission_number }}</small>
                             </td>
                             <td>{{ $plan->student->classroom->name ?? 'N/A' }}</td>

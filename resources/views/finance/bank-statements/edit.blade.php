@@ -46,10 +46,10 @@
                 <div class="finance-card-body p-4">
                     <div class="list-group">
                         @foreach($potentialMatches as $student)
-                            <a href="#" class="list-group-item list-group-item-action" onclick="selectStudent({{ $student->id }}, '{{ $student->first_name }} {{ $student->last_name }}', '{{ $student->admission_number }}'); return false;">
+                            <a href="#" class="list-group-item list-group-item-action" onclick="selectStudent({{ $student->id }}, '{{ $student->full_name }}', '{{ $student->admission_number }}'); return false;">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <strong>{{ $student->first_name }} {{ $student->last_name }}</strong>
+                                        <strong>{{ $student->full_name }}</strong>
                                         <br><small class="text-muted">Admission: {{ $student->admission_number }}</small>
                                     </div>
                                     <button type="button" class="btn btn-sm btn-finance btn-finance-primary">Select</button>
@@ -78,7 +78,7 @@
                                 'displayInputId' => 'studentSearch',
                                 'resultsId' => 'studentResults',
                                 'placeholder' => 'Type name or admission number',
-                                'initialLabel' => $bankStatement->student ? ($bankStatement->student->first_name . ' ' . $bankStatement->student->last_name . ' (' . $bankStatement->student->admission_number . ')') : '',
+                                'initialLabel' => $bankStatement->student ? ($bankStatement->student->full_name . ' (' . $bankStatement->student->admission_number . ')') : '',
                                 'includeAlumniArchived' => true
                             ])
                             <small class="form-text text-muted">Search and select a student to assign this transaction</small>

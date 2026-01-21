@@ -65,7 +65,7 @@
                                 $student = $concession->student;
                             @endphp
                             <tr>
-                                <td>{{ $student->first_name ?? 'Unknown' }} {{ $student->last_name ?? '' }}</td>
+                                <td>{{ $student->full_name ?? 'Unknown' }}</td>
                                 <td>{{ ucfirst($concession->type) }}</td>
                                 <td>
                                     {{ $concession->type == 'percentage' ? number_format($concession->value, 1) . '%' : 'KES ' . number_format($concession->value, 2) }}

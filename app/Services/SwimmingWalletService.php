@@ -178,4 +178,48 @@ class SwimmingWalletService
         $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
         return $wallet->hasSufficientBalance($amount);
     }
+
+    /**
+     * Reverse/refund a debit for attendance (when unmarking attendance)
+     * This credits the wallet back with the amount that was previously debited
+     */
+    public function reverseAttendanceDebit(Student $student, int $attendanceId, float $amount, ?string $description = null): SwimmingLedger
+    {
+        return DB::transaction(function () use ($student, $attendanceId, $amount, $description) {
+            $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
+            
+            $oldBalance = $wallet->balance;
+            $newBalance = $oldBalance + $amount;
+            
+            // Update wallet - credit back the amount
+            $wallet->update([
+                'balance' => $newBalance,
+                'total_debited' => max(0, $wallet->total_debited - $amount), // Reduce total debited
+                'last_transaction_at' => now(),
+            ]);
+            
+            // Create ledger entry for the reversal/refund
+            $ledger = SwimmingLedger::create([
+                'student_id' => $student->id,
+                'type' => SwimmingLedger::TYPE_CREDIT,
+                'amount' => $amount,
+                'balance_after' => $newBalance,
+                'source' => SwimmingLedger::SOURCE_ADJUSTMENT,
+                'source_id' => $attendanceId,
+                'source_type' => \App\Models\SwimmingAttendance::class,
+                'swimming_attendance_id' => $attendanceId,
+                'description' => $description ?? "Attendance reversal - swimming session unmarked",
+                'created_by' => auth()->id(),
+            ]);
+            
+            Log::info('Swimming wallet credited (attendance reversal)', [
+                'student_id' => $student->id,
+                'attendance_id' => $attendanceId,
+                'amount' => $amount,
+                'balance' => $newBalance,
+            ]);
+            
+            return $ledger;
+        });
+    }
 }

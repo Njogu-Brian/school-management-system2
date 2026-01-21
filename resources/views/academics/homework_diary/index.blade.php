@@ -27,7 +27,7 @@
             <select name="student_id" class="form-select">
               <option value="">All Students</option>
               @foreach($students as $student)
-                <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>{{ $student->first_name }} {{ $student->last_name }}</option>
+                <option value="{{ $student->id }}" {{ request('student_id') == $student->id ? 'selected' : '' }}>{{ $student->full_name }}</option>
               @endforeach
             </select>
           </div>
@@ -80,7 +80,7 @@
             <tbody>
               @forelse($homeworkDiary as $entry)
                 <tr>
-                  <td>{{ $entry->student->first_name ?? '' }} {{ $entry->student->last_name ?? '' }}</td>
+                  <td>{{ $entry->student->full_name ?? '' }}</td>
                   <td>{{ $entry->homework->title ?? '' }}</td>
                   <td>{{ $entry->homework->subject->name ?? '' }}</td>
                   <td>{{ $entry->homework->due_date ? $entry->homework->due_date->format('d M Y') : 'N/A' }}</td>

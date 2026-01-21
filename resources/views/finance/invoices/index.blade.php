@@ -159,7 +159,7 @@
                                 $student = $inv->student;
                             @endphp
                             <td>
-                                {{ $student->first_name ?? 'Unknown' }} {{ $student->last_name ?? '' }}
+                                {{ $student->full_name ?? 'Unknown' }}
                                 <br><small class="text-muted">{{ $student->admission_number ?? '—' }}</small>
                             </td>
                             <td>

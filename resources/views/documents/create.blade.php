@@ -108,8 +108,8 @@
 </div>
 
 <script>
-    const students = @json($students->map(fn($s) => ['id' => $s->id, 'name' => $s->first_name . ' ' . $s->last_name]));
-    const staff = @json($staff->map(fn($s) => ['id' => $s->id, 'name' => $s->first_name . ' ' . $s->last_name]));
+    const students = @json($students->map(fn($s) => ['id' => $s->id, 'name' => $s->full_name]));
+    const staff = @json($staff->map(fn($s) => ['id' => $s->id, 'name' => $s->full_name]));
 
     document.addEventListener('DOMContentLoaded', () => {
         const typeSelect = document.getElementById('documentable_type');

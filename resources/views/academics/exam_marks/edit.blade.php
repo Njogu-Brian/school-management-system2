@@ -21,7 +21,7 @@
     <div class="settings-card">
       <div class="card-body">
         <div class="mb-3">
-          <div class="fw-semibold">{{ $exam_mark->student?->full_name ?? ($exam_mark->student?->first_name.' '.$exam_mark->student?->last_name) }}</div>
+          <div class="fw-semibold">{{ $exam_mark->student?->full_name }}</div>
           <div class="text-muted small">{{ $exam_mark->subject?->name }} • {{ $exam_mark->exam?->name }}</div>
         </div>
 

@@ -162,7 +162,7 @@
                                 <strong>{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
                             </td>
                             <td>
-                                {{ $payment->student->first_name ?? 'N/A' }} {{ $payment->student->last_name ?? '' }}
+                                {{ $payment->student->full_name ?? 'N/A' }}
                                 <br><small class="text-muted">{{ $payment->student->admission_number ?? 'N/A' }}</small>
                             </td>
                             <td>

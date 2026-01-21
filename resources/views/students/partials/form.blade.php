@@ -401,7 +401,7 @@
       <div class="d-flex flex-wrap gap-2">
         @foreach($familyMembers as $fm)
           <a href="{{ route('students.show', $fm->id) }}" class="badge bg-light border text-dark text-decoration-none">
-            {{ $fm->admission_number }} — {{ $fm->first_name }} {{ $fm->last_name }}
+            {{ $fm->admission_number }} — {{ $fm->full_name }}
           </a>
         @endforeach
       </div>

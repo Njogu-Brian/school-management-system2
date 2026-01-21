@@ -22,7 +22,7 @@
           <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-journal-text"></i><h5 class="mb-0">Homework Details</h5></div>
           <div class="card-body">
             <dl class="row mb-0">
-              <dt class="col-sm-3">Student</dt><dd class="col-sm-9">{{ $homework_diary->student->first_name ?? '' }} {{ $homework_diary->student->last_name ?? '' }}</dd>
+              <dt class="col-sm-3">Student</dt><dd class="col-sm-9">{{ $homework_diary->student->full_name ?? '' }}</dd>
               <dt class="col-sm-3">Homework</dt><dd class="col-sm-9">{{ $homework_diary->homework->title ?? '' }}</dd>
               <dt class="col-sm-3">Subject</dt><dd class="col-sm-9">{{ $homework_diary->homework->subject->name ?? '' }}</dd>
               <dt class="col-sm-3">Due Date</dt><dd class="col-sm-9">{{ $homework_diary->homework->due_date ? $homework_diary->homework->due_date->format('d M Y') : 'N/A' }}</dd>

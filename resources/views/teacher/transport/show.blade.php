@@ -4,7 +4,7 @@
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h2 class="mb-0">Transport Details - {{ $student->first_name }} {{ $student->last_name }}</h2>
+      <h2 class="mb-0">Transport Details - {{ $student->full_name }}</h2>
       <small class="text-muted">Complete transport information</small>
     </div>
     <a href="{{ route('teacher.transport.index') }}" class="btn btn-secondary">
@@ -22,7 +22,7 @@
         <div class="card-body">
           <div class="row">
             <div class="col-md-3">
-              <strong>Name:</strong> {{ $student->first_name }} {{ $student->last_name }}
+              <strong>Name:</strong> {{ $student->full_name }}
             </div>
             <div class="col-md-3">
               <strong>Admission #:</strong> <span class="badge bg-primary">{{ $student->admission_number }}</span>

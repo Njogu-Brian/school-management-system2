@@ -47,7 +47,7 @@
                             @forelse ($assignments as $assignment)
                                 <tr>
                                     <td class="fw-semibold">
-                                        {{ $assignment->student->full_name ?? ($assignment->student->first_name.' '.$assignment->student->last_name) }}
+                                        {{ $assignment->student->full_name }}
                                         <br>
                                         <small class="text-muted">{{ $assignment->student->admission_number ?? 'N/A' }} | {{ optional($assignment->student->classroom)->name ?? 'N/A' }}</small>
                                     </td>

@@ -56,7 +56,7 @@
               @forelse($marks as $m)
                 <tr>
                   <td>{{ $m->id }}</td>
-                  <td>{{ $m->student?->full_name ?? ($m->student?->first_name.' '.$m->student?->last_name) }}</td>
+                  <td>{{ $m->student?->full_name }}</td>
                   <td>{{ $m->subject?->name ?? '—' }}</td>
                   <td>{{ $m->exam?->name ?? '—' }}</td>
                   <td class="text-center">{{ is_null($m->score_raw) ? '—' : number_format($m->score_raw,2) }}</td>

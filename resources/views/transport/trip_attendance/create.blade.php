@@ -84,7 +84,7 @@
                                             @endphp
                                             <tr>
                                                 <td>{{ $index + 1 }}</td>
-                                                <td><strong>{{ $student->first_name }} {{ $student->last_name }}</strong></td>
+                                                <td><strong>{{ $student->full_name }}</strong></td>
                                                 <td>{{ $student->admission_number }}</td>
                                                 <td>
                                                     <input type="hidden" name="attendance[{{ $student->id }}][student_id]" value="{{ $student->id }}">

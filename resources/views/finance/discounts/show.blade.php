@@ -90,7 +90,7 @@
                 <div class="finance-card-body p-4">
                     @if($discount->student)
                         <p class="mb-3"><strong>Student:</strong><br>
-                            {{ $discount->student->first_name }} {{ $discount->student->last_name }}<br>
+                            {{ $discount->student->full_name }}<br>
                             <small class="text-muted">{{ $discount->student->admission_number }}</small>
                         </p>
                     @endif

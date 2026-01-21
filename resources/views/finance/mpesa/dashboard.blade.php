@@ -130,7 +130,7 @@
                                     </td>
                                     <td>
                                         <div>
-                                            <strong>{{ $transaction->student->first_name }} {{ $transaction->student->last_name }}</strong>
+                                            <strong>{{ $transaction->student->full_name }}</strong>
                                         </div>
                                         <small class="text-muted">{{ $transaction->student->admission_number }}</small>
                                     </td>
@@ -197,7 +197,7 @@
                                 <tr>
                                     <td>
                                         <div>
-                                            <strong>{{ $link->student->first_name }}</strong>
+                                            <strong>{{ $link->student->full_name }}</strong>
                                         </div>
                                         <small class="text-muted">{{ $link->student->admission_number }}</small>
                                     </td>

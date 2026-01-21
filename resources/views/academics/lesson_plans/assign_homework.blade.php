@@ -90,7 +90,7 @@
                   @foreach($students as $student)
                   <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="student_ids[]" value="{{ $student->id }}" id="student_{{ $student->id }}">
-                    <label class="form-check-label" for="student_{{ $student->id }}">{{ $student->first_name }} {{ $student->last_name }}</label>
+                    <label class="form-check-label" for="student_{{ $student->id }}">{{ $student->full_name }}</label>
                   </div>
                   @endforeach
                 </div>

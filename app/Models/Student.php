@@ -180,7 +180,8 @@ class Student extends Model
 
     public function getFullNameAttribute()
     {
-        return "{$this->first_name} {$this->middle_name} {$this->last_name}";
+        $parts = array_filter([$this->first_name, $this->middle_name, $this->last_name]);
+        return implode(' ', $parts);
     }
 
     public function classroom()
@@ -353,7 +354,8 @@ class Student extends Model
     }
     public function getNameAttribute()
     {
-        return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
+        $parts = array_filter([$this->first_name, $this->middle_name, $this->last_name]);
+        return implode(' ', $parts);
     }
 
     public function getPhotoUrlAttribute(): string

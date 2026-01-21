@@ -28,7 +28,7 @@
             <table class="table table-borderless">
                 <tr>
                     <th width="200">Student:</th>
-                    <td>{{ $feeConcession->student->first_name }} {{ $feeConcession->student->last_name }}</td>
+                    <td>{{ $feeConcession->student->full_name }}</td>
                 </tr>
                 <tr>
                     <th>Votehead:</th>

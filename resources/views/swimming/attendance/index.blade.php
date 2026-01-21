@@ -7,7 +7,7 @@
         'title' => 'Swimming Attendance Records & Reports',
         'icon' => 'bi bi-water',
         'subtitle' => 'View and manage swimming attendance records',
-        'actions' => '<a href="' . route('swimming.attendance.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Mark Attendance</a>'
+        'actions' => '<a href="' . route('swimming.wallets.index') . '" class="btn btn-finance btn-finance-secondary me-2"><i class="bi bi-wallet2"></i> Send Balances & Payment Links</a><a href="' . route('swimming.attendance.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Mark Attendance</a>'
     ])
 
     @include('finance.invoices.partials.alerts')
@@ -100,6 +100,7 @@
                 <select name="payment_status" class="finance-form-select">
                     <option value="">All Statuses</option>
                     <option value="paid" {{ ($filters['payment_status'] ?? '') == 'paid' ? 'selected' : '' }}>Paid</option>
+                    <option value="partial" {{ ($filters['payment_status'] ?? '') == 'partial' ? 'selected' : '' }}>Partial</option>
                     <option value="unpaid" {{ ($filters['payment_status'] ?? '') == 'unpaid' ? 'selected' : '' }}>Unpaid</option>
                 </select>
             </div>
@@ -147,7 +148,7 @@
                                             <td>{{ $index + 1 }}</td>
                                             <td><strong>{{ $record->student->admission_number ?? 'N/A' }}</strong></td>
                                             <td>
-                                                {{ $record->student->first_name ?? '' }} {{ $record->student->last_name ?? '' }}
+                                                {{ $record->student->full_name ?? '' }}
                                             </td>
                                             <td class="text-end">
                                                 <strong>Ksh {{ number_format($record->session_cost ?? 0, 2) }}</strong>
@@ -155,14 +156,25 @@
                                             <td>
                                                 @php
                                                     $walletBalance = $record->wallet_balance ?? 0;
-                                                    $isActuallyPaid = $record->payment_status === 'paid' && $walletBalance >= 0;
+                                                    $sessionCost = $record->session_cost ?? 0;
+                                                    
+                                                    // Paid: wallet balance >= 0 (they have money or are even)
+                                                    // Partial: wallet balance is negative but less than session cost (they paid something)
+                                                    // Unpaid: wallet balance is negative and equals or exceeds session cost (they haven't paid)
+                                                    if ($walletBalance >= 0) {
+                                                        $statusClass = 'bg-success';
+                                                        $statusText = 'Paid';
+                                                    } elseif ($walletBalance < 0 && abs($walletBalance) < $sessionCost) {
+                                                        $statusClass = 'bg-warning text-dark';
+                                                        $statusText = 'Partial';
+                                                    } else {
+                                                        $statusClass = 'bg-danger';
+                                                        $statusText = 'Unpaid';
+                                                    }
                                                 @endphp
-                                                @if($isActuallyPaid)
-                                                    <span class="badge bg-success">Paid</span>
-                                                @elseif($record->payment_status === 'paid' && $walletBalance < 0)
-                                                    <span class="badge bg-warning text-dark">Unpaid (Balance: Ksh {{ number_format($walletBalance, 2) }})</span>
-                                                @else
-                                                    <span class="badge bg-danger">Unpaid</span>
+                                                <span class="badge {{ $statusClass }}">{{ $statusText }}</span>
+                                                @if($walletBalance < 0)
+                                                    <br><small class="text-danger">Bal: Ksh {{ number_format($walletBalance, 2) }}</small>
                                                 @endif
                                             </td>
                                             <td>
@@ -188,20 +200,27 @@
             @php
                 $totalStudents = $attendance->sum(function($records) { return $records->count(); });
                 $totalAmount = $attendance->flatten()->sum('session_cost');
+                
+                // Count based on actual wallet balance
                 $paidCount = $attendance->flatten()->filter(function($record) {
                     $walletBalance = $record->wallet_balance ?? 0;
-                    return $record->payment_status === 'paid' && $walletBalance >= 0;
+                    return $walletBalance >= 0;
                 })->count();
-                $unpaidCount = $attendance->flatten()->filter(function($record) {
-                    if ($record->payment_status === 'unpaid') {
-                        return true;
-                    }
+                
+                $partialCount = $attendance->flatten()->filter(function($record) {
                     $walletBalance = $record->wallet_balance ?? 0;
-                    return $walletBalance < 0;
+                    $sessionCost = $record->session_cost ?? 0;
+                    return $walletBalance < 0 && abs($walletBalance) < $sessionCost;
+                })->count();
+                
+                $unpaidCount = $attendance->flatten()->filter(function($record) {
+                    $walletBalance = $record->wallet_balance ?? 0;
+                    $sessionCost = $record->session_cost ?? 0;
+                    return $walletBalance < 0 && abs($walletBalance) >= $sessionCost;
                 })->count();
             @endphp
             <div class="row g-3 mb-4">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="finance-stat-card border-primary finance-animate">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -213,17 +232,17 @@
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <div class="finance-stat-card border-success finance-animate">
+                    <div class="finance-stat-card border-info finance-animate">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Total Amount</h6>
                                 <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">Ksh {{ number_format($totalAmount, 2) }}</h4>
                             </div>
-                            <i class="bi bi-cash-stack" style="font-size: 2rem; color: var(--finance-success);"></i>
+                            <i class="bi bi-cash-stack" style="font-size: 2rem; color: var(--finance-info);"></i>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="finance-stat-card border-success finance-animate">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
@@ -231,6 +250,17 @@
                                 <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">{{ $paidCount }}</h4>
                             </div>
                             <i class="bi bi-check-circle" style="font-size: 2rem; color: var(--finance-success);"></i>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="finance-stat-card border-warning finance-animate">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Partial</h6>
+                                <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">{{ $partialCount }}</h4>
+                            </div>
+                            <i class="bi bi-hourglass-split" style="font-size: 2rem; color: var(--finance-warning);"></i>
                         </div>
                     </div>
                 </div>
@@ -286,7 +316,7 @@
                                         <strong>{{ $record->attendance_date->format('d M Y') }}</strong>
                                     </td>
                                     <td>
-                                        {{ $record->student->first_name ?? '' }} {{ $record->student->last_name ?? '' }}
+                                        {{ $record->student->full_name ?? '' }}
                                     </td>
                                     <td>
                                         <strong>{{ $record->student->admission_number ?? 'N/A' }}</strong>
@@ -298,10 +328,28 @@
                                         <strong>Ksh {{ number_format($record->session_cost ?? 0, 2) }}</strong>
                                     </td>
                                     <td>
-                                        @if($record->payment_status === 'paid')
-                                            <span class="badge bg-success">Paid</span>
-                                        @else
-                                            <span class="badge bg-danger">Unpaid</span>
+                                        @php
+                                            // Get actual wallet balance to determine true payment status
+                                            $walletBalance = $record->wallet_balance ?? \App\Models\SwimmingWallet::getOrCreateForStudent($record->student_id)->balance ?? 0;
+                                            $sessionCost = $record->session_cost ?? 0;
+                                            
+                                            // Paid: wallet balance >= 0 (they have money or are even)
+                                            // Partial: wallet balance is negative but less than session cost (they paid something)
+                                            // Unpaid: wallet balance is negative and equals or exceeds session cost (they haven't paid)
+                                            if ($walletBalance >= 0) {
+                                                $statusClass = 'bg-success';
+                                                $statusText = 'Paid';
+                                            } elseif ($walletBalance < 0 && abs($walletBalance) < $sessionCost) {
+                                                $statusClass = 'bg-warning text-dark';
+                                                $statusText = 'Partial';
+                                            } else {
+                                                $statusClass = 'bg-danger';
+                                                $statusText = 'Unpaid';
+                                            }
+                                        @endphp
+                                        <span class="badge {{ $statusClass }}">{{ $statusText }}</span>
+                                        @if($walletBalance < 0)
+                                            <br><small class="text-danger">Bal: Ksh {{ number_format($walletBalance, 2) }}</small>
                                         @endif
                                     </td>
                                     <td>

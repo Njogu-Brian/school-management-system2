@@ -21,7 +21,7 @@
                         <tr>
                             <th>Student:</th>
                             <td>
-                                <a href="{{ route('students.show', $feePaymentPlan->student) }}">{{ $feePaymentPlan->student->first_name }} {{ $feePaymentPlan->student->last_name }}</a>
+                                <a href="{{ route('students.show', $feePaymentPlan->student) }}">{{ $feePaymentPlan->student->full_name }}</a>
                                 <a href="{{ route('finance.accountant-dashboard.student-history', $feePaymentPlan->student) }}" class="btn btn-sm btn-outline-primary ms-2">
                                     <i class="bi bi-clock-history"></i> Payment History
                                 </a>

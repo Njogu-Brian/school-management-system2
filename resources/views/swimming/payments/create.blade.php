@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     div.className = 'mb-3';
                     div.innerHTML = `
                         <label class="finance-form-label">
-                            ${data.student.first_name} ${data.student.last_name} (${data.student.admission_number})
+                            ${data.student.full_name} (${data.student.admission_number})
                             <br><small class="text-danger">Swimming Balance: Ksh ${parseFloat(data.student.swimming_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                         </label>
                         <div class="input-group">
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         div.className = 'mb-3';
                         div.innerHTML = `
                             <label class="finance-form-label">
-                                ${sibling.first_name} ${sibling.last_name} (${sibling.admission_number})
+                                ${sibling.full_name} (${sibling.admission_number})
                                 <br><small class="text-danger">Swimming Balance: Ksh ${parseFloat(sibling.swimming_balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                             </label>
                             <div class="input-group">

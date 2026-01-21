@@ -62,7 +62,7 @@
                     <tbody>
                         @forelse($plans as $plan)
                             <tr>
-                                <td>{{ $plan->student->first_name }} {{ $plan->student->last_name }}</td>
+                                <td>{{ $plan->student->full_name }}</td>
                                 <td>KES {{ number_format($plan->total_amount, 2) }}</td>
                                 <td>{{ $plan->installment_count }}</td>
                                 <td>KES {{ number_format($plan->installment_amount, 2) }}</td>

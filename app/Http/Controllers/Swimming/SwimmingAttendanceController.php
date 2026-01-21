@@ -75,14 +75,15 @@ class SwimmingAttendanceController extends Controller
     }
 
     /**
-     * Store attendance
+     * Store attendance (supports both initial marking and updates)
+     * Uses sync method to handle marking new students and unmarking removed students
      */
     public function store(Request $request)
     {
         $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
             'date' => 'required|date',
-            'student_ids' => 'required|array',
+            'student_ids' => 'nullable|array',
             'student_ids.*' => 'exists:students,id',
             'notes' => 'nullable|string',
         ]);
@@ -96,33 +97,54 @@ class SwimmingAttendanceController extends Controller
         }
         
         $date = Carbon::parse($request->date);
-        $studentIds = $request->student_ids;
+        // student_ids can be empty if all students are being unmarked
+        $studentIds = $request->student_ids ?? [];
         
         try {
-            $results = $this->attendanceService->markBulkAttendance(
+            // Use sync method to handle both marking new and unmarking removed students
+            $results = $this->attendanceService->syncBulkAttendance(
                 $classroom,
                 $date,
                 $studentIds,
                 $user
             );
             
-            $successCount = count($results['success']);
+            $markedCount = count($results['marked']);
+            $unmarkedCount = count($results['unmarked']);
+            $alreadyMarkedCount = count($results['already_marked']);
             $failedCount = count($results['failed']);
             
+            // Build success message
+            $messages = [];
+            if ($markedCount > 0) {
+                $messages[] = "{$markedCount} student(s) newly marked and billed";
+            }
+            if ($unmarkedCount > 0) {
+                $totalRefunded = array_sum(array_column($results['unmarked'], 'refunded_amount'));
+                $messages[] = "{$unmarkedCount} student(s) unmarked (Ksh " . number_format($totalRefunded, 2) . " refunded to wallets)";
+            }
+            if ($alreadyMarkedCount > 0) {
+                $messages[] = "{$alreadyMarkedCount} student(s) already marked (no change)";
+            }
+            
+            $successMessage = !empty($messages) ? implode('. ', $messages) . '.' : 'Attendance saved.';
+            
             if ($failedCount > 0) {
-                return redirect()->back()
-                    ->with('warning', "Attendance marked for {$successCount} students. {$failedCount} failed.")
-                    ->with('failed_students', $results['failed']);
+                return redirect()->route('swimming.attendance.create', [
+                    'classroom_id' => $classroom->id,
+                    'date' => $request->date,
+                ])->with('warning', "{$successMessage} {$failedCount} operation(s) failed.")
+                  ->with('failed_students', $results['failed']);
             }
             
             return redirect()->route('swimming.attendance.create', [
                 'classroom_id' => $classroom->id,
                 'date' => $request->date,
-            ])->with('success', "Attendance marked successfully for {$successCount} students.");
+            ])->with('success', $successMessage);
             
         } catch (\Exception $e) {
             return redirect()->back()
-                ->with('error', 'Failed to mark attendance: ' . $e->getMessage())
+                ->with('error', 'Failed to save attendance: ' . $e->getMessage())
                 ->withInput();
         }
     }
@@ -217,13 +239,22 @@ class SwimmingAttendanceController extends Controller
             $query->whereDate('attendance_date', '<=', $request->date_to);
         }
         
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
-        }
+        // Note: payment_status filter based on wallet balance is done in view
+        // since we need to join with wallet data for accurate filtering
         
         $attendance = $query->orderBy('attendance_date', 'desc')
             ->orderBy('classroom_id')
             ->paginate(50);
+        
+        // Load wallet balances for accurate payment status display
+        $studentIds = $attendance->pluck('student_id')->unique();
+        $wallets = \App\Models\SwimmingWallet::whereIn('student_id', $studentIds)
+            ->pluck('balance', 'student_id');
+        
+        // Add wallet balance to each attendance record
+        $attendance->each(function($record) use ($wallets) {
+            $record->wallet_balance = $wallets->get($record->student_id, 0);
+        });
         
         return view('swimming.attendance.index', [
             'attendance' => $attendance,

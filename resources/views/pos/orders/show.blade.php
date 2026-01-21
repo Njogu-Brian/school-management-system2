@@ -29,7 +29,7 @@
                             <div class="col-md-6">
                                 <strong>Student:</strong>
                                 @if($order->student)
-                                    {{ $order->student->first_name }} {{ $order->student->last_name }}
+                                    {{ $order->student->full_name }}
                                     <div class="small text-muted">{{ $order->student->admission_number }}</div>
                                 @else
                                     <span class="text-muted">—</span>

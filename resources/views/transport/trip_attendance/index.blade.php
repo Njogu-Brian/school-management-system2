@@ -79,7 +79,7 @@
                                 @foreach($attendance as $index => $record)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
-                                        <td><strong>{{ $record->student->first_name }} {{ $record->student->last_name }}</strong></td>
+                                        <td><strong>{{ $record->student->full_name }}</strong></td>
                                         <td>{{ $record->student->classroom->name ?? '—' }}</td>
                                         <td>{{ $record->student->admission_number }}</td>
                                         <td>

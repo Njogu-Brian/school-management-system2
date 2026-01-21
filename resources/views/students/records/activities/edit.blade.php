@@ -5,14 +5,14 @@
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{{ route('students.index') }}">Students</a></li>
-      <li class="breadcrumb-item"><a href="{{ route('students.show', $student) }}">{{ $student->first_name }} {{ $student->last_name }}</a></li>
+      <li class="breadcrumb-item"><a href="{{ route('students.show', $student) }}">{{ $student->full_name }}</a></li>
       <li class="breadcrumb-item"><a href="{{ route('students.activities.index', $student) }}">Extracurricular Activities</a></li>
       <li class="breadcrumb-item active">Edit Activity</li>
     </ol>
   </nav>
 
   <div class="d-flex align-items-center justify-content-between mb-3">
-    <h1 class="h4 mb-0">Edit Activity - {{ $student->first_name }} {{ $student->last_name }}</h1>
+    <h1 class="h4 mb-0">Edit Activity - {{ $student->full_name }}</h1>
     <a href="{{ route('students.activities.show', [$student, $activity]) }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back</a>
   </div>
 

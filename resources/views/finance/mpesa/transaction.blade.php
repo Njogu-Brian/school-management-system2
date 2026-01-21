@@ -120,7 +120,7 @@
                             <label class="text-muted small">Student Name</label>
                             <div class="fw-semibold">
                                 <a href="{{ route('students.show', $transaction->student) }}">
-                                    {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
+                                    {{ $transaction->student->full_name }}
                                 </a>
                             </div>
                         </div>

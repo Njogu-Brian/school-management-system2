@@ -14,7 +14,7 @@
                     @foreach ($students as $student)
                         <tr>
                             <!-- Display Full Name -->
-                            <td>{{ $student->full_name ?? "{$student->first_name} {$student->middle_name} {$student->last_name}" }}</td>
+                            <td>{{ $student->full_name }}</td>
                             
                             <!-- Display Class Name -->
                             <td>{{ $student->classrooms->name ?? 'N/A' }}</td>

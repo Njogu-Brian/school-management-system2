@@ -22,13 +22,13 @@
                     <i class="bi bi-people"></i> Siblings Detected
                 </h5>
                 <p class="mb-2">
-                    This transaction is assigned to <strong>{{ $bankStatement->student->first_name }} {{ $bankStatement->student->last_name }}</strong> ({{ $bankStatement->student->admission_number }}), 
+                    This transaction is assigned to <strong>{{ $bankStatement->student->full_name }}</strong> ({{ $bankStatement->student->admission_number }}), 
                     but there {{ count($siblings) === 1 ? 'is' : 'are' }} <strong>{{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }}</strong> in the same family.
                 </p>
                 <p class="mb-2">
                     <strong>Siblings:</strong>
                     @foreach($siblings as $sibling)
-                        {{ $sibling->first_name }} {{ $sibling->last_name }} ({{ $sibling->admission_number }}){{ !$loop->last ? ', ' : '' }}
+                        {{ $sibling->full_name }} ({{ $sibling->admission_number }}){{ !$loop->last ? ', ' : '' }}
                     @endforeach
                 </p>
                 <p class="mb-0">
@@ -162,7 +162,7 @@
                                     <div class="flex-grow-1">
                                         <h6 class="mb-1">
                                             <a href="{{ route('students.show', $student) }}" target="_blank">
-                                                {{ $student->first_name }} {{ $student->last_name }}
+                                                {{ $student->full_name }}
                                             </a>
                                         </h6>
                                         <p class="text-muted mb-1 small">
@@ -178,7 +178,7 @@
                                             <p class="text-info mb-1 small">
                                                 <i class="bi bi-people"></i> Has {{ $studentSiblings->count() }} sibling(s):
                                                 @foreach($studentSiblings as $sib)
-                                                    {{ $sib->first_name }} {{ $sib->last_name }}{{ !$loop->last ? ', ' : '' }}
+                                                    {{ $sib->full_name }}{{ !$loop->last ? ', ' : '' }}
                                                 @endforeach
                                             </p>
                                         @endif
@@ -203,7 +203,7 @@
                                             </button>
                                         </form>
                                         @if($studentSiblings->count() > 0)
-                                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent({{ $student->id }}, {{ json_encode($student->first_name . ' ' . $student->last_name) }}, {{ json_encode($studentSiblings->map(function($s) { return ['id' => $s->id, 'first_name' => $s->first_name, 'last_name' => $s->last_name, 'admission_number' => $s->admission_number]; })->toArray()) }})">
+                                            <button type="button" class="btn btn-sm btn-finance btn-finance-secondary mt-1" onclick="showShareModalForStudent({{ $student->id }}, {{ json_encode($student->full_name) }}, {{ json_encode($studentSiblings->map(function($s) { return ['id' => $s->id, 'full_name' => $s->full_name, 'admission_number' => $s->admission_number]; })->toArray()) }})">
                                                 <i class="bi bi-share"></i> Share
                                             </button>
                                         @endif
@@ -312,7 +312,7 @@
                         <div class="flex-grow-1">
                             <h6 class="mb-1">
                                 <a href="{{ route('students.show', $bankStatement->student) }}">
-                                    {{ $bankStatement->student->first_name }} {{ $bankStatement->student->last_name }}
+                                    {{ $bankStatement->student->full_name }}
                                 </a>
                             </h6>
                             <p class="text-muted mb-0">
@@ -349,7 +349,7 @@
                             @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
                             <div class="mb-3 p-3 border rounded">
                                 <label class="form-label">
-                                    <strong>{{ $student?->first_name }} {{ $student?->last_name }}</strong>
+                                    <strong>{{ $student?->full_name }}</strong>
                                     <small class="text-muted">({{ $student?->admission_number }})</small>
                                 </label>
                                 <input type="hidden" name="allocations[{{ $index }}][student_id]" value="{{ $allocation['student_id'] }}">
@@ -388,7 +388,7 @@
                                 @foreach($bankStatement->shared_allocations as $allocation)
                                     @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
                                     <tr>
-                                        <td>{{ $student?->first_name }} {{ $student?->last_name }}</td>
+                                        <td>{{ $student?->full_name }}</td>
                                         <td><code>{{ $student?->admission_number }}</code></td>
                                         <td class="text-end">Ksh {{ number_format($allocation['amount'], 2) }}</td>
                                     </tr>
@@ -458,7 +458,7 @@
                             @if($bankStatement->student)
                                 <div class="mb-3 p-3 border rounded">
                                     <label class="form-label">
-                                        <strong>{{ $bankStatement->student->first_name }} {{ $bankStatement->student->last_name }}</strong>
+                                        <strong>{{ $bankStatement->student->full_name }}</strong>
                                         <small class="text-muted">({{ $bankStatement->student->admission_number }})</small>
                                         <br><small class="text-danger">{{ $balanceLabel }}: Ksh {{ number_format($currentStudentBalance, 2) }}</small>
                                     </label>
@@ -491,7 +491,7 @@
                                 @endphp
                                 <div class="mb-3 p-3 border rounded">
                                     <label class="form-label">
-                                        <strong>{{ $sibling->first_name }} {{ $sibling->last_name }}</strong>
+                                        <strong>{{ $sibling->full_name }}</strong>
                                         <small class="text-muted">({{ $sibling->admission_number }})</small>
                                         <br><small class="text-danger">{{ $siblingBalanceLabel }}: Ksh {{ number_format($siblingBalance, 2) }}</small>
                                     </label>
@@ -783,7 +783,7 @@ async function showStudentBalanceForAssign(student) {
         
         balanceContainer.innerHTML = `
             <small class="text-muted">
-                <strong>${student.full_name || student.first_name + ' ' + student.last_name}</strong> 
+                <strong>${student.full_name}</strong> 
                 (${student.admission_number || 'N/A'})
                 <br>
                 <span class="text-danger">${label}: Ksh ${parseFloat(balance).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
@@ -864,7 +864,7 @@ async function populateShareForm() {
         html += `
             <div class="mb-3 p-3 border rounded">
                 <label class="form-label">
-                    <strong>${student.first_name || ''} ${student.last_name || ''}</strong>
+                    <strong>${student.full_name || ''}</strong>
                     <small class="text-muted">(${student.admission_number || 'N/A'})</small>
                     <br><small class="text-danger">${label}: Ksh ${parseFloat(balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                 </label>
@@ -921,7 +921,7 @@ async function showShareModalForStudent(studentId, studentName, siblings) {
     // Fetch balances for main student and siblings
     const allStudents = [
         {id: studentId, name: studentName},
-        ...siblings.map(s => ({id: s.id, name: `${s.first_name || ''} ${s.last_name || ''}`, admission: s.admission_number}))
+        ...siblings.map(s => ({id: s.id, name: s.full_name || '', admission: s.admission_number}))
     ];
     
     const balancePromises = allStudents.map(async (student) => {

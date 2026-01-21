@@ -373,7 +373,7 @@
                     @if($student)
                     <div class="mb-2">
                         <strong>Name:</strong> 
-                        <span class="text-muted">{{ $student->first_name }} {{ $student->last_name }}</span>
+                        <span class="text-muted">{{ $student->full_name }}</span>
                     </div>
                     <div class="mb-2">
                         <strong>Admission No:</strong>
@@ -492,7 +492,7 @@ $(document).ready(function() {
         $.get('/api/students/' + studentId, function(student) {
             // Update student info card
             let infoHtml = `
-                <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.first_name} ${student.last_name}</span></div>
+                <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.full_name}</span></div>
                 <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number}</span></div>
                 <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${student.classroom?.name || 'N/A'}</span></div>
             `;

@@ -203,7 +203,7 @@
                     <td class="fw-semibold">{{ $st->admission_number }}</td>
                     <td>
                       <a href="{{ route('students.show', $st->id) }}" class="fw-semibold text-reset">
-                        {{ $st->first_name }} {{ $st->last_name }}
+                        {{ $st->full_name }}
                       </a>
                       <div class="text-muted small">DOB: {{ $st->dob ?: '—' }}</div>
                     </td>

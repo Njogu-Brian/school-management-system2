@@ -101,7 +101,7 @@
         <div class="payment-body">
             <div class="text-center mb-4">
                 <h5>Payment For:</h5>
-                <h4><strong>{{ $paymentLink->student->first_name }} {{ $paymentLink->student->last_name }}</strong></h4>
+                <h4><strong>{{ $paymentLink->student->full_name }}</strong></h4>
                 <p class="text-muted mb-0">Admission No: {{ $paymentLink->student->admission_number }}</p>
                 @if($paymentLink->invoice)
                     <p class="text-muted mb-0">Invoice: {{ $paymentLink->invoice->invoice_number }}</p>

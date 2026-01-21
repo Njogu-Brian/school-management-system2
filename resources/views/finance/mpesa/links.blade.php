@@ -74,7 +74,7 @@
                         <tr>
                             <td>
                                 <div>
-                                    <strong>{{ $link->student->first_name }} {{ $link->student->last_name }}</strong>
+                                    <strong>{{ $link->student->full_name }}</strong>
                                 </div>
                                 <small class="text-muted">{{ $link->student->admission_number }}</small>
                                 @if($link->invoice)

@@ -122,7 +122,7 @@
                 <h5 class="mb-3"><i class="fas fa-user"></i> Student Information</h5>
                 <div class="detail-row">
                     <span class="detail-label">Name:</span>
-                    <span class="detail-value">{{ $invoice->student->first_name }} {{ $invoice->student->last_name }}</span>
+                    <span class="detail-value">{{ $invoice->student->full_name }}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Admission No:</span>

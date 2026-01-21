@@ -6,7 +6,7 @@
     @include('finance.partials.header', [
         'title' => 'Payment #' . ($payment->receipt_number ?? $payment->transaction_code),
         'icon' => 'bi bi-cash-stack',
-        'subtitle' => $payment->student?->first_name ? 'For ' . $payment->student->first_name . ' ' . ($payment->student->last_name ?? '') : 'Payment details',
+        'subtitle' => $payment->student?->full_name ? 'For ' . $payment->student->full_name : 'Payment details',
         'actions' => '<a href="' . route('finance.payments.receipt.view', $payment) . '" class="btn btn-finance btn-finance-primary" onclick="window.open(\'' . route('finance.payments.receipt.view', $payment) . '\', \'ReceiptWindow\', \'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no\'); return false;"><i class="bi bi-printer"></i> View/Print Receipt</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'receipt\', [' . $payment->id . '], {message:\'Your receipt is ready. Please find the link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.payments.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
@@ -25,7 +25,7 @@
                             <dl class="row mb-0">
                                 <dt class="col-sm-5">Student:</dt>
                                 <dd class="col-sm-7">
-                                    {{ $payment->student->first_name ?? 'N/A' }} {{ $payment->student->last_name ?? '' }}
+                                    {{ $payment->student->full_name ?? 'N/A' }}
                                     <br><small class="text-muted">{{ $payment->student->admission_number ?? 'N/A' }}</small>
                                 </dd>
 
@@ -205,7 +205,7 @@
                                         <td>
                                             @if($student)
                                                 <a href="{{ route('students.show', $student) }}">
-                                                    {{ $student->first_name }} {{ $student->last_name }}
+                                                    {{ $student->full_name }}
                                                 </a>
                                                 @if($payment->student_id == $allocation['student_id'])
                                                     <span class="badge bg-primary ms-2">Current</span>
@@ -257,7 +257,7 @@
                                 <div>
                                     <strong>
                                         @if($student)
-                                            {{ $student->first_name }} {{ $student->last_name }}
+                                            {{ $student->full_name }}
                                         @else
                                             Student #{{ $allocation['student_id'] }}
                                         @endif

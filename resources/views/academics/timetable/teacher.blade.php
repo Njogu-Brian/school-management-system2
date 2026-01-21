@@ -11,7 +11,7 @@
       <div>
         <div class="crumb">Academics · Timetable</div>
         <h1 class="mb-1">My Timetable</h1>
-        <p class="text-muted mb-0">{{ $teacher->full_name ?? $teacher->first_name . ' ' . $teacher->last_name }}</p>
+        <p class="text-muted mb-0">{{ $teacher->full_name }}</p>
       </div>
       <a href="{{ route('academics.timetable.index') }}" class="btn btn-ghost-strong"><i class="bi bi-arrow-left"></i> Back</a>
     </div>

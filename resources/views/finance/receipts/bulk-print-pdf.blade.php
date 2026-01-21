@@ -292,7 +292,7 @@
         <table class="receipt-details-table">
             <tr>
                 <td class="detail-label">Student Name:</td>
-                <td class="detail-value">{{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}</td>
+                <td class="detail-value">{{ $student->full_name ?? 'N/A' }}</td>
                 <td class="detail-label" style="text-align: right; width: 25%;">Receipt Number:</td>
                 <td class="detail-value" style="text-align: right; width: 25%;"><strong>{{ $receipt_number }}</strong></td>
             </tr>

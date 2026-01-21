@@ -79,7 +79,7 @@
                     <tbody>
                         @forelse($reminders as $reminder)
                             <tr>
-                                <td>{{ $reminder->student->first_name }} {{ $reminder->student->last_name }}</td>
+                                <td>{{ $reminder->student->full_name }}</td>
                                 <td>KES {{ number_format($reminder->outstanding_amount, 2) }}</td>
                                 <td>{{ $reminder->due_date->format('M d, Y') }}</td>
                                 <td>{{ $reminder->days_before_due }} days</td>

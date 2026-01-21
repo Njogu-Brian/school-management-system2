@@ -153,16 +153,16 @@
                     <div class="d-flex align-items-center gap-2">
                       <img
                         src="{{ $student->photo_url }}"
-                        alt="{{ $student->first_name }} {{ $student->last_name }}"
+                        alt="{{ $student->full_name }}"
                         class="avatar-36"
                         onerror="this.onerror=null;this.src='{{ asset('images/avatar-student.png') }}'">
                       <div>
                         @if(Route::has('students.show'))
                           <a href="{{ route('students.show', $student->id) }}" class="fw-semibold text-reset">
-                            {{ $student->first_name }} {{ $student->last_name }}
+                            {{ $student->full_name }}
                           </a>
                         @else
-                          <span class="fw-semibold">{{ $student->first_name }} {{ $student->last_name }}</span>
+                          <span class="fw-semibold">{{ $student->full_name }}</span>
                         @endif
                         <div class="text-muted small">
                           DOB: {{ $student->dob ? \Carbon\Carbon::parse($student->dob)->format('d M Y') : '-' }}

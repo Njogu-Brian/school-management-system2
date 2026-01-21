@@ -97,7 +97,7 @@
                         @foreach($fam->students as $student)
                           <div class="d-flex align-items-center gap-2">
                             <a href="{{ route('students.show', $student->id) }}" class="fw-semibold text-reset text-decoration-none">
-                              {{ $student->first_name }} {{ $student->last_name }}
+                              {{ $student->full_name }}
                             </a>
                             @if($student->admission_number)
                               <small class="text-muted">({{ $student->admission_number }})</small>

@@ -5,7 +5,7 @@
   <nav aria-label="breadcrumb" class="mb-3">
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{{ route('students.index') }}">Students</a></li>
-      <li class="breadcrumb-item"><a href="{{ route('students.show', $student) }}">{{ $student->first_name }} {{ $student->last_name }}</a></li>
+      <li class="breadcrumb-item"><a href="{{ route('students.show', $student) }}">{{ $student->full_name }}</a></li>
       <li class="breadcrumb-item"><a href="{{ route('students.disciplinary-records.index', $student) }}">Disciplinary Records</a></li>
       <li class="breadcrumb-item active">View Record</li>
     </ol>

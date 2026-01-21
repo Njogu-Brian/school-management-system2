@@ -13,7 +13,7 @@
       <li>
         <button class="dropdown-item restore-btn"
                 data-student-id="{{ $student->id }}"
-                data-student-name="{{ $student->first_name }} {{ $student->last_name }}">
+                data-student-name="{{ $student->full_name }}">
           <i class="bi bi-arrow-counterclockwise me-1"></i> Restore
         </button>
       </li>
@@ -27,7 +27,7 @@
         <button class="dropdown-item archive-btn"
                 type="button"
                 data-student-id="{{ $student->id }}"
-                data-student-name="{{ $student->first_name }} {{ $student->last_name }}"
+                data-student-name="{{ $student->full_name }}"
                 data-bs-toggle="modal"
                 data-bs-target="#archiveModal">
           <i class="bi bi-archive me-1"></i> Archive

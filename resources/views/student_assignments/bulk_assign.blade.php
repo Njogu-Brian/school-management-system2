@@ -105,7 +105,7 @@
                                         <tr>
                                             <td class="text-muted">{{ $index + 1 }}</td>
                                             <td class="fw-semibold">
-                                                {{ $student->first_name }} {{ $student->last_name }}
+                                                {{ $student->full_name }}
                                                 <br>
                                                 <small class="text-muted">{{ $student->admission_number }} | {{ optional($student->stream)->name ?? 'No Stream' }}</small>
                                             </td>

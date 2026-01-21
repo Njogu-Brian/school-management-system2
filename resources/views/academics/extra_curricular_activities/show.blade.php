@@ -81,7 +81,7 @@
                   @foreach($assignedStudents as $student)
                   @php $optionalFee = \App\Models\OptionalFee::where('student_id', $student->id)->where('votehead_id', $extra_curricular_activity->votehead_id)->first(); @endphp
                   <tr>
-                    <td>{{ $student->first_name }} {{ $student->last_name }}</td>
+                    <td>{{ $student->full_name }}</td>
                     <td>{{ $student->classroom->name ?? 'N/A' }}</td>
                     <td>
                       @if($optionalFee)

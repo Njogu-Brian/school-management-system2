@@ -119,7 +119,7 @@
                                     <td>
                                         <div>{{ $transaction->full_name }}</div>
                                         @if($transaction->student)
-                                            <small class="text-muted">Matched: {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}</small>
+                                            <small class="text-muted">Matched: {{ $transaction->student->full_name }}</small>
                                         @endif
                                     </td>
                                     <td>{{ $transaction->formatted_phone }}</td>

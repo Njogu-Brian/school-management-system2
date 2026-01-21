@@ -25,7 +25,7 @@
 
                         <dt class="col-sm-3">Student:</dt>
                         <dd class="col-sm-9">
-                            {{ $invoice->student->first_name ?? 'N/A' }} {{ $invoice->student->last_name ?? '' }}
+                            {{ $invoice->student->full_name ?? 'N/A' }}
                             <br><small class="text-muted">{{ $invoice->student->admission_number ?? 'N/A' }}</small>
                         </dd>
 

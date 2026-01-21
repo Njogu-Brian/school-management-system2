@@ -83,7 +83,7 @@
                                 <td>
                                     @if($transaction->student_id && $transaction->student)
                                         <a href="{{ route('students.show', $transaction->student) }}">
-                                            {{ $transaction->student->first_name }} {{ $transaction->student->last_name }}
+                                            {{ $transaction->student->full_name }}
                                         </a>
                                         <br>
                                         <small class="text-muted">{{ $transaction->student->admission_number }}</small>

@@ -26,7 +26,7 @@
               <option value="">-- Select Student --</option>
               @foreach($students as $student)
                 <option value="{{ $student->id }}">
-                  {{ $student->admission_number ?? $student->admission_no }} - {{ $student->first_name }} {{ $student->middle_name ?? '' }} {{ $student->last_name }}
+                  {{ $student->admission_number ?? $student->admission_no }} - {{ $student->full_name }}
                   @if($student->classroom) ({{ $student->classroom->name }}) @endif
                 </option>
               @endforeach

@@ -84,7 +84,7 @@
                                     <strong>{{ $wallet->student->admission_number ?? 'N/A' }}</strong>
                                 </td>
                                 <td>
-                                    {{ $wallet->student->first_name ?? '' }} {{ $wallet->student->last_name ?? '' }}
+                                    {{ $wallet->student->full_name ?? '' }}
                                 </td>
                                 <td>
                                     <span class="badge bg-info">{{ $wallet->student->classroom->name ?? 'N/A' }}</span>

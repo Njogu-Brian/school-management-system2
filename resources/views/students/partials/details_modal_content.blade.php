@@ -2,10 +2,10 @@
 <div class="mb-4">
   <div class="d-flex align-items-center gap-3 mb-3">
     <div class="avatar-120 flex-shrink-0 overflow-hidden rounded-circle">
-      <img src="{{ $student->photo_url }}" alt="{{ $student->first_name }} {{ $student->last_name }}" class="avatar-120" onerror="this.onerror=null;this.src='{{ asset('images/avatar-student.png') }}'">
+      <img src="{{ $student->photo_url }}" alt="{{ $student->full_name }}" class="avatar-120" onerror="this.onerror=null;this.src='{{ asset('images/avatar-student.png') }}'">
     </div>
     <div>
-      <h4 class="mb-1">{{ $student->first_name }} {{ $student->middle_name }} {{ $student->last_name }}</h4>
+      <h4 class="mb-1">{{ $student->full_name }}</h4>
       <div class="text-muted">
         <span class="me-2">Admission #{{ $student->admission_number }}</span>
         @if($student->is_alumni)

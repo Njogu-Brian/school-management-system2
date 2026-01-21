@@ -14,7 +14,7 @@
     @include('finance.partials.header', [
         'title' => 'Invoice: ' . $invoice->invoice_number,
         'icon' => 'bi bi-file-text',
-        'subtitle' => $invoice->student->first_name ? 'For ' . $invoice->student->first_name . ' ' . ($invoice->student->last_name ?? '') : 'Invoice details',
+        'subtitle' => $invoice->student->full_name ? 'For ' . $invoice->student->full_name : 'Invoice details',
         'actions' => $payNowBtn . '<a href="' . route('finance.invoices.print_single', $invoice) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print PDF</a><button type="button" class="btn btn-finance btn-finance-secondary" onclick="openSendDocument(\'invoice\', [' . $invoice->id . '], {channel:\'sms\', message:\'Please find your invoice link below.\'})"><i class="bi bi-send"></i> Send Now</button><a href="' . route('finance.invoices.history', $invoice) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-clock-history"></i> History</a><a href="' . route('finance.invoices.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
@@ -33,7 +33,7 @@
                 <div class="col-md-6">
                     <h5 class="mb-3">Student Information</h5>
                     <p class="mb-2">
-                        <strong>Name:</strong> {{ $student->first_name ?? 'Unknown' }} {{ $student->last_name ?? '' }}
+                        <strong>Name:</strong> {{ $student->full_name ?? 'Unknown' }}
                     </p>
                     <p class="mb-2">
                         <strong>Admission Number:</strong> {{ $student->admission_number ?? '—' }}

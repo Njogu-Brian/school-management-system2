@@ -80,7 +80,7 @@
             <label class="form-label">Students</label>
             <select name="student_ids[]" class="form-select" multiple>
               @foreach($students as $student)
-                <option value="{{ $student->id }}" {{ $homework->students->pluck('id')->contains($student->id) ? 'selected' : '' }}>{{ $student->admission_no }} - {{ $student->first_name }} {{ $student->last_name }}</option>
+                <option value="{{ $student->id }}" {{ $homework->students->pluck('id')->contains($student->id) ? 'selected' : '' }}>{{ $student->admission_no }} - {{ $student->full_name }}</option>
               @endforeach
             </select>
             <small class="text-muted">Hold Ctrl/Cmd to select multiple students</small>

@@ -45,7 +45,7 @@
                 <tr>
                   <td>{{ $loop->iteration }}</td>
                   <td>
-                    <div class="fw-semibold">{{ $s->full_name ?? ($s->first_name.' '.$s->last_name) }}</div>
+                    <div class="fw-semibold">{{ $s->full_name }}</div>
                     <div class="small text-muted">Adm: {{ $s->admission_number ?? '—' }}</div>
                     <input type="hidden" name="rows[{{ $i }}][student_id]" value="{{ $s->id }}">
                   </td>

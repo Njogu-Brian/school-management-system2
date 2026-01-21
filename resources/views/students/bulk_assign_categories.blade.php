@@ -82,7 +82,7 @@
                       <tr>
                         <td><span class="pill-badge pill-secondary">{{ $student->admission_number }}</span></td>
                         <td>
-                          <div class="fw-semibold">{{ $student->first_name }} {{ $student->last_name }}</div>
+                          <div class="fw-semibold">{{ $student->full_name }}</div>
                           <small class="text-muted">{{ $student->gender }}</small>
                         </td>
                         <td>

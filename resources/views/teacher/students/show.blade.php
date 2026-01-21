@@ -4,7 +4,7 @@
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h2 class="mb-0">{{ $student->first_name }} {{ $student->last_name }}</h2>
+      <h2 class="mb-0">{{ $student->full_name }}</h2>
       <small class="text-muted">Student Details</small>
     </div>
     <a href="{{ route('teacher.students.index') }}" class="btn btn-secondary">

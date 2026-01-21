@@ -127,7 +127,7 @@
                             <tr class="finance-table-row">
                                 <td>
                                     @if($student)
-                                        <strong>{{ $student->first_name }} {{ $student->last_name }}</strong>
+                                        <strong>{{ $student->full_name }}</strong>
                                         <br><small class="text-muted">{{ $student->admission_number }}</small>
                                     @else
                                         <strong>Student ID: {{ $studentId }}</strong>

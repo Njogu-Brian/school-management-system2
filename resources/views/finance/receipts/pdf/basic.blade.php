@@ -45,7 +45,7 @@
     <table>
         <tr>
             <th>Student:</th>
-            <td>{{ $payment->student->first_name ?? 'N/A' }} {{ $payment->student->last_name ?? '' }}</td>
+            <td>{{ $payment->student->full_name ?? 'N/A' }}</td>
         </tr>
         <tr>
             <th>Date:</th>

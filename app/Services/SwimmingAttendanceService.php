@@ -215,7 +215,97 @@ class SwimmingAttendanceService
     }
 
     /**
-     * Mark bulk attendance for a class
+     * Unmark attendance for a student (reverse/delete attendance and refund wallet)
+     */
+    public function unmarkAttendance(
+        SwimmingAttendance $attendance,
+        ?User $unmarkedBy = null
+    ): bool {
+        return DB::transaction(function () use ($attendance, $unmarkedBy) {
+            $student = $attendance->student;
+            $sessionCost = $attendance->session_cost ?? 0;
+            
+            // If the student was charged (payment_status is paid), reverse the wallet debit
+            if ($attendance->payment_status === SwimmingAttendance::STATUS_PAID && $sessionCost > 0) {
+                try {
+                    $this->walletService->reverseAttendanceDebit(
+                        $student, 
+                        $attendance->id, 
+                        $sessionCost,
+                        "Attendance reversal for {$attendance->attendance_date->format('Y-m-d')}"
+                    );
+                    
+                    Log::info('Reversed swimming attendance charge', [
+                        'attendance_id' => $attendance->id,
+                        'student_id' => $student->id,
+                        'amount_refunded' => $sessionCost,
+                        'unmarked_by' => $unmarkedBy?->id ?? auth()->id(),
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Failed to reverse swimming attendance charge', [
+                        'attendance_id' => $attendance->id,
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // Continue to delete attendance even if reversal fails
+                }
+            }
+            
+            // If student was charged to invoice (no termly fee), remove the invoice item
+            if (!$attendance->termly_fee_covered && $sessionCost > 0) {
+                try {
+                    $year = (int) setting('current_year', date('Y'));
+                    $term = (int) setting('current_term', 1);
+                    
+                    // Find and remove the invoice item for this attendance
+                    $invoice = \App\Models\Invoice::where('student_id', $student->id)
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->first();
+                    
+                    if ($invoice) {
+                        // Find the invoice item created for this date
+                        $invoiceItem = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                            ->where('source', 'swimming_attendance')
+                            ->where('effective_date', $attendance->attendance_date->toDateString())
+                            ->where('amount', $sessionCost)
+                            ->first();
+                        
+                        if ($invoiceItem) {
+                            $invoiceItem->delete();
+                            
+                            // Update invoice totals
+                            $invoice->refresh();
+                            $invoice->update([
+                                'total' => $invoice->items()->sum('amount'),
+                                'balance' => $invoice->total - $invoice->paid_amount,
+                            ]);
+                            
+                            Log::info('Removed swimming invoice item', [
+                                'attendance_id' => $attendance->id,
+                                'invoice_item_id' => $invoiceItem->id,
+                                'student_id' => $student->id,
+                            ]);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Failed to remove swimming invoice item', [
+                        'attendance_id' => $attendance->id,
+                        'student_id' => $student->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+            
+            // Delete the attendance record
+            $attendance->delete();
+            
+            return true;
+        });
+    }
+
+    /**
+     * Mark bulk attendance for a class (original method - only adds new)
      */
     public function markBulkAttendance(
         Classroom $classroom,
@@ -239,6 +329,109 @@ class SwimmingAttendanceService
                     'error' => $e->getMessage(),
                 ];
             }
+        }
+        
+        return $results;
+    }
+
+    /**
+     * Sync bulk attendance for a class - handles both marking new and unmarking removed students
+     * This is the proper update method that should be used when updating attendance for a day
+     */
+    public function syncBulkAttendance(
+        Classroom $classroom,
+        Carbon $date,
+        array $markedStudentIds,
+        ?User $markedBy = null
+    ): array {
+        $results = [
+            'marked' => [],
+            'unmarked' => [],
+            'already_marked' => [],
+            'failed' => [],
+        ];
+        
+        // Get all students in the classroom
+        $allClassroomStudentIds = Student::where('classroom_id', $classroom->id)
+            ->where('archive', 0)
+            ->pluck('id')
+            ->toArray();
+        
+        // Get existing attendance records for this date
+        $existingAttendance = SwimmingAttendance::where('classroom_id', $classroom->id)
+            ->whereDate('attendance_date', $date->toDateString())
+            ->get()
+            ->keyBy('student_id');
+        
+        $existingStudentIds = $existingAttendance->keys()->toArray();
+        
+        // Determine which students to mark (new) and which to unmark (removed)
+        $studentsToMark = array_diff($markedStudentIds, $existingStudentIds);
+        $studentsToUnmark = array_diff($existingStudentIds, $markedStudentIds);
+        $studentsAlreadyMarked = array_intersect($markedStudentIds, $existingStudentIds);
+        
+        // Mark new students
+        foreach ($studentsToMark as $studentId) {
+            try {
+                $student = Student::find($studentId);
+                if (!$student) {
+                    $results['failed'][] = [
+                        'student_id' => $studentId,
+                        'action' => 'mark',
+                        'error' => 'Student not found',
+                    ];
+                    continue;
+                }
+                
+                $attendance = $this->markAttendance($student, $classroom, $date, null, $markedBy);
+                $results['marked'][] = [
+                    'student_id' => $studentId,
+                    'attendance_id' => $attendance->id,
+                    'student_name' => $student->full_name,
+                ];
+            } catch (\Exception $e) {
+                $results['failed'][] = [
+                    'student_id' => $studentId,
+                    'action' => 'mark',
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+        
+        // Unmark removed students (refund wallet)
+        foreach ($studentsToUnmark as $studentId) {
+            try {
+                $attendance = $existingAttendance->get($studentId);
+                if (!$attendance) {
+                    continue;
+                }
+                
+                $student = $attendance->student;
+                $studentName = $student ? $student->full_name : "Student #{$studentId}";
+                
+                $this->unmarkAttendance($attendance, $markedBy);
+                $results['unmarked'][] = [
+                    'student_id' => $studentId,
+                    'student_name' => $studentName,
+                    'refunded_amount' => $attendance->session_cost ?? 0,
+                ];
+            } catch (\Exception $e) {
+                $results['failed'][] = [
+                    'student_id' => $studentId,
+                    'action' => 'unmark',
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+        
+        // Track already marked students (no action needed)
+        foreach ($studentsAlreadyMarked as $studentId) {
+            $attendance = $existingAttendance->get($studentId);
+            $student = $attendance?->student;
+            $results['already_marked'][] = [
+                'student_id' => $studentId,
+                'student_name' => $student ? $student->full_name : "Student #{$studentId}",
+            ];
         }
         
         return $results;

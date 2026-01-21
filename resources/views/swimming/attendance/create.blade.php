@@ -90,7 +90,7 @@
                                     </td>
                                     <td>{{ $index + 1 }}</td>
                                     <td><strong>{{ $student->admission_number }}</strong></td>
-                                    <td>{{ $student->first_name }} {{ $student->last_name }}</td>
+                                    <td>{{ $student->full_name }}</td>
                                     <td class="text-end">
                                         <span class="fw-bold {{ $wallet->balance >= $per_visit_cost ? 'text-success' : 'text-danger' }}">
                                             Ksh {{ number_format($wallet->balance, 2) }}

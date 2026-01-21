@@ -84,7 +84,7 @@
                                 <tr>
                                     <td>
                                         @if($discount->student)
-                                            <strong>{{ $discount->student->first_name }} {{ $discount->student->last_name }}</strong>
+                                            <strong>{{ $discount->student->full_name }}</strong>
                                             <br><small class="text-muted">{{ $discount->student->admission_number }}</small>
                                         @else
                                             <span class="text-muted">N/A</span>

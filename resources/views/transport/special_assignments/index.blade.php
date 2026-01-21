@@ -84,7 +84,7 @@
                                 <tr>
                                     <td>
                                         @if($assignment->student)
-                                            <strong>{{ $assignment->student->full_name ?? ($assignment->student->first_name.' '.$assignment->student->last_name) }}</strong>
+                                            <strong>{{ $assignment->student->full_name }}</strong>
                                             <br><small class="text-muted">{{ $assignment->student->admission_number }}</small>
                                         @else
                                             <span class="text-muted">Vehicle-wide</span>

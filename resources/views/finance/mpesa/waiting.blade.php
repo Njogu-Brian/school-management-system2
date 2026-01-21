@@ -155,7 +155,7 @@
             <div class="transaction-details">
                 <div class="detail-row">
                     <span><strong>Student:</strong></span>
-                    <span>{{ $transaction->student->first_name }} {{ $transaction->student->last_name }}</span>
+                    <span>{{ $transaction->student->full_name }}</span>
                 </div>
                 <div class="detail-row">
                     <span><strong>Amount:</strong></span>

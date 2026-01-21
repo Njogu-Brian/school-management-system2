@@ -392,7 +392,7 @@
                                         @if($student)
                                             <div class="mt-1">
                                                 <a href="{{ route('students.show', $student) }}" class="text-decoration-none">
-                                                    {{ $student->first_name }} {{ $student->last_name }}
+                                                    {{ $student->full_name }}
                                                     <br><small class="text-muted">{{ $student->admission_number }}</small>
                                                 </a>
                                                 <br><small class="text-success fw-bold">Ksh {{ number_format($allocation['amount'], 2) }}</small>
@@ -413,7 +413,7 @@
                                     @endphp
                                     @if($student)
                                         <a href="{{ route('students.show', $student) }}">
-                                            {{ $student->first_name }} {{ $student->last_name }}
+                                            {{ $student->full_name }}
                                             <br><small class="text-muted">{{ $student->admission_number }}</small>
                                         </a>
                                         @if(count($siblings) > 0 && !$txnIsShared)

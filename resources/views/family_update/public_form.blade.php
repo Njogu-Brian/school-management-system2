@@ -224,7 +224,7 @@
                         </div>
                         <div class="form-section mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div class="fw-semibold">{{ $stu->first_name }} {{ $stu->last_name }}</div>
+                                <div class="fw-semibold">{{ $stu->full_name }}</div>
                             </div>
                             <input type="hidden" name="students[{{ $stu->id }}][id]" value="{{ $stu->id }}">
                             <div class="row g-3">

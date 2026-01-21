@@ -114,7 +114,7 @@
                                     </td>
                                     <td>
                                         @if($communication->payment && $communication->payment->student)
-                                            {{ $communication->payment->student->full_name ?? $communication->payment->student->first_name . ' ' . $communication->payment->student->last_name }}
+                                            {{ $communication->payment->student->full_name ?? 'N/A' }}
                                             <br>
                                             <small class="text-muted">{{ $communication->payment->student->admission_number }}</small>
                                         @else

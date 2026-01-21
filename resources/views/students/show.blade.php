@@ -12,7 +12,7 @@
     <div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
       <div>
         <div class="crumb">Students</div>
-        <h1 class="mb-1">{{ $student->first_name }} {{ $student->last_name }}</h1>
+        <h1 class="mb-1">{{ $student->full_name }}</h1>
         <p class="text-muted mb-0">Admission #{{ $student->admission_number }}</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
@@ -34,7 +34,7 @@
           <div class="avatar-120 flex-shrink-0 overflow-hidden rounded-circle">
             <img
               src="{{ $student->photo_url }}"
-              alt="{{ $student->first_name }} {{ $student->last_name }}"
+              alt="{{ $student->full_name }}"
               class="avatar-120"
               onerror="this.onerror=null;this.src='{{ asset('images/avatar-student.png') }}'">
           </div>
@@ -48,7 +48,7 @@
                 <span class="pill-badge pill-{{ $student->archive ? 'danger' : 'info' }} text-capitalize">{{ $student->archive ? 'Inactive' : $student->status }}</span>
               @endif
             </div>
-            <h2 class="mb-0">{{ $student->first_name }}@if($student->middle_name) {{ $student->middle_name }}@endif {{ $student->last_name }}</h2>
+            <h2 class="mb-0">{{ $student->full_name }}</h2>
             <div class="text-muted d-flex gap-3 flex-wrap">
               <span><i class="bi bi-mortarboard me-1"></i>{{ $student->classroom->name ?? '—' }}</span>
               <span><i class="bi bi-diagram-3 me-1"></i>{{ $student->stream->name ?? '—' }}</span>

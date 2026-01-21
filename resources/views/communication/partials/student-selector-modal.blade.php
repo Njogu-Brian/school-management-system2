@@ -49,7 +49,7 @@
                         @foreach($students as $student)
                             <label class="list-group-item list-group-item-action student-item" 
                                    data-student-id="{{ $student->id }}"
-                                   data-student-name="{{ strtolower($student->full_name ?? ($student->first_name.' '.$student->last_name)) }}"
+                                   data-student-name="{{ strtolower($student->full_name) }}"
                                    data-admission="{{ strtolower($student->admission_number ?? $student->admission_no ?? '') }}"
                                    data-class-id="{{ $student->classroom_id ?? '' }}"
                                    data-class-name="{{ strtolower(optional($student->classroom)->name ?? '') }}">
@@ -60,7 +60,7 @@
                                            id="student_{{ $student->id }}">
                                     <div class="flex-grow-1">
                                         <div class="fw-semibold">
-                                            {{ $student->full_name ?? ($student->first_name.' '.$student->last_name) }}
+                                            {{ $student->full_name }}
                                         </div>
                                         <small class="text-muted">
                                             {{ $student->admission_number ?? $student->admission_no ?? 'N/A' }} 

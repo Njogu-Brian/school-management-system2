@@ -140,8 +140,8 @@
                     ->get();
               @endphp
               @foreach($allStudents as $student)
-                <option value="{{ $student->id }}" data-name="{{ strtolower($student->first_name . ' ' . $student->last_name) }}" data-admission="{{ strtolower($student->admission_number ?? '') }}" data-class="{{ strtolower($student->classroom->name ?? '') }}" {{ in_array($student->id, $selectedStudents) ? 'selected' : '' }}>
-                  {{ $student->first_name }} {{ $student->last_name }} ({{ $student->admission_number }}) - {{ $student->classroom->name ?? 'No Class' }}
+                <option value="{{ $student->id }}" data-name="{{ strtolower($student->full_name) }}" data-admission="{{ strtolower($student->admission_number ?? '') }}" data-class="{{ strtolower($student->classroom->name ?? '') }}" {{ in_array($student->id, $selectedStudents) ? 'selected' : '' }}>
+                  {{ $student->full_name }} ({{ $student->admission_number }}) - {{ $student->classroom->name ?? 'No Class' }}
                 </option>
               @endforeach
             </select>

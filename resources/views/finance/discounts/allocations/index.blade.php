@@ -202,7 +202,7 @@
                                 </td>
                                 <td>
                                     @if($allocation->student)
-                                        <strong>{{ $allocation->student->first_name }} {{ $allocation->student->last_name }}</strong>
+                                        <strong>{{ $allocation->student->full_name }}</strong>
                                         <br><small class="text-muted">{{ $allocation->student->admission_number }}</small>
                                     @else
                                         <span class="text-muted">N/A</span>

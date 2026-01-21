@@ -136,7 +136,7 @@
                     <div class="p-3 bg-light d-flex justify-content-between align-items-center">
                         <div>
                             <h6 class="mb-1">
-                                {{ $student->first_name ?? 'N/A' }} {{ $student->last_name ?? '' }}
+                                {{ $student->full_name ?? 'N/A' }}
                                 @if($student)
                                     <small class="text-muted">({{ $student->admission_number }})</small>
                                 @endif
@@ -155,7 +155,7 @@
                         <div>
                             @if($hasReversableItems)
                             <form action="{{ route('finance.posting.reverse-student', $run) }}" method="POST" class="d-inline" 
-                                  onsubmit="return confirm('Are you sure you want to reverse posting for {{ $student->first_name }} {{ $student->last_name }}? This will restore their invoice items to the state before this posting.');">
+                                  onsubmit="return confirm('Are you sure you want to reverse posting for {{ $student->full_name }}? This will restore their invoice items to the state before this posting.');">
                                 @csrf
                                 <input type="hidden" name="student_id" value="{{ $student->id }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">
