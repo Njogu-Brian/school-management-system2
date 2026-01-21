@@ -144,19 +144,32 @@ class SwimmingAttendanceService
                     $year = (int) setting('current_year', date('Y'));
                     $term = (int) setting('current_term', 1);
                     
-                    // Get or create invoice for current term
-                    $invoice = \App\Models\Invoice::firstOrCreate([
-                        'student_id' => $student->id,
-                        'year' => $year,
-                        'term' => $term,
-                        'status' => 'active',
-                    ], [
-                        'issued_date' => now(),
-                        'due_date' => now()->addDays(30),
-                        'total' => 0,
-                        'paid_amount' => 0,
-                        'balance' => 0,
-                    ]);
+                    // Try to find existing active invoice for this student/year/term
+                    $invoice = \App\Models\Invoice::where('student_id', $student->id)
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->whereIn('status', ['active', 'unpaid', 'partial'])
+                        ->first();
+                    
+                    // Create new invoice if none exists
+                    if (!$invoice) {
+                        // Generate invoice number: INV-YEAR-TERM-STUDENTID-TIMESTAMP
+                        $invoiceNumber = 'INV-' . $year . '-T' . $term . '-' . $student->id . '-' . time();
+                        
+                        $invoice = \App\Models\Invoice::create([
+                            'student_id' => $student->id,
+                            'family_id' => $student->family_id,
+                            'year' => $year,
+                            'term' => $term,
+                            'invoice_number' => $invoiceNumber,
+                            'status' => 'active',
+                            'issued_date' => now(),
+                            'due_date' => now()->addDays(30),
+                            'total' => 0,
+                            'paid_amount' => 0,
+                            'balance' => 0,
+                        ]);
+                    }
                     
                     // Create invoice item for this swimming session
                     \App\Models\InvoiceItem::create([
