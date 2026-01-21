@@ -100,6 +100,9 @@ class SwimmingAttendanceController extends Controller
         // student_ids can be empty if all students are being unmarked
         $studentIds = $request->student_ids ?? [];
         
+        // Convert student IDs to integers for proper comparison
+        $studentIds = array_map('intval', $studentIds);
+        
         try {
             // Use sync method to handle both marking new and unmarking removed students
             $results = $this->attendanceService->syncBulkAttendance(
@@ -127,14 +130,41 @@ class SwimmingAttendanceController extends Controller
                 $messages[] = "{$alreadyMarkedCount} student(s) already marked (no change)";
             }
             
-            $successMessage = !empty($messages) ? implode('. ', $messages) . '.' : 'Attendance saved.';
+            // Always provide a message
+            if (empty($messages) && $failedCount === 0) {
+                $messages[] = "No changes made to attendance";
+            }
+            
+            $successMessage = !empty($messages) ? implode('. ', $messages) . '.' : '';
             
             if ($failedCount > 0) {
+                // Include error details in the message for debugging
+                $errorDetails = [];
+                foreach ($results['failed'] as $failed) {
+                    $errorDetails[] = "Student #{$failed['student_id']}: {$failed['error']}";
+                }
+                
+                \Illuminate\Support\Facades\Log::warning('Swimming attendance marking had failures', [
+                    'classroom_id' => $classroom->id,
+                    'date' => $request->date,
+                    'failed' => $results['failed'],
+                    'marked' => $markedCount,
+                    'unmarked' => $unmarkedCount,
+                ]);
+                
                 return redirect()->route('swimming.attendance.create', [
                     'classroom_id' => $classroom->id,
                     'date' => $request->date,
                 ])->with('warning', "{$successMessage} {$failedCount} operation(s) failed.")
                   ->with('failed_students', $results['failed']);
+            }
+            
+            // If nothing happened (no students selected, no existing attendance)
+            if ($markedCount === 0 && $unmarkedCount === 0 && $alreadyMarkedCount === 0) {
+                return redirect()->route('swimming.attendance.create', [
+                    'classroom_id' => $classroom->id,
+                    'date' => $request->date,
+                ])->with('info', 'No students were selected for attendance.');
             }
             
             return redirect()->route('swimming.attendance.create', [
@@ -143,9 +173,19 @@ class SwimmingAttendanceController extends Controller
             ])->with('success', $successMessage);
             
         } catch (\Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Failed to save attendance: ' . $e->getMessage())
-                ->withInput();
+            \Illuminate\Support\Facades\Log::error('Swimming attendance marking failed', [
+                'classroom_id' => $classroom->id,
+                'date' => $request->date,
+                'student_ids' => $studentIds,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return redirect()->route('swimming.attendance.create', [
+                'classroom_id' => $classroom->id,
+                'date' => $request->date,
+            ])->with('error', 'Failed to save attendance: ' . $e->getMessage())
+              ->withInput();
         }
     }
 

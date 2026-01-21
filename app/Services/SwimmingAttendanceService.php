@@ -351,10 +351,20 @@ class SwimmingAttendanceService
             'failed' => [],
         ];
         
+        // Ensure all IDs are integers for proper comparison
+        $markedStudentIds = array_map('intval', $markedStudentIds);
+        
+        Log::info('Syncing swimming attendance', [
+            'classroom_id' => $classroom->id,
+            'date' => $date->toDateString(),
+            'marked_student_ids' => $markedStudentIds,
+        ]);
+        
         // Get all students in the classroom
         $allClassroomStudentIds = Student::where('classroom_id', $classroom->id)
             ->where('archive', 0)
             ->pluck('id')
+            ->map(fn($id) => (int) $id)
             ->toArray();
         
         // Get existing attendance records for this date
@@ -363,12 +373,25 @@ class SwimmingAttendanceService
             ->get()
             ->keyBy('student_id');
         
-        $existingStudentIds = $existingAttendance->keys()->toArray();
+        $existingStudentIds = $existingAttendance->keys()->map(fn($id) => (int) $id)->toArray();
+        
+        Log::info('Swimming attendance sync state', [
+            'all_classroom_students' => count($allClassroomStudentIds),
+            'existing_attendance_count' => count($existingStudentIds),
+            'existing_student_ids' => $existingStudentIds,
+            'requested_student_ids' => $markedStudentIds,
+        ]);
         
         // Determine which students to mark (new) and which to unmark (removed)
-        $studentsToMark = array_diff($markedStudentIds, $existingStudentIds);
-        $studentsToUnmark = array_diff($existingStudentIds, $markedStudentIds);
-        $studentsAlreadyMarked = array_intersect($markedStudentIds, $existingStudentIds);
+        $studentsToMark = array_values(array_diff($markedStudentIds, $existingStudentIds));
+        $studentsToUnmark = array_values(array_diff($existingStudentIds, $markedStudentIds));
+        $studentsAlreadyMarked = array_values(array_intersect($markedStudentIds, $existingStudentIds));
+        
+        Log::info('Swimming attendance sync plan', [
+            'to_mark' => $studentsToMark,
+            'to_unmark' => $studentsToUnmark,
+            'already_marked' => $studentsAlreadyMarked,
+        ]);
         
         // Mark new students
         foreach ($studentsToMark as $studentId) {
@@ -389,12 +412,24 @@ class SwimmingAttendanceService
                     'attendance_id' => $attendance->id,
                     'student_name' => $student->full_name,
                 ];
+                
+                Log::info('Marked swimming attendance', [
+                    'student_id' => $studentId,
+                    'attendance_id' => $attendance->id,
+                    'date' => $date->toDateString(),
+                ]);
             } catch (\Exception $e) {
                 $results['failed'][] = [
                     'student_id' => $studentId,
                     'action' => 'mark',
                     'error' => $e->getMessage(),
                 ];
+                
+                Log::error('Failed to mark swimming attendance', [
+                    'student_id' => $studentId,
+                    'date' => $date->toDateString(),
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
         
@@ -403,24 +438,41 @@ class SwimmingAttendanceService
             try {
                 $attendance = $existingAttendance->get($studentId);
                 if (!$attendance) {
+                    Log::warning('Attendance record not found for unmark', [
+                        'student_id' => $studentId,
+                        'date' => $date->toDateString(),
+                    ]);
                     continue;
                 }
                 
                 $student = $attendance->student;
                 $studentName = $student ? $student->full_name : "Student #{$studentId}";
+                $refundAmount = $attendance->session_cost ?? 0;
                 
                 $this->unmarkAttendance($attendance, $markedBy);
                 $results['unmarked'][] = [
                     'student_id' => $studentId,
                     'student_name' => $studentName,
-                    'refunded_amount' => $attendance->session_cost ?? 0,
+                    'refunded_amount' => $refundAmount,
                 ];
+                
+                Log::info('Unmarked swimming attendance', [
+                    'student_id' => $studentId,
+                    'date' => $date->toDateString(),
+                    'refunded_amount' => $refundAmount,
+                ]);
             } catch (\Exception $e) {
                 $results['failed'][] = [
                     'student_id' => $studentId,
                     'action' => 'unmark',
                     'error' => $e->getMessage(),
                 ];
+                
+                Log::error('Failed to unmark swimming attendance', [
+                    'student_id' => $studentId,
+                    'date' => $date->toDateString(),
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
         
@@ -433,6 +485,13 @@ class SwimmingAttendanceService
                 'student_name' => $student ? $student->full_name : "Student #{$studentId}",
             ];
         }
+        
+        Log::info('Swimming attendance sync completed', [
+            'marked_count' => count($results['marked']),
+            'unmarked_count' => count($results['unmarked']),
+            'already_marked_count' => count($results['already_marked']),
+            'failed_count' => count($results['failed']),
+        ]);
         
         return $results;
     }
