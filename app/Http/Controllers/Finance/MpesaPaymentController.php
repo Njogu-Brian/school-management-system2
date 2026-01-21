@@ -1351,6 +1351,7 @@ class MpesaPaymentController extends Controller
             'id' => $student->id,
             'first_name' => $student->first_name,
             'last_name' => $student->last_name,
+            'full_name' => $student->full_name, // Add full_name for compatibility
             'admission_number' => $student->admission_number,
             'classroom' => $student->classroom ? [
                 'id' => $student->classroom->id,

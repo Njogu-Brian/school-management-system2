@@ -144,11 +144,11 @@ class SwimmingAttendanceService
                     $year = (int) setting('current_year', date('Y'));
                     $term = (int) setting('current_term', 1);
                     
-                    // Try to find existing active invoice for this student/year/term
+                    // Try to find existing invoice for this student/year/term (status: unpaid, partial, or paid)
                     $invoice = \App\Models\Invoice::where('student_id', $student->id)
                         ->where('year', $year)
                         ->where('term', $term)
-                        ->whereIn('status', ['active', 'unpaid', 'partial'])
+                        ->whereIn('status', ['unpaid', 'partial', 'paid'])
                         ->first();
                     
                     // Create new invoice if none exists
@@ -162,7 +162,7 @@ class SwimmingAttendanceService
                             'year' => $year,
                             'term' => $term,
                             'invoice_number' => $invoiceNumber,
-                            'status' => 'active',
+                            'status' => 'unpaid',
                             'issued_date' => now(),
                             'due_date' => now()->addDays(30),
                             'total' => 0,

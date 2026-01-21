@@ -279,14 +279,56 @@ $(document).ready(function() {
                     loadParents(student);
                     console.log('All data loaded, updating submit button');
                     updateSubmitButton();
+                }).catch(function(error) {
+                    console.error('Error loading invoices or parents:', error);
                 });
             })
             .fail(function(xhr, status, error) {
-                console.error('Failed to load student data:', error);
-                alert('Failed to load student data. Please try again.');
-                $('#studentInfoBody').html('<div class="text-danger">Error loading student data</div>');
+                console.error('Failed to load student data:', xhr, status, error);
+                let errorMsg = 'Failed to load student data. Please try again.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                } else if (xhr.status === 404) {
+                    errorMsg = 'Student not found. Please search again.';
+                } else if (xhr.status === 403) {
+                    errorMsg = 'You do not have permission to access this student.';
+                }
+                alert(errorMsg);
+                $('#studentInfoBody').html('<div class="text-danger">' + errorMsg + '</div>');
             });
     }
+
+    // Update account reference preview
+    function updateAccountReference(student) {
+        if (!student || !student.admission_number) {
+            $('#linkAccountReferencePreview').text('-');
+            return;
+        }
+        
+        const isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
+        const accountRef = isSwimming ? `SWIM-${student.admission_number}` : student.admission_number;
+        $('#linkAccountReferencePreview').text(accountRef);
+    }
+
+    // Listen to payment type changes
+    $(document).on('change', 'input[name="is_swimming"]', function() {
+        if (studentData) {
+            updateAccountReference(studentData);
+            // Show/hide invoice selection based on payment type
+            const isSwimming = $(this).val() === '1';
+            if (isSwimming) {
+                $('#invoiceSelectionSection').hide();
+                // For swimming, we don't need invoices, so enable submit if parents and channels are selected
+                updateSubmitButton();
+            } else {
+                // For fees, show invoices if they exist
+                if ($('.invoice-checkbox').length > 0) {
+                    $('#invoiceSelectionSection').show();
+                }
+                updateSubmitButton();
+            }
+        }
+    });
 
     // Load invoices with checkboxes
     function loadInvoices(studentId) {
@@ -345,14 +387,23 @@ $(document).ready(function() {
                 updateSubmitButton();
             })
             .fail(function(xhr, status, error) {
-                console.error('Failed to load invoices:', error);
+                console.error('Failed to load invoices:', xhr, status, error);
+                let errorMsg = 'Failed to load invoices. Please try again.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                } else if (xhr.status === 404) {
+                    errorMsg = 'Student not found.';
+                } else if (xhr.status === 403) {
+                    errorMsg = 'You do not have permission to access invoices.';
+                }
                 $('#invoicesList').html(`
                     <div class="text-center text-danger py-3">
                         <i class="bi bi-exclamation-circle fs-2"></i>
-                        <p class="mb-0">Failed to load invoices. Please try again.</p>
+                        <p class="mb-0">${errorMsg}</p>
                     </div>
                 `);
                 $('#invoiceSelectionSection').show();
+                updateSubmitButton();
             });
     }
 
@@ -475,14 +526,18 @@ $(document).ready(function() {
 
     // Update submit button state
     function updateSubmitButton() {
+        const isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
         let hasInvoices = $('.invoice-checkbox:checked').length > 0;
         let hasParents = $('.parent-checkbox:checked').length > 0;
         let hasChannels = $('input[name="send_channels[]"]:checked').length > 0;
         
-        const shouldEnable = hasInvoices && hasParents && hasChannels;
+        // For swimming, invoices are not required
+        // For school fees, invoices are required
+        const shouldEnable = hasParents && hasChannels && (isSwimming || hasInvoices);
         $('#submitBtn').prop('disabled', !shouldEnable);
         
         console.log('Submit button state updated', {
+            isSwimming,
             hasInvoices,
             hasParents,
             hasChannels,
