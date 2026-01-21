@@ -320,17 +320,42 @@ class UnifiedTransactionService
         $convertedMatches = [];
         if (!empty($bankMatches['matches'])) {
             foreach ($bankMatches['matches'] as $match) {
+                // Generate reason from match_type if not provided
+                $reason = $match['reason'] ?? $this->generateMatchReason($match);
+                
                 $convertedMatches[] = [
                     'student_id' => $match['student']->id,
                     'student_name' => $match['student']->first_name . ' ' . $match['student']->last_name,
                     'admission_number' => $match['student']->admission_number,
                     'confidence' => $match['confidence'] * 100, // Convert to percentage
-                    'reason' => $match['reason'],
+                    'reason' => $reason,
                     'match_type' => $match['match_type'] ?? 'bank_parser',
                 ];
             }
         }
 
         return array_merge($mpesaMatches, $convertedMatches);
+    }
+
+    /**
+     * Generate a match reason from match type and matched value
+     */
+    protected function generateMatchReason(array $match): string
+    {
+        $matchType = $match['match_type'] ?? 'unknown';
+        $matchedValue = $match['matched_value'] ?? '';
+        
+        $reasons = [
+            'admission_number' => "Matched by admission number: {$matchedValue}",
+            'name' => "Matched by student name: {$matchedValue}",
+            'phone' => "Matched by phone number: {$matchedValue}",
+            'partial_phone' => "Matched by partial phone: {$matchedValue}",
+            'parent_name' => "Matched by parent name: {$matchedValue}",
+            'historical' => "Matched by historical transaction pattern: {$matchedValue}",
+            'historical_phone' => "Matched by historical phone pattern: {$matchedValue}",
+            'bank_parser' => "Matched using bank statement parser logic",
+        ];
+        
+        return $reasons[$matchType] ?? "Matched by {$matchType}: {$matchedValue}";
     }
 }
