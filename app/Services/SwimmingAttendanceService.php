@@ -129,83 +129,41 @@ class SwimmingAttendanceService
                     $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
                 }
             } else {
-                // Step 2: For students WITHOUT optional fees - create invoice item for daily rate (default: 150)
+                // Step 2: For students WITHOUT optional fees - charge daily rate to wallet only
+                // Daily attendance charges should NOT appear in invoices - only tracked in swimming wallet
+                // Only termly swimming fees (from optional fees) should appear in invoices
                 // Default to 150 if not set, to ensure all attendance is charged
                 $sessionCost = $perVisitCost > 0 ? $perVisitCost : 150;
                 
-                // Find or create swimming votehead for invoice
-                $swimmingVotehead = \App\Models\Votehead::where(function($q) {
-                    $q->where('name', 'like', '%swimming%')
-                      ->orWhere('code', 'like', '%SWIM%');
-                })->where('is_mandatory', false)->first();
-                
-                if ($swimmingVotehead) {
-                    // Create invoice item for daily swimming attendance
-                    $year = (int) setting('current_year', date('Y'));
-                    $term = (int) setting('current_term', 1);
-                    
-                    // Try to find existing invoice for this student/year/term (status: unpaid, partial, or paid)
-                    $invoice = \App\Models\Invoice::where('student_id', $student->id)
-                        ->where('year', $year)
-                        ->where('term', $term)
-                        ->whereIn('status', ['unpaid', 'partial', 'paid'])
-                        ->first();
-                    
-                    // Create new invoice if none exists
-                    if (!$invoice) {
-                        // Generate invoice number: INV-YEAR-TERM-STUDENTID-TIMESTAMP
-                        $invoiceNumber = 'INV-' . $year . '-T' . $term . '-' . $student->id . '-' . time();
-                        
-                        $invoice = \App\Models\Invoice::create([
-                            'student_id' => $student->id,
-                            'family_id' => $student->family_id,
-                            'year' => $year,
-                            'term' => $term,
-                            'invoice_number' => $invoiceNumber,
-                            'status' => 'unpaid',
-                            'issued_date' => now(),
-                            'due_date' => now()->addDays(30),
-                            'total' => 0,
-                            'paid_amount' => 0,
-                            'balance' => 0,
-                        ]);
-                    }
-                    
-                    // Create invoice item for this swimming session
-                    \App\Models\InvoiceItem::create([
-                        'invoice_id' => $invoice->id,
-                        'votehead_id' => $swimmingVotehead->id,
-                        'amount' => $sessionCost,
-                        'original_amount' => $sessionCost,
-                        'discount_amount' => 0,
-                        'status' => 'active',
-                        'source' => 'swimming_attendance',
-                        'effective_date' => $date->toDateString(),
-                    ]);
-                    
-                    // Update invoice totals
-                    $invoice->refresh();
-                    $invoice->update([
-                        'total' => $invoice->items()->sum('amount'),
-                        'balance' => $invoice->total - $invoice->paid_amount,
-                    ]);
-                }
-                
-                // Mark attendance as unpaid (will be paid when invoice is paid)
-                $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
-                
-                // Create attendance record
+                // Create attendance record first
                 $attendance = SwimmingAttendance::create([
                     'student_id' => $student->id,
                     'classroom_id' => $classroom->id,
                     'attendance_date' => $date->toDateString(),
-                    'payment_status' => $paymentStatus,
+                    'payment_status' => SwimmingAttendance::STATUS_UNPAID, // Will update after debit
                     'session_cost' => $sessionCost,
                     'termly_fee_covered' => false,
                     'notes' => $notes,
                     'marked_by' => $markedBy?->id ?? auth()->id(),
                     'marked_at' => now(),
                 ]);
+                
+                // Debit wallet for daily attendance (allows negative balance to track unpaid amounts)
+                // This will be tracked in swimming wallet/ledger, not in invoices
+                try {
+                    $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id, "Daily swimming attendance - {$date->format('Y-m-d')}");
+                    $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
+                    $paymentStatus = SwimmingAttendance::STATUS_PAID;
+                } catch (\Exception $e) {
+                    Log::warning('Failed to debit wallet for daily swimming attendance', [
+                        'attendance_id' => $attendance->id,
+                        'student_id' => $student->id,
+                        'session_cost' => $sessionCost,
+                        'error' => $e->getMessage(),
+                    ]);
+                    // Attendance remains unpaid if debit fails
+                    $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
+                }
             }
             
             // Create attendance record if not already created
@@ -264,51 +222,9 @@ class SwimmingAttendanceService
                 }
             }
             
-            // If student was charged to invoice (no termly fee), remove the invoice item
-            if (!$attendance->termly_fee_covered && $sessionCost > 0) {
-                try {
-                    $year = (int) setting('current_year', date('Y'));
-                    $term = (int) setting('current_term', 1);
-                    
-                    // Find and remove the invoice item for this attendance
-                    $invoice = \App\Models\Invoice::where('student_id', $student->id)
-                        ->where('year', $year)
-                        ->where('term', $term)
-                        ->first();
-                    
-                    if ($invoice) {
-                        // Find the invoice item created for this date
-                        $invoiceItem = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
-                            ->where('source', 'swimming_attendance')
-                            ->where('effective_date', $attendance->attendance_date->toDateString())
-                            ->where('amount', $sessionCost)
-                            ->first();
-                        
-                        if ($invoiceItem) {
-                            $invoiceItem->delete();
-                            
-                            // Update invoice totals
-                            $invoice->refresh();
-                            $invoice->update([
-                                'total' => $invoice->items()->sum('amount'),
-                                'balance' => $invoice->total - $invoice->paid_amount,
-                            ]);
-                            
-                            Log::info('Removed swimming invoice item', [
-                                'attendance_id' => $attendance->id,
-                                'invoice_item_id' => $invoiceItem->id,
-                                'student_id' => $student->id,
-                            ]);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Failed to remove swimming invoice item', [
-                        'attendance_id' => $attendance->id,
-                        'student_id' => $student->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
+            // Note: Daily attendance charges are no longer added to invoices
+            // They are only tracked in swimming wallet/ledger
+            // Only termly swimming fees (from optional fees) appear in invoices
             
             // Delete the attendance record
             $attendance->delete();
