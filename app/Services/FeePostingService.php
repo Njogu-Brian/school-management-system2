@@ -103,12 +103,55 @@ class FeePostingService
                     }
                 }
                 
-                // CRITICAL: For once_annually voteheads, if already charged this year, don't remove them
-                // They should remain even if not in current term's fee structure proposal
-                // This is because once_annually fees are charged once per year, not per term
+                // CRITICAL: For once_annually voteheads, check if they should be removed
+                // once_annually fees should persist throughout the year if:
+                // 1. They're in the current fee structure for the student's class, AND
+                // 2. They were already charged this year
+                // They should only be removed if they're NOT in the current fee structure (e.g., student changed grade)
                 if ($votehead && $votehead->charge_type === 'once_annually') {
-                    // Check if this votehead exists in any invoice for this student and year
-                    // If it exists, it means it was already charged this year, so don't remove it
+                    // Check if this votehead is in the fee structure for the student's CURRENT classroom
+                    $structureQuery = FeeStructure::where('classroom_id', $student->classroom_id)
+                        ->where('is_active', true);
+                    
+                    // Try to match academic_year_id first, fallback to year column
+                    $academicYear = \App\Models\AcademicYear::where('year', $year)->first();
+                    if ($academicYear) {
+                        $structureQuery->where(function($q) use ($academicYear, $year) {
+                            $q->where('academic_year_id', $academicYear->id)
+                              ->orWhere('year', $year);
+                        });
+                    } else {
+                        $structureQuery->where('year', $year);
+                    }
+                    
+                    // Match student category
+                    if ($student->category_id === null) {
+                        $structureQuery->whereNull('student_category_id');
+                    } else {
+                        $structureQuery->where('student_category_id', $student->category_id);
+                    }
+                    
+                    // Match stream if set
+                    if ($student->stream_id) {
+                        $structureQuery->where(function($q) use ($student) {
+                            $q->where('stream_id', $student->stream_id)
+                              ->orWhereNull('stream_id');
+                        });
+                    } else {
+                        $structureQuery->whereNull('stream_id');
+                    }
+                    
+                    $structure = $structureQuery->first();
+                    $inFeeStructure = false;
+                    
+                    if ($structure) {
+                        // Check if votehead exists in this fee structure (any term, since once_annually applies to all terms)
+                        $inFeeStructure = FeeCharge::where('fee_structure_id', $structure->id)
+                            ->where('votehead_id', $voteheadId)
+                            ->exists();
+                    }
+                    
+                    // Check if it was already charged this year
                     $existsThisYear = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($student, $year) {
                         $q->where('student_id', $student->id)->where('year', $year);
                     })
@@ -116,10 +159,14 @@ class FeePostingService
                     ->where('status', 'active')
                     ->exists();
                     
-                    // If it exists for this year, don't remove it - once_annually fees persist throughout the year
-                    if ($existsThisYear) {
-                        continue; // Don't remove once_annually fees that exist for this year
+                    // If it's in the fee structure AND was already charged this year, keep it
+                    // (once_annually fees persist throughout the year if still in fee structure)
+                    if ($inFeeStructure && $existsThisYear) {
+                        continue; // Don't remove once_annually fees that are in fee structure and already charged
                     }
+                    
+                    // If it's NOT in the fee structure, it should be removed (e.g., student changed grade)
+                    // This will proceed to the removal check below
                 }
                 
                 // CRITICAL: For 'once' type voteheads (one-time fees), if already charged, don't remove them
@@ -229,34 +276,59 @@ class FeePostingService
                     continue;
                 }
                 
-                // Handle removals (for optional fees that were previously billed but are now removed)
-                if (isset($diff['action']) && $diff['action'] === 'removed' && $source === 'optional') {
+                // Handle removals (for both optional fees and structure fees that are no longer in the fee structure)
+                if (isset($diff['action']) && $diff['action'] === 'removed') {
                     $invoice = Invoice::where('student_id', $diff['student_id'])
                         ->where('year', $year)
                         ->where('term', $term)
                         ->first();
                     
                     if ($invoice) {
+                        // Find the existing item - check by votehead_id and source
                         $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
                             ->where('votehead_id', $diff['votehead_id'])
-                            ->where('source', 'optional')
+                            ->where('source', $source)
                             ->first();
                         
+                        // If not found by source, try finding by votehead_id only (for structure fees that might have been changed)
+                        if (!$existingItem && $source === 'structure') {
+                            $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+                                ->where('votehead_id', $diff['votehead_id'])
+                                ->where('source', 'structure')
+                                ->first();
+                        }
+                        
                         if ($existingItem) {
-                            // Create diff record for removal
-                            PostingDiff::create([
-                                'posting_run_id' => $run->id,
-                                'student_id' => $diff['student_id'],
-                                'votehead_id' => $diff['votehead_id'],
-                                'action' => 'removed',
-                                'old_amount' => $existingItem->amount,
-                                'new_amount' => 0,
-                                'invoice_item_id' => $existingItem->id,
-                                'source' => 'optional',
-                            ]);
+                            // Check if item has payment allocations - if so, we need to handle them
+                            $hasAllocations = $existingItem->allocations()->exists();
                             
-                            // Delete the invoice item
-                            $existingItem->delete();
+                            if ($hasAllocations) {
+                                // If item has allocations, we can't just delete it
+                                // Instead, set amount to 0 and mark as removed
+                                // This preserves payment history
+                                $existingItem->update([
+                                    'amount' => 0,
+                                    'original_amount' => 0,
+                                    'posting_run_id' => $run->id,
+                                    'posted_at' => now(),
+                                ]);
+                            } else {
+                                // No allocations - safe to delete
+                                // Create diff record for removal before deleting
+                                PostingDiff::create([
+                                    'posting_run_id' => $run->id,
+                                    'student_id' => $diff['student_id'],
+                                    'votehead_id' => $diff['votehead_id'],
+                                    'action' => 'removed',
+                                    'old_amount' => $existingItem->amount,
+                                    'new_amount' => 0,
+                                    'invoice_item_id' => $existingItem->id,
+                                    'source' => $source,
+                                ]);
+                                
+                                // Delete the invoice item
+                                $existingItem->delete();
+                            }
                             
                             // Recalculate invoice
                             InvoiceService::recalc($invoice);
@@ -1112,17 +1184,67 @@ class FeePostingService
             ->get();
         
         foreach ($optional as $opt) {
-            // Skip optional fees with amount 0 or null - they shouldn't be posted
             $amount = (float)($opt->amount ?? 0);
+            
+            // If amount is 0 or null, try to get it from the fee structure
             if ($amount <= 0) {
-                \Log::warning('Skipping optional fee with zero amount', [
-                    'optional_fee_id' => $opt->id,
-                    'student_id' => $opt->student_id,
-                    'votehead_id' => $opt->votehead_id,
-                    'term' => $term,
-                    'year' => $year,
-                ]);
-                continue;
+                // Try to get amount from fee structure for this student's class
+                $structureQuery = FeeStructure::with('charges')
+                    ->where('classroom_id', $student->classroom_id)
+                    ->where('is_active', true);
+                
+                // Try to match academic_year_id first, fallback to year column
+                $academicYear = \App\Models\AcademicYear::where('year', $year)->first();
+                if ($academicYear) {
+                    $structureQuery->where(function($q) use ($academicYear, $year) {
+                        $q->where('academic_year_id', $academicYear->id)
+                          ->orWhere('year', $year);
+                    });
+                } else {
+                    $structureQuery->where('year', $year);
+                }
+                
+                // Match student category
+                if ($student->category_id === null) {
+                    $structureQuery->whereNull('student_category_id');
+                } else {
+                    $structureQuery->where('student_category_id', $student->category_id);
+                }
+                
+                // Match stream if set
+                if ($student->stream_id) {
+                    $structureQuery->where(function($q) use ($student) {
+                        $q->where('stream_id', $student->stream_id)
+                          ->orWhereNull('stream_id');
+                    });
+                } else {
+                    $structureQuery->whereNull('stream_id');
+                }
+                
+                $structure = $structureQuery->first();
+                
+                if ($structure) {
+                    $charge = $structure->charges()
+                        ->where('votehead_id', $opt->votehead_id)
+                        ->where('term', $term)
+                        ->first();
+                    
+                    if ($charge) {
+                        $amount = (float)$charge->amount;
+                    }
+                }
+                
+                // If still 0, skip with warning
+                if ($amount <= 0) {
+                    \Log::warning('Skipping optional fee with zero amount (not found in fee structure)', [
+                        'optional_fee_id' => $opt->id,
+                        'student_id' => $opt->student_id,
+                        'votehead_id' => $opt->votehead_id,
+                        'term' => $term,
+                        'year' => $year,
+                    ]);
+                    continue;
+                }
             }
             
             // Check if this votehead is already in structure items to avoid double billing
