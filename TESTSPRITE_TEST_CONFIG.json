@@ -1,0 +1,228 @@
+{
+  "project": {
+    "name": "School Management System",
+    "version": "2.2",
+    "type": "Laravel + React",
+    "framework": "Laravel 12.38.1"
+  },
+  "application": {
+    "backend_url": "http://localhost:8000",
+    "frontend_url": "http://localhost:5173",
+    "api_base": "http://localhost:8000/api",
+    "environment": "local"
+  },
+  "test_accounts": {
+    "admin": {
+      "email": "admin@school.com",
+      "password": "password",
+      "role": "admin",
+      "description": "Super admin with full system access"
+    },
+    "teacher": {
+      "email": "teacher@school.com",
+      "password": "password",
+      "role": "teacher",
+      "description": "Teacher account for academic operations"
+    },
+    "parent": {
+      "email": "parent@school.com",
+      "password": "password",
+      "role": "parent",
+      "description": "Parent account for viewing student information"
+    },
+    "student": {
+      "email": "student@school.com",
+      "password": "password",
+      "role": "student",
+      "description": "Student account for self-service"
+    },
+    "finance": {
+      "email": "finance@school.com",
+      "password": "password",
+      "role": "finance",
+      "description": "Finance staff for payment processing"
+    }
+  },
+  "test_scenarios": {
+    "authentication": {
+      "priority": "high",
+      "scenarios": [
+        "User login with valid credentials",
+        "User login with invalid credentials",
+        "Password reset flow",
+        "Session timeout handling",
+        "Role-based access control",
+        "Logout functionality"
+      ]
+    },
+    "student_management": {
+      "priority": "high",
+      "scenarios": [
+        "Student registration",
+        "Student profile view",
+        "Family management",
+        "Student category assignment",
+        "Medical records",
+        "Academic history",
+        "Student promotion"
+      ]
+    },
+    "finance_module": {
+      "priority": "critical",
+      "scenarios": [
+        "Votehead creation and management",
+        "Fee structure creation",
+        "Invoice generation",
+        "Payment recording",
+        "Payment allocation",
+        "Bank statement import",
+        "Bank statement reconciliation",
+        "Payment reversal",
+        "Financial reports",
+        "Payment plans and thresholds"
+      ]
+    },
+    "attendance": {
+      "priority": "high",
+      "scenarios": [
+        "Mark student attendance",
+        "Attendance reports",
+        "Attendance notifications",
+        "Bulk attendance operations"
+      ]
+    },
+    "academics": {
+      "priority": "high",
+      "scenarios": [
+        "Class management",
+        "Subject management",
+        "Timetable creation",
+        "Exam management",
+        "Marks entry",
+        "Report card generation"
+      ]
+    },
+    "communication": {
+      "priority": "medium",
+      "scenarios": [
+        "Announcement creation",
+        "SMS sending",
+        "Email sending",
+        "Notification delivery"
+      ]
+    },
+    "transport": {
+      "priority": "medium",
+      "scenarios": [
+        "Route management",
+        "Vehicle management",
+        "Student assignment to routes",
+        "Trip management"
+      ]
+    },
+    "library": {
+      "priority": "medium",
+      "scenarios": [
+        "Book management",
+        "Book borrowing",
+        "Return processing",
+        "Fine calculation"
+      ]
+    },
+    "hr": {
+      "priority": "medium",
+      "scenarios": [
+        "Staff management",
+        "Leave management",
+        "Payroll processing",
+        "Role and permission management"
+      ]
+    }
+  },
+  "test_coverage": {
+    "backend": {
+      "controllers": true,
+      "models": true,
+      "services": true,
+      "policies": true,
+      "middleware": true
+    },
+    "frontend": {
+      "blade_templates": true,
+      "react_components": false,
+      "api_integration": true
+    },
+    "database": {
+      "migrations": true,
+      "seeders": true,
+      "relationships": true
+    }
+  },
+  "critical_paths": [
+    {
+      "name": "Payment Processing Flow",
+      "steps": [
+        "Login as finance user",
+        "Navigate to payments",
+        "Select student invoice",
+        "Record payment",
+        "Verify payment allocation",
+        "Generate receipt",
+        "Check financial reports"
+      ]
+    },
+    {
+      "name": "Student Admission Flow",
+      "steps": [
+        "Login as admin",
+        "Navigate to admissions",
+        "Create new student",
+        "Assign to family",
+        "Assign to class",
+        "Generate fee structure",
+        "Create invoice",
+        "Verify student appears in system"
+      ]
+    },
+    {
+      "name": "Bank Reconciliation Flow",
+      "steps": [
+        "Login as finance user",
+        "Import bank statement",
+        "Review transactions",
+        "Match payments",
+        "Reconcile transactions",
+        "Verify audit trail"
+      ]
+    }
+  ],
+  "api_endpoints": {
+    "authentication": [
+      "POST /api/login",
+      "POST /api/logout",
+      "POST /api/forgot-password",
+      "POST /api/reset-password"
+    ],
+    "students": [
+      "GET /api/students",
+      "POST /api/students",
+      "GET /api/students/{id}",
+      "PUT /api/students/{id}",
+      "DELETE /api/students/{id}"
+    ],
+    "finance": [
+      "GET /api/finance/invoices",
+      "POST /api/finance/payments",
+      "GET /api/finance/payments/{id}",
+      "POST /api/finance/bank-statements/import",
+      "POST /api/finance/bank-statements/reconcile"
+    ]
+  },
+  "notes": [
+    "Update test account credentials with actual values from your database",
+    "Ensure Laravel application is running before starting tests",
+    "Database should be seeded with test data",
+    "Check .env file for correct database and application settings",
+    "Review SYSTEM_DOCUMENTATION.md for detailed feature documentation"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:8000",
+  "backendAuthType": "basic token",
+  "backendUsername": "b.njogu@royalkingsschools.sc.ke",
+  "backendPassword": "sRb8s3AAnkYxJ8q",
+  "executionArgs": {
+    "projectName": "school-management-system2",
+    "projectPath": "D:\\school-management-system2\\school-management-system2",
+    "testIds": [],
+    "additionalInstruction": "",
+    "envs": {
+      "API_KEY": "sk-user--II_ybdr3b2guUHNUzKVMir4GJYIta37DA-eEeRBMnJsgnjR9k4pM3bmovbjDR5LWh-ApKQmz9r2eNv1SXyuDSkAL_gTL5mZQc9oBj_jqM3c1GKs8is4Cfbyf84UTxaC8hg"
+    }
+  },
+  "proxy": "http://3d4d9b47-f8f4-435f-ad1c-b422d66ae9e7:oNr4HcXWreIYo3HkhjDCHEfUn3XwBsHq@tun.testsprite.com:8080"
+}

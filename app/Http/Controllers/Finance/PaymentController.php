@@ -44,7 +44,10 @@ class PaymentController extends Controller
                 $q->where('archive', 0)->where('is_alumni', false);
             })
             // Exclude swimming payments - they are managed separately in Swimming Management
-            ->where('receipt_number', 'not like', 'SWIM-%');
+            ->where('receipt_number', 'not like', 'SWIM-%')
+            // Exclude soft-deleted payments
+            ->whereNull('deleted_at');
+            // Note: Reversed payments are now included by default - they can be filtered out using the status filter if needed
         
         // Apply filters
         if ($request->filled('student_id')) {
@@ -988,7 +991,35 @@ class PaymentController extends Controller
      */
     public function updateSharedAllocations(Request $request, Payment $payment)
     {
+        // Authorization check
+        $this->authorize('editSharedAllocations', $payment);
+        
+        // Optimistic locking check
+        if ($request->has('version') && $payment->version != $request->version) {
+            return back()->with('error', 
+                'This payment was modified by another user. Please refresh the page and try again.'
+            );
+        }
+        
+        // Prevent editing if payment is reversed
+        if ($payment->reversed) {
+            return back()->with('error', 'Cannot edit allocations for a reversed payment.');
+        }
+        
+        // Check if any sibling payments are reversed
+        $siblingPayments = Payment::where('transaction_code', $payment->transaction_code)
+            ->where('id', '!=', $payment->id)
+            ->where('reversed', true)
+            ->exists();
+        
+        if ($siblingPayments) {
+            return back()->with('error', 
+                'Cannot edit allocations: One or more sibling payments have been reversed.'
+            );
+        }
+        
         $validated = $request->validate([
+            'version' => 'nullable|integer',
             'allocations' => 'required|array|min:1',
             'allocations.*.student_id' => 'required|exists:students,id',
             'allocations.*.amount' => 'required|numeric|min:0.01',
@@ -1023,12 +1054,16 @@ class PaymentController extends Controller
                 ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Expected: Ksh ' . number_format($expectedTotal, 2)]);
         }
         
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $activeAllocations, $sharedInfo) {
-            // Update bank statement transaction if it exists
+        // Store old allocations for audit log
+        $oldAllocations = $sharedInfo['shared_allocations'] ?? [];
+        
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $activeAllocations, $sharedInfo, $oldAllocations) {
+            // Update bank statement transaction if it exists to keep in sync
             if ($sharedInfo['bank_transaction']) {
                 $sharedInfo['bank_transaction']->update([
                     'shared_allocations' => $activeAllocations,
                 ]);
+                $sharedInfo['bank_transaction']->increment('version');
             }
             
             // Update all sibling payments
@@ -1047,16 +1082,60 @@ class PaymentController extends Controller
                             'amount' => $newAmount,
                         ]);
                         
-                        // Recalculate allocations if amount decreased
+                        // If amount decreased, deallocate excess (FIFO - oldest allocations first)
                         if ($newAmount < $oldAmount) {
-                            $siblingPayment->updateAllocationTotals();
+                            $excess = $oldAmount - $newAmount;
+                            $remaining = $excess;
+                            $affectedInvoices = collect();
+                            
+                            // Get allocations ordered by date (oldest first) - FIFO
+                            $allocations = \App\Models\PaymentAllocation::where('payment_id', $siblingPayment->id)
+                                ->with('invoiceItem.invoice')
+                                ->orderBy('allocated_at', 'asc')
+                                ->get();
+                            
+                            foreach ($allocations as $allocationRecord) {
+                                if ($remaining <= 0) {
+                                    break;
+                                }
+                                
+                                $allocationAmount = (float)$allocationRecord->amount;
+                                $invoice = $allocationRecord->invoiceItem->invoice;
+                                
+                                if ($allocationAmount <= $remaining) {
+                                    // Delete entire allocation
+                                    $remaining -= $allocationAmount;
+                                    $allocationRecord->delete();
+                                    
+                                    if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                                        $affectedInvoices->push($invoice);
+                                    }
+                                } else {
+                                    // Partially deallocate
+                                    $newAllocationAmount = $allocationAmount - $remaining;
+                                    $allocationRecord->update(['amount' => $newAllocationAmount]);
+                                    $remaining = 0;
+                                    
+                                    if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                                        $affectedInvoices->push($invoice);
+                                    }
+                                }
+                            }
+                            
+                            // Recalculate affected invoices
+                            foreach ($affectedInvoices as $invoice) {
+                                \App\Services\InvoiceService::recalc($invoice);
+                            }
                         }
+                        
+                        // Update allocation totals
+                        $siblingPayment->updateAllocationTotals();
                         
                         // Regenerate receipt if it exists
                         if ($siblingPayment->receipt) {
                             try {
                                 $receiptService = app(\App\Services\ReceiptService::class);
-                                $receiptService->generateReceipt($siblingPayment, ['save' => true, 'regenerate' => true]);
+                                $receiptService->generateReceipt($siblingPayment->fresh(), ['save' => true, 'regenerate' => true]);
                             } catch (\Exception $e) {
                                 \Log::warning('Failed to regenerate receipt after allocation update', [
                                     'payment_id' => $siblingPayment->id,
@@ -1069,6 +1148,23 @@ class PaymentController extends Controller
                         // so they will automatically reflect the updated payment amounts
                     }
                 }
+            }
+            
+            // Increment version for optimistic locking
+            $payment->increment('version');
+            
+            // Log audit trail
+            try {
+                \App\Services\FinancialAuditService::logPaymentSharedAllocationEdit(
+                    $payment, 
+                    $oldAllocations, 
+                    $activeAllocations
+                );
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log shared allocation edit audit', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
             
             $siblingCount = count($activeAllocations);
@@ -1098,13 +1194,28 @@ class PaymentController extends Controller
             ->with('info', 'Use the reverse payment feature instead.');
     }
     
-    public function reverse(Payment $payment)
+    public function reverse(Request $request, Payment $payment)
     {
+        // Authorization check
+        $this->authorize('reverse', $payment);
+        
         if ($payment->reversed) {
             return back()->with('error', 'This payment has already been reversed.');
         }
         
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment) {
+        // Validate reversal reason if provided
+        $validated = $request->validate([
+            'reversal_reason' => 'nullable|string|max:500',
+        ]);
+        
+        // Store old values for audit log
+        $oldValues = [
+            'reversed' => false,
+            'amount' => $payment->amount,
+            'allocated_amount' => $payment->allocated_amount,
+        ];
+        
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $validated, $oldValues) {
             // Collect invoice IDs from allocations before deleting them
             $invoiceIds = collect();
             
@@ -1116,44 +1227,137 @@ class PaymentController extends Controller
                 $allocation->delete();
             }
             
-            // Mark payment as reversed
+            // Mark payment as reversed and increment version
+            // Also update allocated_amount to 0 since all allocations are deleted
             $payment->update([
                 'reversed' => true,
                 'reversed_by' => auth()->id(),
                 'reversed_at' => now(),
+                'reversal_reason' => $validated['reversal_reason'] ?? null,
+                'allocated_amount' => 0, // Reset allocated amount since all allocations are deleted
             ]);
+            $payment->increment('version');
             
-            // Update related bank statement transaction if exists
-            $bankTransaction = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)
-                ->orWhere('reference_number', 'LIKE', $payment->transaction_code . '%')
-                ->first();
+            // Update allocation totals to ensure consistency
+            $payment->updateAllocationTotals();
             
-            if ($bankTransaction && $bankTransaction->payment_id == $payment->id) {
-                $bankTransaction->update([
-                    'payment_created' => false,
-                    'payment_id' => null,
-                    'status' => 'draft', // Reset to draft so it can be re-processed
-                ]);
-                
-                \Log::info('Bank statement transaction updated after payment reversal', [
-                    'bank_transaction_id' => $bankTransaction->id,
+            // Log audit trail
+            try {
+                \App\Services\FinancialAuditService::logPaymentReversal($payment, $oldValues);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log payment reversal audit', [
                     'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
                 ]);
+            }
+            
+            // Update related bank statement transaction(s) if exists
+            // First, find transactions linked directly by payment_id (for single payments)
+            $directLinkedTransactions = \App\Models\BankStatementTransaction::where('payment_id', $payment->id)->get();
+            
+            // Also find transactions with the same reference_number (for shared payments)
+            $referenceLinkedTransactions = collect();
+            if ($payment->transaction_code) {
+                $referenceLinkedTransactions = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)->get();
+            }
+            
+            // Merge and deduplicate
+            $bankTransactions = $directLinkedTransactions->merge($referenceLinkedTransactions)->unique('id');
+            
+            foreach ($bankTransactions as $bankTransaction) {
+                // Check if ALL payments for this transaction are now reversed
+                $transactionReference = $bankTransaction->reference_number ?? $payment->transaction_code;
+                $allRelatedPayments = 0;
+                
+                if ($transactionReference) {
+                    $allRelatedPayments = \App\Models\Payment::where('transaction_code', $transactionReference)
+                        ->where('reversed', false)
+                        ->count();
+                }
+                
+                // Also check if the transaction's payment_id points to a reversed payment
+                $transactionPaymentReversed = false;
+                if ($bankTransaction->payment_id) {
+                    $transactionPayment = \App\Models\Payment::find($bankTransaction->payment_id);
+                    if ($transactionPayment && $transactionPayment->reversed) {
+                        $transactionPaymentReversed = true;
+                    }
+                }
+                
+                // Move transaction to unallocated uncollected if:
+                // 1. ALL payments for this transaction are reversed, OR
+                // 2. The transaction's payment_id points to a reversed payment
+                if ($allRelatedPayments == 0 || $transactionPaymentReversed) {
+                    // Move transaction to "unallocated uncollected" status:
+                    // - Keep status as 'confirmed' (don't reset to draft)
+                    // - Set payment_created = false (uncollected)
+                    // - Set payment_id = null (unallocated)
+                    // - Increment version for optimistic locking
+                    $bankTransaction->update([
+                        'payment_created' => false,
+                        'payment_id' => null,
+                        // Keep status as 'confirmed' - this is the "unallocated uncollected" state
+                    ]);
+                    $bankTransaction->increment('version');
+                    
+                    \Log::info('Bank statement transaction moved to unallocated uncollected status after payment reversal', [
+                        'bank_transaction_id' => $bankTransaction->id,
+                        'payment_id' => $payment->id,
+                        'status' => $bankTransaction->status,
+                        'payment_created' => false,
+                        'remaining_non_reversed_payments' => $allRelatedPayments,
+                        'transaction_payment_reversed' => $transactionPaymentReversed,
+                    ]);
+                } else {
+                    \Log::info('Payment reversed but transaction remains active due to remaining payments', [
+                        'bank_transaction_id' => $bankTransaction->id,
+                        'payment_id' => $payment->id,
+                        'remaining_non_reversed_payments' => $allRelatedPayments,
+                    ]);
+                }
             }
             
             // Recalculate affected invoices (unique invoice IDs)
             $invoices = \App\Models\Invoice::whereIn('id', $invoiceIds->unique())->get();
             
+            $invoiceCount = $invoices->count();
+            $affectedStudents = $invoices->pluck('student_id')->unique()->count();
+            
             foreach ($invoices as $invoice) {
                 \App\Services\InvoiceService::recalc($invoice);
             }
             
-            return back()->with('success', 'Payment reversed successfully. All allocations have been removed and invoices recalculated.');
+            $message = 'Payment reversed successfully. ';
+            if ($invoiceCount > 0) {
+                $message .= "{$invoiceCount} invoice(s) recalculated across {$affectedStudents} student(s). ";
+            }
+            $message .= 'All allocations have been removed.';
+            
+            return back()->with('success', $message);
         });
+    }
+    
+    /**
+     * Show payment history/audit trail
+     */
+    public function history(Payment $payment)
+    {
+        $this->authorize('view', $payment);
+        
+        $auditLogs = \App\Models\AuditLog::where('auditable_type', Payment::class)
+            ->where('auditable_id', $payment->id)
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        return view('finance.payments.history', compact('payment', 'auditLogs'));
     }
     
     public function transfer(Request $request, Payment $payment)
     {
+        // Authorization check
+        $this->authorize('transfer', $payment);
+        
         if ($payment->reversed) {
             return back()->with('error', 'Cannot transfer a reversed payment.');
         }
@@ -1224,6 +1428,16 @@ class PaymentController extends Controller
                 $targetInvoices = \App\Models\Invoice::where('student_id', $targetStudent->id)->get();
                 foreach ($targetInvoices as $invoice) {
                     \App\Services\InvoiceService::recalc($invoice);
+                }
+                
+                // Log audit trail
+                try {
+                    \App\Services\FinancialAuditService::logPaymentTransfer($payment, $newPayment, $transferAmount);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to log payment transfer audit', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
                 
                 // Update receipt for original payment

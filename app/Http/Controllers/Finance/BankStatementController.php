@@ -621,7 +621,32 @@ class BankStatementController extends Controller
             }
         }
 
-        return view('finance.bank-statements.show', compact('bankStatement', 'siblings', 'possibleMatches'));
+        // Get all payments related to this transaction (including sibling payments for shared transactions)
+        $allPayments = collect();
+        $activePayments = collect();
+        $reversedPayments = collect();
+        
+        if ($bankStatement->reference_number) {
+            $allPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                ->with('student')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            $activePayments = $allPayments->where('reversed', false);
+            $reversedPayments = $allPayments->where('reversed', true);
+        } elseif ($bankStatement->payment_id) {
+            $payment = \App\Models\Payment::find($bankStatement->payment_id);
+            if ($payment) {
+                $allPayments = collect([$payment]);
+                if ($payment->reversed) {
+                    $reversedPayments = collect([$payment]);
+                } else {
+                    $activePayments = collect([$payment]);
+                }
+            }
+        }
+
+        return view('finance.bank-statements.show', compact('bankStatement', 'siblings', 'possibleMatches', 'allPayments', 'activePayments', 'reversedPayments'));
     }
 
     /**
@@ -701,6 +726,22 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Transaction must be matched to a student or shared before confirming']);
         }
 
+        // Check if there are non-reversed payments for this transaction
+        // If transaction is already confirmed and has non-reversed payments, don't allow confirming again
+        if ($bankStatement->status === 'confirmed' && $bankStatement->payment_created) {
+            $nonReversedPayments = collect();
+            if ($bankStatement->reference_number) {
+                $nonReversedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                    ->where('reversed', false)
+                    ->get();
+            }
+            
+            if ($nonReversedPayments->isNotEmpty()) {
+                return redirect()->back()
+                    ->withErrors(['error' => 'This transaction already has active (non-reversed) payments. Cannot confirm again.']);
+            }
+        }
+
         // Check if this is a swimming transaction (refresh to get latest value)
         $bankStatement->refresh();
         $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
@@ -727,44 +768,83 @@ class BankStatementController extends Controller
                 // Create payment for fee allocation if not already created
                 if (!$bankStatement->payment_created) {
                 try {
-                    // Check if payment already exists for this transaction
-                    $existingPayment = null;
-                    if ($bankStatement->payment_id) {
-                        $existingPayment = \App\Models\Payment::find($bankStatement->payment_id);
+                    // Check if there are any non-reversed payments for this transaction
+                    $nonReversedPayments = collect();
+                    if ($bankStatement->reference_number) {
+                        $nonReversedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                            ->where('reversed', false)
+                            ->get();
                     }
                     
-                    // Also check by transaction code if reference number exists
-                    if (!$existingPayment && $bankStatement->reference_number) {
-                        $existingPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)->first();
-                        if ($existingPayment) {
-                            // Link the transaction to existing payment
+                    // If there are non-reversed payments, don't create a new one
+                    if ($nonReversedPayments->isNotEmpty()) {
+                        // Link to the first non-reversed payment (or use payment_id if set)
+                        $existingPayment = $bankStatement->payment_id 
+                            ? \App\Models\Payment::find($bankStatement->payment_id)
+                            : $nonReversedPayments->first();
+                        
+                        if ($existingPayment && !$existingPayment->reversed) {
                             $bankStatement->update([
                                 'payment_id' => $existingPayment->id,
                                 'payment_created' => true,
                             ]);
+                            $payment = $existingPayment;
+                            Log::info('Using existing non-reversed payment for transaction', [
+                                'transaction_id' => $bankStatement->id,
+                                'payment_id' => $payment->id,
+                            ]);
+                        } else {
+                            // Use first non-reversed payment
+                            $payment = $nonReversedPayments->first();
+                            $bankStatement->update([
+                                'payment_id' => $payment->id,
+                                'payment_created' => true,
+                            ]);
+                            Log::info('Linked to existing non-reversed payment for transaction', [
+                                'transaction_id' => $bankStatement->id,
+                                'payment_id' => $payment->id,
+                            ]);
                         }
-                    }
-                    
-                    if ($existingPayment) {
-                        $payment = $existingPayment;
-                        Log::info('Using existing payment for transaction', [
-                            'transaction_id' => $bankStatement->id,
-                            'payment_id' => $payment->id,
-                        ]);
                     } else {
-                        // Create payment with auto-allocation enabled
-                        $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                        // Check if payment already exists (might be reversed)
+                        $existingPayment = null;
+                        if ($bankStatement->payment_id) {
+                            $existingPayment = \App\Models\Payment::find($bankStatement->payment_id);
+                        }
                         
-                        // Ensure payment is allocated (double-check)
-                        if ($payment && $payment->unallocated_amount > 0) {
-                            try {
-                                $allocationService = app(\App\Services\PaymentAllocationService::class);
-                                $allocationService->autoAllocate($payment);
-                            } catch (\Exception $e) {
-                                Log::warning('Post-creation auto-allocation failed for bank statement payment', [
-                                    'payment_id' => $payment->id,
-                                    'error' => $e->getMessage(),
+                        // Also check by transaction code if reference number exists
+                        if (!$existingPayment && $bankStatement->reference_number) {
+                            $existingPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)->first();
+                            if ($existingPayment && !$existingPayment->reversed) {
+                                // Link the transaction to existing non-reversed payment
+                                $bankStatement->update([
+                                    'payment_id' => $existingPayment->id,
+                                    'payment_created' => true,
                                 ]);
+                            }
+                        }
+                        
+                        if ($existingPayment && !$existingPayment->reversed) {
+                            $payment = $existingPayment;
+                            Log::info('Using existing payment for transaction', [
+                                'transaction_id' => $bankStatement->id,
+                                'payment_id' => $payment->id,
+                            ]);
+                        } else {
+                            // Create payment with auto-allocation enabled
+                            $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                            
+                            // Ensure payment is allocated (double-check)
+                            if ($payment && $payment->unallocated_amount > 0) {
+                                try {
+                                    $allocationService = app(\App\Services\PaymentAllocationService::class);
+                                    $allocationService->autoAllocate($payment);
+                                } catch (\Exception $e) {
+                                    Log::warning('Post-creation auto-allocation failed for bank statement payment', [
+                                        'payment_id' => $payment->id,
+                                        'error' => $e->getMessage(),
+                                    ]);
+                                }
                             }
                         }
                     }
@@ -773,8 +853,10 @@ class BankStatementController extends Controller
                     // This prevents timeout when processing multiple sibling payments
                     // For shared payments, this processes main payment + all siblings in background
                     // For single payments, this processes just the main payment in background
-                    \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
-                        ->onQueue('default');
+                    if (isset($payment)) {
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                            ->onQueue('default');
+                    }
                 } catch (\Exception $e) {
                     Log::error('Failed to create payment from transaction', [
                         'transaction_id' => $bankStatement->id,
@@ -796,30 +878,249 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Create payment for confirmed transaction (when payment_created is false)
+     * This is used for confirmed transactions that don't have payments yet (e.g., after reversal)
+     */
+    public function createPayment(Request $request, BankStatementTransaction $bankStatement)
+    {
+        // Authorization check
+        $this->authorize('update', $bankStatement);
+        
+        if ($bankStatement->status !== 'confirmed') {
+            return redirect()->back()
+                ->withErrors(['error' => 'Only confirmed transactions can have payments created directly.']);
+        }
+        
+        if ($bankStatement->payment_created) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Payment already exists for this transaction.']);
+        }
+        
+        if (!$bankStatement->student_id && !$bankStatement->is_shared) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Transaction must be matched to a student or shared before creating payment.']);
+        }
+
+        // Check if this is a swimming transaction
+        $bankStatement->refresh();
+        $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+            && $bankStatement->is_swimming_transaction;
+
+        if ($isSwimming) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Swimming transactions are handled separately.']);
+        }
+
+        try {
+            DB::transaction(function () use ($bankStatement) {
+                // Check if there are any non-reversed payments for this transaction
+                $nonReversedPayments = collect();
+                if ($bankStatement->reference_number) {
+                    $nonReversedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                        ->where('reversed', false)
+                        ->get();
+                }
+                
+                // If there are non-reversed payments, link to them instead of creating new ones
+                if ($nonReversedPayments->isNotEmpty()) {
+                    $existingPayment = $bankStatement->payment_id 
+                        ? \App\Models\Payment::find($bankStatement->payment_id)
+                        : $nonReversedPayments->first();
+                    
+                    if ($existingPayment && !$existingPayment->reversed) {
+                        $bankStatement->update([
+                            'payment_id' => $existingPayment->id,
+                            'payment_created' => true,
+                        ]);
+                        Log::info('Linked to existing non-reversed payment', [
+                            'transaction_id' => $bankStatement->id,
+                            'payment_id' => $existingPayment->id,
+                        ]);
+                    } else {
+                        $payment = $nonReversedPayments->first();
+                        $bankStatement->update([
+                            'payment_id' => $payment->id,
+                            'payment_created' => true,
+                        ]);
+                        Log::info('Linked to existing non-reversed payment', [
+                            'transaction_id' => $bankStatement->id,
+                            'payment_id' => $payment->id,
+                        ]);
+                    }
+                } else {
+                    // Before creating new payment, check if there are reversed payments to unlink
+                    // This ensures the transaction points to the new payment, not the old reversed one
+                    if ($bankStatement->payment_id) {
+                        $oldPayment = \App\Models\Payment::find($bankStatement->payment_id);
+                        if ($oldPayment && $oldPayment->reversed) {
+                            // Unlink the old reversed payment
+                            $bankStatement->update([
+                                'payment_id' => null,
+                                'payment_created' => false,
+                            ]);
+                            Log::info('Unlinked old reversed payment before creating new one', [
+                                'transaction_id' => $bankStatement->id,
+                                'old_payment_id' => $oldPayment->id,
+                            ]);
+                        }
+                    }
+                    
+                    // Create payment with auto-allocation enabled
+                    $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                    
+                    // Log all payments created (for shared transactions, log all siblings)
+                    if ($bankStatement->is_shared && $bankStatement->reference_number) {
+                        // Wait a moment for all payments to be created
+                        usleep(500000); // 0.5 seconds
+                        
+                        $allCreatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                            ->where('created_at', '>=', now()->subMinutes(2)) // Payments created in last 2 minutes
+                            ->with('student')
+                            ->get();
+                        
+                        Log::info('Payments created from shared bank statement transaction', [
+                            'transaction_id' => $bankStatement->id,
+                            'reference_number' => $bankStatement->reference_number,
+                            'payments_count' => $allCreatedPayments->count(),
+                            'expected_count' => count($bankStatement->shared_allocations ?? []),
+                            'payment_ids' => $allCreatedPayments->pluck('id')->toArray(),
+                            'receipt_numbers' => $allCreatedPayments->pluck('receipt_number')->toArray(),
+                            'student_ids' => $allCreatedPayments->pluck('student_id')->toArray(),
+                            'student_names' => $allCreatedPayments->map(function($p) {
+                                return $p->student ? $p->student->full_name . ' (' . $p->student->admission_number . ')' : 'N/A';
+                            })->toArray(),
+                            'reversed_status' => $allCreatedPayments->pluck('reversed')->toArray(),
+                        ]);
+                        
+                        // Verify all expected payments were created
+                        $expectedStudentIds = collect($bankStatement->shared_allocations)->pluck('student_id')->toArray();
+                        $createdStudentIds = $allCreatedPayments->pluck('student_id')->toArray();
+                        $missingStudentIds = array_diff($expectedStudentIds, $createdStudentIds);
+                        
+                        if (!empty($missingStudentIds)) {
+                            Log::warning('Some payments were not created for shared transaction', [
+                                'transaction_id' => $bankStatement->id,
+                                'missing_student_ids' => $missingStudentIds,
+                                'expected_student_ids' => $expectedStudentIds,
+                                'created_student_ids' => $createdStudentIds,
+                            ]);
+                        }
+                    } else {
+                        Log::info('Payment created from bank statement transaction', [
+                            'transaction_id' => $bankStatement->id,
+                            'payment_id' => $payment->id ?? null,
+                            'receipt_number' => $payment->receipt_number ?? null,
+                            'student_id' => $payment->student_id ?? null,
+                            'reversed' => $payment->reversed ?? false,
+                        ]);
+                    }
+                    
+                    // Ensure payment is allocated (double-check)
+                    if ($payment && $payment->unallocated_amount > 0) {
+                        try {
+                            $allocationService = app(\App\Services\PaymentAllocationService::class);
+                            $allocationService->autoAllocate($payment);
+                        } catch (\Exception $e) {
+                            Log::warning('Post-creation auto-allocation failed for bank statement payment', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                    
+                    // Queue receipt generation and notifications
+                    if (isset($payment)) {
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                            ->onQueue('default');
+                    }
+                }
+            });
+            
+            return redirect()
+                ->route('finance.bank-statements.show', $bankStatement)
+                ->with('success', 'Payment created and allocated successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to create payment from confirmed transaction', [
+                'transaction_id' => $bankStatement->id,
+                'error' => $e->getMessage(),
+            ]);
+            
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
      * Reject transaction - unmatch it to allow re-matching
      * This does NOT delete or archive, just removes the match
      */
     public function reject(BankStatementTransaction $bankStatement)
     {
+        // Authorization check
+        $this->authorize('reject', $bankStatement);
+        
         DB::transaction(function () use ($bankStatement) {
             // If payment was created, reverse and delete it
-            if ($bankStatement->payment_created && $bankStatement->payment_id) {
-                $payment = Payment::find($bankStatement->payment_id);
-                if ($payment && !$payment->reversed) {
-                    // Reverse payment allocations
-                    foreach ($payment->allocations as $allocation) {
-                        $allocation->delete();
+            // For shared transactions, reverse ALL related payments
+            if ($bankStatement->payment_created) {
+                // Find all payments related to this transaction
+                $relatedPayments = [];
+                
+                if ($bankStatement->payment_id) {
+                    $payment = Payment::find($bankStatement->payment_id);
+                    if ($payment) {
+                        $relatedPayments[] = $payment;
                     }
-                    
-                    // Mark payment as reversed
-                    $payment->update([
-                        'reversed' => true,
-                        'reversed_by' => auth()->id(),
-                        'reversed_at' => now(),
-                    ]);
-                    
-                    // Delete payment record
-                    $payment->delete();
+                }
+                
+                // Also find all sibling payments if this is a shared transaction
+                if ($bankStatement->is_shared && $bankStatement->reference_number) {
+                    $siblingPayments = Payment::where('transaction_code', $bankStatement->reference_number)
+                        ->where('reversed', false)
+                        ->get();
+                    $relatedPayments = array_merge($relatedPayments, $siblingPayments->all());
+                }
+                
+                // Reverse and delete all related payments
+                foreach ($relatedPayments as $payment) {
+                    if ($payment && !$payment->reversed) {
+                        // Collect invoice IDs before deleting allocations
+                        $invoiceIds = collect();
+                        foreach ($payment->allocations as $allocation) {
+                            if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                                $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                            }
+                        }
+                        
+                        // Reverse payment allocations
+                        foreach ($payment->allocations as $allocation) {
+                            $allocation->delete();
+                        }
+                        
+                        // Mark payment as reversed
+                        $payment->update([
+                            'reversed' => true,
+                            'reversed_by' => auth()->id(),
+                            'reversed_at' => now(),
+                            'reversal_reason' => 'Transaction rejected',
+                        ]);
+                        
+                        // Recalculate affected invoices
+                        foreach ($invoiceIds->unique() as $invoiceId) {
+                            $invoice = \App\Models\Invoice::find($invoiceId);
+                            if ($invoice) {
+                                \App\Services\InvoiceService::recalc($invoice);
+                            }
+                        }
+                        
+                        // Delete payment record
+                        $payment->delete();
+                        
+                        \Log::info('Payment automatically reversed and deleted due to transaction rejection', [
+                            'transaction_id' => $bankStatement->id,
+                            'payment_id' => $payment->id,
+                        ]);
+                    }
                 }
             }
             
@@ -842,6 +1143,16 @@ class BankStatementController extends Controller
                 'confirmed_by' => null,
                 'confirmed_at' => null,
             ]);
+            
+            // Log audit trail
+            try {
+                \App\Services\FinancialAuditService::logTransactionRejection($bankStatement);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log transaction rejection audit', [
+                    'transaction_id' => $bankStatement->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         });
 
         return redirect()
@@ -854,8 +1165,52 @@ class BankStatementController extends Controller
      */
     public function updateAllocations(Request $request, BankStatementTransaction $bankStatement)
     {
-        if (!$bankStatement->is_shared || !$bankStatement->isDraft()) {
-            return back()->with('error', 'Can only edit allocations for draft shared transactions');
+        // Authorization check
+        $this->authorize('editAllocations', $bankStatement);
+        
+        // Optimistic locking check
+        if ($request->has('version') && $bankStatement->version != $request->version) {
+            return back()->with('error', 
+                'This transaction was modified by another user. Please refresh the page and try again.'
+            );
+        }
+        
+        if (!$bankStatement->is_shared) {
+            return back()->with('error', 'Can only edit allocations for shared transactions');
+        }
+        
+        // Prevent editing if transaction is rejected
+        if ($bankStatement->isRejected()) {
+            return back()->with('error', 'Cannot edit allocations for a rejected transaction.');
+        }
+        
+        // Allow editing for both draft and confirmed transactions
+        // For confirmed transactions with payments, we need to update the related payments too
+        if ($bankStatement->isConfirmed() && $bankStatement->payment_created) {
+            // Check if any related payments are reversed
+            $relatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                ->where('reversed', true)
+                ->exists();
+            
+            if ($relatedPayments) {
+                return back()->with('error', 
+                    'Cannot edit allocations: One or more related payments have been reversed.'
+                );
+            }
+            
+            // Check if any payment is fully allocated (prevent editing if it would cause issues)
+            $fullyAllocatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                ->where('reversed', false)
+                ->whereRaw('allocated_amount >= amount')
+                ->exists();
+            
+            if ($fullyAllocatedPayments) {
+                return back()->with('warning', 
+                    'One or more payments are fully allocated. Editing may require payment reversal first.'
+                );
+            }
+        } elseif (!$bankStatement->isDraft() && !$bankStatement->isConfirmed()) {
+            return back()->with('error', 'Can only edit allocations for draft or confirmed shared transactions');
         }
         
         $validated = $request->validate([
@@ -886,14 +1241,126 @@ class BankStatementController extends Controller
         }
 
         try {
-            $bankStatement->update([
-                'shared_allocations' => $activeAllocations,
-            ]);
+            // Store old allocations for audit log
+            $oldAllocations = $bankStatement->shared_allocations ?? [];
             
-            $siblingCount = count($activeAllocations);
-            return redirect()
-                ->route('finance.bank-statements.show', $bankStatement)
-                ->with('success', "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s).");
+            return DB::transaction(function () use ($bankStatement, $activeAllocations, $oldAllocations) {
+                // Update transaction shared allocations
+                $bankStatement->update([
+                    'shared_allocations' => $activeAllocations,
+                ]);
+                
+                // If transaction is confirmed and has payments, update the payments too
+                if ($bankStatement->isConfirmed() && $bankStatement->payment_created) {
+                    // Find all payments related to this transaction
+                    $relatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                        ->where('reversed', false)
+                        ->get();
+                    
+                    foreach ($activeAllocations as $allocation) {
+                        $payment = $relatedPayments->firstWhere('student_id', $allocation['student_id']);
+                        
+                        if ($payment) {
+                            $oldAmount = $payment->amount;
+                            $newAmount = (float) $allocation['amount'];
+                            
+                            if (abs($oldAmount - $newAmount) > 0.01) {
+                                // Update payment amount
+                                $payment->update(['amount' => $newAmount]);
+                                
+                                // If amount decreased, deallocate excess
+                                if ($newAmount < $oldAmount) {
+                                    $excess = $oldAmount - $newAmount;
+                                    $remaining = $excess;
+                                    $affectedInvoices = collect();
+                                    
+                                    // Get allocations ordered by date (oldest first) - FIFO
+                                    $allocations = \App\Models\PaymentAllocation::where('payment_id', $payment->id)
+                                        ->with('invoiceItem.invoice')
+                                        ->orderBy('allocated_at', 'asc')
+                                        ->get();
+                                    
+                                    foreach ($allocations as $allocation) {
+                                        if ($remaining <= 0) {
+                                            break;
+                                        }
+                                        
+                                        $allocationAmount = (float)$allocation->amount;
+                                        $invoice = $allocation->invoiceItem->invoice;
+                                        
+                                        if ($allocationAmount <= $remaining) {
+                                            // Delete entire allocation
+                                            $remaining -= $allocationAmount;
+                                            $allocation->delete();
+                                            
+                                            if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                                                $affectedInvoices->push($invoice);
+                                            }
+                                        } else {
+                                            // Partially deallocate
+                                            $newAllocationAmount = $allocationAmount - $remaining;
+                                            $allocation->update(['amount' => $newAllocationAmount]);
+                                            $remaining = 0;
+                                            
+                                            if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                                                $affectedInvoices->push($invoice);
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Recalculate affected invoices
+                                    foreach ($affectedInvoices as $invoice) {
+                                        \App\Services\InvoiceService::recalc($invoice);
+                                    }
+                                }
+                                
+                                // Update allocation totals
+                                $payment->updateAllocationTotals();
+                                
+                                // Regenerate receipt if exists
+                                if ($payment->receipt) {
+                                    try {
+                                        $receiptService = app(\App\Services\ReceiptService::class);
+                                        $receiptService->generateReceipt($payment->fresh(), ['save' => true, 'regenerate' => true]);
+                                    } catch (\Exception $e) {
+                                        \Log::warning('Failed to regenerate receipt after allocation update', [
+                                            'payment_id' => $payment->id,
+                                            'error' => $e->getMessage(),
+                                        ]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Increment version for optimistic locking
+                $bankStatement->increment('version');
+                
+                // Log audit trail
+                try {
+                    \App\Services\FinancialAuditService::logTransactionSharedAllocationEdit(
+                        $bankStatement,
+                        $oldAllocations,
+                        $activeAllocations
+                    );
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to log transaction allocation edit audit', [
+                        'transaction_id' => $bankStatement->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+                
+                $siblingCount = count($activeAllocations);
+                $message = "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s).";
+                if ($bankStatement->isConfirmed() && $bankStatement->payment_created) {
+                    $message .= " Related payments have been updated.";
+                }
+                
+                return redirect()
+                    ->route('finance.bank-statements.show', $bankStatement)
+                    ->with('success', $message);
+            });
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to update allocations: ' . $e->getMessage());
         }
@@ -1206,11 +1673,104 @@ class BankStatementController extends Controller
      */
     public function archive(BankStatementTransaction $bankStatement)
     {
-        $bankStatement->archive();
+        // Authorization check
+        $this->authorize('archive', $bankStatement);
+        
+        return DB::transaction(function () use ($bankStatement) {
+            $paymentsReversed = 0;
+            
+            // If payment was created, reverse it automatically
+            // For shared transactions, reverse ALL related payments
+            if ($bankStatement->payment_created) {
+                // Find all payments related to this transaction
+                $relatedPayments = [];
+                
+                if ($bankStatement->payment_id) {
+                    $payment = Payment::find($bankStatement->payment_id);
+                    if ($payment) {
+                        $relatedPayments[] = $payment;
+                    }
+                }
+                
+                // Also find all sibling payments if this is a shared transaction
+                if ($bankStatement->is_shared && $bankStatement->reference_number) {
+                    $siblingPayments = Payment::where('transaction_code', $bankStatement->reference_number)
+                        ->where('reversed', false)
+                        ->get();
+                    $relatedPayments = array_merge($relatedPayments, $siblingPayments->all());
+                }
+                
+                // Reverse all related payments
+                foreach ($relatedPayments as $payment) {
+                    if ($payment && !$payment->reversed) {
+                        // Collect invoice IDs before deleting allocations
+                        $invoiceIds = collect();
+                        foreach ($payment->allocations as $allocation) {
+                            if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                                $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                            }
+                        }
+                        
+                        // Reverse payment allocations
+                        foreach ($payment->allocations as $allocation) {
+                            $allocation->delete();
+                        }
+                        
+                        // Mark payment as reversed
+                        $payment->update([
+                            'reversed' => true,
+                            'reversed_by' => auth()->id(),
+                            'reversed_at' => now(),
+                            'narration' => ($payment->narration ?? '') . ' (Reversed - Transaction archived)',
+                        ]);
+                        
+                        // Recalculate affected invoices
+                        foreach ($invoiceIds->unique() as $invoiceId) {
+                            $invoice = \App\Models\Invoice::find($invoiceId);
+                            if ($invoice) {
+                                \App\Services\InvoiceService::recalc($invoice);
+                            }
+                        }
+                        
+                        $paymentsReversed++;
+                        
+                        \Log::info('Payment automatically reversed due to transaction archive', [
+                            'transaction_id' => $bankStatement->id,
+                            'payment_id' => $payment->id,
+                        ]);
+                    }
+                }
+            }
+            
+            // Archive the transaction
+            $bankStatement->archive();
+            
+            // Update transaction to remove payment link and increment version
+            $bankStatement->update([
+                'payment_created' => false,
+                'payment_id' => null,
+            ]);
+            $bankStatement->increment('version');
+            
+            // Log audit trail
+            try {
+                \App\Services\FinancialAuditService::logTransactionArchive($bankStatement, $paymentsReversed);
+            } catch (\Exception $e) {
+                \Log::warning('Failed to log transaction archive audit', [
+                    'transaction_id' => $bankStatement->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
-        return redirect()
-            ->route('finance.bank-statements.index', ['view' => 'archived'] + request()->except('view'))
-            ->with('success', 'Transaction archived');
+            $message = 'Transaction archived';
+            if ($paymentsReversed > 0) {
+                $message .= " and {$paymentsReversed} related payment(s) reversed";
+            }
+
+            return redirect()
+                ->route('finance.bank-statements.index', ['view' => 'archived'] + request()->except('view'))
+                ->with('success', $message);
+        });
     }
 
     /**
@@ -1219,10 +1779,27 @@ class BankStatementController extends Controller
     public function unarchive(BankStatementTransaction $bankStatement)
     {
         $bankStatement->unarchive();
+        $bankStatement->increment('version');
 
         return redirect()
             ->route('finance.bank-statements.index')
             ->with('success', 'Transaction unarchived');
+    }
+    
+    /**
+     * Show transaction history/audit trail
+     */
+    public function history(BankStatementTransaction $bankStatement)
+    {
+        $this->authorize('view', $bankStatement);
+        
+        $auditLogs = \App\Models\AuditLog::where('auditable_type', BankStatementTransaction::class)
+            ->where('auditable_id', $bankStatement->id)
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        return view('finance.bank-statements.history', compact('bankStatement', 'auditLogs'));
     }
 
     /**

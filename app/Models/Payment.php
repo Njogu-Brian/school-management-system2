@@ -39,6 +39,8 @@ class Payment extends Model
         'reversed',
         'reversed_by',
         'reversed_at',
+        'reversal_reason',
+        'version',
         'bulk_sent_channels',
     ];
 

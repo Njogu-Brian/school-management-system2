@@ -44,6 +44,7 @@ class BankStatementTransaction extends Model
         'created_by',
         'is_swimming_transaction',
         'swimming_allocated_amount',
+        'version',
     ];
 
     protected $casts = [

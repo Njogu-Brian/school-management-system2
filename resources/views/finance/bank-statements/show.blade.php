@@ -332,7 +332,7 @@
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Shared Among Siblings</h5>
-                    @if($bankStatement->isDraft())
+                    @if(($bankStatement->isDraft() || $bankStatement->isConfirmed()) && !$bankStatement->isRejected())
                     <button type="button" class="btn btn-sm btn-finance btn-finance-primary" onclick="toggleEditAllocations()">
                         <i class="bi bi-pencil"></i> Edit Amounts
                     </button>
@@ -342,8 +342,20 @@
                     <form id="editAllocationsForm" method="POST" action="{{ route('finance.bank-statements.update-allocations', $bankStatement) }}" style="display: none;">
                         @csrf
                         @method('PUT')
+                        <input type="hidden" name="version" value="{{ $bankStatement->version }}">
                         <div class="mb-3">
                             <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
+                            @if($bankStatement->isConfirmed() && $bankStatement->payment_created)
+                                <p class="text-info small mb-0">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Editing will update the related payment amounts. If a payment amount decreases, excess allocations will be removed.
+                                </p>
+                            @elseif($bankStatement->isConfirmed() && !$bankStatement->payment_created)
+                                <p class="text-info small mb-0">
+                                    <i class="bi bi-info-circle"></i> 
+                                    Editing allocations. After saving, you can create the payment using the "Create Payment" button.
+                                </p>
+                            @endif
                         </div>
                         @foreach($bankStatement->shared_allocations as $index => $allocation)
                             @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
@@ -405,16 +417,75 @@
             @endif
 
             <!-- Payment Information -->
-            @if($bankStatement->payment)
+            @if($activePayments->isNotEmpty() || $reversedPayments->isNotEmpty())
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
-                    <h5 class="mb-0">Created Payment</h5>
+                    <h5 class="mb-0">Created Payment(s)</h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    <p>
-                        Payment <a href="{{ route('finance.payments.show', $bankStatement->payment) }}">#{{ $bankStatement->payment->receipt_number ?? $bankStatement->payment->transaction_code }}</a>
-                        has been created from this transaction.
-                    </p>
+                    @if($activePayments->isNotEmpty())
+                        <div class="mb-3">
+                            <h6 class="text-success mb-2">
+                                <i class="bi bi-check-circle"></i> Active Payment(s)
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                @foreach($activePayments as $payment)
+                                    <li class="mb-2">
+                                        <a href="{{ route('finance.payments.show', $payment) }}" class="text-decoration-none">
+                                            <strong>#{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
+                                        </a>
+                                        @if($payment->student)
+                                            - {{ $payment->student->full_name }} ({{ $payment->student->admission_number }})
+                                        @endif
+                                        - Ksh {{ number_format($payment->amount, 2) }}
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                    
+                    @if($reversedPayments->isNotEmpty())
+                        <div class="alert alert-warning mb-0">
+                            <h6 class="alert-heading mb-2">
+                                <i class="bi bi-exclamation-triangle"></i> Reversed Payment(s)
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                @foreach($reversedPayments as $payment)
+                                    <li class="mb-2">
+                                        <del class="text-muted">
+                                            <a href="{{ route('finance.payments.show', $payment) }}" class="text-decoration-none text-muted">
+                                                #{{ $payment->receipt_number ?? $payment->transaction_code }}
+                                            </a>
+                                        </del>
+                                        @if($payment->student)
+                                            - {{ $payment->student->full_name }} ({{ $payment->student->admission_number }})
+                                        @endif
+                                        - Ksh {{ number_format($payment->amount, 2) }}
+                                        <br>
+                                        <small class="text-muted">
+                                            <strong>Reversed:</strong> {{ $payment->reversed_at ? \Carbon\Carbon::parse($payment->reversed_at)->format('d M Y H:i') : 'N/A' }}
+                                            @if($payment->reversal_reason)
+                                                | <strong>Reason:</strong> {{ $payment->reversal_reason }}
+                                            @endif
+                                        </small>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+                </div>
+            </div>
+            @elseif($bankStatement->status === 'confirmed' && !$bankStatement->payment_created)
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+                <div class="finance-card-header">
+                    <h5 class="mb-0">Transaction Status</h5>
+                </div>
+                <div class="finance-card-body p-4">
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>Unallocated Uncollected:</strong> This transaction is confirmed but no payment has been created. 
+                        The related payment may have been reversed, or payment creation is pending.
+                    </div>
                 </div>
             </div>
             @endif
@@ -428,7 +499,15 @@
                     </h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    @if($bankStatement->isDraft() || ($bankStatement->status !== 'confirmed' && $bankStatement->status !== 'rejected' && !$bankStatement->payment_created))
+                    @php
+                        // Check if there are any active (non-reversed) payments
+                        $hasActivePayments = $activePayments->isNotEmpty();
+                        // Allow sharing if: draft, or confirmed without active payments, or not rejected
+                        $canShare = $bankStatement->isDraft() 
+                            || ($bankStatement->status === 'confirmed' && !$hasActivePayments)
+                            || ($bankStatement->status !== 'confirmed' && $bankStatement->status !== 'rejected' && !$hasActivePayments);
+                    @endphp
+                    @if($canShare)
                     <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
                         @csrf
                         <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
@@ -521,9 +600,12 @@
                     <div class="alert alert-warning mb-0">
                         <i class="bi bi-exclamation-triangle"></i> 
                         <strong>Cannot share payment:</strong> This transaction is {{ ucfirst($bankStatement->status) }}. 
-                        Only draft transactions can be shared among siblings. 
-                        @if($bankStatement->status === 'confirmed')
-                            If you need to share this payment, you may need to reverse the payment first.
+                        @if($bankStatement->status === 'confirmed' && $activePayments->isNotEmpty())
+                            This transaction is confirmed and has active (non-reversed) payment(s). To share this payment, you must first reverse the existing payment(s).
+                        @elseif($bankStatement->status === 'rejected')
+                            Rejected transactions cannot be shared. Please assign a student first.
+                        @else
+                            Only draft transactions or confirmed transactions without active payments can be shared among siblings.
                         @endif
                     </div>
                     @endif
@@ -559,6 +641,16 @@
                                 <i class="bi bi-x-circle"></i> Reject
                             </button>
                         </form>
+                    @elseif($bankStatement->status == 'confirmed' && !$bankStatement->payment_created)
+                        <!-- Actions for confirmed transactions without payments (unallocated uncollected) -->
+                        @if($bankStatement->student_id || $bankStatement->is_shared)
+                            <form method="POST" action="{{ route('finance.bank-statements.create-payment', $bankStatement) }}" class="mb-2" onsubmit="return confirm('Create payment for this transaction? This will allocate the payment to student invoices.');">
+                                @csrf
+                                <button type="submit" class="btn btn-finance btn-finance-success w-100">
+                                    <i class="bi bi-cash-coin"></i> Create Payment
+                                </button>
+                            </form>
+                        @endif
                     @elseif($bankStatement->status == 'confirmed' && $bankStatement->payment)
                         <!-- Actions for confirmed transactions with payments -->
                         <form action="{{ route('finance.payments.reverse', $bankStatement->payment) }}" method="POST" class="d-inline w-100 mb-2" onsubmit="return confirm('Reverse this payment? This will undo all allocations and mark the payment as reversed.');">

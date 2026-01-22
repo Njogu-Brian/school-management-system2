@@ -1225,15 +1225,19 @@ class BankStatementParser
         }
         
         // If transaction is rejected or unmatched, change to draft when sharing
+        // Also change to draft if confirmed but payment_created is false (unallocated uncollected - payment was reversed)
         $newStatus = $transaction->status;
         if (in_array($transaction->status, ['rejected', 'unmatched'])) {
+            $newStatus = 'draft';
+        } elseif ($transaction->status === 'confirmed' && !$transaction->payment_created) {
+            // Transaction is confirmed but payment was reversed - allow sharing by changing to draft
             $newStatus = 'draft';
         }
         
         $transaction->update([
             'is_shared' => true,
             'shared_allocations' => $allocations,
-            'status' => $newStatus, // Ensure it's draft if it was rejected/unmatched
+            'status' => $newStatus, // Ensure it's draft if it was rejected/unmatched or confirmed with reversed payment
             'match_status' => 'manual', // Set to manual since it was manually shared
             'match_notes' => $matchNotes,
         ]);

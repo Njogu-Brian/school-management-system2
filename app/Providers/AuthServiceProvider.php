@@ -11,7 +11,8 @@ use App\Models\Academics\Exam;
 class AuthServiceProvider extends ServiceProvider
 {
     protected $policies = [
-        // 'App\Models\Model' => 'App\Policies\ModelPolicy',
+        \App\Models\Payment::class => \App\Policies\PaymentPolicy::class,
+        \App\Models\BankStatementTransaction::class => \App\Policies\BankStatementTransactionPolicy::class,
     ];
 
     public function boot(): void

@@ -55,12 +55,23 @@
                             <dl class="row mb-0">
                                 <dt class="col-sm-5">Allocated Amount:</dt>
                                 <dd class="col-sm-7">
-                                    <strong class="text-success">Ksh {{ number_format($payment->allocated_amount ?? 0, 2) }}</strong>
+                                    @php
+                                        // Calculate actual allocated amount from allocations (not cached field)
+                                        // This ensures accuracy even if cached field is stale
+                                        $actualAllocatedAmount = $payment->reversed ? 0 : ($payment->allocations->sum('amount') ?? 0);
+                                    @endphp
+                                    <strong class="text-success">Ksh {{ number_format($actualAllocatedAmount, 2) }}</strong>
+                                    @if($payment->reversed)
+                                        <span class="badge bg-danger ms-2">Reversed</span>
+                                    @endif
                                 </dd>
 
                                 <dt class="col-sm-5">Unallocated Amount:</dt>
                                 <dd class="col-sm-7">
-                                    <strong class="text-warning">Ksh {{ number_format($payment->unallocated_amount ?? $payment->amount - ($payment->allocated_amount ?? 0), 2) }}</strong>
+                                    @php
+                                        $actualUnallocatedAmount = $payment->reversed ? $payment->amount : ($payment->amount - $actualAllocatedAmount);
+                                    @endphp
+                                    <strong class="text-warning">Ksh {{ number_format($actualUnallocatedAmount, 2) }}</strong>
                                 </dd>
 
                                 <dt class="col-sm-5">Transaction Code:</dt>
@@ -100,13 +111,26 @@
                 </div>
                 <div class="finance-card-body p-0">
                     @php
-                        $allocations = $payment->allocations ?? collect();
+                        // For reversed payments, allocations should be empty (they were deleted)
+                        // But we still want to show the "No allocations yet" message
+                        $allocations = $payment->reversed ? collect() : ($payment->allocations ?? collect());
                         $invoiceItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($payment) {
                             $q->where('student_id', $payment->student_id);
                         })->where('status', 'active')->get();
                     @endphp
                     
-                    @if($allocations->isNotEmpty())
+                    @if($payment->reversed)
+                    <div class="p-4 text-center">
+                        <div class="alert alert-warning mb-3">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>This payment has been reversed.</strong>
+                            @if($payment->reversal_reason)
+                                <br><small>Reason: {{ $payment->reversal_reason }}</small>
+                            @endif
+                        </div>
+                        <p class="text-muted mb-0">All allocations have been removed. This payment is no longer active.</p>
+                    </div>
+                    @elseif($allocations->isNotEmpty())
                     <div class="table-responsive px-3 pb-3">
                         <table class="finance-table table-hover align-middle mb-0">
                             <thead class="table-light">
@@ -340,13 +364,38 @@
                         <button type="button" class="btn btn-finance btn-finance-secondary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
                             <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
                         </button>
-                        <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" onsubmit="return confirm('Are you sure you want to reverse this payment? This will remove all allocations and recalculate invoices. This action cannot be undone.')">
+                        <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" id="reversePaymentForm" onsubmit="return confirmPaymentReversal(event)">
                             @csrf
                             @method('DELETE')
+                            <div class="mb-2">
+                                <label for="reversal_reason" class="form-label small">Reversal Reason (Optional)</label>
+                                <textarea name="reversal_reason" id="reversal_reason" class="form-control form-control-sm" rows="2" maxlength="500" placeholder="Enter reason for reversal..."></textarea>
+                            </div>
                             <button type="submit" class="btn btn-danger w-100">
                                 <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
                             </button>
                         </form>
+                        <script>
+                        function confirmPaymentReversal(e) {
+                            e.preventDefault();
+                            const form = e.target;
+                            const allocationsCount = {{ $payment->allocations->count() }};
+                            const amount = {{ $payment->amount }};
+                            const allocatedAmount = {{ $payment->allocated_amount ?? 0 }};
+                            
+                            let message = 'Are you sure you want to reverse this payment?\n\n';
+                            message += `Payment Amount: Ksh ${amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}\n`;
+                            if (allocationsCount > 0) {
+                                message += `This will affect ${allocationsCount} allocation(s) and ${allocatedAmount > 0 ? 'recalculate related invoices' : 'remove all allocations'}.\n`;
+                            }
+                            message += '\nThis action cannot be undone.';
+                            
+                            if (confirm(message)) {
+                                form.submit();
+                            }
+                            return false;
+                        }
+                        </script>
                         @else
                         <div class="alert alert-warning mb-0">
                             <small><i class="bi bi-info-circle"></i> This payment has been reversed.</small>
@@ -361,20 +410,35 @@
                     <h5 class="mb-0">Payment Summary</h5>
                 </div>
                 <div class="finance-card-body p-4">
+                    @if($payment->reversed)
+                        <div class="alert alert-warning mb-3">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            <strong>This payment has been reversed.</strong>
+                        </div>
+                    @endif
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
                             <small class="finance-muted d-block">Total Paid</small>
                             <span class="h5 text-primary mb-0">Ksh {{ number_format($payment->amount, 2) }}</span>
                         </div>
-                        <span class="finance-badge badge-paid">Paid</span>
+                        @if($payment->reversed)
+                            <span class="finance-badge badge-danger">Reversed</span>
+                        @else
+                            <span class="finance-badge badge-paid">Paid</span>
+                        @endif
                     </div>
+                    @php
+                        // Calculate actual allocated amount from allocations (not cached field)
+                        $actualAllocatedAmount = $payment->reversed ? 0 : ($payment->allocations->sum('amount') ?? 0);
+                        $actualUnallocatedAmount = $payment->reversed ? $payment->amount : ($payment->amount - $actualAllocatedAmount);
+                    @endphp
                     <div class="mb-2">
                         <strong>Allocated:</strong><br>
-                        <span class="h6 text-success">Ksh {{ number_format($payment->allocated_amount ?? 0, 2) }}</span>
+                        <span class="h6 text-success">Ksh {{ number_format($actualAllocatedAmount, 2) }}</span>
                     </div>
                     <div class="mb-0">
                         <strong>Unallocated:</strong><br>
-                        <span class="h6 text-warning">Ksh {{ number_format($payment->unallocated_amount ?? $payment->amount, 2) }}</span>
+                        <span class="h6 text-warning">Ksh {{ number_format($actualUnallocatedAmount, 2) }}</span>
                     </div>
                 </div>
             </div>

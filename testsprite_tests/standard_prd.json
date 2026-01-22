@@ -1,0 +1,901 @@
+{
+  "meta": {
+    "project": "School Management System",
+    "date": "2026-01-21",
+    "prepared_by": "Software Development Manager"
+  },
+  "product_overview": "The School Management System is a comprehensive, modular Laravel-based platform designed to manage all aspects of school operations including student lifecycle, academics, finance, transport, library, hostel, HR, attendance, communication, inventory, POS, and document management. It streamlines school administrative tasks with robust features, flexible fee management, extensive reporting, and multi-channel communication support.",
+  "core_goals": [
+    "Provide a unified platform to manage all school administrative functions efficiently.",
+    "Support complex fee management with configurable charge types, bulk operations, payment plans, and automated reminders.",
+    "Enable comprehensive student lifecycle management including admissions, records, family and category affiliation.",
+    "Facilitate academic operations such as classes, streams, exams, timetables, report cards, and curriculum management.",
+    "Manage staff, payroll, attendance, and leave in HR module.",
+    "Track transport routes, vehicles, trips, and student assignments with driver interfaces and attendance.",
+    "Enable library, hostel, inventory, and POS operations for effective resource management.",
+    "Ensure secure authentication, role-based access control, audit logging, and transactional integrity.",
+    "Provide extensible APIs for mobile and web integrations with detailed documentation."
+  ],
+  "key_features": [
+    "Authentication with email/OTP password reset, profile management, and secure API endpoints.",
+    "Student Management including registration, profiles, family groups, medical and academic records, and promotion workflows.",
+    "Finance Management covering voteheads, fee structures, invoice generation, payment recording and allocation, discounts, fee reminders, payment plans, bank reconciliations, and detailed financial reporting.",
+    "Attendance tracking for students and staff, with reason codes, notifications, and reports.",
+    "Academic Management from classes, subjects, exams, marks entry, report cards, to homework and CBC curriculum.",
+    "HR & Staff Management encompassing roles, permissions, payroll processing, leave requests, and attendance tracking.",
+    "Transport module with route, vehicle, trip, driver management, special assignments, trip attendance, and driver change requests.",
+    "Library system managing book catalog, borrowing, fines, library cards, and reservations.",
+    "POS system for school shop with product variants, order management, discount codes, and public shop links.",
+    "Hostel management including hostels, room allocations, attendance, and fee management.",
+    "Communication system supporting announcements, SMS, email, notifications, templates, and document sharing.",
+    "Inventory management with items, stock adjustments, requisitions, and stock tracking.",
+    "Document management for uploading, template creation, report cards, certificates, and exports.",
+    "Robust audit logging, configurable document numbering, bulk import/export facilities, and comprehensive testing coverage."
+  ],
+  "user_flow_summary": [
+    "Users authenticate with secure email/password or OTP and manage their profiles.",
+    "Administrators register and manage student records, including family and category associations.",
+    "Finance officers configure voteheads and fee structures, post fees to generate invoices, record payments and allocate them to invoices, apply discounts, and manage payment plans.",
+    "Teachers and academic staff manage classes, subjects, timetables, exams, enter marks, generate report cards, and assign homework.",
+    "HR staff manage staff records, roles, permissions, leave requests, and payroll.",
+    "Transport coordinators schedule trips, assign drivers, manage routes/vehicles, assign students to transport, and track trip attendance.",
+    "Librarians manage book lending, returns, fines, and library cards.",
+    "Shop managers maintain product inventory, manage orders, apply discounts, and oversee the public school shop.",
+    "Hostel managers allocate rooms and beds, track attendance, and manage hostel fees.",
+    "Communication officers create announcements, send SMS and emails, schedule bulk communications, and manage message templates.",
+    "All financial transactions and changes are audited and logged, with administrators reviewing logs and reports.",
+    "Users interact with dashboards presenting statistics relevant to their roles."
+  ],
+  "validation_criteria": [
+    "All core modules (Student, Finance, Academics, HR, Transport, Library, Hostel, POS, Attendance, Communication, Inventory, Document Management) are fully functional and tested.",
+    "Fee posting operations are idempotent, transactional, log comprehensive diffs, and can be reversed safely.",
+    "Payments and discounts are applied correctly with validation for uniqueness, overpayments, and sharing among siblings where applicable.",
+    "Automated and manual fee reminders function correctly across email, SMS, and WhatsApp, respecting installment statuses and cancelation conditions.",
+    "Payment plans enforce thresholds, track installment statuses accurately, update on schedule, and support public access via hashed IDs.",
+    "User roles and permissions enforce access control, with audit logs tracking changes including user, timestamps, and IP/session info.",
+    "Document numbering sequences generate unique, properly formatted numbers with configurable prefixes, suffixes, and resetting schemes.",
+    "API endpoints conform to OpenAPI 3.0.0 specifications and support expected parameters and responses.",
+    "Test coverage includes unit and feature tests for critical services and workflows with passing results.",
+    "Batch operations for fee posting, reversals, and imports operate without data loss or corruption.",
+    "UI/UX provides intuitive workflows, clear status indications, confirmation dialogs, and supports bulk selection where applicable.",
+    "Security best practices are met including input validation, protection against race conditions, and use of database transactions for atomicity.",
+    "Reporting modules generate accurate financial and operational reports, supporting export to PDF and CSV.",
+    "Audit logging captures full before/after state for financial changes, user actions, and system events."
+  ],
+  "code_summary": {
+    "tech_stack": [
+      "PHP 8.2+",
+      "Laravel 12.38.1",
+      "MySQL/MariaDB",
+      "React Native",
+      "TypeScript",
+      "Vite",
+      "Bootstrap 5",
+      "AdminLTE",
+      "Laravel Sanctum",
+      "Spatie Permissions",
+      "Maatwebsite Excel",
+      "DomPDF",
+      "Pusher"
+    ],
+    "features": [
+      {
+        "name": "Authentication API",
+        "description": "User authentication with login, logout, password reset via email and OTP, profile management",
+        "files": [
+          "app/Http/Controllers/AuthController.php",
+          "routes/web.php",
+          "mobile-app/src/api/auth.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/login": {
+              "post": {
+                "summary": "User login",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          },
+                          "password": {
+                            "type": "string"
+                          },
+                          "remember": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "responses": {
+                  "200": {
+                    "description": "Login successful"
+                  }
+                }
+              }
+            },
+            "/logout": {
+              "post": {
+                "summary": "User logout",
+                "responses": {
+                  "200": {
+                    "description": "Logout successful"
+                  }
+                }
+              }
+            },
+            "/password/email": {
+              "post": {
+                "summary": "Request password reset via email",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "email": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/password/otp": {
+              "post": {
+                "summary": "Request password reset via OTP",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "phone": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/user": {
+              "get": {
+                "summary": "Get current user profile",
+                "security": [
+                  {
+                    "sanctum": []
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Student Management API",
+        "description": "Complete student lifecycle management including registration, profiles, family management, categories, medical records, academic history, and promotion",
+        "files": [
+          "app/Http/Controllers/Students/StudentController.php",
+          "app/Http/Controllers/Students/FamilyController.php",
+          "app/Http/Controllers/Students/FamilyUpdateController.php",
+          "app/Http/Controllers/Students/StudentCategoryController.php",
+          "app/Http/Controllers/Students/MedicalRecordController.php",
+          "app/Http/Controllers/Students/AcademicHistoryController.php",
+          "app/Http/Controllers/Students/ParentInfoController.php",
+          "app/Http/Controllers/Students/OnlineAdmissionController.php",
+          "routes/web.php",
+          "mobile-app/src/api/students.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/students": {
+              "get": {
+                "summary": "Get students list with filters and pagination",
+                "parameters": [
+                  {
+                    "name": "search",
+                    "in": "query",
+                    "schema": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "name": "class_id",
+                    "in": "query",
+                    "schema": {
+                      "type": "integer"
+                    }
+                  },
+                  {
+                    "name": "category_id",
+                    "in": "query",
+                    "schema": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "post": {
+                "summary": "Create new student",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "type": "object",
+                        "properties": {
+                          "first_name": {
+                            "type": "string"
+                          },
+                          "last_name": {
+                            "type": "string"
+                          },
+                          "admission_number": {
+                            "type": "string"
+                          },
+                          "class_id": {
+                            "type": "integer"
+                          },
+                          "family_id": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "/students/{id}": {
+              "get": {
+                "summary": "Get student details",
+                "parameters": [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              },
+              "put": {
+                "summary": "Update student",
+                "parameters": [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              }
+            },
+            "/students/{id}/archive": {
+              "post": {
+                "summary": "Archive student",
+                "parameters": [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              }
+            },
+            "/students/{id}/stats": {
+              "get": {
+                "summary": "Get student statistics",
+                "parameters": [
+                  {
+                    "name": "id",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                      "type": "integer"
+                    }
+                  }
+                ]
+              }
+            },
+            "/families": {
+              "get": {
+                "summary": "Get families list"
+              },
+              "post": {
+                "summary": "Create new family"
+              }
+            },
+            "/families/{id}": {
+              "get": {
+                "summary": "Get family details"
+              },
+              "put": {
+                "summary": "Update family"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Finance Management API",
+        "description": "Comprehensive financial management including voteheads, fee structures, invoices, payments, bank reconciliation, payment plans, discounts, and financial reports",
+        "files": [
+          "app/Http/Controllers/Finance/VoteheadController.php",
+          "app/Http/Controllers/Finance/FeeStructureController.php",
+          "app/Http/Controllers/Finance/InvoiceController.php",
+          "app/Http/Controllers/Finance/PaymentController.php",
+          "app/Http/Controllers/Finance/BankStatementController.php",
+          "app/Http/Controllers/Finance/FeePaymentPlanController.php",
+          "app/Http/Controllers/Finance/FeeConcessionController.php",
+          "app/Http/Controllers/Finance/DiscountController.php",
+          "app/Http/Controllers/Finance/ReceiptController.php",
+          "app/Http/Controllers/Finance/StudentStatementController.php",
+          "app/Http/Controllers/Finance/MpesaPaymentController.php",
+          "app/Http/Controllers/PaymentWebhookController.php",
+          "routes/web.php",
+          "mobile-app/src/api/finance.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/voteheads": {
+              "get": {
+                "summary": "Get voteheads list"
+              },
+              "post": {
+                "summary": "Create votehead"
+              }
+            },
+            "/fee-structures": {
+              "get": {
+                "summary": "Get fee structures"
+              },
+              "post": {
+                "summary": "Create fee structure"
+              }
+            },
+            "/invoices": {
+              "get": {
+                "summary": "Get invoices with filters"
+              },
+              "post": {
+                "summary": "Create invoice"
+              },
+              "/generate-batch": {
+                "post": {
+                  "summary": "Generate batch invoices for class"
+                }
+              }
+            },
+            "/invoices/{id}": {
+              "get": {
+                "summary": "Get invoice details"
+              },
+              "put": {
+                "summary": "Update invoice"
+              },
+              "/reverse": {
+                "post": {
+                  "summary": "Reverse invoice"
+                }
+              }
+            },
+            "/payments": {
+              "get": {
+                "summary": "Get payments list"
+              },
+              "post": {
+                "summary": "Record payment"
+              }
+            },
+            "/payments/{id}": {
+              "get": {
+                "summary": "Get payment details"
+              },
+              "/reverse": {
+                "post": {
+                  "summary": "Reverse payment"
+                }
+              },
+              "/receipt": {
+                "get": {
+                  "summary": "Download receipt"
+                }
+              }
+            },
+            "/bank-statements/import": {
+              "post": {
+                "summary": "Import bank statement"
+              }
+            },
+            "/bank-statements/reconcile": {
+              "post": {
+                "summary": "Reconcile bank transactions"
+              }
+            },
+            "/payment-plans": {
+              "get": {
+                "summary": "Get payment plans"
+              },
+              "post": {
+                "summary": "Create payment plan"
+              }
+            },
+            "/statements/{student_id}": {
+              "get": {
+                "summary": "Get student fee statement"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Attendance Management API",
+        "description": "Student attendance tracking with marking, reports, notifications, and reason codes",
+        "files": [
+          "app/Http/Controllers/Attendance/AttendanceController.php",
+          "app/Http/Controllers/Attendance/AttendanceNotificationController.php",
+          "app/Http/Controllers/Attendance/AttendanceReasonCodeController.php",
+          "routes/web.php",
+          "mobile-app/src/api/attendance.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/attendance": {
+              "get": {
+                "summary": "Get attendance records with filters"
+              },
+              "post": {
+                "summary": "Mark attendance"
+              }
+            },
+            "/attendance/mark-bulk": {
+              "post": {
+                "summary": "Mark bulk attendance for class"
+              }
+            },
+            "/attendance/reports": {
+              "get": {
+                "summary": "Get attendance reports"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Academics Management API",
+        "description": "Academic operations including classes, subjects, timetables, exams, marks entry, report cards, homework, and curriculum management",
+        "files": [
+          "app/Http/Controllers/Academics/ClassroomController.php",
+          "app/Http/Controllers/Academics/StreamController.php",
+          "app/Http/Controllers/Academics/SubjectController.php",
+          "app/Http/Controllers/Academics/ExamController.php",
+          "app/Http/Controllers/Academics/ExamMarkController.php",
+          "app/Http/Controllers/Academics/ReportCardController.php",
+          "app/Http/Controllers/Academics/TimetableController.php",
+          "app/Http/Controllers/Academics/HomeworkController.php",
+          "app/Http/Controllers/Academics/CurriculumDesignController.php",
+          "routes/web.php",
+          "mobile-app/src/api/academics.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/classes": {
+              "get": {
+                "summary": "Get classes list"
+              },
+              "post": {
+                "summary": "Create class"
+              }
+            },
+            "/subjects": {
+              "get": {
+                "summary": "Get subjects list"
+              },
+              "post": {
+                "summary": "Create subject"
+              }
+            },
+            "/exams": {
+              "get": {
+                "summary": "Get exams list"
+              },
+              "post": {
+                "summary": "Create exam"
+              }
+            },
+            "/exams/{id}/marks": {
+              "get": {
+                "summary": "Get exam marks"
+              },
+              "post": {
+                "summary": "Enter exam marks"
+              }
+            },
+            "/report-cards": {
+              "get": {
+                "summary": "Get report cards"
+              },
+              "post": {
+                "summary": "Generate report card"
+              }
+            },
+            "/timetables": {
+              "get": {
+                "summary": "Get timetables"
+              },
+              "post": {
+                "summary": "Create timetable"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "HR & Staff Management API",
+        "description": "Staff management, roles, permissions, leave management, payroll, and staff attendance",
+        "files": [
+          "app/Http/Controllers/Hr/StaffController.php",
+          "app/Http/Controllers/Hr/StaffProfileController.php",
+          "app/Http/Controllers/Hr/RolePermissionController.php",
+          "app/Http/Controllers/Hr/LookupController.php",
+          "routes/web.php",
+          "mobile-app/src/api/hr.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/staff": {
+              "get": {
+                "summary": "Get staff list"
+              },
+              "post": {
+                "summary": "Create staff member"
+              }
+            },
+            "/staff/{id}": {
+              "get": {
+                "summary": "Get staff details"
+              },
+              "put": {
+                "summary": "Update staff"
+              }
+            },
+            "/roles": {
+              "get": {
+                "summary": "Get roles list"
+              },
+              "post": {
+                "summary": "Create role"
+              }
+            },
+            "/permissions": {
+              "get": {
+                "summary": "Get permissions list"
+              }
+            },
+            "/leave": {
+              "get": {
+                "summary": "Get leave requests"
+              },
+              "post": {
+                "summary": "Create leave request"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Transport Management API",
+        "description": "Transport operations including routes, vehicles, drivers, trips, drop-off points, and student assignments",
+        "files": [
+          "app/Http/Controllers/TransportController.php",
+          "app/Http/Controllers/VehicleController.php",
+          "app/Http/Controllers/TripController.php",
+          "app/Http/Controllers/DropOffPointController.php",
+          "app/Http/Controllers/StudentAssignmentController.php",
+          "app/Http/Controllers/Driver/DriverController.php",
+          "routes/web.php",
+          "mobile-app/src/api/transport.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/transport/routes": {
+              "get": {
+                "summary": "Get routes list"
+              },
+              "post": {
+                "summary": "Create route"
+              }
+            },
+            "/transport/vehicles": {
+              "get": {
+                "summary": "Get vehicles list"
+              },
+              "post": {
+                "summary": "Create vehicle"
+              }
+            },
+            "/transport/trips": {
+              "get": {
+                "summary": "Get trips list"
+              },
+              "post": {
+                "summary": "Create trip"
+              }
+            },
+            "/transport/assignments": {
+              "get": {
+                "summary": "Get student transport assignments"
+              },
+              "post": {
+                "summary": "Assign student to route"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Library Management API",
+        "description": "Library operations including book catalog, borrowing, returns, library cards, and fines",
+        "files": [
+          "app/Http/Controllers/Library",
+          "routes/web.php",
+          "mobile-app/src/api/library.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/library/books": {
+              "get": {
+                "summary": "Get books catalog"
+              },
+              "post": {
+                "summary": "Add book"
+              }
+            },
+            "/library/borrow": {
+              "post": {
+                "summary": "Borrow book"
+              }
+            },
+            "/library/return": {
+              "post": {
+                "summary": "Return book"
+              }
+            },
+            "/library/cards": {
+              "get": {
+                "summary": "Get library cards"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Communication API",
+        "description": "Communication features including announcements, SMS, email, notifications, and document sharing",
+        "files": [
+          "app/Http/Controllers/CommunicationController.php",
+          "app/Http/Controllers/CommunicationAnnouncementController.php",
+          "app/Http/Controllers/CommunicationTemplateController.php",
+          "app/Http/Controllers/CommunicationDocumentController.php",
+          "routes/web.php",
+          "mobile-app/src/api/communication.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/announcements": {
+              "get": {
+                "summary": "Get announcements"
+              },
+              "post": {
+                "summary": "Create announcement"
+              }
+            },
+            "/sms/send": {
+              "post": {
+                "summary": "Send SMS"
+              }
+            },
+            "/notifications": {
+              "get": {
+                "summary": "Get notifications"
+              },
+              "/mark-read": {
+                "post": {
+                  "summary": "Mark notification as read"
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Inventory Management API",
+        "description": "Inventory operations including items, stock adjustments, requisitions, and stock tracking",
+        "files": [
+          "app/Http/Controllers/Inventory",
+          "routes/web.php",
+          "mobile-app/src/api/inventory.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/inventory/items": {
+              "get": {
+                "summary": "Get inventory items"
+              },
+              "post": {
+                "summary": "Create inventory item"
+              }
+            },
+            "/inventory/requisitions": {
+              "get": {
+                "summary": "Get requisitions"
+              },
+              "post": {
+                "summary": "Create requisition"
+              }
+            },
+            "/inventory/adjustments": {
+              "post": {
+                "summary": "Create stock adjustment"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "POS/School Shop API",
+        "description": "Point of sale operations including products, variants, orders, uniforms, and public shop",
+        "files": [
+          "app/Http/Controllers/Pos",
+          "routes/web.php",
+          "mobile-app/src/api/pos.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/pos/products": {
+              "get": {
+                "summary": "Get products"
+              },
+              "post": {
+                "summary": "Create product"
+              }
+            },
+            "/pos/orders": {
+              "get": {
+                "summary": "Get orders"
+              },
+              "post": {
+                "summary": "Create order"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Hostel Management API",
+        "description": "Hostel operations including hostels, rooms, bed allocations, and occupancy tracking",
+        "files": [
+          "app/Http/Controllers/Hostel",
+          "routes/web.php",
+          "mobile-app/src/api/hostel.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/hostels": {
+              "get": {
+                "summary": "Get hostels list"
+              },
+              "post": {
+                "summary": "Create hostel"
+              }
+            },
+            "/hostels/{id}/rooms": {
+              "get": {
+                "summary": "Get rooms in hostel"
+              },
+              "post": {
+                "summary": "Create room"
+              }
+            },
+            "/hostels/allocations": {
+              "get": {
+                "summary": "Get bed allocations"
+              },
+              "post": {
+                "summary": "Allocate bed to student"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Documents Management API",
+        "description": "Document operations including upload, download, templates, report cards, certificates, and exports",
+        "files": [
+          "app/Http/Controllers/DocumentManagementController.php",
+          "app/Http/Controllers/DocumentTemplateController.php",
+          "app/Http/Controllers/GeneratedDocumentController.php",
+          "app/Http/Controllers/FileDownloadController.php",
+          "routes/web.php",
+          "mobile-app/src/api/documents.api.ts"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/documents": {
+              "get": {
+                "summary": "Get documents list"
+              },
+              "post": {
+                "summary": "Upload document"
+              }
+            },
+            "/documents/{id}/download": {
+              "get": {
+                "summary": "Download document"
+              }
+            },
+            "/templates": {
+              "get": {
+                "summary": "Get document templates"
+              },
+              "post": {
+                "summary": "Create template"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "Dashboard API",
+        "description": "Dashboard statistics and overview data for different user roles",
+        "files": [
+          "app/Http/Controllers/DashboardController.php",
+          "routes/web.php"
+        ],
+        "api_doc": {
+          "openapi": "3.0.0",
+          "paths": {
+            "/dashboard": {
+              "get": {
+                "summary": "Get dashboard statistics",
+                "responses": {
+                  "200": {
+                    "description": "Dashboard data with stats based on user role"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

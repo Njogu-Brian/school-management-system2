@@ -154,12 +154,18 @@
                     </thead>
                     <tbody>
                         @forelse($payments as $payment)
-                        <tr>
+                        <tr class="{{ $payment->reversed ? 'table-secondary opacity-75' : '' }}">
                             <td>
-                                <input type="checkbox" class="form-check-input receipt-checkbox" value="{{ $payment->id }}">
+                                <input type="checkbox" class="form-check-input receipt-checkbox" value="{{ $payment->id }}" {{ $payment->reversed ? 'disabled' : '' }}>
                             </td>
                             <td>
-                                <strong>{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
+                                @if($payment->reversed)
+                                    <del class="text-muted">
+                                        <strong>{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
+                                    </del>
+                                @else
+                                    <strong>{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
+                                @endif
                             </td>
                             <td>
                                 {{ $payment->student->full_name ?? 'N/A' }}
@@ -169,7 +175,13 @@
                                 {{ $payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : 'N/A' }}
                             </td>
                             <td class="text-end">
-                                <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                                @if($payment->reversed)
+                                    <del class="text-muted">
+                                        <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                                    </del>
+                                @else
+                                    <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                                @endif
                             </td>
                             <td class="text-end">
                                 <span class="text-success">Ksh {{ number_format($payment->allocated_amount ?? 0, 2) }}</span>

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "user login functionality",
+    "description": "Test the /login POST endpoint to verify user authentication with valid and invalid credentials, including email and password validation, and the remember option."
+  },
+  {
+    "id": "TC002",
+    "title": "user logout functionality",
+    "description": "Test the /logout POST endpoint to ensure users can successfully log out and invalidate their session or token."
+  },
+  {
+    "id": "TC003",
+    "title": "password reset via email",
+    "description": "Test the /password/email POST endpoint to verify that users can request a password reset link via email and handle invalid or unregistered email addresses."
+  },
+  {
+    "id": "TC004",
+    "title": "password reset via otp",
+    "description": "Test the /password/otp POST endpoint to verify that users can request a password reset using OTP sent to their phone number and handle invalid or unregistered phone numbers."
+  },
+  {
+    "id": "TC005",
+    "title": "get current user profile",
+    "description": "Test the /user GET endpoint to retrieve the authenticated user's profile information, ensuring proper authentication and authorization."
+  },
+  {
+    "id": "TC006",
+    "title": "get students list with filters",
+    "description": "Test the /students GET endpoint to retrieve a list of students with various filters such as search keyword, class_id, and category_id, including pagination."
+  },
+  {
+    "id": "TC007",
+    "title": "create new student",
+    "description": "Test the /students POST endpoint to create a new student record with valid and invalid data, including required fields and relationships like family_id."
+  },
+  {
+    "id": "TC008",
+    "title": "get student details",
+    "description": "Test the /students/{id} GET endpoint to retrieve detailed information of a specific student by ID, including handling of non-existent IDs."
+  },
+  {
+    "id": "TC009",
+    "title": "update student information",
+    "description": "Test the /students/{id} PUT endpoint to update existing student information with valid and invalid data, and verify proper error handling."
+  },
+  {
+    "id": "TC010",
+    "title": "archive student record",
+    "description": "Test the /students/{id}/archive POST endpoint to archive a student record, ensuring the student is marked as archived and no longer active."
+  }
+]
