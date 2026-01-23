@@ -1466,7 +1466,6 @@ class StudentController extends Controller
                     $query->where('archive', 0)
                           ->where('is_alumni', false);
                 })
-                ->with('classroom')
                 ->where(function ($s) use ($searchTerm, $normalizedAdmission) {
                     $s->whereRaw('LOWER(first_name) LIKE ?', [$searchTerm])
                       ->orWhereRaw('LOWER(middle_name) LIKE ?', [$searchTerm])
@@ -1481,6 +1480,7 @@ class StudentController extends Controller
                         );
                     }
                 })
+                ->with('classroom') // Load classroom relationship
                 ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'family_id', 'archive', 'is_alumni')
                 ->orderBy('first_name')
                 ->limit(25)
@@ -1505,6 +1505,11 @@ class StudentController extends Controller
                         ->toArray();
                 }
                 
+                // Ensure classroom is loaded (refresh if needed)
+                if (!$st->relationLoaded('classroom') && $st->classroom_id) {
+                    $st->load('classroom');
+                }
+                
                 return [
                     'id' => $st->id,
                     'first_name' => $st->first_name,
@@ -1512,7 +1517,7 @@ class StudentController extends Controller
                     'full_name' => $full,
                     'siblings' => $siblings,
                     'admission_number' => $st->admission_number ?? '',
-                    'classroom_name' => optional($st->classroom)->name,
+                    'classroom_name' => $st->classroom ? $st->classroom->name : null,
                     'family_id' => $st->family_id,
                     'is_alumni' => $st->is_alumni ?? false,
                     'is_archived' => $st->archive ?? false,

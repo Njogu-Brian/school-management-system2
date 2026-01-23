@@ -124,6 +124,10 @@
                         continue; // try next URL
                     }
                     const data = await res.json();
+                    // Debug: log first student to check if classroom_name is present
+                    if (data.length > 0 && !data[0].classroom_name) {
+                        console.warn('Student search result missing classroom_name:', data[0]);
+                    }
                     render(Array.isArray(data) ? data : []);
                     return;
                 } catch (e) {
