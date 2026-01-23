@@ -387,8 +387,13 @@ class BankStatementController extends Controller
                 $query->where('is_duplicate', true);
                 break;
             case 'swimming':
-                // C2B doesn't have swimming flag, exclude
-                $query->whereRaw('1 = 0');
+                // Show C2B swimming transactions if column exists
+                if (Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')) {
+                    $query->where('is_swimming_transaction', true);
+                } else {
+                    // If column doesn't exist, exclude C2B from swimming view
+                    $query->whereRaw('1 = 0');
+                }
                 break;
             default:
                 $query->where('is_duplicate', false);
@@ -418,6 +423,15 @@ class BankStatementController extends Controller
         if ($request->filled('date_to')) {
             $query->whereDate('trans_time', '<=', $request->date_to);
         }
+        
+        // CRITICAL: Apply swimming exclusion as the FINAL constraint after all other filters
+        // Swimming C2B transactions MUST ONLY appear in 'swimming' view - this cannot be overridden
+        if ($view !== 'swimming' && Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')) {
+            $query->where(function($q) {
+                $q->where('is_swimming_transaction', false)
+                  ->orWhereNull('is_swimming_transaction');
+            });
+        }
 
         return $query->orderBy('trans_time', 'desc')->orderBy('created_at', 'desc');
     }
@@ -443,7 +457,11 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->count(),
             'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)->count(),
-            'swimming' => 0, // C2B doesn't support swimming
+            'swimming' => Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')
+                ? MpesaC2BTransaction::where('is_swimming_transaction', true)
+                    ->where('is_duplicate', false)
+                    ->count()
+                : 0,
         ];
 
         return $counts;
@@ -2777,20 +2795,32 @@ class BankStatementController extends Controller
     {
         $request->validate([
             'transaction_ids' => 'required|array',
-            'transaction_ids.*' => 'exists:bank_statement_transactions,id',
+            'transaction_ids.*' => 'required|integer',
         ]);
 
         $transactionIds = $request->input('transaction_ids', []);
         
-        // Check if column exists before using it
-        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        // Separate bank and C2B transaction IDs
+        $bankTransactionIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+        $c2bTransactionIds = MpesaC2BTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
         
-        $query = BankStatementTransaction::whereIn('id', $transactionIds)
+        // Check if columns exist
+        $hasBankSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        $hasC2BSwimmingColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction');
+        
+        // Get bank transactions
+        $bankQuery = BankStatementTransaction::whereIn('id', $bankTransactionIds)
             ->where('is_duplicate', false)
             ->where('is_archived', false);
+        $bankTransactions = $bankQuery->get();
         
-        // Don't filter out already-marked swimming transactions - we'll process them if needed
-        $transactions = $query->get();
+        // Get C2B transactions
+        $c2bQuery = MpesaC2BTransaction::whereIn('id', $c2bTransactionIds)
+            ->where('is_duplicate', false);
+        $c2bTransactions = $c2bQuery->get();
+        
+        // Combine for processing
+        $transactions = $bankTransactions->concat($c2bTransactions);
 
         if ($transactions->isEmpty()) {
             return redirect()
@@ -2805,37 +2835,65 @@ class BankStatementController extends Controller
         
         foreach ($transactions as $transaction) {
             try {
-                $wasAlreadyMarked = $hasSwimmingColumn && $transaction->is_swimming_transaction;
+                $isC2B = $transaction instanceof MpesaC2BTransaction;
+                $isBank = $transaction instanceof BankStatementTransaction;
+                
+                // Check if already marked
+                $wasAlreadyMarked = false;
+                if ($isBank && $hasBankSwimmingColumn) {
+                    $wasAlreadyMarked = $transaction->is_swimming_transaction ?? false;
+                } elseif ($isC2B && $hasC2BSwimmingColumn) {
+                    $wasAlreadyMarked = $transaction->is_swimming_transaction ?? false;
+                }
                 
                 // If not already marked, mark it as swimming
                 if (!$wasAlreadyMarked) {
-                    $this->swimmingTransactionService->markAsSwimming($transaction);
+                    if ($isBank) {
+                        $this->swimmingTransactionService->markAsSwimming($transaction);
+                    } elseif ($isC2B) {
+                        // Mark C2B transaction as swimming
+                        if (!$hasC2BSwimmingColumn) {
+                            throw new \Exception('C2B swimming column not found. Please run migration to add is_swimming_transaction to mpesa_c2b_transactions table.');
+                        }
+                        $transaction->update(['is_swimming_transaction' => true]);
+                        Log::info('C2B transaction marked as swimming', [
+                            'transaction_id' => $transaction->id,
+                            'amount' => $transaction->trans_amount,
+                        ]);
+                    }
                     $marked++;
                 } else {
                     $skipped++;
                 }
                 
-                // Check if transaction has been allocated to wallets
+                // Check if transaction has been allocated to wallets (only for bank transactions)
                 $hasAllocations = false;
-                if (Schema::hasTable('swimming_transaction_allocations')) {
+                if ($isBank && Schema::hasTable('swimming_transaction_allocations')) {
                     $existingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
                         ->where('status', \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED)
                         ->exists();
                     $hasAllocations = $existingAllocations;
                 }
                 
-                // If transaction is already assigned (manual/auto - has student_id or is_shared),
-                // and hasn't been allocated yet, process it immediately to credit swimming wallets
-                $isAssigned = ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations));
-                if ($isAssigned && !$hasAllocations) {
+                // If transaction is already assigned, process it immediately to credit swimming wallets
+                $isAssigned = false;
+                if ($isBank) {
+                    $isAssigned = ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations));
+                } elseif ($isC2B) {
+                    $isAssigned = (bool)$transaction->student_id;
+                }
+                
+                if ($isAssigned && !$hasAllocations && $isBank) {
+                    // Only process bank transactions (C2B processing would need separate logic)
                     try {
                         $this->processSwimmingTransaction($transaction);
                         $processed++;
                         Log::info('Swimming transaction processed', [
                             'transaction_id' => $transaction->id,
-                            'status' => $transaction->status,
+                            'type' => 'bank',
+                            'status' => $transaction->status ?? 'N/A',
                             'has_student' => (bool)$transaction->student_id,
-                            'is_shared' => $transaction->is_shared,
+                            'is_shared' => $transaction->is_shared ?? false,
                             'was_already_marked' => $wasAlreadyMarked,
                         ]);
                     } catch (\Exception $e) {
@@ -2850,6 +2908,7 @@ class BankStatementController extends Controller
                 $errors[] = "Transaction #{$transaction->id}: " . $e->getMessage();
                 Log::error('Failed to mark transaction as swimming', [
                     'transaction_id' => $transaction->id,
+                    'type' => $transaction instanceof MpesaC2BTransaction ? 'c2b' : 'bank',
                     'error' => $e->getMessage(),
                 ]);
             }

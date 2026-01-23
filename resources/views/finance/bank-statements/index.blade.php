@@ -285,10 +285,11 @@
                             $txnIsDuplicate = $isC2B ? $transaction->is_duplicate : $transaction->is_duplicate;
                             $txnIsArchived = $isC2B ? false : ($transaction->is_archived ?? false);
                             $txnPaymentCreated = $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false);
-                            $txnIsSwimming = $isC2B ? false : ($transaction->is_swimming_transaction ?? false);
+                            $txnIsSwimming = $isC2B ? ($transaction->is_swimming_transaction ?? false) : ($transaction->is_swimming_transaction ?? false);
                             $txnStudentId = $transaction->student_id;
                             $txnIsShared = $isC2B ? false : ($transaction->is_shared ?? false);
                             $txnSharedAllocations = $isC2B ? [] : ($transaction->shared_allocations ?? []);
+                            $txnAllocationStatus = $isC2B ? ($transaction->allocation_status ?? 'unallocated') : null;
                             
                             // Permission checks
                             $canConfirm = $txnStatus === 'draft' 
@@ -300,25 +301,32 @@
                                 && !$txnIsDuplicate
                                 && !$txnStudentId
                                 && !$isC2B; // C2B transactions can't be archived
+                            // For C2B, check if swimming column exists
+                            $c2bCanSwim = $isC2B ? \Illuminate\Support\Facades\Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction') : true;
+                            $txnAllocationStatus = $isC2B ? ($transaction->allocation_status ?? 'unallocated') : null;
+                            
                             $canTransferToSwimming = $txnStatus === 'confirmed' 
                                 && $txnPaymentCreated 
                                 && !$txnIsSwimming
                                 && !$txnIsDuplicate
                                 && !$txnIsArchived
                                 && ($txnStudentId || $txnIsShared)
-                                && !$isC2B; // C2B doesn't support swimming
+                                && $c2bCanSwim;
                             $canTransferFromSwimming = $txnStatus === 'confirmed' 
                                 && $txnIsSwimming
                                 && !$txnIsDuplicate
                                 && !$txnIsArchived
                                 && ($txnStudentId || $txnIsShared)
-                                && !$isC2B;
-                            $canMarkAsSwimming = ($txnStatus === 'draft' || $txnStatus === 'confirmed')
+                                && $c2bCanSwim;
+                            // For C2B, allow marking if has student_id or is unallocated; for bank, allow if has student/shared or unmatched
+                            $c2bCanMark = $isC2B ? ($txnStudentId || $txnAllocationStatus === 'unallocated') : true;
+                            $bankCanMark = !$isC2B ? ($txnStudentId || $txnIsShared || $txnMatchStatus === 'unmatched' || $txnMatchStatus === 'multiple_matches') : true;
+                            $canMarkAsSwimming = (($txnStatus === 'draft' || $txnStatus === 'confirmed') || ($isC2B && in_array($txnAllocationStatus, ['unallocated', 'auto_matched', 'manually_allocated'])))
                                 && !$txnIsSwimming
                                 && !$txnIsDuplicate
                                 && !$txnIsArchived
-                                && ($txnStudentId || $txnIsShared || $txnMatchStatus === 'unmatched' || $txnMatchStatus === 'multiple_matches')
-                                && !$isC2B;
+                                && (($isC2B && $c2bCanMark) || (!$isC2B && $bankCanMark))
+                                && $c2bCanSwim;
                             $canSelectDraftUnmatched = $txnStatus === 'draft'
                                 && ($txnMatchStatus === 'unmatched' || $txnMatchStatus === 'multiple_matches')
                                 && !$txnIsDuplicate

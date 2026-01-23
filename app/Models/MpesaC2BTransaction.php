@@ -42,6 +42,7 @@ class MpesaC2BTransaction extends Model
         'match_reason',
         'is_duplicate',
         'duplicate_of',
+        'is_swimming_transaction',
         'status',
         'notes',
         'processed_by',
