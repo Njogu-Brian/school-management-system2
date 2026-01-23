@@ -2793,54 +2793,61 @@ class BankStatementController extends Controller
             ->where('is_duplicate', false)
             ->where('is_archived', false);
         
-        // Only filter by is_swimming_transaction if column exists
-        if ($hasSwimmingColumn) {
-            $query->where(function($q) {
-                $q->where('is_swimming_transaction', false)
-                  ->orWhereNull('is_swimming_transaction');
-            });
-        }
-        
+        // Don't filter out already-marked swimming transactions - we'll process them if needed
         $transactions = $query->get();
 
         if ($transactions->isEmpty()) {
             return redirect()
-                ->route('finance.bank-statements.index')
-                ->with('error', 'No valid transactions found to mark as swimming. Transactions may already be marked as swimming or are duplicates/archived.');
+                ->route('finance.bank-statements.index', ['view' => 'swimming'])
+                ->with('error', 'No valid transactions found. Transactions may be duplicates or archived.');
         }
 
         $marked = 0;
+        $processed = 0;
+        $skipped = 0;
         $errors = [];
         
         foreach ($transactions as $transaction) {
             try {
-                // Skip if already marked as swimming (double-check)
-                if ($hasSwimmingColumn && $transaction->is_swimming_transaction) {
-                    continue;
+                $wasAlreadyMarked = $hasSwimmingColumn && $transaction->is_swimming_transaction;
+                
+                // If not already marked, mark it as swimming
+                if (!$wasAlreadyMarked) {
+                    $this->swimmingTransactionService->markAsSwimming($transaction);
+                    $marked++;
+                } else {
+                    $skipped++;
                 }
                 
-                $this->swimmingTransactionService->markAsSwimming($transaction);
-                $marked++;
+                // Check if transaction has been allocated to wallets
+                $hasAllocations = false;
+                if (Schema::hasTable('swimming_transaction_allocations')) {
+                    $existingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
+                        ->where('status', \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED)
+                        ->exists();
+                    $hasAllocations = $existingAllocations;
+                }
                 
                 // If transaction is already assigned (manual/auto - has student_id or is_shared),
-                // process it immediately to credit swimming wallets
-                // Draft/unconfirmed transactions without assignments will wait for allocations
+                // and hasn't been allocated yet, process it immediately to credit swimming wallets
                 $isAssigned = ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations));
-                if ($isAssigned) {
+                if ($isAssigned && !$hasAllocations) {
                     try {
                         $this->processSwimmingTransaction($transaction);
-                        Log::info('Swimming transaction processed immediately after marking', [
+                        $processed++;
+                        Log::info('Swimming transaction processed', [
                             'transaction_id' => $transaction->id,
                             'status' => $transaction->status,
                             'has_student' => (bool)$transaction->student_id,
                             'is_shared' => $transaction->is_shared,
+                            'was_already_marked' => $wasAlreadyMarked,
                         ]);
                     } catch (\Exception $e) {
-                        Log::warning('Failed to process already-assigned swimming transaction', [
+                        Log::warning('Failed to process swimming transaction', [
                             'transaction_id' => $transaction->id,
                             'error' => $e->getMessage(),
                         ]);
-                        // Don't add to errors - marking succeeded, processing can be retried
+                        $errors[] = "Transaction #{$transaction->id}: Failed to process - " . $e->getMessage();
                     }
                 }
             } catch (\Exception $e) {
@@ -2852,24 +2859,38 @@ class BankStatementController extends Controller
             }
         }
 
-        $message = "Marked {$marked} transaction(s) as swimming payments.";
+        // Build message based on what happened
+        $messageParts = [];
+        
         if ($marked > 0) {
-            // Count transactions that were immediately processed (already assigned)
-            $processedCount = BankStatementTransaction::whereIn('id', $transactionIds)
-                ->where('is_swimming_transaction', true)
-                ->where(function($q) {
-                    $q->whereNotNull('student_id')
-                      ->orWhere('is_shared', true);
-                })
-                ->count();
-            if ($processedCount > 0) {
-                $message .= " {$processedCount} assigned transaction(s) processed and credited to swimming wallets.";
-            }
-            $unassignedCount = $marked - $processedCount;
-            if ($unassignedCount > 0) {
-                $message .= " {$unassignedCount} unassigned transaction(s) moved to swimming tab - allocate to students to credit wallets.";
+            $messageParts[] = "Marked {$marked} new transaction(s) as swimming.";
+        }
+        
+        if ($skipped > 0 && $processed > 0) {
+            $messageParts[] = "Processed {$processed} already-marked swimming transaction(s) and credited wallets.";
+        } elseif ($processed > 0) {
+            $messageParts[] = "Processed {$processed} assigned transaction(s) and credited to swimming wallets.";
+        }
+        
+        if ($skipped > 0 && $processed == 0) {
+            $messageParts[] = "{$skipped} transaction(s) already marked as swimming.";
+        }
+        
+        // Count unassigned transactions
+        $unassignedCount = 0;
+        foreach ($transactions as $transaction) {
+            $isAssigned = ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations));
+            if (!$isAssigned) {
+                $unassignedCount++;
             }
         }
+        
+        if ($unassignedCount > 0) {
+            $messageParts[] = "{$unassignedCount} unassigned transaction(s) moved to swimming tab - allocate to students to credit wallets.";
+        }
+        
+        $message = !empty($messageParts) ? implode(' ', $messageParts) : "No changes made.";
+        
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 3));
         }
