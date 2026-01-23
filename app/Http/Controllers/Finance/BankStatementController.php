@@ -2885,6 +2885,26 @@ class BankStatementController extends Controller
                 
                 if ($isAssigned && !$hasAllocations && $isBank) {
                     // Only process bank transactions (C2B processing would need separate logic)
+                    // First validate that students exist
+                    $hasValidStudents = false;
+                    if ($transaction->student_id) {
+                        $hasValidStudents = \App\Models\Student::where('id', $transaction->student_id)->exists();
+                    } elseif ($transaction->is_shared && $transaction->shared_allocations) {
+                        $studentIds = array_column($transaction->shared_allocations, 'student_id');
+                        $validCount = \App\Models\Student::whereIn('id', $studentIds)->count();
+                        $hasValidStudents = $validCount > 0;
+                    }
+                    
+                    if (!$hasValidStudents) {
+                        $errors[] = "Transaction #{$transaction->id}: Cannot process - assigned student(s) not found. Please reassign to valid student(s) before processing.";
+                        Log::warning('Skipping swimming transaction processing - invalid students', [
+                            'transaction_id' => $transaction->id,
+                            'student_id' => $transaction->student_id,
+                            'is_shared' => $transaction->is_shared ?? false,
+                        ]);
+                        continue; // Skip processing but don't fail the entire operation
+                    }
+                    
                     try {
                         $this->processSwimmingTransaction($transaction);
                         $processed++;
@@ -2901,7 +2921,12 @@ class BankStatementController extends Controller
                             'transaction_id' => $transaction->id,
                             'error' => $e->getMessage(),
                         ]);
-                        $errors[] = "Transaction #{$transaction->id}: Failed to process - " . $e->getMessage();
+                        // Provide more user-friendly error message
+                        $errorMsg = $e->getMessage();
+                        if (strpos($errorMsg, 'No query results for model') !== false) {
+                            $errorMsg = "Student not found. Please reassign this transaction to a valid student.";
+                        }
+                        $errors[] = "Transaction #{$transaction->id}: " . $errorMsg;
                     }
                 }
             } catch (\Exception $e) {
@@ -2947,7 +2972,22 @@ class BankStatementController extends Controller
         $message = !empty($messageParts) ? implode(' ', $messageParts) : "No changes made.";
         
         if (!empty($errors)) {
-            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 3));
+            // Format errors more user-friendly
+            $formattedErrors = array_map(function($error) {
+                // Clean up technical error messages
+                if (strpos($error, 'No query results for model') !== false) {
+                    preg_match('/\[App\\\\Models\\\\Student\] (\d+)/', $error, $matches);
+                    if (isset($matches[1])) {
+                        return "Transaction has invalid student ID {$matches[1]} (student may have been deleted). Please reassign.";
+                    }
+                }
+                return $error;
+            }, array_slice($errors, 0, 5));
+            
+            $message .= " " . count($errors) . " error(s): " . implode('; ', $formattedErrors);
+            if (count($errors) > 5) {
+                $message .= " (and " . (count($errors) - 5) . " more)";
+            }
         }
 
         return redirect()
@@ -3266,17 +3306,31 @@ class BankStatementController extends Controller
         
         // Create allocations based on student assignment
         $allocations = [];
+        $invalidStudents = [];
         
         if ($transaction->is_shared && $transaction->shared_allocations) {
             // Shared payment - allocate to multiple students
             foreach ($transaction->shared_allocations as $allocation) {
+                $studentId = $allocation['student_id'];
+                // Validate student exists
+                if (!\App\Models\Student::where('id', $studentId)->exists()) {
+                    $invalidStudents[] = $studentId;
+                    Log::warning('Invalid student ID in shared allocation', [
+                        'transaction_id' => $transaction->id,
+                        'student_id' => $studentId,
+                    ]);
+                    continue; // Skip this allocation
+                }
                 $allocations[] = [
-                    'student_id' => $allocation['student_id'],
+                    'student_id' => $studentId,
                     'amount' => $allocation['amount'],
                 ];
             }
         } elseif ($transaction->student_id) {
-            // Single student payment
+            // Single student payment - validate student exists
+            if (!\App\Models\Student::where('id', $transaction->student_id)->exists()) {
+                throw new \Exception("Student ID {$transaction->student_id} not found. The student may have been deleted. Please reassign this transaction to a valid student.");
+            }
             $allocations[] = [
                 'student_id' => $transaction->student_id,
                 'amount' => $transaction->amount,
@@ -3284,7 +3338,19 @@ class BankStatementController extends Controller
         }
         
         if (empty($allocations)) {
+            if (!empty($invalidStudents)) {
+                throw new \Exception('No valid students found. Student IDs ' . implode(', ', $invalidStudents) . ' do not exist. Please reassign this transaction to valid students.');
+            }
             throw new \Exception('No students assigned to transaction');
+        }
+        
+        // Log warning if some students were invalid
+        if (!empty($invalidStudents)) {
+            Log::warning('Some students in shared allocation were invalid', [
+                'transaction_id' => $transaction->id,
+                'invalid_student_ids' => $invalidStudents,
+                'valid_allocations' => count($allocations),
+            ]);
         }
         
         // Create swimming allocations
