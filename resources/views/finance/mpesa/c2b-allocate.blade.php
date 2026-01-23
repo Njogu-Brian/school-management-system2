@@ -232,6 +232,10 @@ $(document).ready(function() {
         if (isSwimming) {
             $('#invoiceAllocationSection').hide();
             $('#multiStudentSection').show();
+            // If student is already selected, load siblings
+            if (selectedStudent) {
+                loadSiblings(selectedStudent);
+            }
         } else {
             $('#multiStudentSection').hide();
             if (selectedStudent) {
@@ -240,6 +244,12 @@ $(document).ready(function() {
         }
         updateSubmitButton();
     });
+    
+    // Initialize swimming section visibility
+    if (isSwimming) {
+        $('#multiStudentSection').show();
+        $('#invoiceAllocationSection').hide();
+    }
     
     // Watch for student selection
     $(document).on('studentSelected', function(e, student) {
@@ -365,11 +375,19 @@ function loadSiblings(student) {
 
 function displaySiblings(siblings, selectedStudentId) {
     if (siblings.length === 0) {
+        // No siblings found, but still allow single student allocation
         $('#siblingsList').html(`
             <div class="text-center text-muted py-3">
-                <i class="bi bi-info-circle"></i> No siblings found
+                <i class="bi bi-info-circle"></i> No siblings found. Payment will be allocated to selected student only.
             </div>
         `);
+        // Set allocation to selected student with full amount
+        const remainingAmount = parseFloat($('#paymentAmount').val());
+        siblingAllocations = [{
+            student_id: selectedStudentId,
+            amount: remainingAmount
+        }];
+        updateSiblingAllocations();
         return;
     }
     
@@ -419,6 +437,21 @@ function displaySiblings(siblings, selectedStudentId) {
 }
 
 function updateSiblingAllocations() {
+    // If no input fields exist (single student, no siblings), keep existing allocations
+    if ($('.sibling-allocation-input').length === 0) {
+        // Check if we have allocations already set (from displaySiblings when no siblings)
+        if (siblingAllocations.length > 0) {
+            let total = siblingAllocations.reduce((sum, a) => sum + a.amount, 0);
+            $('#totalSiblingAllocated').text('KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            let remaining = transactionAmount - total;
+            if (Math.abs(remaining) < 0.01) {
+                $('#remainingSiblingAmount').html('<span class="text-success">(Fully allocated)</span>');
+            }
+            updateSubmitButton();
+        }
+        return;
+    }
+    
     siblingAllocations = [];
     let total = 0;
     
@@ -572,9 +605,15 @@ function updateSubmitButton() {
         let remaining = paymentAmount - totalSiblingAllocated;
         
         // For swimming, we need at least one student with amount > 0
-        hasValidAllocations = siblingAllocations.length > 0 && 
-                              siblingAllocations.some(a => a.amount > 0) &&
-                              Math.abs(remaining) < 0.01; // Must fully allocate
+        // If no siblings found, allow single student allocation (will be handled in displaySiblings)
+        if ($('#multiStudentSection').is(':visible')) {
+            hasValidAllocations = siblingAllocations.length > 0 && 
+                                  siblingAllocations.some(a => a.amount > 0) &&
+                                  Math.abs(remaining) < 0.01; // Must fully allocate
+        } else {
+            // Section not visible yet, but student is selected - allow if student exists
+            hasValidAllocations = hasStudent;
+        }
     } else {
         // For regular transactions, check invoice allocations
         let totalAllocated = allocations.reduce((sum, a) => sum + a.amount, 0);

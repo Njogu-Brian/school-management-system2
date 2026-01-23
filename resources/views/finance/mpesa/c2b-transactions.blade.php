@@ -96,12 +96,12 @@
                                 </td>
                                 <td>
                                     @if($transaction->allocation_status === 'unallocated' || !$transaction->student_id)
-                                        <a href="{{ route('finance.mpesa.c2b.allocate', $transaction->id) }}" 
+                                        <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" 
                                            class="btn btn-sm btn-finance btn-finance-primary">
                                             <i class="bi bi-person-plus"></i> Allocate
                                         </a>
                                     @else
-                                        <a href="{{ route('finance.mpesa.c2b.show', $transaction->id) }}" 
+                                        <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" 
                                            class="btn btn-sm btn-finance btn-finance-outline">
                                             <i class="bi bi-eye"></i> View
                                         </a>

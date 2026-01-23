@@ -482,7 +482,7 @@
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if($txnMatchStatus === 'unmatched' || !$txnStudentId)
-                                            <a href="{{ route('finance.mpesa.c2b.allocate', $transaction->id) }}" class="btn btn-finance btn-finance-primary" title="Allocate">
+                                            <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" class="btn btn-finance btn-finance-primary" title="Allocate">
                                                 <i class="bi bi-person-plus"></i>
                                             </a>
                                         @endif
