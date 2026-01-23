@@ -34,5 +34,5 @@
 </div>
 
 @pushOnce('scripts')
-<script src="{{ asset('js/student-live-search.js') }}"></script>
+<script src="{{ asset('js/student-live-search.js') }}?v={{ time() }}"></script>
 @endPushOnce

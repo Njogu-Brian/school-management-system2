@@ -44,7 +44,9 @@
                 }
                 
                 // Display with class if available
-                const classDisplay = stu.classroom_name ? ` - ${stu.classroom_name}` : '';
+                const classDisplay = (stu.classroom_name && stu.classroom_name.trim() !== '') 
+                    ? ` - ${stu.classroom_name}` 
+                    : '';
                 a.innerHTML = `${stu.full_name} (${stu.admission_number})${classDisplay}${badges}`;
                 a.addEventListener('click', (e) => {
                     e.preventDefault();
