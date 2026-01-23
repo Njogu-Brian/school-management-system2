@@ -43,11 +43,16 @@
                     badges += ' <span class="badge bg-secondary">Archived</span>';
                 }
                 
-                a.innerHTML = `${stu.full_name} (${stu.admission_number})${badges}`;
+                // Display with class if available
+                const classDisplay = stu.classroom_name ? ` - ${stu.classroom_name}` : '';
+                a.innerHTML = `${stu.full_name} (${stu.admission_number})${classDisplay}${badges}`;
                 a.addEventListener('click', (e) => {
                     e.preventDefault();
                     hidden.value = stu.id;
-                    input.value = `${stu.full_name} (${stu.admission_number})`;
+                    const displayValue = stu.classroom_name 
+                        ? `${stu.full_name} (${stu.admission_number}) - ${stu.classroom_name}`
+                        : `${stu.full_name} (${stu.admission_number})`;
+                    input.value = displayValue;
                     if (enableBtn) enableBtn.disabled = false;
                     results.classList.add('d-none');
                     window.dispatchEvent(new CustomEvent('student-selected', { detail: stu }));

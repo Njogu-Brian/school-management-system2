@@ -13,6 +13,7 @@ use App\Models\MpesaC2BTransaction;
 use App\Services\PaymentGateways\MpesaGateway;
 use App\Services\PaymentAllocationService;
 use App\Services\MpesaSmartMatchingService;
+use App\Services\SwimmingWalletService;
 use App\Services\SMSService;
 use App\Services\EmailService;
 use App\Services\WhatsAppService;
@@ -29,6 +30,7 @@ class MpesaPaymentController extends Controller
     protected MpesaGateway $mpesaGateway;
     protected PaymentAllocationService $allocationService;
     protected MpesaSmartMatchingService $smartMatchingService;
+    protected SwimmingWalletService $swimmingWalletService;
     protected SMSService $smsService;
     protected EmailService $emailService;
     protected WhatsAppService $whatsappService;
@@ -37,6 +39,7 @@ class MpesaPaymentController extends Controller
         MpesaGateway $mpesaGateway,
         PaymentAllocationService $allocationService,
         MpesaSmartMatchingService $smartMatchingService,
+        SwimmingWalletService $swimmingWalletService,
         SMSService $smsService,
         EmailService $emailService,
         WhatsAppService $whatsappService
@@ -44,6 +47,7 @@ class MpesaPaymentController extends Controller
         $this->mpesaGateway = $mpesaGateway;
         $this->allocationService = $allocationService;
         $this->smartMatchingService = $smartMatchingService;
+        $this->swimmingWalletService = $swimmingWalletService;
         $this->smsService = $smsService;
         $this->emailService = $emailService;
         $this->whatsappService = $whatsappService;
@@ -1353,6 +1357,9 @@ class MpesaPaymentController extends Controller
             'last_name' => $student->last_name,
             'full_name' => $student->full_name, // Add full_name for compatibility
             'admission_number' => $student->admission_number,
+            'classroom_id' => $student->classroom_id,
+            'classroom_name' => $student->classroom ? $student->classroom->name : null,
+            'family_id' => $student->family_id,
             'classroom' => $student->classroom ? [
                 'id' => $student->classroom->id,
                 'name' => $student->classroom->name,
@@ -1604,69 +1611,153 @@ class MpesaPaymentController extends Controller
      */
     public function c2bAllocate(Request $request, $id)
     {
-        $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'amount' => 'required|numeric|min:1',
-            'payment_method' => 'required|in:mpesa',
-            'allocations' => 'required|array|min:1',
-            'allocations.*.invoice_id' => 'required|exists:invoices,id',
-            'allocations.*.amount' => 'required|numeric|min:1',
-        ]);
+        $isSwimming = $request->boolean('is_swimming_transaction', false);
+        
+        if ($isSwimming) {
+            // Validation for swimming transactions (sibling allocations)
+            $request->validate([
+                'student_id' => 'required|exists:students,id',
+                'amount' => 'required|numeric|min:1',
+                'payment_method' => 'required|in:mpesa',
+                'sibling_allocations' => 'required|array|min:1',
+                'sibling_allocations.*.student_id' => 'required|exists:students,id',
+                'sibling_allocations.*.amount' => 'required|numeric|min:0.01',
+            ]);
+        } else {
+            // Validation for regular transactions (invoice allocations)
+            $request->validate([
+                'student_id' => 'required|exists:students,id',
+                'amount' => 'required|numeric|min:1',
+                'payment_method' => 'required|in:mpesa',
+                'allocations' => 'required|array|min:1',
+                'allocations.*.invoice_id' => 'required|exists:invoices,id',
+                'allocations.*.amount' => 'required|numeric|min:1',
+            ]);
+        }
 
         $transaction = MpesaC2BTransaction::findOrFail($id);
 
         try {
             DB::beginTransaction();
 
-            $student = Student::findOrFail($request->student_id);
-
-            // Create payment record
-            $payment = Payment::create([
-                'student_id' => $student->id,
-                'amount' => $request->amount,
-                'payment_method' => 'mpesa',
-                'payment_date' => $transaction->trans_time,
-                'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
-                'transaction_id' => $transaction->trans_id,
-                'status' => 'approved',
-                'notes' => 'M-PESA Paybill payment - ' . $transaction->full_name,
-                'created_by' => Auth::id(),
-            ]);
-
-            // Allocate to invoices
-            foreach ($request->allocations as $allocation) {
-                $invoice = Invoice::findOrFail($allocation['invoice_id']);
-                $allocationAmount = $allocation['amount'];
-
-                PaymentAllocation::create([
-                    'payment_id' => $payment->id,
-                    'invoice_id' => $invoice->id,
-                    'amount' => $allocationAmount,
-                ]);
-
-                // Update invoice
-                $invoice->amount_paid += $allocationAmount;
-                if ($invoice->amount_paid >= $invoice->total_amount) {
-                    $invoice->status = 'paid';
-                }
-                $invoice->save();
+            // Mark transaction as swimming if applicable
+            if ($isSwimming) {
+                $transaction->update(['is_swimming_transaction' => true]);
             }
 
-            // Update C2B transaction
-            $transaction->allocate($student, null, $payment, $request->amount);
+            if ($isSwimming) {
+                // Handle swimming transaction - allocate to wallet balances
+                $totalAllocated = 0;
+                $payments = [];
+                
+                foreach ($request->sibling_allocations as $allocation) {
+                    $student = Student::findOrFail($allocation['student_id']);
+                    $allocationAmount = (float) $allocation['amount'];
+                    
+                    if ($allocationAmount <= 0) {
+                        continue;
+                    }
+                    
+                    $totalAllocated += $allocationAmount;
+                    
+                    // Create payment record for this student
+                    $payment = Payment::create([
+                        'student_id' => $student->id,
+                        'amount' => $allocationAmount,
+                        'payment_method' => 'mpesa',
+                        'payment_date' => $transaction->trans_time,
+                        'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                        'transaction_id' => $transaction->trans_id,
+                        'status' => 'approved',
+                        'notes' => 'M-PESA Paybill swimming payment - ' . $transaction->full_name . ' (Shared: ' . count($request->sibling_allocations) . ' students)',
+                        'created_by' => Auth::id(),
+                    ]);
+                    
+                    $payments[] = $payment;
+                    
+                    // Credit swimming wallet
+                    $this->swimmingWalletService->creditFromTransaction(
+                        $student,
+                        $payment,
+                        $allocationAmount,
+                        "Swimming payment from M-PESA transaction #{$transaction->trans_id}"
+                    );
+                    
+                    // Mark payment as fully allocated (goes to wallet, not invoices)
+                    $payment->update([
+                        'allocated_amount' => $allocationAmount,
+                        'unallocated_amount' => 0,
+                    ]);
+                }
+                
+                // Update C2B transaction with primary student (first one)
+                $primaryStudent = Student::findOrFail($request->student_id);
+                $primaryPayment = $payments[0] ?? null;
+                
+                if ($primaryPayment) {
+                    $transaction->allocate($primaryStudent, null, $primaryPayment, $totalAllocated);
+                }
+                
+                $receiptNumbers = implode(', ', array_map(fn($p) => $p->receipt_number, $payments));
+                
+            } else {
+                // Handle regular transaction - allocate to invoices
+                $student = Student::findOrFail($request->student_id);
+
+                // Create payment record
+                $payment = Payment::create([
+                    'student_id' => $student->id,
+                    'amount' => $request->amount,
+                    'payment_method' => 'mpesa',
+                    'payment_date' => $transaction->trans_time,
+                    'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                    'transaction_id' => $transaction->trans_id,
+                    'status' => 'approved',
+                    'notes' => 'M-PESA Paybill payment - ' . $transaction->full_name,
+                    'created_by' => Auth::id(),
+                ]);
+
+                // Allocate to invoices
+                foreach ($request->allocations as $allocation) {
+                    $invoice = Invoice::findOrFail($allocation['invoice_id']);
+                    $allocationAmount = $allocation['amount'];
+
+                    PaymentAllocation::create([
+                        'payment_id' => $payment->id,
+                        'invoice_id' => $invoice->id,
+                        'amount' => $allocationAmount,
+                    ]);
+
+                    // Update invoice
+                    $invoice->amount_paid += $allocationAmount;
+                    if ($invoice->amount_paid >= $invoice->total_amount) {
+                        $invoice->status = 'paid';
+                    }
+                    $invoice->save();
+                }
+
+                // Update C2B transaction
+                $transaction->allocate($student, null, $payment, $request->amount);
+                
+                $receiptNumbers = $payment->receipt_number;
+            }
 
             DB::commit();
 
             Log::info('C2B transaction allocated', [
                 'transaction_id' => $transaction->id,
-                'payment_id' => $payment->id,
-                'student_id' => $student->id,
+                'is_swimming' => $isSwimming,
+                'student_id' => $request->student_id,
                 'amount' => $request->amount,
             ]);
 
+            $message = $isSwimming 
+                ? "Swimming payment allocated to " . count($request->sibling_allocations) . " student(s) successfully! Receipt(s): " . $receiptNumbers
+                : "Transaction allocated successfully! Receipt: " . $receiptNumbers;
+
             return redirect()
                 ->route('finance.mpesa.c2b.dashboard')
-                ->with('success', 'Transaction allocated successfully! Receipt: ' . $payment->receipt_number);
+                ->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();
             
