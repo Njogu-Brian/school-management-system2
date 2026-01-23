@@ -73,16 +73,6 @@ class BankStatementController extends Controller
         $view = $request->get('view', 'all');
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
         
-        // Helper to exclude swimming transactions
-        $excludeSwimming = function($q) use ($hasSwimmingColumn) {
-            if ($hasSwimmingColumn) {
-                $q->where(function($subQ) {
-                    $subQ->where('is_swimming_transaction', false)
-                         ->orWhereNull('is_swimming_transaction');
-                });
-            }
-        };
-        
         switch ($view) {
             case 'auto-assigned':
                 $query->where('match_status', 'matched')
@@ -91,7 +81,6 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
-                $excludeSwimming($query);
                 break;
             case 'manual-assigned':
                 $query->where('match_status', 'manual')
@@ -99,7 +88,6 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
-                $excludeSwimming($query);
                 break;
             case 'draft':
                 // Transactions that system has seen potential but not sure
@@ -116,7 +104,6 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit'); // Only credit transactions
-                $excludeSwimming($query);
                 break;
             case 'unassigned':
                 $query->where('match_status', 'unmatched')
@@ -124,7 +111,6 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
-                $excludeSwimming($query);
                 break;
             case 'confirmed':
                 // Confirmed transactions that haven't been collected yet
@@ -133,7 +119,6 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
-                $excludeSwimming($query);
                 break;
             case 'collected':
                 // Confirmed transactions where payment has been created
@@ -142,16 +127,13 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
-                $excludeSwimming($query);
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
                       ->where('is_archived', false);
-                $excludeSwimming($query);
                 break;
             case 'archived':
                 $query->where('is_archived', true);
-                $excludeSwimming($query);
                 break;
             case 'swimming':
                 // Swimming transactions (only if column exists)
@@ -167,7 +149,6 @@ class BankStatementController extends Controller
                 // Show all non-archived, non-debit, non-swimming transactions by default
                 $query->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Exclude debit transactions
-                $excludeSwimming($query);
         }
 
         // Additional filters
@@ -195,23 +176,6 @@ class BankStatementController extends Controller
             $query->where('transaction_date', '<=', $request->date_to);
         }
 
-        // Swimming transaction filter (only if column exists)
-        // Only allow filtering when in 'swimming' view or 'all' view
-        // In other views, swimming transactions are automatically excluded
-        if ($request->filled('is_swimming') && Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
-            // If view is 'swimming', don't apply additional filter (already filtered)
-            if ($view !== 'swimming') {
-                if ($request->is_swimming == '0') {
-                    // Allow excluding swimming in other views
-                    $query->where(function($q) {
-                        $q->where('is_swimming_transaction', false)
-                          ->orWhereNull('is_swimming_transaction');
-                    });
-                }
-                // If is_swimming == '1' but view is not 'swimming', ignore it (swimming already excluded)
-            }
-        }
-
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -224,6 +188,15 @@ class BankStatementController extends Controller
                         ->orWhere('first_name', 'LIKE', "%{$search}%")
                         ->orWhere('last_name', 'LIKE', "%{$search}%");
                   });
+            });
+        }
+        
+        // CRITICAL: Apply swimming exclusion as the FINAL constraint after all other filters
+        // Swimming transactions MUST ONLY appear in 'swimming' view - this cannot be overridden
+        if ($view !== 'swimming' && $hasSwimmingColumn) {
+            $query->where(function($q) {
+                $q->where('is_swimming_transaction', false)
+                  ->orWhereNull('is_swimming_transaction');
             });
         }
 
