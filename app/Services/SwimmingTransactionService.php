@@ -175,8 +175,12 @@ class SwimmingTransactionService
         
         foreach ($allocations as $allocation) {
             try {
-                // Find or create payment from transaction
-                $payment = $this->getOrCreatePaymentFromTransaction($allocation->bankStatementTransaction, $allocation->student);
+                // Find or create payment from transaction (pass allocation amount for shared transactions)
+                $payment = $this->getOrCreatePaymentFromTransaction(
+                    $allocation->bankStatementTransaction, 
+                    $allocation->student,
+                    $allocation->amount // Pass allocation amount for shared transactions
+                );
                 
                 // Credit wallet
                 $this->walletService->creditFromTransaction(
@@ -224,40 +228,57 @@ class SwimmingTransactionService
 
     /**
      * Get or create payment from transaction
+     * For shared transactions, creates one payment per student with their allocated amount
      */
-    protected function getOrCreatePaymentFromTransaction(BankStatementTransaction $transaction, Student $student): Payment
+    protected function getOrCreatePaymentFromTransaction(BankStatementTransaction $transaction, Student $student, ?float $allocationAmount = null): Payment
     {
-        // Check if payment already exists
-        if ($transaction->payment_id) {
-            $payment = Payment::find($transaction->payment_id);
-            if ($payment && $payment->student_id === $student->id) {
-                return $payment;
+        // For shared transactions, check if payment already exists for this student
+        // Use transaction_code + student_id to find existing payment
+        if ($transaction->reference_number) {
+            $existingPayment = Payment::where('transaction_code', $transaction->reference_number)
+                ->where('student_id', $student->id)
+                ->where('reversed', false)
+                ->first();
+            
+            if ($existingPayment) {
+                return $existingPayment;
             }
         }
+        
+        // Use allocation amount if provided (for shared transactions), otherwise use full transaction amount
+        $paymentAmount = $allocationAmount ?? $transaction->amount;
         
         // Create new payment
         $paymentMethod = \App\Models\PaymentMethod::where('name', 'like', '%bank%')->first();
         
+        // For shared transactions, use modified transaction_code to avoid unique constraint
+        $transactionCode = $transaction->reference_number;
+        if ($transaction->is_shared && $allocationAmount) {
+            $transactionCode = $transaction->reference_number . '-SWIM-' . $student->id;
+        }
+        
         $payment = Payment::create([
             'student_id' => $student->id,
             'family_id' => $student->family_id,
-            'amount' => $transaction->amount,
+            'amount' => $paymentAmount,
             'payment_method_id' => $paymentMethod?->id,
             'payment_method' => $paymentMethod?->name ?? 'Bank Transfer',
-            'transaction_code' => $transaction->reference_number,
-            'receipt_number' => 'SWIM-' . $transaction->id . '-' . time(),
+            'transaction_code' => $transactionCode,
+            'receipt_number' => 'SWIM-' . $transaction->id . '-' . $student->id . '-' . time(),
             'payer_name' => $transaction->payer_name ?? $student->first_name . ' ' . $student->last_name,
             'payer_type' => 'parent',
             'narration' => $transaction->description . ' (Swimming)',
             'payment_date' => $transaction->transaction_date,
             'bank_account_id' => $transaction->bank_account_id,
             // Mark as allocated since swimming payments go directly to wallet (not to invoice items)
-            'allocated_amount' => $transaction->amount,
+            'allocated_amount' => $paymentAmount,
             'unallocated_amount' => 0,
         ]);
         
-        // Link transaction to payment
-        $transaction->update(['payment_id' => $payment->id]);
+        // Link transaction to first payment (for reference)
+        if (!$transaction->payment_id) {
+            $transaction->update(['payment_id' => $payment->id]);
+        }
         
         return $payment;
     }

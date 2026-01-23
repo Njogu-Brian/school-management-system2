@@ -1260,6 +1260,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm'])->name('confirm');
             Route::post('/{bankStatement}/create-payment', [\App\Http\Controllers\Finance\BankStatementController::class, 'createPayment'])->name('create-payment');
             Route::post('/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject'])->name('reject');
+            Route::post('/{bankStatement}/resolve-conflict/reverse', [\App\Http\Controllers\Finance\BankStatementController::class, 'resolveConflictReverse'])->name('resolve-conflict.reverse');
+            Route::post('/{bankStatement}/resolve-conflict/keep', [\App\Http\Controllers\Finance\BankStatementController::class, 'resolveConflictKeep'])->name('resolve-conflict.keep');
+            Route::post('/{bankStatement}/resolve-conflict/create-new', [\App\Http\Controllers\Finance\BankStatementController::class, 'resolveConflictCreateNew'])->name('resolve-conflict.create-new');
             Route::post('/{bankStatement}/share', [\App\Http\Controllers\Finance\BankStatementController::class, 'share'])->name('share');
             Route::put('/{bankStatement}/update-allocations', [\App\Http\Controllers\Finance\BankStatementController::class, 'updateAllocations'])->name('update-allocations');
             Route::get('/{bankStatement}/view-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'viewPdf'])->name('view-pdf');

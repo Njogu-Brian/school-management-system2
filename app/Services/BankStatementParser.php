@@ -1433,33 +1433,54 @@ class BankStatementParser
                 return $existingPayment;
             }
             
-            // Check if transaction code (original or modified) is already used
-            $originalCode = $transaction->reference_number;
-            $modifiedCode = $originalCode . '-' . $transaction->id;
+            // Check if ANY payment exists with same transaction_code + student_id (unique constraint)
+            // Throw exception to let user decide: reverse existing, keep existing, or create with different code
+            $conflictingPayments = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+                ->where('student_id', $student->id)
+                ->with('student')
+                ->get();
             
-            // Check both original and modified codes
-            $codeExists = \App\Models\Payment::whereIn('transaction_code', [$originalCode, $modifiedCode])->exists();
-            
-            if ($codeExists) {
-                // Generate a unique transaction code by appending transaction ID and timestamp
-                $uniqueSuffix = $transaction->id . '-' . time();
-                $transactionCode = $originalCode . '-' . $uniqueSuffix;
+            if ($conflictingPayments->isNotEmpty()) {
+                // A payment with this transaction_code + student_id already exists
+                // Throw exception so controller can show user options
+                throw new \App\Exceptions\PaymentConflictException(
+                    $conflictingPayments->toArray(),
+                    $student->id,
+                    $transaction->reference_number,
+                    $transaction->id,
+                    "A payment already exists for student {$student->full_name} with transaction code {$transaction->reference_number}"
+                );
+            } else {
+                // Check if transaction code (original or modified) is already used by other students
+                $originalCode = $transaction->reference_number;
+                $modifiedCode = $originalCode . '-' . $transaction->id;
                 
-                // Double-check the new code doesn't exist (very unlikely but possible)
-                $maxAttempts = 5;
-                $attempt = 0;
-                while (\App\Models\Payment::where('transaction_code', $transactionCode)->exists() && $attempt < $maxAttempts) {
-                    $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+                // Check both original and modified codes (for other students)
+                $codeExists = \App\Models\Payment::whereIn('transaction_code', [$originalCode, $modifiedCode])
+                    ->where('student_id', '!=', $student->id)
+                    ->exists();
+                
+                if ($codeExists) {
+                    // Generate a unique transaction code by appending transaction ID and timestamp
+                    $uniqueSuffix = $transaction->id . '-' . time();
                     $transactionCode = $originalCode . '-' . $uniqueSuffix;
-                    $attempt++;
-                    usleep(10000); // 0.01 seconds
+                    
+                    // Double-check the new code doesn't exist for this student (very unlikely but possible)
+                    $maxAttempts = 5;
+                    $attempt = 0;
+                    while (\App\Models\Payment::where('transaction_code', $transactionCode)->where('student_id', $student->id)->exists() && $attempt < $maxAttempts) {
+                        $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+                        $transactionCode = $originalCode . '-' . $uniqueSuffix;
+                        $attempt++;
+                        usleep(10000); // 0.01 seconds
+                    }
+                    
+                    Log::warning('Transaction code already exists for other students, using modified code', [
+                        'original_code' => $originalCode,
+                        'new_code' => $transactionCode,
+                        'transaction_id' => $transaction->id,
+                    ]);
                 }
-                
-                Log::warning('Transaction code already exists, using modified code', [
-                    'original_code' => $originalCode,
-                    'new_code' => $transactionCode,
-                    'transaction_id' => $transaction->id,
-                ]);
             }
         }
         

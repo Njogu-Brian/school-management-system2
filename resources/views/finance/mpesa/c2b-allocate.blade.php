@@ -195,6 +195,15 @@ $(document).ready(function() {
         if (student && student.id) {
             loadStudentInvoices(student.id);
             selectedStudent = student;
+            updateSubmitButton();
+        }
+    });
+    
+    // Watch for payment amount changes
+    $('#paymentAmount').on('input change', function() {
+        updateSubmitButton();
+        if ($('#invoiceAllocationSection').is(':visible')) {
+            updateAllocations();
         }
     });
 
@@ -202,6 +211,9 @@ $(document).ready(function() {
     @if($transaction->student_id)
         loadStudentInvoices({{ $transaction->student_id }});
     @endif
+    
+    // Initial button state check
+    updateSubmitButton();
 });
 
 function selectSuggestion(suggestion) {
@@ -228,7 +240,8 @@ function loadStudentInvoices(studentId) {
                     <small>The payment will be recorded as advance payment</small>
                 </div>
             `);
-            $('#submitBtn').prop('disabled', false);
+            allocations = []; // No allocations needed for advance payment
+            updateSubmitButton();
             return;
         }
 
@@ -278,10 +291,8 @@ function loadStudentInvoices(studentId) {
         // Bind input events
         $('.allocation-input').on('input', updateAllocations);
         
-        // Calculate initial totals
+        // Calculate initial totals and update button state
         updateAllocations();
-        
-        $('#submitBtn').prop('disabled', false);
     });
 }
 
@@ -318,6 +329,39 @@ function updateAllocations() {
         $('#remainingAmount').html('<span class="text-danger">(Over by: KES ' + Math.abs(remaining).toFixed(2) + ')</span>');
     } else {
         $('#remainingAmount').html('<span class="text-success">(Fully allocated)</span>');
+    }
+    
+    // Enable/disable submit button based on valid allocations
+    updateSubmitButton();
+}
+
+function updateSubmitButton() {
+    let studentId = $('#student_id').val();
+    let paymentAmount = parseFloat($('#paymentAmount').val()) || 0;
+    let totalAllocated = allocations.reduce((sum, a) => sum + a.amount, 0);
+    let remaining = paymentAmount - totalAllocated;
+    
+    // Button is enabled when:
+    // 1. Student is selected
+    // 2. Payment amount is valid (> 0)
+    // 3. Allocations are valid (total matches payment amount, or no invoices exist)
+    let hasStudent = studentId && studentId.length > 0;
+    let hasValidAmount = paymentAmount > 0;
+    let hasValidAllocations = false;
+    
+    // Check if invoice section is visible
+    if ($('#invoiceAllocationSection').is(':visible')) {
+        // If invoices exist, allocations must match payment amount (within 0.01 tolerance)
+        hasValidAllocations = Math.abs(remaining) < 0.01 && allocations.length > 0;
+    } else {
+        // If no invoices section (no unpaid invoices), allow submission
+        hasValidAllocations = true;
+    }
+    
+    if (hasStudent && hasValidAmount && hasValidAllocations) {
+        $('#submitBtn').prop('disabled', false).removeClass('btn-secondary').addClass('btn-primary');
+    } else {
+        $('#submitBtn').prop('disabled', true).removeClass('btn-primary').addClass('btn-secondary');
     }
 }
 

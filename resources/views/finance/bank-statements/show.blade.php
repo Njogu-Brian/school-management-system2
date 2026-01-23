@@ -10,6 +10,59 @@
 
     @include('finance.invoices.partials.alerts')
 
+    <!-- Payment Conflict Alert -->
+    @if(session('payment_conflict'))
+        @php
+            $conflict = session('payment_conflict');
+            $conflictingPayments = collect($conflict['conflicting_payments'])->map(function($p) {
+                return \App\Models\Payment::with('student')->find($p['id']);
+            })->filter();
+        @endphp
+        <div class="alert alert-warning alert-dismissible fade show finance-animate shadow-sm rounded-4 border-0 mb-4" role="alert">
+            <div class="d-flex align-items-start">
+                <div class="flex-shrink-0 me-3">
+                    <i class="bi bi-exclamation-triangle fs-4"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h5 class="alert-heading mb-2">
+                        <i class="bi bi-exclamation-circle"></i> Payment Conflict Detected
+                    </h5>
+                    <p class="mb-2">
+                        A payment already exists with the same transaction code <strong>{{ $conflict['transaction_code'] }}</strong> for one or more students in this transaction.
+                    </p>
+                    <p class="mb-2">
+                        <strong>Conflicting Payment(s):</strong>
+                    </p>
+                    <ul class="mb-3">
+                        @foreach($conflictingPayments as $payment)
+                            <li>
+                                <strong>#{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
+                                @if($payment->student)
+                                    - {{ $payment->student->full_name }} ({{ $payment->student->admission_number }})
+                                @endif
+                                - Ksh {{ number_format($payment->amount, 2) }}
+                                @if($payment->reversed)
+                                    <span class="badge bg-danger">Reversed</span>
+                                @else
+                                    <span class="badge bg-success">Active</span>
+                                @endif
+                                @if($payment->payment_date)
+                                    <br><small class="text-muted">Date: {{ \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') }}</small>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                    <p class="mb-0">
+                        <button type="button" class="btn btn-finance btn-finance-warning" data-bs-toggle="modal" data-bs-target="#paymentConflictModal">
+                            <i class="bi bi-gear"></i> Resolve Conflict
+                        </button>
+                    </p>
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
     <!-- Siblings Notification -->
     @if($bankStatement->student_id && count($siblings) > 0 && !$bankStatement->is_shared)
     <div class="alert alert-info alert-dismissible fade show finance-animate shadow-sm rounded-4 border-0 mb-4" role="alert">
@@ -717,6 +770,139 @@
             </div>
             @endif
 
+            <!-- Payment Conflict Resolution Modal -->
+            @if(session('payment_conflict'))
+                @php
+                    $conflict = session('payment_conflict');
+                    $conflictingPayments = collect($conflict['conflicting_payments'])->map(function($p) {
+                        return \App\Models\Payment::with('student')->find($p['id']);
+                    })->filter();
+                @endphp
+                <div class="modal fade" id="paymentConflictModal" tabindex="-1" aria-labelledby="paymentConflictModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header border-0 pb-0">
+                                <h5 class="modal-title" id="paymentConflictModalLabel">
+                                    <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Resolve Payment Conflict
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p class="mb-3">
+                                    A payment conflict was detected. Please choose how to resolve it:
+                                </p>
+                                <div class="alert alert-info mb-4">
+                                    <strong>Transaction Code:</strong> <code>{{ $conflict['transaction_code'] }}</code><br>
+                                    <strong>Affected Student(s):</strong> 
+                                    @foreach($conflictingPayments as $payment)
+                                        @if($payment->student)
+                                            {{ $payment->student->full_name }} ({{ $payment->student->admission_number }}){{ !$loop->last ? ', ' : '' }}
+                                        @endif
+                                    @endforeach
+                                </div>
+
+                                <h6 class="mb-3">Conflicting Payment(s):</h6>
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Receipt #</th>
+                                                <th>Student</th>
+                                                <th>Amount</th>
+                                                <th>Date</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($conflictingPayments as $payment)
+                                                <tr>
+                                                    <td><code>{{ $payment->receipt_number ?? $payment->transaction_code }}</code></td>
+                                                    <td>
+                                                        @if($payment->student)
+                                                            {{ $payment->student->full_name }}<br>
+                                                            <small class="text-muted">{{ $payment->student->admission_number }}</small>
+                                                        @else
+                                                            <span class="text-muted">N/A</span>
+                                                        @endif
+                                                    </td>
+                                                    <td>Ksh {{ number_format($payment->amount, 2) }}</td>
+                                                    <td>
+                                                        @if($payment->payment_date)
+                                                            {{ \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') }}
+                                                        @else
+                                                            <span class="text-muted">N/A</span>
+                                                        @endif
+                                                    </td>
+                                                    <td>
+                                                        @if($payment->reversed)
+                                                            <span class="badge bg-danger">Reversed</span>
+                                                        @else
+                                                            <span class="badge bg-success">Active</span>
+                                                        @endif
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <h6 class="mb-3">Choose an action:</h6>
+                                <div class="list-group">
+                                    @foreach($conflictingPayments as $payment)
+                                        @if($payment->student)
+                                            <div class="list-group-item">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <div>
+                                                        <strong>{{ $payment->student->full_name }}</strong> ({{ $payment->student->admission_number }})<br>
+                                                        <small class="text-muted">Receipt: {{ $payment->receipt_number ?? $payment->transaction_code }}</small>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <strong>Ksh {{ number_format($payment->amount, 2) }}</strong><br>
+                                                        @if($payment->reversed)
+                                                            <span class="badge bg-danger">Reversed</span>
+                                                        @else
+                                                            <span class="badge bg-success">Active</span>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                                <div class="btn-group w-100" role="group">
+                                                    @if(!$payment->reversed)
+                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.reverse', $bankStatement) }}" class="flex-fill">
+                                                            @csrf
+                                                            <input type="hidden" name="payment_id" value="{{ $payment->id }}">
+                                                            <input type="hidden" name="student_id" value="{{ $payment->student_id }}">
+                                                            <button type="submit" class="btn btn-finance btn-finance-warning w-100" onclick="return confirm('Reverse this payment and create a new one? This will undo all allocations.')">
+                                                                <i class="bi bi-arrow-counterclockwise"></i> Reverse & Create New
+                                                            </button>
+                                                        </form>
+                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.keep', $bankStatement) }}" class="flex-fill">
+                                                            @csrf
+                                                            <input type="hidden" name="payment_id" value="{{ $payment->id }}">
+                                                            <button type="submit" class="btn btn-finance btn-finance-success w-100">
+                                                                <i class="bi bi-check-circle"></i> Keep Existing
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                    <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.create-new', $bankStatement) }}" class="flex-fill">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-finance btn-finance-primary w-100">
+                                                            <i class="bi bi-plus-circle"></i> Create New (Different Code)
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
+                            <div class="modal-footer border-0 pt-0">
+                                <button type="button" class="btn btn-finance btn-finance-secondary" data-bs-dismiss="modal">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             <!-- Statement File Info -->
             @if($bankStatement->statement_file_path)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
@@ -739,6 +925,14 @@
                 && $bankStatement->is_swimming_transaction;
         @endphp
         const isSwimmingTransaction = @json($isSwimmingForJS);
+        
+        // Auto-show payment conflict modal if conflict exists
+        @if(session('payment_conflict'))
+            document.addEventListener('DOMContentLoaded', function() {
+                const conflictModal = new bootstrap.Modal(document.getElementById('paymentConflictModal'));
+                conflictModal.show();
+            });
+        @endif
         
         function updateTotal() {
             const amounts = Array.from(document.querySelectorAll('.sibling-amount')).map(input => parseFloat(input.value) || 0);

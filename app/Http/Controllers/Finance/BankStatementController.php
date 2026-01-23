@@ -874,19 +874,32 @@ class BankStatementController extends Controller
                             ]);
                         } else {
                             // Create payment with auto-allocation enabled
-                            $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
-                            
-                            // Ensure payment is allocated (double-check)
-                            if ($payment && $payment->unallocated_amount > 0) {
-                                try {
-                                    $allocationService = app(\App\Services\PaymentAllocationService::class);
-                                    $allocationService->autoAllocate($payment);
-                                } catch (\Exception $e) {
-                                    Log::warning('Post-creation auto-allocation failed for bank statement payment', [
-                                        'payment_id' => $payment->id,
-                                        'error' => $e->getMessage(),
-                                    ]);
+                            try {
+                                $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                                
+                                // Ensure payment is allocated (double-check)
+                                if ($payment && $payment->unallocated_amount > 0) {
+                                    try {
+                                        $allocationService = app(\App\Services\PaymentAllocationService::class);
+                                        $allocationService->autoAllocate($payment);
+                                    } catch (\Exception $e) {
+                                        Log::warning('Post-creation auto-allocation failed for bank statement payment', [
+                                            'payment_id' => $payment->id,
+                                            'error' => $e->getMessage(),
+                                        ]);
+                                    }
                                 }
+                            } catch (\App\Exceptions\PaymentConflictException $e) {
+                                // Payment conflict detected - redirect to show page with conflict info
+                                return redirect()
+                                    ->route('finance.bank-statements.show', $bankStatement)
+                                    ->with('payment_conflict', [
+                                        'conflicting_payments' => $e->conflictingPayments,
+                                        'student_id' => $e->studentId,
+                                        'transaction_code' => $e->transactionCode,
+                                        'message' => $e->getMessage(),
+                                    ])
+                                    ->with('error', 'Payment conflict detected. Please review the conflicting payment(s) and choose an action.');
                             }
                         }
                     }
@@ -1248,6 +1261,147 @@ class BankStatementController extends Controller
         return redirect()
             ->route('finance.bank-statements.show', $bankStatement)
             ->with('success', 'Transaction rejected and reset to unassigned. You can now manually match, allocate, confirm, and create payment.');
+    }
+
+    /**
+     * Handle payment conflict: reverse existing payment and create new one
+     */
+    public function resolveConflictReverse(Request $request, BankStatementTransaction $bankStatement)
+    {
+        $request->validate([
+            'payment_id' => 'required|exists:payments,id',
+            'student_id' => 'required|exists:students,id',
+        ]);
+
+        $this->authorize('update', $bankStatement);
+
+        DB::transaction(function () use ($bankStatement, $request) {
+            $payment = Payment::findOrFail($request->payment_id);
+            $student = Student::findOrFail($request->student_id);
+
+            // Reverse the conflicting payment
+            $invoiceIds = collect();
+            foreach ($payment->allocations as $allocation) {
+                if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                    $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                }
+            }
+            foreach ($payment->allocations as $allocation) {
+                $allocation->delete();
+            }
+            $payment->update([
+                'reversed' => true,
+                'reversed_by' => auth()->id(),
+                'reversed_at' => now(),
+                'reversal_reason' => 'Reversed to resolve payment conflict with transaction #' . $bankStatement->id,
+            ]);
+            foreach ($invoiceIds->unique() as $invoiceId) {
+                $invoice = \App\Models\Invoice::find($invoiceId);
+                if ($invoice) {
+                    \App\Services\InvoiceService::recalc($invoice);
+                }
+            }
+
+            // Now create new payment
+            $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+            
+            if ($payment && $payment->unallocated_amount > 0) {
+                try {
+                    $allocationService = app(\App\Services\PaymentAllocationService::class);
+                    $allocationService->autoAllocate($payment);
+                } catch (\Exception $e) {
+                    Log::warning('Auto-allocation failed after conflict resolution', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            if (isset($payment)) {
+                \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                    ->onQueue('default');
+            }
+        });
+
+        return redirect()
+            ->route('finance.bank-statements.show', $bankStatement)
+            ->with('success', 'Conflicting payment reversed and new payment created successfully.');
+    }
+
+    /**
+     * Handle payment conflict: keep existing payment and link to transaction
+     */
+    public function resolveConflictKeep(Request $request, BankStatementTransaction $bankStatement)
+    {
+        $request->validate([
+            'payment_id' => 'required|exists:payments,id',
+        ]);
+
+        $this->authorize('update', $bankStatement);
+
+        $payment = Payment::findOrFail($request->payment_id);
+
+        if ($payment->reversed) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Cannot link a reversed payment to this transaction.']);
+        }
+
+        // Link transaction to existing payment
+        $bankStatement->update([
+            'payment_id' => $payment->id,
+            'payment_created' => true,
+        ]);
+
+        return redirect()
+            ->route('finance.bank-statements.show', $bankStatement)
+            ->with('success', 'Transaction linked to existing payment successfully.');
+    }
+
+    /**
+     * Handle payment conflict: create new payment with different transaction code
+     */
+    public function resolveConflictCreateNew(Request $request, BankStatementTransaction $bankStatement)
+    {
+        $this->authorize('update', $bankStatement);
+
+        DB::transaction(function () use ($bankStatement) {
+            // For shared transactions, we need to create payments for all siblings
+            // Temporarily modify reference_number to force unique transaction codes
+            $originalRef = $bankStatement->reference_number;
+            $tempRef = $originalRef . '-NEW-' . $bankStatement->id . '-' . time();
+            
+            // Temporarily update reference_number
+            $bankStatement->update(['reference_number' => $tempRef]);
+            $bankStatement->refresh();
+            
+            try {
+                $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                
+                if ($payment && $payment->unallocated_amount > 0) {
+                    try {
+                        $allocationService = app(\App\Services\PaymentAllocationService::class);
+                        $allocationService->autoAllocate($payment);
+                    } catch (\Exception $e) {
+                        Log::warning('Auto-allocation failed after conflict resolution', [
+                            'payment_id' => $payment->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+
+                if (isset($payment)) {
+                    \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                        ->onQueue('default');
+                }
+            } finally {
+                // Restore original reference_number
+                $bankStatement->update(['reference_number' => $originalRef]);
+            }
+        });
+
+        return redirect()
+            ->route('finance.bank-statements.show', $bankStatement)
+            ->with('success', 'New payment(s) created with different transaction code successfully.');
     }
 
     /**
@@ -2668,12 +2822,21 @@ class BankStatementController extends Controller
                 $this->swimmingTransactionService->markAsSwimming($transaction);
                 $marked++;
                 
-                // If transaction is already confirmed, process it immediately
-                if ($transaction->status === 'confirmed' && $transaction->student_id) {
+                // If transaction is already assigned (manual/auto - has student_id or is_shared),
+                // process it immediately to credit swimming wallets
+                // Draft/unconfirmed transactions without assignments will wait for allocations
+                $isAssigned = ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations));
+                if ($isAssigned) {
                     try {
                         $this->processSwimmingTransaction($transaction);
+                        Log::info('Swimming transaction processed immediately after marking', [
+                            'transaction_id' => $transaction->id,
+                            'status' => $transaction->status,
+                            'has_student' => (bool)$transaction->student_id,
+                            'is_shared' => $transaction->is_shared,
+                        ]);
                     } catch (\Exception $e) {
-                        Log::warning('Failed to process already-confirmed swimming transaction', [
+                        Log::warning('Failed to process already-assigned swimming transaction', [
                             'transaction_id' => $transaction->id,
                             'error' => $e->getMessage(),
                         ]);
@@ -2691,12 +2854,20 @@ class BankStatementController extends Controller
 
         $message = "Marked {$marked} transaction(s) as swimming payments.";
         if ($marked > 0) {
-            $confirmedProcessed = BankStatementTransaction::whereIn('id', $transactionIds)
-                ->where('status', 'confirmed')
+            // Count transactions that were immediately processed (already assigned)
+            $processedCount = BankStatementTransaction::whereIn('id', $transactionIds)
                 ->where('is_swimming_transaction', true)
+                ->where(function($q) {
+                    $q->whereNotNull('student_id')
+                      ->orWhere('is_shared', true);
+                })
                 ->count();
-            if ($confirmedProcessed > 0) {
-                $message .= " Processing {$confirmedProcessed} confirmed transaction(s) for wallet allocation.";
+            if ($processedCount > 0) {
+                $message .= " {$processedCount} assigned transaction(s) processed and credited to swimming wallets.";
+            }
+            $unassignedCount = $marked - $processedCount;
+            if ($unassignedCount > 0) {
+                $message .= " {$unassignedCount} unassigned transaction(s) moved to swimming tab - allocate to students to credit wallets.";
             }
         }
         if (!empty($errors)) {
@@ -2704,7 +2875,7 @@ class BankStatementController extends Controller
         }
 
         return redirect()
-            ->route('finance.bank-statements.index')
+            ->route('finance.bank-statements.index', ['view' => 'swimming'])
             ->with($errors ? 'warning' : 'success', $message);
     }
 
