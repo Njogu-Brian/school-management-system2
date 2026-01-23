@@ -147,9 +147,11 @@ class BankStatementController extends Controller
             case 'duplicate':
                 $query->where('is_duplicate', true)
                       ->where('is_archived', false);
+                $excludeSwimming($query);
                 break;
             case 'archived':
                 $query->where('is_archived', true);
+                $excludeSwimming($query);
                 break;
             case 'swimming':
                 // Swimming transactions (only if column exists)
@@ -194,11 +196,19 @@ class BankStatementController extends Controller
         }
 
         // Swimming transaction filter (only if column exists)
+        // Only allow filtering when in 'swimming' view or 'all' view
+        // In other views, swimming transactions are automatically excluded
         if ($request->filled('is_swimming') && Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
-            if ($request->is_swimming == '1') {
-                $query->where('is_swimming_transaction', true);
-            } elseif ($request->is_swimming == '0') {
-                $query->where('is_swimming_transaction', false);
+            // If view is 'swimming', don't apply additional filter (already filtered)
+            if ($view !== 'swimming') {
+                if ($request->is_swimming == '0') {
+                    // Allow excluding swimming in other views
+                    $query->where(function($q) {
+                        $q->where('is_swimming_transaction', false)
+                          ->orWhereNull('is_swimming_transaction');
+                    });
+                }
+                // If is_swimming == '1' but view is not 'swimming', ignore it (swimming already excluded)
             }
         }
 
@@ -345,8 +355,21 @@ class BankStatementController extends Controller
                 ->count(),
             'duplicate' => BankStatementTransaction::where('is_duplicate', true)
                 ->where('is_archived', false)
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
                 ->count(),
-            'archived' => BankStatementTransaction::where('is_archived', true)->count(),
+            'archived' => BankStatementTransaction::where('is_archived', true)
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
+                ->count(),
             'swimming' => Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
                 ? BankStatementTransaction::where('is_swimming_transaction', true)
                     ->where('is_archived', false)
