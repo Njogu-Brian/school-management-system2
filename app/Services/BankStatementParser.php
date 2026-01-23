@@ -1266,10 +1266,12 @@ class BankStatementParser
             $transaction->update(['payment_created' => false, 'payment_id' => null]);
         }
         
-        // Check if payment already exists by transaction code
-        if ($transaction->reference_number) {
+        // Check if payment already exists by transaction code (exclude reversed – create new instead)
+        // Skip early return for shared transactions – we need to create ALL sibling payments
+        if ($transaction->reference_number && !($transaction->is_shared && $transaction->shared_allocations)) {
             $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
                 ->where('payment_date', $transaction->transaction_date)
+                ->where('reversed', false)
                 ->first();
             
             if ($existingPayment) {
@@ -1407,11 +1409,12 @@ class BankStatementParser
         
         // If using reference number, check if payment with this code already exists
         if ($transaction->reference_number) {
-            // First check for exact match (same student, amount, date)
+            // First check for exact match (same student, amount, date); exclude reversed
             $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
                 ->where('student_id', $student->id)
                 ->where('amount', $amount)
                 ->where('payment_date', $transaction->transaction_date)
+                ->where('reversed', false)
                 ->first();
             
             if ($existingPayment) {

@@ -512,6 +512,14 @@
                                         @endif
                                     @endif
                                     @endif
+                                    @if(!$isC2B && $txnStatus !== 'rejected' && !$txnIsArchived)
+                                        <form method="POST" action="{{ route('finance.bank-statements.reject', $transaction) }}" class="d-inline" onsubmit="return confirm('Reject and reset to unassigned? Any associated payment(s) will be reversed; matching, confirmation, and sibling/shared allocations will be cleared. You must then manually match, allocate, confirm, and create payment. Continue?');">
+                                            @csrf
+                                            <button type="submit" class="btn btn-finance btn-finance-danger btn-sm" title="Reject">
+                                                <i class="bi bi-x-circle"></i>
+                                            </button>
+                                        </form>
+                                    @endif
                                     @if(!$isC2B && !$txnIsArchived)
                                         <form method="POST" action="{{ route('finance.bank-statements.archive', $transaction) }}" class="d-inline" onsubmit="return confirm('Archive this transaction?')">
                                             @csrf

@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\{
-    BankStatementTransaction, BankAccount, Student, Family, MpesaC2BTransaction
+    BankStatementTransaction, BankAccount, Student, Family, MpesaC2BTransaction, Payment
 };
 use App\Services\BankStatementParser;
 use App\Services\PaymentAllocationService;
@@ -627,15 +627,43 @@ class BankStatementController extends Controller
         $reversedPayments = collect();
         
         if ($bankStatement->reference_number) {
-            $allPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+            $ref = $bankStatement->reference_number;
+            // New payments (especially after reversal) use modified transaction_code (ref + suffix);
+            // fetch exact match and ref-* so both original and newly created payments appear.
+            $allPayments = \App\Models\Payment::withTrashed()
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
                 ->with('student')
                 ->orderBy('created_at', 'desc')
                 ->get();
-            
+            // Ensure payment_id-linked payment is included (e.g. shared first payment with different code)
+            if ($bankStatement->payment_id && !$allPayments->contains('id', $bankStatement->payment_id)) {
+                $linked = \App\Models\Payment::withTrashed()->with('student')->find($bankStatement->payment_id);
+                if ($linked) {
+                    $allPayments = $allPayments->push($linked)->sortByDesc('created_at')->values();
+                }
+            }
+            // Shared transactions: include all sibling payments by receipt base (e.g. Dawn) so none are missing
+            if ($bankStatement->is_shared && $allPayments->isNotEmpty()) {
+                $receipts = $allPayments->pluck('receipt_number')->unique()->filter()->values();
+                if ($receipts->isNotEmpty()) {
+                    $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
+                    $byReceipt = \App\Models\Payment::withTrashed()
+                        ->with('student')
+                        ->where(function ($q) use ($base) {
+                            $q->where('receipt_number', $base)
+                              ->orWhere('receipt_number', 'LIKE', $base . '-%');
+                        })
+                        ->get();
+                    $allPayments = $allPayments->merge($byReceipt)->unique('id')->sortByDesc('created_at')->values();
+                }
+            }
             $activePayments = $allPayments->where('reversed', false);
             $reversedPayments = $allPayments->where('reversed', true);
         } elseif ($bankStatement->payment_id) {
-            $payment = \App\Models\Payment::find($bankStatement->payment_id);
+            $payment = \App\Models\Payment::withTrashed()->find($bankStatement->payment_id);
             if ($payment) {
                 $allPayments = collect([$payment]);
                 if ($payment->reversed) {
@@ -726,13 +754,17 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Transaction must be matched to a student or shared before confirming']);
         }
 
-        // Check if there are non-reversed payments for this transaction
+        // Check if there are non-reversed payments for this transaction (exact ref + ref-*)
         // If transaction is already confirmed and has non-reversed payments, don't allow confirming again
         if ($bankStatement->status === 'confirmed' && $bankStatement->payment_created) {
             $nonReversedPayments = collect();
             if ($bankStatement->reference_number) {
-                $nonReversedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
-                    ->where('reversed', false)
+                $ref = $bankStatement->reference_number;
+                $nonReversedPayments = \App\Models\Payment::where('reversed', false)
+                    ->where(function ($q) use ($ref) {
+                        $q->where('transaction_code', $ref)
+                          ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                    })
                     ->get();
             }
             
@@ -768,11 +800,15 @@ class BankStatementController extends Controller
                 // Create payment for fee allocation if not already created
                 if (!$bankStatement->payment_created) {
                 try {
-                    // Check if there are any non-reversed payments for this transaction
+                    // Check if there are any non-reversed payments for this transaction (exact ref + ref-*)
                     $nonReversedPayments = collect();
                     if ($bankStatement->reference_number) {
-                        $nonReversedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
-                            ->where('reversed', false)
+                        $ref = $bankStatement->reference_number;
+                        $nonReversedPayments = \App\Models\Payment::where('reversed', false)
+                            ->where(function ($q) use ($ref) {
+                                $q->where('transaction_code', $ref)
+                                  ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                            })
                             ->get();
                     }
                     
@@ -812,10 +848,16 @@ class BankStatementController extends Controller
                             $existingPayment = \App\Models\Payment::find($bankStatement->payment_id);
                         }
                         
-                        // Also check by transaction code if reference number exists
+                        // Also check by transaction code if reference number exists (exact ref + ref-*)
                         if (!$existingPayment && $bankStatement->reference_number) {
-                            $existingPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)->first();
-                            if ($existingPayment && !$existingPayment->reversed) {
+                            $ref = $bankStatement->reference_number;
+                            $existingPayment = \App\Models\Payment::where('reversed', false)
+                                ->where(function ($q) use ($ref) {
+                                    $q->where('transaction_code', $ref)
+                                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                                })
+                                ->first();
+                            if ($existingPayment) {
                                 // Link the transaction to existing non-reversed payment
                                 $bankStatement->update([
                                     'payment_id' => $existingPayment->id,
@@ -1051,83 +1093,141 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Reject transaction - unmatch it to allow re-matching
-     * This does NOT delete or archive, just removes the match
+     * Reject transaction - reset to unassigned to allow re-matching
+     * Reverses any associated payments, clears matching/confirmation/allocations (including
+     * sibling sharing and swimming). Transaction moves to unassigned; user must manually
+     * match, allocate, confirm, then create payment.
      */
     public function reject(BankStatementTransaction $bankStatement)
     {
-        // Authorization check
         $this->authorize('reject', $bankStatement);
-        
+
         DB::transaction(function () use ($bankStatement) {
-            // If payment was created, reverse and delete it
-            // For shared transactions, reverse ALL related payments
-            if ($bankStatement->payment_created) {
-                // Find all payments related to this transaction
-                $relatedPayments = [];
-                
-                if ($bankStatement->payment_id) {
-                    $payment = Payment::find($bankStatement->payment_id);
-                    if ($payment) {
-                        $relatedPayments[] = $payment;
-                    }
-                }
-                
-                // Also find all sibling payments if this is a shared transaction
-                if ($bankStatement->is_shared && $bankStatement->reference_number) {
-                    $siblingPayments = Payment::where('transaction_code', $bankStatement->reference_number)
-                        ->where('reversed', false)
-                        ->get();
-                    $relatedPayments = array_merge($relatedPayments, $siblingPayments->all());
-                }
-                
-                // Reverse and delete all related payments
-                foreach ($relatedPayments as $payment) {
-                    if ($payment && !$payment->reversed) {
-                        // Collect invoice IDs before deleting allocations
-                        $invoiceIds = collect();
-                        foreach ($payment->allocations as $allocation) {
-                            if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
-                                $invoiceIds->push($allocation->invoiceItem->invoice_id);
-                            }
-                        }
-                        
-                        // Reverse payment allocations
-                        foreach ($payment->allocations as $allocation) {
-                            $allocation->delete();
-                        }
-                        
-                        // Mark payment as reversed
-                        $payment->update([
-                            'reversed' => true,
-                            'reversed_by' => auth()->id(),
-                            'reversed_at' => now(),
-                            'reversal_reason' => 'Transaction rejected',
-                        ]);
-                        
-                        // Recalculate affected invoices
-                        foreach ($invoiceIds->unique() as $invoiceId) {
-                            $invoice = \App\Models\Invoice::find($invoiceId);
-                            if ($invoice) {
-                                \App\Services\InvoiceService::recalc($invoice);
-                            }
-                        }
-                        
-                        // Delete payment record
-                        $payment->delete();
-                        
-                        \Log::info('Payment automatically reversed and deleted due to transaction rejection', [
-                            'transaction_id' => $bankStatement->id,
-                            'payment_id' => $payment->id,
-                        ]);
-                    }
+            // 1. Find and reverse ALL related payments (exact ref + ref-*; all sibling receipts share same source)
+            $relatedPayments = collect();
+            $ref = $bankStatement->reference_number;
+            if ($ref) {
+                $relatedPayments = Payment::where('reversed', false)
+                    ->where(function ($q) use ($ref) {
+                        $q->where('transaction_code', $ref)
+                          ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                    })
+                    ->get();
+            }
+            if ($relatedPayments->isEmpty() && $bankStatement->payment_id) {
+                $p = Payment::find($bankStatement->payment_id);
+                if ($p && !$p->reversed) {
+                    $relatedPayments = collect([$p]);
                 }
             }
-            
-            // Unmatch the transaction - set to rejected and unmatched
-            // Mark as manually rejected to prevent automatic re-matching
+            // Shared transactions: all sibling receipts share a base (e.g. RCPT/2026-0458, RCPT/2026-0458-33-...)
+            // Find by receipt base + prefix so we never miss any sibling (e.g. Dawn)
+            if ($bankStatement->is_shared && $relatedPayments->isNotEmpty()) {
+                $receipts = $relatedPayments->pluck('receipt_number')->unique()->filter()->values();
+                if ($receipts->isNotEmpty()) {
+                    $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
+                    $byReceipt = Payment::where('reversed', false)
+                        ->where(function ($q) use ($base) {
+                            $q->where('receipt_number', $base)
+                              ->orWhere('receipt_number', 'LIKE', $base . '-%');
+                        })
+                        ->get();
+                    $relatedPayments = $relatedPayments->merge($byReceipt)->unique('id');
+                }
+            }
+
+            foreach ($relatedPayments as $payment) {
+                if (!$payment || $payment->reversed) {
+                    continue;
+                }
+                $invoiceIds = collect();
+                foreach ($payment->allocations as $allocation) {
+                    if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                        $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                    }
+                }
+                foreach ($payment->allocations as $allocation) {
+                    $allocation->delete();
+                }
+                $payment->update([
+                    'reversed' => true,
+                    'reversed_by' => auth()->id(),
+                    'reversed_at' => now(),
+                    'reversal_reason' => 'Transaction rejected – reset to unassigned',
+                ]);
+                foreach ($invoiceIds->unique() as $invoiceId) {
+                    $invoice = \App\Models\Invoice::find($invoiceId);
+                    if ($invoice) {
+                        \App\Services\InvoiceService::recalc($invoice);
+                    }
+                }
+                $paymentId = $payment->id;
+                $payment->delete();
+                Log::info('Payment reversed and deleted due to transaction rejection', [
+                    'transaction_id' => $bankStatement->id,
+                    'payment_id' => $paymentId,
+                ]);
+            }
+
+            // 2. Reverse swimming allocations if this is a swimming transaction
+            if (Schema::hasTable('swimming_transaction_allocations') &&
+                \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') &&
+                $bankStatement->is_swimming_transaction) {
+                $swimmingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
+                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                    ->get();
+
+                foreach ($swimmingAllocations as $allocation) {
+                    if ($allocation->status === \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED) {
+                        $wallet = \App\Models\SwimmingWallet::where('student_id', $allocation->student_id)->first();
+                        if ($wallet) {
+                            $oldBalance = $wallet->balance;
+                            $newBalance = $oldBalance - $allocation->amount;
+                            $wallet->update([
+                                'balance' => $newBalance,
+                                'total_debited' => ($wallet->total_debited ?? 0) + $allocation->amount,
+                                'last_transaction_at' => now(),
+                            ]);
+                            if (Schema::hasTable('swimming_ledgers')) {
+                                $student = \App\Models\Student::find($allocation->student_id);
+                                if ($student) {
+                                    \App\Models\SwimmingLedger::create([
+                                        'student_id' => $allocation->student_id,
+                                        'type' => \App\Models\SwimmingLedger::TYPE_DEBIT,
+                                        'amount' => $allocation->amount,
+                                        'balance_after' => $newBalance,
+                                        'source' => \App\Models\SwimmingLedger::SOURCE_ADJUSTMENT,
+                                        'description' => 'Transaction rejected – allocation reversed: ' . ($bankStatement->reference_number ?? 'N/A'),
+                                        'created_by' => auth()->id(),
+                                    ]);
+                                }
+                            }
+                        }
+                    }
+                    $updateData = ['status' => \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED];
+                    if (Schema::hasColumn('swimming_transaction_allocations', 'reversed_at')) {
+                        $updateData['reversed_at'] = now();
+                    }
+                    if (Schema::hasColumn('swimming_transaction_allocations', 'reversed_by')) {
+                        $updateData['reversed_by'] = auth()->id();
+                    }
+                    $allocation->update($updateData);
+                }
+            }
+
+            // 3. Log audit while transaction still has previous state
+            try {
+                \App\Services\FinancialAuditService::logTransactionRejection($bankStatement);
+            } catch (\Exception $e) {
+                Log::warning('Failed to log transaction rejection audit', [
+                    'transaction_id' => $bankStatement->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // 4. Reset transaction to unassigned (draft + unmatched) – no MANUALLY_REJECTED so it can be re-matched
             $bankStatement->update([
-                'status' => 'rejected',
+                'status' => 'draft',
                 'student_id' => null,
                 'family_id' => null,
                 'match_status' => 'unmatched',
@@ -1135,7 +1235,7 @@ class BankStatementController extends Controller
                 'matched_admission_number' => null,
                 'matched_student_name' => null,
                 'matched_phone_number' => null,
-                'match_notes' => 'MANUALLY_REJECTED - Requires manual assignment',
+                'match_notes' => null,
                 'payment_id' => null,
                 'payment_created' => false,
                 'is_shared' => false,
@@ -1143,21 +1243,11 @@ class BankStatementController extends Controller
                 'confirmed_by' => null,
                 'confirmed_at' => null,
             ]);
-            
-            // Log audit trail
-            try {
-                \App\Services\FinancialAuditService::logTransactionRejection($bankStatement);
-            } catch (\Exception $e) {
-                \Log::warning('Failed to log transaction rejection audit', [
-                    'transaction_id' => $bankStatement->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
         });
 
         return redirect()
             ->route('finance.bank-statements.show', $bankStatement)
-            ->with('success', 'Transaction rejected and unmatched. It will not be automatically matched again until you manually assign it.');
+            ->with('success', 'Transaction rejected and reset to unassigned. You can now manually match, allocate, confirm, and create payment.');
     }
 
     /**

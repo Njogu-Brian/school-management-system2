@@ -423,29 +423,9 @@
                     <h5 class="mb-0">Created Payment(s)</h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    @if($activePayments->isNotEmpty())
-                        <div class="mb-3">
-                            <h6 class="text-success mb-2">
-                                <i class="bi bi-check-circle"></i> Active Payment(s)
-                            </h6>
-                            <ul class="list-unstyled mb-0">
-                                @foreach($activePayments as $payment)
-                                    <li class="mb-2">
-                                        <a href="{{ route('finance.payments.show', $payment) }}" class="text-decoration-none">
-                                            <strong>#{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
-                                        </a>
-                                        @if($payment->student)
-                                            - {{ $payment->student->full_name }} ({{ $payment->student->admission_number }})
-                                        @endif
-                                        - Ksh {{ number_format($payment->amount, 2) }}
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    @endif
-                    
+                    {{-- Reversed first (history), then active / newly created below --}}
                     @if($reversedPayments->isNotEmpty())
-                        <div class="alert alert-warning mb-0">
+                        <div class="alert alert-warning mb-4">
                             <h6 class="alert-heading mb-2">
                                 <i class="bi bi-exclamation-triangle"></i> Reversed Payment(s)
                             </h6>
@@ -468,6 +448,27 @@
                                                 | <strong>Reason:</strong> {{ $payment->reversal_reason }}
                                             @endif
                                         </small>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
+                    @if($activePayments->isNotEmpty())
+                        <div class="mb-0">
+                            <h6 class="text-success mb-2">
+                                <i class="bi bi-check-circle"></i> Active / Newly Created Payment(s)
+                            </h6>
+                            <ul class="list-unstyled mb-0">
+                                @foreach($activePayments as $payment)
+                                    <li class="mb-2">
+                                        <a href="{{ route('finance.payments.show', $payment) }}" class="text-decoration-none">
+                                            <strong>#{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
+                                        </a>
+                                        @if($payment->student)
+                                            - {{ $payment->student->full_name }} ({{ $payment->student->admission_number }})
+                                        @endif
+                                        - Ksh {{ number_format($payment->amount, 2) }}
                                     </li>
                                 @endforeach
                             </ul>
@@ -634,13 +635,6 @@
                         <a href="{{ route('finance.bank-statements.edit', $bankStatement) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
                             <i class="bi bi-pencil"></i> Edit / Match Manually
                         </a>
-
-                        <form method="POST" action="{{ route('finance.bank-statements.reject', $bankStatement) }}" class="mb-2">
-                            @csrf
-                            <button type="submit" class="btn btn-finance btn-finance-danger w-100" onclick="return confirm('Reject this transaction?')">
-                                <i class="bi bi-x-circle"></i> Reject
-                            </button>
-                        </form>
                     @elseif($bankStatement->status == 'confirmed' && !$bankStatement->payment_created)
                         <!-- Actions for confirmed transactions without payments (unallocated uncollected) -->
                         @if($bankStatement->student_id || $bankStatement->is_shared)
@@ -651,34 +645,12 @@
                                 </button>
                             </form>
                         @endif
-                    @elseif($bankStatement->status == 'confirmed' && $bankStatement->payment)
-                        <!-- Actions for confirmed transactions with payments -->
-                        <form action="{{ route('finance.payments.reverse', $bankStatement->payment) }}" method="POST" class="d-inline w-100 mb-2" onsubmit="return confirm('Reverse this payment? This will undo all allocations and mark the payment as reversed.');">
-                            @csrf
-                            @method('DELETE')
-                            <button type="submit" class="btn btn-finance btn-finance-warning w-100">
-                                <i class="bi bi-arrow-counterclockwise"></i> Reverse Payment
-                            </button>
-                        </form>
-                        
-                        <a href="{{ route('finance.payments.show', $bankStatement->payment) }}?action=transfer" class="btn btn-finance btn-finance-info w-100 mb-2">
-                            <i class="bi bi-arrow-right-circle"></i> Transfer Payment
-                        </a>
-                        
-                        @if($bankStatement->student)
-                            @php
-                                $siblings = \App\Models\Student::where('family_id', $bankStatement->student->family_id)
-                                    ->where('id', '!=', $bankStatement->student->id)
-                                    ->where('archive', 0)
-                                    ->where('is_alumni', false)
-                                    ->get();
-                            @endphp
-                            @if($siblings->count() > 0)
-                                <a href="{{ route('finance.payments.show', $bankStatement->payment) }}?action=share" class="btn btn-finance btn-finance-secondary w-100 mb-2">
-                                    <i class="bi bi-share"></i> Share Payment
-                                </a>
-                            @endif
-                        @endif
+                    @endif
+
+                    @if($bankStatement->status !== 'rejected')
+                    <button type="button" class="btn btn-finance btn-finance-danger w-100 mb-2" data-bs-toggle="modal" data-bs-target="#rejectTransactionModal">
+                        <i class="bi bi-x-circle"></i> Reject
+                    </button>
                     @endif
 
                     @php
@@ -704,29 +676,46 @@
                         <a href="{{ route('finance.bank-statements.view-pdf', $bankStatement) }}" target="_blank" class="btn btn-finance btn-finance-info w-100 mb-2">
                             <i class="bi bi-file-pdf"></i> View Statement PDF
                         </a>
-                        <a href="{{ route('finance.bank-statements.download-pdf', $bankStatement) }}" class="btn btn-finance btn-finance-secondary w-100 mb-2">
-                            <i class="bi bi-download"></i> Download PDF
-                        </a>
                     @endif
-                    
-                    @if($bankStatement->statement_file_path)
-                        <form method="POST" action="{{ route('finance.bank-statements.reparse', $bankStatement) }}" class="mb-2" onsubmit="return confirm('Re-analyze this statement? This will delete all transactions and payments from this statement and re-parse it. This action cannot be undone.')">
-                            @csrf
-                            <button type="submit" class="btn btn-finance btn-finance-warning w-100">
-                                <i class="bi bi-arrow-clockwise"></i> Re-Analyze Statement
-                            </button>
-                        </form>
-                    @endif
-                    
-                    <form method="POST" action="{{ route('finance.bank-statements.destroy', $bankStatement) }}" onsubmit="return confirm('Delete this statement and ALL related records (transactions, payments, allocations)? This action cannot be undone.')">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-finance btn-finance-danger w-100">
-                            <i class="bi bi-trash"></i> Delete Statement
-                        </button>
-                    </form>
                 </div>
             </div>
+
+            <!-- Reject Transaction Confirmation Modal -->
+            @if($bankStatement->status !== 'rejected')
+            <div class="modal fade" id="rejectTransactionModal" tabindex="-1" aria-labelledby="rejectTransactionModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title" id="rejectTransactionModalLabel">
+                                <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Confirm Reject Transaction
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-3">Are you sure you want to <strong>reject</strong> this transaction? This will reset it to <strong>unassigned</strong> so you can match and allocate again.</p>
+                            <div class="alert alert-warning mb-0">
+                                <strong><i class="bi bi-exclamation-circle me-1"></i> Please note:</strong>
+                                <ul class="mb-0 mt-2 ps-3">
+                                    <li>Any <strong>associated payment(s) will be reversed</strong> and removed.</li>
+                                    <li><strong>Matching and confirmation</strong> will be undone.</li>
+                                    <li>All <strong>allocations to siblings</strong> or <strong>sharing among multiple students</strong> will be cleared.</li>
+                                    <li>The transaction will move to <strong>unassigned</strong> with no matches. You must <strong>manually match</strong>, <strong>allocate</strong>, <strong>confirm</strong>, and then <strong>create payment</strong> to proceed.</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-0 pt-0">
+                            <button type="button" class="btn btn-finance btn-finance-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <form method="POST" action="{{ route('finance.bank-statements.reject', $bankStatement) }}" class="d-inline">
+                                @csrf
+                                <button type="submit" class="btn btn-finance btn-finance-danger">
+                                    <i class="bi bi-x-circle"></i> Confirm Reject
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
 
             <!-- Statement File Info -->
             @if($bankStatement->statement_file_path)
