@@ -378,6 +378,24 @@ class BankStatementController extends Controller
                     ->whereNull('payment_id')
                     ->where('is_duplicate', false);
                 break;
+            case 'draft':
+                // C2B transactions with low confidence matches (similar to bank statement draft logic)
+                $query->where(function($q) {
+                    $q->where(function($q2) {
+                        $q2->where('match_confidence', '>', 0)
+                           ->where('match_confidence', '<', 80);
+                    })
+                    ->orWhere(function($q2) {
+                        // Multiple suggestions but not auto-matched
+                        $q2->whereNotNull('matching_suggestions')
+                           ->where('allocation_status', 'unallocated')
+                           ->where('match_confidence', '>', 0)
+                           ->where('match_confidence', '<', 80);
+                    });
+                })
+                ->whereNull('payment_id')
+                ->where('is_duplicate', false);
+                break;
             case 'unassigned':
                 $query->where('allocation_status', 'unallocated')
                     ->whereNull('student_id')
@@ -441,23 +459,60 @@ class BankStatementController extends Controller
      */
     protected function getC2BCounts(string $view): array
     {
+        $hasSwimmingColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction');
+        
+        // Base query to exclude swimming transactions for non-swimming views
+        $excludeSwimming = function($query) use ($view, $hasSwimmingColumn) {
+            if ($view !== 'swimming' && $hasSwimmingColumn) {
+                $query->where(function($q) {
+                    $q->where('is_swimming_transaction', false)
+                      ->orWhereNull('is_swimming_transaction');
+                });
+            }
+        };
+        
         $counts = [
-            'all' => MpesaC2BTransaction::where('is_duplicate', false)->count(),
+            'all' => MpesaC2BTransaction::where('is_duplicate', false)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->count(),
             'auto-assigned' => MpesaC2BTransaction::where('match_confidence', '>=', 80)
                 ->where('allocation_status', 'auto_matched')
                 ->whereNull('payment_id')
                 ->where('is_duplicate', false)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'manual-assigned' => MpesaC2BTransaction::where('allocation_status', 'manually_allocated')
                 ->whereNull('payment_id')
                 ->where('is_duplicate', false)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->count(),
+            'draft' => MpesaC2BTransaction::where(function($q) {
+                    // C2B transactions with low confidence matches (similar to bank statement draft logic)
+                    $q->where(function($q2) {
+                        $q2->where('match_confidence', '>', 0)
+                           ->where('match_confidence', '<', 80);
+                    })
+                    ->orWhere(function($q2) {
+                        // Multiple suggestions but not auto-matched
+                        $q2->whereNotNull('matching_suggestions')
+                           ->where('allocation_status', 'unallocated')
+                           ->where('match_confidence', '>', 0)
+                           ->where('match_confidence', '<', 80);
+                    });
+                })
+                ->whereNull('payment_id')
+                ->where('is_duplicate', false)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'unassigned' => MpesaC2BTransaction::where('allocation_status', 'unallocated')
                 ->whereNull('student_id')
                 ->where('is_duplicate', false)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
-            'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)->count(),
-            'swimming' => Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')
+            'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->count(),
+            'swimming' => $hasSwimmingColumn
                 ? MpesaC2BTransaction::where('is_swimming_transaction', true)
                     ->where('is_duplicate', false)
                     ->count()
