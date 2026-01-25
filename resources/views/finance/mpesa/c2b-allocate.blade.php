@@ -277,20 +277,32 @@ $(document).ready(function() {
 
     // Pre-select if transaction already has a student
     @if($transaction->student_id)
-        @if($transaction->is_swimming_transaction)
-            // For swimming, we need to load siblings
-            $.get('/api/students/{{ $transaction->student_id }}', function(student) {
+        // Set selected student from pre-filled value
+        const preSelectedStudentId = $('#student_id').val();
+        if (preSelectedStudentId) {
+            // Get full student data
+            $.get('/api/students/' + preSelectedStudentId, function(student) {
                 if (student) {
-                    loadSiblings(student);
+                    selectedStudent = student;
+                    // Trigger student selected event
+                    window.dispatchEvent(new CustomEvent('student-selected', { detail: student }));
+                    
+                    @if($transaction->is_swimming_transaction)
+                        // For swimming, load siblings
+                        loadSiblings(student);
+                    @else
+                        // For regular, load invoices
+                        loadStudentInvoices(student.id);
+                    @endif
                 }
             });
-        @else
-            loadStudentInvoices({{ $transaction->student_id }});
-        @endif
+        }
     @endif
     
-    // Initial button state check
-    updateSubmitButton();
+    // Initial button state check (with delay to allow async operations)
+    setTimeout(function() {
+        updateSubmitButton();
+    }, 500);
 });
 
 function selectSuggestion(suggestion) {
@@ -622,7 +634,12 @@ function updateSubmitButton() {
         // Check if invoice section is visible
         if ($('#invoiceAllocationSection').is(':visible')) {
             // If invoices exist, allocations must match payment amount (within 0.01 tolerance)
-            hasValidAllocations = Math.abs(remaining) < 0.01 && allocations.length > 0;
+            // OR if no allocations but section is visible with "no invoices" message, allow submission
+            if ($('#invoicesList').text().includes('No outstanding invoices')) {
+                hasValidAllocations = true; // Advance payment - no invoices to allocate
+            } else {
+                hasValidAllocations = Math.abs(remaining) < 0.01 && allocations.length > 0;
+            }
         } else {
             // If no invoices section (no unpaid invoices), allow submission
             hasValidAllocations = true;
