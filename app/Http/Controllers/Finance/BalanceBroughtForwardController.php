@@ -65,6 +65,8 @@ class BalanceBroughtForwardController extends Controller
                 $legacyBf = StudentBalanceService::getBalanceBroughtForward($student);
                 
                 // Get balance brought forward from invoices
+                // IMPORTANT: Show the ORIGINAL amount (as imported/manually set), not the outstanding balance
+                // This ensures the value remains static and doesn't change as payments are made
                 $invoiceBf = 0;
                 $invoiceBfSource = null;
                 if ($balanceBroughtForwardVotehead) {
@@ -77,9 +79,12 @@ class BalanceBroughtForwardController extends Controller
                     ->get();
                     
                     if ($invoiceItems->isNotEmpty()) {
+                        // Use the original amount (as imported/manually set), not outstanding balance
+                        // This keeps the value static regardless of payments made
                         $invoiceBf = $invoiceItems->sum(function($item) {
-                            $paid = $item->allocations()->sum('amount');
-                            return max(0, $item->amount - ($item->discount_amount ?? 0) - $paid);
+                            // Use original_amount if available (from import), otherwise use amount
+                            // This represents the static value that was imported or manually set
+                            return (float) ($item->original_amount ?? $item->amount);
                         });
                         $firstInvoice = $invoiceItems->first()->invoice;
                         $invoiceBfSource = "Term {$firstInvoice->term}, {$firstInvoice->year}";
@@ -166,9 +171,10 @@ class BalanceBroughtForwardController extends Controller
                 ->get();
                 
                 if ($invoiceItems->isNotEmpty()) {
+                    // Use original_amount (static value) for comparison, not outstanding balance
                     $invoiceBf = $invoiceItems->sum(function($item) {
-                        $paid = $item->allocations()->sum('amount');
-                        return max(0, $item->amount - ($item->discount_amount ?? 0) - $paid);
+                        // Use original_amount if available (from import), otherwise use amount
+                        return (float) ($item->original_amount ?? $item->amount);
                     });
                 }
             }
@@ -394,10 +400,14 @@ class BalanceBroughtForwardController extends Controller
                     $invoiceItem->status = 'active';
                     $invoiceItem->effective_date = $invoice->issued_date ?? now();
                     
-                    // Store original amount if not set
+                    // Store original_amount to preserve the static value (as imported/manually set)
+                    // This ensures the balance brought forward page shows the original value, not outstanding balance
                     if (!$invoiceItem->original_amount) {
+                        // If this is a new item, set original_amount to the balance being imported
+                        // If updating, preserve the original original_amount or use the old amount
                         $invoiceItem->original_amount = $oldAmount > 0 ? $oldAmount : $balance;
                     }
+                    // If original_amount already exists, don't change it (preserves the original import value)
                     
                     $invoiceItem->save();
 
@@ -696,9 +706,14 @@ class BalanceBroughtForwardController extends Controller
                 $invoiceItem->status = 'active';
                 $invoiceItem->effective_date = $invoice->issued_date ?? now();
                 
-                if (!$invoiceItem->original_amount && $oldAmount > 0) {
-                    $invoiceItem->original_amount = $oldAmount;
+                // Store original_amount to preserve the static value (as imported/manually set)
+                // This ensures the balance brought forward page shows the original value, not outstanding balance
+                if (!$invoiceItem->original_amount) {
+                    // If this is a new item, set original_amount to the balance being set
+                    // If updating, preserve the original original_amount or use the old amount
+                    $invoiceItem->original_amount = $oldAmount > 0 ? $oldAmount : $balance;
                 }
+                // If original_amount already exists, don't change it (preserves the original import value)
                 
                 $invoiceItem->save();
 

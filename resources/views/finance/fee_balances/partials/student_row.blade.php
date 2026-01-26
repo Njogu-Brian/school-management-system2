@@ -40,6 +40,48 @@
             {{ ucfirst(str_replace('_', ' ', $student['payment_status'])) }}
         </span>
     </td>
+    <td class="text-end">
+        @if(($student['balance_brought_forward'] ?? 0) > 0)
+            <div>
+                <strong class="text-info">Ksh {{ number_format($student['balance_brought_forward'] ?? 0, 2) }}</strong>
+                @if(($student['balance_brought_forward_balance'] ?? 0) > 0)
+                    <br><small class="text-danger">Outstanding: Ksh {{ number_format($student['balance_brought_forward_balance'] ?? 0, 2) }}</small>
+                @else
+                    <br><small class="text-success">Cleared</small>
+                @endif
+            </div>
+        @else
+            <span class="text-muted">-</span>
+        @endif
+    </td>
+    <td class="text-center">
+        @if(($student['balance_brought_forward'] ?? 0) > 0)
+            @php
+                $bbfStatus = $student['bbf_payment_status'] ?? 'no_bbf';
+                $bbfStatusColors = [
+                    'cleared_bbf_and_invoice' => 'success',
+                    'cleared_bbf_only' => 'info',
+                    'bbf_partial' => 'warning',
+                    'bbf_unpaid' => 'danger',
+                    'no_bbf' => 'secondary'
+                ];
+                $bbfStatusColor = $bbfStatusColors[$bbfStatus] ?? 'secondary';
+                $bbfStatusLabels = [
+                    'cleared_bbf_and_invoice' => 'Cleared BBF & Invoice',
+                    'cleared_bbf_only' => 'Cleared BBF Only',
+                    'bbf_partial' => 'BBF Partial',
+                    'bbf_unpaid' => 'BBF Unpaid',
+                    'no_bbf' => 'No BBF'
+                ];
+                $bbfStatusLabel = $bbfStatusLabels[$bbfStatus] ?? ucfirst(str_replace('_', ' ', $bbfStatus));
+            @endphp
+            <span class="finance-badge badge-{{ $bbfStatusColor }}" title="Balance Brought Forward Payment Status">
+                {{ $bbfStatusLabel }}
+            </span>
+        @else
+            <span class="text-muted">-</span>
+        @endif
+    </td>
     <td class="text-center">
         <div class="mb-1">
             <strong>{{ $student['attendance_rate'] }}%</strong>

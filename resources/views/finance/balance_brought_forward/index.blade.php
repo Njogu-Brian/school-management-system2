@@ -9,6 +9,19 @@
         'subtitle' => 'View and manage balance brought forward from legacy imports or previous terms'
     ])
 
+    <div class="alert alert-info alert-dismissible fade show finance-animate" role="alert">
+      <div class="d-flex align-items-center">
+        <i class="bi bi-info-circle me-2"></i>
+        <div>
+          <strong>Note:</strong> The values shown here are the <strong>original static amounts</strong> as imported or manually set. 
+          These values do not change as payments are made. To see current payment status and outstanding balances, 
+          please check <a href="{{ route('finance.fee-balances.index', ['view' => 'with-bbf']) }}" class="alert-link">Fee Balance Report</a>, 
+          <a href="{{ route('finance.student-statements.index') }}" class="alert-link">Student Statements</a>, or individual invoices.
+        </div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
     @if(session('import_batch_id') || ($latestImport ?? null))
       @php
         $import = $latestImport ?? \App\Models\BalanceBroughtForwardImport::find(session('import_batch_id'));

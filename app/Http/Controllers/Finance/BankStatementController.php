@@ -623,16 +623,175 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Show transaction details
+     * Resolve transaction from ID (supports both BankStatementTransaction and MpesaC2BTransaction)
+     * Checks both tables and returns the correct one, using type hint if provided
      */
-    public function show(BankStatementTransaction $bankStatement)
+    protected function resolveTransaction($id, $typeHint = null)
     {
-        $bankStatement->load(['student', 'family', 'bankAccount', 'payment', 'confirmedBy', 'createdBy']);
+        // If type hint is provided, ALWAYS prioritize it to avoid conflicts
+        if ($typeHint === 'c2b') {
+            $c2bTransaction = MpesaC2BTransaction::find($id);
+            if ($c2bTransaction) {
+                // Check if there's also a bank transaction with same ID (conflict)
+                $bankTransaction = BankStatementTransaction::find($id);
+                if ($bankTransaction) {
+                    \Log::warning('Transaction ID conflict detected - both C2B and Bank Statement transactions exist with same ID, using C2B per type hint', [
+                        'id' => $id,
+                        'c2b_trans_id' => $c2bTransaction->trans_id,
+                        'bank_ref_number' => $bankTransaction->reference_number,
+                        'referer' => request()->header('referer'),
+                        'url' => request()->fullUrl(),
+                    ]);
+                }
+                return $c2bTransaction;
+            }
+            // If not found in C2B, try bank statement (fallback)
+            $bankTransaction = BankStatementTransaction::find($id);
+            if ($bankTransaction) {
+                return $bankTransaction;
+            }
+        } elseif ($typeHint === 'bank') {
+            $bankTransaction = BankStatementTransaction::find($id);
+            if ($bankTransaction) {
+                // Check if there's also a C2B transaction with same ID (conflict)
+                $c2bTransaction = MpesaC2BTransaction::find($id);
+                if ($c2bTransaction) {
+                    \Log::warning('Transaction ID conflict detected - both C2B and Bank Statement transactions exist with same ID, using Bank per type hint', [
+                        'id' => $id,
+                        'c2b_trans_id' => $c2bTransaction->trans_id,
+                        'bank_ref_number' => $bankTransaction->reference_number,
+                        'referer' => request()->header('referer'),
+                        'url' => request()->fullUrl(),
+                    ]);
+                }
+                return $bankTransaction;
+            }
+            // If not found in bank, try C2B (fallback)
+            $c2bTransaction = MpesaC2BTransaction::find($id);
+            if ($c2bTransaction) {
+                return $c2bTransaction;
+            }
+        } else {
+            // No type hint - check both tables simultaneously
+            $bankTransaction = BankStatementTransaction::find($id);
+            $c2bTransaction = MpesaC2BTransaction::find($id);
+            
+            // If both exist (ID conflict - this should not happen but can occur if IDs were manually changed)
+            if ($bankTransaction && $c2bTransaction) {
+                \Log::warning('Transaction ID conflict detected - both C2B and Bank Statement transactions exist with same ID', [
+                    'id' => $id,
+                    'c2b_trans_id' => $c2bTransaction->trans_id,
+                    'bank_ref_number' => $bankTransaction->reference_number,
+                    'referer' => request()->header('referer'),
+                    'url' => request()->fullUrl(),
+                ]);
+                
+                // Check referer or query parameter to determine which one to use
+                $referer = request()->header('referer');
+                $typeParam = request()->get('type');
+                
+                if ($typeParam === 'c2b' || ($referer && strpos($referer, '/mpesa/c2b/') !== false)) {
+                    return $c2bTransaction;
+                }
+                if ($typeParam === 'bank' || ($referer && strpos($referer, '/bank-statements/') !== false)) {
+                    return $bankTransaction;
+                }
+                
+                // Default: return bank statement (original behavior)
+                return $bankTransaction;
+            }
+            
+            // Return whichever exists
+            if ($bankTransaction) {
+                return $bankTransaction;
+            }
+            
+            if ($c2bTransaction) {
+                return $c2bTransaction;
+            }
+        }
         
-        // Fix old rejected transactions that still have students assigned
-        // This handles transactions rejected before the reject logic was updated
-        if ($bankStatement->status === 'rejected' && $bankStatement->student_id) {
-            $bankStatement->update([
+        abort(404, 'Transaction not found');
+    }
+    
+    /**
+     * Normalize transaction data for unified display
+     */
+    protected function normalizeTransaction($transaction)
+    {
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        return [
+            'id' => $transaction->id,
+            'type' => $isC2B ? 'c2b' : 'bank',
+            'transaction_date' => $isC2B ? $transaction->trans_time : $transaction->transaction_date,
+            'amount' => $isC2B ? $transaction->trans_amount : $transaction->amount,
+            'transaction_type' => $isC2B ? 'credit' : ($transaction->transaction_type ?? 'credit'),
+            'reference_number' => $isC2B ? $transaction->trans_id : $transaction->reference_number,
+            'description' => $isC2B ? ($transaction->bill_ref_number ?? 'M-PESA Payment') : $transaction->description,
+            'phone_number' => $isC2B ? ($transaction->formatted_phone ?? $transaction->msisdn) : $transaction->phone_number,
+            'payer_name' => $isC2B ? $transaction->full_name : $transaction->payer_name,
+            'student_id' => $transaction->student_id,
+            'family_id' => $isC2B ? null : ($transaction->family_id ?? null),
+            'match_status' => $isC2B ? ($transaction->allocation_status === 'auto_matched' ? 'matched' : ($transaction->allocation_status === 'manually_allocated' ? 'manual' : 'unmatched')) : $transaction->match_status,
+            'match_confidence' => $transaction->match_confidence ?? 0,
+            'match_notes' => $isC2B ? ($transaction->match_reason ?? '') : ($transaction->match_notes ?? ''),
+            'matched_admission_number' => $isC2B ? null : ($transaction->matched_admission_number ?? null),
+            'matched_student_name' => $isC2B ? null : ($transaction->matched_student_name ?? null),
+            'matched_phone_number' => $isC2B ? null : ($transaction->matched_phone_number ?? null),
+            'status' => $isC2B ? (
+                $transaction->status === 'processed' || $transaction->payment_id ? 'confirmed' : 
+                ($transaction->status === 'failed' ? 'rejected' : 'draft')
+            ) : (
+                // For bank statements: if payment exists and is created, always show as confirmed
+                // This ensures UI consistency even if DB status is temporarily out of sync
+                ($transaction->payment_id && ($transaction->payment_created ?? false) && $transaction->status !== 'rejected')
+                    ? 'confirmed'
+                    : $transaction->status
+            ),
+            'payment_id' => $transaction->payment_id,
+            'payment_created' => $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false),
+            'is_duplicate' => $transaction->is_duplicate ?? false,
+            'is_shared' => $isC2B ? false : ($transaction->is_shared ?? false),
+            'shared_allocations' => $isC2B ? null : (is_string($transaction->shared_allocations ?? null) ? json_decode($transaction->shared_allocations, true) : ($transaction->shared_allocations ?? null)),
+            'is_swimming_transaction' => $transaction->is_swimming_transaction ?? false,
+            'statement_file_path' => $isC2B ? null : $transaction->statement_file_path,
+            'bank_type' => $isC2B ? 'MPESA' : ($transaction->bank_type ?? 'N/A'),
+            'version' => $isC2B ? 0 : ($transaction->version ?? 0), // For optimistic locking
+            'raw_transaction' => $transaction, // Keep original for relationships
+        ];
+    }
+
+    /**
+     * Show transaction details (unified for both BankStatementTransaction and MpesaC2BTransaction)
+     */
+    public function show(Request $request, $bankStatement)
+    {
+        // Get the ID (route parameter might be string, int, or model instance)
+        $id = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+        
+        // Get type hint from query parameter if provided
+        $typeHint = $request->get('type');
+        
+        // Resolve the transaction using the type hint to ensure we get the correct one
+        $transaction = $this->resolveTransaction($id, $typeHint);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Load relationships based on type
+        if ($isC2B) {
+            $transaction->load(['student', 'payment', 'processedBy']);
+        } else {
+            $transaction->load(['student', 'family', 'bankAccount', 'payment', 'confirmedBy', 'createdBy']);
+        }
+        
+        // Use normalized data for view
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized; // Create object for view compatibility
+        $rawTransaction = $transaction; // Keep original for relationships
+        
+        // Fix old rejected transactions that still have students assigned (only for bank statements)
+        if (!$isC2B && $bankStatement->status === 'rejected' && $bankStatement->student_id) {
+            $transaction->update([
                 'student_id' => null,
                 'family_id' => null,
                 'match_status' => 'unmatched',
@@ -642,22 +801,21 @@ class BankStatementController extends Controller
                 'matched_phone_number' => null,
                 'match_notes' => 'MANUALLY_REJECTED - Requires manual assignment',
             ]);
-            $bankStatement->refresh();
+            $transaction->refresh();
+            $normalized = $this->normalizeTransaction($transaction);
+            $bankStatement = (object) $normalized;
         }
         
-        // Get siblings if family exists
-        // Only include active, non-archived siblings
-        // IMPORTANT: Siblings should ONLY be retrieved via family_id, not through the siblings() relationship
+        // Get siblings if family exists (for bank statements) or via student family (for C2B)
         $siblings = [];
-        if ($bankStatement->family_id) {
+        if (!$isC2B && $bankStatement->family_id) {
             $siblings = Student::where('family_id', $bankStatement->family_id)
                 ->where('id', '!=', $bankStatement->student_id)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
                 ->get();
-        } elseif ($bankStatement->student_id) {
-            $student = $bankStatement->student;
-            // Get siblings via family_id ONLY (not through siblings() relationship)
+        } elseif ($bankStatement->student_id && $transaction->student) {
+            $student = $transaction->student;
             if ($student->family_id) {
                 $siblings = Student::where('family_id', $student->family_id)
                     ->where('id', '!=', $student->id)
@@ -669,16 +827,14 @@ class BankStatementController extends Controller
 
         // Get possible matches if transaction has multiple matches or is unmatched
         $possibleMatches = [];
-        if (($bankStatement->match_status === 'multiple_matches' || $bankStatement->match_status === 'unmatched') && !$bankStatement->student_id) {
+        if (!$isC2B && ($bankStatement->match_status === 'multiple_matches' || $bankStatement->match_status === 'unmatched') && !$bankStatement->student_id) {
             try {
-                // Re-run matching to get current possible matches
-                // This will update the transaction status, but that's okay since we're viewing details
-                $matchResult = $this->parser->matchTransaction($bankStatement);
+                // Re-run matching to get current possible matches (only for bank statements)
+                $matchResult = $this->parser->matchTransaction($transaction);
+                $transaction->refresh();
+                $normalized = $this->normalizeTransaction($transaction);
+                $bankStatement = (object) $normalized;
                 
-                // Refresh to get updated status
-                $bankStatement->refresh();
-                
-                // Get matches from result
                 if (isset($matchResult['matches']) && is_array($matchResult['matches'])) {
                     $possibleMatches = $matchResult['matches'];
                 }
@@ -688,6 +844,17 @@ class BankStatementController extends Controller
                     'error' => $e->getMessage()
                 ]);
             }
+        } elseif ($isC2B && $transaction->matching_suggestions) {
+            // For C2B, use matching suggestions
+            $possibleMatches = collect($transaction->matching_suggestions)->map(function($suggestion) {
+                return [
+                    'student_id' => $suggestion['student_id'] ?? null,
+                    'student_name' => $suggestion['student_name'] ?? '',
+                    'admission_number' => $suggestion['admission_number'] ?? '',
+                    'confidence' => $suggestion['confidence'] ?? 0,
+                    'reason' => $suggestion['reason'] ?? '',
+                ];
+            })->toArray();
         }
 
         // Get all payments related to this transaction (including sibling payments for shared transactions)
@@ -707,6 +874,158 @@ class BankStatementController extends Controller
                 ->with('student')
                 ->orderBy('created_at', 'desc')
                 ->get();
+            
+            // For C2B transactions, also check if payment exists but wasn't found by reference
+            // This handles cases where payment was created but transaction_code doesn't match exactly
+            if ($isC2B && $allPayments->isEmpty() && $rawTransaction->trans_id) {
+                $c2bPayment = \App\Models\Payment::withTrashed()
+                    ->where('transaction_code', $rawTransaction->trans_id)
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->with('student')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                if ($c2bPayment) {
+                    $allPayments = collect([$c2bPayment]);
+                    // Also update the C2B transaction to link the payment_id if not set
+                    if (!$rawTransaction->payment_id) {
+                        $rawTransaction->update([
+                            'payment_id' => $c2bPayment->id,
+                            'status' => 'processed', // Update status when payment is linked
+                        ]);
+                        // Refresh normalized data
+                        $normalized = $this->normalizeTransaction($rawTransaction);
+                        $bankStatement = (object) $normalized;
+                    } elseif ($rawTransaction->status !== 'processed' && $rawTransaction->status !== 'failed') {
+                        // Update status if payment_id was already set but status wasn't updated
+                        $rawTransaction->update(['status' => 'processed']);
+                        $normalized = $this->normalizeTransaction($rawTransaction);
+                        $bankStatement = (object) $normalized;
+                    }
+                }
+            }
+            
+            // For bank statements, check if payment exists by reference but transaction not updated
+            if (!$isC2B && $allPayments->isEmpty() && $bankStatement->reference_number && !$bankStatement->payment_created) {
+                $bankPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                    ->orWhere('transaction_code', 'LIKE', $bankStatement->reference_number . '-%')
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->with('student')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                if ($bankPayment) {
+                    $allPayments = collect([$bankPayment]);
+                    // Update the bank statement transaction to link the payment
+                    if (!$rawTransaction->payment_id) {
+                        $rawTransaction->update([
+                            'payment_id' => $bankPayment->id,
+                            'payment_created' => true,
+                            'status' => 'confirmed', // Update status when payment is linked
+                        ]);
+                        // Refresh normalized data
+                        $normalized = $this->normalizeTransaction($rawTransaction);
+                        $bankStatement = (object) $normalized;
+                    } elseif (!$rawTransaction->payment_created) {
+                        // Update payment_created flag if payment_id was already set
+                        $rawTransaction->update([
+                            'payment_created' => true,
+                            'status' => $rawTransaction->status === 'draft' ? 'confirmed' : $rawTransaction->status,
+                        ]);
+                        $normalized = $this->normalizeTransaction($rawTransaction);
+                        $bankStatement = (object) $normalized;
+                    }
+                }
+            }
+            
+            // Auto-update status if transaction has payment but status is still draft/pending
+            // Also refresh the transaction to ensure we have the latest data
+            $rawTransaction->refresh();
+            
+            if ($bankStatement->payment_id || $bankStatement->payment_created || $allPayments->isNotEmpty()) {
+                $hasValidPayment = false;
+                if ($bankStatement->payment_id) {
+                    $checkPayment = \App\Models\Payment::where('id', $bankStatement->payment_id)
+                        ->where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->first();
+                    if ($checkPayment) {
+                        $hasValidPayment = true;
+                    }
+                }
+                
+                // If we found payments in allPayments, we have a valid payment
+                if ($allPayments->isNotEmpty() && $allPayments->where('reversed', false)->whereNull('deleted_at')->isNotEmpty()) {
+                    $hasValidPayment = true;
+                }
+                
+                if ($hasValidPayment) {
+                    if ($isC2B) {
+                        if ($rawTransaction->status === 'pending' || ($rawTransaction->payment_id && $rawTransaction->status !== 'processed' && $rawTransaction->status !== 'failed')) {
+                            $rawTransaction->update(['status' => 'processed']);
+                            $rawTransaction->refresh();
+                            $normalized = $this->normalizeTransaction($rawTransaction);
+                            $bankStatement = (object) $normalized;
+                        }
+                    } else {
+                        // For bank statements, if payment exists, status should be confirmed
+                        if ($rawTransaction->status === 'draft' || ($rawTransaction->payment_id && $rawTransaction->status !== 'confirmed' && $rawTransaction->status !== 'rejected')) {
+                            $rawTransaction->update([
+                                'status' => 'confirmed',
+                                'payment_created' => true,
+                            ]);
+                            $rawTransaction->refresh();
+                            $normalized = $this->normalizeTransaction($rawTransaction);
+                            $bankStatement = (object) $normalized;
+                        } elseif ($rawTransaction->status === 'confirmed' && !$rawTransaction->payment_created && $rawTransaction->payment_id) {
+                            // Ensure payment_created flag is set if payment_id exists
+                            $rawTransaction->update(['payment_created' => true]);
+                            $rawTransaction->refresh();
+                            $normalized = $this->normalizeTransaction($rawTransaction);
+                            $bankStatement = (object) $normalized;
+                        }
+                    }
+                }
+            }
+            
+            // Final refresh to ensure normalized data matches database
+            $rawTransaction->refresh();
+            
+            // Force update status if payment exists but status is wrong (CRITICAL FIX)
+            if (!$isC2B && $rawTransaction->payment_id && $rawTransaction->payment_created) {
+                // Check if payment is valid (not reversed)
+                $validPayment = \App\Models\Payment::where('id', $rawTransaction->payment_id)
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->exists();
+                
+                if ($validPayment && $rawTransaction->status !== 'confirmed' && $rawTransaction->status !== 'rejected') {
+                    $rawTransaction->update(['status' => 'confirmed']);
+                    $rawTransaction->refresh();
+                }
+            } elseif ($isC2B && $rawTransaction->payment_id && $rawTransaction->status !== 'processed' && $rawTransaction->status !== 'failed') {
+                // For C2B, ensure status is processed if payment exists
+                $validPayment = \App\Models\Payment::where('id', $rawTransaction->payment_id)
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->exists();
+                
+                if ($validPayment) {
+                    $rawTransaction->update(['status' => 'processed']);
+                    $rawTransaction->refresh();
+                }
+            }
+            
+            // Final normalization with fresh data
+            $normalized = $this->normalizeTransaction($rawTransaction);
+            $bankStatement = (object) $normalized;
+            
+            // Double-check: if payment exists, force status to confirmed in normalized data
+            if (!$isC2B && $bankStatement->payment_id && ($bankStatement->payment_created ?? false) && $bankStatement->status !== 'rejected') {
+                $bankStatement->status = 'confirmed';
+            } elseif ($isC2B && $bankStatement->payment_id && $bankStatement->status !== 'rejected') {
+                $bankStatement->status = 'confirmed';
+            }
             // Ensure payment_id-linked payment is included (e.g. shared first payment with different code)
             if ($bankStatement->payment_id && !$allPayments->contains('id', $bankStatement->payment_id)) {
                 $linked = \App\Models\Payment::withTrashed()->with('student')->find($bankStatement->payment_id);
@@ -714,8 +1033,8 @@ class BankStatementController extends Controller
                     $allPayments = $allPayments->push($linked)->sortByDesc('created_at')->values();
                 }
             }
-            // Shared transactions: include all sibling payments by receipt base (e.g. Dawn) so none are missing
-            if ($bankStatement->is_shared && $allPayments->isNotEmpty()) {
+            // Shared transactions: include all sibling payments by receipt base (only for bank statements)
+            if (!$isC2B && $bankStatement->is_shared && $allPayments->isNotEmpty()) {
                 $receipts = $allPayments->pluck('receipt_number')->unique()->filter()->values();
                 if ($receipts->isNotEmpty()) {
                     $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
@@ -729,10 +1048,67 @@ class BankStatementController extends Controller
                     $allPayments = $allPayments->merge($byReceipt)->unique('id')->sortByDesc('created_at')->values();
                 }
             }
-            $activePayments = $allPayments->where('reversed', false);
-            $reversedPayments = $allPayments->where('reversed', true);
-        } elseif ($bankStatement->payment_id) {
-            $payment = \App\Models\Payment::withTrashed()->find($bankStatement->payment_id);
+            $activePayments = $allPayments->where('reversed', false)->values();
+            $reversedPayments = $allPayments->where('reversed', true)->values();
+        }
+        
+        // Always check by payment_id directly (for C2B transactions or when reference lookup fails)
+        // This ensures payments are always found if payment_id is set
+        if ($bankStatement->payment_id) {
+            $directPayment = \App\Models\Payment::withTrashed()->with('student')->find($bankStatement->payment_id);
+            if ($directPayment) {
+                // Add to allPayments if not already included
+                if (!$allPayments->contains('id', $directPayment->id)) {
+                    $allPayments->push($directPayment);
+                }
+                // Update active/reversed collections - ensure it's in the right collection
+                if ($directPayment->reversed) {
+                    if (!$reversedPayments->contains('id', $directPayment->id)) {
+                        $reversedPayments->push($directPayment);
+                    }
+                    // Remove from activePayments if it's there (shouldn't be, but just in case)
+                    $activePayments = $activePayments->reject(fn($p) => $p->id === $directPayment->id);
+                } else {
+                    if (!$activePayments->contains('id', $directPayment->id)) {
+                        $activePayments->push($directPayment);
+                    }
+                    // Remove from reversedPayments if it's there (shouldn't be, but just in case)
+                    $reversedPayments = $reversedPayments->reject(fn($p) => $p->id === $directPayment->id);
+                }
+            }
+        }
+        
+        // Also check for payments by student_id and transaction_code if payment_id is set but payment not found
+        // This handles cases where payment was created but payment_id wasn't updated
+        if ($bankStatement->payment_id && $allPayments->isEmpty()) {
+            // Try to find by student_id and reference_number
+            if ($bankStatement->student_id && $bankStatement->reference_number) {
+                $studentPayments = \App\Models\Payment::withTrashed()
+                    ->where('student_id', $bankStatement->student_id)
+                    ->where(function ($q) use ($bankStatement) {
+                        $q->where('transaction_code', $bankStatement->reference_number)
+                          ->orWhere('transaction_code', 'LIKE', $bankStatement->reference_number . '-%');
+                    })
+                    ->with('student')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+                
+                if ($studentPayments->isNotEmpty()) {
+                    $allPayments = $studentPayments;
+                    $activePayments = $allPayments->where('reversed', false);
+                    $reversedPayments = $allPayments->where('reversed', true);
+                    
+                    // Update the transaction's payment_id if it's not set
+                    if (!$rawTransaction->payment_id && $activePayments->isNotEmpty()) {
+                        $rawTransaction->update(['payment_id' => $activePayments->first()->id]);
+                    }
+                }
+            }
+        }
+        
+        // Final fallback: If no payments found by reference but payment_id exists, use payment_id
+        if ($allPayments->isEmpty() && $bankStatement->payment_id) {
+            $payment = \App\Models\Payment::withTrashed()->with('student')->find($bankStatement->payment_id);
             if ($payment) {
                 $allPayments = collect([$payment]);
                 if ($payment->reversed) {
@@ -743,44 +1119,173 @@ class BankStatementController extends Controller
             }
         }
 
-        return view('finance.bank-statements.show', compact('bankStatement', 'siblings', 'possibleMatches', 'allPayments', 'activePayments', 'reversedPayments'));
+        return view('finance.bank-statements.show', compact('bankStatement', 'siblings', 'possibleMatches', 'allPayments', 'activePayments', 'reversedPayments', 'rawTransaction', 'isC2B'));
     }
 
     /**
-     * Edit transaction (manual matching)
+     * Edit transaction (manual matching) - unified for both types
      */
-    public function edit(BankStatementTransaction $bankStatement)
+    public function edit($id)
     {
-        $bankStatement->load(['student', 'family']);
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Load relationships
+        if ($isC2B) {
+            $transaction->load(['student']);
+        } else {
+            $transaction->load(['student', 'family']);
+        }
+        
+        // Normalize for view
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
+        $rawTransaction = $transaction;
         
         // Get potential matches
         $potentialMatches = [];
         if ($bankStatement->phone_number) {
-            $normalizedPhone = $this->parser->normalizePhone($bankStatement->phone_number);
-            $potentialMatches = $this->parser->findStudentsByPhone($normalizedPhone);
+            if ($isC2B) {
+                // For C2B, use matching suggestions if available
+                if ($transaction->matching_suggestions) {
+                    $potentialMatches = collect($transaction->matching_suggestions)->map(function($suggestion) {
+                        return [
+                            'student_id' => $suggestion['student_id'] ?? null,
+                            'student_name' => $suggestion['student_name'] ?? '',
+                            'admission_number' => $suggestion['admission_number'] ?? '',
+                            'confidence' => $suggestion['confidence'] ?? 0,
+                            'reason' => $suggestion['reason'] ?? '',
+                        ];
+                    })->toArray();
+                }
+            } else {
+                // For bank statements, use parser
+                $normalizedPhone = $this->parser->normalizePhone($bankStatement->phone_number);
+                $potentialMatches = $this->parser->findStudentsByPhone($normalizedPhone);
+            }
         }
 
         $students = Student::where('archive', false)
             ->orderBy('first_name')
             ->get();
 
-        return view('finance.bank-statements.edit', compact('bankStatement', 'potentialMatches', 'students'));
+        return view('finance.bank-statements.edit', compact('bankStatement', 'potentialMatches', 'students', 'rawTransaction', 'isC2B'));
     }
 
     /**
-     * Update transaction
+     * Update transaction - unified for both types
      */
-    public function update(Request $request, BankStatementTransaction $bankStatement)
+    public function update(Request $request, $bankStatement)
     {
-        $validated = $request->validate([
-            'student_id' => 'nullable|exists:students,id',
-            'match_notes' => 'nullable|string|max:1000',
-        ]);
+        try {
+            // $bankStatement is the route parameter - it could be an ID or a model instance
+            // Convert to ID if it's a model, matching the show() method pattern
+            $id = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+            
+            $transaction = $this->resolveTransaction($id);
+            $isC2B = $transaction instanceof MpesaC2BTransaction;
+            
+            $validated = $request->validate([
+                'student_id' => 'nullable|exists:students,id',
+                'match_notes' => 'nullable|string|max:1000',
+            ]);
 
-        DB::transaction(function () use ($bankStatement, $validated) {
+            DB::transaction(function () use ($transaction, $validated, $isC2B, $id) {
             $student = null;
             if ($validated['student_id']) {
                 $student = Student::findOrFail($validated['student_id']);
+            }
+
+            // Check if student is being changed and payment exists
+            $oldStudentId = $transaction->student_id;
+            $newStudentId = $student?->id;
+            $studentChanged = $oldStudentId !== $newStudentId;
+            
+            // Check for existing payments that are ACTUALLY linked to THIS transaction
+            // Only check payments that are directly linked via payment_id or were created from this transaction
+            $existingPayments = collect();
+            
+            // First, check if this transaction has a payment_id directly linked
+            if ($transaction->payment_id) {
+                $payment = \App\Models\Payment::find($transaction->payment_id);
+                if ($payment && !$payment->reversed) {
+                    $existingPayments->push($payment);
+                }
+            }
+            
+            // Also check by reference number, but ONLY if the payment is actually linked to this transaction
+            // This prevents false positives from other transactions with the same reference number
+            $normalized = $this->normalizeTransaction($transaction);
+            $normalizedTransaction = (object) $normalized;
+            if ($normalizedTransaction->reference_number) {
+                $ref = $normalizedTransaction->reference_number;
+                
+                // For C2B transactions, check if payment is linked via C2B transaction's payment_id
+                // For bank statement transactions, check if payment is linked via bank statement transaction's payment_id
+                if ($isC2B) {
+                    // For C2B: check payments linked to C2B transactions with this reference number
+                    $c2bTransactionsWithRef = MpesaC2BTransaction::where('trans_id', $ref)
+                        ->where('id', $transaction->id) // Only this specific transaction
+                        ->whereNotNull('payment_id')
+                        ->pluck('payment_id');
+                    
+                    if ($c2bTransactionsWithRef->isNotEmpty()) {
+                        $refPayments = \App\Models\Payment::whereIn('id', $c2bTransactionsWithRef)
+                            ->where('reversed', false)
+                            ->get();
+                        
+                        foreach ($refPayments as $refPayment) {
+                            if (!$existingPayments->contains('id', $refPayment->id)) {
+                                $existingPayments->push($refPayment);
+                            }
+                        }
+                    }
+                } else {
+                    // For bank statements: check payments linked to bank statement transactions with this reference number
+                    $bankTransactionsWithRef = BankStatementTransaction::where('reference_number', $ref)
+                        ->where('id', $transaction->id) // Only this specific transaction
+                        ->whereNotNull('payment_id')
+                        ->pluck('payment_id');
+                    
+                    if ($bankTransactionsWithRef->isNotEmpty()) {
+                        $refPayments = \App\Models\Payment::whereIn('id', $bankTransactionsWithRef)
+                            ->where('reversed', false)
+                            ->get();
+                        
+                        foreach ($refPayments as $refPayment) {
+                            if (!$existingPayments->contains('id', $refPayment->id)) {
+                                $existingPayments->push($refPayment);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // If student is being changed and payments exist that are linked to THIS transaction, prevent the change
+            if ($studentChanged && $existingPayments->isNotEmpty()) {
+                $oldStudent = $oldStudentId ? Student::find($oldStudentId) : null;
+                $oldStudentName = $oldStudent ? $oldStudent->full_name : 'Unknown';
+                
+                $paymentStudents = $existingPayments->map(function($p) {
+                    $s = $p->student;
+                    return $s ? $s->full_name . ' (' . $s->admission_number . ')' : 'Unknown';
+                })->unique()->implode(', ');
+                
+                // Log for debugging ID conflicts
+                \Log::warning('Transaction reassignment blocked due to existing payment', [
+                    'transaction_id' => $transaction->id,
+                    'transaction_type' => $isC2B ? 'c2b' : 'bank',
+                    'old_student_id' => $oldStudentId,
+                    'new_student_id' => $newStudentId,
+                    'payment_ids' => $existingPayments->pluck('id')->toArray(),
+                    'reference_number' => $normalizedTransaction->reference_number ?? null,
+                ]);
+                
+                throw new \Exception(
+                    "Cannot reassign this transaction. A payment already exists for student(s): {$paymentStudents}. " .
+                    "The transaction is currently assigned to: {$oldStudentName}. " .
+                    "To reassign, you must first reverse the existing payment(s) or reject this transaction."
+                );
             }
 
             // Clear MANUALLY_REJECTED marker when manually assigned
@@ -789,226 +1294,411 @@ class BankStatementController extends Controller
                 $matchNotes = 'Manually assigned';
             }
             
+            // Get current status
+            $currentStatus = $isC2B 
+                ? ($transaction->status === 'processed' ? 'confirmed' : ($transaction->status === 'failed' ? 'rejected' : 'draft'))
+                : $transaction->status;
+            
             // If assigning a student to a rejected/unmatched transaction, change status to draft
-            $newStatus = $bankStatement->status;
-            if ($student && in_array($bankStatement->status, ['rejected', 'unmatched'])) {
+            $newStatus = $currentStatus;
+            if ($student && in_array($currentStatus, ['rejected', 'unmatched'])) {
                 $newStatus = 'draft';
-            } elseif (!$student && $bankStatement->status === 'draft') {
-                // If removing student assignment, keep status as is or set to unmatched
+            } elseif (!$student && $currentStatus === 'draft') {
                 $newStatus = 'unmatched';
             }
             
-            $bankStatement->update([
-                'student_id' => $student?->id,
-                'family_id' => $student?->family_id,
-                'status' => $newStatus,
-                'match_status' => $student ? 'manual' : 'unmatched',
-                'match_confidence' => $student ? 1.0 : 0,
-                'match_notes' => $matchNotes,
-            ]);
+            if ($isC2B) {
+                // Update C2B transaction
+                $transaction->update([
+                    'student_id' => $student?->id,
+                    'allocation_status' => $student ? 'manually_allocated' : 'unallocated',
+                    'match_confidence' => $student ? 100 : 0,
+                    'match_reason' => $matchNotes,
+                    'status' => $newStatus === 'confirmed' ? 'processed' : ($newStatus === 'rejected' ? 'failed' : 'pending'),
+                ]);
+            } else {
+                // Update bank statement transaction
+                $transaction->update([
+                    'student_id' => $student?->id,
+                    'family_id' => $student?->family_id,
+                    'status' => $newStatus,
+                    'match_status' => $student ? 'manual' : 'unmatched',
+                    'match_confidence' => $student ? 1.0 : 0,
+                    'match_notes' => $matchNotes,
+                ]);
+            }
         });
 
-        return redirect()
-            ->route('finance.bank-statements.show', $bankStatement)
-            ->with('success', 'Transaction updated successfully');
+            // Use the original ID from route parameter, not from closure
+            $redirectId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+            
+            return redirect()
+                ->route('finance.bank-statements.show', $redirectId)
+                ->with('success', 'Transaction updated successfully');
+                
+        } catch (\Exception $e) {
+            // Use the original ID from route parameter, not from closure
+            $redirectId = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+            
+            return redirect()
+                ->route('finance.bank-statements.show', $redirectId)
+                ->withErrors(['error' => $e->getMessage()]);
+        }
     }
 
     /**
-     * Confirm transaction
+     * Confirm transaction - unified for both types
      */
-    public function confirm(Request $request, BankStatementTransaction $bankStatement)
+    public function confirm(Request $request, $id)
     {
-        if (!$bankStatement->student_id && !$bankStatement->is_shared) {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Normalize for checks
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
+        
+        if (!$bankStatement->student_id && !($bankStatement->is_shared ?? false)) {
             return redirect()->back()
                 ->withErrors(['error' => 'Transaction must be matched to a student or shared before confirming']);
         }
 
         // Check if there are non-reversed payments for this transaction (exact ref + ref-*)
-        // If transaction is already confirmed and has non-reversed payments, don't allow confirming again
-        if ($bankStatement->status === 'confirmed' && $bankStatement->payment_created) {
-            $nonReversedPayments = collect();
-            if ($bankStatement->reference_number) {
-                $ref = $bankStatement->reference_number;
-                $nonReversedPayments = \App\Models\Payment::where('reversed', false)
-                    ->where(function ($q) use ($ref) {
-                        $q->where('transaction_code', $ref)
-                          ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                    })
-                    ->get();
-            }
-            
-            if ($nonReversedPayments->isNotEmpty()) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'This transaction already has active (non-reversed) payments. Cannot confirm again.']);
+        // ALWAYS check for existing payments to prevent duplicate confirmations
+        // This check should run regardless of status or payment_created flag
+        $nonReversedPayments = collect();
+        
+        // Check by payment_id first (most direct)
+        if ($bankStatement->payment_id) {
+            $payment = \App\Models\Payment::find($bankStatement->payment_id);
+            if ($payment && !$payment->reversed) {
+                $nonReversedPayments->push($payment);
             }
         }
+        
+        // Also check by reference number (for shared payments or multiple payments with same ref)
+        // This catches cases where payment exists but payment_id wasn't linked
+        if ($bankStatement->reference_number) {
+            $ref = $bankStatement->reference_number;
+            $refPayments = \App\Models\Payment::where('reversed', false)
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
+                ->get();
+            
+            // Merge with existing payments, avoiding duplicates
+            foreach ($refPayments as $refPayment) {
+                if (!$nonReversedPayments->contains('id', $refPayment->id)) {
+                    $nonReversedPayments->push($refPayment);
+                }
+            }
+        }
+        
+        // If payments found, prevent confirmation and optionally link payment_id
+        if ($nonReversedPayments->isNotEmpty()) {
+            $firstPayment = $nonReversedPayments->first();
+            
+            // Auto-link payment_id if not set (for both C2B and bank statements)
+            if (!$transaction->payment_id) {
+                if ($isC2B) {
+                    $transaction->update(['payment_id' => $firstPayment->id]);
+                    
+                    // Update status to processed if payment exists
+                    if ($transaction->status !== 'processed' && $transaction->status !== 'failed') {
+                        $transaction->update(['status' => 'processed']);
+                    }
+                } else {
+                    // For bank statements, update payment_id and payment_created
+                    $transaction->update([
+                        'payment_id' => $firstPayment->id,
+                        'payment_created' => true,
+                    ]);
+                    
+                    // Update status to confirmed if it's still draft
+                    if ($transaction->status === 'draft') {
+                        $transaction->update(['status' => 'confirmed']);
+                    }
+                }
+            } else {
+                // Payment_id already set, but ensure status is correct
+                if ($isC2B) {
+                    if ($transaction->status !== 'processed' && $transaction->status !== 'failed') {
+                        $transaction->update(['status' => 'processed']);
+                    }
+                } else {
+                    // For bank statements, ensure payment_created is true and status is confirmed
+                    if (!$transaction->payment_created) {
+                        $transaction->update(['payment_created' => true]);
+                    }
+                    if ($transaction->status === 'draft') {
+                        $transaction->update(['status' => 'confirmed']);
+                    }
+                }
+            }
+            
+            return redirect()->back()
+                ->withErrors(['error' => 'This transaction already has active (non-reversed) payments. Cannot confirm again.'])
+                ->with('info', 'Payment has been automatically linked to this transaction.');
+        }
 
-        // Check if this is a swimming transaction (refresh to get latest value)
-        $bankStatement->refresh();
-        $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
-            && $bankStatement->is_swimming_transaction;
+        // Check if this is a swimming transaction
+        $transaction->refresh();
+        $isSwimming = $bankStatement->is_swimming_transaction ?? false;
 
-        DB::transaction(function () use ($bankStatement, $isSwimming) {
+        DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $bankStatement) {
             // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
             $matchNotes = $bankStatement->match_notes ?? '';
             if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
                 $matchNotes = $matchNotes ? str_replace('MANUALLY_REJECTED - ', '', $matchNotes) : 'Manually confirmed';
             }
             
-            $bankStatement->confirm();
-            
-            // Update match notes if it had MANUALLY_REJECTED marker
-            if (strpos($bankStatement->match_notes ?? '', 'MANUALLY_REJECTED') !== false) {
-                $bankStatement->update(['match_notes' => $matchNotes]);
+            // Update transaction status
+            if ($isC2B) {
+                $transaction->update([
+                    'status' => 'processed',
+                    'match_reason' => $matchNotes,
+                ]);
+            } else {
+                $transaction->confirm();
+                if (strpos($transaction->match_notes ?? '', 'MANUALLY_REJECTED') !== false) {
+                    $transaction->update(['match_notes' => $matchNotes]);
+                }
             }
 
             if ($isSwimming) {
                 // Handle swimming transaction - allocate to swimming wallets
-                $this->processSwimmingTransaction($bankStatement);
+                if ($isC2B) {
+                    // For C2B, use the existing C2B allocation logic
+                    // This should already be handled when the transaction was allocated
+                    // But we can ensure payment is created if not already
+                    if (!$transaction->payment_id) {
+                        // Create payment for swimming C2B transaction
+                        $this->createSwimmingPaymentForC2B($transaction);
+                    }
+                } else {
+                    $this->processSwimmingTransaction($transaction);
+                }
             } else {
                 // Create payment for fee allocation if not already created
                 if (!$bankStatement->payment_created) {
-                try {
-                    // Check if there are any non-reversed payments for this transaction (exact ref + ref-*)
-                    $nonReversedPayments = collect();
-                    if ($bankStatement->reference_number) {
-                        $ref = $bankStatement->reference_number;
-                        $nonReversedPayments = \App\Models\Payment::where('reversed', false)
-                            ->where(function ($q) use ($ref) {
-                                $q->where('transaction_code', $ref)
-                                  ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                            })
-                            ->get();
-                    }
-                    
-                    // If there are non-reversed payments, don't create a new one
-                    if ($nonReversedPayments->isNotEmpty()) {
-                        // Link to the first non-reversed payment (or use payment_id if set)
-                        $existingPayment = $bankStatement->payment_id 
-                            ? \App\Models\Payment::find($bankStatement->payment_id)
-                            : $nonReversedPayments->first();
-                        
-                        if ($existingPayment && !$existingPayment->reversed) {
-                            $bankStatement->update([
-                                'payment_id' => $existingPayment->id,
-                                'payment_created' => true,
-                            ]);
-                            $payment = $existingPayment;
-                            Log::info('Using existing non-reversed payment for transaction', [
-                                'transaction_id' => $bankStatement->id,
-                                'payment_id' => $payment->id,
-                            ]);
+                    try {
+                        if ($isC2B) {
+                            // For C2B, create payment using C2B logic
+                            $payment = $this->createPaymentForC2B($transaction);
                         } else {
-                            // Use first non-reversed payment
-                            $payment = $nonReversedPayments->first();
-                            $bankStatement->update([
-                                'payment_id' => $payment->id,
-                                'payment_created' => true,
-                            ]);
-                            Log::info('Linked to existing non-reversed payment for transaction', [
-                                'transaction_id' => $bankStatement->id,
-                                'payment_id' => $payment->id,
-                            ]);
-                        }
-                    } else {
-                        // Check if payment already exists (might be reversed)
-                        $existingPayment = null;
-                        if ($bankStatement->payment_id) {
-                            $existingPayment = \App\Models\Payment::find($bankStatement->payment_id);
+                            // For bank statements, use existing logic
+                            $payment = $this->createPaymentForBankStatement($transaction, $bankStatement);
                         }
                         
-                        // Also check by transaction code if reference number exists (exact ref + ref-*)
-                        if (!$existingPayment && $bankStatement->reference_number) {
-                            $ref = $bankStatement->reference_number;
-                            $existingPayment = \App\Models\Payment::where('reversed', false)
-                                ->where(function ($q) use ($ref) {
-                                    $q->where('transaction_code', $ref)
-                                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                                })
-                                ->first();
-                            if ($existingPayment) {
-                                // Link the transaction to existing non-reversed payment
-                                $bankStatement->update([
-                                    'payment_id' => $existingPayment->id,
-                                    'payment_created' => true,
-                                ]);
-                            }
+                        // Queue receipt generation and notifications
+                        if (isset($payment)) {
+                            \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                                ->onQueue('default');
                         }
-                        
-                        if ($existingPayment && !$existingPayment->reversed) {
-                            $payment = $existingPayment;
-                            Log::info('Using existing payment for transaction', [
-                                'transaction_id' => $bankStatement->id,
-                                'payment_id' => $payment->id,
-                            ]);
-                        } else {
-                            // Create payment with auto-allocation enabled
-                            try {
-                                $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
-                                
-                                // Ensure payment is allocated (double-check)
-                                if ($payment && $payment->unallocated_amount > 0) {
-                                    try {
-                                        $allocationService = app(\App\Services\PaymentAllocationService::class);
-                                        $allocationService->autoAllocate($payment);
-                                    } catch (\Exception $e) {
-                                        Log::warning('Post-creation auto-allocation failed for bank statement payment', [
-                                            'payment_id' => $payment->id,
-                                            'error' => $e->getMessage(),
-                                        ]);
-                                    }
-                                }
-                            } catch (\App\Exceptions\PaymentConflictException $e) {
-                                // Payment conflict detected - redirect to show page with conflict info
-                                return redirect()
-                                    ->route('finance.bank-statements.show', $bankStatement)
-                                    ->with('payment_conflict', [
-                                        'conflicting_payments' => $e->conflictingPayments,
-                                        'student_id' => $e->studentId,
-                                        'transaction_code' => $e->transactionCode,
-                                        'message' => $e->getMessage(),
-                                    ])
-                                    ->with('error', 'Payment conflict detected. Please review the conflicting payment(s) and choose an action.');
-                            }
-                        }
+                    } catch (\App\Exceptions\PaymentConflictException $e) {
+                        return redirect()
+                            ->route('finance.bank-statements.show', $id)
+                            ->with('payment_conflict', [
+                                'conflicting_payments' => $e->conflictingPayments,
+                                'student_id' => $e->studentId,
+                                'transaction_code' => $e->transactionCode,
+                                'message' => $e->getMessage(),
+                            ])
+                            ->with('error', 'Payment conflict detected. Please review the conflicting payment(s) and choose an action.');
+                    } catch (\Exception $e) {
+                        Log::error('Failed to create payment from transaction', [
+                            'transaction_id' => $transaction->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                        throw $e;
                     }
-                    
-                    // Queue receipt generation and notifications for all payments (main + siblings)
-                    // This prevents timeout when processing multiple sibling payments
-                    // For shared payments, this processes main payment + all siblings in background
-                    // For single payments, this processes just the main payment in background
-                    if (isset($payment)) {
-                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
-                            ->onQueue('default');
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Failed to create payment from transaction', [
-                        'transaction_id' => $bankStatement->id,
-                        'error' => $e->getMessage(),
-                    ]);
-                    throw $e;
                 }
-            }
             }
         });
 
         $message = $isSwimming 
             ? 'Transaction confirmed and allocated to swimming wallets'
             : 'Transaction confirmed and payment created';
-            
+
         return redirect()
-            ->route('finance.bank-statements.show', $bankStatement)
+            ->route('finance.bank-statements.show', $id)
             ->with('success', $message);
+    }
+    
+    /**
+     * Helper: Create payment for C2B transaction
+     */
+    protected function createPaymentForC2B($c2bTransaction)
+    {
+        // Check for existing payments
+        $ref = $c2bTransaction->trans_id;
+        $existingPayment = \App\Models\Payment::where('reversed', false)
+            ->where(function ($q) use ($ref) {
+                $q->where('transaction_code', $ref)
+                  ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+            })
+            ->first();
+        
+        if ($existingPayment) {
+            // Update status to processed if payment already exists
+            $c2bTransaction->update([
+                'payment_id' => $existingPayment->id,
+                'status' => 'processed', // Mark as processed when payment exists
+            ]);
+            return $existingPayment;
+        }
+        
+        // Create new payment
+        $student = $c2bTransaction->student;
+        if (!$student) {
+            throw new \Exception('Student not found for C2B transaction');
+        }
+        
+        $payment = \App\Models\Payment::create([
+            'student_id' => $student->id,
+            'amount' => $c2bTransaction->trans_amount,
+            'payment_method' => 'mpesa',
+            'payment_date' => $c2bTransaction->trans_time,
+            'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
+            'transaction_code' => $c2bTransaction->trans_id,
+            'status' => 'approved',
+            'notes' => 'M-PESA Paybill payment - ' . $c2bTransaction->full_name,
+            'created_by' => \Illuminate\Support\Facades\Auth::id(),
+        ]);
+        
+        // Update C2B transaction with payment_id and status
+        $c2bTransaction->update([
+            'payment_id' => $payment->id,
+            'status' => 'processed', // Mark as processed when payment is created
+        ]);
+        
+        // Auto-allocate if not swimming
+        if (!$c2bTransaction->is_swimming_transaction) {
+            $allocationService = app(\App\Services\PaymentAllocationService::class);
+            $allocationService->autoAllocate($payment);
+        }
+        
+        return $payment;
+    }
+    
+    /**
+     * Helper: Create payment for bank statement transaction
+     */
+    protected function createPaymentForBankStatement($transaction, $normalized)
+    {
+        // Check for existing payments
+        $ref = $normalized->reference_number;
+        $nonReversedPayments = collect();
+        if ($ref) {
+            $nonReversedPayments = \App\Models\Payment::where('reversed', false)
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
+                ->get();
+        }
+        
+        if ($nonReversedPayments->isNotEmpty()) {
+            $payment = $nonReversedPayments->first();
+            $transaction->update([
+                'payment_id' => $payment->id,
+                'payment_created' => true,
+            ]);
+            return $payment;
+        }
+        
+        // Check existing payment
+        $existingPayment = null;
+        if ($transaction->payment_id) {
+            $existingPayment = \App\Models\Payment::find($transaction->payment_id);
+        }
+        
+        if ($existingPayment && !$existingPayment->reversed) {
+            return $existingPayment;
+        }
+        
+        // Create payment with auto-allocation
+        $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+        
+        if ($payment && $payment->unallocated_amount > 0) {
+            try {
+                $allocationService = app(\App\Services\PaymentAllocationService::class);
+                $allocationService->autoAllocate($payment);
+            } catch (\Exception $e) {
+                Log::warning('Post-creation auto-allocation failed', [
+                    'payment_id' => $payment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        return $payment;
+    }
+    
+    /**
+     * Helper: Create swimming payment for C2B
+     */
+    protected function createSwimmingPaymentForC2B($c2bTransaction)
+    {
+        $student = $c2bTransaction->student;
+        if (!$student) {
+            throw new \Exception('Student not found for C2B swimming transaction');
+        }
+        
+        $payment = \App\Models\Payment::create([
+            'student_id' => $student->id,
+            'amount' => $c2bTransaction->trans_amount,
+            'payment_method' => 'mpesa',
+            'payment_date' => $c2bTransaction->trans_time,
+            'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
+            'transaction_code' => $c2bTransaction->trans_id,
+            'status' => 'approved',
+            'notes' => 'M-PESA Paybill swimming payment - ' . $c2bTransaction->full_name,
+            'created_by' => \Illuminate\Support\Facades\Auth::id(),
+        ]);
+        
+        // Update C2B transaction with payment_id and status
+        $c2bTransaction->update([
+            'payment_id' => $payment->id,
+            'status' => 'processed', // Mark as processed when payment is created
+        ]);
+        
+        // Credit swimming wallet
+        $swimmingWalletService = app(\App\Services\SwimmingWalletService::class);
+        $swimmingWalletService->creditFromTransaction(
+            $student,
+            $payment,
+            $c2bTransaction->trans_amount,
+            "Swimming payment from M-PESA transaction #{$c2bTransaction->trans_id}"
+        );
+        
+        $payment->update([
+            'allocated_amount' => $c2bTransaction->trans_amount,
+            'unallocated_amount' => 0,
+        ]);
+        
+        // Update C2B transaction with payment_id and status
+        $c2bTransaction->update([
+            'payment_id' => $payment->id,
+            'status' => 'processed', // Mark as processed when payment is created
+        ]);
+        
+        return $payment;
     }
 
     /**
      * Create payment for confirmed transaction (when payment_created is false)
      * This is used for confirmed transactions that don't have payments yet (e.g., after reversal)
      */
-    public function createPayment(Request $request, BankStatementTransaction $bankStatement)
+    public function createPayment(Request $request, $id)
     {
-        // Authorization check
-        $this->authorize('update', $bankStatement);
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Normalize for checks
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
         
         if ($bankStatement->status !== 'confirmed') {
             return redirect()->back()
@@ -1020,15 +1710,14 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Payment already exists for this transaction.']);
         }
         
-        if (!$bankStatement->student_id && !$bankStatement->is_shared) {
+        if (!$bankStatement->student_id && !($bankStatement->is_shared ?? false)) {
             return redirect()->back()
                 ->withErrors(['error' => 'Transaction must be matched to a student or shared before creating payment.']);
         }
 
         // Check if this is a swimming transaction
-        $bankStatement->refresh();
-        $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
-            && $bankStatement->is_swimming_transaction;
+        $transaction->refresh();
+        $isSwimming = $bankStatement->is_swimming_transaction ?? false;
 
         if ($isSwimming) {
             return redirect()->back()
@@ -1036,7 +1725,7 @@ class BankStatementController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($bankStatement) {
+            DB::transaction(function () use ($transaction, $bankStatement, $isC2B) {
                 // Check if there are any non-reversed payments for this transaction
                 $nonReversedPayments = collect();
                 if ($bankStatement->reference_number) {
@@ -1090,10 +1779,14 @@ class BankStatementController extends Controller
                     }
                     
                     // Create payment with auto-allocation enabled
-                    $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                    if ($isC2B) {
+                        $payment = $this->createPaymentForC2B($transaction);
+                    } else {
+                        $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                    }
                     
                     // Log all payments created (for shared transactions, log all siblings)
-                    if ($bankStatement->is_shared && $bankStatement->reference_number) {
+                    if (!$isC2B && ($bankStatement->is_shared ?? false) && $bankStatement->reference_number) {
                         // Wait a moment for all payments to be created
                         usleep(500000); // 0.5 seconds
                         
@@ -1154,18 +1847,18 @@ class BankStatementController extends Controller
                     
                     // Queue receipt generation and notifications
                     if (isset($payment)) {
-                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
                             ->onQueue('default');
                     }
                 }
             });
             
             return redirect()
-                ->route('finance.bank-statements.show', $bankStatement)
+                ->route('finance.bank-statements.show', $id)
                 ->with('success', 'Payment created and allocated successfully.');
         } catch (\Exception $e) {
             Log::error('Failed to create payment from confirmed transaction', [
-                'transaction_id' => $bankStatement->id,
+                'transaction_id' => $transaction->id,
                 'error' => $e->getMessage(),
             ]);
             
@@ -1175,16 +1868,21 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Reject transaction - reset to unassigned to allow re-matching
+     * Reject transaction - unified for both types
      * Reverses any associated payments, clears matching/confirmation/allocations (including
      * sibling sharing and swimming). Transaction moves to unassigned; user must manually
      * match, allocate, confirm, then create payment.
      */
-    public function reject(BankStatementTransaction $bankStatement)
+    public function reject($id)
     {
-        $this->authorize('reject', $bankStatement);
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Normalize for checks
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
 
-        DB::transaction(function () use ($bankStatement) {
+        DB::transaction(function () use ($transaction, $bankStatement, $isC2B) {
             // 1. Find and reverse ALL related payments (exact ref + ref-*; all sibling receipts share same source)
             $relatedPayments = collect();
             $ref = $bankStatement->reference_number;
@@ -1202,9 +1900,9 @@ class BankStatementController extends Controller
                     $relatedPayments = collect([$p]);
                 }
             }
-            // Shared transactions: all sibling receipts share a base (e.g. RCPT/2026-0458, RCPT/2026-0458-33-...)
+            // Shared transactions: all sibling receipts share a base (only for bank statements)
             // Find by receipt base + prefix so we never miss any sibling (e.g. Dawn)
-            if ($bankStatement->is_shared && $relatedPayments->isNotEmpty()) {
+            if (!$isC2B && ($bankStatement->is_shared ?? false) && $relatedPayments->isNotEmpty()) {
                 $receipts = $relatedPayments->pluck('receipt_number')->unique()->filter()->values();
                 if ($receipts->isNotEmpty()) {
                     $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
@@ -1252,14 +1950,33 @@ class BankStatementController extends Controller
             }
 
             // 2. Reverse swimming allocations if this is a swimming transaction
-            if (Schema::hasTable('swimming_transaction_allocations') &&
-                \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') &&
-                $bankStatement->is_swimming_transaction) {
-                $swimmingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
-                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
-                    ->get();
+            if ($bankStatement->is_swimming_transaction ?? false) {
+                // For C2B, check swimming wallet directly; for bank statements, use allocations table
+                if ($isC2B) {
+                    // Reverse C2B swimming wallet credits
+                    if ($transaction->payment_id) {
+                        $payment = Payment::find($transaction->payment_id);
+                        if ($payment && $transaction->student_id) {
+                            $wallet = \App\Models\SwimmingWallet::where('student_id', $transaction->student_id)->first();
+                            if ($wallet) {
+                                $oldBalance = $wallet->balance;
+                                $newBalance = $oldBalance - $transaction->trans_amount;
+                                $wallet->update([
+                                    'balance' => max(0, $newBalance),
+                                    'total_debited' => ($wallet->total_debited ?? 0) + $transaction->trans_amount,
+                                    'last_transaction_at' => now(),
+                                ]);
+                            }
+                        }
+                    }
+                } else {
+                    // For bank statements, use allocations table
+                    if (Schema::hasTable('swimming_transaction_allocations')) {
+                        $swimmingAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
+                            ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                            ->get();
 
-                foreach ($swimmingAllocations as $allocation) {
+                        foreach ($swimmingAllocations as $allocation) {
                     if ($allocation->status === \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED) {
                         $wallet = \App\Models\SwimmingWallet::where('student_id', $allocation->student_id)->first();
                         if ($wallet) {
@@ -1286,65 +2003,82 @@ class BankStatementController extends Controller
                             }
                         }
                     }
-                    $updateData = ['status' => \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED];
-                    if (Schema::hasColumn('swimming_transaction_allocations', 'reversed_at')) {
-                        $updateData['reversed_at'] = now();
+                            $updateData = ['status' => \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED];
+                            if (Schema::hasColumn('swimming_transaction_allocations', 'reversed_at')) {
+                                $updateData['reversed_at'] = now();
+                            }
+                            if (Schema::hasColumn('swimming_transaction_allocations', 'reversed_by')) {
+                                $updateData['reversed_by'] = auth()->id();
+                            }
+                            $allocation->update($updateData);
+                        }
                     }
-                    if (Schema::hasColumn('swimming_transaction_allocations', 'reversed_by')) {
-                        $updateData['reversed_by'] = auth()->id();
-                    }
-                    $allocation->update($updateData);
                 }
             }
 
             // 3. Log audit while transaction still has previous state
             try {
-                \App\Services\FinancialAuditService::logTransactionRejection($bankStatement);
+                if (!$isC2B) {
+                    \App\Services\FinancialAuditService::logTransactionRejection($transaction);
+                }
             } catch (\Exception $e) {
                 Log::warning('Failed to log transaction rejection audit', [
-                    'transaction_id' => $bankStatement->id,
+                    'transaction_id' => $transaction->id,
                     'error' => $e->getMessage(),
                 ]);
             }
 
             // 4. Reset transaction to unassigned (draft + unmatched) – no MANUALLY_REJECTED so it can be re-matched
-            $bankStatement->update([
-                'status' => 'draft',
-                'student_id' => null,
-                'family_id' => null,
-                'match_status' => 'unmatched',
-                'match_confidence' => 0,
-                'matched_admission_number' => null,
-                'matched_student_name' => null,
-                'matched_phone_number' => null,
-                'match_notes' => null,
-                'payment_id' => null,
-                'payment_created' => false,
-                'is_shared' => false,
-                'shared_allocations' => null,
-                'confirmed_by' => null,
-                'confirmed_at' => null,
-            ]);
+            if ($isC2B) {
+                $transaction->update([
+                    'student_id' => null,
+                    'allocation_status' => 'unallocated',
+                    'match_confidence' => 0,
+                    'match_reason' => null,
+                    'status' => 'pending',
+                    'payment_id' => null,
+                    'is_swimming_transaction' => false,
+                ]);
+            } else {
+                $transaction->update([
+                    'status' => 'draft',
+                    'student_id' => null,
+                    'family_id' => null,
+                    'match_status' => 'unmatched',
+                    'match_confidence' => 0,
+                    'matched_admission_number' => null,
+                    'matched_student_name' => null,
+                    'matched_phone_number' => null,
+                    'match_notes' => null,
+                    'payment_id' => null,
+                    'payment_created' => false,
+                    'is_shared' => false,
+                    'shared_allocations' => null,
+                    'confirmed_by' => null,
+                    'confirmed_at' => null,
+                ]);
+            }
         });
 
         return redirect()
-            ->route('finance.bank-statements.show', $bankStatement)
+            ->route('finance.bank-statements.show', $id)
             ->with('success', 'Transaction rejected and reset to unassigned. You can now manually match, allocate, confirm, and create payment.');
     }
 
     /**
      * Handle payment conflict: reverse existing payment and create new one
      */
-    public function resolveConflictReverse(Request $request, BankStatementTransaction $bankStatement)
+    public function resolveConflictReverse(Request $request, $id)
     {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
         $request->validate([
             'payment_id' => 'required|exists:payments,id',
             'student_id' => 'required|exists:students,id',
         ]);
 
-        $this->authorize('update', $bankStatement);
-
-        DB::transaction(function () use ($bankStatement, $request) {
+        DB::transaction(function () use ($transaction, $request, $isC2B) {
             $payment = Payment::findOrFail($request->payment_id);
             $student = Student::findOrFail($request->student_id);
 
@@ -1362,7 +2096,7 @@ class BankStatementController extends Controller
                 'reversed' => true,
                 'reversed_by' => auth()->id(),
                 'reversed_at' => now(),
-                'reversal_reason' => 'Reversed to resolve payment conflict with transaction #' . $bankStatement->id,
+                'reversal_reason' => 'Reversed to resolve payment conflict with transaction #' . $transaction->id,
             ]);
             foreach ($invoiceIds->unique() as $invoiceId) {
                 $invoice = \App\Models\Invoice::find($invoiceId);
@@ -1372,7 +2106,11 @@ class BankStatementController extends Controller
             }
 
             // Now create new payment
-            $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+            if ($isC2B) {
+                $payment = $this->createPaymentForC2B($transaction);
+            } else {
+                $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+            }
             
             if ($payment && $payment->unallocated_amount > 0) {
                 try {
@@ -1387,27 +2125,28 @@ class BankStatementController extends Controller
             }
 
             if (isset($payment)) {
-                \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
                     ->onQueue('default');
             }
         });
 
         return redirect()
-            ->route('finance.bank-statements.show', $bankStatement)
+            ->route('finance.bank-statements.show', $id)
             ->with('success', 'Conflicting payment reversed and new payment created successfully.');
     }
 
     /**
      * Handle payment conflict: keep existing payment and link to transaction
      */
-    public function resolveConflictKeep(Request $request, BankStatementTransaction $bankStatement)
+    public function resolveConflictKeep(Request $request, $id)
     {
         $request->validate([
             'payment_id' => 'required|exists:payments,id',
         ]);
 
-        $this->authorize('update', $bankStatement);
-
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
         $payment = Payment::findOrFail($request->payment_id);
 
         if ($payment->reversed) {
@@ -1416,35 +2155,46 @@ class BankStatementController extends Controller
         }
 
         // Link transaction to existing payment
-        $bankStatement->update([
-            'payment_id' => $payment->id,
-            'payment_created' => true,
-        ]);
+        if ($isC2B) {
+            $transaction->update(['payment_id' => $payment->id]);
+        } else {
+            $transaction->update([
+                'payment_id' => $payment->id,
+                'payment_created' => true,
+            ]);
+        }
 
         return redirect()
-            ->route('finance.bank-statements.show', $bankStatement)
+            ->route('finance.bank-statements.show', $id)
             ->with('success', 'Transaction linked to existing payment successfully.');
     }
 
     /**
      * Handle payment conflict: create new payment with different transaction code
      */
-    public function resolveConflictCreateNew(Request $request, BankStatementTransaction $bankStatement)
+    public function resolveConflictCreateNew(Request $request, $id)
     {
-        $this->authorize('update', $bankStatement);
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Conflict resolution is primarily for bank statements
+        if ($isC2B) {
+            return redirect()->back()
+                ->withErrors(['error' => 'C2B transactions use different conflict resolution.']);
+        }
 
-        DB::transaction(function () use ($bankStatement) {
+        DB::transaction(function () use ($transaction) {
             // For shared transactions, we need to create payments for all siblings
             // Temporarily modify reference_number to force unique transaction codes
-            $originalRef = $bankStatement->reference_number;
-            $tempRef = $originalRef . '-NEW-' . $bankStatement->id . '-' . time();
+            $originalRef = $transaction->reference_number;
+            $tempRef = $originalRef . '-NEW-' . $transaction->id . '-' . time();
             
             // Temporarily update reference_number
-            $bankStatement->update(['reference_number' => $tempRef]);
-            $bankStatement->refresh();
+            $transaction->update(['reference_number' => $tempRef]);
+            $transaction->refresh();
             
             try {
-                $payment = $this->parser->createPaymentFromTransaction($bankStatement, false);
+                $payment = $this->parser->createPaymentFromTransaction($transaction, false);
                 
                 if ($payment && $payment->unallocated_amount > 0) {
                     try {
@@ -1459,49 +2209,46 @@ class BankStatementController extends Controller
                 }
 
                 if (isset($payment)) {
-                    \App\Jobs\ProcessSiblingPaymentsJob::dispatch($bankStatement->id, $payment->id)
+                    \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
                         ->onQueue('default');
                 }
             } finally {
                 // Restore original reference_number
-                $bankStatement->update(['reference_number' => $originalRef]);
+                $transaction->update(['reference_number' => $originalRef]);
             }
         });
 
         return redirect()
-            ->route('finance.bank-statements.show', $bankStatement)
+            ->route('finance.bank-statements.show', $id)
             ->with('success', 'New payment(s) created with different transaction code successfully.');
     }
 
     /**
      * Update shared allocations (edit amounts)
      */
-    public function updateAllocations(Request $request, BankStatementTransaction $bankStatement)
+    public function updateAllocations(Request $request, $id)
     {
-        // Authorization check
-        $this->authorize('editAllocations', $bankStatement);
-        
         // Optimistic locking check
-        if ($request->has('version') && $bankStatement->version != $request->version) {
+        if ($request->has('version') && $transaction->version != $request->version) {
             return back()->with('error', 
                 'This transaction was modified by another user. Please refresh the page and try again.'
             );
         }
         
-        if (!$bankStatement->is_shared) {
+        if (!($bankStatement->is_shared ?? false)) {
             return back()->with('error', 'Can only edit allocations for shared transactions');
         }
         
         // Prevent editing if transaction is rejected
-        if ($bankStatement->isRejected()) {
+        if ($normalized['status'] === 'rejected') {
             return back()->with('error', 'Cannot edit allocations for a rejected transaction.');
         }
         
         // Allow editing for both draft and confirmed transactions
         // For confirmed transactions with payments, we need to update the related payments too
-        if ($bankStatement->isConfirmed() && $bankStatement->payment_created) {
+        if ($normalized['status'] === 'confirmed' && $normalized['payment_created']) {
             // Check if any related payments are reversed
-            $relatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+            $relatedPayments = \App\Models\Payment::where('transaction_code', $normalized['reference_number'])
                 ->where('reversed', true)
                 ->exists();
             
@@ -1512,7 +2259,7 @@ class BankStatementController extends Controller
             }
             
             // Check if any payment is fully allocated (prevent editing if it would cause issues)
-            $fullyAllocatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+            $fullyAllocatedPayments = \App\Models\Payment::where('transaction_code', $normalized['reference_number'])
                 ->where('reversed', false)
                 ->whereRaw('allocated_amount >= amount')
                 ->exists();
@@ -1522,7 +2269,7 @@ class BankStatementController extends Controller
                     'One or more payments are fully allocated. Editing may require payment reversal first.'
                 );
             }
-        } elseif (!$bankStatement->isDraft() && !$bankStatement->isConfirmed()) {
+        } elseif ($normalized['status'] !== 'draft' && $normalized['status'] !== 'confirmed') {
             return back()->with('error', 'Can only edit allocations for draft or confirmed shared transactions');
         }
         
@@ -1548,25 +2295,25 @@ class BankStatementController extends Controller
 
         $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
-        if (abs($totalAmount - $bankStatement->amount) > 0.01) {
+        if (abs($totalAmount - $normalized['amount']) > 0.01) {
             return redirect()->back()
-                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Required: Ksh ' . number_format($bankStatement->amount, 2)]);
+                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Required: Ksh ' . number_format($normalized['amount'], 2)]);
         }
 
         try {
             // Store old allocations for audit log
-            $oldAllocations = $bankStatement->shared_allocations ?? [];
+            $oldAllocations = $transaction->shared_allocations ?? [];
             
-            return DB::transaction(function () use ($bankStatement, $activeAllocations, $oldAllocations) {
+            return DB::transaction(function () use ($transaction, $activeAllocations, $oldAllocations, $normalized) {
                 // Update transaction shared allocations
-                $bankStatement->update([
+                $transaction->update([
                     'shared_allocations' => $activeAllocations,
                 ]);
                 
                 // If transaction is confirmed and has payments, update the payments too
-                if ($bankStatement->isConfirmed() && $bankStatement->payment_created) {
+                if ($normalized['status'] === 'confirmed' && $normalized['payment_created']) {
                     // Find all payments related to this transaction
-                    $relatedPayments = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                    $relatedPayments = \App\Models\Payment::where('transaction_code', $normalized['reference_number'])
                         ->where('reversed', false)
                         ->get();
                     
@@ -1648,30 +2395,30 @@ class BankStatementController extends Controller
                 }
                 
                 // Increment version for optimistic locking
-                $bankStatement->increment('version');
+                $transaction->increment('version');
                 
                 // Log audit trail
                 try {
                     \App\Services\FinancialAuditService::logTransactionSharedAllocationEdit(
-                        $bankStatement,
+                        $transaction,
                         $oldAllocations,
                         $activeAllocations
                     );
                 } catch (\Exception $e) {
                     \Log::warning('Failed to log transaction allocation edit audit', [
-                        'transaction_id' => $bankStatement->id,
+                        'transaction_id' => $transaction->id,
                         'error' => $e->getMessage(),
                     ]);
                 }
                 
                 $siblingCount = count($activeAllocations);
                 $message = "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s).";
-                if ($bankStatement->isConfirmed() && $bankStatement->payment_created) {
+                if ($normalized['status'] === 'confirmed' && $normalized['payment_created']) {
                     $message .= " Related payments have been updated.";
                 }
                 
                 return redirect()
-                    ->route('finance.bank-statements.show', $bankStatement)
+                    ->route('finance.bank-statements.show', $id)
                     ->with('success', $message);
             });
         } catch (\Exception $e) {
@@ -1682,8 +2429,17 @@ class BankStatementController extends Controller
     /**
      * Share transaction among siblings
      */
-    public function share(Request $request, BankStatementTransaction $bankStatement)
+    public function share(Request $request, $id)
     {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Sharing is only for bank statements (C2B doesn't support sharing in the same way)
+        if ($isC2B) {
+            return redirect()->back()
+                ->withErrors(['error' => 'C2B transactions cannot be shared. Use the allocation feature instead.']);
+        }
+        
         $validated = $request->validate([
             'allocations' => 'required|array|min:1',
             'allocations.*.student_id' => 'required|exists:students,id',
@@ -1704,19 +2460,20 @@ class BankStatementController extends Controller
         // Re-index the array
         $activeAllocations = array_values($activeAllocations);
 
+        $normalized = $this->normalizeTransaction($transaction);
         $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
-        if (abs($totalAmount - $bankStatement->amount) > 0.01) {
+        if (abs($totalAmount - $normalized['amount']) > 0.01) {
             return redirect()->back()
                 ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2)]);
         }
 
         try {
-            $this->parser->shareTransaction($bankStatement, $activeAllocations);
+            $this->parser->shareTransaction($transaction, $activeAllocations);
             
             $siblingCount = count($activeAllocations);
             return redirect()
-                ->route('finance.bank-statements.show', $bankStatement)
+                ->route('finance.bank-statements.show', $id)
                 ->with('success', "Transaction shared among {$siblingCount} sibling(s).");
         } catch (\Exception $e) {
             return redirect()->back()
@@ -1725,35 +2482,46 @@ class BankStatementController extends Controller
     }
 
     /**
-     * View statement PDF (embedded view page)
+     * View statement PDF (embedded view page) - only for bank statements
      */
-    public function viewPdf(BankStatementTransaction $bankStatement)
+    public function viewPdf($id)
     {
-        if (!$bankStatement->statement_file_path) {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        if ($isC2B || !$transaction->statement_file_path) {
             abort(404, 'Statement file not found');
         }
 
-        if (!Storage::disk('private')->exists($bankStatement->statement_file_path)) {
+        if (!Storage::disk('private')->exists($transaction->statement_file_path)) {
             abort(404, 'Statement file not found');
         }
 
-        return view('finance.bank-statements.view-pdf', compact('bankStatement'));
+        // Normalize for view
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
+        $rawTransaction = $transaction;
+        
+        return view('finance.bank-statements.view-pdf', compact('bankStatement', 'rawTransaction', 'isC2B'));
     }
     
     /**
      * Serve PDF file directly
      */
-    public function servePdf(BankStatementTransaction $bankStatement)
+    public function servePdf($id)
     {
-        if (!$bankStatement->statement_file_path) {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        if ($isC2B || !$transaction->statement_file_path) {
             abort(404, 'Statement file not found');
         }
 
-        if (!Storage::disk('private')->exists($bankStatement->statement_file_path)) {
+        if (!Storage::disk('private')->exists($transaction->statement_file_path)) {
             abort(404, 'Statement file not found');
         }
 
-        $path = Storage::disk('private')->path($bankStatement->statement_file_path);
+        $path = Storage::disk('private')->path($transaction->statement_file_path);
         
         if (!file_exists($path)) {
             abort(404, 'Statement file not found');
@@ -1765,19 +2533,22 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Download statement PDF
+     * Download statement PDF - only for bank statements
      */
-    public function downloadPdf(BankStatementTransaction $bankStatement)
+    public function downloadPdf($id)
     {
-        if (!$bankStatement->statement_file_path) {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        if ($isC2B || !$transaction->statement_file_path) {
             abort(404, 'Statement file not found');
         }
 
-        if (!Storage::disk('private')->exists($bankStatement->statement_file_path)) {
+        if (!Storage::disk('private')->exists($transaction->statement_file_path)) {
             abort(404, 'Statement file not found');
         }
 
-        return Storage::disk('private')->download($bankStatement->statement_file_path, 'bank-statement-' . $bankStatement->id . '.pdf');
+        return Storage::disk('private')->download($transaction->statement_file_path, 'bank-statement-' . $transaction->id . '.pdf');
     }
 
     /**
@@ -1984,30 +2755,37 @@ class BankStatementController extends Controller
     /**
      * Archive transaction
      */
-    public function archive(BankStatementTransaction $bankStatement)
+    public function archive($id)
     {
-        // Authorization check
-        $this->authorize('archive', $bankStatement);
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
         
-        return DB::transaction(function () use ($bankStatement) {
+        // Archiving is only for bank statements
+        if ($isC2B) {
+            return redirect()->back()
+                ->with('error', 'C2B transactions cannot be archived.');
+        }
+        
+        return DB::transaction(function () use ($transaction) {
             $paymentsReversed = 0;
             
             // If payment was created, reverse it automatically
             // For shared transactions, reverse ALL related payments
-            if ($bankStatement->payment_created) {
+            $normalized = $this->normalizeTransaction($transaction);
+            if ($normalized['payment_created']) {
                 // Find all payments related to this transaction
                 $relatedPayments = [];
                 
-                if ($bankStatement->payment_id) {
-                    $payment = Payment::find($bankStatement->payment_id);
+                if ($transaction->payment_id) {
+                    $payment = Payment::find($transaction->payment_id);
                     if ($payment) {
                         $relatedPayments[] = $payment;
                     }
                 }
                 
                 // Also find all sibling payments if this is a shared transaction
-                if ($bankStatement->is_shared && $bankStatement->reference_number) {
-                    $siblingPayments = Payment::where('transaction_code', $bankStatement->reference_number)
+                if ($transaction->is_shared && $transaction->reference_number) {
+                    $siblingPayments = Payment::where('transaction_code', $transaction->reference_number)
                         ->where('reversed', false)
                         ->get();
                     $relatedPayments = array_merge($relatedPayments, $siblingPayments->all());
@@ -2048,7 +2826,7 @@ class BankStatementController extends Controller
                         $paymentsReversed++;
                         
                         \Log::info('Payment automatically reversed due to transaction archive', [
-                            'transaction_id' => $bankStatement->id,
+                            'transaction_id' => $transaction->id,
                             'payment_id' => $payment->id,
                         ]);
                     }
@@ -2056,21 +2834,21 @@ class BankStatementController extends Controller
             }
             
             // Archive the transaction
-            $bankStatement->archive();
+            $transaction->archive();
             
             // Update transaction to remove payment link and increment version
-            $bankStatement->update([
+            $transaction->update([
                 'payment_created' => false,
                 'payment_id' => null,
             ]);
-            $bankStatement->increment('version');
+            $transaction->increment('version');
             
             // Log audit trail
             try {
-                \App\Services\FinancialAuditService::logTransactionArchive($bankStatement, $paymentsReversed);
+                \App\Services\FinancialAuditService::logTransactionArchive($transaction, $paymentsReversed);
             } catch (\Exception $e) {
                 \Log::warning('Failed to log transaction archive audit', [
-                    'transaction_id' => $bankStatement->id,
+                    'transaction_id' => $transaction->id,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -2089,10 +2867,19 @@ class BankStatementController extends Controller
     /**
      * Unarchive transaction
      */
-    public function unarchive(BankStatementTransaction $bankStatement)
+    public function unarchive($id)
     {
-        $bankStatement->unarchive();
-        $bankStatement->increment('version');
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Unarchiving is only for bank statements
+        if ($isC2B) {
+            return redirect()->back()
+                ->with('error', 'C2B transactions cannot be unarchived.');
+        }
+        
+        $transaction->unarchive();
+        $transaction->increment('version');
 
         return redirect()
             ->route('finance.bank-statements.index')
@@ -2102,17 +2889,27 @@ class BankStatementController extends Controller
     /**
      * Show transaction history/audit trail
      */
-    public function history(BankStatementTransaction $bankStatement)
+    public function history($id)
     {
-        $this->authorize('view', $bankStatement);
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
         
-        $auditLogs = \App\Models\AuditLog::where('auditable_type', BankStatementTransaction::class)
-            ->where('auditable_id', $bankStatement->id)
-            ->with('user')
-            ->orderBy('created_at', 'desc')
-            ->get();
+        // History is primarily for bank statements, but we can show C2B too
+        $auditLogs = collect();
+        if (!$isC2B) {
+            $auditLogs = \App\Models\AuditLog::where('auditable_type', BankStatementTransaction::class)
+                ->where('auditable_id', $transaction->id)
+                ->with('user')
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
         
-        return view('finance.bank-statements.history', compact('bankStatement', 'auditLogs'));
+        // Normalize for view
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
+        $rawTransaction = $transaction;
+        
+        return view('finance.bank-statements.history', compact('bankStatement', 'auditLogs', 'rawTransaction', 'isC2B'));
     }
 
     /**
@@ -3053,26 +3850,28 @@ class BankStatementController extends Controller
     /**
      * Unmark individual transaction as swimming
      */
-    public function unmarkAsSwimming(Request $request, BankStatementTransaction $bankStatement)
+    public function unmarkAsSwimming(Request $request, $id)
     {
-        // Check if column exists
-        $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
-        
-        if (!$hasSwimmingColumn) {
-            return redirect()->back()
-                ->with('error', 'Swimming transaction column does not exist.');
+        // Check if column exists (only for bank statements)
+        if (!$isC2B) {
+            $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+            
+            if (!$hasSwimmingColumn) {
+                return redirect()->back()
+                    ->with('error', 'Swimming transaction column does not exist.');
+            }
         }
 
-        if (!$bankStatement->is_swimming_transaction) {
+        if (!($transaction->is_swimming_transaction ?? false)) {
             return redirect()->back()
                 ->with('error', 'Transaction is not marked as swimming.');
         }
 
         try {
-            $this->swimmingTransactionService->unmarkAsSwimming($bankStatement);
+            $this->swimmingTransactionService->unmarkAsSwimming($transaction);
             
             return redirect()
-                ->route('finance.bank-statements.show', $bankStatement)
+                ->route('finance.bank-statements.show', $id)
                 ->with('success', 'Transaction unmarked as swimming successfully.');
                 
         } catch (\Exception $e) {
@@ -3559,17 +4358,39 @@ class BankStatementController extends Controller
     /**
      * Delete statement and all related records
      */
-    public function destroy(BankStatementTransaction $bankStatement)
+    public function destroy($id)
     {
-        DB::transaction(function () use ($bankStatement) {
+        $transaction = $this->resolveTransaction($id);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+        
+        // Destroy is only for bank statements (C2B transactions are deleted differently)
+        if ($isC2B) {
+            // For C2B, just delete the transaction
+            DB::transaction(function () use ($transaction) {
+                if ($transaction->payment_id) {
+                    $payment = \App\Models\Payment::find($transaction->payment_id);
+                    if ($payment) {
+                        \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
+                        $payment->delete();
+                    }
+                }
+                $transaction->delete();
+            });
+            
+            return redirect()
+                ->route('finance.bank-statements.index')
+                ->with('success', 'C2B transaction deleted successfully.');
+        }
+        
+        DB::transaction(function () use ($transaction) {
             // Get all transactions from the same statement file
-            $statementTransactions = BankStatementTransaction::where('statement_file_path', $bankStatement->statement_file_path)
+            $statementTransactions = BankStatementTransaction::where('statement_file_path', $transaction->statement_file_path)
                 ->get();
 
             // Delete all related payments
-            foreach ($statementTransactions as $transaction) {
-                if ($transaction->payment_id) {
-                    $payment = \App\Models\Payment::find($transaction->payment_id);
+            foreach ($statementTransactions as $txn) {
+                if ($txn->payment_id) {
+                    $payment = \App\Models\Payment::find($txn->payment_id);
                     if ($payment) {
                         // Delete payment allocations first
                         \App\Models\PaymentAllocation::where('payment_id', $payment->id)->delete();
@@ -3580,12 +4401,12 @@ class BankStatementController extends Controller
             }
 
             // Delete the PDF file
-            if ($bankStatement->statement_file_path && Storage::disk('private')->exists($bankStatement->statement_file_path)) {
-                Storage::disk('private')->delete($bankStatement->statement_file_path);
+            if ($transaction->statement_file_path && Storage::disk('private')->exists($transaction->statement_file_path)) {
+                Storage::disk('private')->delete($transaction->statement_file_path);
             }
 
             // Delete all transactions from this statement
-            BankStatementTransaction::where('statement_file_path', $bankStatement->statement_file_path)
+            BankStatementTransaction::where('statement_file_path', $transaction->statement_file_path)
                 ->delete();
         });
 

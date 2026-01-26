@@ -135,7 +135,7 @@
 
         {{-- Key Insights --}}
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="alert alert-warning border-0 shadow-sm">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
@@ -149,7 +149,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="alert alert-info border-0 shadow-sm">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-calendar-check-fill fs-3 me-3"></i>
@@ -162,7 +162,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="alert alert-success border-0 shadow-sm">
                     <div class="d-flex align-items-center">
                         <i class="bi bi-check-circle-fill fs-3 me-3"></i>
@@ -170,6 +170,20 @@
                             <h6 class="mb-1 fw-bold">Cleared Accounts</h6>
                             <p class="mb-0">
                                 <strong>{{ $summary['students_cleared'] }}</strong> students have cleared their fees
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="alert alert-primary border-0 shadow-sm">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-arrow-left-circle-fill fs-3 me-3"></i>
+                        <div>
+                            <h6 class="mb-1 fw-bold">Balance Brought Forward</h6>
+                            <p class="mb-0">
+                                <strong>{{ $summary['students_with_bbf'] ?? 0 }}</strong> students with BBF of 
+                                <strong>Ksh {{ number_format($summary['total_bbf_balance'] ?? 0, 0) }}</strong> outstanding
                             </p>
                         </div>
                     </div>
@@ -204,6 +218,11 @@
                     <li class="nav-item">
                         <a class="nav-link {{ ($view ?? 'all') == 'unpaid-absent' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'unpaid-absent'] + request()->except('view')) }}">
                             Unpaid - Absent <span class="badge bg-danger">{{ $counts['unpaid-absent'] ?? 0 }}</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {{ ($view ?? 'all') == 'with-bbf' ? 'active' : '' }}" href="{{ route('finance.fee-balances.index', ['view' => 'with-bbf'] + request()->except('view')) }}">
+                            With BBF <span class="badge bg-primary">{{ $counts['with-bbf'] ?? 0 }}</span>
                         </a>
                     </li>
                 </ul>
@@ -254,7 +273,17 @@
                         <option value="plan_on_track" {{ request('payment_plan_filter') === 'plan_on_track' ? 'selected' : '' }}>Plan On Track</option>
                     </select>
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
+                <div class="col-md-2">
+                    <label class="finance-form-label">Balance Brought Forward</label>
+                    <select name="bbf_filter" class="finance-form-select">
+                        <option value="">All</option>
+                        <option value="has_bbf" {{ request('bbf_filter') === 'has_bbf' ? 'selected' : '' }}>Has BBF</option>
+                        <option value="no_bbf" {{ request('bbf_filter') === 'no_bbf' ? 'selected' : '' }}>No BBF</option>
+                        <option value="bbf_cleared" {{ request('bbf_filter') === 'bbf_cleared' ? 'selected' : '' }}>BBF Cleared</option>
+                        <option value="bbf_unpaid" {{ request('bbf_filter') === 'bbf_unpaid' ? 'selected' : '' }}>BBF Unpaid</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
                     <div class="d-flex gap-2 w-100">
                         <button type="submit" class="btn btn-finance btn-finance-primary">
                             <i class="bi bi-search"></i> Filter
@@ -280,6 +309,8 @@
                             <th class="text-end">Paid</th>
                             <th class="text-end">Balance</th>
                             <th class="text-center">Status</th>
+                            <th class="text-end">Balance Brought Forward</th>
+                            <th class="text-center">BBF Status</th>
                             <th class="text-center">Attendance</th>
                             <th class="text-center">In School</th>
                             <th class="text-center">Payment Plan</th>
@@ -291,7 +322,7 @@
                             @include('finance.fee_balances.partials.student_row', ['student' => $student])
                         @empty
                             <tr>
-                                <td colspan="11" class="text-center py-5">
+                                <td colspan="13" class="text-center py-5">
                                     <i class="bi bi-inbox fs-1 text-muted"></i>
                                     <p class="text-muted mt-2">No students found matching your criteria.</p>
                                 </td>
@@ -311,6 +342,7 @@
                         <li><strong>In School:</strong> Student has been marked present at least once since term started</li>
                         <li><strong>Attendance Rate:</strong> Percentage of days present out of total marked days</li>
                         <li><strong>Highlighted rows:</strong> Students in school with balance > Ksh 1,000</li>
+                        <li><strong>Balance Brought Forward (BBF):</strong> Outstanding balance from previous terms</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
@@ -318,6 +350,12 @@
                         <li><strong>Payment Plan:</strong> Student has an active installment payment plan</li>
                         <li><strong>Plan Progress:</strong> Percentage of installments paid</li>
                         <li><strong>Term Start:</strong> {{ $currentTerm ? $currentTerm->opening_date->format('M d, Y') : 'Not set' }}</li>
+                        <li><strong>BBF Status:</strong> 
+                            <span class="badge bg-success">Cleared BBF & Invoice</span> = Both cleared,
+                            <span class="badge bg-info">Cleared BBF Only</span> = BBF cleared but invoice has balance,
+                            <span class="badge bg-warning">BBF Partial</span> = BBF partially paid,
+                            <span class="badge bg-danger">BBF Unpaid</span> = BBF not paid
+                        </li>
                     </ul>
                 </div>
             </div>

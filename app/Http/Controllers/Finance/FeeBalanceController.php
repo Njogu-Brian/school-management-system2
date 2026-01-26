@@ -10,6 +10,9 @@ use App\Models\Attendance;
 use App\Models\FeePaymentPlan;
 use App\Models\Term;
 use App\Models\Academics\Classroom;
+use App\Models\Votehead;
+use App\Models\InvoiceItem;
+use App\Services\StudentBalanceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -29,6 +32,7 @@ class FeeBalanceController extends Controller
         $balanceStatus = $request->input('balance_status');
         $attendanceFilter = $request->input('attendance_filter');
         $paymentPlanFilter = $request->input('payment_plan_filter');
+        $bbfFilter = $request->input('bbf_filter');
         $year = $request->input('year', now()->year);
         $termNumber = $request->input('term', $currentTerm ? $this->extractTermNumber($currentTerm->name) : 1);
         
@@ -46,8 +50,11 @@ class FeeBalanceController extends Controller
         // Get students
         $students = $studentsQuery->get();
         
+        // Get balance brought forward votehead
+        $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
+        
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $currentTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter) {
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $currentTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter, $balanceBroughtForwardVotehead) {
             // Get invoice for this term
             $invoice = Invoice::where('student_id', $student->id)
                 ->where('year', $year)
@@ -57,6 +64,9 @@ class FeeBalanceController extends Controller
             $totalInvoiced = $invoice ? $invoice->total : 0;
             $totalPaid = $invoice ? $invoice->paid_amount : 0;
             $balance = $invoice ? $invoice->balance : 0;
+            
+            // Get balance brought forward information
+            $balanceBroughtForwardData = $this->getBalanceBroughtForwardData($student, $balanceBroughtForwardVotehead, $invoice, $balance);
             
             // Get attendance data since term start
             $termStartDate = $currentTerm ? $currentTerm->opening_date : Carbon::now()->startOfMonth();
@@ -93,6 +103,11 @@ class FeeBalanceController extends Controller
                 'payment_plan_progress' => $paymentPlanStatus['progress'],
                 'next_installment_date' => $paymentPlanStatus['next_due_date'],
                 'invoice_id' => $invoice ? $invoice->id : null,
+                // Balance brought forward data
+                'balance_brought_forward' => $balanceBroughtForwardData['amount'],
+                'balance_brought_forward_paid' => $balanceBroughtForwardData['paid'],
+                'balance_brought_forward_balance' => $balanceBroughtForwardData['balance'],
+                'bbf_payment_status' => $balanceBroughtForwardData['payment_status'],
             ];
         });
         
@@ -151,6 +166,24 @@ class FeeBalanceController extends Controller
             });
         }
         
+        // Balance brought forward filter
+        if ($bbfFilter) {
+            $filteredStudents = $filteredStudents->filter(function ($student) use ($bbfFilter) {
+                switch ($bbfFilter) {
+                    case 'has_bbf':
+                        return $student['balance_brought_forward'] > 0;
+                    case 'no_bbf':
+                        return $student['balance_brought_forward'] == 0;
+                    case 'bbf_cleared':
+                        return in_array($student['bbf_payment_status'], ['cleared_bbf_and_invoice', 'cleared_bbf_only']);
+                    case 'bbf_unpaid':
+                        return in_array($student['bbf_payment_status'], ['bbf_unpaid', 'bbf_partial']);
+                    default:
+                        return true;
+                }
+            });
+        }
+        
         // Categorize students
         $clearedStudents = $filteredStudents->filter(function ($s) {
             return $s['balance'] <= 0 && $s['total_invoiced'] > 0;
@@ -173,7 +206,7 @@ class FeeBalanceController extends Controller
             return !$s['is_in_school'];
         });
         
-        // Get view filter (all, cleared, partial, unpaid-present, unpaid-absent)
+        // Get view filter (all, cleared, partial, unpaid-present, unpaid-absent, with-bbf)
         $view = $request->input('view', 'all');
         
         // Filter students based on view
@@ -190,6 +223,12 @@ class FeeBalanceController extends Controller
                 break;
             case 'unpaid-absent':
                 $displayStudents = $unpaidAbsent;
+                break;
+            case 'with-bbf':
+                // Show only students with balance brought forward
+                $displayStudents = $filteredStudents->filter(function ($s) {
+                    return ($s['balance_brought_forward'] ?? 0) > 0;
+                });
                 break;
             default:
                 // Show all - combine all categories
@@ -217,6 +256,15 @@ class FeeBalanceController extends Controller
             'in_school_balance_amount' => $filteredStudents->filter(function ($s) {
                 return $s['is_in_school'] && $s['balance'] > 0;
             })->sum('balance'),
+            // Balance brought forward statistics
+            'students_with_bbf' => $filteredStudents->where('balance_brought_forward', '>', 0)->count(),
+            'total_bbf_amount' => $filteredStudents->sum('balance_brought_forward'),
+            'total_bbf_paid' => $filteredStudents->sum('balance_brought_forward_paid'),
+            'total_bbf_balance' => $filteredStudents->sum('balance_brought_forward_balance'),
+            'bbf_cleared_count' => $filteredStudents->where('bbf_payment_status', 'cleared_bbf_and_invoice')->count(),
+            'bbf_unpaid_count' => $filteredStudents->filter(function ($s) {
+                return in_array($s['bbf_payment_status'], ['bbf_unpaid', 'bbf_partial']);
+            })->count(),
         ];
         
         // Calculate counts for tabs
@@ -226,6 +274,9 @@ class FeeBalanceController extends Controller
             'partial' => $partialStudents->count(),
             'unpaid-present' => $unpaidPresent->count(),
             'unpaid-absent' => $unpaidAbsent->count(),
+            'with-bbf' => $filteredStudents->filter(function ($s) {
+                return ($s['balance_brought_forward'] ?? 0) > 0;
+            })->count(),
         ];
         
         // Sort displayed students
@@ -337,6 +388,84 @@ class FeeBalanceController extends Controller
     }
     
     /**
+     * Get balance brought forward data for a student
+     */
+    private function getBalanceBroughtForwardData($student, $balanceBroughtForwardVotehead, $invoice = null, $invoiceBalance = 0): array
+    {
+        $bbfAmount = 0;
+        $bbfPaid = 0;
+        $bbfBalance = 0;
+        $paymentStatus = 'no_bbf';
+        
+        // Get balance brought forward from legacy data
+        $legacyBf = StudentBalanceService::getBalanceBroughtForward($student);
+        
+        // Get balance brought forward from invoice items
+        $invoiceBfAmount = 0;
+        $invoiceBfPaid = 0;
+        
+        if ($balanceBroughtForwardVotehead) {
+            $invoiceItems = InvoiceItem::whereHas('invoice', function($q) use ($student) {
+                $q->where('student_id', $student->id)
+                  ->where('status', '!=', 'reversed');
+            })
+            ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->get();
+            
+            if ($invoiceItems->isNotEmpty()) {
+                foreach ($invoiceItems as $item) {
+                    $itemPaid = $item->allocations()->sum('amount');
+                    $itemBalance = max(0, $item->amount - ($item->discount_amount ?? 0) - $itemPaid);
+                    
+                    $invoiceBfAmount += $item->amount;
+                    $invoiceBfPaid += $itemPaid;
+                }
+            }
+        }
+        
+        // Use invoice BF if exists, otherwise use legacy BF
+        if ($invoiceBfAmount > 0) {
+            $bbfAmount = $invoiceBfAmount;
+            $bbfPaid = $invoiceBfPaid;
+            $bbfBalance = $invoiceBfAmount - $invoiceBfPaid;
+        } elseif ($legacyBf > 0) {
+            $bbfAmount = $legacyBf;
+            $bbfPaid = 0;
+            $bbfBalance = $legacyBf;
+        }
+        
+        // Determine payment status
+        if ($bbfAmount > 0) {
+            if ($bbfBalance <= 0) {
+                // BBF is cleared, check if invoice (excluding BBF) is also cleared
+                // If BBF is cleared, check if invoice (which includes BBF) is also cleared
+                // If invoice balance is 0 or less, both BBF and invoice are cleared
+                // If invoice balance > 0, only BBF is cleared (invoice still has balance)
+                if (abs($invoiceBalance) < 0.01) { // Use small epsilon for float comparison
+                    $paymentStatus = 'cleared_bbf_and_invoice';
+                } else {
+                    $paymentStatus = 'cleared_bbf_only';
+                }
+            } else {
+                // BBF is not fully cleared
+                if ($bbfPaid > 0) {
+                    $paymentStatus = 'bbf_partial';
+                } else {
+                    $paymentStatus = 'bbf_unpaid';
+                }
+            }
+        }
+        
+        return [
+            'amount' => $bbfAmount,
+            'paid' => $bbfPaid,
+            'balance' => $bbfBalance,
+            'payment_status' => $paymentStatus,
+        ];
+    }
+    
+    /**
      * Extract term number from term name
      */
     private function extractTermNumber($termName): int
@@ -371,6 +500,10 @@ class FeeBalanceController extends Controller
                 'Balance',
                 'Balance %',
                 'Payment Status',
+                'Balance Brought Forward',
+                'BBF Paid',
+                'BBF Balance',
+                'BBF Payment Status',
                 'Days in School',
                 'Days Present',
                 'Days Absent',
@@ -394,6 +527,10 @@ class FeeBalanceController extends Controller
                     number_format($student['balance'], 2),
                     $student['balance_percentage'] . '%',
                     ucfirst(str_replace('_', ' ', $student['payment_status'])),
+                    number_format($student['balance_brought_forward'] ?? 0, 2),
+                    number_format($student['balance_brought_forward_paid'] ?? 0, 2),
+                    number_format($student['balance_brought_forward_balance'] ?? 0, 2),
+                    ucfirst(str_replace('_', ' ', $student['bbf_payment_status'] ?? 'no_bbf')),
                     $student['attendance_days'],
                     $student['days_present'],
                     $student['days_absent'],
