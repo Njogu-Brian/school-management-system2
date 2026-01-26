@@ -1059,7 +1059,7 @@
                                                 </div>
                                                 <div class="btn-group w-100" role="group">
                                                     @if(!$payment->reversed)
-                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.reverse', $bankStatement) }}" class="flex-fill">
+                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.reverse', $bankStatement->id) }}" class="flex-fill">
                                                             @csrf
                                                             <input type="hidden" name="payment_id" value="{{ $payment->id }}">
                                                             <input type="hidden" name="student_id" value="{{ $payment->student_id }}">
@@ -1067,7 +1067,7 @@
                                                                 <i class="bi bi-arrow-counterclockwise"></i> Reverse & Create New
                                                             </button>
                                                         </form>
-                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.keep', $bankStatement) }}" class="flex-fill">
+                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.keep', $bankStatement->id) }}" class="flex-fill">
                                                             @csrf
                                                             <input type="hidden" name="payment_id" value="{{ $payment->id }}">
                                                             <button type="submit" class="btn btn-finance btn-finance-success w-100">
@@ -1075,7 +1075,7 @@
                                                             </button>
                                                         </form>
                                                     @endif
-                                                    <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.create-new', $bankStatement) }}" class="flex-fill">
+                                                    <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.create-new', $bankStatement->id) }}" class="flex-fill">
                                                         @csrf
                                                         <button type="submit" class="btn btn-finance btn-finance-primary w-100">
                                                             <i class="bi bi-plus-circle"></i> Create New (Different Code)
