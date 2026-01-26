@@ -1446,7 +1446,7 @@ class BankStatementController extends Controller
         $transaction->refresh();
         $isSwimming = $bankStatement->is_swimming_transaction ?? false;
 
-        DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $bankStatement) {
+        DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $bankStatement, $id) {
             // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
             $matchNotes = $bankStatement->match_notes ?? '';
             if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
