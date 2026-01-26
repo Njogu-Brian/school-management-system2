@@ -1741,22 +1741,22 @@ class BankStatementController extends Controller
                         : $nonReversedPayments->first();
                     
                     if ($existingPayment && !$existingPayment->reversed) {
-                        $bankStatement->update([
+                        $transaction->update([
                             'payment_id' => $existingPayment->id,
                             'payment_created' => true,
                         ]);
                         Log::info('Linked to existing non-reversed payment', [
-                            'transaction_id' => $bankStatement->id,
+                            'transaction_id' => $transaction->id,
                             'payment_id' => $existingPayment->id,
                         ]);
                     } else {
                         $payment = $nonReversedPayments->first();
-                        $bankStatement->update([
+                        $transaction->update([
                             'payment_id' => $payment->id,
                             'payment_created' => true,
                         ]);
                         Log::info('Linked to existing non-reversed payment', [
-                            'transaction_id' => $bankStatement->id,
+                            'transaction_id' => $transaction->id,
                             'payment_id' => $payment->id,
                         ]);
                     }
@@ -1767,12 +1767,12 @@ class BankStatementController extends Controller
                         $oldPayment = \App\Models\Payment::find($bankStatement->payment_id);
                         if ($oldPayment && $oldPayment->reversed) {
                             // Unlink the old reversed payment
-                            $bankStatement->update([
+                            $transaction->update([
                                 'payment_id' => null,
                                 'payment_created' => false,
                             ]);
                             Log::info('Unlinked old reversed payment before creating new one', [
-                                'transaction_id' => $bankStatement->id,
+                                'transaction_id' => $transaction->id,
                                 'old_payment_id' => $oldPayment->id,
                             ]);
                         }
