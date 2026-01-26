@@ -1591,23 +1591,17 @@ class MpesaPaymentController extends Controller
 
     /**
      * Show single C2B transaction for allocation
+     * Redirects to unified bank-statements view
      */
     public function c2bTransactionShow($id)
     {
-        $transaction = MpesaC2BTransaction::with(['student', 'invoice', 'payment', 'processedBy'])
-            ->findOrFail($id);
-
-        // Get matching suggestions if not already matched
-        if (empty($transaction->matching_suggestions)) {
-            $this->smartMatchingService->matchTransaction($transaction);
-            $transaction->refresh();
-        }
-
-        return view('finance.mpesa.c2b-allocate', compact('transaction'));
+        // Redirect to unified bank-statements view
+        return redirect()->route('finance.bank-statements.show', $id);
     }
 
     /**
      * Allocate C2B transaction to student/invoice
+     * Redirects to unified bank-statements view (allocation happens there)
      */
     public function c2bAllocate(Request $request, $id)
     {
@@ -1625,13 +1619,14 @@ class MpesaPaymentController extends Controller
             ]);
         } else {
             // Validation for regular transactions (invoice allocations)
+            // Allocations are optional - if no invoices exist, it's an advance payment
             $request->validate([
                 'student_id' => 'required|exists:students,id',
                 'amount' => 'required|numeric|min:1',
                 'payment_method' => 'required|in:mpesa',
-                'allocations' => 'required|array|min:1',
-                'allocations.*.invoice_id' => 'required|exists:invoices,id',
-                'allocations.*.amount' => 'required|numeric|min:1',
+                'allocations' => 'nullable|array',
+                'allocations.*.invoice_id' => 'required_with:allocations|exists:invoices,id',
+                'allocations.*.amount' => 'required_with:allocations|numeric|min:1',
             ]);
         }
 
@@ -1717,24 +1712,27 @@ class MpesaPaymentController extends Controller
                     'created_by' => Auth::id(),
                 ]);
 
-                // Allocate to invoices
-                foreach ($request->allocations as $allocation) {
-                    $invoice = Invoice::findOrFail($allocation['invoice_id']);
-                    $allocationAmount = $allocation['amount'];
+                // Allocate to invoices (if any)
+                if (!empty($request->allocations) && is_array($request->allocations)) {
+                    foreach ($request->allocations as $allocation) {
+                        $invoice = Invoice::findOrFail($allocation['invoice_id']);
+                        $allocationAmount = $allocation['amount'];
 
-                    PaymentAllocation::create([
-                        'payment_id' => $payment->id,
-                        'invoice_id' => $invoice->id,
-                        'amount' => $allocationAmount,
-                    ]);
+                        PaymentAllocation::create([
+                            'payment_id' => $payment->id,
+                            'invoice_id' => $invoice->id,
+                            'amount' => $allocationAmount,
+                        ]);
 
-                    // Update invoice
-                    $invoice->amount_paid += $allocationAmount;
-                    if ($invoice->amount_paid >= $invoice->total_amount) {
-                        $invoice->status = 'paid';
+                        // Update invoice
+                        $invoice->amount_paid += $allocationAmount;
+                        if ($invoice->amount_paid >= $invoice->total_amount) {
+                            $invoice->status = 'paid';
+                        }
+                        $invoice->save();
                     }
-                    $invoice->save();
                 }
+                // If no allocations, payment is recorded as advance payment (unallocated_amount will be the full amount)
 
                 // Update C2B transaction
                 $transaction->allocate($student, null, $payment, $request->amount);
@@ -1751,13 +1749,87 @@ class MpesaPaymentController extends Controller
                 'amount' => $request->amount,
             ]);
 
+            // Prepare detailed response data
+            $responseData = [
+                'success' => true,
+                'message' => $isSwimming 
+                    ? "Swimming payment allocated successfully!"
+                    : "Transaction allocated successfully!",
+                'details' => [
+                    'transaction_id' => $transaction->id,
+                    'transaction_code' => $transaction->trans_id,
+                    'amount' => number_format($request->amount, 2),
+                    'is_swimming' => $isSwimming,
+                    'student_id' => $request->student_id,
+                ]
+            ];
+
+            if ($isSwimming) {
+                $responseData['details']['students_count'] = count($request->sibling_allocations);
+                $responseData['details']['receipt_numbers'] = explode(', ', $receiptNumbers);
+                $responseData['details']['students'] = array_map(function($allocation) {
+                    $student = Student::find($allocation['student_id']);
+                    return [
+                        'id' => $student->id,
+                        'name' => $student->full_name,
+                        'admission_number' => $student->admission_number,
+                        'amount' => number_format($allocation['amount'], 2),
+                    ];
+                }, $request->sibling_allocations);
+            } else {
+                $student = Student::findOrFail($request->student_id);
+                $responseData['details']['student_name'] = $student->full_name;
+                $responseData['details']['student_admission'] = $student->admission_number;
+                $responseData['details']['receipt_number'] = $receiptNumbers;
+                $responseData['details']['allocations_count'] = count($request->allocations ?? []);
+                $responseData['details']['is_advance_payment'] = empty($request->allocations);
+            }
+
+            // Return JSON for AJAX requests, redirect for regular form submissions
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json($responseData);
+            }
+
             $message = $isSwimming 
                 ? "Swimming payment allocated to " . count($request->sibling_allocations) . " student(s) successfully! Receipt(s): " . $receiptNumbers
                 : "Transaction allocated successfully! Receipt: " . $receiptNumbers;
 
+            // Redirect to unified bank-statements view
             return redirect()
-                ->route('finance.mpesa.c2b.dashboard')
+                ->route('finance.bank-statements.show', $id)
                 ->with('success', $message);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+            
+            Log::error('C2B allocation validation failed', [
+                'transaction_id' => $id,
+                'errors' => $e->errors(),
+            ]);
+
+            $errorResponse = [
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors(),
+                'error_type' => 'validation'
+            ];
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json($errorResponse, 422);
+            }
+
+            // Redirect to unified view with errors
+            return redirect()
+                ->route('finance.bank-statements.show', $id)
+                ->withErrors($e->errors())
+                ->withInput();
         } catch (\Exception $e) {
             DB::rollBack();
             
@@ -1767,7 +1839,21 @@ class MpesaPaymentController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return back()->with('error', 'Failed to allocate transaction: ' . $e->getMessage());
+            $errorResponse = [
+                'success' => false,
+                'message' => 'Failed to allocate transaction',
+                'error' => $e->getMessage(),
+                'error_type' => 'server_error'
+            ];
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json($errorResponse, 500);
+            }
+
+            // Redirect to unified view with error
+            return redirect()
+                ->route('finance.bank-statements.show', $id)
+                ->with('error', 'Failed to allocate transaction: ' . $e->getMessage());
         }
     }
 

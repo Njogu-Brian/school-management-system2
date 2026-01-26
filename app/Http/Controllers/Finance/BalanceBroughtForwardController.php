@@ -131,21 +131,64 @@ class BalanceBroughtForwardController extends Controller
      */
     public function importPreview(Request $request)
     {
+        // Check if ZipArchive extension is available (required for XLSX files)
+        if (!class_exists('ZipArchive')) {
+            return back()->withErrors([
+                'file' => 'The PHP Zip extension is not enabled. This is required to read Excel (.xlsx) files. ' .
+                         'Please enable the "zip" extension in your php.ini file. ' .
+                         'On Windows with XAMPP, uncomment the line: extension=zip in C:\xampp\php\php.ini and restart your web server.'
+            ]);
+        }
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv',
         ]);
 
-        $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
-
-        if (empty($sheet)) {
-            return back()->with('error', 'The uploaded file is empty.');
+        try {
+            $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
+        } catch (\Exception $e) {
+            Log::error('Excel import failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file_type' => $request->file('file')->getMimeType(),
+            ]);
+            
+            if (strpos($e->getMessage(), 'ZipArchive') !== false || strpos($e->getMessage(), 'zip') !== false) {
+                return back()->withErrors([
+                    'file' => 'The PHP Zip extension is not enabled. This is required to read Excel (.xlsx) files. ' .
+                             'Please enable the "zip" extension in your php.ini file. ' .
+                             'On Windows with XAMPP, uncomment the line: extension=zip in C:\xampp\php\php.ini and restart your web server.'
+                ]);
+            }
+            
+            return back()->withErrors([
+                'file' => 'Failed to read the Excel file: ' . $e->getMessage() . '. Please ensure the file is a valid Excel (.xlsx, .xls) or CSV file.'
+            ]);
         }
 
+        if (empty($sheet)) {
+            Log::warning('Empty Excel sheet detected');
+            return back()->withErrors(['file' => 'The uploaded file is empty or could not be read. Please check the file format.']);
+        }
+
+        Log::info('Excel file read successfully', [
+            'rows_count' => count($sheet),
+            'first_row' => $sheet[0] ?? null,
+        ]);
+
         $headerRow = array_shift($sheet);
+        
+        if (empty($headerRow)) {
+            Log::warning('Empty header row detected');
+            return back()->withErrors(['file' => 'The file does not contain a header row. Please ensure the first row contains column names.']);
+        }
+        
         $headers = [];
         foreach ($headerRow as $index => $header) {
             $headers[$index] = Str::slug(Str::lower(trim((string) $header)), '_');
         }
+        
+        Log::info('Headers extracted', ['headers' => $headers, 'header_count' => count($headers)]);
 
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
         $preview = [];
@@ -190,7 +233,8 @@ class BalanceBroughtForwardController extends Controller
         }
 
         $importData = [];
-        foreach ($sheet as $row) {
+        $skippedRows = 0;
+        foreach ($sheet as $rowIndex => $row) {
             $assoc = [];
             foreach ($headers as $i => $key) {
                 $assoc[$key] = $row[$i] ?? null;
@@ -199,9 +243,36 @@ class BalanceBroughtForwardController extends Controller
             $admission = trim((string) ($assoc['admission_number'] ?? $assoc['admission_no'] ?? $assoc['adm_no'] ?? ''));
             $balance = $assoc['balance'] ?? $assoc['balance_brought_forward'] ?? $assoc['amount'] ?? null;
             
-            if ($admission && is_numeric($balance)) {
-                $importData[$admission] = (float) $balance;
+            if (empty($admission)) {
+                $skippedRows++;
+                continue;
             }
+            
+            if (!is_numeric($balance)) {
+                $skippedRows++;
+                Log::debug('Skipping row - invalid balance', [
+                    'row_index' => $rowIndex,
+                    'admission' => $admission,
+                    'balance' => $balance,
+                ]);
+                continue;
+            }
+            
+            $importData[$admission] = (float) $balance;
+        }
+        
+        Log::info('Import data processed', [
+            'imported_count' => count($importData),
+            'skipped_rows' => $skippedRows,
+            'sample_admissions' => array_slice(array_keys($importData), 0, 5),
+        ]);
+        
+        if (empty($importData)) {
+            return back()->withErrors([
+                'file' => 'No valid data found in the file. Please ensure the file contains columns for admission number and balance. ' .
+                         'Expected column names: "admission_number" (or "admission_no" or "adm_no") and "balance" (or "balance_brought_forward" or "amount"). ' .
+                         'Found headers: ' . implode(', ', array_keys($headers))
+            ]);
         }
 
         // Compare system vs import
@@ -281,6 +352,18 @@ class BalanceBroughtForwardController extends Controller
         $hasIssues = collect($preview)->contains(function($item) {
             return $item['status'] !== 'ok';
         });
+        
+        Log::info('Preview generated', [
+            'preview_count' => count($preview),
+            'has_issues' => $hasIssues,
+            'issues_count' => collect($preview)->filter(fn($item) => $item['status'] !== 'ok')->count(),
+        ]);
+        
+        if (empty($preview)) {
+            return back()->withErrors([
+                'file' => 'No data to preview. The file may not contain any valid admission numbers that match students in the system, or the data format is incorrect.'
+            ]);
+        }
 
         return view('finance.balance_brought_forward.import_preview', [
             'preview' => $preview,

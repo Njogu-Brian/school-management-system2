@@ -4,8 +4,8 @@
     @include('finance.partials.header', [
         'title' => 'Edit Transaction #' . $bankStatement->id,
         'icon' => 'bi bi-pencil',
-        'subtitle' => 'Manually match transaction to student',
-        'actions' => '<a href="' . route('finance.bank-statements.show', $bankStatement) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
+        'subtitle' => ($isC2B ?? false) ? 'Manually match M-PESA C2B transaction to student' : 'Manually match transaction to student',
+        'actions' => '<a href="' . route('finance.bank-statements.show', $bankStatement->id) . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
     <div class="row">
@@ -18,7 +18,7 @@
                 <div class="finance-card-body p-4">
                     <dl class="row mb-0">
                         <dt class="col-sm-4">Date:</dt>
-                        <dd class="col-sm-8">{{ $bankStatement->transaction_date->format('d M Y') }}</dd>
+                        <dd class="col-sm-8">{{ ($bankStatement->transaction_date instanceof \Carbon\Carbon) ? $bankStatement->transaction_date->format('d M Y') : \Carbon\Carbon::parse($bankStatement->transaction_date)->format('d M Y') }}</dd>
 
                         <dt class="col-sm-4">Amount:</dt>
                         <dd class="col-sm-8">
@@ -26,7 +26,7 @@
                         </dd>
 
                         <dt class="col-sm-4">Description:</dt>
-                        <dd class="col-sm-8">{{ $bankStatement->description }}</dd>
+                        <dd class="col-sm-8">{{ $bankStatement->description ?? 'N/A' }}</dd>
 
                         <dt class="col-sm-4">Phone Number:</dt>
                         <dd class="col-sm-8">{{ $bankStatement->phone_number ?? 'N/A' }}</dd>
@@ -67,7 +67,7 @@
                     <h5 class="mb-0">Assign to Student</h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}">
+                    <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement->id) }}">
                         @csrf
                         @method('PUT')
 
@@ -78,7 +78,7 @@
                                 'displayInputId' => 'studentSearch',
                                 'resultsId' => 'studentResults',
                                 'placeholder' => 'Type name or admission number',
-                                'initialLabel' => $bankStatement->student ? ($bankStatement->student->full_name . ' (' . $bankStatement->student->admission_number . ')') : '',
+                                'initialLabel' => ($rawTransaction->student ?? null) ? ($rawTransaction->student->full_name . ' (' . $rawTransaction->student->admission_number . ')') : '',
                                 'includeAlumniArchived' => true
                             ])
                             <small class="form-text text-muted">Search and select a student to assign this transaction</small>
@@ -86,11 +86,11 @@
 
                         <div class="mb-4">
                             <label class="finance-form-label">Notes</label>
-                            <textarea name="match_notes" class="finance-form-control" rows="3" placeholder="Optional notes about this match...">{{ old('match_notes', $bankStatement->match_notes) }}</textarea>
+                            <textarea name="match_notes" class="finance-form-control" rows="3" placeholder="Optional notes about this match...">{{ old('match_notes', $bankStatement->match_notes ?? '') }}</textarea>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2">
-                            <a href="{{ route('finance.bank-statements.show', $bankStatement) }}" class="btn btn-finance btn-finance-secondary">Cancel</a>
+                            <a href="{{ route('finance.bank-statements.show', $bankStatement->id) }}" class="btn btn-finance btn-finance-secondary">Cancel</a>
                             <button type="submit" class="btn btn-finance btn-finance-primary">
                                 <i class="bi bi-save"></i> Save Assignment
                             </button>

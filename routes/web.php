@@ -1246,6 +1246,15 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Payment Methods
         Route::resource('payment-methods', PaymentMethodController::class)->parameters(['payment-methods' => 'paymentMethod']);
         
+        // Transaction Fixes Audit
+        Route::prefix('transaction-fixes')->name('transaction-fixes.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Finance\TransactionFixAuditController::class, 'index'])->name('index');
+            Route::get('/export', [\App\Http\Controllers\Finance\TransactionFixAuditController::class, 'export'])->name('export');
+            Route::get('/{audit}', [\App\Http\Controllers\Finance\TransactionFixAuditController::class, 'show'])->name('show');
+            Route::post('/{audit}/reverse', [\App\Http\Controllers\Finance\TransactionFixAuditController::class, 'reverse'])->name('reverse');
+            Route::post('/bulk-reverse', [\App\Http\Controllers\Finance\TransactionFixAuditController::class, 'bulkReverse'])->name('bulk-reverse');
+        });
+
         // Bank Statements
         Route::prefix('bank-statements')->name('bank-statements.')->group(function () {
             Route::get('/statements', [\App\Http\Controllers\Finance\BankStatementController::class, 'statements'])->name('statements');
@@ -1340,8 +1349,14 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             // C2B (Paybill) Transactions Management
             Route::get('c2b/dashboard', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bDashboard'])->name('c2b.dashboard');
             Route::get('c2b/transactions', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bTransactions'])->name('c2b.transactions');
-            Route::get('c2b/transactions/{id}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bTransactionShow'])->name('c2b.transaction.show');
-            Route::post('c2b/transactions/{id}/allocate', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'c2bAllocate'])->name('c2b.allocate');
+            // Redirect C2B transaction show to unified bank-statements view
+            Route::get('c2b/transactions/{id}', function($id) {
+                return redirect()->route('finance.bank-statements.show', $id);
+            })->name('c2b.transaction.show');
+            // Redirect C2B allocation to unified bank-statements show (allocation happens in the unified view)
+            Route::post('c2b/transactions/{id}/allocate', function($id) {
+                return redirect()->route('finance.bank-statements.show', $id);
+            })->name('c2b.allocate');
             Route::post('c2b/register-urls', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'registerC2BUrls'])->name('c2b.register-urls');
         });
         

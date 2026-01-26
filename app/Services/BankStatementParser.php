@@ -7,6 +7,7 @@ use App\Models\{
 };
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Symfony\Component\Process\Process;
 use Illuminate\Support\Str;
 
@@ -1266,22 +1267,67 @@ class BankStatementParser
             $transaction->update(['payment_created' => false, 'payment_id' => null]);
         }
         
-        // Check if payment already exists by transaction code (exclude reversed – create new instead)
+        // Check if payment already exists by transaction code AND student_id (exclude reversed – create new instead)
         // Skip early return for shared transactions – we need to create ALL sibling payments
         if ($transaction->reference_number && !($transaction->is_shared && $transaction->shared_allocations)) {
+            // First check by exact transaction_code and student_id (respects unique constraint)
+            if ($transaction->student_id) {
+                $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+                    ->where('student_id', $transaction->student_id)
+                    ->where('reversed', false)
+                    ->first();
+                
+                if ($existingPayment) {
+                    // Link transaction to existing payment
+                    $transaction->update([
+                        'payment_id' => $existingPayment->id,
+                        'payment_created' => true,
+                    ]);
+                    
+                    \Log::info('Found existing payment for transaction (by student_id)', [
+                        'transaction_id' => $transaction->id,
+                        'payment_id' => $existingPayment->id,
+                        'transaction_code' => $transaction->reference_number,
+                        'student_id' => $transaction->student_id,
+                    ]);
+                    
+                    return $existingPayment;
+                }
+            }
+            
+            // Fallback: Check by transaction_code and payment_date (for cases where student might have changed)
             $existingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
                 ->where('payment_date', $transaction->transaction_date)
                 ->where('reversed', false)
                 ->first();
             
             if ($existingPayment) {
+                // If payment exists but for different student, this is a conflict
+                if ($transaction->student_id && $existingPayment->student_id != $transaction->student_id) {
+                    \Log::warning('Payment exists for different student', [
+                        'transaction_id' => $transaction->id,
+                        'existing_payment_id' => $existingPayment->id,
+                        'existing_student_id' => $existingPayment->student_id,
+                        'transaction_student_id' => $transaction->student_id,
+                        'transaction_code' => $transaction->reference_number,
+                    ]);
+                    
+                    throw new \Exception(
+                        "A payment already exists for transaction code '{$transaction->reference_number}' " .
+                        "but for a different student. Payment ID: {$existingPayment->id}, " .
+                        "Existing Student ID: {$existingPayment->student_id}, " .
+                        "Transaction Student ID: {$transaction->student_id}. " .
+                        "Please resolve this conflict before confirming."
+                    );
+                }
+                
                 // Link transaction to existing payment
                 $transaction->update([
                     'payment_id' => $existingPayment->id,
                     'payment_created' => true,
                 ]);
                 
-                \Log::info('Found existing payment for transaction', [
+                \Log::info('Found existing payment for transaction (by payment_date)', [
                     'transaction_id' => $transaction->id,
                     'payment_id' => $existingPayment->id,
                     'transaction_code' => $transaction->reference_number,
@@ -1434,9 +1480,45 @@ class BankStatementParser
             }
             
             // Check if ANY payment exists with same transaction_code + student_id (unique constraint)
-            // Throw exception to let user decide: reverse existing, keep existing, or create with different code
-            $conflictingPayments = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+            // This is the actual unique constraint, so we MUST check this before creating
+            // CRITICAL CHECK: This must happen before any payment creation logic
+            $conflictingPayment = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
                 ->where('student_id', $student->id)
+                ->where('reversed', false)
+                ->first();
+            
+            Log::info('Checking for conflicting payment', [
+                'transaction_id' => $transaction->id,
+                'reference_number' => $transaction->reference_number,
+                'student_id' => $student->id,
+                'found_payment' => $conflictingPayment ? $conflictingPayment->id : 'none',
+            ]);
+            
+            if ($conflictingPayment) {
+                // Payment already exists with this transaction_code + student_id combination
+                // Link transaction to existing payment instead of creating duplicate
+                $transaction->update([
+                    'payment_id' => $conflictingPayment->id,
+                    'payment_created' => true,
+                ]);
+                
+                Log::warning('Payment already exists (unique constraint match) - RETURNING EARLY to prevent duplicate', [
+                    'transaction_id' => $transaction->id,
+                    'payment_id' => $conflictingPayment->id,
+                    'transaction_code' => $transactionCode,
+                    'reference_number' => $transaction->reference_number,
+                    'student_id' => $student->id,
+                    'conflicting_payment_id' => $conflictingPayment->id,
+                    'conflicting_payment_code' => $conflictingPayment->transaction_code,
+                ]);
+                
+                // CRITICAL: Return immediately to prevent duplicate creation
+                return $conflictingPayment;
+            }
+            
+            // Legacy check for conflict handling (for different students with same code)
+            $conflictingPayments = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+                ->where('student_id', '!=', $student->id)
                 ->with('student')
                 ->get();
             
@@ -1525,11 +1607,41 @@ class BankStatementParser
             }
         }
         
-        // Final check: ensure transaction code is truly unique before creating
+        // Final check: ensure transaction code + student_id combination is truly unique before creating
+        // This respects the unique constraint: payments_transaction_code_student_id_unique
+        // CRITICAL: Check one more time right before creating to prevent race conditions
         $finalTransactionCode = $transactionCode;
+        
+        // If using the original reference_number, do a final check for existing payment
+        if ($transaction->reference_number && $finalTransactionCode === $transaction->reference_number) {
+            $finalCheckPayment = \App\Models\Payment::where('transaction_code', $finalTransactionCode)
+                ->where('student_id', $student->id)
+                ->where('reversed', false)
+                ->first();
+            
+            if ($finalCheckPayment) {
+                // Payment exists - link and return instead of creating
+                $transaction->update([
+                    'payment_id' => $finalCheckPayment->id,
+                    'payment_created' => true,
+                ]);
+                
+                Log::info('Payment found in final check before create - returning existing', [
+                    'transaction_id' => $transaction->id,
+                    'payment_id' => $finalCheckPayment->id,
+                    'transaction_code' => $finalTransactionCode,
+                    'student_id' => $student->id,
+                ]);
+                
+                return $finalCheckPayment;
+            }
+        }
+        
         $maxCodeAttempts = 10;
         $codeAttempt = 0;
-        while (\App\Models\Payment::where('transaction_code', $finalTransactionCode)->exists() && $codeAttempt < $maxCodeAttempts) {
+        while (\App\Models\Payment::where('transaction_code', $finalTransactionCode)
+                ->where('student_id', $student->id)
+                ->exists() && $codeAttempt < $maxCodeAttempts) {
             $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
             $finalTransactionCode = ($transaction->reference_number ?? 'TXN') . '-' . $uniqueSuffix;
             $codeAttempt++;
@@ -1544,6 +1656,36 @@ class BankStatementParser
                 'original_code' => $transactionCode,
                 'final_code' => $finalTransactionCode,
             ]);
+        }
+        
+        // ONE MORE FINAL CHECK right before the database insert
+        // Check both the final code AND the original reference_number to catch any edge cases
+        $absoluteFinalCheck = \App\Models\Payment::where(function($q) use ($finalTransactionCode, $transaction) {
+                $q->where('transaction_code', $finalTransactionCode);
+                if ($transaction->reference_number && $finalTransactionCode !== $transaction->reference_number) {
+                    $q->orWhere('transaction_code', $transaction->reference_number);
+                }
+            })
+            ->where('student_id', $student->id)
+            ->where('reversed', false)
+            ->first();
+        
+        if ($absoluteFinalCheck) {
+            // Payment exists - link and return instead of creating
+            $transaction->update([
+                'payment_id' => $absoluteFinalCheck->id,
+                'payment_created' => true,
+            ]);
+            
+            Log::warning('Payment found in absolute final check right before create - preventing duplicate', [
+                'transaction_id' => $transaction->id,
+                'payment_id' => $absoluteFinalCheck->id,
+                'transaction_code' => $finalTransactionCode,
+                'original_reference' => $transaction->reference_number,
+                'student_id' => $student->id,
+            ]);
+            
+            return $absoluteFinalCheck;
         }
         
         // Final check: ensure receipt number is truly unique before creating
@@ -1567,20 +1709,294 @@ class BankStatementParser
             ]);
         }
         
-        $payment = \App\Models\Payment::create([
-            'student_id' => $student->id,
-            'family_id' => $student->family_id,
-            'amount' => $amount,
-            'payment_method_id' => $paymentMethod->id,
-            'payment_method' => $paymentMethodName,
+        // ABSOLUTE FINAL CHECK: One last check right before database insert to prevent unique constraint violation
+        // This is a safety net in case any previous checks were bypassed
+        // Check both final code AND original reference_number
+        $lastChanceCheck = \App\Models\Payment::where(function($q) use ($finalTransactionCode, $transaction) {
+                $q->where('transaction_code', $finalTransactionCode);
+                if ($transaction->reference_number && $finalTransactionCode !== $transaction->reference_number) {
+                    $q->orWhere('transaction_code', $transaction->reference_number);
+                }
+            })
+            ->where('student_id', $student->id)
+            ->where('reversed', false)
+            ->first();
+        
+        if ($lastChanceCheck) {
+            // Payment exists - link and return instead of creating
+            $transaction->update([
+                'payment_id' => $lastChanceCheck->id,
+                'payment_created' => true,
+            ]);
+            
+            Log::warning('Payment found in last-chance check right before Payment::create() - preventing duplicate insert', [
+                'transaction_id' => $transaction->id,
+                'payment_id' => $lastChanceCheck->id,
+                'transaction_code' => $finalTransactionCode,
+                'original_reference' => $transaction->reference_number,
+                'student_id' => $student->id,
+            ]);
+            
+            return $lastChanceCheck;
+        }
+        
+        // Log before creating to help debug if this still fails
+        Log::info('Creating new payment - all checks passed', [
+            'transaction_id' => $transaction->id,
             'transaction_code' => $finalTransactionCode,
-            'receipt_number' => $finalReceiptNumberCheck,
-            'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
-            'payer_type' => 'parent',
-            'narration' => $transaction->description,
-            'payment_date' => $transaction->transaction_date,
-            'bank_account_id' => $transaction->bank_account_id,
+            'original_reference' => $transaction->reference_number,
+            'student_id' => $student->id,
+            'amount' => $amount,
         ]);
+        
+        try {
+            $payment = \App\Models\Payment::create([
+                'student_id' => $student->id,
+                'family_id' => $student->family_id,
+                'amount' => $amount,
+                'payment_method_id' => $paymentMethod->id,
+                'payment_method' => $paymentMethodName,
+                'transaction_code' => $finalTransactionCode,
+                'receipt_number' => $finalReceiptNumberCheck,
+                'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
+                'payer_type' => 'parent',
+                'narration' => $transaction->description,
+                'payment_date' => $transaction->transaction_date,
+                'bank_account_id' => $transaction->bank_account_id,
+            ]);
+        } catch (\Exception $e) {
+            // Catch all exceptions first, then check the type
+            // UniqueConstraintViolationException extends QueryException, so we check for both
+            // CRITICAL: Log that we caught an exception
+            Log::error('Exception caught in createSinglePayment', [
+                'exception_class' => get_class($e),
+                'error_message' => substr($e->getMessage(), 0, 200),
+            ]);
+            
+            $errorMessage = $e->getMessage();
+            $errorCode = $e->getCode();
+            $sqlState = null;
+            
+            // Get SQL state if available (for QueryException)
+            if ($e instanceof \Illuminate\Database\QueryException) {
+                $sqlState = isset($e->errorInfo[0]) ? $e->errorInfo[0] : null;
+            }
+            
+            // Check for unique constraint violation in multiple ways
+            $isUniqueViolation = 
+                ($e instanceof \Illuminate\Database\UniqueConstraintViolationException) ||
+                ($e instanceof \Illuminate\Database\QueryException && (
+                    ($errorCode == 23000 || $errorCode == '23000' || $sqlState == '23000') ||
+                    strpos($errorMessage, 'payments_transaction_code_student_id_unique') !== false ||
+                    strpos($errorMessage, 'Duplicate entry') !== false ||
+                    strpos($errorMessage, '1062') !== false
+                ));
+            
+            if ($isUniqueViolation) {
+                Log::warning('Caught unique constraint violation exception - attempting to find existing payment', [
+                    'transaction_id' => $transaction->id,
+                    'transaction_code' => $finalTransactionCode,
+                    'original_reference' => $transaction->reference_number,
+                    'student_id' => $student->id,
+                    'error_message' => substr($errorMessage, 0, 200),
+                    'error_code' => $errorCode,
+                    'sql_state' => $sqlState,
+                    'exception_class' => get_class($e),
+                ]);
+                
+                // Try to find the payment - ONLY look for active, non-reversed, non-deleted payments
+                // We should NOT return reversed or deleted payments as they are invalid
+                $existingPayment = \App\Models\Payment::where(function($q) use ($finalTransactionCode, $transaction) {
+                        $q->where('transaction_code', $finalTransactionCode);
+                        if ($transaction->reference_number && $finalTransactionCode !== $transaction->reference_number) {
+                            $q->orWhere('transaction_code', $transaction->reference_number);
+                        }
+                    })
+                    ->where('student_id', $student->id)
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at') // Exclude soft-deleted payments
+                    ->first();
+                
+                // If not found, check if there's a reversed/deleted payment causing the constraint violation
+                if (!$existingPayment) {
+                    $reversedOrDeleted = \App\Models\Payment::withTrashed()
+                        ->where(function($q) use ($finalTransactionCode, $transaction) {
+                            $q->where('transaction_code', $finalTransactionCode);
+                            if ($transaction->reference_number && $finalTransactionCode !== $transaction->reference_number) {
+                                $q->orWhere('transaction_code', $transaction->reference_number);
+                            }
+                        })
+                        ->where('student_id', $student->id)
+                        ->first();
+                    
+                    if ($reversedOrDeleted && ($reversedOrDeleted->reversed || $reversedOrDeleted->deleted_at)) {
+                        // A reversed/deleted payment exists - modify transaction code to create a new one
+                        Log::warning('Unique constraint violation due to reversed/deleted payment - modifying transaction code', [
+                            'transaction_id' => $transaction->id,
+                            'original_code' => $finalTransactionCode,
+                            'existing_payment_id' => $reversedOrDeleted->id,
+                            'existing_reversed' => $reversedOrDeleted->reversed,
+                            'existing_deleted' => $reversedOrDeleted->deleted_at ? 'YES' : 'NO',
+                        ]);
+                        
+                        // Clear the transaction's payment_id if it points to the reversed/deleted payment
+                        if ($transaction->payment_id == $reversedOrDeleted->id) {
+                            $transaction->update([
+                                'payment_id' => null,
+                                'payment_created' => false,
+                            ]);
+                        }
+                        
+                        // Modify transaction code to make it unique
+                        $finalTransactionCode = $transaction->reference_number . '-' . $transaction->id . '-' . time();
+                        
+                        // Try creating again with modified code
+                        try {
+                            $payment = \App\Models\Payment::create([
+                                'student_id' => $student->id,
+                                'family_id' => $student->family_id,
+                                'amount' => $amount,
+                                'payment_method_id' => $paymentMethod->id,
+                                'payment_method' => $paymentMethodName,
+                                'transaction_code' => $finalTransactionCode,
+                                'receipt_number' => $finalReceiptNumberCheck,
+                                'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
+                                'payer_type' => 'parent',
+                                'narration' => $transaction->description,
+                                'payment_date' => $transaction->transaction_date,
+                                'bank_account_id' => $transaction->bank_account_id,
+                            ]);
+                            
+                            // Success! Link and return
+                            $transaction->update([
+                                'payment_id' => $payment->id,
+                                'payment_created' => true,
+                            ]);
+                            
+                            Log::info('Created new payment with modified transaction code after reversed/deleted payment conflict', [
+                                'transaction_id' => $transaction->id,
+                                'payment_id' => $payment->id,
+                                'new_transaction_code' => $finalTransactionCode,
+                            ]);
+                            
+                            return $payment;
+                        } catch (\Exception $e2) {
+                            // If this also fails, re-throw the original exception
+                            Log::error('Failed to create payment with modified transaction code', [
+                                'transaction_id' => $transaction->id,
+                                'new_code' => $finalTransactionCode,
+                                'error' => $e2->getMessage(),
+                            ]);
+                            throw $e;
+                        }
+                    } else {
+                        // No reversed/deleted payment found - this shouldn't happen
+                        Log::error('Unique constraint violation but no valid or reversed/deleted payment found', [
+                            'transaction_id' => $transaction->id,
+                            'transaction_code' => $finalTransactionCode,
+                            'student_id' => $student->id,
+                        ]);
+                        throw $e;
+                    }
+                }
+                
+                if ($existingPayment) {
+                    $transaction->update([
+                        'payment_id' => $existingPayment->id,
+                        'payment_created' => true,
+                    ]);
+                    
+                    Log::warning('Found existing payment after unique constraint violation - returning it', [
+                        'transaction_id' => $transaction->id,
+                        'payment_id' => $existingPayment->id,
+                    ]);
+                    
+                    return $existingPayment;
+                } else {
+                    Log::error('Unique constraint violation but could not find existing payment - trying without reversed check', [
+                        'transaction_id' => $transaction->id,
+                        'transaction_code' => $finalTransactionCode,
+                        'original_reference' => $transaction->reference_number,
+                        'student_id' => $student->id,
+                    ]);
+                    
+                    // Try one more time without the reversed check - maybe it was reversed?
+                    $existingPayment = \App\Models\Payment::where(function($q) use ($finalTransactionCode, $transaction) {
+                            $q->where('transaction_code', $finalTransactionCode);
+                            if ($transaction->reference_number && $finalTransactionCode !== $transaction->reference_number) {
+                                $q->orWhere('transaction_code', $transaction->reference_number);
+                            }
+                        })
+                        ->where('student_id', $student->id)
+                        ->first(); // No reversed check
+                    
+                    if ($existingPayment) {
+                        $transaction->update([
+                            'payment_id' => $existingPayment->id,
+                            'payment_created' => true,
+                        ]);
+                        
+                        Log::warning('Found existing payment (possibly reversed) after unique constraint violation', [
+                            'transaction_id' => $transaction->id,
+                            'payment_id' => $existingPayment->id,
+                            'reversed' => $existingPayment->reversed,
+                        ]);
+                        
+                        return $existingPayment;
+                    }
+                    
+                    // If we still can't find it, throw the original exception
+                    Log::error('CRITICAL: Unique constraint violation but payment not found even after exhaustive search', [
+                        'transaction_id' => $transaction->id,
+                        'transaction_code' => $finalTransactionCode,
+                        'original_reference' => $transaction->reference_number,
+                        'student_id' => $student->id,
+                    ]);
+                    throw $e; // Re-throw the original exception
+                }
+            }
+            
+            // Re-throw if it's not a unique constraint violation
+            Log::error('Exception caught but not a unique constraint violation', [
+                'exception_class' => get_class($e),
+                'error_message' => substr($errorMessage, 0, 200),
+            ]);
+            throw $e;
+        } catch (\Exception $e) {
+            // Catch any other exceptions and check if it's a unique constraint violation
+            $errorMessage = $e->getMessage();
+            if (strpos($errorMessage, 'Duplicate entry') !== false || 
+                strpos($errorMessage, 'payments_transaction_code_student_id_unique') !== false ||
+                strpos($errorMessage, '1062') !== false ||
+                strpos($errorMessage, 'UniqueConstraintViolationException') !== false) {
+                
+                $existingPayment = \App\Models\Payment::where(function($q) use ($finalTransactionCode, $transaction) {
+                        $q->where('transaction_code', $finalTransactionCode);
+                        if ($transaction->reference_number && $finalTransactionCode !== $transaction->reference_number) {
+                            $q->orWhere('transaction_code', $transaction->reference_number);
+                        }
+                    })
+                    ->where('student_id', $student->id)
+                    ->where('reversed', false)
+                    ->first();
+                
+                if ($existingPayment) {
+                    $transaction->update([
+                        'payment_id' => $existingPayment->id,
+                        'payment_created' => true,
+                    ]);
+                    
+                    Log::warning('Caught exception with duplicate entry message - returning existing payment', [
+                        'transaction_id' => $transaction->id,
+                        'payment_id' => $existingPayment->id,
+                    ]);
+                    
+                    return $existingPayment;
+                }
+            }
+            
+            throw $e;
+        }
         
         // Skip auto-allocation during bulk creation - it will be done later in batch
         // Auto-allocation is time-consuming and can be done asynchronously

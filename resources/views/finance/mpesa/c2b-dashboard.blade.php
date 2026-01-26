@@ -142,7 +142,7 @@
                                         @endif
                                     </td>
                                     <td>
-                                        <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" 
+                                        <a href="{{ route('finance.bank-statements.show', $transaction->id) . '?type=c2b' }}" 
                                            class="btn btn-sm btn-finance btn-finance-primary">
                                             <i class="bi bi-arrow-right-circle"></i> Allocate
                                         </a>

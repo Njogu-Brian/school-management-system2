@@ -478,16 +478,16 @@
                             <td>
                                 <div class="btn-group btn-group-sm">
                                     @if($isC2B)
-                                        <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" class="btn btn-finance btn-finance-secondary" title="View">
+                                        <a href="{{ route('finance.bank-statements.show', $transaction->id) }}?type=c2b" class="btn btn-finance btn-finance-secondary" title="View">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if($txnMatchStatus === 'unmatched' || !$txnStudentId)
-                                            <a href="{{ route('finance.mpesa.c2b.transaction.show', $transaction->id) }}" class="btn btn-finance btn-finance-primary" title="Allocate">
+                                            <a href="{{ route('finance.bank-statements.show', $transaction->id) }}?type=c2b" class="btn btn-finance btn-finance-primary" title="Allocate">
                                                 <i class="bi bi-person-plus"></i>
                                             </a>
                                         @endif
                                     @else
-                                        <a href="{{ route('finance.bank-statements.show', $transaction) }}" class="btn btn-finance btn-finance-secondary" title="View">
+                                        <a href="{{ route('finance.bank-statements.show', $transaction->id) }}?type=bank" class="btn btn-finance btn-finance-secondary" title="View">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         @if($transaction->isDraft() && !$transaction->is_duplicate && !$transaction->is_archived)

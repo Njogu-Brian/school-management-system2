@@ -4,7 +4,7 @@
     @include('finance.partials.header', [
         'title' => 'Transaction #' . $bankStatement->id,
         'icon' => 'bi bi-receipt',
-        'subtitle' => 'Bank statement transaction details',
+        'subtitle' => ($isC2B ?? false) ? 'M-PESA C2B transaction details' : 'Bank statement transaction details',
         'actions' => '<a href="' . route('finance.bank-statements.index') . '" class="btn btn-finance btn-finance-secondary"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
@@ -64,7 +64,7 @@
     @endif
 
     <!-- Siblings Notification -->
-    @if($bankStatement->student_id && count($siblings) > 0 && !$bankStatement->is_shared)
+    @if($bankStatement->student_id && count($siblings) > 0 && !($bankStatement->is_shared ?? false))
     <div class="alert alert-info alert-dismissible fade show finance-animate shadow-sm rounded-4 border-0 mb-4" role="alert">
         <div class="d-flex align-items-start">
             <div class="flex-shrink-0 me-3">
@@ -75,7 +75,7 @@
                     <i class="bi bi-people"></i> Siblings Detected
                 </h5>
                 <p class="mb-2">
-                    This transaction is assigned to <strong>{{ $bankStatement->student->full_name }}</strong> ({{ $bankStatement->student->admission_number }}), 
+                    This transaction is assigned to <strong>{{ ($rawTransaction->student ?? null) ? $rawTransaction->student->full_name : 'N/A' }}</strong> ({{ ($rawTransaction->student ?? null) ? $rawTransaction->student->admission_number : 'N/A' }}), 
                     but there {{ count($siblings) === 1 ? 'is' : 'are' }} <strong>{{ count($siblings) }} sibling{{ count($siblings) === 1 ? '' : 's' }}</strong> in the same family.
                 </p>
                 <p class="mb-2">
@@ -85,7 +85,7 @@
                     @endforeach
                 </p>
                 <p class="mb-0">
-                    @if($bankStatement->isDraft())
+                    @if($bankStatement->status === 'draft')
                         <strong>You can share this payment among siblings</strong> using the form below. This allows you to allocate the payment amount across multiple students in the same family.
                     @else
                         <strong>Note:</strong> This transaction is {{ $bankStatement->status }}. To share payments, the transaction must be in draft status.
@@ -104,9 +104,16 @@
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Transaction Information</h5>
                     <div>
-                        @if($bankStatement->status == 'draft')
+                        @php
+                            // Ensure status is correct if payment exists
+                            $displayStatus = $bankStatement->status;
+                            if (($bankStatement->payment_id && ($bankStatement->payment_created ?? false)) && $displayStatus !== 'rejected') {
+                                $displayStatus = 'confirmed';
+                            }
+                        @endphp
+                        @if($displayStatus == 'draft')
                             <span class="badge bg-warning">Draft</span>
-                        @elseif($bankStatement->status == 'confirmed')
+                        @elseif($displayStatus == 'confirmed')
                             <span class="badge bg-success">Confirmed</span>
                         @else
                             <span class="badge bg-danger">Rejected</span>
@@ -118,7 +125,7 @@
                         <div class="col-md-6">
                             <dl class="row mb-0">
                                 <dt class="col-sm-5">Transaction Date:</dt>
-                                <dd class="col-sm-7">{{ $bankStatement->transaction_date->format('d M Y') }}</dd>
+                                <dd class="col-sm-7">{{ ($bankStatement->transaction_date instanceof \Carbon\Carbon) ? $bankStatement->transaction_date->format('d M Y') : \Carbon\Carbon::parse($bankStatement->transaction_date)->format('d M Y') }}</dd>
 
                                 <dt class="col-sm-5">Amount:</dt>
                                 <dd class="col-sm-7">
@@ -162,12 +169,12 @@
                                     @endif
                                 </dd>
 
-                                @if($bankStatement->matched_admission_number)
+                                @if(isset($bankStatement->matched_admission_number) && $bankStatement->matched_admission_number)
                                 <dt class="col-sm-5">Matched Admission:</dt>
                                 <dd class="col-sm-7"><code>{{ $bankStatement->matched_admission_number }}</code></dd>
                                 @endif
 
-                                @if($bankStatement->matched_student_name)
+                                @if(isset($bankStatement->matched_student_name) && $bankStatement->matched_student_name)
                                 <dt class="col-sm-5">Matched Name:</dt>
                                 <dd class="col-sm-7">{{ $bankStatement->matched_student_name }}</dd>
                                 @endif
@@ -194,10 +201,29 @@
                     <div class="list-group">
                         @foreach($possibleMatches as $index => $match)
                             @php
-                                $student = $match['student'];
-                                $confidence = $match['confidence'] ?? 0;
-                                $matchType = $match['match_type'] ?? 'unknown';
-                                $matchedValue = $match['matched_value'] ?? '';
+                                // Handle both formats: bank statement (has 'student' object) and C2B (has 'student_id')
+                                if (isset($match['student']) && is_object($match['student'])) {
+                                    // Bank statement format - has student object
+                                    $student = $match['student'];
+                                    $confidence = $match['confidence'] ?? 0;
+                                    $matchType = $match['match_type'] ?? 'unknown';
+                                    $matchedValue = $match['matched_value'] ?? '';
+                                } elseif (isset($match['student_id'])) {
+                                    // C2B format - has student_id, need to load student
+                                    $student = \App\Models\Student::find($match['student_id']);
+                                    $confidence = $match['confidence'] ?? ($match['confidence'] ?? 0) / 100; // C2B uses 0-100, convert to 0-1
+                                    $matchType = $match['reason'] ?? 'unknown';
+                                    $matchedValue = $match['admission_number'] ?? $match['student_name'] ?? '';
+                                } else {
+                                    // Skip if neither format
+                                    continue;
+                                }
+                                
+                                // Skip if student not found
+                                if (!$student) {
+                                    continue;
+                                }
+                                
                                 // Get siblings via family_id ONLY (not through siblings() relationship)
                                 // Limit to 10 siblings max to prevent display issues with bad data
                                 $studentSiblings = collect();
@@ -246,7 +272,7 @@
                                         </div>
                                     </div>
                                     <div class="ms-3">
-                                        <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}" class="d-inline">
+                                        <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement->id) }}" class="d-inline">
                                             @csrf
                                             @method('PUT')
                                             <input type="hidden" name="student_id" value="{{ $student->id }}">
@@ -270,7 +296,7 @@
             @endif
             
             <!-- Manual Student Search for Rejected/Unassigned Transactions -->
-            @if(!$bankStatement->student_id && in_array($bankStatement->status, ['draft', 'rejected', 'unmatched']) && $bankStatement->match_status === 'unmatched' && !$bankStatement->is_shared)
+            @if(!$bankStatement->student_id && in_array($bankStatement->status, ['draft', 'rejected', 'unmatched']) && $bankStatement->match_status === 'unmatched' && !($bankStatement->is_shared ?? false))
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Manual Student Assignment or Share Among Siblings</h5>
@@ -293,7 +319,7 @@
                         <!-- Assign to Single Student Tab -->
                         <div class="tab-pane fade show active" id="assign-pane" role="tabpanel">
                             <p class="text-muted mb-3">Search and select a student to assign this transaction to:</p>
-                            <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement) }}" id="assignStudentForm">
+                            <form method="POST" action="{{ route('finance.bank-statements.update', $bankStatement->id) }}" id="assignStudentForm">
                                 @csrf
                                 @method('PUT')
                                 @include('partials.student_live_search', [
@@ -331,7 +357,7 @@
                             
                             <!-- Share Form (hidden until student selected) -->
                             <div id="shareFormContainer" style="display: none;">
-                                <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
+                                <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement->id) }}">
                                     @csrf
                                     <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
                                     <p class="text-info mb-3">
@@ -355,7 +381,7 @@
             @endif
 
             <!-- Student Assignment -->
-            @if($bankStatement->student)
+            @if($rawTransaction->student ?? null)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Assigned Student</h5>
@@ -364,14 +390,14 @@
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
                             <h6 class="mb-1">
-                                <a href="{{ route('students.show', $bankStatement->student) }}">
-                                    {{ $bankStatement->student->full_name }}
+                                <a href="{{ route('students.show', $rawTransaction->student->id) }}">
+                                    {{ $rawTransaction->student->full_name }}
                                 </a>
                             </h6>
                             <p class="text-muted mb-0">
-                                Admission: <code>{{ $bankStatement->student->admission_number }}</code>
-                                @if($bankStatement->student->classroom)
-                                    | Class: {{ $bankStatement->student->classroom->name }}
+                                Admission: <code>{{ $rawTransaction->student->admission_number }}</code>
+                                @if($rawTransaction->student->classroom)
+                                    | Class: {{ $rawTransaction->student->classroom->name }}
                                 @endif
                             </p>
                         </div>
@@ -380,37 +406,197 @@
             </div>
             @endif
 
+            <!-- Linked Payment -->
+            @php
+                $linkedPayment = null;
+                // First, check payment_id directly (most reliable)
+                if ($bankStatement->payment_id) {
+                    $linkedPayment = \App\Models\Payment::with(['student'])->find($bankStatement->payment_id);
+                }
+                
+                // Also check the raw transaction's payment_id (in case normalized data is stale)
+                if (!$linkedPayment && isset($rawTransaction->payment_id)) {
+                    $linkedPayment = \App\Models\Payment::with(['student'])->find($rawTransaction->payment_id);
+                }
+                
+                // Also check for payments by reference number (for sibling sharing)
+                if (!$linkedPayment && $bankStatement->reference_number) {
+                    $linkedPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                        ->where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->with(['student'])
+                        ->first();
+                }
+                
+                // For C2B, also check by trans_id
+                if (!$linkedPayment && $isC2B && isset($rawTransaction->trans_id)) {
+                    $linkedPayment = \App\Models\Payment::where('transaction_code', $rawTransaction->trans_id)
+                        ->where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->with(['student'])
+                        ->first();
+                }
+                
+                // Also check by reference from raw transaction (for bank statements)
+                if (!$linkedPayment && !$isC2B && isset($rawTransaction->reference_number)) {
+                    $linkedPayment = \App\Models\Payment::where('transaction_code', $rawTransaction->reference_number)
+                        ->where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->with(['student'])
+                        ->first();
+                }
+                
+                // Check for sibling payments (shared transaction code)
+                $siblingPayments = collect();
+                $refToCheck = $bankStatement->reference_number ?? ($rawTransaction->reference_number ?? null);
+                if ($refToCheck) {
+                    $siblingPayments = \App\Models\Payment::where('transaction_code', 'LIKE', $refToCheck . '-%')
+                        ->where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->with(['student'])
+                        ->get();
+                }
+            @endphp
+            @if($linkedPayment || $siblingPayments->isNotEmpty())
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0" style="border-left: 4px solid #28a745 !important;">
+                <div class="finance-card-header d-flex justify-content-between align-items-center" style="background-color: #d4edda;">
+                    <h5 class="mb-0">
+                        <i class="bi bi-receipt-cutoff text-success"></i> Linked Payment(s)
+                    </h5>
+                    @if($linkedPayment && !$linkedPayment->reversed)
+                        <span class="badge bg-success">Active</span>
+                    @elseif($linkedPayment && $linkedPayment->reversed)
+                        <span class="badge bg-warning">Reversed</span>
+                    @endif
+                </div>
+                <div class="finance-card-body p-4" style="background-color: #f8f9fa;">
+                    @if($linkedPayment)
+                    <div class="mb-3 p-3 border rounded" style="background-color: #fff;">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-2">
+                                    <a href="{{ route('finance.payments.show', $linkedPayment->id) }}" class="text-primary font-weight-bold" style="text-decoration: underline; font-size: 16px;">
+                                        <i class="bi bi-receipt"></i> Receipt: {{ $linkedPayment->receipt_number ?? 'N/A' }}
+                                    </a>
+                                </h6>
+                                <div class="mb-2" style="color: #495057;">
+                                    <strong>Narration:</strong> 
+                                    <span style="color: #212529;">{{ $linkedPayment->narration ?? 'No narration provided' }}</span>
+                                </div>
+                                <div class="mb-2" style="color: #495057;">
+                                    <strong>Payment Date:</strong> 
+                                    <span style="color: #212529;">
+                                        <i class="bi bi-calendar"></i> {{ $linkedPayment->payment_date ? $linkedPayment->payment_date->format('d M Y') : 'No date' }}
+                                        @if($linkedPayment->payment_date)
+                                            <small class="text-muted">({{ $linkedPayment->payment_date->format('H:i') }})</small>
+                                        @endif
+                                    </span>
+                                </div>
+                                <div class="mb-2" style="color: #495057;">
+                                    <strong>Amount:</strong> 
+                                    <span style="color: #28a745; font-weight: 600; font-size: 16px;">
+                                        KES {{ number_format($linkedPayment->amount, 2) }}
+                                    </span>
+                                </div>
+                                @if($linkedPayment->student)
+                                <div class="mb-2" style="color: #495057;">
+                                    <strong>Student:</strong> 
+                                    <a href="{{ route('students.show', $linkedPayment->student->id) }}" class="text-info">
+                                        {{ $linkedPayment->student->full_name }} ({{ $linkedPayment->student->admission_number }})
+                                    </a>
+                                </div>
+                                @endif
+                                @if($linkedPayment->transaction_code)
+                                <div class="mb-2" style="color: #495057;">
+                                    <strong>Transaction Code:</strong> 
+                                    <code style="background-color: #e9ecef; padding: 2px 6px; border-radius: 3px;">{{ $linkedPayment->transaction_code }}</code>
+                                </div>
+                                @endif
+                                @if($linkedPayment->reversed)
+                                <div class="alert alert-warning mb-0 mt-2" style="font-size: 12px;">
+                                    <i class="bi bi-exclamation-triangle"></i> This payment was reversed on {{ $linkedPayment->reversed_at ? $linkedPayment->reversed_at->format('d M Y H:i') : 'N/A' }}
+                                </div>
+                                @endif
+                            </div>
+                            <div class="ms-3">
+                                <a href="{{ route('finance.payments.show', $linkedPayment->id) }}" class="btn btn-sm btn-success">
+                                    <i class="bi bi-eye"></i> View Payment
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
+
+                    @if($siblingPayments->isNotEmpty())
+                    <div class="mt-3">
+                        <h6 class="mb-2" style="color: #495057;">
+                            <i class="bi bi-people"></i> Sibling Payments ({{ $siblingPayments->count() }})
+                        </h6>
+                        @foreach($siblingPayments as $siblingPayment)
+                        <div class="mb-2 p-2 border rounded" style="background-color: #fff;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="flex-grow-1">
+                                    <a href="{{ route('finance.payments.show', $siblingPayment->id) }}" class="text-primary font-weight-bold" style="text-decoration: underline;">
+                                        <i class="bi bi-receipt"></i> {{ $siblingPayment->receipt_number ?? 'N/A' }}
+                                    </a>
+                                    <div class="small text-muted mt-1">
+                                        {{ $siblingPayment->narration ?? 'No narration' }}
+                                    </div>
+                                    <div class="small text-muted">
+                                        <i class="bi bi-calendar"></i> {{ $siblingPayment->payment_date ? $siblingPayment->payment_date->format('d M Y') : 'No date' }}
+                                        | KES {{ number_format($siblingPayment->amount, 2) }}
+                                        @if($siblingPayment->student)
+                                            | {{ $siblingPayment->student->full_name }}
+                                        @endif
+                                    </div>
+                                </div>
+                                <a href="{{ route('finance.payments.show', $siblingPayment->id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </div>
+                        </div>
+                        @endforeach
+                    </div>
+                    @endif
+
+                    @if(!$linkedPayment && $siblingPayments->isEmpty())
+                    <p class="text-muted mb-0">No linked payments found</p>
+                    @endif
+                </div>
+            </div>
+            @endif
+
             <!-- Sharing Information -->
-            @if($bankStatement->is_shared && $bankStatement->shared_allocations)
+            @if(($bankStatement->is_shared ?? false) && ($bankStatement->shared_allocations ?? null))
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Shared Among Siblings</h5>
-                    @if(($bankStatement->isDraft() || $bankStatement->isConfirmed()) && !$bankStatement->isRejected())
+                    @if(($bankStatement->status === 'draft' || $bankStatement->status === 'confirmed') && $bankStatement->status !== 'rejected')
                     <button type="button" class="btn btn-sm btn-finance btn-finance-primary" onclick="toggleEditAllocations()">
                         <i class="bi bi-pencil"></i> Edit Amounts
                     </button>
                     @endif
                 </div>
                 <div class="finance-card-body p-4">
-                    <form id="editAllocationsForm" method="POST" action="{{ route('finance.bank-statements.update-allocations', $bankStatement) }}" style="display: none;">
+                    <form id="editAllocationsForm" method="POST" action="{{ route('finance.bank-statements.update-allocations', $bankStatement->id) }}" style="display: none;">
                         @csrf
                         @method('PUT')
-                        <input type="hidden" name="version" value="{{ $bankStatement->version }}">
+                        <input type="hidden" name="version" value="{{ $bankStatement->version ?? 0 }}">
                         <div class="mb-3">
                             <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
-                            @if($bankStatement->isConfirmed() && $bankStatement->payment_created)
+                            @if($bankStatement->status === 'confirmed' && $bankStatement->payment_created)
                                 <p class="text-info small mb-0">
                                     <i class="bi bi-info-circle"></i> 
                                     Editing will update the related payment amounts. If a payment amount decreases, excess allocations will be removed.
                                 </p>
-                            @elseif($bankStatement->isConfirmed() && !$bankStatement->payment_created)
+                            @elseif($bankStatement->status === 'confirmed' && !$bankStatement->payment_created)
                                 <p class="text-info small mb-0">
                                     <i class="bi bi-info-circle"></i> 
                                     Editing allocations. After saving, you can create the payment using the "Create Payment" button.
                                 </p>
                             @endif
                         </div>
-                        @foreach($bankStatement->shared_allocations as $index => $allocation)
+                        @foreach(($bankStatement->shared_allocations ?? []) as $index => $allocation)
                             @php $student = \App\Models\Student::find($allocation['student_id']); @endphp
                             <div class="mb-3 p-3 border rounded">
                                 <label class="form-label">
@@ -545,7 +731,7 @@
             @endif
 
             <!-- Siblings (if family exists) -->
-            @if($bankStatement->student_id && count($siblings) > 0 && !$bankStatement->is_shared)
+            @if($bankStatement->student_id && count($siblings) > 0 && !($bankStatement->is_shared ?? false))
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">
@@ -557,12 +743,12 @@
                         // Check if there are any active (non-reversed) payments
                         $hasActivePayments = $activePayments->isNotEmpty();
                         // Allow sharing if: draft, or confirmed without active payments, or not rejected
-                        $canShare = $bankStatement->isDraft() 
+                        $canShare = $bankStatement->status === 'draft' 
                             || ($bankStatement->status === 'confirmed' && !$hasActivePayments)
                             || ($bankStatement->status !== 'confirmed' && $bankStatement->status !== 'rejected' && !$hasActivePayments);
                     @endphp
                     @if($canShare)
-                    <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
+                    <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement->id) }}">
                         @csrf
                         <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>
                         <p class="text-info mb-3">
@@ -575,27 +761,27 @@
                                 
                                 if ($isSwimming) {
                                     // Get swimming wallet balance
-                                    $currentStudentWallet = $bankStatement->student 
-                                        ? \App\Models\SwimmingWallet::getOrCreateForStudent($bankStatement->student->id) 
+                                    $currentStudentWallet = ($rawTransaction->student ?? null)
+                                        ? \App\Models\SwimmingWallet::getOrCreateForStudent($rawTransaction->student->id) 
                                         : null;
                                     $currentStudentBalance = $currentStudentWallet ? $currentStudentWallet->balance : 0;
                                     $balanceLabel = 'Swimming Balance';
                                 } else {
                                     // Get fee balance
-                                    $currentStudentBalance = $bankStatement->student 
-                                        ? \App\Services\StudentBalanceService::getTotalOutstandingBalance($bankStatement->student) 
+                                    $currentStudentBalance = ($rawTransaction->student ?? null)
+                                        ? \App\Services\StudentBalanceService::getTotalOutstandingBalance($rawTransaction->student) 
                                         : 0;
                                     $balanceLabel = 'Balance';
                                 }
                             @endphp
-                            @if($bankStatement->student)
+                            @if($rawTransaction->student ?? null)
                                 <div class="mb-3 p-3 border rounded">
                                     <label class="form-label">
-                                        <strong>{{ $bankStatement->student->full_name }}</strong>
-                                        <small class="text-muted">({{ $bankStatement->student->admission_number }})</small>
+                                        <strong>{{ $rawTransaction->student->full_name }}</strong>
+                                        <small class="text-muted">({{ $rawTransaction->student->admission_number }})</small>
                                         <br><small class="text-danger">{{ $balanceLabel }}: Ksh {{ number_format($currentStudentBalance, 2) }}</small>
                                     </label>
-                                    <input type="hidden" name="allocations[0][student_id]" value="{{ $bankStatement->student->id }}">
+                                    <input type="hidden" name="allocations[0][student_id]" value="{{ $rawTransaction->student->id }}">
                                     <input type="number" 
                                            name="allocations[0][amount]" 
                                            class="form-control sibling-amount" 
@@ -628,9 +814,9 @@
                                         <small class="text-muted">({{ $sibling->admission_number }})</small>
                                         <br><small class="text-danger">{{ $siblingBalanceLabel }}: Ksh {{ number_format($siblingBalance, 2) }}</small>
                                     </label>
-                                    <input type="hidden" name="allocations[{{ $bankStatement->student ? $loop->index + 1 : $loop->index }}][student_id]" value="{{ $sibling->id }}">
+                                    <input type="hidden" name="allocations[{{ ($rawTransaction->student ?? null) ? $loop->index + 1 : $loop->index }}][student_id]" value="{{ $sibling->id }}">
                                     <input type="number" 
-                                           name="allocations[{{ $bankStatement->student ? $loop->index + 1 : $loop->index }}][amount]" 
+                                           name="allocations[{{ ($rawTransaction->student ?? null) ? $loop->index + 1 : $loop->index }}][amount]" 
                                            class="form-control sibling-amount" 
                                            step="0.01" 
                                            min="0" 
@@ -675,9 +861,9 @@
                     <h5 class="mb-0">Actions</h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    @if($bankStatement->isDraft())
-                        @if($bankStatement->student_id || $bankStatement->is_shared)
-                            <form method="POST" action="{{ route('finance.bank-statements.confirm', $bankStatement) }}" class="mb-2">
+                    @if($bankStatement->status === 'draft')
+                        @if($bankStatement->student_id || ($bankStatement->is_shared ?? false))
+                            <form method="POST" action="{{ route('finance.bank-statements.confirm', $bankStatement->id) }}" class="mb-2">
                                 @csrf
                                 <button type="submit" class="btn btn-finance btn-finance-success w-100">
                                     <i class="bi bi-check-circle"></i> Confirm Transaction
@@ -685,13 +871,13 @@
                             </form>
                         @endif
 
-                        <a href="{{ route('finance.bank-statements.edit', $bankStatement) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
+                        <a href="{{ route('finance.bank-statements.edit', $bankStatement->id) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
                             <i class="bi bi-pencil"></i> Edit / Match Manually
                         </a>
                     @elseif($bankStatement->status == 'confirmed' && !$bankStatement->payment_created)
                         <!-- Actions for confirmed transactions without payments (unallocated uncollected) -->
-                        @if($bankStatement->student_id || $bankStatement->is_shared)
-                            <form method="POST" action="{{ route('finance.bank-statements.create-payment', $bankStatement) }}" class="mb-2" onsubmit="return confirm('Create payment for this transaction? This will allocate the payment to student invoices.');">
+                        @if($bankStatement->student_id || ($bankStatement->is_shared ?? false))
+                            <form method="POST" action="{{ route('finance.bank-statements.create-payment', $bankStatement->id) }}" class="mb-2" onsubmit="return confirm('Create payment for this transaction? This will allocate the payment to student invoices.');">
                                 @csrf
                                 <button type="submit" class="btn btn-finance btn-finance-success w-100">
                                     <i class="bi bi-cash-coin"></i> Create Payment
@@ -707,17 +893,21 @@
                     @endif
 
                     @php
-                        $isSwimming = \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
-                            && $bankStatement->is_swimming_transaction;
+                        $isSwimming = $bankStatement->is_swimming_transaction ?? false;
                         $hasAllocations = false;
-                        if ($isSwimming && \Illuminate\Support\Facades\Schema::hasTable('swimming_transaction_allocations')) {
-                            $hasAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
-                                ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
-                                ->exists();
+                        if ($isSwimming) {
+                            if (!$isC2B && \Illuminate\Support\Facades\Schema::hasTable('swimming_transaction_allocations')) {
+                                $hasAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
+                                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                                    ->exists();
+                            } elseif ($isC2B && $bankStatement->payment_id) {
+                                // For C2B, check if payment exists (indicates allocation)
+                                $hasAllocations = true;
+                            }
                         }
                     @endphp
                     @if($isSwimming && !$hasAllocations && $bankStatement->status !== 'rejected')
-                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement) }}" class="mb-2" onsubmit="return confirm('Unmark this transaction as swimming? This will allow it to be processed as a regular fee payment.')">
+                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement->id) }}" class="mb-2" onsubmit="return confirm('Unmark this transaction as swimming? This will allow it to be processed as a regular fee payment.')">
                             @csrf
                             <button type="submit" class="btn btn-finance btn-finance-warning w-100">
                                 <i class="bi bi-x-circle"></i> Unmark as Swimming
@@ -726,9 +916,11 @@
                     @endif
                     
                     @if($bankStatement->statement_file_path)
-                        <a href="{{ route('finance.bank-statements.view-pdf', $bankStatement) }}" target="_blank" class="btn btn-finance btn-finance-info w-100 mb-2">
-                            <i class="bi bi-file-pdf"></i> View Statement PDF
-                        </a>
+                        @if(!($isC2B ?? false) && $bankStatement->statement_file_path)
+                            <a href="{{ route('finance.bank-statements.view-pdf', $bankStatement->id) }}" target="_blank" class="btn btn-finance btn-finance-info w-100 mb-2">
+                                <i class="bi bi-file-pdf"></i> View Statement PDF
+                            </a>
+                        @endif
                     @endif
                 </div>
             </div>
@@ -758,7 +950,7 @@
                         </div>
                         <div class="modal-footer border-0 pt-0">
                             <button type="button" class="btn btn-finance btn-finance-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <form method="POST" action="{{ route('finance.bank-statements.reject', $bankStatement) }}" class="d-inline">
+                            <form method="POST" action="{{ route('finance.bank-statements.reject', $bankStatement->id) }}" class="d-inline">
                                 @csrf
                                 <button type="submit" class="btn btn-finance btn-finance-danger">
                                     <i class="bi bi-x-circle"></i> Confirm Reject
@@ -904,7 +1096,7 @@
             @endif
 
             <!-- Statement File Info -->
-            @if($bankStatement->statement_file_path)
+            @if(!($isC2B ?? false) && $bankStatement->statement_file_path)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Statement File</h5>
@@ -1236,7 +1428,7 @@ async function showShareModalForStudent(studentId, studentName, siblings) {
                     <h5 class="modal-title">Share Payment with Siblings</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement) }}">
+                <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement->id) }}">
                     @csrf
                     <div class="modal-body">
                         <p class="text-muted">Total amount: <strong>Ksh {{ number_format($bankStatement->amount, 2) }}</strong></p>

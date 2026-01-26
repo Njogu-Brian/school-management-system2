@@ -73,7 +73,8 @@
                     <div class="finance-card-body">
                         <div class="list-group list-group-flush">
                             @foreach($transaction->matching_suggestions as $suggestion)
-                                <div class="list-group-item px-0 cursor-pointer" onclick="selectSuggestion({{ json_encode($suggestion) }})">
+                                <div class="list-group-item px-0 cursor-pointer suggestion-item" 
+                                     data-suggestion='{{ json_encode($suggestion) }}'>
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div>
                                             <h6 class="mb-1">{{ $suggestion['student_name'] }}</h6>
@@ -93,7 +94,7 @@
                                                 <span class="badge bg-secondary">{{ $suggestion['confidence'] }}%</span>
                                             @endif
                                             <br>
-                                            <button type="button" class="btn btn-sm btn-finance btn-finance-primary mt-2">
+                                            <button type="button" class="btn btn-sm btn-finance btn-finance-primary mt-2 select-suggestion-btn">
                                                 <i class="bi bi-check"></i> Select
                                             </button>
                                         </div>
@@ -130,7 +131,8 @@
                                 'displayInputId' => 'studentSearchDisplay',
                                 'resultsId' => 'studentSearchResults',
                                 'placeholder' => 'Search by name or admission number',
-                                'initialLabel' => $transaction->student ? $transaction->student->full_name . ' (' . $transaction->student->admission_number . ')' : ''
+                                'initialLabel' => $transaction->student ? $transaction->student->full_name . ' (' . $transaction->student->admission_number . ')' : '',
+                                'initialStudentId' => $transaction->student_id
                             ])
                             @error('student_id')
                                 <div class="finance-form-error">{{ $message }}</div>
@@ -203,9 +205,12 @@
 
                         <!-- Submit Button -->
                         <div class="finance-card-footer">
-                            <button type="submit" class="btn btn-finance btn-finance-primary btn-lg" id="submitBtn" disabled>
+                            <button type="submit" class="btn btn-finance btn-finance-primary btn-lg" id="submitBtn">
                                 <i class="bi bi-check-circle"></i> Complete Allocation
                             </button>
+                            
+                            <!-- Response Messages Container -->
+                            <div id="responseMessages" class="mt-3"></div>
                             <a href="{{ route('finance.mpesa.c2b.dashboard') }}" class="btn btn-finance btn-finance-outline">
                                 <i class="bi bi-x-circle"></i> Cancel
                             </a>
@@ -223,9 +228,16 @@ let selectedStudent = null;
 let transactionAmount = {{ $transaction->trans_amount }};
 let allocations = [];
 let siblingAllocations = [];
-let isSwimming = {{ $transaction->is_swimming_transaction ? 'true' : 'false' }};
+// Check initial state from checkbox (user may have checked it even if transaction wasn't originally swimming)
+let isSwimming = $('#isSwimmingTransaction').is(':checked') || {{ $transaction->is_swimming_transaction ? 'true' : 'false' }};
 
 $(document).ready(function() {
+    // IMMEDIATE: Check if student is pre-selected and enable button right away
+    const initialStudentId = $('#student_id').val();
+    console.log('Page loaded - initial student_id from hidden input:', initialStudentId, 'Type:', typeof initialStudentId);
+    
+    // Button is always enabled - validation happens on submit
+    
     // Watch for swimming checkbox
     $('#isSwimmingTransaction').on('change', function() {
         isSwimming = $(this).is(':checked');
@@ -242,7 +254,6 @@ $(document).ready(function() {
                 loadStudentInvoices(selectedStudent.id);
             }
         }
-        updateSubmitButton();
     });
     
     // Initialize swimming section visibility
@@ -255,18 +266,20 @@ $(document).ready(function() {
     $(document).on('studentSelected', function(e, student) {
         if (student && student.id) {
             selectedStudent = student;
+            // Ensure hidden input is set
+            $('#student_id').val(student.id.toString());
+            console.log('Student selected event - set student_id to:', student.id);
+            
             if (isSwimming) {
                 loadSiblings(student);
             } else {
                 loadStudentInvoices(student.id);
             }
-            updateSubmitButton();
         }
     });
     
     // Watch for payment amount changes
     $('#paymentAmount').on('input change', function() {
-        updateSubmitButton();
         if ($('#invoiceAllocationSection').is(':visible')) {
             updateAllocations();
         }
@@ -277,39 +290,69 @@ $(document).ready(function() {
 
     // Pre-select if transaction already has a student
     @if($transaction->student_id)
-        // Set selected student from pre-filled value
-        const preSelectedStudentId = $('#student_id').val();
-        if (preSelectedStudentId) {
-            // Get full student data
-            $.get('/api/students/' + preSelectedStudentId, function(student) {
-                if (student) {
-                    selectedStudent = student;
-                    // Trigger student selected event
-                    window.dispatchEvent(new CustomEvent('student-selected', { detail: student }));
-                    
-                    @if($transaction->is_swimming_transaction)
-                        // For swimming, load siblings
-                        loadSiblings(student);
-                    @else
-                        // For regular, load invoices
-                        loadStudentInvoices(student.id);
-                    @endif
+        // Set selectedStudent variable - use the transaction's student_id directly
+        const preSelectedStudentId = {{ $transaction->student_id }};
+        console.log('Pre-selected student ID:', preSelectedStudentId, 'isSwimming:', isSwimming);
+        
+        // Set hidden input
+        $('#student_id').val(preSelectedStudentId.toString());
+        console.log('Set student_id to:', $('#student_id').val());
+        
+        // Get full student data to set selectedStudent (for loading invoices/siblings)
+        $.get('/api/students/' + preSelectedStudentId, function(student) {
+            console.log('Loaded student data:', student);
+            if (student) {
+                selectedStudent = student;
+                
+                // Check current swimming state (from checkbox, not just transaction flag)
+                const currentSwimmingState = $('#isSwimmingTransaction').is(':checked');
+                console.log('Current swimming checkbox state:', currentSwimmingState);
+                
+                if (currentSwimmingState || isSwimming) {
+                    // For swimming, ensure section is visible and load siblings
+                    $('#multiStudentSection').show();
+                    $('#invoiceAllocationSection').hide();
+                    isSwimming = true; // Update the variable
+                    loadSiblings(student);
+                } else {
+                    // For regular, load invoices
+                    loadStudentInvoices(student.id);
                 }
-            });
-        }
+            }
+        }).fail(function(xhr, status, error) {
+            console.error('Failed to load student:', error);
+        });
     @endif
     
-    // Initial button state check (with delay to allow async operations)
-    setTimeout(function() {
-        updateSubmitButton();
-    }, 500);
+    // Button is always enabled - no need for delayed checks
+});
+
+// Handle suggestion clicks using event delegation (more reliable than inline onclick)
+$(document).on('click', '.suggestion-item, .select-suggestion-btn', function(e) {
+    e.stopPropagation();
+    const $item = $(this).closest('.suggestion-item');
+    const suggestionData = $item.data('suggestion');
+    
+    if (suggestionData) {
+        selectSuggestion(suggestionData);
+    }
 });
 
 function selectSuggestion(suggestion) {
+    console.log('selectSuggestion called with:', suggestion);
+    
     // Simulate student selection
     $('#student_id').val(suggestion.student_id);
     const classDisplay = suggestion.classroom_name ? ` - ${suggestion.classroom_name}` : '';
     $('#studentSearchDisplay').val(suggestion.student_name + ' (' + suggestion.admission_number + ')' + classDisplay);
+    
+    // Update selectedStudent variable
+    selectedStudent = {
+        id: suggestion.student_id,
+        full_name: suggestion.student_name,
+        admission_number: suggestion.admission_number,
+        classroom_name: suggestion.classroom_name
+    };
     
     // If suggestion has siblings, show multi-student section
     if (suggestion.siblings && suggestion.siblings.length > 0 && isSwimming) {
@@ -324,6 +367,8 @@ function selectSuggestion(suggestion) {
     } else {
         loadStudentInvoices(suggestion.student_id);
     }
+    
+    // Button is always enabled - validation happens on submit
 }
 
 function loadSiblingsFromSuggestion(suggestion) {
@@ -343,9 +388,17 @@ function loadSiblings(student) {
     if (!student.family_id) {
         $('#siblingsList').html(`
             <div class="text-center text-muted py-3">
-                <i class="bi bi-info-circle"></i> No siblings found for this student
+                <i class="bi bi-info-circle"></i> No siblings found. Payment will be allocated to selected student only.
             </div>
         `);
+        // Set allocation to selected student with full amount
+        const remainingAmount = parseFloat($('#paymentAmount').val());
+        siblingAllocations = [{
+            student_id: student.id,
+            amount: remainingAmount
+        }];
+        console.log('No family_id - setting single student allocation:', siblingAllocations);
+        updateSiblingAllocations();
         return;
     }
     
@@ -354,8 +407,14 @@ function loadSiblings(student) {
     // Search for any student with the same family_id to get all siblings
     // We'll search by a unique identifier and then filter by family_id
     $.get('/api/students/search?q=' + encodeURIComponent(student.admission_number) + '&include_alumni_archived=0', function(results) {
-        // Find the student's family members
+        // Find the student's family members (excluding the selected student)
         let familyMembers = results.filter(s => s.family_id === student.family_id && s.id !== student.id);
+        
+        console.log('Sibling search results:', {
+            totalResults: results.length,
+            familyMembers: familyMembers.length,
+            studentFamilyId: student.family_id
+        });
         
         // If we found the student but no siblings in results, try to get the student first to ensure we have family_id
         if (familyMembers.length === 0 && results.length > 0) {
@@ -365,27 +424,77 @@ function loadSiblings(student) {
                     // Search again with a broader query to find siblings
                     $.get('/api/students/search?q=' + encodeURIComponent(fullStudent.admission_number.substring(0, 3)) + '&include_alumni_archived=0', function(allResults) {
                         familyMembers = allResults.filter(s => s.family_id === fullStudent.family_id && s.id !== fullStudent.id);
-                        // Include the selected student in the list
-                        familyMembers.unshift(fullStudent);
-                        displaySiblings(familyMembers, fullStudent.id);
+                        console.log('Broader search results:', {
+                            totalResults: allResults.length,
+                            familyMembers: familyMembers.length
+                        });
+                        
+                        if (familyMembers.length > 0) {
+                            // Found siblings - include the selected student in the list
+                            familyMembers.unshift(fullStudent);
+                            displaySiblings(familyMembers, fullStudent.id);
+                        } else {
+                            // No siblings found - single student allocation
+                            $('#siblingsList').html(`
+                                <div class="text-center text-muted py-3">
+                                    <i class="bi bi-info-circle"></i> No siblings found. Payment will be allocated to selected student only.
+                                </div>
+                            `);
+                            const remainingAmount = parseFloat($('#paymentAmount').val());
+                            siblingAllocations = [{
+                                student_id: fullStudent.id,
+                                amount: remainingAmount
+                            }];
+                            console.log('No siblings after broader search - setting single student allocation:', siblingAllocations);
+                            updateSiblingAllocations();
+                        }
+                    }).fail(function() {
+                        // Search failed - fall back to single student
+                        setupSingleStudentAllocation(student);
                     });
                 } else {
-                    $('#siblingsList').html(`
-                        <div class="text-center text-muted py-3">
-                            <i class="bi bi-info-circle"></i> No siblings found for this student
-                        </div>
-                    `);
+                    // No family_id - single student allocation
+                    setupSingleStudentAllocation(student);
                 }
+            }).fail(function() {
+                // Failed to load student - fall back to single student
+                setupSingleStudentAllocation(student);
             });
-        } else {
-            // Include the selected student in the list
-            familyMembers.unshift(student);
+        } else if (familyMembers.length > 0) {
+            // Found some family members - include the selected student in the list
+            const selectedStudentInList = familyMembers.find(s => s.id === student.id);
+            if (!selectedStudentInList) {
+                familyMembers.unshift(student);
+            }
             displaySiblings(familyMembers, student.id);
+        } else {
+            // No family members found at all - single student allocation
+            setupSingleStudentAllocation(student);
         }
+    }).fail(function() {
+        // Search failed - fall back to single student
+        setupSingleStudentAllocation(student);
     });
 }
 
+function setupSingleStudentAllocation(student) {
+    $('#siblingsList').html(`
+        <div class="text-center text-muted py-3">
+            <i class="bi bi-info-circle"></i> No siblings found. Payment will be allocated to selected student only.
+        </div>
+    `);
+    const remainingAmount = parseFloat($('#paymentAmount').val());
+    siblingAllocations = [{
+        student_id: student.id,
+        amount: remainingAmount
+    }];
+    console.log('Setting up single student allocation:', siblingAllocations);
+    updateSiblingAllocations();
+}
+
 function displaySiblings(siblings, selectedStudentId) {
+    console.log('displaySiblings called:', { siblings: siblings, selectedStudentId: selectedStudentId });
+    
     if (siblings.length === 0) {
         // No siblings found, but still allow single student allocation
         $('#siblingsList').html(`
@@ -399,6 +508,7 @@ function displaySiblings(siblings, selectedStudentId) {
             student_id: selectedStudentId,
             amount: remainingAmount
         }];
+        console.log('No siblings - setting single allocation:', siblingAllocations);
         updateSiblingAllocations();
         return;
     }
@@ -445,6 +555,7 @@ function displaySiblings(siblings, selectedStudentId) {
     $('.sibling-allocation-input').on('input', updateSiblingAllocations);
     
     // Calculate initial totals
+    console.log('Siblings displayed, initial allocations:', siblingAllocations);
     updateSiblingAllocations();
 }
 
@@ -458,8 +569,12 @@ function updateSiblingAllocations() {
             let remaining = transactionAmount - total;
             if (Math.abs(remaining) < 0.01) {
                 $('#remainingSiblingAmount').html('<span class="text-success">(Fully allocated)</span>');
+            } else {
+                $('#remainingSiblingAmount').html('<span class="text-warning">(Remaining: KES ' + remaining.toFixed(2) + ')</span>');
             }
-            updateSubmitButton();
+            console.log('updateSiblingAllocations - no input fields, using existing allocations:', siblingAllocations);
+        } else {
+            console.warn('updateSiblingAllocations - no input fields and no allocations set!');
         }
         return;
     }
@@ -491,7 +606,7 @@ function updateSiblingAllocations() {
         $('#remainingSiblingAmount').html('<span class="text-success">(Fully allocated)</span>');
     }
     
-    updateSubmitButton();
+    // Button is always enabled - validation happens on submit
 }
 
 function loadStudentInvoices(studentId) {
@@ -510,7 +625,6 @@ function loadStudentInvoices(studentId) {
                 </div>
             `);
             allocations = []; // No allocations needed for advance payment
-            updateSubmitButton();
             return;
         }
 
@@ -529,6 +643,12 @@ function loadStudentInvoices(studentId) {
                 });
                 remainingAmount -= suggestedAmount;
             }
+            
+            console.log('Invoice allocation:', {
+                invoice_id: invoice.id,
+                suggestedAmount: suggestedAmount,
+                remainingAmount: remainingAmount
+            });
             
             html += `
                 <div class="list-group-item px-0">
@@ -561,6 +681,7 @@ function loadStudentInvoices(studentId) {
         $('.allocation-input').on('input', updateAllocations);
         
         // Calculate initial totals and update button state
+        console.log('Invoices loaded, allocations:', allocations);
         updateAllocations();
     });
 }
@@ -600,111 +721,263 @@ function updateAllocations() {
         $('#remainingAmount').html('<span class="text-success">(Fully allocated)</span>');
     }
     
-    // Enable/disable submit button based on valid allocations
-    updateSubmitButton();
+    // Button is always enabled - validation happens on submit
 }
 
-function updateSubmitButton() {
-    let studentId = $('#student_id').val();
-    let paymentAmount = parseFloat($('#paymentAmount').val()) || 0;
-    let hasStudent = studentId && studentId.length > 0;
-    let hasValidAmount = paymentAmount > 0;
-    let hasValidAllocations = false;
-    
-    if (isSwimming) {
-        // For swimming transactions, check sibling allocations
-        let totalSiblingAllocated = siblingAllocations.reduce((sum, a) => sum + a.amount, 0);
-        let remaining = paymentAmount - totalSiblingAllocated;
-        
-        // For swimming, we need at least one student with amount > 0
-        // If no siblings found, allow single student allocation (will be handled in displaySiblings)
-        if ($('#multiStudentSection').is(':visible')) {
-            hasValidAllocations = siblingAllocations.length > 0 && 
-                                  siblingAllocations.some(a => a.amount > 0) &&
-                                  Math.abs(remaining) < 0.01; // Must fully allocate
-        } else {
-            // Section not visible yet, but student is selected - allow if student exists
-            hasValidAllocations = hasStudent;
-        }
-    } else {
-        // For regular transactions, check invoice allocations
-        let totalAllocated = allocations.reduce((sum, a) => sum + a.amount, 0);
-        let remaining = paymentAmount - totalAllocated;
-        
-        // Check if invoice section is visible
-        if ($('#invoiceAllocationSection').is(':visible')) {
-            // If invoices exist, allocations must match payment amount (within 0.01 tolerance)
-            // OR if no allocations but section is visible with "no invoices" message, allow submission
-            if ($('#invoicesList').text().includes('No outstanding invoices')) {
-                hasValidAllocations = true; // Advance payment - no invoices to allocate
-            } else {
-                hasValidAllocations = Math.abs(remaining) < 0.01 && allocations.length > 0;
-            }
-        } else {
-            // If no invoices section (no unpaid invoices), allow submission
-            hasValidAllocations = true;
-        }
-    }
-    
-    if (hasStudent && hasValidAmount && hasValidAllocations) {
-        $('#submitBtn').prop('disabled', false).removeClass('btn-secondary').addClass('btn-primary');
-    } else {
-        $('#submitBtn').prop('disabled', true).removeClass('btn-primary').addClass('btn-secondary');
-    }
-}
+// Button is always enabled - validation happens on form submit
+// No need for updateSubmitButton() function anymore
 
-// Form submission
+// Form submission with AJAX and detailed responses
 $('#allocationForm').on('submit', function(e) {
     e.preventDefault();
     
-    if (isSwimming) {
-        // For swimming transactions, validate sibling allocations
-        if (siblingAllocations.length === 0) {
-            alert('Please allocate amount to at least one student.');
-            return false;
-        }
-        
-        // Add sibling allocations to form
-        siblingAllocations.forEach(function(allocation, index) {
-            $('<input>').attr({
-                type: 'hidden',
-                name: `sibling_allocations[${index}][student_id]`,
-                value: allocation.student_id
-            }).appendTo('#allocationForm');
-            
-            $('<input>').attr({
-                type: 'hidden',
-                name: `sibling_allocations[${index}][amount]`,
-                value: allocation.amount
-            }).appendTo('#allocationForm');
-        });
-    } else {
-        // For regular transactions, validate invoice allocations
-        if (allocations.length === 0) {
-            alert('Please allocate amount to at least one invoice.');
-            return false;
-        }
-        
-        // Add allocations to form
-        allocations.forEach(function(allocation, index) {
-            $('<input>').attr({
-                type: 'hidden',
-                name: `allocations[${index}][invoice_id]`,
-                value: allocation.invoice_id
-            }).appendTo('#allocationForm');
-            
-            $('<input>').attr({
-                type: 'hidden',
-                name: `allocations[${index}][amount]`,
-                value: allocation.amount
-            }).appendTo('#allocationForm');
-        });
+    const studentId = $('#student_id').val();
+    const paymentAmount = parseFloat($('#paymentAmount').val()) || 0;
+    
+    // Clear previous messages
+    $('#responseMessages').html('');
+    
+    // Validate required fields
+    if (!studentId || studentId.toString().trim() === '' || studentId === '0') {
+        showError('Please select a student before completing the allocation.');
+        $('#studentSearchDisplay').focus();
+        return false;
     }
     
-    // Disable button and submit
-    $('#submitBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Processing...');
-    this.submit();
+    if (!paymentAmount || paymentAmount <= 0) {
+        showError('Please enter a valid payment amount.');
+        $('#paymentAmount').focus();
+        return false;
+    }
+    
+    // Prepare form data
+    const formData = new FormData(this);
+    
+    // Add swimming flag
+    formData.append('is_swimming_transaction', isSwimming ? '1' : '0');
+    formData.append('payment_method', 'mpesa');
+    
+    if (isSwimming) {
+        // For swimming transactions, set up allocations if not already set
+        if (siblingAllocations.length === 0) {
+            // No allocations set - create single student allocation
+            if (studentId) {
+                siblingAllocations = [{
+                    student_id: studentId,
+                    amount: paymentAmount
+                }];
+                console.log('Auto-creating single student allocation for swimming:', siblingAllocations);
+            } else {
+                showError('Please select a student.');
+                return false;
+            }
+        }
+        
+        // Add sibling allocations to form data
+        siblingAllocations.forEach(function(allocation, index) {
+            formData.append(`sibling_allocations[${index}][student_id]`, allocation.student_id);
+            formData.append(`sibling_allocations[${index}][amount]`, allocation.amount);
+        });
+    } else {
+        // For regular transactions, add allocations to form data (if any)
+        if (allocations.length > 0) {
+            allocations.forEach(function(allocation, index) {
+                formData.append(`allocations[${index}][invoice_id]`, allocation.invoice_id);
+                formData.append(`allocations[${index}][amount]`, allocation.amount);
+            });
+        }
+        // If no allocations, backend will treat as advance payment
+    }
+    
+    // Disable button and show processing state
+    const $submitBtn = $('#submitBtn');
+    const originalBtnHtml = $submitBtn.html();
+    $submitBtn.prop('disabled', true).html('<i class="bi bi-hourglass-split"></i> Processing...');
+    
+    // Submit via AJAX
+    $.ajax({
+        url: $(this).attr('action'),
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        },
+        success: function(response) {
+            if (response.success) {
+                showSuccess(response);
+            } else {
+                showError(response.message || 'An error occurred');
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = 'An unexpected error occurred. Please try again.';
+            let errorDetails = [];
+            
+            if (xhr.status === 422) {
+                // Validation errors
+                const errors = xhr.responseJSON?.errors || {};
+                errorMessage = 'Validation failed. Please check the following:';
+                Object.keys(errors).forEach(function(key) {
+                    errors[key].forEach(function(msg) {
+                        errorDetails.push(`• ${key}: ${msg}`);
+                    });
+                });
+            } else if (xhr.status === 500) {
+                // Server error
+                const error = xhr.responseJSON?.error || xhr.responseJSON?.message || 'Server error';
+                errorMessage = 'Server error occurred';
+                errorDetails.push(`Error: ${error}`);
+            } else if (xhr.responseJSON) {
+                errorMessage = xhr.responseJSON.message || errorMessage;
+                if (xhr.responseJSON.error) {
+                    errorDetails.push(xhr.responseJSON.error);
+                }
+            }
+            
+            showError(errorMessage, errorDetails);
+        },
+        complete: function() {
+            // Re-enable button
+            $submitBtn.prop('disabled', false).html(originalBtnHtml);
+        }
+    });
 });
+
+// Show success message with details
+function showSuccess(response) {
+    const details = response.details || {};
+    let html = `
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <h5 class="alert-heading">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                ${response.message}
+            </h5>
+            <hr>
+            <div class="mb-2">
+                <strong>Transaction Details:</strong>
+                <ul class="mb-0 mt-2">
+                    <li><strong>Transaction Code:</strong> ${details.transaction_code || 'N/A'}</li>
+                    <li><strong>Amount:</strong> KES ${details.amount || '0.00'}</li>
+    `;
+    
+    if (details.is_swimming) {
+        html += `
+                    <li><strong>Type:</strong> Swimming Payment</li>
+                    <li><strong>Students:</strong> ${details.students_count || 0}</li>
+                    <li><strong>Receipt Number(s):</strong> ${(details.receipt_numbers || []).join(', ')}</li>
+                </ul>
+            </div>
+        `;
+        
+        if (details.students && details.students.length > 0) {
+            html += `
+                <div class="mt-3">
+                    <strong>Allocation Breakdown:</strong>
+                    <table class="table table-sm table-bordered mt-2">
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Admission</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            details.students.forEach(function(student) {
+                html += `
+                    <tr>
+                        <td>${student.name}</td>
+                        <td>${student.admission_number}</td>
+                        <td class="text-end">KES ${student.amount}</td>
+                    </tr>
+                `;
+            });
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+    } else {
+        html += `
+                    <li><strong>Type:</strong> Invoice Payment</li>
+                    <li><strong>Student:</strong> ${details.student_name || 'N/A'} (${details.student_admission || 'N/A'})</li>
+                    <li><strong>Receipt Number:</strong> ${details.receipt_number || 'N/A'}</li>
+        `;
+        
+        if (details.is_advance_payment) {
+            html += `<li><strong>Note:</strong> <span class="text-warning">Recorded as advance payment (no outstanding invoices)</span></li>`;
+        } else {
+            html += `<li><strong>Invoices Allocated:</strong> ${details.allocations_count || 0}</li>`;
+        }
+        
+        html += `
+                </ul>
+            </div>
+        `;
+    }
+    
+    html += `
+            <hr>
+            <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted">Allocation completed successfully</small>
+                <button type="button" class="btn btn-sm btn-success" onclick="window.location.href='{{ route('finance.mpesa.c2b.dashboard') }}'">
+                    <i class="bi bi-arrow-left"></i> Back to Dashboard
+                </button>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    $('#responseMessages').html(html);
+    
+    // Scroll to message
+    $('html, body').animate({
+        scrollTop: $('#responseMessages').offset().top - 100
+    }, 500);
+}
+
+// Show error message with details
+function showError(message, details = []) {
+    let html = `
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <h5 class="alert-heading">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                ${message}
+            </h5>
+    `;
+    
+    if (details.length > 0) {
+        html += `
+            <hr>
+            <div class="mb-2">
+                <strong>Details:</strong>
+                <ul class="mb-0 mt-2">
+        `;
+        details.forEach(function(detail) {
+            html += `<li>${detail}</li>`;
+        });
+        html += `
+                </ul>
+            </div>
+        `;
+    }
+    
+    html += `
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    $('#responseMessages').html(html);
+    
+    // Scroll to message
+    $('html, body').animate({
+        scrollTop: $('#responseMessages').offset().top - 100
+    }, 500);
+}
 </script>
 @endsection
 

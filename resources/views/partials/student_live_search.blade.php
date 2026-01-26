@@ -8,12 +8,14 @@
   // $initialLabel (optional): prefilled display value
   // $inputClass (optional): additional CSS classes for the input field
   // $includeAlumniArchived (optional): include alumni and archived students (for manual assignment)
+  // $initialStudentId (optional): pre-selected student ID value for hidden input
   $hiddenInputId = $hiddenInputId ?? 'selectedStudentId';
   $displayInputId = $displayInputId ?? 'studentLiveSearch';
   $resultsId = $resultsId ?? 'studentLiveResults';
   $enableButtonId = $enableButtonId ?? null;
   $placeholder = $placeholder ?? 'Type name or admission #';
   $initialLabel = $initialLabel ?? '';
+  $initialStudentId = $initialStudentId ?? old('student_id', request('student_id'));
   $inputClass = $inputClass ?? 'form-control';
   $includeAlumniArchived = $includeAlumniArchived ?? false;
 @endphp
@@ -25,7 +27,7 @@
      data-enable="{{ $enableButtonId }}"
      data-search-url="{{ $searchUrl ?? '' }}"
      data-include-alumni-archived="{{ $includeAlumniArchived ? '1' : '0' }}">
-    <input type="hidden" id="{{ $hiddenInputId }}" name="student_id" value="{{ old('student_id', request('student_id')) }}">
+    <input type="hidden" id="{{ $hiddenInputId }}" name="student_id" value="{{ $initialStudentId }}">
     <input type="text" id="{{ $displayInputId }}" class="{{ $inputClass }}"
            value="{{ $initialLabel }}"
            placeholder="{{ $placeholder }}">

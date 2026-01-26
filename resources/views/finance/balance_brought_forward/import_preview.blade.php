@@ -9,7 +9,14 @@
         'subtitle' => 'Review and compare imported values with system balances'
     ])
 
-    @if($hasIssues)
+    @if(empty($preview))
+      <div class="alert alert-danger alert-dismissible fade show finance-animate" role="alert">
+        <strong><i class="bi bi-exclamation-triangle"></i> No data to preview!</strong> 
+        The file may not contain any valid data, or the column names don't match expected format.
+        <br><small>Expected columns: admission_number (or admission_no, adm_no) and balance (or balance_brought_forward, amount)</small>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    @elseif($hasIssues)
       <div class="alert alert-warning alert-dismissible fade show finance-animate" role="alert">
         <strong><i class="bi bi-exclamation-triangle"></i> Issues detected!</strong> Please review the differences below before committing the import.
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -67,7 +74,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  @foreach($preview as $index => $row)
+                  @forelse($preview as $index => $row)
                     @php
                       $rowId = 'row_' . $index;
                       $isIssue = $row['status'] !== 'ok';
@@ -179,7 +186,16 @@
                         @endif
                       </td>
                     </tr>
-                  @endforeach
+                  @empty
+                    <tr>
+                      <td colspan="7" class="text-center py-4">
+                        <div class="text-muted">
+                          <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                          <p class="mb-0">No data to display. The file may be empty or contain invalid data.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  @endforelse
                 </tbody>
                 @if(count($preview) > 0)
                 <tfoot>
