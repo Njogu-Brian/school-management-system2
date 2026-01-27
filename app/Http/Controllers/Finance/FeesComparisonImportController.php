@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\PaymentAllocation;
 use App\Models\Term;
+use App\Models\AcademicYear;
 use App\Models\FeesComparisonPreview;
 use App\Models\SwimmingWallet;
 use App\Exports\ArrayExport;
@@ -384,11 +385,28 @@ class FeesComparisonImportController extends Controller
         return Excel::download(new ArrayExport($sample, $headers), 'fees_comparison_import_template.xlsx');
     }
 
+    /**
+     * Build system totals for comparison: total invoiced and total paid for the selected year and term only.
+     * Excludes legacy data and other terms. Uses only the invoice for that student/year/term and allocations to that invoice.
+     */
     private function buildSystemData(int $year, int $termNumber): array
     {
         $out = [];
         // Payment IDs that come from "payments marked as swimming" (excluded from fee totals)
         $swimmingPaymentIds = $this->getSwimmingPaymentIds();
+
+        // Resolve the selected year + term to a specific term_id when possible (so totals are strictly for this term)
+        $termId = null;
+        $academicYear = AcademicYear::where('year', $year)->first();
+        if ($academicYear) {
+            $term = Term::where('academic_year_id', $academicYear->id)
+                ->where(function ($q) use ($termNumber) {
+                    $q->where('name', 'like', "Term {$termNumber}%")
+                        ->orWhere('name', 'like', "%Term {$termNumber}%");
+                })
+                ->first();
+            $termId = $term?->id;
+        }
 
         // Exclude archived and alumni – they are not included in the import comparison
         $students = Student::where('archive', 0)
@@ -397,23 +415,32 @@ class FeesComparisonImportController extends Controller
             ->get();
 
         foreach ($students as $student) {
-            $invoice = Invoice::where('student_id', $student->id)
-                ->where('year', $year)
-                ->where('term', $termNumber)
-                ->where('status', '!=', 'reversed')
-                ->first();
+            // Invoice for this student and this term only (no legacy, no other terms)
+            $invoiceQuery = Invoice::where('student_id', $student->id)
+                ->where(function ($q) use ($year, $termNumber, $termId) {
+                    if ($termId) {
+                        $q->where('term_id', $termId);
+                    } else {
+                        $q->where('year', $year)->where('term', $termNumber);
+                    }
+                })
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'reversed');
+                })
+                ->whereNull('reversed_at');
+            $invoice = $invoiceQuery->first();
 
             $totalInvoiced = 0;
             $totalPaid = 0;
             if ($invoice) {
-                // Include term swimming fees. Exclude only daily-attendance debits (source = swimming_attendance)
+                // Total invoiced: only items on this term's invoice
                 $itemsQuery = InvoiceItem::where('invoice_id', $invoice->id)->where('status', 'active');
                 $itemsQuery->where(function ($q) {
                     $q->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
                 });
                 $totalInvoiced = (float) $itemsQuery->get()->sum(fn ($i) => (float) ($i->amount ?? 0) - (float) ($i->discount_amount ?? 0));
 
-                // Allocations to those items, excluding allocations from payments marked as swimming
+                // Total paid: only allocations to this term's invoice (no legacy, no other terms)
                 $allocationsQuery = PaymentAllocation::whereHas('invoiceItem', function ($q) use ($invoice) {
                     $q->where('invoice_id', $invoice->id);
                     $q->where(function ($q2) {
