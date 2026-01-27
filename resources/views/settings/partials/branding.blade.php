@@ -52,10 +52,25 @@
                             <div class="section-note">Use a 16:9 image for best clarity.</div>
                             <input type="file" class="form-control mt-2" name="login_background" accept="image/*">
                             @if(isset($settings['login_background']) && $settings['login_background']->value)
+                                @php
+                                    $bgFilename = $settings['login_background']->value;
+                                    $bgUrl = public_image_url($bgFilename);
+                                    $bgPath = public_images_path($bgFilename);
+                                    $bgExists = file_exists($bgPath);
+                                @endphp
                                 <div class="mt-3">
-                                    <img src="{{ public_image_url($settings['login_background']->value) }}"
-                                         alt="Background" class="border rounded shadow-sm"
-                                         style="max-height: 140px; max-width: 100%; object-fit: cover;">
+                                    <img src="{{ $bgUrl }}"
+                                         alt="Login background" class="border rounded shadow-sm"
+                                         style="max-height: 140px; max-width: 100%; object-fit: cover;"
+                                         onerror="this.style.display='none'; var h=this.nextElementSibling; if(h) h.style.display='block';">
+                                    <p class="small text-warning mb-0 mt-1 py-2 px-2 rounded border border-warning" style="display:none;">
+                                        <strong>Preview not loading.</strong>
+                                        @if(!$bgExists)
+                                            File “{{ $bgFilename }}” is missing. Add it to your public site’s <code>images/</code> folder.
+                                        @else
+                                            File exists but the URL may be wrong. If you use a separate public folder (e.g. erp.royalkingsschools.sc.ke), ensure that folder has an <code>images/</code> directory containing this file, and <code>ASSET_URL</code> in .env points to that site.
+                                        @endif
+                                    </p>
                                 </div>
                             @endif
                         </div>
