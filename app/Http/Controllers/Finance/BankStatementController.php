@@ -121,19 +121,39 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only credit transactions
                 break;
             case 'collected':
-                // Confirmed transactions where payment has been created
+                // Confirmed transactions where payment has been created and NOT reversed
                 $query->where('status', 'confirmed')
                       ->where('payment_created', true)
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
-                      ->where('transaction_type', 'credit'); // Only credit transactions
+                      ->where('transaction_type', 'credit') // Only credit transactions
+                      ->where(function($q) {
+                          // Check if payment exists and is not reversed
+                          $q->whereHas('payment', function($subQ) {
+                              $subQ->where('reversed', false)
+                                   ->whereNull('deleted_at');
+                          })
+                          ->orWhere(function($subQ) {
+                              // Also check by reference number for shared payments
+                              $subQ->whereNotNull('reference_number')
+                                   ->whereExists(function($existsQ) {
+                                       $existsQ->select(\DB::raw(1))
+                                               ->from('payments')
+                                               ->whereColumn('payments.transaction_code', 'bank_statement_transactions.reference_number')
+                                               ->where('payments.reversed', false)
+                                               ->whereNull('payments.deleted_at');
+                                   });
+                          });
+                      });
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
                       ->where('is_archived', false);
                 break;
             case 'archived':
-                $query->where('is_archived', true);
+                // Archived transactions - only credit (money IN) transactions
+                $query->where('is_archived', true)
+                      ->where('transaction_type', 'credit'); // Only money IN transactions
                 break;
             case 'swimming':
                 // Swimming transactions (only if column exists)
@@ -146,9 +166,11 @@ class BankStatementController extends Controller
                 }
                 break;
             default:
-                // Show all non-archived, non-debit, non-swimming transactions by default
+                // Show all non-archived, non-debit, non-swimming, non-duplicate transactions by default
                 $query->where('is_archived', false)
+                      ->where('is_duplicate', false)
                       ->where('transaction_type', 'credit'); // Exclude debit transactions
+                // Swimming exclusion is handled below
         }
 
         // Additional filters
@@ -230,14 +252,26 @@ class BankStatementController extends Controller
         $bankAccounts = BankAccount::where('is_active', true)->get();
 
         // Calculate total amount for current filtered results
-        $totalAmount = $bankTransactions->sum('amount') + $c2bTransactions->sum('trans_amount');
-        $totalCount = $bankTransactions->count() + $c2bTransactions->count();
+        // Only show total for 'all' and 'swimming' views
+        $totalAmount = null;
+        $totalCount = null;
+        if ($view === 'all' || $view === 'swimming') {
+            $totalAmount = $bankTransactions->sum('amount') + $c2bTransactions->sum('trans_amount');
+            $totalCount = $bankTransactions->count() + $c2bTransactions->count();
+        } elseif ($view === 'archived') {
+            // For archived, only calculate total for credit (money IN) transactions
+            $totalAmount = $bankTransactions->where('transaction_type', 'credit')->sum('amount') 
+                         + $c2bTransactions->sum('trans_amount'); // C2B are always credit
+            $totalCount = $bankTransactions->where('transaction_type', 'credit')->count() 
+                        + $c2bTransactions->count();
+        }
 
         // Get counts for each view (exclude swimming and debit transactions from non-swimming views)
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
         
         $counts = [
             'all' => BankStatementTransaction::where('is_archived', false)
+                ->where('is_duplicate', false)
                 ->where('transaction_type', 'credit') // Exclude debit transactions
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
@@ -319,6 +353,24 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
+                ->where(function($q) {
+                    // Payment must exist and not be reversed
+                    $q->whereHas('payment', function($subQ) {
+                        $subQ->where('reversed', false)
+                             ->whereNull('deleted_at');
+                    })
+                    ->orWhere(function($subQ) {
+                        // Also check by reference number for shared payments
+                        $subQ->whereNotNull('reference_number')
+                             ->whereExists(function($existsQ) {
+                                 $existsQ->select(\DB::raw(1))
+                                         ->from('payments')
+                                         ->whereColumn('payments.transaction_code', 'bank_statement_transactions.reference_number')
+                                         ->where('payments.reversed', false)
+                                         ->whereNull('payments.deleted_at');
+                             });
+                    });
+                })
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
                         $subQ->where('is_swimming_transaction', false)
@@ -336,12 +388,7 @@ class BankStatementController extends Controller
                 })
                 ->count(),
             'archived' => BankStatementTransaction::where('is_archived', true)
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
+                ->where('transaction_type', 'credit') // Only money IN transactions
                 ->count(),
             'swimming' => Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
                 ? BankStatementTransaction::where('is_swimming_transaction', true)
@@ -401,6 +448,25 @@ class BankStatementController extends Controller
                     ->whereNull('student_id')
                     ->where('is_duplicate', false);
                 break;
+            case 'confirmed':
+                // C2B transactions that are processed but don't have payment yet
+                $query->where('status', 'processed')
+                    ->whereNull('payment_id')
+                    ->where('is_duplicate', false);
+                break;
+            case 'collected':
+                // C2B transactions with payment that is NOT reversed
+                $query->whereNotNull('payment_id')
+                    ->where('is_duplicate', false)
+                    ->whereHas('payment', function($q) {
+                        $q->where('reversed', false)
+                          ->whereNull('deleted_at');
+                    });
+                break;
+            case 'archived':
+                // C2B doesn't have archived flag, so return empty
+                $query->whereRaw('1 = 0');
+                break;
             case 'duplicate':
                 $query->where('is_duplicate', true);
                 break;
@@ -414,6 +480,7 @@ class BankStatementController extends Controller
                 }
                 break;
             default:
+                // All transactions - exclude swimming and duplicates
                 $query->where('is_duplicate', false);
         }
 
@@ -509,6 +576,20 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
+            'confirmed' => MpesaC2BTransaction::where('status', 'processed')
+                ->whereNull('payment_id')
+                ->where('is_duplicate', false)
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->count(),
+            'collected' => MpesaC2BTransaction::whereNotNull('payment_id')
+                ->where('is_duplicate', false)
+                ->whereHas('payment', function($q) {
+                    $q->where('reversed', false)
+                      ->whereNull('deleted_at');
+                })
+                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->count(),
+            'archived' => 0, // C2B doesn't have archived flag
             'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
