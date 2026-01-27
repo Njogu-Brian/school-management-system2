@@ -12,26 +12,25 @@
         // If favicon not set, fall back to the uploaded school logo so the icon stays in sync
         $faviconSettingValue = $faviconSetting?->value ?? $logoSetting;
 
-        // Prefer storage (uploaded via portal)
+        // Use public_images_path / public_image_url so ASSET_URL works when public files are on another domain
         $logoUrl = null;
-        if ($logoSetting && \Illuminate\Support\Facades\Storage::disk('public')->exists($logoSetting)) {
+        if ($logoSetting && file_exists(public_images_path($logoSetting))) {
+            $logoUrl = public_image_url($logoSetting);
+        } elseif ($logoSetting && \Illuminate\Support\Facades\Storage::disk('public')->exists($logoSetting)) {
             $logoUrl = \Illuminate\Support\Facades\Storage::url($logoSetting);
-        } elseif ($logoSetting && file_exists(public_path('images/'.$logoSetting))) {
-            $logoUrl = asset('images/'.$logoSetting);
         } else {
-            $logoUrl = asset('images/logo.png');
+            $logoUrl = public_image_url('logo.png');
         }
 
         $faviconUrl = null;
-        if ($faviconSettingValue && \Illuminate\Support\Facades\Storage::disk('public')->exists($faviconSettingValue)) {
+        if ($faviconSettingValue && file_exists(public_images_path($faviconSettingValue))) {
+            $faviconUrl = public_image_url($faviconSettingValue);
+        } elseif ($faviconSettingValue && \Illuminate\Support\Facades\Storage::disk('public')->exists($faviconSettingValue)) {
             $faviconUrl = \Illuminate\Support\Facades\Storage::url($faviconSettingValue);
-        } elseif ($faviconSettingValue && file_exists(public_path('images/'.$faviconSettingValue))) {
-            $faviconUrl = asset('images/'.$faviconSettingValue);
-        } elseif ($logoSetting && file_exists(public_path('images/'.$logoSetting))) {
-            // Last-resort: mirror the school logo as the favicon
-            $faviconUrl = asset('images/'.$logoSetting);
+        } elseif ($logoSetting && file_exists(public_images_path($logoSetting))) {
+            $faviconUrl = public_image_url($logoSetting);
         } else {
-            $faviconUrl = asset('images/logo.png');
+            $faviconUrl = public_image_url('logo.png');
         }
     @endphp
 

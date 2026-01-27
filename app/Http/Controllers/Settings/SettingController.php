@@ -77,11 +77,15 @@ class SettingController extends Controller
                 Setting::updateOrCreate(['key' => $key], ['value' => $value]);
             }
 
-            // Save images to /public/images
+            // Save images to public images dir (uses PUBLIC_WEB_ROOT when set for split deployment)
             foreach (['school_logo', 'login_background'] as $imageKey) {
                 if ($request->hasFile($imageKey)) {
                     $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
-                    $request->file($imageKey)->move(public_path('images'), $filename);
+                    $targetDir = public_images_path();
+                    if (!is_dir($targetDir)) {
+                        @mkdir($targetDir, 0755, true);
+                    }
+                    $request->file($imageKey)->move($targetDir, $filename);
 
                     Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
                 }
@@ -191,11 +195,15 @@ class SettingController extends Controller
             'finance_heading_font'    => 'nullable|string|max:100',
         ]);
 
-        // Handle file uploads
+        // Handle file uploads (uses PUBLIC_WEB_ROOT when set for split deployment)
         foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
                 $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
-                $request->file($imageKey)->move(public_path('images'), $filename);
+                $targetDir = public_images_path();
+                if (!is_dir($targetDir)) {
+                    @mkdir($targetDir, 0755, true);
+                }
+                $request->file($imageKey)->move($targetDir, $filename);
 
                 Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
             }

@@ -5,30 +5,25 @@
     $schoolName = isset($settings['school_name']) && $settings['school_name'] ? $settings['school_name']->value : 'School Management System';
     $schoolLogo = isset($settings['school_logo']) && $settings['school_logo'] ? $settings['school_logo']->value : null;
     $loginBg    = isset($settings['login_background']) && $settings['login_background'] ? $settings['login_background']->value : null;
-    
-    // Try to use background image from settings, then fallback to existing images
+
+    // Use public_images_path / public_image_url so ASSET_URL and PUBLIC_WEB_ROOT work in production
     $bgImage = null;
     if ($loginBg) {
-        // Check public/images/ first (where files are saved)
-        $bgPath = public_path('images/' . $loginBg);
-        if (file_exists($bgPath)) {
-            $bgImage = asset('images/' . $loginBg);
+        if (file_exists(public_images_path($loginBg))) {
+            $bgImage = public_image_url($loginBg);
         } elseif (\Illuminate\Support\Facades\Storage::disk('public')->exists($loginBg)) {
             $bgImage = \Illuminate\Support\Facades\Storage::url($loginBg);
         }
     }
-    
-    // Fallback to existing background images if setting doesn't exist or file not found
     if (!$bgImage) {
         $fallbackImages = ['page background.jpg', '1757052514_page background.jpg'];
         foreach ($fallbackImages as $fallback) {
-            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($fallback)) {
-                $bgImage = \Illuminate\Support\Facades\Storage::url($fallback);
+            if (file_exists(public_images_path($fallback))) {
+                $bgImage = public_image_url($fallback);
                 break;
             }
-            $fallbackPath = public_path('images/' . $fallback);
-            if (file_exists($fallbackPath)) {
-                $bgImage = asset('images/' . $fallback);
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($fallback)) {
+                $bgImage = \Illuminate\Support\Facades\Storage::url($fallback);
                 break;
             }
         }
@@ -134,11 +129,11 @@
 </style>
 
 <div class="login-box text-center">
-    {{-- ✅ Logo --}}
-    @if ($schoolLogo)
-        <img src="{{ asset('images/' . $schoolLogo) }}" alt="Logo" class="logo">
+    {{-- Logo: use public_image_url so ASSET_URL works when public files are on another domain --}}
+    @if ($schoolLogo && file_exists(public_images_path($schoolLogo)))
+        <img src="{{ public_image_url($schoolLogo) }}" alt="Logo" class="logo">
     @else
-        <img src="{{ asset('images/logo.png') }}" alt="Default Logo" class="logo">
+        <img src="{{ public_image_url('logo.png') }}" alt="Default Logo" class="logo">
     @endif
 
     {{-- ✅ School name --}}

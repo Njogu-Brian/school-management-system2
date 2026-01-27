@@ -38,7 +38,7 @@
                             <input type="file" class="form-control mt-2" name="school_logo" accept="image/*">
                             @if(isset($settings['school_logo']) && $settings['school_logo']->value)
                                 <div class="mt-3">
-                                    <img src="{{ asset('images/' . $settings['school_logo']->value) }}"
+                                    <img src="{{ public_image_url($settings['school_logo']->value) }}"
                                          alt="Logo" class="border rounded shadow-sm"
                                          style="max-height: 80px; max-width: 100%;">
                                 </div>
@@ -53,7 +53,7 @@
                             <input type="file" class="form-control mt-2" name="login_background" accept="image/*">
                             @if(isset($settings['login_background']) && $settings['login_background']->value)
                                 <div class="mt-3">
-                                    <img src="{{ asset('images/' . $settings['login_background']->value) }}"
+                                    <img src="{{ public_image_url($settings['login_background']->value) }}"
                                          alt="Background" class="border rounded shadow-sm"
                                          style="max-height: 140px; max-width: 100%; object-fit: cover;">
                                 </div>

@@ -56,6 +56,31 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Asset URL (for when public files are served from another domain/path)
+    |--------------------------------------------------------------------------
+    |
+    | When your public assets (images, css, js, storage) are served from a
+    | different URL than the app (e.g. erp.royalkingsschools.sc.ke while the
+    | app runs elsewhere), set ASSET_URL to that base URL so asset() and
+    | storage URLs point to the correct location. No trailing slash.
+    |
+    */
+    'asset_url' => env('ASSET_URL'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Web Root (optional – for split public/private deployment)
+    |--------------------------------------------------------------------------
+    |
+    | When set, branding uploads (logo, login background) are saved to this
+    | path instead of public_path('images'). Use the filesystem path of your
+    | public document root (e.g. /var/www/erp.royalkingsschools.sc.ke).
+    |
+    */
+    'public_web_root' => env('PUBLIC_WEB_ROOT'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

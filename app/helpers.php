@@ -86,6 +86,33 @@ if (!function_exists('system_setting_set')) {
 }
 
 /**
+ * Directory where branding images (logo, login background) are stored.
+ * When PUBLIC_WEB_ROOT is set (split deployment), returns that path + /images.
+ * Otherwise returns public_path('images').
+ */
+if (!function_exists('public_images_path')) {
+    function public_images_path(string $subpath = ''): string {
+        $base = config('app.public_web_root')
+            ? rtrim(config('app.public_web_root'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'images'
+            : public_path('images');
+        return $subpath !== '' ? $base . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $subpath), DIRECTORY_SEPARATOR) : $base;
+    }
+}
+
+/**
+ * Full URL for a file in the public images folder (logo, login background).
+ * Uses asset() so ASSET_URL is respected when public files are on another domain.
+ */
+if (!function_exists('public_image_url')) {
+    function public_image_url(?string $filename): ?string {
+        if ($filename === null || $filename === '') {
+            return null;
+        }
+        return asset('images/' . ltrim($filename, '/'));
+    }
+}
+
+/**
  * can_access:
  *  can_access('module.feature.action') OR can_access('module','feature','action')
  */
