@@ -10,6 +10,7 @@ use App\Models\PaymentAllocation;
 use App\Models\Term;
 use App\Models\FeesComparisonPreview;
 use App\Models\SwimmingWallet;
+use App\Models\Votehead;
 use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -299,25 +300,74 @@ class FeesComparisonImportController extends Controller
 
     /**
      * Show a saved comparison preview (allows returning from fee statement).
+     * View filter: all | match | families | individual (same style as bank statements).
      */
-    public function show(FeesComparisonPreview $preview)
+    public function show(Request $request, FeesComparisonPreview $preview)
     {
         $data = $preview->preview_data;
         $previewRows = $data['preview'] ?? [];
         $summary = $data['summary'] ?? [];
         $year = $preview->year;
         $term = $preview->term;
+        $view = $request->get('view', 'all');
 
         $previewGrouped = $this->groupPreviewByFamily($previewRows);
 
+        // Counts for filter tabs (like bank statements)
+        $countMatch = (int) ($summary['ok'] ?? 0);
+        $countIndividual = 0;
+        $countFamilies = 0;
+        foreach ($previewGrouped as $g) {
+            $rows = $g['rows'] ?? [];
+            $isFamily = ($g['family_id'] ?? null) && count($rows) > 1;
+            if ($isFamily) {
+                $countFamilies++;
+            } else {
+                $countIndividual += count($rows);
+            }
+        }
+        $counts = [
+            'all' => count($previewRows),
+            'match' => $countMatch,
+            'families' => $countFamilies,
+            'individual' => $countIndividual,
+        ];
+
+        // Apply view filter
+        $filtered = $previewGrouped;
+        if ($view === 'match') {
+            $filtered = [];
+            foreach ($previewGrouped as $g) {
+                $okRows = array_values(array_filter($g['rows'] ?? [], fn ($r) => ($r['status'] ?? '') === 'ok'));
+                if (!empty($okRows)) {
+                    $filtered[] = [
+                        'family_id' => $g['family_id'] ?? null,
+                        'rows' => $okRows,
+                        'system_paid_total' => array_sum(array_map(fn ($r) => (float) ($r['system_total_paid'] ?? 0), $okRows)),
+                        'import_paid_total' => array_sum(array_map(fn ($r) => (float) ($r['import_total_paid'] ?? 0), $okRows)),
+                    ];
+                }
+            }
+        } elseif ($view === 'individual') {
+            $filtered = array_values(array_filter($previewGrouped, function ($g) {
+                return !($g['family_id'] ?? null) && count($g['rows'] ?? []) >= 1;
+            }));
+        } elseif ($view === 'families') {
+            $filtered = array_values(array_filter($previewGrouped, function ($g) {
+                return ($g['family_id'] ?? null) && count($g['rows'] ?? []) > 1;
+            }));
+        }
+
         return view('finance.fees_comparison_import.preview', [
             'preview' => $previewRows,
-            'previewGrouped' => $previewGrouped,
+            'previewGrouped' => $filtered,
             'hasIssues' => $preview->has_issues,
             'year' => $year,
             'term' => $term,
             'summary' => $summary,
             'previewId' => $preview->id,
+            'view' => $view,
+            'counts' => $counts,
         ]);
     }
 
@@ -337,6 +387,12 @@ class FeesComparisonImportController extends Controller
     private function buildSystemData(int $year, int $termNumber): array
     {
         $out = [];
+        // Exclude swimming voteheads from invoiced/paid totals (swimming is separate)
+        $swimmingVoteheadIds = Votehead::whereRaw('LOWER(name) LIKE ?', ['%swimming%'])
+            ->orWhereRaw('LOWER(code) LIKE ?', ['%swimming%'])
+            ->pluck('id')
+            ->toArray();
+
         // Exclude archived and alumni – they are not included in the import comparison
         $students = Student::where('archive', 0)
             ->where('is_alumni', false)
@@ -350,19 +406,24 @@ class FeesComparisonImportController extends Controller
                 ->where('status', '!=', 'reversed')
                 ->first();
 
-            $totalInvoiced = $invoice ? (float) $invoice->total : 0;
-            
-            // Calculate paid_amount explicitly excluding reversed payments
+            $totalInvoiced = 0;
             $totalPaid = 0;
             if ($invoice) {
-                // Sum allocations from non-reversed payments only
-                $totalPaid = (float) PaymentAllocation::whereHas('invoiceItem', function($q) use ($invoice) {
-                        $q->where('invoice_id', $invoice->id);
-                    })
-                    ->whereHas('payment', function($q) {
-                        $q->where('reversed', false);
-                    })
-                    ->sum('amount');
+                $itemsQuery = InvoiceItem::where('invoice_id', $invoice->id)->where('status', 'active');
+                if (!empty($swimmingVoteheadIds)) {
+                    $itemsQuery->whereNotIn('votehead_id', $swimmingVoteheadIds);
+                }
+                $totalInvoiced = (float) $itemsQuery->get()->sum(fn ($i) => (float) ($i->amount ?? 0) - (float) ($i->discount_amount ?? 0));
+
+                $allocationsQuery = PaymentAllocation::whereHas('invoiceItem', function ($q) use ($invoice, $swimmingVoteheadIds) {
+                    $q->where('invoice_id', $invoice->id);
+                    if (!empty($swimmingVoteheadIds)) {
+                        $q->whereNotIn('votehead_id', $swimmingVoteheadIds);
+                    }
+                })->whereHas('payment', function ($q) {
+                    $q->where('reversed', false);
+                });
+                $totalPaid = (float) $allocationsQuery->sum('amount');
             }
 
             $invoiceBalance = $totalInvoiced - $totalPaid;
@@ -391,7 +452,7 @@ class FeesComparisonImportController extends Controller
     }
 
     /**
-     * Group preview rows by family_id for display: each family has children rows then a total row.
+     * Group preview rows by family_id for display: individual students first, then families.
      * Only rows with a real family_id (non-null, non-zero) are grouped as a family; others get one row per student.
      */
     private function groupPreviewByFamily(array $previewRows): array
@@ -414,6 +475,17 @@ class FeesComparisonImportController extends Controller
             $groups[$key]['system_paid_total'] += (float) ($row['system_total_paid'] ?? 0);
             $groups[$key]['import_paid_total'] += (float) ($row['import_total_paid'] ?? 0);
         }
-        return $groups;
+        // Individuals first, then families (like bank-statement style)
+        $solo = [];
+        $families = [];
+        foreach ($groups as $g) {
+            $isFamily = ($g['family_id'] ?? null) && count($g['rows']) > 1;
+            if ($isFamily) {
+                $families[] = $g;
+            } else {
+                $solo[] = $g;
+            }
+        }
+        return array_merge($solo, $families);
     }
 }

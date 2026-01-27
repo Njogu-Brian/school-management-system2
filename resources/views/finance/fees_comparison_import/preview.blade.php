@@ -124,7 +124,40 @@
                 </div>
             @endif
 
-            {{-- Comparison table (grouped by family, individual invoices/payments, then family total) --}}
+            {{-- View filter tabs (like bank statements) --}}
+            @php
+                $counts = $counts ?? ['all' => 0, 'match' => 0, 'families' => 0, 'individual' => 0];
+                $currentView = $view ?? 'all';
+                $baseUrl = route('finance.fees-comparison-import.show', $previewId ?? 0);
+            @endphp
+            <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+                <div class="card-body p-0">
+                    <ul class="nav nav-tabs nav-tabs-finance" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link {{ $currentView == 'all' ? 'active' : '' }}" href="{{ $baseUrl }}?view=all">
+                                All <span class="badge bg-secondary">{{ $counts['all'] ?? 0 }}</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ $currentView == 'match' ? 'active' : '' }}" href="{{ $baseUrl }}?view=match">
+                                Match <span class="badge bg-success">{{ $counts['match'] ?? 0 }}</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ $currentView == 'individual' ? 'active' : '' }}" href="{{ $baseUrl }}?view=individual">
+                                Individual students <span class="badge bg-info">{{ $counts['individual'] ?? 0 }}</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {{ $currentView == 'families' ? 'active' : '' }}" href="{{ $baseUrl }}?view=families">
+                                Families <span class="badge bg-primary">{{ $counts['families'] ?? 0 }}</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            {{-- Comparison table (individuals first, then families) --}}
             @php $previewGrouped = $previewGrouped ?? []; @endphp
             <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex align-items-center justify-content-between">
@@ -303,7 +336,7 @@
                 <div class="finance-card-body border-top d-flex justify-content-between align-items-center">
                     <p class="text-muted small mb-0">
                         <i class="bi bi-info-circle me-1"></i>
-                        System totals use total fees invoice (including balance brought forward) and total paid for {{ $year }} Term {{ $term }}. Archived and alumni students are excluded. No changes are made from this view.
+                        System totals use total fees invoice (including balance brought forward) and total paid for {{ $year }} Term {{ $term }}. Swimming fees and payments are excluded. Archived and alumni students are excluded. No changes are made from this view.
                     </p>
                     <a href="{{ route('finance.fees-comparison-import.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Back to Import
