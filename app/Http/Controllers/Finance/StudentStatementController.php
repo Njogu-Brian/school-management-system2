@@ -10,6 +10,7 @@ use App\Models\CreditNote;
 use App\Models\DebitNote;
 use App\Models\FeeConcession;
 use App\Models\LegacyStatementLine;
+use App\Models\PaymentAllocation;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -28,9 +29,13 @@ class StudentStatementController extends Controller
         $year = $request->get('year', now()->year);
         $term = $request->get('term');
         
-        // Get all invoices for the student with detailed items
+        // Get all invoices for the student with detailed items (exclude reversed)
         $invoicesQuery = Invoice::where('student_id', $student->id)
             ->where('year', $year)
+            ->whereNull('reversed_at')
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'reversed');
+            })
             ->with([
                 'items.votehead', 
                 'items.creditNotes', 
@@ -118,7 +123,7 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
-        // Legacy transactions (read-only, as parsed) for historical years (pre-2026)
+        // Legacy transactions (read-only, as parsed) for historical years (pre-2026, e.g. 2024)
         $legacyLinesQuery = LegacyStatementLine::with('term')
             ->whereHas('term', function($q) use ($student, $year) {
                 $q->where('student_id', $student->id)
@@ -130,22 +135,22 @@ class StudentStatementController extends Controller
                 }
             });
         
-        // Filter by term if specified and year is legacy
+        // Filter by term if specified and year is legacy (2024 or pre-2026)
+        $legacyTermNumber = null;
         if ($term && $year < 2026) {
-            $termModel = \App\Models\Term::find($term);
-            if ($termModel) {
-                // Try to match term by name pattern (e.g., "Term 1" -> term_number 1)
-                $termNumber = null;
-                if (preg_match('/term\s*(\d+)/i', $termModel->name, $matches)) {
-                    $termNumber = (int)$matches[1];
+            if (is_string($term) && str_starts_with($term, 'legacy-')) {
+                $legacyTermNumber = (int) substr($term, 7);
+            } else {
+                $termModel = \App\Models\Term::find($term);
+                if ($termModel && preg_match('/term\s*(\d+)/i', $termModel->name ?? '', $matches)) {
+                    $legacyTermNumber = (int) $matches[1];
                 }
-                
-                if ($termNumber) {
-                    $legacyLinesQuery->whereHas('term', function($q) use ($year, $termNumber) {
-                        $q->where('academic_year', $year)
-                          ->where('term_number', $termNumber);
-                    });
-                }
+            }
+            if ($legacyTermNumber) {
+                $legacyLinesQuery->whereHas('term', function ($q) use ($year, $legacyTermNumber) {
+                    $q->where('academic_year', $year)
+                      ->where('term_number', $legacyTermNumber);
+                });
             }
         }
         
@@ -408,22 +413,24 @@ class StudentStatementController extends Controller
         // Sort all transactions by date
         $detailedTransactions = $detailedTransactions->sortBy('date');
         
-        // Calculate totals
-        // Total charges = sum of all invoice totals (before discounts)
+        // Calculate totals from the invoices we are displaying (student + year + term)
+        // Total charges = sum of invoice item amounts (gross, before discounts)
         $totalCharges = $invoices->sum(function($inv) {
             return $inv->items->sum('amount') ?? 0;
         });
         
-        // Total discounts = sum of all item-level and invoice-level discounts
+        // Total discounts = sum of invoice-level and item-level discounts
         $totalDiscounts = $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
             return $inv->items->sum('discount_amount') ?? 0;
         });
         
-        $totalPayments = $payments->where('reversed', false)->sum('amount');
+        // Total payments = sum of amounts *allocated to these invoices* (not full payment.amount:
+        // one payment can be split across students/invoices; we must only count the portion applied here)
+        $totalPayments = $invoices->sum('paid_amount');
         $totalCreditNotes = $creditNotes->sum('amount');
         $totalDebitNotes = $debitNotes->sum('amount');
         
-        // Calculate balance: Charges - Discounts - Payments + Debit Notes - Credit Notes
+        // Balance: Charges - Discounts - Payments + Debit Notes - Credit Notes
         $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
         
         // For legacy years (pre-2026), calculate balance from legacy statement ending_balance
@@ -468,26 +475,40 @@ class StudentStatementController extends Controller
             ->reverse()
             ->values();
         
-        // Get terms - if year is selected, filter terms by that year's academic year
-        $academicYearId = null;
+        // Get terms - for legacy years (e.g. 2024) use LegacyStatementTerm; else use Term model
+        $terms = collect();
         if ($year) {
-            $academicYear = \App\Models\AcademicYear::where('year', $year)->first();
-            $academicYearId = $academicYear->id ?? null;
+            if ($year < 2026) {
+                // Legacy: terms from LegacyStatementTerm for this student and year
+                $legacyTerms = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+                    ->where('academic_year', $year)
+                    ->orderBy('term_number')
+                    ->get()
+                    ->unique('term_number')
+                    ->values();
+                $terms = $legacyTerms->map(fn ($t) => (object) [
+                    'id' => 'legacy-' . $t->term_number,
+                    'name' => $t->term_name ?: ('Term ' . $t->term_number),
+                ]);
+            } else {
+                $academicYear = \App\Models\AcademicYear::where('year', $year)->first();
+                $academicYearId = $academicYear->id ?? null;
+                $termsQuery = \App\Models\Term::query();
+                if ($academicYearId) {
+                    $termsQuery->where('academic_year_id', $academicYearId);
+                }
+                $terms = $termsQuery->orderBy('name')->get();
+            }
         }
-        
-        $termsQuery = \App\Models\Term::query();
-        if ($academicYearId) {
-            $termsQuery->where('academic_year_id', $academicYearId);
-        }
-        $terms = $termsQuery->orderBy('name')->get();
         
         // If AJAX request for terms only
         if ($request->ajax() && $request->get('get_terms')) {
-            return response()->json([
-                'terms' => $terms->map(function($t) {
-                    return ['id' => $t->id, 'name' => $t->name];
-                })
-            ]);
+            $termList = $terms->map(function ($t) {
+                $id = is_object($t) ? $t->id : $t['id'];
+                $name = is_object($t) ? $t->name : $t['name'];
+                return ['id' => $id, 'name' => $name];
+            });
+            return response()->json(['terms' => $termList->values()]);
         }
         
         $comparisonPreviewId = $request->get('comparison_preview_id');
@@ -521,9 +542,13 @@ class StudentStatementController extends Controller
         $year = $request->get('year', now()->year);
         $term = $request->get('term');
         
-        // Get all invoices for the student with detailed items
+        // Get all invoices for the student with detailed items (exclude reversed)
         $invoicesQuery = Invoice::where('student_id', $student->id)
             ->where('year', $year)
+            ->whereNull('reversed_at')
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'reversed');
+            })
             ->with([
                 'items.votehead', 
                 'items.creditNotes', 
@@ -578,7 +603,7 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
-        // Get legacy transactions (read-only, as parsed) for historical years (pre-2026)
+        // Get legacy transactions (read-only, as parsed) for historical years (pre-2026, e.g. 2024)
         $legacyLinesQuery = LegacyStatementLine::with('term')
             ->whereHas('term', function($q) use ($student, $year) {
                 $q->where('student_id', $student->id)
@@ -590,22 +615,22 @@ class StudentStatementController extends Controller
                 }
             });
         
-        // Filter by term if specified and year is legacy
+        // Filter by term if specified and year is legacy (2024 or pre-2026)
+        $legacyTermNumber = null;
         if ($term && $year < 2026) {
-            $termModel = \App\Models\Term::find($term);
-            if ($termModel) {
-                // Try to match term by name pattern (e.g., "Term 1" -> term_number 1)
-                $termNumber = null;
-                if (preg_match('/term\s*(\d+)/i', $termModel->name, $matches)) {
-                    $termNumber = (int)$matches[1];
+            if (is_string($term) && str_starts_with($term, 'legacy-')) {
+                $legacyTermNumber = (int) substr($term, 7);
+            } else {
+                $termModel = \App\Models\Term::find($term);
+                if ($termModel && preg_match('/term\s*(\d+)/i', $termModel->name ?? '', $matches)) {
+                    $legacyTermNumber = (int) $matches[1];
                 }
-                
-                if ($termNumber) {
-                    $legacyLinesQuery->whereHas('term', function($q) use ($year, $termNumber) {
-                        $q->where('academic_year', $year)
-                          ->where('term_number', $termNumber);
-                    });
-                }
+            }
+            if ($legacyTermNumber) {
+                $legacyLinesQuery->whereHas('term', function ($q) use ($year, $legacyTermNumber) {
+                    $q->where('academic_year', $year)
+                      ->where('term_number', $legacyTermNumber);
+                });
             }
         }
         
@@ -770,7 +795,8 @@ class StudentStatementController extends Controller
             $totalDiscounts = $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
                 return $inv->items->sum('discount_amount') ?? 0;
             });
-            $totalPayments = $payments->where('reversed', false)->sum('amount');
+            // Use amounts allocated to these invoices, not full payment.amount (avoids double-count and wrong scope)
+            $totalPayments = $invoices->sum('paid_amount');
             $totalCreditNotes = $creditNotes->sum('amount');
             $totalDebitNotes = $debitNotes->sum('amount');
             $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
@@ -805,9 +831,13 @@ class StudentStatementController extends Controller
         $term = $request->get('term');
         $format = $request->get('format', 'pdf'); // pdf or csv
         
-        // Get the same data as show method
+        // Get the same data as show method (exclude reversed invoices)
         $invoicesQuery = Invoice::where('student_id', $student->id)
             ->where('year', $year)
+            ->whereNull('reversed_at')
+            ->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'reversed');
+            })
             ->with(['items.votehead', 'term', 'academicYear']);
             
         if ($term) {
@@ -820,6 +850,7 @@ class StudentStatementController extends Controller
         $invoices = $invoicesQuery->orderBy('created_at')->get();
         $payments = Payment::where('student_id', $student->id)
             ->whereYear('payment_date', $year)
+            ->where('reversed', false)
             ->orderBy('payment_date')
             ->get();
         $discounts = FeeConcession::where('student_id', $student->id)
@@ -899,9 +930,14 @@ class StudentStatementController extends Controller
                 fputcsv($file, []);
             }
             
-            // Summary
+            // Summary (match on-screen totals: charges from invoices, payments = allocated to these invoices from non-reversed payments only)
             $totalCharges = $invoices->sum('total');
-            $totalPayments = $payments->sum('amount');
+            $invoiceIds = $invoices->pluck('id');
+            $totalPayments = $invoiceIds->isNotEmpty()
+                ? PaymentAllocation::whereHas('invoiceItem', fn ($q) => $q->whereIn('invoice_id', $invoiceIds))
+                    ->whereHas('payment', fn ($q) => $q->where('reversed', false))
+                    ->sum('amount')
+                : 0;
             $totalDiscounts = $discounts->sum('value');
             $balance = $totalCharges - $totalPayments - $totalDiscounts;
             

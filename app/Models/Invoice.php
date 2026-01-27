@@ -121,10 +121,12 @@ class Invoice extends Model
         // Subtract invoice-level discount
         $this->total = max(0, $this->total - ($this->discount_amount ?? 0));
         
-        // Calculate paid amount from allocations
+        // Calculate paid amount from allocations (exclude reversed payments)
         $this->paid_amount = $this->items()
             ->join('payment_allocations', 'invoice_items.id', '=', 'payment_allocations.invoice_item_id')
+            ->join('payments', 'payment_allocations.payment_id', '=', 'payments.id')
             ->where('invoice_items.invoice_id', $this->id)
+            ->where('payments.reversed', false)
             ->sum('payment_allocations.amount');
         
         // Calculate balance (total already has discounts and credit/debit adjustments in item amounts)
