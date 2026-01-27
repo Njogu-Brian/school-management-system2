@@ -15,8 +15,20 @@
         .comparison-stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 12px -1px rgba(0, 0, 0, 0.1); }
         .comparison-stat-value { font-size: 1.5rem; font-weight: 700; }
         .comparison-stat-label { font-size: 0.85rem; color: var(--fin-muted); font-weight: 600; }
-        .comparison-table-wrapper { overflow-x: auto; border-radius: 14px; border: 1px solid var(--fin-border); }
-        .comparison-table { width: 100%; border-collapse: collapse; color: var(--fin-text); }
+        .comparison-table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border-radius: 14px;
+            border: 1px solid var(--fin-border);
+        }
+        .comparison-table {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: collapse;
+            color: var(--fin-text);
+            table-layout: auto;
+        }
         .comparison-table thead th {
             background: color-mix(in srgb, var(--fin-primary) 8%, #fff 92%);
             border-bottom: 1px solid var(--fin-border);

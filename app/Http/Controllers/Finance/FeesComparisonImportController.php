@@ -171,6 +171,10 @@ class FeesComparisonImportController extends Controller
             }
 
             $familyId = $student->family_id;
+            // Treat 0, empty string, or null as "no family" so we don't group unrelated students
+            if ($familyId === 0 || $familyId === '' || (is_string($familyId) && trim((string) $familyId) === '')) {
+                $familyId = null;
+            }
             if ($familyId && $imp !== null) {
                 $familyGroups[$familyId] = $familyGroups[$familyId] ?? [
                     'admissions' => [],
@@ -388,16 +392,19 @@ class FeesComparisonImportController extends Controller
 
     /**
      * Group preview rows by family_id for display: each family has children rows then a total row.
+     * Only rows with a real family_id (non-null, non-zero) are grouped as a family; others get one row per student.
      */
     private function groupPreviewByFamily(array $previewRows): array
     {
         $groups = [];
+        $soloIndex = 0;
         foreach ($previewRows as $row) {
             $fid = $row['family_id'] ?? null;
-            $key = $fid ?? 'none_' . ($row['admission_number'] ?? '');
+            $hasFamily = $fid !== null && $fid !== 0 && $fid !== '' && (string) $fid !== '0';
+            $key = $hasFamily ? ('f_' . $fid) : ('solo_' . $soloIndex++);
             if (!isset($groups[$key])) {
                 $groups[$key] = [
-                    'family_id' => $fid,
+                    'family_id' => $hasFamily ? $fid : null,
                     'rows' => [],
                     'system_paid_total' => 0,
                     'import_paid_total' => 0,
