@@ -9,6 +9,7 @@ use App\Models\InvoiceItem;
 use App\Models\PaymentAllocation;
 use App\Models\Term;
 use App\Models\FeesComparisonPreview;
+use App\Models\SwimmingWallet;
 use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -143,8 +144,11 @@ class FeesComparisonImportController extends Controller
                     'student_id' => null,
                     'classroom' => null,
                     'family_id' => null,
+                    'parent_phone' => null,
                     'system_total_invoiced' => null,
                     'system_total_paid' => null,
+                    'system_invoice_balance' => null,
+                    'system_swimming_balance' => null,
                     'import_total_paid' => $importPaid,
                     'difference' => null,
                     'status' => $status,
@@ -184,8 +188,11 @@ class FeesComparisonImportController extends Controller
                 'student_id' => $student->id,
                 'classroom' => $student->classroom?->name ?? '—',
                 'family_id' => $familyId,
+                'parent_phone' => $sys['parent_phone'] ?? null,
                 'system_total_invoiced' => $systemInvoiced,
                 'system_total_paid' => $systemPaid,
+                'system_invoice_balance' => $sys['invoice_balance'] ?? null,
+                'system_swimming_balance' => $sys['swimming_balance'] ?? null,
                 'import_total_paid' => $importPaid,
                 'difference' => $difference,
                 'status' => $status,
@@ -329,7 +336,7 @@ class FeesComparisonImportController extends Controller
         // Exclude archived and alumni – they are not included in the import comparison
         $students = Student::where('archive', 0)
             ->where('is_alumni', false)
-            ->with(['classroom', 'family'])
+            ->with(['classroom', 'family', 'parent'])
             ->get();
 
         foreach ($students as $student) {
@@ -354,10 +361,19 @@ class FeesComparisonImportController extends Controller
                     ->sum('amount');
             }
 
+            $invoiceBalance = $totalInvoiced - $totalPaid;
+            $swimmingBalance = (float) (SwimmingWallet::where('student_id', $student->id)->value('balance') ?? 0);
+            $parentPhone = $student->parent
+                ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? null)
+                : null;
+
             $out[$student->admission_number] = [
                 'student_id' => $student->id,
                 'total_invoiced' => $totalInvoiced,
                 'total_paid' => $totalPaid,
+                'invoice_balance' => max(0, $invoiceBalance),
+                'swimming_balance' => $swimmingBalance,
+                'parent_phone' => $parentPhone,
             ];
         }
 

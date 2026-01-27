@@ -135,6 +135,9 @@
                                     <th>Admission #</th>
                                     <th>Student</th>
                                     <th>Class</th>
+                                    <th>Phone</th>
+                                    <th class="text-end">Invoice bal.</th>
+                                    <th class="text-end">Swimming bal.</th>
                                     <th class="text-end">System invoiced (incl. BBF)</th>
                                     <th class="text-end">System paid</th>
                                     <th class="text-end">Import paid</th>
@@ -154,7 +157,7 @@
                                     @endphp
                                     @if($isFamily)
                                         <tr class="family-header-row" style="background: color-mix(in srgb, var(--fin-primary) 6%, #fff 94%);">
-                                            <td colspan="{{ !empty($previewId) ? 10 : 9 }}" class="fw-bold py-2">
+                                            <td colspan="{{ !empty($previewId) ? 13 : 12 }}" class="fw-bold py-2">
                                                 <i class="bi bi-people me-1"></i> Family — {{ count($rows) }} children
                                             </td>
                                         </tr>
@@ -174,6 +177,21 @@
                                             <td><strong>{{ $row['admission_number'] }}</strong></td>
                                             <td>{{ $row['student_name'] }}</td>
                                             <td>{{ $row['classroom'] ?? '—' }}</td>
+                                            <td class="text-nowrap">{{ $row['parent_phone'] ?? '—' }}</td>
+                                            <td class="text-end">
+                                                @if(isset($row['system_invoice_balance']) && $row['system_invoice_balance'] !== null)
+                                                    KES {{ number_format($row['system_invoice_balance'], 2) }}
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end">
+                                                @if(isset($row['system_swimming_balance']) && $row['system_swimming_balance'] !== null)
+                                                    KES {{ number_format($row['system_swimming_balance'], 2) }}
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
                                             <td class="text-end">
                                                 @if(isset($row['system_total_invoiced']) && $row['system_total_invoiced'] !== null)
                                                     KES {{ number_format($row['system_total_invoiced'], 2) }}
@@ -245,6 +263,9 @@
                                     @if($isFamily)
                                         <tr class="family-total-row fw-bold" style="background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%);">
                                             <td colspan="3" class="text-end">Family total (payments)</td>
+                                            <td><span class="text-muted">—</span></td>
+                                            <td class="text-end"><span class="text-muted">—</span></td>
+                                            <td class="text-end"><span class="text-muted">—</span></td>
                                             <td class="text-end"><span class="text-muted">—</span></td>
                                             <td class="text-end">KES {{ number_format($group['system_paid_total'] ?? 0, 2) }}</td>
                                             <td class="text-end">KES {{ number_format($group['import_paid_total'] ?? 0, 2) }}</td>
@@ -256,7 +277,7 @@
                             @if(count($preview) > 0)
                             <tfoot>
                                 <tr class="fw-bold">
-                                    <td colspan="3" class="text-end">Totals</td>
+                                    <td colspan="6" class="text-end">Totals</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_invoiced'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>
