@@ -13,7 +13,8 @@ return [
     |
     */
 
-    'default' => env('QUEUE_CONNECTION', 'database'),
+    // Default "sync" = run jobs in same request (SMS/email/WhatsApp run when action happens, no worker). Use "database" + Supervisor for background processing.
+    'default' => env('QUEUE_CONNECTION', 'sync'),
 
     /*
     |--------------------------------------------------------------------------
