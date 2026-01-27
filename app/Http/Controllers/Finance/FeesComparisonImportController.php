@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\PaymentAllocation;
 use App\Models\Term;
 use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
@@ -307,7 +309,19 @@ class FeesComparisonImportController extends Controller
                 ->first();
 
             $totalInvoiced = $invoice ? (float) $invoice->total : 0;
-            $totalPaid = $invoice ? (float) $invoice->paid_amount : 0;
+            
+            // Calculate paid_amount explicitly excluding reversed payments
+            $totalPaid = 0;
+            if ($invoice) {
+                // Sum allocations from non-reversed payments only
+                $totalPaid = (float) PaymentAllocation::whereHas('invoiceItem', function($q) use ($invoice) {
+                        $q->where('invoice_id', $invoice->id);
+                    })
+                    ->whereHas('payment', function($q) {
+                        $q->where('reversed', false);
+                    })
+                    ->sum('amount');
+            }
 
             $out[$student->admission_number] = [
                 'student_id' => $student->id,
