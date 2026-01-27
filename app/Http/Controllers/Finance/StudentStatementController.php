@@ -481,6 +481,8 @@ class StudentStatementController extends Controller
             ]);
         }
         
+        $comparisonPreviewId = $request->get('comparison_preview_id');
+
         return view('finance.student_statements.show', compact(
             'student',
             'invoices',
@@ -500,7 +502,8 @@ class StudentStatementController extends Controller
             'term',
             'terms',
             'years',
-            'detailedTransactions'
+            'detailedTransactions',
+            'comparisonPreviewId'
         ));
     }
 

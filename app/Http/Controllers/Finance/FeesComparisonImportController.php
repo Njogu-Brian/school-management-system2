@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\PaymentAllocation;
 use App\Models\Term;
+use App\Models\FeesComparisonPreview;
 use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -135,7 +136,7 @@ class FeesComparisonImportController extends Controller
 
             if (!$student) {
                 $status = 'missing_student';
-                $message = 'Student not found in system';
+                $message = 'Student not found or archived/alumni (excluded from import)';
                 $preview[] = [
                     'admission_number' => $admission,
                     'student_name' => $importName,
@@ -264,20 +265,48 @@ class FeesComparisonImportController extends Controller
 
         $hasIssues = $missingCount > 0 || $amountDiffCount > 0 || $familyMismatchCount > 0;
 
-        return view('finance.fees_comparison_import.preview', [
-            'preview' => $preview,
-            'hasIssues' => $hasIssues,
+        $summary = [
+            'total' => count($preview),
+            'ok' => $okCount,
+            'missing_student' => $missingCount,
+            'amount_differs' => $amountDiffCount,
+            'family_total_mismatch' => $familyMismatchCount,
+            'in_system_only' => $inSystemOnlyCount,
+            'allocation_diff_families' => $allocationDiffFamilies,
+        ];
+
+        $saved = FeesComparisonPreview::create([
+            'user_id' => auth()->id(),
             'year' => $year,
             'term' => $termNumber,
-            'summary' => [
-                'total' => count($preview),
-                'ok' => $okCount,
-                'missing_student' => $missingCount,
-                'amount_differs' => $amountDiffCount,
-                'family_total_mismatch' => $familyMismatchCount,
-                'in_system_only' => $inSystemOnlyCount,
-                'allocation_diff_families' => $allocationDiffFamilies,
-            ],
+            'preview_data' => ['preview' => $preview, 'summary' => $summary],
+            'has_issues' => $hasIssues,
+        ]);
+
+        return redirect()->route('finance.fees-comparison-import.show', $saved);
+    }
+
+    /**
+     * Show a saved comparison preview (allows returning from fee statement).
+     */
+    public function show(FeesComparisonPreview $preview)
+    {
+        $data = $preview->preview_data;
+        $previewRows = $data['preview'] ?? [];
+        $summary = $data['summary'] ?? [];
+        $year = $preview->year;
+        $term = $preview->term;
+
+        $previewGrouped = $this->groupPreviewByFamily($previewRows);
+
+        return view('finance.fees_comparison_import.preview', [
+            'preview' => $previewRows,
+            'previewGrouped' => $previewGrouped,
+            'hasIssues' => $preview->has_issues,
+            'year' => $year,
+            'term' => $term,
+            'summary' => $summary,
+            'previewId' => $preview->id,
         ]);
     }
 
@@ -297,7 +326,9 @@ class FeesComparisonImportController extends Controller
     private function buildSystemData(int $year, int $termNumber): array
     {
         $out = [];
-        $students = Student::withArchived()
+        // Exclude archived and alumni – they are not included in the import comparison
+        $students = Student::where('archive', 0)
+            ->where('is_alumni', false)
             ->with(['classroom', 'family'])
             ->get();
 
@@ -337,5 +368,29 @@ class FeesComparisonImportController extends Controller
     {
         preg_match('/\d+/', $termName, $m);
         return isset($m[0]) ? (int) $m[0] : 1;
+    }
+
+    /**
+     * Group preview rows by family_id for display: each family has children rows then a total row.
+     */
+    private function groupPreviewByFamily(array $previewRows): array
+    {
+        $groups = [];
+        foreach ($previewRows as $row) {
+            $fid = $row['family_id'] ?? null;
+            $key = $fid ?? 'none_' . ($row['admission_number'] ?? '');
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'family_id' => $fid,
+                    'rows' => [],
+                    'system_paid_total' => 0,
+                    'import_paid_total' => 0,
+                ];
+            }
+            $groups[$key]['rows'][] = $row;
+            $groups[$key]['system_paid_total'] += (float) ($row['system_total_paid'] ?? 0);
+            $groups[$key]['import_paid_total'] += (float) ($row['import_total_paid'] ?? 0);
+        }
+        return $groups;
     }
 }

@@ -41,7 +41,7 @@
         @include('finance.partials.header', [
             'title' => 'Fees Comparison Preview',
             'icon' => 'bi bi-clipboard2-check',
-            'subtitle' => "Compare import vs system for {$year} Term {$term}. No actions are taken — comparison only.",
+            'subtitle' => "Compare import vs system for {$year} Term {$term}. Saved preview — open a student's fee statement and use Back to comparison to return here.",
             'actions' => '<a href="' . route('finance.fees-comparison-import.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back to Import</a>'
         ])
 
@@ -112,7 +112,8 @@
                 </div>
             @endif
 
-            {{-- Comparison table --}}
+            {{-- Comparison table (grouped by family, individual invoices/payments, then family total) --}}
+            @php $previewGrouped = $previewGrouped ?? []; @endphp
             <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center gap-2">
@@ -140,80 +141,116 @@
                                     <th class="text-end">Difference</th>
                                     <th>Status</th>
                                     <th>Family / Sibling note</th>
+                                    @if(!empty($previewId))
+                                    <th class="text-center">Fee statement</th>
+                                    @endif
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($preview as $row)
+                                @foreach($previewGrouped as $groupKey => $group)
                                     @php
-                                        $status = $row['status'] ?? 'ok';
-                                        $rowClass = match($status) {
-                                            'missing_student' => 'row-missing',
-                                            'family_total_mismatch' => 'row-family-mismatch',
-                                            'amount_differs' => 'row-amount-diff',
-                                            'in_system_only' => 'row-in-system-only',
-                                            default => 'row-ok',
-                                        };
+                                        $rows = $group['rows'] ?? [];
+                                        $isFamily = ($group['family_id'] ?? null) && count($rows) > 1;
                                     @endphp
-                                    <tr class="{{ $rowClass }}">
-                                        <td><strong>{{ $row['admission_number'] }}</strong></td>
-                                        <td>{{ $row['student_name'] }}</td>
-                                        <td>{{ $row['classroom'] ?? '—' }}</td>
-                                        <td class="text-end">
-                                            @if(isset($row['system_total_invoiced']) && $row['system_total_invoiced'] !== null)
-                                                KES {{ number_format($row['system_total_invoiced'], 2) }}
-                                            @else
-                                                <span class="text-muted">—</span>
+                                    @if($isFamily)
+                                        <tr class="family-header-row" style="background: color-mix(in srgb, var(--fin-primary) 6%, #fff 94%);">
+                                            <td colspan="{{ !empty($previewId) ? 10 : 9 }}" class="fw-bold py-2">
+                                                <i class="bi bi-people me-1"></i> Family — {{ count($rows) }} children
+                                            </td>
+                                        </tr>
+                                    @endif
+                                    @foreach($rows as $row)
+                                        @php
+                                            $status = $row['status'] ?? 'ok';
+                                            $rowClass = match($status) {
+                                                'missing_student' => 'row-missing',
+                                                'family_total_mismatch' => 'row-family-mismatch',
+                                                'amount_differs' => 'row-amount-diff',
+                                                'in_system_only' => 'row-in-system-only',
+                                                default => 'row-ok',
+                                            };
+                                        @endphp
+                                        <tr class="{{ $rowClass }}">
+                                            <td><strong>{{ $row['admission_number'] }}</strong></td>
+                                            <td>{{ $row['student_name'] }}</td>
+                                            <td>{{ $row['classroom'] ?? '—' }}</td>
+                                            <td class="text-end">
+                                                @if(isset($row['system_total_invoiced']) && $row['system_total_invoiced'] !== null)
+                                                    KES {{ number_format($row['system_total_invoiced'], 2) }}
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end">
+                                                @if(isset($row['system_total_paid']) && $row['system_total_paid'] !== null)
+                                                    <strong>KES {{ number_format($row['system_total_paid'], 2) }}</strong>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end">
+                                                @if(isset($row['import_total_paid']))
+                                                    <strong>KES {{ number_format($row['import_total_paid'], 2) }}</strong>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end">
+                                                @if(isset($row['difference']) && $row['difference'] !== null)
+                                                    <span class="{{ $row['difference'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                                        {{ $row['difference'] >= 0 ? '+' : '' }}KES {{ number_format($row['difference'], 2) }}
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                @if($status === 'ok')
+                                                    <span class="badge bg-success">Match</span>
+                                                @elseif($status === 'missing_student')
+                                                    <span class="badge bg-danger">Missing</span>
+                                                @elseif($status === 'amount_differs')
+                                                    <span class="badge bg-warning text-dark">Amount differs</span>
+                                                @elseif($status === 'family_total_mismatch')
+                                                    <span class="badge bg-warning text-dark">Family mismatch</span>
+                                                @elseif($status === 'in_system_only')
+                                                    <span class="badge bg-info">System only</span>
+                                                @else
+                                                    <span class="badge bg-secondary">{{ $status }}</span>
+                                                @endif
+                                                @if(!empty($row['message']))
+                                                    <br><small class="text-muted">{{ $row['message'] }}</small>
+                                                @endif
+                                            </td>
+                                            <td class="family-note-cell">
+                                                @if(!empty($row['family_note']))
+                                                    <span class="text-info">{{ $row['family_note'] }}</span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            @if(!empty($previewId))
+                                            <td class="text-center">
+                                                @if(!empty($row['student_id']))
+                                                    <a href="{{ route('finance.student-statements.show', ['student' => $row['student_id'], 'year' => $year, 'term' => $term, 'comparison_preview_id' => $previewId]) }}" class="btn btn-sm btn-finance btn-finance-outline" title="Open fee statement and return to this comparison">
+                                                        <i class="bi bi-file-text"></i> Statement
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
                                             @endif
-                                        </td>
-                                        <td class="text-end">
-                                            @if(isset($row['system_total_paid']) && $row['system_total_paid'] !== null)
-                                                <strong>KES {{ number_format($row['system_total_paid'], 2) }}</strong>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-end">
-                                            @if(isset($row['import_total_paid']))
-                                                <strong>KES {{ number_format($row['import_total_paid'], 2) }}</strong>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-end">
-                                            @if(isset($row['difference']) && $row['difference'] !== null)
-                                                <span class="{{ $row['difference'] >= 0 ? 'text-success' : 'text-danger' }}">
-                                                    {{ $row['difference'] >= 0 ? '+' : '' }}KES {{ number_format($row['difference'], 2) }}
-                                                </span>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if($status === 'ok')
-                                                <span class="badge bg-success">Match</span>
-                                            @elseif($status === 'missing_student')
-                                                <span class="badge bg-danger">Missing</span>
-                                            @elseif($status === 'amount_differs')
-                                                <span class="badge bg-warning text-dark">Amount differs</span>
-                                            @elseif($status === 'family_total_mismatch')
-                                                <span class="badge bg-warning text-dark">Family mismatch</span>
-                                            @elseif($status === 'in_system_only')
-                                                <span class="badge bg-info">System only</span>
-                                            @else
-                                                <span class="badge bg-secondary">{{ $status }}</span>
-                                            @endif
-                                            @if(!empty($row['message']))
-                                                <br><small class="text-muted">{{ $row['message'] }}</small>
-                                            @endif
-                                        </td>
-                                        <td class="family-note-cell">
-                                            @if(!empty($row['family_note']))
-                                                <span class="text-info">{{ $row['family_note'] }}</span>
-                                            @else
-                                                <span class="text-muted">—</span>
-                                            @endif
-                                        </td>
-                                    </tr>
+                                        </tr>
+                                    @endforeach
+                                    @if($isFamily)
+                                        <tr class="family-total-row fw-bold" style="background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%);">
+                                            <td colspan="3" class="text-end">Family total (payments)</td>
+                                            <td class="text-end"><span class="text-muted">—</span></td>
+                                            <td class="text-end">KES {{ number_format($group['system_paid_total'] ?? 0, 2) }}</td>
+                                            <td class="text-end">KES {{ number_format($group['import_paid_total'] ?? 0, 2) }}</td>
+                                            <td colspan="{{ !empty($previewId) ? 4 : 3 }}"></td>
+                                        </tr>
+                                    @endif
                                 @endforeach
                             </tbody>
                             @if(count($preview) > 0)
@@ -223,7 +260,7 @@
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_invoiced'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>
-                                    <td colspan="3"></td>
+                                    <td colspan="{{ !empty($previewId) ? 4 : 3 }}"></td>
                                 </tr>
                             </tfoot>
                             @endif
@@ -233,7 +270,7 @@
                 <div class="finance-card-body border-top d-flex justify-content-between align-items-center">
                     <p class="text-muted small mb-0">
                         <i class="bi bi-info-circle me-1"></i>
-                        System totals use total fees invoice (including balance brought forward) and total paid for {{ $year }} Term {{ $term }}. No changes are made from this view.
+                        System totals use total fees invoice (including balance brought forward) and total paid for {{ $year }} Term {{ $term }}. Archived and alumni students are excluded. No changes are made from this view.
                     </p>
                     <a href="{{ route('finance.fees-comparison-import.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Back to Import

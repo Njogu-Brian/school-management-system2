@@ -1320,6 +1320,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Fees Comparison Import (compare-only; no commit)
         Route::get('fees-comparison-import', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'index'])->name('fees-comparison-import.index');
         Route::post('fees-comparison-import/preview', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'preview'])->name('fees-comparison-import.preview');
+        Route::get('fees-comparison-import/preview/{preview}', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'show'])->name('fees-comparison-import.show');
         Route::get('fees-comparison-import/template', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'template'])->name('fees-comparison-import.template');
         
         // Online Payments

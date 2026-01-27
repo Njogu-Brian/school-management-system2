@@ -18,7 +18,8 @@
                         <li>Upload an Excel file with <strong>Student name</strong>, <strong>Admission number</strong>, and <strong>Total fees paid</strong>.</li>
                         <li>System totals use <strong>total fees invoice (including balance brought forward)</strong> and <strong>total paid</strong> per student for the selected year and term.</li>
                         <li>Siblings are processed together: if family total matches import total, that’s OK; we’ll flag where <strong>individual allocations differ</strong>. Family total mismatches are reported as issues.</li>
-                        <li><strong>Missing students</strong> (in import but not in system) and other differences are highlighted. <strong>No actions</strong> are taken — this view is for comparison only.</li>
+                        <li><strong>Archived and alumni students</strong> are excluded from the import; they are treated as missing if present in your file.</li>
+                    <li><strong>Missing students</strong> (in import but not in system) and other differences are highlighted. <strong>No actions</strong> are taken — this view is for comparison only. The preview is saved so you can open a child’s fee statement and return to the comparison.</li>
                     </ul>
                 </div>
             </div>
