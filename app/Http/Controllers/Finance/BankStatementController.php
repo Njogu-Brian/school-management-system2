@@ -169,8 +169,15 @@ class BankStatementController extends Controller
                     $query->whereRaw('1 = 0');
                 }
                 break;
+            case 'all':
+                // All transactions - exclude swimming, archived, and duplicates
+                $query->where('is_archived', false)
+                      ->where('is_duplicate', false)
+                      ->where('transaction_type', 'credit'); // Exclude debit transactions
+                // Swimming exclusion is handled below
+                break;
             default:
-                // Show all non-archived, non-debit, non-swimming, non-duplicate transactions by default
+                // Default to 'all' behavior
                 $query->where('is_archived', false)
                       ->where('is_duplicate', false)
                       ->where('transaction_type', 'credit'); // Exclude debit transactions
