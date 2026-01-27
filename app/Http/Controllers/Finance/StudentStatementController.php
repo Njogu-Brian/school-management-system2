@@ -276,6 +276,9 @@ class StudentStatementController extends Controller
                 } else {
                     foreach ($payment->allocations as $allocation) {
                         $item = $allocation->invoiceItem;
+                        if (!$item) {
+                            continue; // Skip orphaned allocations (e.g. invoice item soft-deleted)
+                        }
                         $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                         $detailedTransactions->push([
                             'date' => $payment->payment_date,
@@ -301,6 +304,9 @@ class StudentStatementController extends Controller
         // 4. Add credit notes as separate line items
         foreach ($creditNotes as $note) {
             $item = $note->invoiceItem;
+            if (!$item) {
+                continue; // Skip orphaned credit notes (e.g. invoice item soft-deleted)
+            }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
             
             $detailedTransactions->push([
@@ -321,6 +327,9 @@ class StudentStatementController extends Controller
         // 5. Add debit notes as separate line items
         foreach ($debitNotes as $note) {
             $item = $note->invoiceItem;
+            if (!$item) {
+                continue; // Skip orphaned debit notes (e.g. invoice item soft-deleted)
+            }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
             
             $detailedTransactions->push([
