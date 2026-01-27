@@ -358,18 +358,22 @@ class BankStatementController extends Controller
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
                 ->where(function($q) {
-                    // Payment must exist and not be reversed
-                    $q->whereHas('payment', function($subQ) {
-                        $subQ->where('reversed', false)
-                             ->whereNull('deleted_at');
+                    // Primary check: payment_id exists and payment is not reversed
+                    $q->where(function($subQ) {
+                        $subQ->whereNotNull('payment_id')
+                             ->whereHas('payment', function($paymentQ) {
+                                 $paymentQ->where('reversed', false)
+                                          ->whereNull('deleted_at');
+                             });
                     })
                     ->orWhere(function($subQ) {
-                        // Also check by reference number for shared payments
+                        // Fallback: check by reference number for shared payments
                         $subQ->whereNotNull('reference_number')
                              ->whereExists(function($existsQ) {
                                  $existsQ->select(\DB::raw(1))
                                          ->from('payments')
                                          ->whereColumn('payments.transaction_code', 'bank_statement_transactions.reference_number')
+                                         ->orWhere('payments.transaction_code', 'LIKE', \DB::raw("CONCAT(bank_statement_transactions.reference_number, '-%')"))
                                          ->where('payments.reversed', false)
                                          ->whereNull('payments.deleted_at');
                              });
