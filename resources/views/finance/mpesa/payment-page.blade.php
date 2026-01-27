@@ -2,298 +2,353 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="theme-color" content="#007e33">
     <title>Pay School Fees - M-PESA</title>
-    
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
+        :root {
+            --pay-green: #007e33;
+            --pay-green-light: #00c851;
+            --pay-bg: linear-gradient(160deg, #0d5c2e 0%, #007e33 40%, #00a844 100%);
+            --card-radius: 1rem;
+            --tap-min: 44px;
+        }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
             min-height: 100vh;
+            min-height: 100dvh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--pay-bg);
+            color: #1a1a1a;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            padding: 12px;
         }
-        .payment-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        .pay-card {
+            background: #fff;
+            border-radius: var(--card-radius);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
             overflow: hidden;
-            max-width: 500px;
             width: 100%;
+            max-width: 420px;
         }
-        .payment-header {
-            background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
-            color: white;
-            padding: 30px;
+        .pay-header {
+            background: var(--pay-bg);
+            color: #fff;
+            padding: 1.5rem 1.25rem;
             text-align: center;
         }
-        .payment-header i {
-            font-size: 60px;
-            margin-bottom: 15px;
+        .pay-header .bi-phone { font-size: 2.5rem; opacity: 0.95; }
+        .pay-header h1 { font-size: 1.35rem; font-weight: 700; margin: 0.5rem 0 0; }
+        .pay-header .school { font-size: 0.9rem; opacity: 0.9; margin-top: 0.25rem; }
+        .pay-body { padding: 1.25rem 1.25rem 1.5rem; }
+        .balance-box {
+            background: #f0f9f4;
+            border: 1px solid #c8e6d0;
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.25rem;
         }
-        .payment-body {
-            padding: 30px;
-        }
-        .amount-display {
-            font-size: 36px;
-            font-weight: bold;
-            color: #00c851;
-            text-align: center;
-            margin: 20px 0;
-        }
-        .info-row {
+        .balance-box .label { font-size: 0.8rem; color: #555; font-weight: 600; }
+        .balance-box .value { font-size: 1.5rem; font-weight: 700; color: var(--pay-green); }
+        .child-row {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #f0f0f0;
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #eee;
         }
-        .info-label {
-            color: #666;
-            font-weight: 500;
-        }
-        .info-value {
-            color: #333;
-            font-weight: 600;
+        .child-row:last-child { border-bottom: none; }
+        .child-name { font-weight: 600; color: #333; }
+        .child-meta { font-size: 0.8rem; color: #666; }
+        .child-balance { font-weight: 700; color: var(--pay-green); font-size: 0.95rem; }
+        .form-label { font-weight: 600; color: #333; margin-bottom: 0.35rem; }
+        .form-control, .input-group-text {
+            min-height: var(--tap-min);
+            font-size: 1rem;
         }
         .btn-pay {
-            background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
-            border: none;
-            color: white;
-            padding: 15px;
-            font-size: 18px;
-            font-weight: 600;
-            border-radius: 10px;
             width: 100%;
-            margin-top: 20px;
-            transition: transform 0.2s;
+            min-height: var(--tap-min);
+            font-size: 1.1rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 0.75rem;
+            background: var(--pay-bg);
+            color: #fff;
+            margin-top: 1.25rem;
+            box-shadow: 0 4px 14px rgba(0,126,51,0.35);
         }
-        .btn-pay:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,200,81,0.3);
+        .btn-pay:hover, .btn-pay:focus { color: #fff; opacity: 0.95; transform: translateY(-1px); }
+        .btn-pay:disabled { opacity: 0.7; transform: none; }
+        .btn-quick {
+            min-height: 36px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.9rem;
         }
-        .btn-pay:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        #statusMessage {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 8px;
-            display: none;
+        #statusMessage { margin-top: 1rem; border-radius: 0.75rem; padding: 1rem; display: none; }
+        .share-block { background: #f8f9fa; border-radius: 0.75rem; padding: 1rem; margin-top: 0.75rem; }
+        .sibling-amount-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+        .sibling-amount-row input { flex: 0 0 100px; }
+        @media (min-width: 576px) {
+            body { padding: 24px; }
+            .pay-body { padding: 1.5rem 1.5rem 2rem; }
+            .pay-card { max-width: 480px; }
         }
     </style>
 </head>
 <body>
-    <div class="payment-card">
-        <div class="payment-header">
-            <i class="fas fa-mobile-alt"></i>
-            <h2>M-PESA Payment</h2>
-            <p class="mb-0">{{ \App\Models\Setting::getValue('school_name', 'School') }}</p>
+    <div class="pay-card">
+        <div class="pay-header">
+            <i class="bi bi-phone"></i>
+            <h1>M-PESA Payment</h1>
+            <p class="school mb-0">{{ \App\Models\Setting::getValue('school_name', 'School') }}</p>
         </div>
-        
-        <div class="payment-body">
-            <div class="text-center mb-4">
-                <h5>Payment For:</h5>
-                <h4><strong>{{ $paymentLink->student->full_name }}</strong></h4>
-                <p class="text-muted mb-0">Admission No: {{ $paymentLink->student->admission_number }}</p>
-                @if($paymentLink->invoice)
-                    <p class="text-muted mb-0">Invoice: {{ $paymentLink->invoice->invoice_number }}</p>
-                @endif
-            </div>
 
-            <div class="amount-display">
-                KES {{ number_format($paymentLink->amount, 2) }}
-            </div>
-
-            <div class="mt-4">
-                <div class="info-row">
-                    <span class="info-label">Description:</span>
-                    <span class="info-value">{{ $paymentLink->description }}</span>
+        <div class="pay-body">
+            @if($isFamilyLink ?? false)
+                {{-- Family link: show all children with balance, share toggle, amounts --}}
+                <div class="mb-3">
+                    <h5 class="mb-2"><strong>Your children</strong></h5>
+                    <p class="small text-muted mb-0">Current fee balance per child. You can pay for one child or split one payment among several.</p>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Currency:</span>
-                    <span class="info-value">{{ $paymentLink->currency }}</span>
-                </div>
-                @if($paymentLink->expires_at)
-                <div class="info-row">
-                    <span class="info-label">Link Expires:</span>
-                    <span class="info-value">{{ $paymentLink->expires_at->format('d M Y, H:i') }}</span>
-                </div>
-                @endif
-            </div>
-
-            <form id="paymentForm">
-                <div class="form-group mt-4">
-                    <label for="payment_amount"><strong>Payment Amount</strong></label>
-                    <div class="input-group input-group-lg">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text">KES</span>
+                @php $familyTotalBalance = 0; @endphp
+                @foreach($familyStudents ?? [] as $s)
+                    @php $familyTotalBalance += (float)($s['fee_balance'] ?? 0); @endphp
+                    <div class="child-row">
+                        <div>
+                            <span class="child-name">{{ $s['full_name'] }}</span>
+                            <span class="child-meta d-block">Adm: {{ $s['admission_number'] }} · {{ $s['classroom_name'] ?? '–' }}</span>
                         </div>
-                        <input type="number" class="form-control form-control-lg" id="payment_amount" 
-                               name="amount" step="0.01" min="1" max="{{ $paymentLink->amount }}"
-                               value="{{ $paymentLink->amount }}" required>
+                        <div class="child-balance text-end">KES {{ number_format($s['fee_balance'] ?? 0, 2) }}</div>
                     </div>
-                    <small class="form-text text-muted">
-                        <i class="fas fa-info-circle"></i> You can pay partially. Maximum: KES {{ number_format($paymentLink->amount, 2) }}
-                    </small>
+                @endforeach
+                @if(empty($familyStudents))
+                    <p class="text-muted small">No students found for this family.</p>
+                @else
+                    <div class="balance-box mt-2">
+                        <span class="label">Total family balance</span>
+                        <div class="value">KES {{ number_format($familyTotalBalance, 2) }}</div>
+                    </div>
+                @endif
+
+                <form id="paymentForm">
+                    <input type="hidden" name="share_with_siblings" id="share_with_siblings" value="0">
+                    <div class="form-check form-switch mt-3 mb-2">
+                        <input class="form-check-input" type="checkbox" id="shareToggle" style="min-width: 3rem; min-height: 1.5rem;">
+                        <label class="form-check-label fw-semibold" for="shareToggle">Split this payment among children</label>
+                    </div>
+                    <p class="small text-muted">One M-PESA transaction; amounts go to each child you choose.</p>
+
+                    <div id="shareBlock" class="share-block" style="display: none;">
+                        <p class="small fw-semibold mb-2">Enter amount per child (one transaction):</p>
+                        <div id="siblingAllocationsList"></div>
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                            <span class="fw-semibold">Total</span>
+                            <span id="siblingTotalDisplay" class="text-primary fw-bold">KES 0.00</span>
+                        </div>
+                    </div>
+
+                    <div id="singleBlock">
+                        <label class="form-label mt-2">Paying for</label>
+                        <select class="form-select form-select-lg" id="single_student_id" name="student_id" required>
+                            <option value="">-- Select child --</option>
+                            @foreach($familyStudents ?? [] as $s)
+                                <option value="{{ $s['id'] }}" data-balance="{{ $s['fee_balance'] ?? 0 }}">{{ $s['full_name'] }} (KES {{ number_format($s['fee_balance'] ?? 0, 2) }})</option>
+                            @endforeach
+                        </select>
+                        <label class="form-label mt-3">Amount (KES)</label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text">KES</span>
+                            <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" placeholder="0.00" required>
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
+                        </div>
+                    </div>
+                    <label class="form-label mt-3">Your M-PESA number</label>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                        <input type="tel" class="form-control" id="phone_number" name="phone_number" placeholder="0712345678" required>
+                    </div>
+                    <button type="submit" class="btn btn-pay mt-4" id="payBtn"><i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA</button>
+                </form>
+            @else
+                {{-- Single-student link --}}
+                @php
+                    $student = $paymentLink->student;
+                    $feeBalance = 0;
+                    if ($student) {
+                        $feeBalance = (float) \App\Models\Invoice::where('student_id', $student->id)
+                            ->where(function ($q) {
+                                $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
+                            })->get()->sum(fn ($inv) => (float)($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+                    }
+                    $maxAmount = max($feeBalance, (float)$paymentLink->amount);
+                @endphp
+                <div class="text-center mb-3">
+                    <h5 class="mb-1">Paying for</h5>
+                    <h4 class="mb-0"><strong>{{ $student ? $student->full_name : '–' }}</strong></h4>
+                    <p class="text-muted small mb-0">Admission: {{ $student ? $student->admission_number : '–' }}</p>
+                </div>
+                <div class="balance-box">
+                    <span class="label">Current fee balance</span>
+                    <div class="value">KES {{ number_format($feeBalance, 2) }}</div>
+                    <small class="text-muted">You can pay the full balance or a partial amount.</small>
+                </div>
+                <form id="paymentForm">
+                    <input type="hidden" name="payment_type" value="single">
+                    <label class="form-label">Amount (KES)</label>
+                    <div class="input-group input-group-lg">
+                        <span class="input-group-text">KES</span>
+                        <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" max="{{ $maxAmount > 0 ? $maxAmount : 99999999 }}" value="{{ $feeBalance > 0 ? $feeBalance : $paymentLink->amount }}" required>
+                    </div>
                     <div class="mt-2">
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="$('#payment_amount').val({{ $paymentLink->amount }})">
-                            Pay Full Amount
-                        </button>
-                        @if($paymentLink->amount >= 1000)
-                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="$('#payment_amount').val({{ $paymentLink->amount / 2 }})">
-                            Pay Half
-                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
+                        @if($maxAmount >= 1000)
+                        <button type="button" class="btn btn-outline-secondary btn-quick" id="payHalfBtn">Pay half</button>
                         @endif
                     </div>
-                </div>
-
-                <div class="form-group mt-3">
-                    <label for="phone_number"><strong>Your M-PESA Phone Number</strong></label>
+                    <label class="form-label mt-3">Your M-PESA number</label>
                     <div class="input-group input-group-lg">
-                        <div class="input-group-prepend">
-                            <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                        </div>
-                        <input type="tel" class="form-control form-control-lg" id="phone_number" 
-                               placeholder="e.g., 0712345678" required>
-                        <div class="input-group-append">
-                            <button class="btn btn-outline-secondary" type="button" id="editPhoneBtn" title="Edit phone number">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </div>
+                        <span class="input-group-text"><i class="bi bi-phone"></i></span>
+                        <input type="tel" class="form-control" id="phone_number" name="phone_number" placeholder="0712345678" required>
                     </div>
-                    <small class="form-text text-muted">
-                        <i class="fas fa-info-circle"></i> You can change the phone number if paying from a different M-PESA account
-                    </small>
-                </div>
-
-                <button type="submit" class="btn btn-pay" id="payBtn">
-                    <i class="fas fa-lock"></i> PAY NOW WITH M-PESA
-                </button>
-            </form>
+                    <button type="submit" class="btn btn-pay mt-4" id="payBtn"><i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA</button>
+                </form>
+            @endif
 
             <div id="statusMessage"></div>
-
-            <div class="text-center mt-4">
-                <small class="text-muted">
-                    <i class="fas fa-shield-alt"></i> Secure M-PESA Payment Gateway<br>
-                    Your payment is processed securely by Safaricom
-                </small>
-            </div>
+            <p class="text-center small text-muted mt-3 mb-0">
+                <i class="bi bi-shield-check"></i> Secure M-PESA · Safaricom
+            </p>
         </div>
     </div>
 
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-    $(document).ready(function() {
-        // Pre-fill phone number from URL parameter if available
-        const urlParams = new URLSearchParams(window.location.search);
-        const prefilledPhone = urlParams.get('phone');
-        if (prefilledPhone) {
-            $('#phone_number').val(prefilledPhone);
+    (function() {
+        var isFamilyLink = {{ ($isFamilyLink ?? false) ? 'true' : 'false' }};
+        var familyStudents = @json($familyStudents ?? []);
+        var payUrl = '{{ route("payment.link.process", $paymentLink->hashed_id) }}';
+        var token = '{{ csrf_token() }}';
+
+        function showStatus(type, html) {
+            var el = document.getElementById('statusMessage');
+            el.className = 'alert alert-' + (type === 'success' ? 'success' : (type === 'warning' ? 'warning' : 'danger'));
+            el.innerHTML = html;
+            el.style.display = 'block';
         }
 
-        // Edit phone button
-        $('#editPhoneBtn').on('click', function() {
-            $('#phone_number').prop('readonly', false).focus().select();
-        });
+        if (isFamilyLink && familyStudents.length) {
+            var feeBalanceMap = {};
+            familyStudents.forEach(function(s) { feeBalanceMap[s.id] = parseFloat(s.fee_balance) || 0; });
+
+            $('#shareToggle').on('change', function() {
+                var on = $(this).is(':checked');
+                $('#share_with_siblings').val(on ? '1' : '0');
+                $('#shareBlock').toggle(on);
+                $('#singleBlock').toggle(!on);
+                if (on) {
+                    var list = '';
+                    familyStudents.forEach(function(s, i) {
+                        list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (s.fee_balance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 120px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="0.01" min="0" data-student-id="' + s.id + '" data-balance="' + (s.fee_balance || 0) + '" value="0" placeholder="0"></div></div>';
+                    });
+                    $('#siblingAllocationsList').html(list);
+                    $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', function() {
+                        var t = 0;
+                        $('.sibling-amount').each(function() { t += parseFloat($(this).val()) || 0; });
+                        $('#siblingTotalDisplay').text('KES ' + t.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                        $('#payment_amount').val(t > 0 ? t.toFixed(2) : '');
+                    });
+                }
+            });
+
+            $('#single_student_id').on('change', function() {
+                var bal = $(this).find('option:selected').data('balance');
+                if (bal != null) $('#payment_amount').val(parseFloat(bal).toFixed(2));
+            });
+
+            $('#payFullBtn').on('click', function() {
+                if ($('#shareToggle').is(':checked')) {
+                    $('.sibling-amount').each(function() { $(this).val(parseFloat($(this).data('balance') || 0).toFixed(2)); });
+                    $('.sibling-amount').first().trigger('input');
+                } else {
+                    var opt = $('#single_student_id option:selected');
+                    if (opt.length && opt.data('balance') != null) $('#payment_amount').val(parseFloat(opt.data('balance')).toFixed(2));
+                }
+            });
+        } else {
+            var fullBalance = {{ ($feeBalance ?? 0) }};
+            var linkAmount = {{ (float)($paymentLink->amount ?? 0) }};
+            var maxAmt = Math.max(fullBalance, linkAmount) || linkAmount || 1;
+            $('#payFullBtn').on('click', function() { $('#payment_amount').val((fullBalance > 0 ? fullBalance : maxAmt).toFixed(2)); });
+            var halfBtn = document.getElementById('payHalfBtn');
+            if (halfBtn) halfBtn.onclick = function() { $('#payment_amount').val((maxAmt / 2).toFixed(2)); };
+        }
+
+        var urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('phone')) $('#phone_number').val(urlParams.get('phone'));
 
         $('#paymentForm').on('submit', function(e) {
             e.preventDefault();
-            
-            var phoneNumber = $('#phone_number').val().trim();
+            var phone = $('#phone_number').val().trim();
             var btn = $('#payBtn');
-            var statusDiv = $('#statusMessage');
-            
-            if (!phoneNumber) {
-                showStatus('error', 'Please enter your phone number');
-                return;
-            }
+            if (!phone) { showStatus('error', 'Please enter your phone number.'); return; }
 
-            // Disable button and show loading
-            btn.prop('disabled', true);
-            btn.html('<i class="fas fa-spinner fa-spin"></i> Processing...');
-            statusDiv.hide();
-
-            // Get payment amount
-            var paymentAmount = $('#payment_amount').val();
-            
-            if (!paymentAmount || paymentAmount <= 0) {
-                showStatus('error', 'Please enter a valid payment amount');
-                return;
-            }
-
-            // Submit payment request
-            $.ajax({
-                url: '{{ route("payment.link.process", $paymentLink->hashed_id) }}',
-                method: 'POST',
-                data: {
-                    phone_number: phoneNumber,
-                    amount: paymentAmount,
-                    _token: '{{ csrf_token() }}'
-                },
-                success: function(response) {
-                    if (response.success) {
-                        showStatus('success', 
-                            '<i class="fas fa-check-circle"></i> <strong>Payment request sent!</strong><br>' +
-                            'Please check your phone and enter your M-PESA PIN to complete the payment.<br>' +
-                            '<small>This page will refresh automatically once payment is confirmed.</small>'
-                        );
-                        
-                        // Poll for payment confirmation
-                        var pollInterval = setInterval(function() {
-                            // Reload page to check if payment completed
-                            location.reload();
-                        }, 5000);
-                        
-                        // Stop polling after 2 minutes
-                        setTimeout(function() {
-                            clearInterval(pollInterval);
-                            btn.prop('disabled', false);
-                            btn.html('<i class="fas fa-lock"></i> PAY NOW WITH M-PESA');
-                            showStatus('warning', 'Payment pending. Please try again if you did not complete the payment.');
-                        }, 120000);
-                    } else {
-                        btn.prop('disabled', false);
-                        btn.html('<i class="fas fa-lock"></i> PAY NOW WITH M-PESA');
-                        showStatus('error', response.message || 'Payment initiation failed. Please try again.');
-                    }
-                },
-                error: function(xhr) {
-                    btn.prop('disabled', false);
-                    btn.html('<i class="fas fa-lock"></i> PAY NOW WITH M-PESA');
-                    
-                    var errorMsg = 'An error occurred. Please try again.';
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        errorMsg = xhr.responseJSON.message;
-                    }
-                    showStatus('error', errorMsg);
+            var payload = { phone_number: phone, _token: token };
+            if (isFamilyLink) {
+                if ($('#shareToggle').is(':checked')) {
+                    var allocs = [];
+                    $('.sibling-amount').each(function() {
+                        var am = parseFloat($(this).val()) || 0;
+                        if (am > 0) allocs.push({ student_id: $(this).data('student-id'), amount: am });
+                    });
+                    if (!allocs.length) { showStatus('error', 'Enter at least one amount when splitting.'); return; }
+                    payload.share_with_siblings = 1;
+                    payload.sibling_allocations = allocs;
+                    payload.amount = allocs.reduce(function(s, a) { return s + a.amount; }, 0);
+                } else {
+                    var sid = $('#single_student_id').val();
+                    var am = parseFloat($('#payment_amount').val()) || 0;
+                    if (!sid || am < 1) { showStatus('error', 'Select a child and enter an amount.'); return; }
+                    payload.student_id = sid;
+                    payload.amount = am;
                 }
-            });
-        });
+            } else {
+                payload.amount = parseFloat($('#payment_amount').val()) || 0;
+                if (payload.amount < 1) { showStatus('error', 'Enter a valid amount.'); return; }
+            }
 
-        function showStatus(type, message) {
-            var statusDiv = $('#statusMessage');
-            var bgClass = type === 'success' ? 'alert-success' : (type === 'warning' ? 'alert-warning' : 'alert-danger');
-            
-            statusDiv.removeClass('alert-success alert-warning alert-danger');
-            statusDiv.addClass('alert ' + bgClass);
-            statusDiv.html(message);
-            statusDiv.fadeIn();
-        }
-    });
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Processing...');
+            $('#statusMessage').hide();
+
+            $.ajax({ url: payUrl, method: 'POST', data: payload })
+                .done(function(res) {
+                    if (res.success) {
+                        showStatus('success', '<strong>Request sent.</strong> Enter your M-PESA PIN on your phone to complete the payment.');
+                        setTimeout(function() { location.reload(); }, 5000);
+                    } else {
+                        btn.prop('disabled', false).html('<i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA');
+                        showStatus('error', res.message || 'Request failed.');
+                    }
+                })
+                .fail(function(xhr) {
+                    btn.prop('disabled', false).html('<i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA');
+                    var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'Something went wrong. Try again.';
+                    showStatus('error', msg);
+                });
+        });
+    })();
     </script>
 </body>
 </html>
-

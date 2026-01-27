@@ -24,7 +24,7 @@
                         <div class="d-flex align-items-start">
                             <i class="bi bi-info-circle fs-4 me-3"></i>
                             <div>
-                                <strong>Payment links</strong> can be sent via SMS, Email, or WhatsApp to parents. Select student, choose invoices to pay, and send via your preferred channels.
+                                <strong>Payment links</strong> — Search student, select parent(s), choose channel(s) (SMS/Email/WhatsApp). The "Generate & Send" button is enabled only when student, at least one parent, and at least one channel are selected. You can set link expiry (e.g. 7 days) or check "Never expire".
                             </div>
                         </div>
                     </div>
@@ -50,56 +50,11 @@
                             @enderror
                         </div>
 
-                        <!-- Step 2: Payment Type -->
-                        <div class="mb-4" id="paymentTypeSection" style="display: none;">
-                            <label class="finance-form-label">
-                                <span class="badge bg-primary me-2">2</span>
-                                Payment Type
-                            </label>
-                            <div class="d-flex gap-3">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="is_swimming" id="linkPaymentTypeFees" value="0" checked>
-                                    <label class="form-check-label" for="linkPaymentTypeFees">
-                                        <i class="bi bi-book"></i> School Fees
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="is_swimming" id="linkPaymentTypeSwimming" value="1">
-                                    <label class="form-check-label" for="linkPaymentTypeSwimming">
-                                        <i class="bi bi-water"></i> Swimming Fees
-                                    </label>
-                                </div>
-                            </div>
-                            <small class="text-muted">Account reference: <span id="linkAccountReferencePreview">-</span></small>
-                        </div>
-
-                        <!-- Step 3: Select Invoices -->
-                        <div class="mb-4" id="invoiceSelectionSection" style="display: none;">
-                            <label class="finance-form-label">
-                                <span class="badge bg-primary me-2">3</span>
-                                Select Invoices to Pay
-                            </label>
-                            <div id="invoicesList" class="border rounded p-3 bg-light">
-                                <div class="text-center text-muted py-3">
-                                    <i class="bi bi-hourglass-split"></i> Loading invoices...
-                                </div>
-                            </div>
-                            <div class="mt-2">
-                                <strong>Total Selected:</strong> 
-                                <span id="totalAmount" class="text-primary fs-5">KES 0.00</span>
-                                <input type="hidden" name="amount" id="amount" value="0">
-                                <input type="hidden" name="selected_invoices" id="selected_invoices" value="">
-                            </div>
-                            @error('amount')
-                                <div class="finance-form-error">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <!-- Step 4: Select Parents -->
+                        <!-- Step 2: Select Parent(s) -->
                         <div class="mb-4" id="parentSelectionSection" style="display: none;">
                             <label class="finance-form-label">
-                                <span class="badge bg-primary me-2">4</span>
-                                Select Parent(s) to Notify <span class="text-danger">*</span>
+                                <span class="badge bg-primary me-2">2</span>
+                                Select Parent(s) to Send Link To <span class="text-danger">*</span>
                             </label>
                             <div id="parentsList" class="border rounded p-3">
                                 <div class="text-center text-muted py-2">
@@ -111,10 +66,10 @@
                             @enderror
                         </div>
 
-                        <!-- Step 5: Select Communication Channels -->
+                        <!-- Step 3: Select Channel(s) -->
                         <div class="mb-4" id="channelSelectionSection" style="display: none;">
                             <label class="finance-form-label">
-                                <span class="badge bg-primary me-2">5</span>
+                                <span class="badge bg-primary me-2">3</span>
                                 Send Link Via <span class="text-danger">*</span>
                             </label>
                             <div class="d-flex gap-3 flex-wrap">
@@ -140,15 +95,65 @@
                             <small class="text-muted">Payment link will be sent immediately via selected channels</small>
                         </div>
 
+                        <!-- Step 4: Payment Type -->
+                        <div class="mb-4" id="paymentTypeSection" style="display: none;">
+                            <label class="finance-form-label">
+                                <span class="badge bg-primary me-2">4</span>
+                                Payment Type
+                            </label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_swimming" id="linkPaymentTypeFees" value="0" checked>
+                                    <label class="form-check-label" for="linkPaymentTypeFees">
+                                        <i class="bi bi-book"></i> School Fees
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="is_swimming" id="linkPaymentTypeSwimming" value="1">
+                                    <label class="form-check-label" for="linkPaymentTypeSwimming">
+                                        <i class="bi bi-water"></i> Swimming Fees
+                                    </label>
+                                </div>
+                            </div>
+                            <small class="text-muted">Account reference: <span id="linkAccountReferencePreview">-</span></small>
+                        </div>
+
+                        <!-- Step 5: Select Invoices (for school fees) -->
+                        <div class="mb-4" id="invoiceSelectionSection" style="display: none;">
+                            <label class="finance-form-label">
+                                <span class="badge bg-primary me-2">5</span>
+                                Select Invoices to Pay
+                            </label>
+                            <div id="invoicesList" class="border rounded p-3 bg-light">
+                                <div class="text-center text-muted py-3">
+                                    <i class="bi bi-hourglass-split"></i> Loading invoices...
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <strong>Total Selected:</strong> 
+                                <span id="totalAmount" class="text-primary fs-5">KES 0.00</span>
+                                <input type="hidden" name="amount" id="amount" value="0">
+                                <input type="hidden" name="selected_invoices" id="selected_invoices" value="">
+                            </div>
+                            @error('amount')
+                                <div class="finance-form-error">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                         <!-- Additional Options -->
                         <div class="mb-4" id="optionsSection" style="display: none;">
                             <label class="finance-form-label">Additional Options</label>
                             <div class="row g-3">
                                 <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" name="never_expire" id="never_expire" value="1">
+                                        <label class="form-check-label" for="never_expire">Never expire</label>
+                                    </div>
                                     <label for="expires_in_days" class="form-label small">Link Expires In (Days)</label>
                                     <input type="number" name="expires_in_days" id="expires_in_days" 
-                                           class="finance-form-control" min="1" max="365" placeholder="7"
+                                           class="finance-form-control" min="0" max="365" placeholder="7"
                                            value="7">
+                                    <small class="text-muted">Leave empty or check "Never expire" for no expiry</small>
                                 </div>
                                 <div class="col-md-6">
                                     <label for="max_uses" class="form-label small">Maximum Uses</label>
@@ -186,10 +191,10 @@
                 <div class="finance-card-body">
                     <ol class="ps-3 mb-0">
                         <li class="mb-2">Search and select the student</li>
-                        <li class="mb-2">Select one or more outstanding invoices</li>
-                        <li class="mb-2">Choose which parent(s) to notify</li>
-                        <li class="mb-2">Select communication channels (SMS/Email/WhatsApp)</li>
-                        <li class="mb-2">Click "Generate & Send Payment Link"</li>
+                        <li class="mb-2">Select which parent(s) to send the link to</li>
+                        <li class="mb-2">Select channel(s) — SMS, Email, and/or WhatsApp</li>
+                        <li class="mb-2">Choose payment type and invoices (for school fees)</li>
+                        <li class="mb-2">Click "Generate & Send Payment Link" (enabled when student, parent, and channel are selected)</li>
                     </ol>
                 </div>
             </div>
@@ -270,17 +275,21 @@ $(document).ready(function() {
                 }
                 $('#studentInfoBody').html(infoHtml);
 
-                // Show payment type section
+                // Step 2 & 3: Show parent and channel sections (student → parent → channel)
+                loadParents(student);
+                $('#parentSelectionSection').show();
+                $('#channelSelectionSection').show();
+                $('#optionsSection').show();
+                updateSubmitButton();
+
+                // Step 4 & 5: Show payment type and load invoices
                 $('#paymentTypeSection').show();
                 updateAccountReference(student);
-                
-                // Load invoices and parents
                 loadInvoices(studentId).then(function() {
-                    loadParents(student);
-                    console.log('All data loaded, updating submit button');
                     updateSubmitButton();
                 }).catch(function(error) {
-                    console.error('Error loading invoices or parents:', error);
+                    console.error('Error loading invoices:', error);
+                    updateSubmitButton();
                 });
             })
             .fail(function(xhr, status, error) {
@@ -547,11 +556,18 @@ $(document).ready(function() {
 
     // Listen to channel changes
     $(document).on('change', 'input[name="send_channels[]"]', function() {
-        console.log('Channel changed');
         updateSubmitButton();
     });
+
+    // Never expire: when checked, clear expires_in_days so link never expires
+    $('#never_expire').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#expires_in_days').val('').prop('readonly', true);
+        } else {
+            $('#expires_in_days').val('7').prop('readonly', false);
+        }
+    });
     
-    // Also check on page load if parents/channels are pre-selected
     setTimeout(function() {
         updateSubmitButton();
     }, 1000);

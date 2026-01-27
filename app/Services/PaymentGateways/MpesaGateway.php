@@ -525,14 +525,15 @@ class MpesaGateway implements PaymentGatewayInterface
 
     /**
      * Initiate STK Push for admin-prompted payment
-     * 
-     * @param int $studentId
+     *
+     * @param int $studentId Primary student (or first when shared)
      * @param string $phoneNumber
-     * @param float $amount
-     * @param string|null $invoiceId
+     * @param float $amount Total amount (must equal sum of shared_allocations when shared)
+     * @param int|null $invoiceId First outstanding used when null and not shared
      * @param int|null $adminId
      * @param string|null $notes
-     * @return array
+     * @param bool $isSwimming
+     * @param array|null $sharedAllocations [['student_id' => 1, 'amount' => 5000], ...] when sharing with siblings
      */
     public function initiateAdminPromptedPayment(
         int $studentId,
@@ -541,19 +542,20 @@ class MpesaGateway implements PaymentGatewayInterface
         ?int $invoiceId = null,
         ?int $adminId = null,
         ?string $notes = null,
-        bool $isSwimming = false
+        bool $isSwimming = false,
+        ?array $sharedAllocations = null
     ): array {
         $student = \App\Models\Student::findOrFail($studentId);
-        
+        $isShared = !empty($sharedAllocations) && count($sharedAllocations) > 0;
+
         // Set account reference: SWIM-{admission} for swimming, {admission} for regular fees
-        $accountReference = $isSwimming 
-            ? 'SWIM-' . $student->admission_number 
+        $accountReference = $isSwimming
+            ? 'SWIM-' . $student->admission_number
             : $student->admission_number;
-        
-        // Create payment transaction record
-        $transaction = \App\Models\PaymentTransaction::create([
+
+        $transactionData = [
             'student_id' => $studentId,
-            'invoice_id' => $invoiceId,
+            'invoice_id' => $isShared ? null : $invoiceId,
             'gateway' => 'mpesa',
             'reference' => $accountReference . '-' . time(),
             'amount' => $amount,
@@ -563,7 +565,11 @@ class MpesaGateway implements PaymentGatewayInterface
             'admin_notes' => $notes,
             'phone_number' => $phoneNumber,
             'account_reference' => $accountReference,
-        ]);
+            'is_shared' => $isShared,
+            'shared_allocations' => $isShared ? $sharedAllocations : null,
+        ];
+
+        $transaction = \App\Models\PaymentTransaction::create($transactionData);
 
         try {
             $result = $this->initiatePayment($transaction, [

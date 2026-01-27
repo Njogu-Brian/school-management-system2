@@ -57,12 +57,17 @@ class PaymentLink extends Model
             if (!$link->payment_reference) {
                 $link->payment_reference = 'LINK-' . strtoupper(Str::random(10));
             }
-            // Set account_reference based on student and swimming flag
-            if ($link->student && !$link->account_reference) {
+            // Set account_reference based on student and swimming flag (family links have student_id null)
+            if ($link->account_reference) {
+                return;
+            }
+            if ($link->student_id && $link->student) {
                 $isSwimming = isset($link->metadata['is_swimming']) && $link->metadata['is_swimming'];
                 $link->account_reference = $isSwimming 
                     ? 'SWIM-' . $link->student->admission_number 
                     : $link->student->admission_number;
+            } elseif ($link->family_id) {
+                $link->account_reference = 'FAM-' . $link->family_id;
             }
         });
     }

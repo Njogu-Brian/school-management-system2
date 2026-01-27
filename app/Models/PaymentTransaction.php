@@ -25,6 +25,8 @@ class PaymentTransaction extends Model
         'webhook_data',
         'failure_reason',
         'admin_notes',
+        'is_shared',
+        'shared_allocations',
         'paid_at',
         'mpesa_transaction_date',
     ];
@@ -33,6 +35,8 @@ class PaymentTransaction extends Model
         'amount' => 'decimal:2',
         'gateway_response' => 'array',
         'webhook_data' => 'array',
+        'is_shared' => 'boolean',
+        'shared_allocations' => 'array',
         'paid_at' => 'datetime',
         'mpesa_transaction_date' => 'datetime',
     ];

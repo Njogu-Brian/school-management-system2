@@ -253,6 +253,36 @@
                             <small class="text-muted">Account reference will be: <span id="accountReferencePreview">{{ $student ? $student->admission_number : 'N/A' }}</span></small>
                         </div>
 
+                        <!-- Current fee balance (school fees only) -->
+                        <div class="mb-4" id="feeBalanceGroup" style="display: {{ $student ? 'block' : 'none' }};">
+                            <div class="alert alert-light border mb-0 py-3">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                    <span class="fw-semibold"><i class="bi bi-wallet2 me-2"></i>Current fee balance</span>
+                                    <span id="feeBalanceAmount" class="text-primary fs-5">KES 0.00</span>
+                                </div>
+                                <small class="text-muted d-block mt-1">You can collect full balance or a partial amount.</small>
+                            </div>
+                        </div>
+
+                        <!-- Share with siblings (school fees only, when student has siblings) -->
+                        <div class="mb-4" id="shareSiblingsGroup" style="display: none;">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="share_with_siblings" id="share_with_siblings" value="1">
+                                <label class="form-check-label fw-semibold" for="share_with_siblings">
+                                    <i class="bi bi-people-fill me-1"></i> Share payment among children
+                                </label>
+                            </div>
+                            <small class="text-muted">One STK push; amounts split per child and receipts generated for each.</small>
+                            <div id="siblingAllocationsBlock" class="mt-3 border rounded p-3 bg-light" style="display: none;">
+                                <p class="small fw-semibold mb-2">Enter amount per child (total will be collected in one transaction):</p>
+                                <div id="siblingAllocationsList"></div>
+                                <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
+                                    <span class="fw-semibold">Total to collect:</span>
+                                    <span id="siblingTotalDisplay" class="text-primary fs-5">KES 0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Invoice Selection (Optional) -->
                         <div class="mb-4" id="invoiceSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
                             <label for="invoice_id" class="finance-form-label">Invoice (Optional)</label>
@@ -268,7 +298,7 @@
                         </div>
 
                         <!-- Amount -->
-                        <div class="mb-4">
+                        <div class="mb-4" id="amountGroup">
                             <label for="amount" class="finance-form-label">
                                 Amount (KES) <span class="text-danger">*</span>
                             </label>
@@ -278,35 +308,14 @@
                                        step="0.01" min="1" placeholder="0.00" required
                                        value="{{ $invoice ? $invoice->balance : old('amount') }}">
                             </div>
+                            <div class="mt-2" id="payFullPartialBtns">
+                                <button type="button" class="btn btn-sm btn-outline-primary me-2" id="payFullBalanceBtn">
+                                    <i class="bi bi-check2-all"></i> Pay full balance
+                                </button>
+                            </div>
                             @error('amount')
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
-                        </div>
-
-                        <!-- Send Notification Channels -->
-                        <div class="mb-4">
-                            <label class="finance-form-label">Send Notification Via (Optional)</label>
-                            <div class="d-flex gap-3 flex-wrap">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="sms" id="sendSMS" checked>
-                                    <label class="form-check-label" for="sendSMS">
-                                        <i class="bi bi-chat-dots"></i> SMS (RKS_FINANCE)
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="email" id="sendEmail">
-                                    <label class="form-check-label" for="sendEmail">
-                                        <i class="bi bi-envelope"></i> Email
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="send_channels[]" value="whatsapp" id="sendWhatsApp">
-                                    <label class="form-check-label" for="sendWhatsApp">
-                                        <i class="bi bi-whatsapp"></i> WhatsApp
-                                    </label>
-                                </div>
-                            </div>
-                            <small class="text-muted">Parent will be notified via selected channels after STK push is sent</small>
                         </div>
 
                         <!-- Notes -->
@@ -343,11 +352,11 @@
                 </div>
                 <div class="finance-card-body">
                     <ol class="ps-3 mb-3">
-                        <li class="mb-2">Select the student</li>
-                        <li class="mb-2">Choose parent's M-PESA phone number</li>
-                        <li class="mb-2">Optionally select an invoice</li>
-                        <li class="mb-2">Enter the amount to collect</li>
-                        <li class="mb-2">Choose notification channels</li>
+                        <li class="mb-2">Select the student — current fee balance is shown</li>
+                        <li class="mb-2">Choose father's or mother's phone (or enter a custom number)</li>
+                        <li class="mb-2">Use "Pay full balance" or enter a partial amount</li>
+                        <li class="mb-2">If the student has siblings, you can toggle "Share payment among children" and enter an amount per child (one STK push, receipts for each)</li>
+                        <li class="mb-2">Optionally select an invoice — if none chosen, payment goes to the first outstanding invoice</li>
                         <li class="mb-2">Click "Send STK Push"</li>
                     </ol>
                     <hr class="my-3">
@@ -470,6 +479,9 @@
 @section('js')
 <script>
 $(document).ready(function() {
+    let currentFeeBalance = 0;
+    let currentStudentData = null;
+
     // Watch for student selection from live search
     $(document).on('studentSelected', function(e, student) {
         if (student && student.id) {
@@ -482,14 +494,17 @@ $(document).ready(function() {
         loadStudentData({{ $student->id }});
     @endif
 
-    // Load student data function
+    // Load student data (getStudentData returns fee_balance + siblings)
     function loadStudentData(studentId) {
         $('#phoneSelectionGroup').show();
         $('#invoiceSelectionGroup').show();
         $('#studentInfoCard').show();
+        $('#feeBalanceGroup').show();
 
-        // Load student details
         $.get('/api/students/' + studentId, function(student) {
+            currentStudentData = student;
+            currentFeeBalance = parseFloat(student.fee_balance || 0);
+
             // Update student info card
             let infoHtml = `
                 <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.full_name}</span></div>
@@ -500,6 +515,26 @@ $(document).ready(function() {
                 infoHtml += `<div class="mb-0"><strong>Parent Phone:</strong> <span class="text-muted">${student.family.phone}</span></div>`;
             }
             $('#studentInfoBody').html(infoHtml);
+
+            // Fee balance (school fees only – hide when swimming)
+            $('#feeBalanceAmount').text('KES ' + (currentFeeBalance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            var hasSiblings = student.siblings && student.siblings.length > 0;
+            var isFees = $('input[name="is_swimming"]:checked').val() === '0';
+            $('#feeBalanceGroup').toggle(isFees);
+
+            // Share with siblings: only for school fees and when student has siblings
+            if (hasSiblings && isFees) {
+                $('#shareSiblingsGroup').show();
+                $('#share_with_siblings').prop('checked', false);
+                buildSiblingAllocationsList(student);
+                $('#siblingAllocationsBlock').hide();
+            } else {
+                $('#shareSiblingsGroup').hide();
+                $('#siblingAllocationsBlock').hide();
+            }
+            if (isFees && !$('#share_with_siblings').is(':checked')) {
+                $('#amount').val(currentFeeBalance > 0 ? currentFeeBalance.toFixed(2) : '');
+            }
 
             // Load phone numbers
             let phoneSelect = $('#phone_source');
@@ -553,6 +588,61 @@ $(document).ready(function() {
         });
     }
 
+    function buildSiblingAllocationsList(student) {
+        var list = [];
+        list.push({ id: student.id, full_name: student.full_name, admission_number: student.admission_number, fee_balance: parseFloat(student.fee_balance || 0) });
+        (student.siblings || []).forEach(function(s) {
+            list.push({ id: s.id, full_name: s.full_name, admission_number: s.admission_number, fee_balance: parseFloat(s.fee_balance || 0) });
+        });
+        var html = '';
+        list.forEach(function(item, idx) {
+            html += '<div class="d-flex align-items-center gap-2 mb-2 sibling-row" data-student-id="' + item.id + '">';
+            html += '<div class="flex-grow-1 small"><strong>' + item.full_name + '</strong> <span class="text-muted">(' + item.admission_number + ')</span><br><small class="text-muted">Balance: KES ' + (item.fee_balance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2}) + '</small></div>';
+            html += '<div class="input-group input-group-sm" style="max-width: 140px;">';
+            html += '<span class="input-group-text">KES</span>';
+            html += '<input type="hidden" name="sibling_allocations[' + idx + '][student_id]" value="' + item.id + '" class="sibling-allocation-id">';
+            html += '<input type="number" name="sibling_allocations[' + idx + '][amount]" class="form-control sibling-amount" step="0.01" min="0" data-student-id="' + item.id + '" data-balance="' + item.fee_balance + '" value="0" placeholder="0">';
+            html += '</div></div>';
+        });
+        $('#siblingAllocationsList').html(html);
+        $('input[name^="sibling_allocations"]').prop('disabled', true);
+        $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', function() { updateSiblingTotal(); });
+    }
+
+    function updateSiblingTotal() {
+        var total = 0;
+        $('.sibling-amount').each(function() { total += parseFloat($(this).val()) || 0; });
+        $('#siblingTotalDisplay').text('KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#amount').val(total > 0 ? total.toFixed(2) : '');
+    }
+
+    $('#share_with_siblings').on('change', function() {
+        var checked = $(this).is(':checked');
+        $('#siblingAllocationsBlock').toggle(checked);
+        $('input[name^="sibling_allocations"]').prop('disabled', !checked);
+        if (checked) { updateSiblingTotal(); $('#amount').prop('readonly', true); }
+        else { $('#amount').prop('readonly', false); if (currentFeeBalance > 0) $('#amount').val(currentFeeBalance.toFixed(2)); }
+    });
+
+    $('#payFullBalanceBtn').on('click', function() {
+        if ($('#share_with_siblings').is(':checked') && currentStudentData) {
+            $('.sibling-amount').each(function() { $(this).val((parseFloat($(this).data('balance')) || 0).toFixed(2)); });
+            updateSiblingTotal();
+        } else {
+            $('#amount').val(currentFeeBalance > 0 ? currentFeeBalance.toFixed(2) : '');
+        }
+    });
+
+    $('input[name="is_swimming"]').on('change', function() {
+        var isFees = $(this).val() === '0';
+        $('#feeBalanceGroup').toggle(isFees);
+        if (currentStudentData) {
+            var hasSiblings = currentStudentData.siblings && currentStudentData.siblings.length > 0;
+            $('#shareSiblingsGroup').toggle(isFees && hasSiblings);
+            if (!isFees) { $('#share_with_siblings').prop('checked', false); $('#siblingAllocationsBlock').hide(); $('#amount').prop('readonly', false); }
+        }
+    });
+
     // Handle phone source selection
     $('#phone_source').on('change', function() {
         let selectedOption = $(this).find('option:selected');
@@ -576,20 +666,19 @@ $(document).ready(function() {
 
     // Form submission
     $('#promptPaymentForm').on('submit', function(e) {
-        let btn = $(this).find('button[type="submit"]');
-        let form = $(this);
-        
-        // Disable button and show loading state
+        if ($('#share_with_siblings').is(':checked')) {
+            var total = 0;
+            $('.sibling-amount').each(function() { total += parseFloat($(this).val()) || 0; });
+            if (total <= 0) {
+                e.preventDefault();
+                alert('When sharing among children, enter at least one amount greater than 0.');
+                return false;
+            }
+        }
+        var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true);
         btn.html('<i class="bi bi-hourglass-split"></i> Sending STK Push...');
-        
-        // Clear any previous alerts
-        $('.alert').alert('close');
-        
-        // Scroll to top to show any messages
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // Re-enable button after 5 seconds (in case of network issues)
         setTimeout(function() {
             if (btn.prop('disabled')) {
                 btn.prop('disabled', false);

@@ -143,77 +143,107 @@ class PaymentWebhookController extends Controller
                             ]
                         );
 
-                        // Create payment record
-                        $payment = \App\Models\Payment::create([
-                            'student_id' => $transaction->student_id,
-                            'invoice_id' => $transaction->invoice_id,
-                            'payment_link_id' => $transaction->payment_link_id,
-                            'payment_transaction_id' => $transaction->id,
-                            'family_id' => $transaction->student->family_id ?? null,
-                            'amount' => $transaction->amount,
-                            'payment_method_id' => $mpesaMethod->id,
-                            'payment_method' => 'mpesa', // Backward compatibility
-                            'payment_channel' => $paymentChannel,
-                            'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? null,
-                            'mpesa_phone_number' => $result['phone_number'] ?? $transaction->phone_number,
-                            'transaction_code' => $result['mpesa_receipt_number'] ?? $transaction->reference,
-                            'payer_name' => $transaction->student->getFullNameAttribute(),
-                            'payer_type' => 'parent',
-                            'narration' => 'M-PESA Payment - ' . ($result['mpesa_receipt_number'] ?? $transaction->reference),
-                            'payment_date' => now(),
-                            'receipt_date' => now(),
-                            'status' => 'approved',
-                            'created_by' => $transaction->initiated_by,
-                        ]);
+                        $allocationService = app(\App\Services\PaymentAllocationService::class);
+                        $receiptService = app(\App\Services\ReceiptService::class);
+                        $txnCode = $result['mpesa_receipt_number'] ?? $transaction->reference;
 
-                        // Update transaction with payment_id
-                        $transaction->update([
-                            'payment_id' => $payment->id,
-                        ]);
-
-                        // Auto-allocate payment using PaymentAllocationService
-                        try {
-                            $allocationService = app(\App\Services\PaymentAllocationService::class);
-                            
-                            if ($transaction->invoice_id) {
-                                // Allocate to specific invoice
-                                $invoice = $transaction->invoice;
-                                $allocationService->allocateToInvoice($payment, $invoice);
-                            } else {
-                                // Auto-allocate to unpaid invoices
-                                $allocationService->autoAllocate($payment, $transaction->student_id);
+                        // Shared payment: create one payment per sibling allocation, allocate, receipt, notify each
+                        if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
+                            $firstPaymentId = null;
+                            foreach ($transaction->shared_allocations as $alloc) {
+                                $sid = (int) ($alloc['student_id'] ?? 0);
+                                $amt = (float) ($alloc['amount'] ?? 0);
+                                if ($sid <= 0 || $amt <= 0) {
+                                    continue;
+                                }
+                                $stu = \App\Models\Student::find($sid);
+                                if (!$stu) {
+                                    continue;
+                                }
+                                $payment = \App\Models\Payment::create([
+                                    'student_id' => $sid,
+                                    'invoice_id' => null,
+                                    'payment_link_id' => $transaction->payment_link_id,
+                                    'payment_transaction_id' => $transaction->id,
+                                    'family_id' => $stu->family_id,
+                                    'amount' => $amt,
+                                    'payment_method_id' => $mpesaMethod->id,
+                                    'payment_method' => 'mpesa',
+                                    'payment_channel' => $paymentChannel,
+                                    'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? null,
+                                    'mpesa_phone_number' => $result['phone_number'] ?? $transaction->phone_number,
+                                    'transaction_code' => $txnCode,
+                                    'payer_name' => $stu->full_name ?? trim($stu->first_name . ' ' . $stu->last_name),
+                                    'payer_type' => 'parent',
+                                    'narration' => 'M-PESA Payment (shared) - ' . $txnCode,
+                                    'payment_date' => now(),
+                                    'receipt_date' => now(),
+                                    'status' => 'approved',
+                                    'created_by' => $transaction->initiated_by,
+                                ]);
+                                if ($firstPaymentId === null) {
+                                    $firstPaymentId = $payment->id;
+                                }
+                                try {
+                                    $allocationService->autoAllocate($payment, $sid);
+                                } catch (\Exception $e) {
+                                    Log::error('Payment allocation failed (shared)', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                                }
+                                try {
+                                    $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
+                                    $this->sendPaymentConfirmation($payment, $pdfPath ?? null);
+                                } catch (\Exception $e) {
+                                    Log::error('Receipt/notify failed (shared)', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                                }
                             }
-                        } catch (\Exception $e) {
-                            Log::error('Payment allocation failed', [
-                                'payment_id' => $payment->id,
-                                'error' => $e->getMessage(),
+                            $transaction->update(['payment_id' => $firstPaymentId]);
+                            if ($transaction->payment_link_id) {
+                                $transaction->paymentLink?->update(['payment_id' => $firstPaymentId]);
+                            }
+                        } else {
+                            // Single payment
+                            $payment = \App\Models\Payment::create([
+                                'student_id' => $transaction->student_id,
+                                'invoice_id' => $transaction->invoice_id,
+                                'payment_link_id' => $transaction->payment_link_id,
+                                'payment_transaction_id' => $transaction->id,
+                                'family_id' => $transaction->student->family_id ?? null,
+                                'amount' => $transaction->amount,
+                                'payment_method_id' => $mpesaMethod->id,
+                                'payment_method' => 'mpesa',
+                                'payment_channel' => $paymentChannel,
+                                'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? null,
+                                'mpesa_phone_number' => $result['phone_number'] ?? $transaction->phone_number,
+                                'transaction_code' => $txnCode,
+                                'payer_name' => $transaction->student->getFullNameAttribute(),
+                                'payer_type' => 'parent',
+                                'narration' => 'M-PESA Payment - ' . $txnCode,
+                                'payment_date' => now(),
+                                'receipt_date' => now(),
+                                'status' => 'approved',
+                                'created_by' => $transaction->initiated_by,
                             ]);
+                            $transaction->update(['payment_id' => $payment->id]);
+                            try {
+                                if ($transaction->invoice_id) {
+                                    $allocationService->allocateToInvoice($payment, $transaction->invoice);
+                                } else {
+                                    $allocationService->autoAllocate($payment, $transaction->student_id);
+                                }
+                            } catch (\Exception $e) {
+                                Log::error('Payment allocation failed', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                            }
+                            if ($transaction->payment_link_id) {
+                                $transaction->paymentLink?->update(['payment_id' => $payment->id]);
+                            }
+                            $pdfPath = null;
+                            try {
+                                $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
+                            } catch (\Exception $e) {
+                                Log::error('Failed to generate receipt for M-PESA payment', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                            }
+                            $this->sendPaymentConfirmation($payment, $pdfPath ?? null);
                         }
-
-                        // Mark payment link as used if exists
-                        if ($transaction->payment_link_id) {
-                            $paymentLink = $transaction->paymentLink;
-                            $paymentLink->payment_id = $payment->id;
-                            $paymentLink->save();
-                        }
-
-                        // Generate receipt PDF
-                        try {
-                            $receiptService = app(\App\Services\ReceiptService::class);
-                            $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
-                            Log::info('Receipt generated for M-PESA payment', [
-                                'payment_id' => $payment->id,
-                                'pdf_path' => $pdfPath,
-                            ]);
-                        } catch (\Exception $e) {
-                            Log::error('Failed to generate receipt for M-PESA payment', [
-                                'payment_id' => $payment->id,
-                                'error' => $e->getMessage(),
-                            ]);
-                        }
-
-                        // Send payment confirmation to parent (with receipt PDF)
-                        $this->sendPaymentConfirmation($payment, $pdfPath ?? null);
 
                         // Handle POS order payment if exists
                         $posOrder = \App\Models\Pos\Order::where('payment_transaction_id', $transaction->id)->first();

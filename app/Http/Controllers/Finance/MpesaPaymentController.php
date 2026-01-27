@@ -144,8 +144,10 @@ class MpesaPaymentController extends Controller
             'amount' => 'required|numeric|min:1',
             'invoice_id' => 'nullable|exists:invoices,id',
             'notes' => 'nullable|string|max:500',
-            'send_channels' => 'nullable|array',
-            'send_channels.*' => 'in:sms,email,whatsapp',
+            'share_with_siblings' => 'nullable|boolean',
+            'sibling_allocations' => 'nullable|array',
+            'sibling_allocations.*.student_id' => 'required_with:sibling_allocations|exists:students,id',
+            'sibling_allocations.*.amount' => 'required_with:sibling_allocations|numeric|min:0',
         ]);
 
         // Clean and validate phone number
@@ -161,29 +163,58 @@ class MpesaPaymentController extends Controller
                 ->withInput();
         }
 
+        $isShared = $request->boolean('share_with_siblings') && $request->filled('sibling_allocations');
+        $sharedAllocations = null;
+        $amount = (float) $request->amount;
+        $invoiceId = $request->invoice_id;
+
+        if ($isShared && is_array($request->sibling_allocations)) {
+            $sharedAllocations = [];
+            foreach ($request->sibling_allocations as $a) {
+                $am = (float) ($a['amount'] ?? 0);
+                if ($am > 0 && isset($a['student_id'])) {
+                    $sharedAllocations[] = ['student_id' => (int) $a['student_id'], 'amount' => $am];
+                }
+            }
+            if (empty($sharedAllocations)) {
+                return redirect()
+                    ->route('finance.mpesa.prompt-payment.form', ['student_id' => $request->student_id])
+                    ->with('error', 'When sharing with siblings, at least one sibling must have an amount greater than 0.')
+                    ->withInput();
+            }
+            $amount = array_sum(array_column($sharedAllocations, 'amount'));
+            $invoiceId = null;
+        } else {
+            // When no invoice is selected for school fees, use the first outstanding invoice (pay first one first)
+            if (!$request->boolean('is_swimming', false) && empty($invoiceId)) {
+                $firstOutstanding = Invoice::where('student_id', $request->student_id)
+                    ->where(function ($q) {
+                        $q->where('balance', '>', 0)
+                            ->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
+                    })
+                    ->orderBy('due_date')
+                    ->orderBy('issued_date')
+                    ->first();
+                if ($firstOutstanding) {
+                    $invoiceId = $firstOutstanding->id;
+                }
+            }
+        }
+
         try {
             $result = $this->mpesaGateway->initiateAdminPromptedPayment(
                 studentId: $request->student_id,
                 phoneNumber: $phoneNumber,
-                amount: $request->amount,
-                invoiceId: $request->invoice_id,
+                amount: $amount,
+                invoiceId: $invoiceId,
                 adminId: Auth::id(),
                 notes: $request->notes,
-                isSwimming: $request->boolean('is_swimming', false)
+                isSwimming: $request->boolean('is_swimming', false),
+                sharedAllocations: $sharedAllocations
             );
 
             if ($result['success']) {
-                // Send notifications if channels are selected
-                if ($request->filled('send_channels')) {
-                    $this->sendPaymentNotifications(
-                        $result['student'],
-                        $request->amount,
-                        $request->send_channels,
-                        'STK Push payment request sent'
-                    );
-                }
-
-                // Automatically redirect to waiting screen
+                // STK prompt pops up on parent's phone; receipt and communication are sent automatically after successful payment (webhook)
                 return redirect()
                     ->route('finance.mpesa.waiting', $result['transaction_id'])
                     ->with('success', 'STK Push sent successfully! Please check your phone for the M-PESA prompt.');
@@ -258,63 +289,67 @@ class MpesaPaymentController extends Controller
 
             // Parse selected invoices
             $invoiceIds = $request->filled('selected_invoices') 
-                ? explode(',', $request->selected_invoices) 
+                ? array_filter(explode(',', $request->selected_invoices)) 
                 : [];
 
-            // Get first invoice for the invoice_id field (backward compatibility)
-            $primaryInvoiceId = !empty($invoiceIds) ? $invoiceIds[0] : null;
+            $primaryInvoiceId = !empty($invoiceIds) ? (int) $invoiceIds[0] : null;
 
             $expiresAt = null;
-            if ($request->filled('expires_in_days')) {
+            if (!$request->boolean('never_expire') && $request->filled('expires_in_days') && (int) $request->expires_in_days > 0) {
                 $expiresAt = now()->addDays((int) $request->expires_in_days);
             }
 
-            // Determine if this is a swimming payment
             $isSwimming = $request->boolean('is_swimming', false);
-            
-            // Create description from invoices or swimming
             $description = $isSwimming ? 'Swimming Fee Payment' : 'School Fee Payment';
             if (!empty($invoiceIds) && !$isSwimming) {
                 $invoices = Invoice::whereIn('id', $invoiceIds)->get();
-                $invoiceNumbers = $invoices->pluck('invoice_number')->toArray();
-                $description = 'Payment for ' . implode(', ', $invoiceNumbers);
+                $description = 'Payment for ' . implode(', ', $invoices->pluck('invoice_number')->toArray());
             }
 
-            // Set account reference
-            $accountReference = $isSwimming 
-                ? 'SWIM-' . $student->admission_number 
-                : $student->admission_number;
+            $amount = (float) $request->amount;
+            $familyId = $student->family_id;
 
-            $paymentLink = PaymentLink::create([
-                'student_id' => $request->student_id,
-                'invoice_id' => $isSwimming ? null : $primaryInvoiceId, // No invoice for swimming
-                'family_id' => $student->family_id,
-                'amount' => $request->amount,
-                'currency' => 'KES',
-                'description' => $description,
-                'account_reference' => $accountReference,
-                'expires_at' => $expiresAt,
-                'max_uses' => $request->max_uses ?? 1,
-                'created_by' => Auth::id(),
-                'status' => 'active',
-                'metadata' => [
-                    'invoice_ids' => $isSwimming ? [] : $invoiceIds,
-                    'selected_parents' => $request->parents,
-                    'is_swimming' => $isSwimming,
-                ],
-            ]);
+            // One link per family (like profile-update): reuse same URL for all parents
+            $paymentLink = null;
+            if ($familyId) {
+                $paymentLink = PaymentLink::where('family_id', $familyId)
+                    ->whereNull('student_id')
+                    ->where('status', 'active')
+                    ->first();
+            }
 
-            // Send payment link via selected channels to selected parents
+            if (!$paymentLink) {
+                $accountReference = $familyId ? ('FAM-' . $familyId) : ($isSwimming ? 'SWIM-' . $student->admission_number : $student->admission_number);
+                $paymentLink = PaymentLink::create([
+                    'student_id' => $familyId ? null : $request->student_id,
+                    'invoice_id' => $isSwimming ? null : $primaryInvoiceId,
+                    'family_id' => $familyId,
+                    'amount' => $amount > 0 ? $amount : 0,
+                    'currency' => 'KES',
+                    'description' => $description,
+                    'account_reference' => $accountReference,
+                    'expires_at' => $expiresAt,
+                    'max_uses' => (int) ($request->max_uses ?? 99),
+                    'created_by' => Auth::id(),
+                    'status' => 'active',
+                    'metadata' => [
+                        'invoice_ids' => $isSwimming ? [] : $invoiceIds,
+                        'selected_parents' => $request->parents,
+                        'is_swimming' => $isSwimming,
+                    ],
+                ]);
+            }
+
             $this->sendPaymentLinkToParents(
-                $student, 
-                $paymentLink, 
+                $student,
+                $paymentLink,
                 $request->send_channels,
                 $request->parents
             );
 
             return redirect()
                 ->route('finance.mpesa.link.show', $paymentLink->id)
-                ->with('success', 'Payment link created and sent successfully!');
+                ->with('success', 'Payment link sent. The same family link was sent to all selected parents.');
         } catch (\Exception $e) {
             Log::error('Payment link creation failed', [
                 'student_id' => $request->student_id,
@@ -374,11 +409,11 @@ class MpesaPaymentController extends Controller
     }
 
     /**
-     * Show public payment page (for payment links)
+     * Show public payment page (for payment links).
+     * Family link (student_id null): load all students in family with fee balances for share/full/partial UI.
      */
     public function showPaymentPage($identifier)
     {
-        // Try to find by hashed_id or token
         $paymentLink = PaymentLink::where('hashed_id', $identifier)
             ->orWhere('token', $identifier)
             ->with(['student', 'invoice'])
@@ -388,18 +423,51 @@ class MpesaPaymentController extends Controller
             return view('finance.mpesa.link-expired', compact('paymentLink'));
         }
 
-        return view('finance.mpesa.payment-page', compact('paymentLink'));
+        $familyStudents = [];
+        $isFamilyLink = $paymentLink->student_id === null && $paymentLink->family_id;
+        if ($isFamilyLink) {
+            $familyStudents = Student::where('family_id', $paymentLink->family_id)
+                ->whereNotNull('family_id')
+                ->with('classroom')
+                ->get()
+                ->map(function ($s) {
+                    $bal = (float) Invoice::where('student_id', $s->id)
+                        ->where(function ($q) {
+                            $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
+                        })
+                        ->get()
+                        ->sum(fn ($inv) => (float) ($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+                    return [
+                        'id' => $s->id,
+                        'full_name' => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name),
+                        'admission_number' => $s->admission_number,
+                        'classroom_name' => $s->classroom?->name,
+                        'fee_balance' => round($bal, 2),
+                    ];
+                })
+                ->values()
+                ->toArray();
+        }
+
+        return view('finance.mpesa.payment-page', compact('paymentLink', 'familyStudents', 'isFamilyLink'));
     }
 
     /**
-     * Process payment from link
+     * Process payment from link.
+     * Supports family link: share_with_siblings + sibling_allocations, or student_id + amount for single child.
      */
     public function processLinkPayment(Request $request, $identifier)
     {
-        $request->validate([
+        $rules = [
             'phone_number' => 'required|string',
-            'amount' => 'nullable|numeric|min:1',
-        ]);
+            'amount' => 'nullable|numeric|min:0',
+            'share_with_siblings' => 'nullable|boolean',
+            'sibling_allocations' => 'nullable|array',
+            'sibling_allocations.*.student_id' => 'required_with:sibling_allocations|exists:students,id',
+            'sibling_allocations.*.amount' => 'required_with:sibling_allocations|numeric|min:0',
+            'student_id' => 'nullable|exists:students,id',
+        ];
+        $request->validate($rules);
 
         $paymentLink = PaymentLink::where('hashed_id', $identifier)
             ->orWhere('token', $identifier)
@@ -412,22 +480,105 @@ class MpesaPaymentController extends Controller
             ], 400);
         }
 
-        // Get payment amount (allow partial payments)
-        $amount = $request->amount ?? $paymentLink->amount;
-        
-        // Validate amount doesn't exceed link amount
-        if ($amount > $paymentLink->amount) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment amount cannot exceed KES ' . number_format($paymentLink->amount, 2),
-            ], 400);
-        }
-
-        // Validate phone number
         if (!MpesaGateway::isValidKenyanPhone($request->phone_number)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid phone number. Please use a valid Kenyan mobile number.',
+            ], 400);
+        }
+
+        $isFamilyLink = $paymentLink->student_id === null && $paymentLink->family_id;
+        $isShared = $request->boolean('share_with_siblings') && $request->filled('sibling_allocations');
+
+        if ($isFamilyLink && $isShared) {
+            $sharedAllocations = [];
+            foreach ($request->sibling_allocations ?? [] as $a) {
+                $am = (float) ($a['amount'] ?? 0);
+                if ($am > 0 && !empty($a['student_id'])) {
+                    $sharedAllocations[] = ['student_id' => (int) $a['student_id'], 'amount' => $am];
+                }
+            }
+            if (empty($sharedAllocations)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'When sharing among children, enter at least one amount greater than 0.',
+                ], 400);
+            }
+            $amount = array_sum(array_column($sharedAllocations, 'amount'));
+            $firstStudent = Student::find($sharedAllocations[0]['student_id']);
+            $accountRef = $firstStudent ? $firstStudent->admission_number : ('FAM-' . $paymentLink->family_id);
+            $transaction = PaymentTransaction::create([
+                'student_id' => $firstStudent->id,
+                'invoice_id' => null,
+                'payment_link_id' => $paymentLink->id,
+                'gateway' => 'mpesa',
+                'reference' => $paymentLink->payment_reference ?? ('LINK-' . strtoupper(Str::random(10))),
+                'amount' => $amount,
+                'currency' => $paymentLink->currency ?? 'KES',
+                'status' => 'pending',
+                'phone_number' => $request->phone_number,
+                'account_reference' => $accountRef,
+                'is_shared' => true,
+                'shared_allocations' => $sharedAllocations,
+            ]);
+            try {
+                $result = $this->mpesaGateway->initiatePayment($transaction, ['phone_number' => $request->phone_number]);
+                if ($result['success']) {
+                    $paymentLink->incrementUseCount();
+                }
+                return response()->json(array_merge($result, ['transaction_id' => $transaction->id, 'payment_link_id' => $paymentLink->id]));
+            } catch (\Exception $e) {
+                $transaction->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+        }
+
+        if ($isFamilyLink && !$isShared) {
+            $studentId = $request->student_id;
+            $amount = (float) ($request->amount ?? 0);
+            if (!$studentId || $amount < 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Select a child and enter an amount to pay.',
+                ], 400);
+            }
+            $student = Student::findOrFail($studentId);
+            $transaction = PaymentTransaction::create([
+                'student_id' => $studentId,
+                'invoice_id' => null,
+                'payment_link_id' => $paymentLink->id,
+                'gateway' => 'mpesa',
+                'reference' => $paymentLink->payment_reference ?? ('LINK-' . strtoupper(Str::random(10))),
+                'amount' => $amount,
+                'currency' => $paymentLink->currency ?? 'KES',
+                'status' => 'pending',
+                'phone_number' => $request->phone_number,
+                'account_reference' => $student->admission_number,
+            ]);
+            try {
+                $result = $this->mpesaGateway->initiatePayment($transaction, ['phone_number' => $request->phone_number]);
+                if ($result['success']) {
+                    $paymentLink->incrementUseCount();
+                }
+                return response()->json(array_merge($result, ['transaction_id' => $transaction->id, 'payment_link_id' => $paymentLink->id]));
+            } catch (\Exception $e) {
+                $transaction->update(['status' => 'failed', 'failure_reason' => $e->getMessage()]);
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            }
+        }
+
+        // Single-student link
+        $amount = (float) ($request->amount ?? $paymentLink->amount);
+        if ($amount < 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please enter a valid payment amount.',
+            ], 400);
+        }
+        if ($paymentLink->amount > 0 && $amount > $paymentLink->amount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment amount cannot exceed KES ' . number_format($paymentLink->amount, 2),
             ], 400);
         }
 
@@ -437,14 +588,12 @@ class MpesaPaymentController extends Controller
                 $request->phone_number,
                 $amount
             );
-
             return response()->json($result);
         } catch (\Exception $e) {
             Log::error('Payment link processing failed', [
                 'payment_link_id' => $paymentLink->id,
                 'error' => $e->getMessage(),
             ]);
-
             return response()->json([
                 'success' => false,
                 'message' => 'An error occurred while processing your payment.',
@@ -1199,7 +1348,7 @@ class MpesaPaymentController extends Controller
         $family = $student->family;
         $studentName = $student->first_name . ' ' . $student->last_name;
         $amountFormatted = number_format($paymentLink->amount, 2);
-        $linkUrl = route('payment-link.show', $paymentLink->hashed_id);
+        $linkUrl = $paymentLink->getPaymentUrl();
 
         // Prepare parent contacts
         $contacts = [];
@@ -1351,11 +1500,46 @@ class MpesaPaymentController extends Controller
             }
         }
         
+        // Fee balance (total outstanding from invoices)
+        $feeBalance = (float) Invoice::where('student_id', $student->id)
+            ->where(function ($q) {
+                $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
+            })
+            ->get()
+            ->sum(fn ($inv) => (float) ($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+
+        // Siblings (same family, exclude self) with fee balance each
+        $siblings = [];
+        if ($student->family_id) {
+            $siblings = Student::where('family_id', $student->family_id)
+                ->where('id', '!=', $student->id)
+                ->whereNotNull('family_id')
+                ->with('classroom')
+                ->get()
+                ->map(function ($s) {
+                    $bal = (float) Invoice::where('student_id', $s->id)
+                        ->where(function ($q) {
+                            $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
+                        })
+                        ->get()
+                        ->sum(fn ($inv) => (float) ($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+                    return [
+                        'id' => $s->id,
+                        'full_name' => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name),
+                        'admission_number' => $s->admission_number,
+                        'classroom_name' => $s->classroom?->name,
+                        'fee_balance' => round($bal, 2),
+                    ];
+                })
+                ->values()
+                ->toArray();
+        }
+
         return response()->json([
             'id' => $student->id,
             'first_name' => $student->first_name,
             'last_name' => $student->last_name,
-            'full_name' => $student->full_name, // Add full_name for compatibility
+            'full_name' => $student->full_name,
             'admission_number' => $student->admission_number,
             'classroom_id' => $student->classroom_id,
             'classroom_name' => $student->classroom ? $student->classroom->name : null,
@@ -1365,6 +1549,8 @@ class MpesaPaymentController extends Controller
                 'name' => $student->classroom->name,
             ] : null,
             'family' => $familyData,
+            'fee_balance' => round($feeBalance, 2),
+            'siblings' => $siblings,
         ]);
     }
 
