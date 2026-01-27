@@ -24,7 +24,7 @@
                         <div class="d-flex align-items-start">
                             <i class="bi bi-info-circle fs-4 me-3"></i>
                             <div>
-                                <strong>Payment links</strong> — Search student, select parent(s), choose channel(s) (SMS/Email/WhatsApp). The "Generate & Send" button is enabled only when student, at least one parent, and at least one channel are selected. You can set link expiry (e.g. 7 days) or check "Never expire".
+                                <strong>Payment links</strong> — Select student, parent(s), and channel(s) (SMS/Email/WhatsApp). All fields are shown at once. The form is sent only when student, at least one parent, and at least one channel are filled. You can set link expiry or "Never expire".
                             </div>
                         </div>
                     </div>
@@ -50,15 +50,15 @@
                             @enderror
                         </div>
 
-                        <!-- Step 2: Select Parent(s) -->
-                        <div class="mb-4" id="parentSelectionSection" style="display: none;">
+                        <!-- Step 2: Select Parent(s) – always visible -->
+                        <div class="mb-4" id="parentSelectionSection">
                             <label class="finance-form-label">
                                 <span class="badge bg-primary me-2">2</span>
                                 Select Parent(s) to Send Link To <span class="text-danger">*</span>
                             </label>
                             <div id="parentsList" class="border rounded p-3">
                                 <div class="text-center text-muted py-2">
-                                    Select a student first
+                                    Select a student above to load parent contacts
                                 </div>
                             </div>
                             @error('parents')
@@ -66,8 +66,8 @@
                             @enderror
                         </div>
 
-                        <!-- Step 3: Select Channel(s) -->
-                        <div class="mb-4" id="channelSelectionSection" style="display: none;">
+                        <!-- Step 3: Select Channel(s) – always visible -->
+                        <div class="mb-4" id="channelSelectionSection">
                             <label class="finance-form-label">
                                 <span class="badge bg-primary me-2">3</span>
                                 Send Link Via <span class="text-danger">*</span>
@@ -118,15 +118,15 @@
                             <small class="text-muted">Account reference: <span id="linkAccountReferencePreview">-</span></small>
                         </div>
 
-                        <!-- Step 5: Select Invoices (for school fees) -->
-                        <div class="mb-4" id="invoiceSelectionSection" style="display: none;">
+                        <!-- Step 5: Select Invoices (for school fees) – always visible -->
+                        <div class="mb-4" id="invoiceSelectionSection">
                             <label class="finance-form-label">
                                 <span class="badge bg-primary me-2">5</span>
                                 Select Invoices to Pay
                             </label>
                             <div id="invoicesList" class="border rounded p-3 bg-light">
                                 <div class="text-center text-muted py-3">
-                                    <i class="bi bi-hourglass-split"></i> Loading invoices...
+                                    Select a student to load invoices
                                 </div>
                             </div>
                             <div class="mt-2">
@@ -140,8 +140,8 @@
                             @enderror
                         </div>
 
-                        <!-- Additional Options -->
-                        <div class="mb-4" id="optionsSection" style="display: none;">
+                        <!-- Additional Options – always visible -->
+                        <div class="mb-4" id="optionsSection">
                             <label class="finance-form-label">Additional Options</label>
                             <div class="row g-3">
                                 <div class="col-md-6">
@@ -164,9 +164,9 @@
                             </div>
                         </div>
 
-                        <!-- Form Actions -->
+                        <!-- Form Actions: button always active; submit runs only when student + parent + channel are filled -->
                         <div class="finance-card-footer mt-4">
-                            <button type="submit" class="btn btn-finance btn-finance-primary btn-lg" id="submitBtn" disabled>
+                            <button type="submit" class="btn btn-finance btn-finance-primary btn-lg" id="submitBtn">
                                 <i class="bi bi-link-45deg"></i> Generate & Send Payment Link
                             </button>
                             <a href="{{ route('finance.mpesa.dashboard') }}" class="btn btn-finance btn-finance-outline">
@@ -194,7 +194,7 @@
                         <li class="mb-2">Select which parent(s) to send the link to</li>
                         <li class="mb-2">Select channel(s) — SMS, Email, and/or WhatsApp</li>
                         <li class="mb-2">Choose payment type and invoices (for school fees)</li>
-                        <li class="mb-2">Click "Generate & Send Payment Link" (enabled when student, parent, and channel are selected)</li>
+                        <li class="mb-2">Click "Generate & Send Payment Link" (runs only when student, parent, and channel are filled)</li>
                     </ol>
                 </div>
             </div>
@@ -242,14 +242,8 @@ $(document).ready(function() {
         loadStudentData({{ $student->id }});
     @endif
 
-    // Load student data function
+    // Load student data (sections 2–5 are always visible; we just populate them)
     function loadStudentData(studentId) {
-        console.log('Loading student data for ID:', studentId);
-        $('#paymentTypeSection').hide();
-        $('#invoiceSelectionSection').hide();
-        $('#parentSelectionSection').hide();
-        $('#channelSelectionSection').hide();
-        $('#optionsSection').hide();
         $('#studentInfoCard').show();
         $('#invoicesList').html('<div class="text-center text-muted py-3"><i class="bi bi-hourglass-split"></i> Loading invoices...</div>');
         $('#parentsList').html('<div class="text-center text-muted py-2">Loading parent information...</div>');
@@ -275,15 +269,7 @@ $(document).ready(function() {
                 }
                 $('#studentInfoBody').html(infoHtml);
 
-                // Step 2 & 3: Show parent and channel sections (student → parent → channel)
                 loadParents(student);
-                $('#parentSelectionSection').show();
-                $('#channelSelectionSection').show();
-                $('#optionsSection').show();
-                updateSubmitButton();
-
-                // Step 4 & 5: Show payment type and load invoices
-                $('#paymentTypeSection').show();
                 updateAccountReference(student);
                 loadInvoices(studentId).then(function() {
                     updateSubmitButton();
@@ -533,25 +519,9 @@ $(document).ready(function() {
         $('#selected_invoices').val(selectedInvoices.join(','));
     }
 
-    // Update submit button state
+    // Update submit button state (button stays active; validation happens on submit)
     function updateSubmitButton() {
-        const isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
-        let hasInvoices = $('.invoice-checkbox:checked').length > 0;
-        let hasParents = $('.parent-checkbox:checked').length > 0;
-        let hasChannels = $('input[name="send_channels[]"]:checked').length > 0;
-        
-        // For swimming, invoices are not required
-        // For school fees, invoices are required
-        const shouldEnable = hasParents && hasChannels && (isSwimming || hasInvoices);
-        $('#submitBtn').prop('disabled', !shouldEnable);
-        
-        console.log('Submit button state updated', {
-            isSwimming,
-            hasInvoices,
-            hasParents,
-            hasChannels,
-            shouldEnable
-        });
+        // Button is always enabled; no-op here unless you add visual hints later
     }
 
     // Listen to channel changes
@@ -572,31 +542,36 @@ $(document).ready(function() {
         updateSubmitButton();
     }, 1000);
 
-    // Form submission
+    // Form submission: button always active; execute only when student + parent + channel are filled
     $('#createLinkForm').on('submit', function(e) {
-        // Validate
-        let isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
-        
-        // Only require invoices for school fees, not swimming
+        var studentId = $('#student_id').val();
+        var hasParents = $('.parent-checkbox:checked').length > 0;
+        var hasChannels = $('input[name="send_channels[]"]:checked').length > 0;
+
+        if (!studentId) {
+            e.preventDefault();
+            alert('Please select a student.');
+            return false;
+        }
+        if (!hasParents) {
+            e.preventDefault();
+            alert('Please select at least one parent to send the link to.');
+            return false;
+        }
+        if (!hasChannels) {
+            e.preventDefault();
+            alert('Please select at least one channel (SMS, Email, or WhatsApp).');
+            return false;
+        }
+
+        var isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
         if (!isSwimming && $('.invoice-checkbox:checked').length === 0) {
             e.preventDefault();
             alert('Please select at least one invoice for school fees payment.');
             return false;
         }
-        
-        if ($('.parent-checkbox:checked').length === 0) {
-            e.preventDefault();
-            alert('Please select at least one parent to notify.');
-            return false;
-        }
-        
-        if ($('input[name="send_channels[]"]:checked').length === 0) {
-            e.preventDefault();
-            alert('Please select at least one channel to send the payment link.');
-            return false;
-        }
 
-        let btn = $(this).find('button[type="submit"]');
+        var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true);
         btn.html('<i class="bi bi-hourglass-split"></i> Creating & Sending...');
     });

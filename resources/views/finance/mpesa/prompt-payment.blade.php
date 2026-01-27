@@ -180,17 +180,17 @@
                             @enderror
                         </div>
 
-                        <!-- Phone Number Selection -->
-                        <div class="mb-4" id="phoneSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
+                        <!-- Parent contact: always visible; choose Father/Mother/Primary or custom -->
+                        <div class="mb-4" id="phoneSelectionGroup">
                             <label for="phone_source" class="finance-form-label">
-                                Select Phone Number <span class="text-danger">*</span>
+                                Select parent contact (phone) <span class="text-danger">*</span>
                             </label>
                             <select name="phone_source" id="phone_source" class="finance-form-select">
-                                <option value="">-- Select Phone Number --</option>
+                                <option value="">-- Select a student first to load contacts --</option>
                                 @if($student && $student->family)
                                     @if($student->family->father_phone)
                                         <option value="father" data-phone="{{ $student->family->father_phone }}">
-                                            Father's Phone - {{ $student->family->father_phone }}
+                                            Father - {{ $student->family->father_phone }}
                                             @if($student->family->father_name)
                                                 ({{ $student->family->father_name }})
                                             @endif
@@ -198,24 +198,24 @@
                                     @endif
                                     @if($student->family->mother_phone)
                                         <option value="mother" data-phone="{{ $student->family->mother_phone }}">
-                                            Mother's Phone - {{ $student->family->mother_phone }}
+                                            Mother - {{ $student->family->mother_phone }}
                                             @if($student->family->mother_name)
                                                 ({{ $student->family->mother_name }})
                                             @endif
                                         </option>
                                     @endif
-                                    @if($student->family->phone && $student->family->phone != $student->family->father_phone && $student->family->phone != $student->family->mother_phone)
+                                    @if($student->family->phone && $student->family->phone != ($student->family->father_phone ?? '') && $student->family->phone != ($student->family->mother_phone ?? ''))
                                         <option value="primary" data-phone="{{ $student->family->phone }}">
-                                            Primary Phone - {{ $student->family->phone }}
+                                            Primary - {{ $student->family->phone }}
                                         </option>
                                     @endif
                                 @endif
-                                <option value="custom">Enter Different Number</option>
+                                <option value="custom">Enter different number</option>
                             </select>
-                            <small class="text-muted">Select whose phone number to send payment request to</small>
+                            <small class="text-muted">Choose father's or mother's phone, or enter a custom number below</small>
                         </div>
 
-                        <!-- Phone Number Input -->
+                        <!-- Phone Number (filled from selection or typed when Custom) -->
                         <div class="mb-4" id="phone_number_group">
                             <label for="phone_number" class="finance-form-label">
                                 Phone Number <span class="text-danger">*</span>
@@ -233,8 +233,8 @@
                             @enderror
                         </div>
 
-                        <!-- Payment Type -->
-                        <div class="mb-4" id="paymentTypeGroup" style="display: {{ $student ? 'block' : 'none' }};">
+                        <!-- Payment Type (always visible) -->
+                        <div class="mb-4" id="paymentTypeGroup">
                             <label class="finance-form-label">Payment Type</label>
                             <div class="d-flex gap-3">
                                 <div class="form-check">
@@ -253,14 +253,14 @@
                             <small class="text-muted">Account reference will be: <span id="accountReferencePreview">{{ $student ? $student->admission_number : 'N/A' }}</span></small>
                         </div>
 
-                        <!-- Current fee balance (school fees only) -->
-                        <div class="mb-4" id="feeBalanceGroup" style="display: {{ $student ? 'block' : 'none' }};">
+                        <!-- Current fee balance (school fees only) – always visible -->
+                        <div class="mb-4" id="feeBalanceGroup">
                             <div class="alert alert-light border mb-0 py-3">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                                     <span class="fw-semibold"><i class="bi bi-wallet2 me-2"></i>Current fee balance</span>
-                                    <span id="feeBalanceAmount" class="text-primary fs-5">KES 0.00</span>
+                                    <span id="feeBalanceAmount" class="text-primary fs-5">—</span>
                                 </div>
-                                <small class="text-muted d-block mt-1">You can collect full balance or a partial amount.</small>
+                                <small class="text-muted d-block mt-1">Select a student to see balance; you can collect full or partial.</small>
                             </div>
                         </div>
 
@@ -283,18 +283,18 @@
                             </div>
                         </div>
 
-                        <!-- Invoice Selection (Optional) -->
-                        <div class="mb-4" id="invoiceSelectionGroup" style="display: {{ $student ? 'block' : 'none' }};">
-                            <label for="invoice_id" class="finance-form-label">Invoice (Optional)</label>
+                        <!-- Invoice (Optional) – always visible -->
+                        <div class="mb-4" id="invoiceSelectionGroup">
+                            <label for="invoice_id" class="finance-form-label">Invoice (optional)</label>
                             <select name="invoice_id" id="invoice_id" class="finance-form-select">
-                                <option value="">-- Select Invoice (or leave blank) --</option>
+                                <option value="">-- Select a student first, or leave blank --</option>
                                 @if($invoice)
                                     <option value="{{ $invoice->id }}" selected>
                                         {{ $invoice->invoice_number }} - Balance: KES {{ number_format($invoice->balance, 2) }}
                                     </option>
                                 @endif
                             </select>
-                            <small class="text-muted">If selected, payment will be allocated to this invoice (only for school fees)</small>
+                            <small class="text-muted">If none chosen, payment goes to the first outstanding invoice</small>
                         </div>
 
                         <!-- Amount -->
@@ -496,10 +496,10 @@ $(document).ready(function() {
 
     // Load student data (getStudentData returns fee_balance + siblings)
     function loadStudentData(studentId) {
-        $('#phoneSelectionGroup').show();
-        $('#invoiceSelectionGroup').show();
         $('#studentInfoCard').show();
         $('#feeBalanceGroup').show();
+        $('#invoiceSelectionGroup').show();
+        $('#phoneSelectionGroup').show();
 
         $.get('/api/students/' + studentId, function(student) {
             currentStudentData = student;
@@ -664,8 +664,26 @@ $(document).ready(function() {
         }
     });
 
-    // Form submission
+    // Form submission: validate required fields, then submit
     $('#promptPaymentForm').on('submit', function(e) {
+        var studentId = $('#student_id').val();
+        var phone = $('#phone_number').val().trim();
+        var amount = parseFloat($('#amount').val()) || 0;
+        if (!studentId) {
+            e.preventDefault();
+            alert('Please select a student.');
+            return false;
+        }
+        if (!phone) {
+            e.preventDefault();
+            alert('Please select a parent contact or enter a phone number.');
+            return false;
+        }
+        if (amount <= 0) {
+            e.preventDefault();
+            alert('Please enter an amount greater than 0.');
+            return false;
+        }
         if ($('#share_with_siblings').is(':checked')) {
             var total = 0;
             $('.sibling-amount').each(function() { total += parseFloat($(this).val()) || 0; });
