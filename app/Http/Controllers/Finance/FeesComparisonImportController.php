@@ -10,10 +10,10 @@ use App\Models\PaymentAllocation;
 use App\Models\Term;
 use App\Models\FeesComparisonPreview;
 use App\Models\SwimmingWallet;
-use App\Models\Votehead;
 use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -387,11 +387,8 @@ class FeesComparisonImportController extends Controller
     private function buildSystemData(int $year, int $termNumber): array
     {
         $out = [];
-        // Exclude swimming voteheads from invoiced/paid totals (swimming is separate)
-        $swimmingVoteheadIds = Votehead::whereRaw('LOWER(name) LIKE ?', ['%swimming%'])
-            ->orWhereRaw('LOWER(code) LIKE ?', ['%swimming%'])
-            ->pluck('id')
-            ->toArray();
+        // Payment IDs that come from "payments marked as swimming" (excluded from fee totals)
+        $swimmingPaymentIds = $this->getSwimmingPaymentIds();
 
         // Exclude archived and alumni – they are not included in the import comparison
         $students = Student::where('archive', 0)
@@ -409,19 +406,24 @@ class FeesComparisonImportController extends Controller
             $totalInvoiced = 0;
             $totalPaid = 0;
             if ($invoice) {
+                // Include term swimming fees. Exclude only daily-attendance debits (source = swimming_attendance)
                 $itemsQuery = InvoiceItem::where('invoice_id', $invoice->id)->where('status', 'active');
-                if (!empty($swimmingVoteheadIds)) {
-                    $itemsQuery->whereNotIn('votehead_id', $swimmingVoteheadIds);
-                }
+                $itemsQuery->where(function ($q) {
+                    $q->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+                });
                 $totalInvoiced = (float) $itemsQuery->get()->sum(fn ($i) => (float) ($i->amount ?? 0) - (float) ($i->discount_amount ?? 0));
 
-                $allocationsQuery = PaymentAllocation::whereHas('invoiceItem', function ($q) use ($invoice, $swimmingVoteheadIds) {
+                // Allocations to those items, excluding allocations from payments marked as swimming
+                $allocationsQuery = PaymentAllocation::whereHas('invoiceItem', function ($q) use ($invoice) {
                     $q->where('invoice_id', $invoice->id);
-                    if (!empty($swimmingVoteheadIds)) {
-                        $q->whereNotIn('votehead_id', $swimmingVoteheadIds);
-                    }
-                })->whereHas('payment', function ($q) {
+                    $q->where(function ($q2) {
+                        $q2->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+                    });
+                })->whereHas('payment', function ($q) use ($swimmingPaymentIds) {
                     $q->where('reversed', false);
+                    if (!empty($swimmingPaymentIds)) {
+                        $q->whereNotIn('id', $swimmingPaymentIds);
+                    }
                 });
                 $totalPaid = (float) $allocationsQuery->sum('amount');
             }
@@ -449,6 +451,30 @@ class FeesComparisonImportController extends Controller
     {
         preg_match('/\d+/', $termName, $m);
         return isset($m[0]) ? (int) $m[0] : 1;
+    }
+
+    /**
+     * Payment IDs that originate from transactions marked as swimming (bank or M-PESA).
+     * These must be excluded from fee-statement / comparison totals.
+     */
+    private function getSwimmingPaymentIds(): array
+    {
+        $ids = collect();
+        if (Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
+            $ids = $ids->merge(
+                \App\Models\BankStatementTransaction::where('is_swimming_transaction', true)
+                    ->whereNotNull('payment_id')
+                    ->pluck('payment_id')
+            );
+        }
+        if (Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')) {
+            $ids = $ids->merge(
+                \App\Models\MpesaC2BTransaction::where('is_swimming_transaction', true)
+                    ->whereNotNull('payment_id')
+                    ->pluck('payment_id')
+            );
+        }
+        return $ids->unique()->filter()->values()->toArray();
     }
 
     /**

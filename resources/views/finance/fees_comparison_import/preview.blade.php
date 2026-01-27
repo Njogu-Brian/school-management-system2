@@ -23,20 +23,30 @@
             border: 1px solid var(--fin-border);
         }
         .comparison-table {
-            width: max-content;
-            min-width: 100%;
+            width: 100%;
             border-collapse: collapse;
             color: var(--fin-text);
-            table-layout: auto;
+            table-layout: fixed;
+            font-size: 0.8125rem;
         }
         .comparison-table thead th {
             background: color-mix(in srgb, var(--fin-primary) 8%, #fff 92%);
             border-bottom: 1px solid var(--fin-border);
             font-weight: 700;
-            padding: 12px 14px;
+            padding: 6px 8px;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .comparison-table td, .comparison-table th { padding: 10px 14px; border-bottom: 1px solid var(--fin-border); vertical-align: middle; }
+        .comparison-table td, .comparison-table th { padding: 6px 8px; border-bottom: 1px solid var(--fin-border); vertical-align: middle; }
+        .comparison-table .col-adm { width: 7%; }
+        .comparison-table .col-student { width: 14%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .comparison-table .col-class { width: 8%; }
+        .comparison-table .col-phone { width: 9%; }
+        .comparison-table .col-num { width: 8%; min-width: 4.5rem; }
+        .comparison-table .col-status { width: 10%; }
+        .comparison-table .col-note { width: 14%; max-width: 10rem; white-space: normal; word-break: break-word; }
+        .comparison-table .col-stmt { width: 6%; }
         .comparison-table tbody tr:hover { background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%); }
         .row-missing { background: rgba(220, 53, 69, 0.08) !important; }
         .row-family-mismatch { background: rgba(253, 126, 20, 0.08) !important; }
@@ -177,20 +187,19 @@
                         <table class="comparison-table align-middle">
                             <thead>
                                 <tr>
-                                    <th>Admission #</th>
-                                    <th>Student</th>
-                                    <th>Class</th>
-                                    <th>Phone</th>
-                                    <th class="text-end">Invoice bal.</th>
-                                    <th class="text-end">Swimming bal.</th>
-                                    <th class="text-end">System invoiced (incl. BBF)</th>
-                                    <th class="text-end">System paid</th>
-                                    <th class="text-end">Import paid</th>
-                                    <th class="text-end">Difference</th>
-                                    <th>Status</th>
-                                    <th>Family / Sibling note</th>
+                                    <th class="col-adm">Adm#</th>
+                                    <th class="col-student">Student</th>
+                                    <th class="col-class">Class</th>
+                                    <th class="col-phone">Phone</th>
+                                    <th class="text-end col-num">Inv bal</th>
+                                    <th class="text-end col-num">Sys inv</th>
+                                    <th class="text-end col-num">Sys paid</th>
+                                    <th class="text-end col-num">Imp paid</th>
+                                    <th class="text-end col-num">Diff</th>
+                                    <th class="col-status">Status</th>
+                                    <th class="col-note">Note</th>
                                     @if(!empty($previewId))
-                                    <th class="text-center">Fee statement</th>
+                                    <th class="text-center col-stmt">Statement</th>
                                     @endif
                                 </tr>
                             </thead>
@@ -202,7 +211,7 @@
                                     @endphp
                                     @if($isFamily)
                                         <tr class="family-header-row" style="background: color-mix(in srgb, var(--fin-primary) 6%, #fff 94%);">
-                                            <td colspan="{{ !empty($previewId) ? 13 : 12 }}" class="fw-bold py-2">
+                                            <td colspan="{{ !empty($previewId) ? 12 : 11 }}" class="fw-bold py-2">
                                                 <i class="bi bi-people me-1"></i> Family — {{ count($rows) }} children
                                             </td>
                                         </tr>
@@ -219,55 +228,48 @@
                                             };
                                         @endphp
                                         <tr class="{{ $rowClass }}">
-                                            <td><strong>{{ $row['admission_number'] }}</strong></td>
-                                            <td>{{ $row['student_name'] }}</td>
-                                            <td>{{ $row['classroom'] ?? '—' }}</td>
-                                            <td class="text-nowrap">{{ $row['parent_phone'] ?? '—' }}</td>
-                                            <td class="text-end">
+                                            <td class="col-adm"><strong>{{ $row['admission_number'] }}</strong></td>
+                                            <td class="col-student" title="{{ $row['student_name'] ?? '' }}">{{ $row['student_name'] }}</td>
+                                            <td class="col-class">{{ $row['classroom'] ?? '—' }}</td>
+                                            <td class="col-phone text-nowrap">{{ $row['parent_phone'] ?? '—' }}</td>
+                                            <td class="text-end col-num">
                                                 @if(isset($row['system_invoice_balance']) && $row['system_invoice_balance'] !== null)
-                                                    KES {{ number_format($row['system_invoice_balance'], 2) }}
+                                                    {{ number_format($row['system_invoice_balance'], 0) }}
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
-                                            <td class="text-end">
-                                                @if(isset($row['system_swimming_balance']) && $row['system_swimming_balance'] !== null)
-                                                    KES {{ number_format($row['system_swimming_balance'], 2) }}
-                                                @else
-                                                    <span class="text-muted">—</span>
-                                                @endif
-                                            </td>
-                                            <td class="text-end">
+                                            <td class="text-end col-num">
                                                 @if(isset($row['system_total_invoiced']) && $row['system_total_invoiced'] !== null)
-                                                    KES {{ number_format($row['system_total_invoiced'], 2) }}
+                                                    {{ number_format($row['system_total_invoiced'], 0) }}
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-end col-num">
                                                 @if(isset($row['system_total_paid']) && $row['system_total_paid'] !== null)
-                                                    <strong>KES {{ number_format($row['system_total_paid'], 2) }}</strong>
+                                                    <strong>{{ number_format($row['system_total_paid'], 0) }}</strong>
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-end col-num">
                                                 @if(isset($row['import_total_paid']))
-                                                    <strong>KES {{ number_format($row['import_total_paid'], 2) }}</strong>
+                                                    <strong>{{ number_format($row['import_total_paid'], 0) }}</strong>
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
-                                            <td class="text-end">
+                                            <td class="text-end col-num">
                                                 @if(isset($row['difference']) && $row['difference'] !== null)
                                                     <span class="{{ $row['difference'] >= 0 ? 'text-success' : 'text-danger' }}">
-                                                        {{ $row['difference'] >= 0 ? '+' : '' }}KES {{ number_format($row['difference'], 2) }}
+                                                        {{ $row['difference'] >= 0 ? '+' : '' }}{{ number_format($row['difference'], 0) }}
                                                     </span>
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
-                                            <td>
+                                            <td class="col-status">
                                                 @if($status === 'ok')
                                                     <span class="badge bg-success">Match</span>
                                                 @elseif($status === 'missing_student')
@@ -285,7 +287,7 @@
                                                     <br><small class="text-muted">{{ $row['message'] }}</small>
                                                 @endif
                                             </td>
-                                            <td class="family-note-cell">
+                                            <td class="family-note-cell col-note">
                                                 @if(!empty($row['family_note']))
                                                     <span class="text-info">{{ $row['family_note'] }}</span>
                                                 @else
@@ -293,10 +295,10 @@
                                                 @endif
                                             </td>
                                             @if(!empty($previewId))
-                                            <td class="text-center">
+                                            <td class="text-center col-stmt">
                                                 @if(!empty($row['student_id']))
-                                                    <a href="{{ route('finance.student-statements.show', ['student' => $row['student_id'], 'year' => $year, 'term' => $term, 'comparison_preview_id' => $previewId]) }}" class="btn btn-sm btn-finance btn-finance-outline" title="Open fee statement and return to this comparison">
-                                                        <i class="bi bi-file-text"></i> Statement
+                                                    <a href="{{ route('finance.student-statements.show', ['student' => $row['student_id'], 'year' => $year, 'term' => $term, 'comparison_preview_id' => $previewId]) }}" class="btn btn-sm btn-finance btn-finance-outline py-1 px-2" title="Open fee statement and return to this comparison">
+                                                        <i class="bi bi-file-text"></i>
                                                     </a>
                                                 @else
                                                     <span class="text-muted">—</span>
@@ -307,9 +309,7 @@
                                     @endforeach
                                     @if($isFamily)
                                         <tr class="family-total-row fw-bold" style="background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%);">
-                                            <td colspan="3" class="text-end">Family total (payments)</td>
-                                            <td><span class="text-muted">—</span></td>
-                                            <td class="text-end"><span class="text-muted">—</span></td>
+                                            <td colspan="4" class="text-end">Family total (payments)</td>
                                             <td class="text-end"><span class="text-muted">—</span></td>
                                             <td class="text-end"><span class="text-muted">—</span></td>
                                             <td class="text-end">KES {{ number_format($group['system_paid_total'] ?? 0, 2) }}</td>
@@ -322,7 +322,7 @@
                             @if(count($preview) > 0)
                             <tfoot>
                                 <tr class="fw-bold">
-                                    <td colspan="6" class="text-end">Totals</td>
+                                    <td colspan="5" class="text-end">Totals</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_invoiced'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>

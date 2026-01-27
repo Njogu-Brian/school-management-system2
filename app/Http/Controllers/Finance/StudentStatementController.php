@@ -12,6 +12,7 @@ use App\Models\FeeConcession;
 use App\Models\LegacyStatementLine;
 use App\Models\PaymentAllocation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class StudentStatementController extends Controller
@@ -81,14 +82,22 @@ class StudentStatementController extends Controller
         }
         
         $discounts = $discountsQuery->orderBy('created_at')->get();
-        
-        // Get all credit notes
-        $creditNotesQuery = CreditNote::whereHas('invoiceItem', function($q) use ($student) {
+
+        // Exclude only daily-attendance swimming (source=swimming_attendance). Term swimming fees + their credit/debit notes are included.
+        $excludeSourceSwimmingAttendance = function ($q) {
+            $q->where(function ($q2) {
+                $q2->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+            });
+        };
+
+        // Get all credit notes (exclude only those tied to daily-attendance debits)
+        $creditNotesQuery = CreditNote::whereHas('invoiceItem', function($q) use ($student, $excludeSourceSwimmingAttendance) {
             $q->whereHas('invoice', function($q2) use ($student) {
                 $q2->where('student_id', $student->id);
             });
+            $excludeSourceSwimmingAttendance($q);
         })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'invoiceItem.votehead', 'issuedBy']);
-        
+
         if ($term) {
             $creditNotesQuery->whereHas('invoiceItem.invoice', function($q) use ($term) {
                 $q->whereHas('term', function($q2) use ($term) {
@@ -97,16 +106,17 @@ class StudentStatementController extends Controller
                 });
             });
         }
-        
+
         $creditNotes = $creditNotesQuery->orderBy('created_at')->get();
-        
-        // Get all debit notes
-        $debitNotesQuery = DebitNote::whereHas('invoiceItem', function($q) use ($student) {
+
+        // Get all debit notes (exclude only those tied to daily-attendance debits)
+        $debitNotesQuery = DebitNote::whereHas('invoiceItem', function($q) use ($student, $excludeSourceSwimmingAttendance) {
             $q->whereHas('invoice', function($q2) use ($student) {
                 $q2->where('student_id', $student->id);
             });
+            $excludeSourceSwimmingAttendance($q);
         })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'invoiceItem.votehead', 'issuedBy']);
-        
+
         if ($term) {
             $debitNotesQuery->whereHas('invoiceItem.invoice', function($q) use ($term) {
                 $q->whereHas('term', function($q2) use ($term) {
@@ -115,8 +125,10 @@ class StudentStatementController extends Controller
                 });
             });
         }
-        
+
         $debitNotes = $debitNotesQuery->orderBy('created_at')->get();
+
+        $swimmingPaymentIds = $this->getSwimmingPaymentIdsForStatement();
         
         // Recalculate all invoices to ensure accurate balances
         foreach ($invoices as $invoice) {
@@ -178,9 +190,12 @@ class StudentStatementController extends Controller
         // Build detailed transaction list with votehead-level items
         $detailedTransactions = collect()->merge($legacyTransactions);
         
-        // 1. Add invoice items (each votehead as separate line item)
+        // 1. Add invoice items (each votehead as separate line item). Exclude daily-attendance swimming (source=swimming_attendance).
         foreach ($invoices as $invoice) {
             foreach ($invoice->items as $item) {
+                if (($item->source ?? null) === 'swimming_attendance') {
+                    continue;
+                }
                 $itemDate = $item->posted_at ?? $item->effective_date ?? $item->created_at ?? $invoice->created_at;
                 $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                 $itemAmount = $item->amount ?? 0;
@@ -238,8 +253,12 @@ class StudentStatementController extends Controller
             }
         }
         
-        // 2. Add payment allocations (each votehead payment as separate line item)
+        // 2. Add payment allocations (each votehead payment as separate line item). Exclude payments marked as swimming.
+        $swimmingPaymentIdsSet = array_flip($swimmingPaymentIds);
         foreach ($payments as $payment) {
+            if (isset($swimmingPaymentIdsSet[$payment->id])) {
+                continue;
+            }
             if ($payment->reversed) {
                 // For reversed payments, we need to show what was reversed
                 // Get the original allocations from payment history or show as reversal
@@ -283,6 +302,9 @@ class StudentStatementController extends Controller
                         $item = $allocation->invoiceItem;
                         if (!$item) {
                             continue; // Skip orphaned allocations (e.g. invoice item soft-deleted)
+                        }
+                        if (($item->source ?? null) === 'swimming_attendance') {
+                            continue; // Exclude allocations to daily-attendance swimming from statement
                         }
                         $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                         $detailedTransactions->push([
@@ -413,20 +435,33 @@ class StudentStatementController extends Controller
         // Sort all transactions by date
         $detailedTransactions = $detailedTransactions->sortBy('date');
         
-        // Calculate totals from the invoices we are displaying (student + year + term)
-        // Total charges = sum of invoice item amounts (gross, before discounts)
+        // Calculate totals: exclude daily-attendance swimming (source=swimming_attendance) and payments marked as swimming.
+        // Total charges = sum of invoice item amounts for items with source != swimming_attendance
         $totalCharges = $invoices->sum(function($inv) {
-            return $inv->items->sum('amount') ?? 0;
+            return $inv->items->filter(fn($i) => ($i->source ?? null) !== 'swimming_attendance')->sum('amount');
         });
-        
-        // Total discounts = sum of invoice-level and item-level discounts
+
+        // Total discounts = invoice-level + item-level discounts, item-level restricted to non–swimming_attendance items
         $totalDiscounts = $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
-            return $inv->items->sum('discount_amount') ?? 0;
+            return $inv->items->filter(fn($i) => ($i->source ?? null) !== 'swimming_attendance')->sum('discount_amount');
         });
-        
-        // Total payments = sum of amounts *allocated to these invoices* (not full payment.amount:
-        // one payment can be split across students/invoices; we must only count the portion applied here)
-        $totalPayments = $invoices->sum('paid_amount');
+
+        // Total payments = sum of allocations to displayed invoices where item has source != swimming_attendance and payment is not a swimming payment
+        $invoiceIds = $invoices->pluck('id')->toArray();
+        $totalPayments = 0;
+        if (!empty($invoiceIds)) {
+            $totalPayments = (float) PaymentAllocation::whereHas('invoiceItem', function($q) use ($invoiceIds) {
+                $q->whereIn('invoice_id', $invoiceIds);
+                $q->where(function($q2) {
+                    $q2->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+                });
+            })->whereHas('payment', function($q) use ($swimmingPaymentIds) {
+                $q->where('reversed', false);
+                if (!empty($swimmingPaymentIds)) {
+                    $q->whereNotIn('id', $swimmingPaymentIds);
+                }
+            })->sum('amount');
+        }
         $totalCreditNotes = $creditNotes->sum('amount');
         $totalDebitNotes = $debitNotes->sum('amount');
         
@@ -582,15 +617,45 @@ class StudentStatementController extends Controller
         }
         
         $payments = $paymentsQuery->orderBy('payment_date')->get();
-        
-        $creditNotes = CreditNote::whereHas('invoiceItem.invoice', function($q) use ($student, $year) {
-            $q->where('student_id', $student->id)->where('year', $year);
-        })->with(['invoiceItem.votehead', 'invoiceItem.invoice'])->orderBy('created_at')->get();
-        
-        $debitNotes = DebitNote::whereHas('invoiceItem.invoice', function($q) use ($student, $year) {
-            $q->where('student_id', $student->id)->where('year', $year);
-        })->with(['invoiceItem.votehead', 'invoiceItem.invoice'])->orderBy('created_at')->get();
-        
+
+        // Exclude only daily-attendance swimming (source=swimming_attendance). Term swimming + their credit/debit notes are included.
+        $excludeSourceSwimmingAttendance = function ($q) {
+            $q->where(function ($q2) {
+                $q2->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+            });
+        };
+        $swimmingPaymentIds = $this->getSwimmingPaymentIdsForStatement();
+
+        $creditNotesQuery = CreditNote::whereHas('invoiceItem', function($q) use ($student, $excludeSourceSwimmingAttendance) {
+            $q->whereHas('invoice', function($q2) use ($student) {
+                $q2->where('student_id', $student->id);
+            });
+            $excludeSourceSwimmingAttendance($q);
+        })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'invoiceItem.votehead']);
+        if ($term) {
+            $creditNotesQuery->whereHas('invoiceItem.invoice', function($q) use ($term) {
+                $q->whereHas('term', function($q2) use ($term) {
+                    $q2->where('name', 'like', "%Term {$term}%")->orWhere('id', $term);
+                });
+            });
+        }
+        $creditNotes = $creditNotesQuery->orderBy('created_at')->get();
+
+        $debitNotesQuery = DebitNote::whereHas('invoiceItem', function($q) use ($student, $excludeSourceSwimmingAttendance) {
+            $q->whereHas('invoice', function($q2) use ($student) {
+                $q2->where('student_id', $student->id);
+            });
+            $excludeSourceSwimmingAttendance($q);
+        })->whereYear('created_at', $year)->with(['invoiceItem.invoice', 'invoiceItem.votehead']);
+        if ($term) {
+            $debitNotesQuery->whereHas('invoiceItem.invoice', function($q) use ($term) {
+                $q->whereHas('term', function($q2) use ($term) {
+                    $q2->where('name', 'like', "%Term {$term}%")->orWhere('id', $term);
+                });
+            });
+        }
+        $debitNotes = $debitNotesQuery->orderBy('created_at')->get();
+
         $discounts = FeeConcession::where('student_id', $student->id)
             ->where('year', $year)
             ->where('approval_status', 'approved')
@@ -655,12 +720,16 @@ class StudentStatementController extends Controller
             ]);
         }
         
-        // Build detailed transactions - reuse logic from show method
+        // Build detailed transactions - same exclusions as show: exclude daily-attendance swimming and payments marked as swimming
         $detailedTransactions = collect()->merge($legacyTransactions);
-        
-        // Add invoice items
+        $swimmingPaymentIdsSet = array_flip($swimmingPaymentIds);
+
+        // Add invoice items (exclude source=swimming_attendance)
         foreach ($invoices as $invoice) {
             foreach ($invoice->items as $item) {
+                if (($item->source ?? null) === 'swimming_attendance') {
+                    continue;
+                }
                 $itemDate = $item->posted_at ?? $item->effective_date ?? $item->created_at ?? $invoice->created_at;
                 $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                 $itemAmount = $item->amount ?? 0;
@@ -675,15 +744,13 @@ class StudentStatementController extends Controller
                         'reference' => $invoice->invoice_number ?? 'N/A',
                         'votehead' => $voteheadName,
                         'term_name' => $invoice->term->name ?? '',
-                        'term_name' => '',
                         'term_year' => $year,
-                        'grade' => $student->currentClass->name ?? '',
+                        'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => $netAmount,
                         'credit' => 0,
                     ]);
                 }
                 
-                // Add item-level discounts
                 if ($discountAmount > 0) {
                     $detailedTransactions->push([
                         'date' => $itemDate,
@@ -692,18 +759,20 @@ class StudentStatementController extends Controller
                         'reference' => $invoice->invoice_number ?? 'N/A',
                         'votehead' => $voteheadName,
                         'term_name' => $invoice->term->name ?? '',
-                        'term_name' => '',
                         'term_year' => $year,
-                        'grade' => $student->currentClass->name ?? '',
+                        'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => 0,
                         'credit' => $discountAmount,
                     ]);
                 }
             }
         }
-        
-        // Add payments
+
+        // Add payments (exclude payments marked as swimming and allocations to swimming_attendance items)
         foreach ($payments as $payment) {
+            if (isset($swimmingPaymentIdsSet[$payment->id])) {
+                continue;
+            }
             if (!$payment->reversed) {
                 if ($payment->allocations->isEmpty()) {
                     $detailedTransactions->push([
@@ -714,13 +783,16 @@ class StudentStatementController extends Controller
                         'votehead' => 'Unallocated',
                         'term_name' => '',
                         'term_year' => $year,
-                        'grade' => $student->currentClass->name ?? '',
+                        'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => 0,
                         'credit' => $payment->amount,
                     ]);
                 } else {
                     foreach ($payment->allocations as $allocation) {
                         $item = $allocation->invoiceItem;
+                        if (!$item || ($item->source ?? null) === 'swimming_attendance') {
+                            continue;
+                        }
                         $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                         $detailedTransactions->push([
                             'date' => $payment->payment_date,
@@ -729,7 +801,7 @@ class StudentStatementController extends Controller
                             'reference' => $payment->receipt_number ?? 'N/A',
                             'votehead' => $voteheadName,
                             'term_year' => $year,
-                            'grade' => $student->currentClass->name ?? '',
+                            'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                             'debit' => 0,
                             'credit' => $allocation->amount,
                         ]);
@@ -741,6 +813,9 @@ class StudentStatementController extends Controller
         // Add credit notes
         foreach ($creditNotes as $note) {
             $item = $note->invoiceItem;
+            if (!$item) {
+                continue;
+            }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
             $detailedTransactions->push([
                 'date' => $note->created_at,
@@ -758,6 +833,9 @@ class StudentStatementController extends Controller
         // Add debit notes
         foreach ($debitNotes as $note) {
             $item = $note->invoiceItem;
+            if (!$item) {
+                continue;
+            }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
             $detailedTransactions->push([
                 'date' => $note->created_at,
@@ -789,14 +867,28 @@ class StudentStatementController extends Controller
                 ->first();
             $finalBalance = $lastLegacyTerm->ending_balance ?? 0;
         } else {
+            // Same exclusion rules as show: exclude daily-attendance swimming and payments marked as swimming
             $totalCharges = $invoices->sum(function($inv) {
-                return $inv->items->sum('amount') ?? 0;
+                return $inv->items->filter(fn($i) => ($i->source ?? null) !== 'swimming_attendance')->sum('amount');
             });
             $totalDiscounts = $invoices->sum('discount_amount') + $invoices->sum(function($inv) {
-                return $inv->items->sum('discount_amount') ?? 0;
+                return $inv->items->filter(fn($i) => ($i->source ?? null) !== 'swimming_attendance')->sum('discount_amount');
             });
-            // Use amounts allocated to these invoices, not full payment.amount (avoids double-count and wrong scope)
-            $totalPayments = $invoices->sum('paid_amount');
+            $invoiceIds = $invoices->pluck('id')->toArray();
+            $totalPayments = 0;
+            if (!empty($invoiceIds)) {
+                $totalPayments = (float) PaymentAllocation::whereHas('invoiceItem', function($q) use ($invoiceIds) {
+                    $q->whereIn('invoice_id', $invoiceIds);
+                    $q->where(function($q2) {
+                        $q2->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+                    });
+                })->whereHas('payment', function($q) use ($swimmingPaymentIds) {
+                    $q->where('reversed', false);
+                    if (!empty($swimmingPaymentIds)) {
+                        $q->whereNotIn('id', $swimmingPaymentIds);
+                    }
+                })->sum('amount');
+            }
             $totalCreditNotes = $creditNotes->sum('amount');
             $totalDebitNotes = $debitNotes->sum('amount');
             $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
@@ -1001,6 +1093,29 @@ class StudentStatementController extends Controller
         
         // Use the same logic as show method
         return $this->show($request, $student);
+    }
+
+    /**
+     * Payment IDs that are "swimming" (from bank/M-PESA marked as swimming). Exclude from fee-statement totals and transaction list.
+     */
+    private function getSwimmingPaymentIdsForStatement(): array
+    {
+        $ids = collect();
+        if (Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')) {
+            $ids = $ids->merge(
+                \App\Models\BankStatementTransaction::where('is_swimming_transaction', true)
+                    ->whereNotNull('payment_id')
+                    ->pluck('payment_id')
+            );
+        }
+        if (Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')) {
+            $ids = $ids->merge(
+                \App\Models\MpesaC2BTransaction::where('is_swimming_transaction', true)
+                    ->whereNotNull('payment_id')
+                    ->pluck('payment_id')
+            );
+        }
+        return $ids->unique()->filter()->values()->toArray();
     }
 
     private function branding(): array
