@@ -241,8 +241,13 @@ class BankStatementController extends Controller
             })
             ->values();
         
-        // Paginate manually
-        $perPage = 25;
+        // Paginate manually with per-page option
+        $perPageOptions = [20, 50, 100, 200];
+        $perPage = $request->get('per_page', 25);
+        // Validate per_page value
+        if (!in_array($perPage, $perPageOptions)) {
+            $perPage = 25; // Default fallback
+        }
         $currentPage = $request->get('page', 1);
         $items = $allTransactions->slice(($currentPage - 1) * $perPage, $perPage)->values();
         $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
@@ -411,7 +416,13 @@ class BankStatementController extends Controller
             $counts[$key] = ($counts[$key] ?? 0) + $count;
         }
         
-        return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount'));
+        $perPageOptions = [20, 50, 100, 200];
+        $currentPerPage = $request->get('per_page', 25);
+        if (!in_array($currentPerPage, $perPageOptions)) {
+            $currentPerPage = 25;
+        }
+        
+        return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount', 'perPageOptions', 'currentPerPage'));
     }
 
     /**
@@ -457,7 +468,7 @@ class BankStatementController extends Controller
                     ->where('is_duplicate', false);
                 break;
             case 'confirmed':
-                // C2B transactions that are processed but don't have payment yet
+                // C2B transactions that are processed but don't have payment yet (uncollected)
                 $query->where('status', 'processed')
                     ->whereNull('payment_id')
                     ->where('is_duplicate', false);
@@ -487,8 +498,12 @@ class BankStatementController extends Controller
                     $query->whereRaw('1 = 0');
                 }
                 break;
+            case 'all':
+                // All transactions - exclude swimming, archived, and duplicates
+                $query->where('is_duplicate', false);
+                break;
             default:
-                // All transactions - exclude swimming and duplicates
+                // Default to all - exclude swimming, archived, and duplicates
                 $query->where('is_duplicate', false);
         }
 

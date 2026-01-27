@@ -576,9 +576,33 @@
         </div>
         
         <div class="finance-table-footer">
-            {{ $transactions->links() }}
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <label for="perPageSelect" class="mb-0 text-muted small">Show:</label>
+                    <select id="perPageSelect" class="form-select form-select-sm" style="width: auto;" onchange="changePerPage(this.value)">
+                        @foreach($perPageOptions ?? [20, 50, 100, 200] as $option)
+                            <option value="{{ $option }}" {{ ($currentPerPage ?? 25) == $option ? 'selected' : '' }}>
+                                {{ $option }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span class="text-muted small">per page</span>
+                </div>
+                <div>
+                    {{ $transactions->links() }}
+                </div>
+            </div>
         </div>
     </div>
+    
+    <script>
+        function changePerPage(perPage) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('per_page', perPage);
+            url.searchParams.set('page', '1'); // Reset to first page when changing per page
+            window.location.href = url.toString();
+        }
+    </script>
 
     <script>
         function toggleSelectAll() {

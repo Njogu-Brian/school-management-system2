@@ -1316,6 +1316,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::put('balance-brought-forward/{student}', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'update'])->name('balance-brought-forward.update');
         Route::post('balance-brought-forward/add', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'add'])->name('balance-brought-forward.add');
         Route::get('balance-brought-forward/import/template', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'template'])->name('balance-brought-forward.import.template');
+
+        // Fees Comparison Import (compare-only; no commit)
+        Route::get('fees-comparison-import', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'index'])->name('fees-comparison-import.index');
+        Route::post('fees-comparison-import/preview', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'preview'])->name('fees-comparison-import.preview');
+        Route::get('fees-comparison-import/template', [\App\Http\Controllers\Finance\FeesComparisonImportController::class, 'template'])->name('fees-comparison-import.template');
         
         // Online Payments
         Route::post('payments/initiate-online', [PaymentController::class, 'initiateOnline'])->name('payments.initiate-online');
