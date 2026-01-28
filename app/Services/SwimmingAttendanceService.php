@@ -94,39 +94,44 @@ class SwimmingAttendanceService
             $sessionCost = $perVisitCost;
             
             if ($termlyFee) {
-                // Student has termly fee - automatically debit wallet with termly per-visit cost (default: 120)
+                // Student has termly swimming fee - the swimming charge (term fee on invoice) must not be affected by attendance.
+                // Termly per-visit cost: if set to 0, do NOT debit wallet (term fee covers sessions; no per-session deduction).
+                // If set > 0, debit that amount per visit to track usage against the prepaid wallet balance.
                 $termlyPerVisitCost = $this->getTermlyPerVisitCost();
-                // Default to 120 if not set, to ensure all attendance is charged
-                $sessionCost = $termlyPerVisitCost > 0 ? $termlyPerVisitCost : 120;
-                
+                $sessionCost = $termlyPerVisitCost > 0 ? $termlyPerVisitCost : 0;
+
                 // Create attendance record
                 $attendance = SwimmingAttendance::create([
                     'student_id' => $student->id,
                     'classroom_id' => $classroom->id,
                     'attendance_date' => $date->toDateString(),
-                    'payment_status' => SwimmingAttendance::STATUS_UNPAID, // Will update after debit
+                    'payment_status' => SwimmingAttendance::STATUS_PAID, // Termly fee covers this session
                     'session_cost' => $sessionCost,
                     'termly_fee_covered' => true,
                     'notes' => $notes,
                     'marked_by' => $markedBy?->id ?? auth()->id(),
                     'marked_at' => now(),
                 ]);
-                
-                // Automatically debit wallet (allows negative balance to track unpaid amounts)
-                try {
-                    $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
-                    $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
+
+                // Only debit wallet when termly per-visit cost > 0 (session usage tracking). When 0, term fee covers sessions and we must not affect the swimming charge.
+                if ($sessionCost > 0) {
+                    try {
+                        $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
+                        $paymentStatus = SwimmingAttendance::STATUS_PAID;
+                        $termlyFeeCovered = true;
+                    } catch (\Exception $e) {
+                        Log::warning('Failed to debit wallet for termly fee attendance', [
+                            'attendance_id' => $attendance->id,
+                            'student_id' => $student->id,
+                            'session_cost' => $sessionCost,
+                            'error' => $e->getMessage(),
+                        ]);
+                        $attendance->update(['payment_status' => SwimmingAttendance::STATUS_UNPAID]);
+                        $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
+                    }
+                } else {
                     $paymentStatus = SwimmingAttendance::STATUS_PAID;
                     $termlyFeeCovered = true;
-                } catch (\Exception $e) {
-                    Log::warning('Failed to automatically debit wallet for termly fee attendance', [
-                        'attendance_id' => $attendance->id,
-                        'student_id' => $student->id,
-                        'session_cost' => $sessionCost,
-                        'error' => $e->getMessage(),
-                    ]);
-                    // Attendance remains unpaid if debit fails
-                    $paymentStatus = SwimmingAttendance::STATUS_UNPAID;
                 }
             } else {
                 // Step 2: For students WITHOUT optional fees - charge daily rate to wallet only
@@ -491,29 +496,34 @@ class SwimmingAttendanceService
                 // Determine session cost based on whether student has termly fee
                 $hasTermlyFee = $this->hasActiveTermlyFee($student);
                 $sessionCost = 0;
-                
+
                 if ($hasTermlyFee) {
-                    // Student has termly fee - debit 120 (termly per-visit cost)
+                    // Termly per-visit cost: when 0, term fee covers sessions — do not debit (must not affect swimming charge)
                     $sessionCost = $this->getTermlyPerVisitCost();
                 } else {
-                    // Student has no termly fee - debit 150 (per-visit cost)
-                    $sessionCost = $this->getPerVisitCost();
+                    $sessionCost = $this->getPerVisitCost() ?: 150;
                 }
-                
-                if ($sessionCost <= 0) {
-                    $failed++;
-                    $errors[] = "Attendance #{$attendance->id}: Session cost not set (termly: {$this->getTermlyPerVisitCost()}, regular: {$this->getPerVisitCost()})";
+
+                // Update attendance record with correct session cost
+                if ($attendance->session_cost != $sessionCost) {
+                    $attendance->update(['session_cost' => $sessionCost]);
+                }
+
+                // For termly-fee students with per-visit cost 0: mark PAID without debiting (term fee covers sessions)
+                if ($hasTermlyFee && $sessionCost <= 0) {
+                    $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
+                    $processed++;
                     continue;
                 }
-                
-                // Always debit wallet - allow negative balances to track unpaid amounts
+
+                if (!$hasTermlyFee && $sessionCost <= 0) {
+                    $failed++;
+                    $errors[] = "Attendance #{$attendance->id}: Per-visit cost not set (regular)";
+                    continue;
+                }
+
+                // Debit wallet (allow negative balance for unpaid tracking)
                 try {
-                    // Update attendance record with correct session cost if different
-                    if ($attendance->session_cost != $sessionCost) {
-                        $attendance->update(['session_cost' => $sessionCost]);
-                    }
-                    
-                    // Debit wallet (even if balance goes negative - this tracks what parents owe)
                     $this->walletService->debitForAttendance($student, $sessionCost, $attendance->id);
                     $attendance->update(['payment_status' => SwimmingAttendance::STATUS_PAID]);
                     $processed++;

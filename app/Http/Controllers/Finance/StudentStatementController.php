@@ -54,23 +54,41 @@ class StudentStatementController extends Controller
         }
         
         $invoices = $invoicesQuery->orderBy('created_at')->get();
-        
-        // Get all payments with allocations
+
+        // Get all payments with allocations. For 2026+ with term: include any payment that has
+        // at least one allocation to the displayed invoices (so the transaction list matches Total Payments).
         $paymentsQuery = Payment::where('student_id', $student->id)
             ->whereYear('payment_date', $year)
             ->with(['allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice']);
             
         if ($term) {
-            $paymentsQuery->whereHas('invoice', function($q) use ($term) {
-                $q->whereHas('term', function($q2) use ($term) {
-                    $q2->where('name', 'like', "%Term {$term}%")
-                       ->orWhere('id', $term);
+            if ($year >= 2026) {
+                $invoiceIds = $invoices->pluck('id')->toArray();
+                if (!empty($invoiceIds)) {
+                    // Include payments that have at least one allocation to an invoice in this term
+                    $paymentsQuery->whereHas('allocations', function ($q) use ($invoiceIds) {
+                        $q->whereHas('invoiceItem', function ($q2) use ($invoiceIds) {
+                            $q2->whereIn('invoice_id', $invoiceIds);
+                        });
+                    });
+                } else {
+                    $paymentsQuery->whereRaw('1 = 0'); // no invoices => no payments to show
+                }
+            } else {
+                // Legacy year: term filter includes unallocated when a legacy term is selected
+                $paymentsQuery->where(function ($q) use ($term) {
+                    $q->whereHas('invoice', function ($q2) use ($term) {
+                        $q2->whereHas('term', function ($q3) use ($term) {
+                            $q3->where('name', 'like', "%Term {$term}%")
+                               ->orWhere('id', $term);
+                        });
+                    })->orWhereNull('invoice_id');
                 });
-            })->orWhereNull('invoice_id');
+            }
         }
-        
+
         $payments = $paymentsQuery->orderBy('payment_date')->get();
-        
+
         // Get all discounts
         $discountsQuery = FeeConcession::where('student_id', $student->id)
             ->where('year', $year)
@@ -135,41 +153,19 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
-        // Legacy transactions (read-only, as parsed) for historical years (pre-2026, e.g. 2024)
-        $legacyLinesQuery = LegacyStatementLine::with('term')
-            ->whereHas('term', function($q) use ($student, $year) {
-                $q->where('student_id', $student->id)
-                  ->where('academic_year', '<', 2026);
-                
-                // Filter by year if specified
-                if ($year < 2026) {
-                    $q->where('academic_year', $year);
-                }
-            });
-        
-        // Filter by term if specified and year is legacy (2024 or pre-2026)
-        $legacyTermNumber = null;
-        if ($term && $year < 2026) {
-            if (is_string($term) && str_starts_with($term, 'legacy-')) {
-                $legacyTermNumber = (int) substr($term, 7);
-            } else {
-                $termModel = \App\Models\Term::find($term);
-                if ($termModel && preg_match('/term\s*(\d+)/i', $termModel->name ?? '', $matches)) {
-                    $legacyTermNumber = (int) $matches[1];
-                }
-            }
-            if ($legacyTermNumber) {
-                $legacyLinesQuery->whereHas('term', function ($q) use ($year, $legacyTermNumber) {
-                    $q->where('academic_year', $year)
-                      ->where('term_number', $legacyTermNumber);
-                });
-            }
+        // Legacy transactions (read-only): only for years < 2026; when legacy, show all entries (no term filter)
+        $legacyLines = collect();
+        if ($year < 2026) {
+            $legacyLines = LegacyStatementLine::with('term')
+                ->whereHas('term', function ($q) use ($student, $year) {
+                    $q->where('student_id', $student->id)
+                      ->where('academic_year', '<', 2026)
+                      ->where('academic_year', $year);
+                })
+                ->orderBy('txn_date')
+                ->orderBy('sequence_no')
+                ->get();
         }
-        
-        $legacyLines = $legacyLinesQuery
-            ->orderBy('txn_date')
-            ->orderBy('sequence_no')
-            ->get();
 
         $legacyTransactions = collect();
         foreach ($legacyLines as $line) {
@@ -255,6 +251,7 @@ class StudentStatementController extends Controller
         
         // 2. Add payment allocations (each votehead payment as separate line item). Exclude payments marked as swimming.
         $swimmingPaymentIdsSet = array_flip($swimmingPaymentIds);
+        $studentInvoiceIds = $invoices->pluck('id')->flip();
         foreach ($payments as $payment) {
             if (isset($swimmingPaymentIdsSet[$payment->id])) {
                 continue;
@@ -302,6 +299,10 @@ class StudentStatementController extends Controller
                         $item = $allocation->invoiceItem;
                         if (!$item) {
                             continue; // Skip orphaned allocations (e.g. invoice item soft-deleted)
+                        }
+                        // Only show allocations that apply to this student's invoices
+                        if (!$item->invoice_id || !$studentInvoiceIds->has($item->invoice_id)) {
+                            continue;
                         }
                         if (($item->source ?? null) === 'swimming_attendance') {
                             continue; // Exclude allocations to daily-attendance swimming from statement
@@ -601,21 +602,37 @@ class StudentStatementController extends Controller
         }
         
         $invoices = $invoicesQuery->orderBy('created_at')->get();
-        
-        // Get all payments with allocations
+
+        // Get all payments with allocations. For 2026+ with term: include any payment that has
+        // at least one allocation to the displayed invoices (so the transaction list matches Total Payments).
         $paymentsQuery = Payment::where('student_id', $student->id)
             ->whereYear('payment_date', $year)
             ->with(['allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice', 'paymentMethod']);
             
         if ($term) {
-            $paymentsQuery->whereHas('invoice', function($q) use ($term) {
-                $q->whereHas('term', function($q2) use ($term) {
-                    $q2->where('name', 'like', "%Term {$term}%")
-                       ->orWhere('id', $term);
+            if ($year >= 2026) {
+                $printInvoiceIds = $invoices->pluck('id')->toArray();
+                if (!empty($printInvoiceIds)) {
+                    $paymentsQuery->whereHas('allocations', function ($q) use ($printInvoiceIds) {
+                        $q->whereHas('invoiceItem', function ($q2) use ($printInvoiceIds) {
+                            $q2->whereIn('invoice_id', $printInvoiceIds);
+                        });
+                    });
+                } else {
+                    $paymentsQuery->whereRaw('1 = 0');
+                }
+            } else {
+                $paymentsQuery->where(function ($q) use ($term) {
+                    $q->whereHas('invoice', function ($q2) use ($term) {
+                        $q2->whereHas('term', function ($q3) use ($term) {
+                            $q3->where('name', 'like', "%Term {$term}%")
+                               ->orWhere('id', $term);
+                        });
+                    })->orWhereNull('invoice_id');
                 });
-            })->orWhereNull('invoice_id');
+            }
         }
-        
+
         $payments = $paymentsQuery->orderBy('payment_date')->get();
 
         // Exclude only daily-attendance swimming (source=swimming_attendance). Term swimming + their credit/debit notes are included.
@@ -668,41 +685,19 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
-        // Get legacy transactions (read-only, as parsed) for historical years (pre-2026, e.g. 2024)
-        $legacyLinesQuery = LegacyStatementLine::with('term')
-            ->whereHas('term', function($q) use ($student, $year) {
-                $q->where('student_id', $student->id)
-                  ->where('academic_year', '<', 2026);
-                
-                // Filter by year if specified
-                if ($year < 2026) {
-                    $q->where('academic_year', $year);
-                }
-            });
-        
-        // Filter by term if specified and year is legacy (2024 or pre-2026)
-        $legacyTermNumber = null;
-        if ($term && $year < 2026) {
-            if (is_string($term) && str_starts_with($term, 'legacy-')) {
-                $legacyTermNumber = (int) substr($term, 7);
-            } else {
-                $termModel = \App\Models\Term::find($term);
-                if ($termModel && preg_match('/term\s*(\d+)/i', $termModel->name ?? '', $matches)) {
-                    $legacyTermNumber = (int) $matches[1];
-                }
-            }
-            if ($legacyTermNumber) {
-                $legacyLinesQuery->whereHas('term', function ($q) use ($year, $legacyTermNumber) {
-                    $q->where('academic_year', $year)
-                      ->where('term_number', $legacyTermNumber);
-                });
-            }
+        // Legacy: only for years < 2026; show all legacy entries (no term filter)
+        $legacyLines = collect();
+        if ($year < 2026) {
+            $legacyLines = LegacyStatementLine::with('term')
+                ->whereHas('term', function ($q) use ($student, $year) {
+                    $q->where('student_id', $student->id)
+                      ->where('academic_year', '<', 2026)
+                      ->where('academic_year', $year);
+                })
+                ->orderBy('txn_date')
+                ->orderBy('sequence_no')
+                ->get();
         }
-        
-        $legacyLines = $legacyLinesQuery
-            ->orderBy('txn_date')
-            ->orderBy('sequence_no')
-            ->get();
 
         $legacyTransactions = collect();
         foreach ($legacyLines as $line) {
@@ -769,6 +764,7 @@ class StudentStatementController extends Controller
         }
 
         // Add payments (exclude payments marked as swimming and allocations to swimming_attendance items)
+        $printStudentInvoiceIds = $invoices->pluck('id')->flip();
         foreach ($payments as $payment) {
             if (isset($swimmingPaymentIdsSet[$payment->id])) {
                 continue;
@@ -791,6 +787,10 @@ class StudentStatementController extends Controller
                     foreach ($payment->allocations as $allocation) {
                         $item = $allocation->invoiceItem;
                         if (!$item || ($item->source ?? null) === 'swimming_attendance') {
+                            continue;
+                        }
+                        // Only include allocations that apply to this student's invoices
+                        if (!$item->invoice_id || !$printStudentInvoiceIds->has($item->invoice_id)) {
                             continue;
                         }
                         $voteheadName = $item->votehead->name ?? 'Unknown Votehead';

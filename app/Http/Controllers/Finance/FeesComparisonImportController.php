@@ -55,14 +55,15 @@ class FeesComparisonImportController extends Controller
 
         try {
             $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Fees comparison Excel import failed', ['error' => $e->getMessage()]);
-            if (str_contains($e->getMessage(), 'ZipArchive') || str_contains($e->getMessage(), 'zip')) {
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'ZipArchive') || str_contains($msg, 'zip') || str_contains(strtolower($msg), 'zip')) {
                 return back()->withErrors([
-                    'file' => 'The PHP Zip extension is not enabled. Enable "zip" in php.ini to read .xlsx files.',
+                    'file' => 'The PHP Zip extension is not enabled. Enable the "zip" extension in php.ini to read .xlsx files. On Windows, add extension=zip (or extension=php_zip.dll) and restart the web server.',
                 ]);
             }
-            return back()->withErrors(['file' => 'Failed to read the Excel file: ' . $e->getMessage()]);
+            return back()->withErrors(['file' => 'Failed to read the Excel file: ' . $msg]);
         }
 
         if (empty($sheet)) {
@@ -79,6 +80,9 @@ class FeesComparisonImportController extends Controller
             $headers[$i] = Str::slug(Str::lower(trim((string) $h)), '_');
         }
 
+        // Import columns: support separate invoiced and paid for like-with-like comparison.
+        // Paid: only total_fees_paid / fees_paid / total_paid (do NOT use amount/total_fees as paid).
+        // Invoiced: total_fees / total_invoiced / invoice_total / amount (for invoice-vs-invoice match).
         $importRows = [];
         foreach ($sheet as $row) {
             $assoc = [];
@@ -87,23 +91,22 @@ class FeesComparisonImportController extends Controller
             }
             $admission = trim((string) ($assoc['admission_number'] ?? $assoc['admission_no'] ?? $assoc['adm_no'] ?? ''));
             $name = trim((string) ($assoc['student_name'] ?? $assoc['name'] ?? $assoc['full_name'] ?? ''));
-            $paid = $assoc['total_fees_paid'] ?? $assoc['fees_paid'] ?? $assoc['total_paid'] ?? $assoc['amount'] ?? null;
+            $paid = $assoc['total_fees_paid'] ?? $assoc['fees_paid'] ?? $assoc['total_paid'] ?? null;
+            $invoiced = $assoc['total_fees'] ?? $assoc['total_invoiced'] ?? $assoc['invoice_total'] ?? $assoc['total_fees_due'] ?? $assoc['amount'] ?? null;
             if ($admission === '') {
                 continue;
-            }
-            if (!is_numeric($paid)) {
-                $paid = 0;
             }
             $importRows[] = [
                 'admission_number' => $admission,
                 'student_name' => $name ?: $admission,
-                'total_fees_paid' => (float) $paid,
+                'total_fees_paid' => is_numeric($paid) ? (float) $paid : null,
+                'total_invoiced' => is_numeric($invoiced) ? (float) $invoiced : null,
             ];
         }
 
         if (empty($importRows)) {
             return back()->withErrors([
-                'file' => 'No valid rows found. Expected columns: admission_number (or admission_no, adm_no), student_name (or name), total_fees_paid (or fees_paid, amount).',
+                'file' => 'No valid rows found. Expected columns: admission_number (or admission_no, adm_no), student_name (or name), and total_fees_paid (or fees_paid, total_paid) and/or total_fees (or total_invoiced, amount) for like-with-like comparison.',
             ]);
         }
 
@@ -129,8 +132,23 @@ class FeesComparisonImportController extends Controller
 
             $systemPaid = $sys['total_paid'] ?? 0;
             $systemInvoiced = $sys['total_invoiced'] ?? 0;
-            $importPaid = $imp ? (float) ($imp['total_fees_paid'] ?? 0) : 0;
+            $importPaid = $imp && isset($imp['total_fees_paid']) && $imp['total_fees_paid'] !== null
+                ? (float) $imp['total_fees_paid'] : null;
+            $importInvoiced = $imp && isset($imp['total_invoiced']) && $imp['total_invoiced'] !== null
+                ? (float) $imp['total_invoiced'] : null;
             $importName = $imp ? ($imp['student_name'] ?? $admission) : $admission;
+
+            // If import has one value in the "paid" column but it matches system INVOICED (not paid), treat it as invoiced-only.
+            // Common case: file has "Total Fees" = 33,900 in a column labeled "Total Fees Paid", so Imp inv was blank and Imp paid showed 33,900.
+            if ($importInvoiced === null && $importPaid !== null && $systemInvoiced > 0) {
+                if (abs($importPaid - $systemInvoiced) <= 0.01 && abs($importPaid - $systemPaid) > 0.01) {
+                    $importInvoiced = $importPaid;
+                    $importPaid = null;
+                } else {
+                    // File has only one amount column: show it in Imp inv too so the column is never blank.
+                    $importInvoiced = $importPaid;
+                }
+            }
 
             $status = 'ok';
             $message = null;
@@ -152,6 +170,7 @@ class FeesComparisonImportController extends Controller
                     'system_invoice_balance' => null,
                     'system_swimming_balance' => null,
                     'import_total_paid' => $importPaid,
+                    'import_total_invoiced' => $importInvoiced,
                     'difference' => null,
                     'status' => $status,
                     'message' => $message,
@@ -164,11 +183,25 @@ class FeesComparisonImportController extends Controller
                 $status = 'in_system_only';
                 $message = 'In system but not in import';
             } else {
-                $diff = $importPaid - $systemPaid;
-                if (abs($diff) > 0.01) {
-                    $difference = $diff;
+                // Like-with-like: compare paid vs paid when import has paid; compare invoiced vs invoiced when import has invoiced.
+                $paidDiff = ($importPaid !== null) ? ($importPaid - $systemPaid) : null;
+                $invDiff = ($importInvoiced !== null) ? ($importInvoiced - $systemInvoiced) : null;
+                $paidMatch = ($importPaid === null) || (abs($importPaid - $systemPaid) <= 0.01);
+                $invMatch = ($importInvoiced === null) || (abs($importInvoiced - $systemInvoiced) <= 0.01);
+
+                if (!$paidMatch || !$invMatch) {
                     $status = 'amount_differs';
-                    $message = 'System KES ' . number_format($systemPaid, 2) . ' vs Import KES ' . number_format($importPaid, 2);
+                    if (!$paidMatch && !$invMatch) {
+                        $difference = $paidDiff; // primary diff for sorting/display
+                        $message = 'Paid: Sys KES ' . number_format($systemPaid, 2) . ' vs Imp KES ' . number_format($importPaid ?? 0, 2)
+                            . '; Invoiced: Sys KES ' . number_format($systemInvoiced, 2) . ' vs Imp KES ' . number_format($importInvoiced ?? 0, 2);
+                    } elseif (!$paidMatch) {
+                        $difference = $paidDiff;
+                        $message = 'Paid: System KES ' . number_format($systemPaid, 2) . ' vs Import KES ' . number_format($importPaid, 2);
+                    } else {
+                        $difference = $invDiff;
+                        $message = 'Invoiced: System KES ' . number_format($systemInvoiced, 2) . ' vs Import KES ' . number_format($importInvoiced, 2);
+                    }
                 }
             }
 
@@ -185,7 +218,7 @@ class FeesComparisonImportController extends Controller
                 ];
                 $familyGroups[$familyId]['admissions'][] = $admission;
                 $familyGroups[$familyId]['system_total'] += $systemPaid;
-                $familyGroups[$familyId]['import_total'] += $importPaid;
+                $familyGroups[$familyId]['import_total'] += ($importPaid ?? 0);
             }
 
             $preview[] = [
@@ -200,6 +233,7 @@ class FeesComparisonImportController extends Controller
                 'system_invoice_balance' => $sys['invoice_balance'] ?? null,
                 'system_swimming_balance' => $sys['swimming_balance'] ?? null,
                 'import_total_paid' => $importPaid,
+                'import_total_invoiced' => $importInvoiced,
                 'difference' => $difference,
                 'status' => $status,
                 'message' => $message,
@@ -374,13 +408,14 @@ class FeesComparisonImportController extends Controller
 
     /**
      * Download Excel template for fees comparison import.
+     * Include both Total Fees (invoiced) and Total Fees Paid for like-with-like comparison.
      */
     public function template()
     {
-        $headers = ['Student Name', 'Admission Number', 'Total Fees Paid'];
+        $headers = ['Student Name', 'Admission Number', 'Total Fees', 'Total Fees Paid'];
         $sample = [
-            ['John Doe', 'ADM001', 50000],
-            ['Jane Doe', 'ADM002', 45000],
+            ['John Doe', 'ADM001', 50000, 45000],
+            ['Jane Doe', 'ADM002', 48000, 45000],
         ];
         return Excel::download(new ArrayExport($sample, $headers), 'fees_comparison_import_template.xlsx');
     }

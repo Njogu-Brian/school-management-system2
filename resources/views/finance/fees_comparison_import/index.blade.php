@@ -15,8 +15,8 @@
                 <div>
                     <strong>How it works</strong>
                     <ul class="mb-0 mt-1">
-                        <li>Upload an Excel file with <strong>Student name</strong>, <strong>Admission number</strong>, and <strong>Total fees paid</strong>.</li>
-                        <li>System totals use <strong>total fees invoice (including balance brought forward)</strong> and <strong>total paid</strong> per student for the selected year and term.</li>
+                        <li>Upload an Excel file with <strong>Student name</strong>, <strong>Admission number</strong>, and <strong>Total Fees Paid</strong> (and optionally <strong>Total Fees</strong> for like-with-like comparison: system invoiced vs import invoiced, system paid vs import paid).</li>
+                        <li>System totals are for the <strong>selected year and term only</strong>: this term's invoice and total paid allocated to this term per student. Other terms and legacy data are excluded.</li>
                         <li>Siblings are processed together: if family total matches import total, that’s OK; we’ll flag where <strong>individual allocations differ</strong>. Family total mismatches are reported as issues.</li>
                         <li><strong>Archived and alumni students</strong> are excluded from the import; they are treated as missing if present in your file.</li>
                     <li><strong>Missing students</strong> (in import but not in system) and other differences are highlighted. <strong>No actions</strong> are taken — this view is for comparison only. The preview is saved so you can open a child’s fee statement and return to the comparison.</li>
@@ -84,13 +84,13 @@
                     </div>
                     <div class="finance-card-body p-4">
                         <p class="text-muted small mb-3">
-                            Use the template to ensure correct column names: <strong>Student Name</strong>, <strong>Admission Number</strong>, <strong>Total Fees Paid</strong>.
+                            Use the template for <strong>Student Name</strong>, <strong>Admission Number</strong>, <strong>Total Fees</strong> (invoiced), <strong>Total Fees Paid</strong>. Comparison is like-with-like: invoiced vs invoiced, paid vs paid.
                         </p>
                         <a href="{{ route('finance.fees-comparison-import.template') }}" class="btn btn-finance btn-finance-outline w-100">
                             <i class="bi bi-download"></i> Download template
                         </a>
                         <p class="text-muted small mt-3 mb-0">
-                            Accepted column variants: <code>admission_no</code> / <code>adm_no</code>; <code>name</code> / <code>full_name</code>; <code>fees_paid</code> / <code>total_paid</code> / <code>amount</code>.
+                            Paid: <code>total_fees_paid</code> / <code>fees_paid</code> / <code>total_paid</code>. Invoiced: <code>total_fees</code> / <code>total_invoiced</code> / <code>invoice_total</code> / <code>amount</code>. Identity: <code>admission_no</code> / <code>adm_no</code>; <code>name</code> / <code>full_name</code>.
                         </p>
                     </div>
                 </div>

@@ -264,9 +264,9 @@ class FeePostingService
                     continue;
                 }
                 
-                // Skip transport fees and balance brought forward - they are managed separately
+                // Skip transport, balance brought forward, and swimming daily attendance - managed separately
                 $source = $diff['origin'] ?? 'structure';
-                if ($source === 'transport' || $source === 'balance_brought_forward') {
+                if ($source === 'transport' || $source === 'balance_brought_forward' || $source === 'swimming_attendance') {
                     continue;
                 }
                 
@@ -344,12 +344,12 @@ class FeePostingService
                     if ($existingItem && $existingItem->status === 'active' && $existingItem->amount == ($diff['new_amount'] ?? 0)) {
                         continue;
                     }
-                    // Additional safeguard: skip if existing item is transport or balance brought forward
-                    if ($existingItem && ($existingItem->source === 'transport' || $existingItem->source === 'balance_brought_forward')) {
+                    // Additional safeguard: skip if existing item is transport, BBF, or swimming daily attendance
+                    if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance'])) {
                         continue;
                     }
                 }
-                
+
                 $invoice = InvoiceService::ensure($diff['student_id'], $year, $term);
                 // Note: Balance brought forward is automatically added in InvoiceService::ensure() for first term of 2026
                 
@@ -359,11 +359,11 @@ class FeePostingService
                     ->where('votehead_id', $diff['votehead_id'])
                     ->first();
                 
-                // Skip if item exists and is transport or balance brought forward (these are managed separately)
-                if ($existingItem && ($existingItem->source === 'transport' || $existingItem->source === 'balance_brought_forward')) {
-                    continue; // Skip this item - it's managed separately
+                // Skip if item exists and is transport, BBF, or swimming daily attendance (managed separately)
+                if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance'])) {
+                    continue;
                 }
-                
+
                 // Get existing credit/debit notes if item exists
                 $existingCreditNotes = 0;
                 $existingDebitNotes = 0;
@@ -980,66 +980,61 @@ class FeePostingService
     /**
      * Get existing invoice items
      * Returns the original amount before credit/debit notes for proper diff calculation
-     * Excludes transport fees and balance brought forward as they are managed separately
+     * Excludes transport, balance brought forward, and swimming daily attendance (managed separately)
      */
     private function getExistingInvoiceItems(int $studentId, int $year, int $term): Collection
     {
+        $excludeSources = function ($q) {
+            $q->where('source', '!=', 'transport')
+              ->where('source', '!=', 'balance_brought_forward')
+              ->where('source', '!=', 'swimming_attendance');
+        };
+
         $invoice = Invoice::where('student_id', $studentId)
             ->where('year', $year)
             ->where('term', $term)
             ->first();
-        
+
         if (!$invoice) {
             // If no invoice for this specific term, check if items exist in any invoice for this student/year
-            // This handles cases where fees might have been posted to a different term but same year
             $allInvoices = Invoice::where('student_id', $studentId)
                 ->where('year', $year)
                 ->get();
-            
+
             $allItems = collect();
             foreach ($allInvoices as $inv) {
-                // Only include ACTIVE items - exclude pending items from optional fees
-                // Exclude transport fees and balance brought forward (managed separately)
-                // Pending items from optional fees should be treated as "new" in preview
                 $allItems = $allItems->merge(
                     $inv->items()
                         ->where('status', 'active')
-                        ->where('source', '!=', 'transport')
-                        ->where('source', '!=', 'balance_brought_forward')
+                        ->where($excludeSources)
                         ->with(['creditNotes', 'debitNotes'])
                         ->get()
                 );
             }
-            
+
             return $allItems->map(function ($item) {
-                // Calculate original amount before credit/debit notes
                 $originalAmount = $this->getOriginalAmountBeforeNotes($item);
                 return [
                     'id' => $item->id,
                     'votehead_id' => $item->votehead_id,
-                    'amount' => $originalAmount, // Use original amount (before credit notes) for comparison
+                    'amount' => $originalAmount,
                     'source' => $item->source,
                 ];
             });
         }
-        
-        // Only include ACTIVE items - exclude pending items from optional fees
-        // Exclude transport fees and balance brought forward (managed separately)
-        // Pending items from optional fees should be treated as "new" in preview
-        // This ensures optional fees appear in preview even if they were previously billed
+
+        // Only include ACTIVE items; exclude transport, BBF, and swimming daily attendance
         return $invoice->items()
-            ->where('status', 'active') // Only active items - pending optional fees will show as "added"
-            ->where('source', '!=', 'transport') // Exclude transport fees (managed separately)
-            ->where('source', '!=', 'balance_brought_forward') // Exclude balance brought forward (managed separately)
-            ->with(['creditNotes', 'debitNotes']) // Eager load credit/debit notes
+            ->where('status', 'active')
+            ->where($excludeSources)
+            ->with(['creditNotes', 'debitNotes'])
             ->get()
             ->map(function ($item) {
-                // Calculate original amount before credit/debit notes
                 $originalAmount = $this->getOriginalAmountBeforeNotes($item);
                 return [
                     'id' => $item->id,
                     'votehead_id' => $item->votehead_id,
-                    'amount' => $originalAmount, // Use original amount (before credit notes) for comparison
+                    'amount' => $originalAmount,
                     'source' => $item->source,
                 ];
             });

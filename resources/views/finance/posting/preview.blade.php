@@ -220,16 +220,22 @@
                             @endforeach
                         </tbody>
                         <tfoot>
+                            @php
+                                $pageDiffs = collect($groupedDiffs->items())->values()->collapse();
+                                $pageOldTotal = $pageDiffs->sum('old_amount');
+                                $pageNewTotal = $pageDiffs->sum('new_amount');
+                                $pageDiffTotal = $pageNewTotal - $pageOldTotal;
+                            @endphp
                             <tr class="finance-table-footer">
                                 <th colspan="2" class="text-end">Page Totals ({{ $groupedDiffs->count() }} students):</th>
                                 <th class="text-end">
-                                    Ksh {{ number_format($groupedDiffs->flatten()->sum('old_amount'), 2) }}
+                                    Ksh {{ number_format($pageOldTotal, 2) }}
                                 </th>
                                 <th class="text-end">
-                                    Ksh {{ number_format($groupedDiffs->flatten()->sum('new_amount'), 2) }}
+                                    Ksh {{ number_format($pageNewTotal, 2) }}
                                 </th>
                                 <th class="text-end">
-                                    Ksh {{ number_format($groupedDiffs->flatten()->sum('new_amount') - $groupedDiffs->flatten()->sum('old_amount'), 2) }}
+                                    Ksh {{ number_format($pageDiffTotal, 2) }}
                                 </th>
                                 <th></th>
                             </tr>

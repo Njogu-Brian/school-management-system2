@@ -28,7 +28,16 @@ class OptionalFeeImportController extends Controller
 
         [$year, $term] = $this->resolveYearAndTerm($request->year, $request->term);
 
-        $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
+        try {
+            $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
+        } catch (\Throwable $e) {
+            Log::warning('Optional fee import Excel read failed', ['error' => $e->getMessage()]);
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'ZipArchive') || str_contains(strtolower($msg), 'zip')) {
+                return back()->with('error', 'The PHP Zip extension is not enabled. Enable the "zip" extension in php.ini to read .xlsx files.');
+            }
+            return back()->with('error', 'Failed to read the file: ' . $msg);
+        }
 
         if (empty($sheet)) {
             return back()->with('error', 'The uploaded file is empty.');
@@ -671,14 +680,17 @@ class OptionalFeeImportController extends Controller
 
     private function resolveYearAndTerm(?int $year = null, ?int $term = null): array
     {
-        $academicYear = \App\Models\AcademicYear::where('is_active', true)->first();
-        $yearValue = $year ?? ($academicYear?->year ?? (int) date('Y'));
-
+        $activeAcademicYear = \App\Models\AcademicYear::where('is_active', true)->first();
+        $yearValue = $year ?? ($activeAcademicYear?->year ?? (int) date('Y'));
         $termModel = \App\Models\Term::where('is_current', true)->first();
         $termValue = $term ?? ($termModel ? (int) preg_replace('/[^0-9]/', '', $termModel->name) : 1);
         $termValue = $termValue ?: 1;
 
-        return [$yearValue, $termValue, $academicYear?->id];
+        // academic_year_id for the *selected* year (so import record reflects user's choice)
+        $academicYearForYear = \App\Models\AcademicYear::where('year', $yearValue)->first();
+        $academicYearId = $academicYearForYear?->id ?? $activeAcademicYear?->id;
+
+        return [$yearValue, $termValue, $academicYearId];
     }
 
     /**

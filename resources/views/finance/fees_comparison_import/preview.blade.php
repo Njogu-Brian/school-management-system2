@@ -63,7 +63,7 @@
         @include('finance.partials.header', [
             'title' => 'Fees Comparison Preview',
             'icon' => 'bi bi-clipboard2-check',
-            'subtitle' => "Compare import vs system for {$year} Term {$term}. Saved preview — open a student's fee statement and use Back to comparison to return here.",
+            'subtitle' => "Compare import vs system for {$year} Term {$term} only. Sys inv & paid are for this term only (other terms and legacy excluded). Saved preview — open a student's fee statement and use Back to comparison to return here.",
             'actions' => '<a href="' . route('finance.fees-comparison-import.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back to Import</a>'
         ])
 
@@ -87,6 +87,11 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             @endif
+
+            {{-- Scope: selected year and term only --}}
+            <div class="alert alert-secondary border-0 mb-4 py-2">
+                <strong><i class="bi bi-calendar-range me-1"></i> Scope:</strong> All system totals (Sys inv, Sys paid) are for <strong>{{ $year }} Term {{ $term }} only</strong> — this term's invoice and payments allocated to this term. Other terms and legacy data are excluded.
+            </div>
 
             {{-- Summary --}}
             <div class="row g-3 mb-4">
@@ -193,6 +198,7 @@
                                     <th class="col-phone">Phone</th>
                                     <th class="text-end col-num">Inv bal</th>
                                     <th class="text-end col-num">Sys inv</th>
+                                    <th class="text-end col-num">Imp inv</th>
                                     <th class="text-end col-num">Sys paid</th>
                                     <th class="text-end col-num">Imp paid</th>
                                     <th class="text-end col-num">Diff</th>
@@ -211,7 +217,7 @@
                                     @endphp
                                     @if($isFamily)
                                         <tr class="family-header-row" style="background: color-mix(in srgb, var(--fin-primary) 6%, #fff 94%);">
-                                            <td colspan="{{ !empty($previewId) ? 12 : 11 }}" class="fw-bold py-2">
+                                            <td colspan="{{ !empty($previewId) ? 13 : 12 }}" class="fw-bold py-2">
                                                 <i class="bi bi-people me-1"></i> Family — {{ count($rows) }} children
                                             </td>
                                         </tr>
@@ -242,6 +248,13 @@
                                             <td class="text-end col-num">
                                                 @if(isset($row['system_total_invoiced']) && $row['system_total_invoiced'] !== null)
                                                     {{ number_format($row['system_total_invoiced'], 0) }}
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end col-num">
+                                                @if(isset($row['import_total_invoiced']))
+                                                    {{ number_format($row['import_total_invoiced'], 0) }}
                                                 @else
                                                     <span class="text-muted">—</span>
                                                 @endif
@@ -312,6 +325,7 @@
                                             <td colspan="4" class="text-end">Family total (payments)</td>
                                             <td class="text-end"><span class="text-muted">—</span></td>
                                             <td class="text-end"><span class="text-muted">—</span></td>
+                                            <td class="text-end"><span class="text-muted">—</span></td>
                                             <td class="text-end">KES {{ number_format($group['system_paid_total'] ?? 0, 2) }}</td>
                                             <td class="text-end">KES {{ number_format($group['import_paid_total'] ?? 0, 2) }}</td>
                                             <td colspan="{{ !empty($previewId) ? 4 : 3 }}"></td>
@@ -323,7 +337,9 @@
                             <tfoot>
                                 <tr class="fw-bold">
                                     <td colspan="5" class="text-end">Totals</td>
+                                    <td class="text-end">—</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_invoiced'] ?? 0)), 2) }}</td>
+                                    <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_invoiced'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>
                                     <td colspan="{{ !empty($previewId) ? 4 : 3 }}"></td>
@@ -336,7 +352,7 @@
                 <div class="finance-card-body border-top d-flex justify-content-between align-items-center">
                     <p class="text-muted small mb-0">
                         <i class="bi bi-info-circle me-1"></i>
-                        System totals use total fees invoice (including balance brought forward) and total paid for {{ $year }} Term {{ $term }}. Swimming fees and payments are excluded. Archived and alumni students are excluded. No changes are made from this view.
+                        System totals are for <strong>{{ $year }} Term {{ $term }} only</strong> — this term's invoice and payments allocated to this term. Other terms and legacy are excluded. Swimming fees and payments are excluded. Archived and alumni are excluded. No changes are made from this view.
                     </p>
                     <a href="{{ route('finance.fees-comparison-import.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Back to Import
@@ -354,9 +370,9 @@
                     <div class="row">
                         <div class="col-md-6">
                             <ul class="list-unstyled mb-0">
-                                <li class="mb-2"><span class="badge bg-success">Match</span> — System and import amounts agree.</li>
+                                <li class="mb-2"><span class="badge bg-success">Match</span> — System and import agree on invoiced and paid (like-with-like).</li>
                                 <li class="mb-2"><span class="badge bg-danger">Missing</span> — In import but student not found in system.</li>
-                                <li class="mb-2"><span class="badge bg-warning text-dark">Amount differs</span> — System paid ≠ import total fees paid.</li>
+                                <li class="mb-2"><span class="badge bg-warning text-dark">Amount differs</span> — System vs import differ on paid and/or invoiced; message shows which (Paid: Sys KES X vs Imp KES Y, or Invoiced: …).</li>
                             </ul>
                         </div>
                         <div class="col-md-6">
