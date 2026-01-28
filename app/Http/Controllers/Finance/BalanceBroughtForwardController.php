@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
-use App\Models\LegacyStatementTerm;
 use App\Models\InvoiceItem;
 use App\Models\Votehead;
 use App\Models\BalanceBroughtForwardImport;
@@ -25,16 +24,8 @@ class BalanceBroughtForwardController extends Controller
     public function index(Request $request)
     {
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
-        
-        // Get students with balance brought forward from legacy data (pre-2026)
-        $legacyStudentIds = LegacyStatementTerm::where('academic_year', '<', 2026)
-            ->whereNotNull('ending_balance')
-            ->where('ending_balance', '>', 0)
-            ->whereNotNull('student_id')
-            ->distinct()
-            ->pluck('student_id');
 
-        // Get students with balance brought forward in invoices (BAL_BF items)
+        // Get students with balance brought forward in invoices (BAL_BF items) — only these are shown and editable here
         $invoiceBfStudentIds = collect();
         if ($balanceBroughtForwardVotehead) {
             $invoiceBfStudentIds = DB::table('invoice_items')
@@ -49,13 +40,11 @@ class BalanceBroughtForwardController extends Controller
                 ->filter();
         }
 
-        // Combine student IDs with balance brought forward
-        $allStudentIds = $legacyStudentIds
-            ->merge($invoiceBfStudentIds)
-            ->unique()
-            ->filter();
+        // Only show students who have invoice BBF (editable/deletable on this page).
+        // Legacy-only students are excluded so that when you delete BBF, the row disappears.
+        $allStudentIds = $invoiceBfStudentIds->filter();
         
-        // Get students with balance brought forward
+        // Get students with balance brought forward (invoice BBF only)
         $students = Student::whereIn('id', $allStudentIds)
             ->with(['classroom', 'stream', 'category'])
             ->orderBy('admission_number')
@@ -728,15 +717,32 @@ class BalanceBroughtForwardController extends Controller
      */
     public function add(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'balance' => 'required|numeric|min:0',
             'student_id' => 'required|exists:students,id',
+        ], [
+            'student_id.required' => 'Please select a student.',
+            'student_id.exists' => 'The selected student was not found.',
+            'balance.required' => 'Please enter the balance brought forward amount.',
+            'balance.numeric' => 'Balance must be a number.',
+            'balance.min' => 'Balance cannot be negative.',
         ]);
 
-        $studentModel = Student::findOrFail($request->input('student_id'));
-        
-        // Use the same logic as update but get student from request
-        return $this->saveBalance($studentModel, $request->input('balance'));
+        try {
+            $studentModel = Student::findOrFail($validated['student_id']);
+            return $this->saveBalance($studentModel, (float) $validated['balance']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('Balance brought forward add failed', [
+                'student_id' => $request->input('student_id'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return redirect()->route('finance.balance-brought-forward.index')
+                ->with('error', 'Failed to add balance brought forward: ' . $e->getMessage())
+                ->withInput($request->only('balance'));
+        }
     }
 
     /**
@@ -746,9 +752,21 @@ class BalanceBroughtForwardController extends Controller
     {
         $request->validate([
             'balance' => 'required|numeric|min:0',
+        ], [
+            'balance.required' => 'Please enter the balance brought forward amount.',
+            'balance.numeric' => 'Balance must be a number.',
+            'balance.min' => 'Balance cannot be negative.',
         ]);
 
-        return $this->saveBalance($student, $request->input('balance'));
+        try {
+            return $this->saveBalance($student, (float) $request->input('balance'));
+        } catch (\Exception $e) {
+            Log::error('Balance brought forward update failed', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Failed to update: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -784,32 +802,84 @@ class BalanceBroughtForwardController extends Controller
                     'source' => 'balance_brought_forward',
                 ]);
 
-                $oldAmount = $invoiceItem->exists ? (float) $invoiceItem->amount : 0;
                 $invoiceItem->amount = $balance;
+                $invoiceItem->original_amount = $balance; // So list and statement show current value
                 $invoiceItem->status = 'active';
                 $invoiceItem->effective_date = $invoice->issued_date ?? now();
-                
-                // Store original_amount to preserve the static value (as imported/manually set)
-                // This ensures the balance brought forward page shows the original value, not outstanding balance
-                if (!$invoiceItem->original_amount) {
-                    // If this is a new item, set original_amount to the balance being set
-                    // If updating, preserve the original original_amount or use the old amount
-                    $invoiceItem->original_amount = $oldAmount > 0 ? $oldAmount : $balance;
-                }
-                // If original_amount already exists, don't change it (preserves the original import value)
-                
+
                 $invoiceItem->save();
 
                 InvoiceService::recalc($invoice);
             });
 
-            return back()->with('success', 'Balance brought forward saved successfully.');
+            Log::info('Balance brought forward saved', [
+                'student_id' => $student->id,
+                'admission_number' => $student->admission_number,
+                'balance' => $balance,
+                'user_id' => auth()->id(),
+            ]);
+
+            return redirect()->route('finance.balance-brought-forward.index')
+                ->with('success', 'Balance brought forward saved successfully. It will appear on the student statement, invoice, and any receipts that allocate to this invoice.');
         } catch (\Exception $e) {
-            Log::error('Balance brought forward update error', [
+            Log::error('Balance brought forward save error', [
                 'student_id' => $student->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
-            return back()->with('error', 'Failed to save: ' . $e->getMessage());
+            return redirect()->route('finance.balance-brought-forward.index')
+                ->with('error', 'Failed to save: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete balance brought forward for a student (remove BBF invoice item).
+     */
+    public function destroy(Request $request, Student $student)
+    {
+        $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
+        if (!$balanceBroughtForwardVotehead) {
+            return redirect()->route('finance.balance-brought-forward.index')
+                ->with('error', 'Balance brought forward votehead not found.');
+        }
+
+        try {
+            $deleted = DB::transaction(function () use ($student, $balanceBroughtForwardVotehead) {
+                $invoiceItem = InvoiceItem::whereHas('invoice', fn ($q) => $q->where('student_id', $student->id))
+                    ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+                    ->where('source', 'balance_brought_forward')
+                    ->first();
+
+                if (!$invoiceItem) {
+                    return 0;
+                }
+
+                $invoice = $invoiceItem->invoice;
+                $invoiceItem->delete();
+                InvoiceService::recalc($invoice);
+                return 1;
+            });
+
+            if ($deleted) {
+                Log::info('Balance brought forward deleted', [
+                    'student_id' => $student->id,
+                    'admission_number' => $student->admission_number,
+                    'user_id' => auth()->id(),
+                ]);
+                return redirect()->route('finance.balance-brought-forward.index')
+                    ->with('success', 'Balance brought forward removed. The student statement and invoice will no longer show this amount.');
+            }
+
+            return redirect()->route('finance.balance-brought-forward.index')
+                ->with('warning', 'No balance brought forward found for this student.');
+        } catch (\Exception $e) {
+            Log::error('Balance brought forward delete failed', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return redirect()->route('finance.balance-brought-forward.index')
+                ->with('error', 'Failed to delete: ' . $e->getMessage());
         }
     }
 

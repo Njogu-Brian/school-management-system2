@@ -9,62 +9,33 @@
         'subtitle' => 'View and manage balance brought forward from legacy imports or previous terms'
     ])
 
-    <div class="alert alert-info alert-dismissible fade show finance-animate" role="alert">
-      <div class="d-flex align-items-center">
-        <i class="bi bi-info-circle me-2"></i>
-        <div>
-          <strong>Note:</strong> The values shown here are the <strong>original static amounts</strong> as imported or manually set. 
-          These values do not change as payments are made. To see current payment status and outstanding balances, 
-          please check <a href="{{ route('finance.fee-balances.index', ['view' => 'with-bbf']) }}" class="alert-link">Fee Balance Report</a>, 
-          <a href="{{ route('finance.student-statements.index') }}" class="alert-link">Student Statements</a>, or individual invoices.
-        </div>
-      </div>
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-
-    @if(session('import_batch_id') || ($latestImport ?? null))
-      @php
-        $import = $latestImport ?? \App\Models\BalanceBroughtForwardImport::find(session('import_batch_id'));
-      @endphp
-      @if($import && !$import->is_reversed)
-        <div class="alert alert-info alert-dismissible fade show finance-animate" role="alert">
-          <div class="d-flex align-items-center justify-content-between">
-            <div>
-              <strong><i class="bi bi-info-circle"></i> Latest Import:</strong>
-              Import #{{ $import->id }} - {{ $import->balances_updated_count }} updated, {{ $import->balances_deleted_count }} deleted on {{ $import->imported_at->format('M d, Y H:i') }}
-            </div>
-            <form method="POST" action="{{ route('finance.balance-brought-forward.import.reverse', $import) }}" class="d-inline" onsubmit="return confirm('Are you sure you want to reverse this import? This will restore all balances to their previous values.');">
-              @csrf
-              <button type="submit" class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-arrow-counterclockwise"></i> Reverse Import
-              </button>
-            </form>
-          </div>
-        </div>
-      @endif
-    @endif
-
     @if(session('success'))
       <div class="alert alert-success alert-dismissible fade show finance-animate" role="alert">
-        {{ session('success') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <i class="bi bi-check-circle me-2"></i>{{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
     @if(session('error'))
       <div class="alert alert-danger alert-dismissible fade show finance-animate" role="alert">
-        {{ session('error') }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <i class="bi bi-exclamation-triangle me-2"></i>{{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
-    @if(session('errors') && is_array(session('errors')))
+    @if(session('warning'))
       <div class="alert alert-warning alert-dismissible fade show finance-animate" role="alert">
-        <strong>Some errors occurred:</strong>
-        <ul class="mb-0">
-          @foreach(session('errors') as $error)
+        <i class="bi bi-info-circle me-2"></i>{{ session('warning') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    @endif
+    @if($errors->any())
+      <div class="alert alert-danger alert-dismissible fade show finance-animate" role="alert">
+        <strong><i class="bi bi-exclamation-triangle me-2"></i>Please fix the following:</strong>
+        <ul class="mb-0 mt-2">
+          @foreach($errors->all() as $error)
             <li>{{ $error }}</li>
           @endforeach
         </ul>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
 
@@ -106,14 +77,30 @@
                           </td>
                           <td>{{ $student->admission_number }}</td>
                           <td>{{ $student->classroom?->name ?? '—' }}</td>
-                          <td class="text-end fw-bold">KES {{ number_format($balance, 2) }}</td>
+                          <td class="text-end">
+                            <div class="d-flex flex-column flex-md-row align-items-end gap-2">
+                              <span class="fw-bold">KES {{ number_format($balance, 2) }}</span>
+                              <form method="POST" action="{{ route('finance.balance-brought-forward.update', $student) }}" class="d-flex align-items-center gap-1 flex-nowrap" style="max-width: 200px;">
+                                @csrf
+                                @method('PUT')
+                                <input type="number" name="balance" class="form-control form-control-sm" step="0.01" min="0" value="{{ $balance }}" required style="width: 100px;">
+                                <button type="submit" class="btn btn-sm btn-primary" title="Save changes">
+                                  <i class="bi bi-check-lg"></i> Save
+                                </button>
+                              </form>
+                            </div>
+                          </td>
                           <td>
                             <span class="badge bg-info">{{ $source }}</span>
                           </td>
                           <td>
-                            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ $student->id }}">
-                              <i class="bi bi-pencil"></i> Edit
-                            </button>
+                            <form method="POST" action="{{ route('finance.balance-brought-forward.destroy', $student) }}" class="d-inline" onsubmit="return confirm('Remove balance brought forward for this student? The amount will no longer appear on their statement or invoice.');">
+                              @csrf
+                              @method('DELETE')
+                              <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove balance brought forward">
+                                <i class="bi bi-trash"></i> Delete
+                              </button>
+                            </form>
                           </td>
                         </tr>
                       @endforeach
@@ -130,47 +117,6 @@
                   </table>
                 </div>
               </div>
-
-              <!-- Edit Modals (placed outside table for proper rendering) -->
-              @foreach($students as $item)
-                @php
-                  $student = $item['student'];
-                  $balance = $item['balance_brought_forward'];
-                @endphp
-                <div class="modal fade" id="editModal{{ $student->id }}" tabindex="-1" aria-labelledby="editModalLabel{{ $student->id }}" aria-hidden="true">
-                  <div class="modal-dialog">
-                    <div class="modal-content">
-                      <form method="POST" action="{{ route('finance.balance-brought-forward.update', $student) }}">
-                        @csrf
-                        @method('PUT')
-                        <div class="modal-header">
-                          <h5 class="modal-title" id="editModalLabel{{ $student->id }}">Update Balance Brought Forward</h5>
-                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                          <div class="mb-3">
-                            <label class="form-label">Student</label>
-                            <input type="text" class="form-control" value="{{ $student->full_name }} ({{ $student->admission_number }})" readonly>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">Current Balance Brought Forward</label>
-                            <input type="text" class="form-control" value="KES {{ number_format($balance, 2) }}" readonly>
-                          </div>
-                          <div class="mb-3">
-                            <label class="form-label">New Balance Brought Forward <span class="text-danger">*</span></label>
-                            <input type="number" name="balance" class="form-control" step="0.01" min="0" value="{{ $balance }}" required>
-                            <small class="text-muted">Enter the new balance brought forward amount</small>
-                          </div>
-                        </div>
-                        <div class="modal-footer">
-                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                          <button type="submit" class="btn btn-primary">Update</button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              @endforeach
             @else
               <div class="text-center text-muted py-5">
                 <i class="bi bi-inbox" style="font-size: 3rem;"></i>
@@ -191,21 +137,26 @@
             <p class="text-muted small">Search for a student to add or update their balance brought forward.</p>
             <form method="POST" action="{{ route('finance.balance-brought-forward.add') }}" id="addBalanceForm">
               @csrf
-              <input type="hidden" name="student_id" id="add_balance_student_id">
               <div class="mb-3">
-                <label class="finance-form-label">Student</label>
+                <label class="finance-form-label">Student <span class="text-danger">*</span></label>
                 @include('partials.student_live_search', [
                     'hiddenInputId' => 'add_balance_student_id',
                     'displayInputId' => 'addBalanceStudentSearch',
                     'resultsId' => 'addBalanceStudentResults',
                     'placeholder' => 'Type name or admission #',
-                    'initialLabel' => ''
+                    'initialLabel' => old('student_id') ? (\App\Models\Student::find(old('student_id'))?->full_name ?? '') : ''
                 ])
+                @error('student_id')
+                  <div class="invalid-feedback d-block">{{ $message }}</div>
+                @enderror
               </div>
               <div class="mb-3">
                 <label class="finance-form-label">Balance Brought Forward <span class="text-danger">*</span></label>
-                <input type="number" name="balance" class="form-control" step="0.01" min="0" required>
+                <input type="number" name="balance" class="form-control @error('balance') is-invalid @enderror" step="0.01" min="0" value="{{ old('balance') }}" required>
                 <small class="text-muted">Enter the balance brought forward amount</small>
+                @error('balance')
+                  <div class="invalid-feedback">{{ $message }}</div>
+                @enderror
               </div>
               <button type="submit" class="btn btn-finance btn-finance-primary w-100">
                 <i class="bi bi-plus-circle"></i> Add/Update Balance
@@ -249,6 +200,7 @@
         </div>
       </div>
     </div>
+
   </div>
 </div>
 @endsection
