@@ -82,6 +82,10 @@
                 </select>
             </div>
             <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Receipt / Transaction Code</label>
+                <input type="text" name="search" class="finance-form-control" value="{{ request('search') }}" placeholder="e.g. RCPT/2026-0524 or UA1SB5QUU8">
+            </div>
+            <div class="col-md-6 col-lg-2">
                 <label class="finance-form-label">From Date</label>
                 <input type="date" name="from_date" class="finance-form-control" value="{{ request('from_date') }}">
             </div>

@@ -78,6 +78,14 @@ class PaymentController extends Controller
             $query->whereDate('payment_date', '<=', $request->to_date);
         }
         
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            $query->where(function ($q) use ($search) {
+                $q->where('receipt_number', 'like', '%' . $search . '%')
+                  ->orWhere('transaction_code', 'like', '%' . $search . '%');
+            });
+        }
+        
         if ($request->filled('status')) {
             // Status filtering would need to be implemented based on payment status logic
             // For now, we'll skip this as it requires more complex logic

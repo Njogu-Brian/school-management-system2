@@ -30,9 +30,16 @@ class StudentStatementController extends Controller
         $year = $request->get('year', now()->year);
         $term = $request->get('term');
         
-        // Get all invoices for the student with detailed items (exclude reversed)
+        // Get all invoices for the student with detailed items (exclude reversed).
+        // Match by year column or by academic_year relation so we include invoices that
+        // were created with only academic_year_id set (e.g. fee posting) and have year=null.
         $invoicesQuery = Invoice::where('student_id', $student->id)
-            ->where('year', $year)
+            ->where(function ($q) use ($year) {
+                $q->where('year', $year)
+                  ->orWhereHas('academicYear', function ($q2) use ($year) {
+                      $q2->where('year', $year);
+                  });
+            })
             ->whereNull('reversed_at')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'reversed');
@@ -578,9 +585,14 @@ class StudentStatementController extends Controller
         $year = $request->get('year', now()->year);
         $term = $request->get('term');
         
-        // Get all invoices for the student with detailed items (exclude reversed)
+        // Same year scope as show(): by year column or academic_year relation
         $invoicesQuery = Invoice::where('student_id', $student->id)
-            ->where('year', $year)
+            ->where(function ($q) use ($year) {
+                $q->where('year', $year)
+                  ->orWhereHas('academicYear', function ($q2) use ($year) {
+                      $q2->where('year', $year);
+                  });
+            })
             ->whereNull('reversed_at')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'reversed');
@@ -923,9 +935,14 @@ class StudentStatementController extends Controller
         $term = $request->get('term');
         $format = $request->get('format', 'pdf'); // pdf or csv
         
-        // Get the same data as show method (exclude reversed invoices)
+        // Same year scope as show(): by year column or academic_year relation
         $invoicesQuery = Invoice::where('student_id', $student->id)
-            ->where('year', $year)
+            ->where(function ($q) use ($year) {
+                $q->where('year', $year)
+                  ->orWhereHas('academicYear', function ($q2) use ($year) {
+                      $q2->where('year', $year);
+                  });
+            })
             ->whereNull('reversed_at')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'reversed');
