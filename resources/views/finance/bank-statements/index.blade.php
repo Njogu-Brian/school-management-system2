@@ -274,7 +274,35 @@
                             @endif
                         </th>
                         <th>Date</th>
-                        <th>Amount</th>
+                        <th>
+                            <div class="d-flex align-items-center gap-2">
+                                <span>Amount</span>
+                                @php
+                                    $currentSort = request('sort', 'date');
+                                    $sortParams = request()->except(['sort', 'page']);
+                                @endphp
+                                <div class="btn-group btn-group-sm" role="group" style="font-size: 0.7rem;">
+                                    <a href="{{ route('finance.bank-statements.index', array_merge($sortParams, ['sort' => 'date'])) }}" 
+                                       class="btn btn-sm {{ $currentSort === 'date' || $currentSort === '' ? 'btn-primary' : 'btn-outline-secondary' }}"
+                                       title="Sort by Date (Newest First)"
+                                       style="padding: 0.2rem 0.5rem;">
+                                        <i class="bi bi-calendar-event"></i>
+                                    </a>
+                                    <a href="{{ route('finance.bank-statements.index', array_merge($sortParams, ['sort' => 'amount_desc'])) }}" 
+                                       class="btn btn-sm {{ $currentSort === 'amount_desc' ? 'btn-primary' : 'btn-outline-secondary' }}"
+                                       title="Sort by Amount (Highest to Lowest)"
+                                       style="padding: 0.2rem 0.5rem;">
+                                        <i class="bi bi-sort-down"></i>
+                                    </a>
+                                    <a href="{{ route('finance.bank-statements.index', array_merge($sortParams, ['sort' => 'amount_asc'])) }}" 
+                                       class="btn btn-sm {{ $currentSort === 'amount_asc' ? 'btn-primary' : 'btn-outline-secondary' }}"
+                                       title="Sort by Amount (Lowest to Highest)"
+                                       style="padding: 0.2rem 0.5rem;">
+                                        <i class="bi bi-sort-up"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </th>
                         <th>Description</th>
                         <th>Reference</th>
                         <th>Phone</th>
@@ -336,6 +364,14 @@
                                 && !$txnIsArchived
                                 && ($txnStudentId || $txnIsShared)
                                 && $c2bCanSwim;
+                            // Cannot mark as swimming if transaction has a linked fee payment (same as: fee payments cannot be used for swimming)
+                            $hasLinkedFeePayment = false;
+                            if ($transaction->payment_id) {
+                                $linkedPayment = $transaction->payment ?? \App\Models\Payment::find($transaction->payment_id);
+                                $hasLinkedFeePayment = $linkedPayment && !$linkedPayment->reversed;
+                            } else {
+                                $hasLinkedFeePayment = $txnPaymentCreated;
+                            }
                             // For C2B, allow marking if has student_id or is unallocated; for bank, allow if has student/shared or unmatched
                             $c2bCanMark = $isC2B ? ($txnStudentId || $txnAllocationStatus === 'unallocated') : true;
                             $bankCanMark = !$isC2B ? ($txnStudentId || $txnIsShared || $txnMatchStatus === 'unmatched' || $txnMatchStatus === 'multiple_matches') : true;
@@ -343,6 +379,7 @@
                                 && !$txnIsSwimming
                                 && !$txnIsDuplicate
                                 && !$txnIsArchived
+                                && !$hasLinkedFeePayment
                                 && (($isC2B && $c2bCanMark) || (!$isC2B && $bankCanMark))
                                 && $c2bCanSwim;
                             $canSelectDraftUnmatched = $txnStatus === 'draft'
@@ -504,6 +541,14 @@
                                                 <i class="bi bi-person-plus"></i>
                                             </a>
                                         @endif
+                                        @if($txnIsSwimming && $txnStatus !== 'rejected')
+                                            <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $transaction->id) }}?type=c2b" class="d-inline" onsubmit="return confirm('Revert this transaction from swimming? It will be treated as a regular fee payment again.')">
+                                                @csrf
+                                                <button type="submit" class="btn btn-finance btn-finance-warning btn-sm" title="Revert to regular payments (unmark as swimming)">
+                                                    <i class="bi bi-arrow-return-left"></i> Revert
+                                                </button>
+                                            </form>
+                                        @endif
                                     @else
                                         <a href="{{ route('finance.bank-statements.show', $transaction->id) }}?type=bank" class="btn btn-finance btn-finance-secondary" title="View">
                                             <i class="bi bi-eye"></i>
@@ -529,10 +574,10 @@
                                             }
                                         @endphp
                                         @if(!$hasAllocations)
-                                            <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $transaction) }}" class="d-inline" onsubmit="return confirm('Unmark this transaction as swimming? This will allow it to be processed as a regular fee payment.')">
+                                            <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $transaction) }}" class="d-inline" onsubmit="return confirm('Revert this transaction from swimming? It will be treated as a regular fee payment again.')">
                                                 @csrf
-                                                <button type="submit" class="btn btn-finance btn-finance-warning btn-sm" title="Unmark as Swimming">
-                                                    <i class="bi bi-x-circle"></i>
+                                                <button type="submit" class="btn btn-finance btn-finance-warning btn-sm" title="Revert to regular payments (unmark as swimming)">
+                                                    <i class="bi bi-arrow-return-left"></i> Revert
                                                 </button>
                                             </form>
                                         @endif

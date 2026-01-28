@@ -23,7 +23,8 @@ class SwimmingTransactionService
     }
 
     /**
-     * Mark transaction as swimming transaction
+     * Mark transaction as swimming transaction.
+     * Cannot mark if transaction has a linked fee payment (same as: fee payments cannot be used for swimming).
      */
     public function markAsSwimming(BankStatementTransaction $transaction): void
     {
@@ -37,6 +38,17 @@ class SwimmingTransactionService
             // Check if already marked as swimming
             if ($transaction->is_swimming_transaction) {
                 throw new \Exception('Transaction is already marked as swimming.');
+            }
+            
+            // Cannot mark as swimming if transaction has a linked fee payment
+            if ($transaction->payment_id) {
+                $payment = Payment::find($transaction->payment_id);
+                if ($payment && !$payment->reversed) {
+                    throw new \Exception('Cannot mark as swimming: this transaction has a linked fee payment (Receipt: ' . ($payment->receipt_number ?? $payment->transaction_code) . '). Only transactions without fee payments can be marked as swimming.');
+                }
+            }
+            if ($transaction->payment_created) {
+                throw new \Exception('Cannot mark as swimming: this transaction has already been used for fee collection. Only uncollected transactions can be marked as swimming.');
             }
             
             $updateData = ['is_swimming_transaction' => true];

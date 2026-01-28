@@ -242,11 +242,35 @@ class BankStatementController extends Controller
         
         // Combine transactions
         $bankTransactions = $query->get();
-        $allTransactions = $bankTransactions->concat($c2bTransactions)
-            ->sortByDesc(function($txn) {
-                return $txn->trans_time ?? $txn->transaction_date ?? $txn->created_at;
-            })
-            ->values();
+        
+        // Get sort parameter (amount_desc, amount_asc, or date for default)
+        $sort = $request->get('sort', 'date');
+        
+        // Combine and sort transactions
+        $allTransactions = $bankTransactions->concat($c2bTransactions);
+        
+        if ($sort === 'amount_desc') {
+            // Sort by amount descending (highest to lowest)
+            $allTransactions = $allTransactions->sortByDesc(function($txn) {
+                return $txn instanceof \App\Models\MpesaC2BTransaction 
+                    ? $txn->trans_amount 
+                    : $txn->amount;
+            })->values();
+        } elseif ($sort === 'amount_asc') {
+            // Sort by amount ascending (lowest to highest)
+            $allTransactions = $allTransactions->sortBy(function($txn) {
+                return $txn instanceof \App\Models\MpesaC2BTransaction 
+                    ? $txn->trans_amount 
+                    : $txn->amount;
+            })->values();
+        } else {
+            // Default: sort by date/time descending (newest first)
+            $allTransactions = $allTransactions->sortByDesc(function($txn) {
+                return $txn instanceof \App\Models\MpesaC2BTransaction 
+                    ? ($txn->trans_time ?? $txn->created_at)
+                    : ($txn->transaction_date ?? $txn->created_at);
+            })->values();
+        }
         
         // Paginate manually with per-page option
         $perPageOptions = [20, 50, 100, 200];
@@ -3810,22 +3834,37 @@ class BankStatementController extends Controller
                     $wasAlreadyMarked = $transaction->is_swimming_transaction ?? false;
                 }
                 
-                // If not already marked, mark it as swimming
+                // If not already marked, mark it as swimming (only if no linked fee payment)
                 if (!$wasAlreadyMarked) {
+                    $hasLinkedPayment = false;
                     if ($isBank) {
-                        $this->swimmingTransactionService->markAsSwimming($transaction);
-                    } elseif ($isC2B) {
-                        // Mark C2B transaction as swimming
-                        if (!$hasC2BSwimmingColumn) {
-                            throw new \Exception('C2B swimming column not found. Please run migration to add is_swimming_transaction to mpesa_c2b_transactions table.');
+                        if ($transaction->payment_id) {
+                            $payment = \App\Models\Payment::find($transaction->payment_id);
+                            $hasLinkedPayment = $payment && !$payment->reversed;
+                        } else {
+                            $hasLinkedPayment = (bool) $transaction->payment_created;
                         }
-                        $transaction->update(['is_swimming_transaction' => true]);
-                        Log::info('C2B transaction marked as swimming', [
-                            'transaction_id' => $transaction->id,
-                            'amount' => $transaction->trans_amount,
-                        ]);
+                    } elseif ($isC2B) {
+                        $hasLinkedPayment = $transaction->payment_id ? (\App\Models\Payment::find($transaction->payment_id) && !\App\Models\Payment::find($transaction->payment_id)->reversed) : false;
                     }
-                    $marked++;
+                    if ($hasLinkedPayment) {
+                        $errors[] = "Transaction #{$transaction->id}: Cannot mark as swimming — it has a linked fee payment. Only transactions without fee payments can be marked as swimming.";
+                        $skipped++;
+                    } else {
+                        if ($isBank) {
+                            $this->swimmingTransactionService->markAsSwimming($transaction);
+                        } elseif ($isC2B) {
+                            if (!$hasC2BSwimmingColumn) {
+                                throw new \Exception('C2B swimming column not found. Please run migration to add is_swimming_transaction to mpesa_c2b_transactions table.');
+                            }
+                            $transaction->update(['is_swimming_transaction' => true]);
+                            Log::info('C2B transaction marked as swimming', [
+                                'transaction_id' => $transaction->id,
+                                'amount' => $transaction->trans_amount,
+                            ]);
+                        }
+                        $marked++;
+                    }
                 } else {
                     $skipped++;
                 }
@@ -3960,14 +3999,22 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Unmark individual transaction as swimming
+     * Unmark individual transaction as swimming (revert to regular fee payment)
      */
     public function unmarkAsSwimming(Request $request, $id)
     {
-        // Check if column exists (only for bank statements)
-        if (!$isC2B) {
+        $typeHint = $request->get('type');
+        $transaction = $this->resolveTransaction($id, $typeHint);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+
+        if ($isC2B) {
+            $hasSwimmingColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction');
+            if (!$hasSwimmingColumn) {
+                return redirect()->back()
+                    ->with('error', 'C2B swimming column does not exist.');
+            }
+        } else {
             $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
-            
             if (!$hasSwimmingColumn) {
                 return redirect()->back()
                     ->with('error', 'Swimming transaction column does not exist.');
@@ -3980,12 +4027,15 @@ class BankStatementController extends Controller
         }
 
         try {
-            $this->swimmingTransactionService->unmarkAsSwimming($transaction);
-            
+            if ($isC2B) {
+                $transaction->update(['is_swimming_transaction' => false]);
+            } else {
+                $this->swimmingTransactionService->unmarkAsSwimming($transaction);
+            }
+
             return redirect()
-                ->route('finance.bank-statements.show', $id)
-                ->with('success', 'Transaction unmarked as swimming successfully.');
-                
+                ->route('finance.bank-statements.show', [$id] + ($typeHint ? ['type' => $typeHint] : []))
+                ->with('success', 'Transaction reverted from swimming successfully. It can now be used for fee collection.');
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Failed to unmark transaction: ' . $e->getMessage());
@@ -4143,13 +4193,9 @@ class BankStatementController extends Controller
                         ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
                         ->get();
 
-                    if ($swimmingAllocations->isEmpty()) {
-                        throw new \Exception('No swimming allocations found for transaction');
-                    }
-
-                    // Reverse swimming wallet allocations
+                    // Reverse swimming wallet allocations (if any exist)
                     foreach ($swimmingAllocations as $allocation) {
-                        if ($allocation->status === \App\Models\SwimmingTransactionAllocation::STATUS_PROCESSED) {
+                        if ($allocation->status === \App\Models\SwimmingTransactionAllocation::STATUS_ALLOCATED) {
                             // Debit the wallet if it was credited
                             $wallet = \App\Models\SwimmingWallet::where('student_id', $allocation->student_id)->first();
                             if ($wallet) {
@@ -4184,30 +4230,47 @@ class BankStatementController extends Controller
                         // Mark allocation as reversed
                         $allocation->update([
                             'status' => \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED,
-                            'reversed_at' => now(),
-                            'reversed_by' => auth()->id(),
                         ]);
                     }
 
-                    // Mark transaction as NOT swimming
-                    $transaction->update([
-                        'is_swimming_transaction' => false,
-                        'payment_created' => false, // Reset so payment can be recreated
-                    ]);
+                    // Check if a payment already exists for this transaction (e.g. was wrongly marked swimming)
+                    $existingPayment = null;
+                    if ($transaction->payment_id) {
+                        $existingPayment = Payment::where('id', $transaction->payment_id)
+                            ->where('reversed', false)
+                            ->whereNull('deleted_at')
+                            ->first();
+                    }
+                    if (!$existingPayment && $transaction->reference_number) {
+                        $existingPayment = Payment::where('transaction_code', $transaction->reference_number)
+                            ->where('reversed', false)
+                            ->whereNull('deleted_at')
+                            ->when($transaction->student_id, fn($q) => $q->where('student_id', $transaction->student_id))
+                            ->first();
+                    }
 
-                    // If transaction has a student assigned, create payment for ordinary allocation
-                    if ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations)) {
-                        // Create payment using the parser service
-                        $payment = $this->parser->createPaymentFromTransaction($transaction, false);
-                        
-                        if ($payment) {
-                            // Auto-allocate to invoices
-                            $allocationService = app(\App\Services\PaymentAllocationService::class);
-                            $allocationService->autoAllocate($payment);
-                            
-                            // Queue receipt generation and notifications
-                            \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
-                                ->onQueue('default');
+                    if ($existingPayment) {
+                        // Already has a payment: only unmark as swimming, keep payment link
+                        $transaction->update([
+                            'is_swimming_transaction' => false,
+                            'payment_created' => true,
+                            'payment_id' => $existingPayment->id,
+                        ]);
+                    } else {
+                        // No existing payment: unmark swimming and create payment
+                        $transaction->update([
+                            'is_swimming_transaction' => false,
+                            'payment_created' => false,
+                        ]);
+
+                        if ($transaction->student_id || ($transaction->is_shared && $transaction->shared_allocations)) {
+                            $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                            if ($payment) {
+                                $allocationService = app(\App\Services\PaymentAllocationService::class);
+                                $allocationService->autoAllocate($payment);
+                                \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                                    ->onQueue('default');
+                            }
                         }
                     }
 

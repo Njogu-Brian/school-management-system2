@@ -196,7 +196,6 @@
                                     <th class="col-student">Student</th>
                                     <th class="col-class">Class</th>
                                     <th class="col-phone">Phone</th>
-                                    <th class="text-end col-num">Inv bal</th>
                                     <th class="text-end col-num">Sys inv</th>
                                     <th class="text-end col-num">Imp inv</th>
                                     <th class="text-end col-num">Sys paid</th>
@@ -217,7 +216,7 @@
                                     @endphp
                                     @if($isFamily)
                                         <tr class="family-header-row" style="background: color-mix(in srgb, var(--fin-primary) 6%, #fff 94%);">
-                                            <td colspan="{{ !empty($previewId) ? 13 : 12 }}" class="fw-bold py-2">
+                                            <td colspan="{{ !empty($previewId) ? 12 : 11 }}" class="fw-bold py-2">
                                                 <i class="bi bi-people me-1"></i> Family — {{ count($rows) }} children
                                             </td>
                                         </tr>
@@ -238,13 +237,6 @@
                                             <td class="col-student" title="{{ $row['student_name'] ?? '' }}">{{ $row['student_name'] }}</td>
                                             <td class="col-class">{{ $row['classroom'] ?? '—' }}</td>
                                             <td class="col-phone text-nowrap">{{ $row['parent_phone'] ?? '—' }}</td>
-                                            <td class="text-end col-num">
-                                                @if(isset($row['system_invoice_balance']) && $row['system_invoice_balance'] !== null)
-                                                    {{ number_format($row['system_invoice_balance'], 0) }}
-                                                @else
-                                                    <span class="text-muted">—</span>
-                                                @endif
-                                            </td>
                                             <td class="text-end col-num">
                                                 @if(isset($row['system_total_invoiced']) && $row['system_total_invoiced'] !== null)
                                                     {{ number_format($row['system_total_invoiced'], 0) }}

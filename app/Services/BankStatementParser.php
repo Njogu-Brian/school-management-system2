@@ -41,6 +41,7 @@ class BankStatementParser
         $matched = 0;
         $unmatched = 0;
         $duplicates = 0;
+        $linkedToExistingPayment = 0;
         
         foreach ($transactions as $txnData) {
             // Map parser output to our format
@@ -59,63 +60,50 @@ class BankStatementParser
             $payerName = $this->extractPayerName($particulars);
             $phoneNumber = $this->extractPhoneNumber($particulars);
             
-            // Check for duplicate using transaction_code
-            // Check both existing payments AND existing bank statement transactions
+            // STEP 1: Check for duplicates in BOTH transaction tables using reference_number
+            // If found in either table, skip creating a new transaction
             $isDuplicate = false;
-            $duplicatePayment = null;
-            $duplicateTransaction = null;
             if ($transactionCode) {
-                // First check if a bank statement transaction with this reference already exists
-                // Check for exact match: same reference_number, amount, and transaction_date
-                // Check for duplicates in both bank statements and C2B transactions
-                $duplicateTransaction = \App\Models\BankStatementTransaction::where('reference_number', $transactionCode)
+                // Check bank_statement_transactions table
+                $existingBankTxn = \App\Models\BankStatementTransaction::where('reference_number', $transactionCode)
                     ->where('amount', $amount)
                     ->whereDate('transaction_date', $transactionDate)
                     ->first();
                 
-                if ($duplicateTransaction) {
+                if ($existingBankTxn) {
                     $isDuplicate = true;
-                    // Also check if there's a payment linked to the duplicate transaction
-                    if ($duplicateTransaction->payment_id) {
-                        $duplicatePayment = Payment::find($duplicateTransaction->payment_id);
-                    }
+                    \Log::info('Skipping duplicate bank statement transaction', [
+                        'reference_number' => $transactionCode,
+                        'amount' => $amount,
+                        'transaction_date' => $transactionDate,
+                        'existing_transaction_id' => $existingBankTxn->id,
+                    ]);
                 } else {
-                    // Check C2B transactions for duplicates
-                    $c2bDuplicate = \App\Models\MpesaC2BTransaction::where('trans_id', $transactionCode)
+                    // Check mpesa_c2b_transactions table
+                    $existingC2BTxn = \App\Models\MpesaC2BTransaction::where('trans_id', $transactionCode)
                         ->where('trans_amount', $amount)
                         ->whereDate('trans_time', $transactionDate)
                         ->first();
                     
-                    if ($c2bDuplicate) {
+                    if ($existingC2BTxn) {
                         $isDuplicate = true;
-                        $duplicateTransaction = $c2bDuplicate;
-                        if ($c2bDuplicate->payment_id) {
-                            $duplicatePayment = Payment::find($c2bDuplicate->payment_id);
-                        }
-                    } else {
-                        // Check for existing payment with same transaction code
-                        $existingPayment = Payment::where('transaction_code', $transactionCode)->first();
-                        if ($existingPayment) {
-                            $isDuplicate = true;
-                            $duplicatePayment = $existingPayment;
-                        }
+                        \Log::info('Skipping duplicate C2B transaction', [
+                            'reference_number' => $transactionCode,
+                            'amount' => $amount,
+                            'transaction_date' => $transactionDate,
+                            'existing_c2b_id' => $existingC2BTxn->id,
+                        ]);
                     }
                 }
             }
             
-            // Skip creating transaction if it's a duplicate
-            if ($isDuplicate && $duplicateTransaction) {
+            // Skip if duplicate found in either transaction table
+            if ($isDuplicate) {
                 $duplicates++;
-                // Log the duplicate for reference
-                \Log::info('Skipping duplicate bank statement transaction', [
-                    'reference_number' => $transactionCode,
-                    'amount' => $amount,
-                    'transaction_date' => $transactionDate,
-                    'duplicate_transaction_id' => $duplicateTransaction->id,
-                ]);
-                continue; // Skip to next transaction
+                continue;
             }
             
+            // STEP 2: Create new bank statement transaction (no duplicate found)
             // Auto-archive debit transactions
             $isArchived = ($transactionType === 'debit');
             
@@ -131,8 +119,7 @@ class BankStatementParser
                 'phone_number' => $phoneNumber,
                 'payer_name' => $payerName,
                 'status' => 'draft',
-                'is_duplicate' => $isDuplicate, // This will be true if duplicate of payment, false if duplicate of transaction (since we skip those)
-                'duplicate_of_payment_id' => $duplicatePayment?->id,
+                'is_duplicate' => false,
                 'is_archived' => $isArchived,
                 'archived_at' => $isArchived ? now() : null,
                 'archived_by' => $isArchived ? auth()->id() : null,
@@ -140,13 +127,32 @@ class BankStatementParser
                 'created_by' => auth()->id(),
             ]);
             
-            if ($isDuplicate) {
-                // This means it's a duplicate of a payment (but transaction was still created)
-                $duplicates++;
+            // STEP 3: Check if a payment exists with this transaction reference number
+            $existingPayment = null;
+            if ($transactionCode) {
+                $existingPayment = Payment::where('transaction_code', $transactionCode)
+                    ->where('reversed', false)
+                    ->first();
+            }
+            
+            if ($existingPayment) {
+                // Payment exists - automatically link transaction to payment
+                $transaction->update([
+                    'payment_id' => $existingPayment->id,
+                    'payment_created' => true,
+                    'status' => 'confirmed',
+                    'confirmed_at' => now(),
+                    'confirmed_by' => auth()->id(),
+                    'student_id' => $existingPayment->student_id,
+                    'family_id' => optional(\App\Models\Student::find($existingPayment->student_id))->family_id,
+                    'match_status' => 'manual',
+                    'match_confidence' => 1.0,
+                    'match_notes' => 'Automatically linked to existing payment from statement upload',
+                ]);
+                $linkedToExistingPayment++;
             } else {
-                // Attempt to match transaction only if not duplicate
+                // No payment exists - proceed to normal matching service and await manual confirmation
                 $matchResult = $this->matchTransaction($transaction);
-                
                 if ($matchResult['matched']) {
                     $matched++;
                 } else {
@@ -157,13 +163,32 @@ class BankStatementParser
             $created[] = $transaction->id;
         }
         
+        // Build success message
+        $msgParts = [];
+        $msgParts[] = sprintf('Parsed %d transactions', count($transactions));
+        if ($duplicates > 0) {
+            $msgParts[] = sprintf('%d duplicates (skipped)', $duplicates);
+        }
+        if ($linkedToExistingPayment > 0) {
+            $msgParts[] = sprintf('%d linked to existing payments', $linkedToExistingPayment);
+        }
+        if ($matched > 0) {
+            $msgParts[] = sprintf('%d auto-matched', $matched);
+        }
+        if ($unmatched > 0) {
+            $msgParts[] = sprintf('%d awaiting manual confirmation', $unmatched);
+        }
+        
+        $msg = implode('. ', $msgParts) . '.';
+        
         return [
             'success' => true,
-            'message' => sprintf('Parsed %d transactions. %d matched, %d unmatched, %d duplicates.', count($transactions), $matched, $unmatched, $duplicates),
+            'message' => $msg,
             'transactions' => $created,
             'matched' => $matched,
             'unmatched' => $unmatched,
             'duplicates' => $duplicates,
+            'linked_to_existing_payment' => $linkedToExistingPayment,
         ];
     }
     

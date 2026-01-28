@@ -43,7 +43,8 @@
                                 'displayInputId' => 'studentSearchDisplay',
                                 'resultsId' => 'studentSearchResults',
                                 'placeholder' => 'Type name or admission #',
-                                'initialLabel' => $student ? $student->full_name . ' (' . $student->admission_number . ')' : ''
+                                'initialLabel' => $student ? $student->full_name . ' (' . $student->admission_number . ')' : '',
+                                'initialStudentId' => $student ? $student->id : null,
                             ])
                             @error('student_id')
                                 <div class="finance-form-error">{{ $message }}</div>
@@ -237,9 +238,15 @@ $(document).ready(function() {
         }
     });
 
-    // If student is pre-selected, trigger load
+    // If student is pre-selected (from URL or controller), trigger load
     @if($student)
         loadStudentData({{ $student->id }});
+    @else
+        // Fallback: if hidden input has value (e.g. from query string) but parents not loaded, load now
+        var initialId = $('#student_id').val();
+        if (initialId && $('#parentsList').text().indexOf('load parent') !== -1) {
+            loadStudentData(initialId);
+        }
     @endif
 
     // Load student data (sections 2–5 are always visible; we just populate them)

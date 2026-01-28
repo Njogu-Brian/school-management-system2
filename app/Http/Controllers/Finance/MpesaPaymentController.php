@@ -1475,7 +1475,7 @@ class MpesaPaymentController extends Controller
      */
     public function getStudentData(Student $student)
     {
-        $student->load(['family', 'classroom', 'parentInfo']);
+        $student->load(['family', 'classroom', 'parent']);
         
         $familyData = null;
         if ($student->family) {
@@ -1491,12 +1491,12 @@ class MpesaPaymentController extends Controller
                 'mother_email' => $student->family->mother_email,
             ];
             
-            // Add WhatsApp numbers from ParentInfo if available
-            if ($student->parentInfo) {
-                $familyData['father_whatsapp'] = $student->parentInfo->father_whatsapp;
-                $familyData['mother_whatsapp'] = $student->parentInfo->mother_whatsapp;
-                $familyData['guardian_phone'] = $student->parentInfo->guardian_phone;
-                $familyData['guardian_whatsapp'] = $student->parentInfo->guardian_whatsapp;
+            // Add WhatsApp numbers from ParentInfo (parent relationship) if available
+            if ($student->parent) {
+                $familyData['father_whatsapp'] = $student->parent->father_whatsapp ?? null;
+                $familyData['mother_whatsapp'] = $student->parent->mother_whatsapp ?? null;
+                $familyData['guardian_phone'] = $student->parent->guardian_phone ?? null;
+                $familyData['guardian_whatsapp'] = $student->parent->guardian_whatsapp ?? null;
             }
         }
         
@@ -1565,14 +1565,14 @@ class MpesaPaymentController extends Controller
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($invoice) {
-                // Calculate balance if not already set
-                $balance = $invoice->balance ?? ($invoice->total_amount - $invoice->amount_paid);
+                // Calculate balance if not already set (Invoice uses total and paid_amount)
+                $balance = $invoice->balance ?? (float) ($invoice->total ?? 0) - (float) ($invoice->paid_amount ?? 0);
                 
                 return [
                     'id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
-                    'total_amount' => (float) $invoice->total_amount,
-                    'amount_paid' => (float) $invoice->amount_paid,
+                    'total_amount' => (float) ($invoice->total ?? 0),
+                    'amount_paid' => (float) ($invoice->paid_amount ?? 0),
                     'balance' => max(0, (float) $balance), // Ensure balance is not negative
                     'status' => $invoice->status,
                     'due_date' => $invoice->due_date ? $invoice->due_date->format('Y-m-d') : null,

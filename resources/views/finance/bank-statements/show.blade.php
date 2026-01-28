@@ -907,10 +907,10 @@
                         }
                     @endphp
                     @if($isSwimming && !$hasAllocations && $bankStatement->status !== 'rejected')
-                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement->id) }}" class="mb-2" onsubmit="return confirm('Unmark this transaction as swimming? This will allow it to be processed as a regular fee payment.')">
+                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement->id) }}{{ isset($isC2B) && $isC2B ? '?type=c2b' : '?type=bank' }}" class="mb-2" onsubmit="return confirm('Revert this transaction from swimming? It will be treated as a regular fee payment again.')">
                             @csrf
-                            <button type="submit" class="btn btn-finance btn-finance-warning w-100">
-                                <i class="bi bi-x-circle"></i> Unmark as Swimming
+                            <button type="submit" class="btn btn-finance btn-finance-warning w-100" title="Revert to regular payments (unmark as swimming)">
+                                <i class="bi bi-arrow-return-left"></i> Revert to Regular Payments
                             </button>
                         </form>
                     @endif

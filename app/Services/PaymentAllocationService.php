@@ -89,9 +89,12 @@ class PaymentAllocationService
     }
     
     /**
-     * Auto-allocate payment to invoice items (FIFO)
+     * Auto-allocate payment to invoice items (FIFO).
+     * Optionally prefer a specific term so that term's items are allocated first (e.g. for fees comparison).
+     *
+     * @param int|null $preferTermId If set, invoice items belonging to this term are allocated first, then by issued_date
      */
-    public function autoAllocate(Payment $payment, ?int $studentId = null): Payment
+    public function autoAllocate(Payment $payment, ?int $studentId = null, ?int $preferTermId = null): Payment
     {
         // Prevent swimming payments from being auto-allocated to invoice items
         // Swimming payments should only credit wallets, not invoice items
@@ -115,8 +118,18 @@ class PaymentAllocationService
         ->get()
         ->filter(function ($item) {
             return $item->getBalance() > 0;
-        })
-        ->sortBy('invoice.issued_date');
+        });
+
+        // Sort: if preferTermId set, put that term's items first, then by issued_date
+        if ($preferTermId !== null) {
+            $invoiceItems = $invoiceItems->sortBy(function ($item) use ($preferTermId) {
+                $termId = $item->invoice->term_id ?? -1;
+                $issued = $item->invoice->issued_date?->format('Y-m-d') ?? '9999-99-99';
+                return [$termId == $preferTermId ? 0 : 1, $issued];
+            })->values();
+        } else {
+            $invoiceItems = $invoiceItems->sortBy('invoice.issued_date')->values();
+        }
         
         $remaining = $payment->amount;
         $allocations = [];
