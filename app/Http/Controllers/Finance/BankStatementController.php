@@ -2612,8 +2612,9 @@ class BankStatementController extends Controller
         $normalized = $this->normalizeTransaction($transaction);
         $bankStatement = (object) $normalized;
         $rawTransaction = $transaction;
-        
-        return view('finance.bank-statements.view-pdf', compact('bankStatement', 'rawTransaction', 'isC2B'));
+        $bankStatementId = $transaction->id;
+
+        return view('finance.bank-statements.view-pdf', compact('bankStatement', 'bankStatementId', 'rawTransaction', 'isC2B'));
     }
     
     /**
