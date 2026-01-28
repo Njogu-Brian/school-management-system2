@@ -257,6 +257,15 @@
                                             <a href="{{ route('finance.invoices.show', $transaction['invoice_id']) }}" class="btn btn-sm btn-outline-primary" title="View Invoice">
                                                 <i class="bi bi-eye"></i>
                                             </a>
+                                            @if(isset($transaction['invoice_item_id']))
+                                            <button type="button" class="btn btn-sm btn-outline-secondary editable-amount" 
+                                                    data-item-id="{{ $transaction['invoice_item_id'] }}"
+                                                    data-current-amount="{{ $transaction['debit'] }}"
+                                                    data-invoice-id="{{ $transaction['invoice_id'] ?? '' }}"
+                                                    title="Edit amount (creates credit or debit note)">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            @endif
                                         @elseif($transactionType == 'Payment' && isset($transaction['payment_id']))
                                             @php
                                                 $payment = \App\Models\Payment::find($transaction['payment_id']);
@@ -366,7 +375,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Inline editing for invoice items
+    // Inline editing for votehead line items (same as invoice: creates credit/debit notes)
+    const invoiceItemUpdateBase = "{{ url('/finance/invoices') }}";
     document.querySelectorAll('.editable-amount').forEach(element => {
         element.addEventListener('click', function() {
             const itemId = this.dataset.itemId;
@@ -381,7 +391,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Edit Invoice Item Amount</h5>
+                            <h5 class="modal-title">Edit Votehead Line Item Amount</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <form id="editItemForm">
@@ -396,6 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <span class="input-group-text">Ksh</span>
                                         <input type="number" step="0.01" min="0" name="new_amount" class="form-control" value="${currentAmount}" required>
                                     </div>
+                                    <small class="text-muted">Decreasing amount will create a credit note. Increasing will create a debit note.</small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Reason <span class="text-danger">*</span></label>
@@ -428,7 +439,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData(this);
                 const invoiceId = formData.get('invoice_id');
                 
-                fetch(`/finance/invoices/${invoiceId}/items/${itemId}/update`, {
+                fetch(`${invoiceItemUpdateBase}/${invoiceId}/items/${itemId}/update`, {
                     method: 'POST',
                     headers: {
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
