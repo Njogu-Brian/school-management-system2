@@ -276,7 +276,7 @@ class FamilyUpdateController extends Controller
                 'guardian_relationship' => 'nullable|string|max:255',
                 'marital_status' => 'nullable|in:married,single_parent,co_parenting',
                 'emergency_contact_name' => 'nullable|string|max:255',
-                'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+                'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
                 'emergency_phone_country_code' => 'nullable|string|max:8',
                 'preferred_hospital' => 'nullable|string|max:255',
                 'students' => 'required|array|min:1',

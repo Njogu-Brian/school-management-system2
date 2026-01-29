@@ -304,6 +304,11 @@ class StudentController extends Controller
         if ($request->input('drop_off_point_id') === 'other') {
             $request->merge(['drop_off_point_id' => null]);
         }
+        // Normalize stream_id: empty string or non-numeric (e.g. "No Active Streams") => null
+        $streamId = $request->input('stream_id');
+        if ($streamId === '' || $streamId === null || !is_numeric($streamId) || (int)$streamId < 1) {
+            $request->merge(['stream_id' => null]);
+        }
         try {
             $request->validate([
                 'first_name' => 'required|string|max:255',
@@ -333,7 +338,7 @@ class StudentController extends Controller
                 'allergies_notes' => 'nullable|string',
                 'is_fully_immunized' => 'nullable|boolean',
                 'emergency_contact_name' => 'nullable|string|max:255',
-                'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[\+]?[\d\s\-\(\)]{4,20}$/'],
+                'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
                 'residential_area' => 'nullable|string|max:255',
                 'preferred_hospital' => 'nullable|string|max:255',
                 'nemis_number' => 'nullable|string',
@@ -352,10 +357,11 @@ class StudentController extends Controller
                 'admission_date' => 'nullable|date',
             ]);
 
-            // Require stream if classroom has streams
+            // Require stream if classroom has streams (primary + pivot)
             $classroomId = (int)$request->classroom_id;
             $streamId = $request->stream_id;
-            $classroomHasStreams = \App\Models\Academics\Classroom::withCount('streams')->find($classroomId)?->streams_count > 0;
+            $classroom = \App\Models\Academics\Classroom::withCount(['streams', 'primaryStreams'])->find($classroomId);
+            $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
             if ($classroomHasStreams && !$streamId) {
                 return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
             }
@@ -576,6 +582,11 @@ class StudentController extends Controller
             if ($request->input('drop_off_point_id') === 'other') {
                 $request->merge(['drop_off_point_id' => null]);
             }
+            // Normalize stream_id: empty string or non-numeric (e.g. "No Active Streams") => null
+            $streamId = $request->input('stream_id');
+            if ($streamId === '' || $streamId === null || !is_numeric($streamId) || (int)$streamId < 1) {
+                $request->merge(['stream_id' => null]);
+            }
 
             \Log::info('Student Update: Starting validation');
             $validated = $request->validate([
@@ -634,7 +645,7 @@ class StudentController extends Controller
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[\+]?[\d\s\-\(\)]{4,20}$/'],
+            'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
                 'residential_area' => 'required|string|max:255',
             'preferred_hospital' => 'nullable|string|max:255',
             'nemis_number' => 'nullable|string',
@@ -743,10 +754,11 @@ class StudentController extends Controller
             return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
         }
 
-        // Require stream if classroom has streams
+        // Require stream if classroom has streams (primary + pivot)
         $classroomId = (int)$request->classroom_id;
         $streamId = $request->stream_id;
-        $classroomHasStreams = \App\Models\Academics\Classroom::withCount('streams')->find($classroomId)?->streams_count > 0;
+        $classroom = \App\Models\Academics\Classroom::withCount(['streams', 'primaryStreams'])->find($classroomId);
+        $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
         if ($classroomHasStreams && !$streamId) {
             return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
         }
@@ -1672,7 +1684,9 @@ class StudentController extends Controller
     public function getStreams(Request $request)
     {
         $request->validate(['classroom_id'=>'required|exists:classrooms,id']);
-        $streams = Stream::where('classroom_id', $request->classroom_id)->select('id','name')->get();
+        $classroom = Classroom::find($request->classroom_id);
+        // Return all streams for this classroom (primary + via pivot)
+        $streams = $classroom->primaryStreams->merge($classroom->streams)->unique('id')->sortBy('name')->values()->map(fn ($s) => ['id' => $s->id, 'name' => $s->name]);
         return response()->json($streams);
     }
 

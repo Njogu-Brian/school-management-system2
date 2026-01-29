@@ -135,7 +135,7 @@ class OnlineAdmissionController extends Controller
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
             'residential_area' => 'required|string|max:255',
             'preferred_hospital' => 'nullable|string|max:255',
             'previous_school' => 'nullable|string|max:255',
@@ -293,6 +293,12 @@ class OnlineAdmissionController extends Controller
             $request->merge(['drop_off_point_id' => null]);
         }
 
+        // Normalize stream_id: empty string or non-numeric => null so validation and "classroom has streams" check work
+        $streamId = $request->input('stream_id');
+        if ($streamId === '' || $streamId === null || !is_numeric($streamId) || (int)$streamId < 1) {
+            $request->merge(['stream_id' => null]);
+        }
+
         $validated = $request->validate([
             'classroom_id' => 'required|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
@@ -305,15 +311,16 @@ class OnlineAdmissionController extends Controller
             'allergies_notes' => 'nullable|string',
             'is_fully_immunized' => 'nullable|boolean',
             'emergency_contact_name' => 'nullable|string|max:255',
-            'emergency_contact_phone' => ['nullable','string','max:50','regex:/^[0-9]{4,15}$/'],
+            'emergency_contact_phone' => ['nullable','string','max:80','regex:/^[\+]?[\d\s\-\(\)]{4,25}(?:\s+[a-zA-Z\s\-\(\)\.\,]+)?$/'],
             'residential_area' => 'required|string|max:255',
             'preferred_hospital' => 'nullable|string|max:255',
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
         ]);
 
         DB::transaction(function () use ($admission, $validated) {
-            // Require stream if classroom has streams
-            $classroomHasStreams = Classroom::withCount('streams')->find($validated['classroom_id'])?->streams_count > 0;
+            // Require stream if classroom has streams (primary + pivot)
+            $classroom = Classroom::withCount(['streams', 'primaryStreams'])->find($validated['classroom_id']);
+            $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
             if ($classroomHasStreams && empty($validated['stream_id'])) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'stream_id' => 'Please select a stream for the chosen classroom.'
