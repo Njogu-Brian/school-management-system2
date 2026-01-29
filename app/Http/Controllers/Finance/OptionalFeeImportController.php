@@ -205,17 +205,18 @@ class OptionalFeeImportController extends Controller
                         ->where('status', 'billed')
                         ->first();
                     
-                    if ($existingBilling) {
-                        $existingAmount = (float) $existingBilling->amount;
-                        if (abs($existingAmount - $amount) < 0.01) {
-                            $changeType = 'existing';
-                            $status = 'already_billed';
-                            $message = 'Already billed';
-                        } else {
-                            $changeType = 'changed';
-                            $message = "Amount changed from " . number_format($existingAmount, 2) . " to " . number_format($amount, 2);
-                        }
+                // Compare STORED value only (OptionalFee.amount) — no debit/credit notes or invoice balance
+                if ($existingBilling) {
+                    $existingAmount = (float) $existingBilling->amount;
+                    if (abs($existingAmount - $amount) < 0.01) {
+                        $changeType = 'existing';
+                        $status = 'already_billed';
+                        $message = 'Already billed';
                     } else {
+                        $changeType = 'changed';
+                        $message = "Amount changed from " . number_format($existingAmount, 2) . " to " . number_format($amount, 2);
+                    }
+                } else {
                         $changeType = 'new';
                         $totalAmount += $amount;
                     }
@@ -408,8 +409,8 @@ class OptionalFeeImportController extends Controller
             }
 
             try {
-                DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $finalAmount, $importBatch) {
-                    // Create or update optional fee
+                DB::transaction(function () use ($studentId, $voteheadId, $year, $term, $academicYearId, $finalAmount) {
+                    // Create or update optional fee only. Invoice items are applied via Post Pending Fees.
                     OptionalFee::updateOrCreate(
                         [
                             'student_id' => $studentId,
@@ -425,61 +426,20 @@ class OptionalFeeImportController extends Controller
                             'assigned_at' => now(),
                         ]
                     );
-
-                    // Ensure invoice exists
-                    $invoice = InvoiceService::ensure($studentId, $year, $term);
-
-                    // Check for existing invoice item (including soft-deleted ones)
-                    // Note: Unique constraint is on ['invoice_id', 'votehead_id'], not including 'source'
-                    // So we must check for ANY item with this combination, regardless of source
-                    $invoiceItem = \App\Models\InvoiceItem::withTrashed()
-                        ->where('invoice_id', $invoice->id)
-                        ->where('votehead_id', $voteheadId)
-                        ->first();
-
-                    if ($invoiceItem) {
-                        // Restore if soft-deleted
-                        if ($invoiceItem->trashed()) {
-                            $invoiceItem->restore();
-                        }
-                        // Update existing item (preserve source if it's not 'optional', otherwise update to 'optional')
-                        $invoiceItem->update([
-                            'source' => 'optional', // Update source to optional for optional fee imports
-                            'amount' => $finalAmount,
-                            'status' => 'active',
-                            'posted_at' => now(),
-                        ]);
-                    } else {
-                        // Create new invoice item
-                        $invoiceItem = \App\Models\InvoiceItem::create([
-                            'invoice_id' => $invoice->id,
-                            'votehead_id' => $voteheadId,
-                            'source' => 'optional',
-                            'amount' => $finalAmount,
-                            'status' => 'active',
-                            'posted_at' => now(),
-                        ]);
-                    }
-
-                    // Store original amount if not set
-                    if (!$invoiceItem->original_amount) {
-                        $invoiceItem->update(['original_amount' => $finalAmount]);
-                    }
-
-                    // Recalculate invoice
-                    InvoiceService::recalc($invoice);
                 });
 
                 $createdOrUpdated++;
                 $totalAmount += $finalAmount;
             } catch (\Throwable $e) {
                 $failed++;
-                Log::warning('Optional fee import failed', [
+                Log::error('Optional fee import row failed', [
                     'student_id' => $studentId,
                     'votehead_id' => $voteheadId,
+                    'year' => $year,
+                    'term' => $term,
                     'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
-                // Continue processing other rows even if one fails
             }
         }
 
@@ -551,22 +511,34 @@ class OptionalFeeImportController extends Controller
 
         $keptCount = count($removals) - $removed;
         
-        $message = "{$createdOrUpdated} optional fee(s) imported successfully";
+        $message = "{$createdOrUpdated} optional fee(s) imported successfully.";
         if ($skipped > 0) {
-            $message .= ", {$skipped} skipped (already billed or marked to skip)";
+            $message .= " {$skipped} skipped (already billed or marked to skip).";
         }
         if ($removed > 0) {
-            $message .= ", {$removed} removed";
+            $message .= " {$removed} removed.";
         }
         if ($keptCount > 0) {
-            $message .= ", {$keptCount} kept (not removed)";
+            $message .= " {$keptCount} kept (not removed).";
         }
         if ($failed > 0) {
-            $message .= ", {$failed} failed (check logs for details)";
+            $message .= " {$failed} failed (check logs for details).";
         }
-        $message .= " for Term {$term}, {$year}.";
+        $message .= " Run Post Pending Fees to apply changes to invoices.";
 
         $alertType = $failed > 0 ? 'warning' : 'success';
+
+        Log::info('Optional fee import committed', [
+            'import_batch_id' => $importBatch->id,
+            'created_or_updated' => $createdOrUpdated,
+            'removed' => $removed,
+            'skipped' => $skipped,
+            'failed' => $failed,
+            'user_id' => auth()->id(),
+        ]);
+        if ($failed > 0) {
+            Log::warning('Optional fee import had failures', ['import_batch_id' => $importBatch->id, 'failed' => $failed]);
+        }
 
         return redirect()
             ->route('finance.optional_fees.index')

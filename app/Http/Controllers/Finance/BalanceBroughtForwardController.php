@@ -184,7 +184,9 @@ class BalanceBroughtForwardController extends Controller
         $systemData = [];
 
         // Build system data map (admission_number => balance)
-        // Include archived and alumni students for complete comparison
+        // IMPORTANT: Compare STORED values only — no debit/credit notes or payments.
+        // We use original_amount (or amount) so the value is static and not reduced by allocations.
+        // Include archived and alumni students for complete comparison.
         $allStudentIds = Student::withArchived()->pluck('id');
         foreach ($allStudentIds as $studentId) {
             $student = Student::withArchived()->find($studentId);
@@ -203,9 +205,8 @@ class BalanceBroughtForwardController extends Controller
                 ->get();
                 
                 if ($invoiceItems->isNotEmpty()) {
-                    // Use original_amount (static value) for comparison, not outstanding balance
+                    // Stored value only: original_amount or amount (never outstanding after payments)
                     $invoiceBf = $invoiceItems->sum(function($item) {
-                        // Use original_amount if available (from import), otherwise use amount
                         return (float) ($item->original_amount ?? $item->amount);
                     });
                 }
@@ -429,15 +430,13 @@ class BalanceBroughtForwardController extends Controller
                     $finalBalance = (float) ($rowData['import_balance'] ?? 0);
                 }
 
-                // Only process if balance > 0
+                // Students in importStudentIds keep a balance; others (not in list) get deleted by deleteBalancesNotInImport
                 if ($finalBalance > 0) {
                     $importStudentIds[] = $studentId;
                     $importData[$studentId] = $finalBalance;
-                } elseif ($finalBalance == 0 && !empty($rowData['system_balance']) && $rowData['system_balance'] > 0) {
-                    // If using import balance but it's 0, we might want to remove the system balance
-                    // Add to list so it gets deleted
-                    $importStudentIds[] = $studentId;
                 }
+                // When finalBalance is 0 (e.g. Use Import with 0, or Use System with 0): do NOT add to importStudentIds,
+                // so deleteBalancesNotInImport will remove their balance.
             }
 
             // Step 3: Delete balances for students NOT in import (only if they had balances)
@@ -542,9 +541,25 @@ class BalanceBroughtForwardController extends Controller
                 $message .= " " . count($errors) . " error(s) occurred.";
             }
 
+            Log::info('Balance brought forward import committed', [
+                'import_batch_id' => $importBatch->id,
+                'updated' => $updated,
+                'deleted' => $deletedCount,
+                'skipped' => $skipped,
+                'errors_count' => count($errors),
+                'user_id' => auth()->id(),
+            ]);
+            if (!empty($errors)) {
+                Log::warning('Balance brought forward import had failures', [
+                    'import_batch_id' => $importBatch->id,
+                    'errors' => $errors,
+                ]);
+            }
+
+            $alertType = !empty($errors) ? 'warning' : 'success';
             return redirect()
                 ->route('finance.balance-brought-forward.index')
-                ->with('success', $message)
+                ->with($alertType, $message)
                 ->with('import_batch_id', $importBatch->id)
                 ->with('errors', $errors);
         });

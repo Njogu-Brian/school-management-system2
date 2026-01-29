@@ -264,9 +264,21 @@ class FeePostingService
                     continue;
                 }
                 
-                // Skip transport, balance brought forward, and swimming daily attendance - managed separately
                 $source = $diff['origin'] ?? 'structure';
-                if ($source === 'transport' || $source === 'balance_brought_forward' || $source === 'swimming_attendance') {
+                // Transport: sync from TransportFee table to invoice (no InvoiceItem create here)
+                if ($source === 'transport') {
+                    $transportFee = \App\Models\TransportFee::where('student_id', $diff['student_id'])
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->first();
+                    if ($transportFee) {
+                        TransportFeeService::syncInvoice($transportFee);
+                        $count++;
+                    }
+                    continue;
+                }
+                // Balance brought forward and swimming daily attendance — managed separately
+                if ($source === 'balance_brought_forward' || $source === 'swimming_attendance') {
                     continue;
                 }
                 
@@ -1169,9 +1181,11 @@ class FeePostingService
         
         // From optional fees - ONLY for this specific student
         // CRITICAL: Only query optional fees for the current student being processed
-        // This ensures optional fees are not applied to all students
+        // SWIMMING: Swimming per term is ONLY from OptionalFee (manual or import). A student's
+        // daily-attendance (wallet) balance must NEVER auto-activate swimming per term on the invoice;
+        // that can only be done manually or via optional fee import.
         $optional = OptionalFee::query()
-            ->where('student_id', $student->id) // Explicitly filter by current student
+            ->where('student_id', $student->id)
             ->where('year', $year)
             ->where('term', $term)
             ->where('status', 'billed')
@@ -1256,6 +1270,20 @@ class FeePostingService
                 // If already in structure, don't add as optional to avoid double billing
                 // The structure charge will be used instead
             }
+        }
+
+        // From transport fees (TransportFee table) — so Post Pending Fees can sync transport to invoices
+        $transportVotehead = TransportFeeService::transportVotehead();
+        $transportFee = \App\Models\TransportFee::where('student_id', $student->id)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
+        if ($transportFee && (float) $transportFee->amount > 0 && !$items->contains('votehead_id', $transportVotehead->id)) {
+            $items->push([
+                'votehead_id' => $transportVotehead->id,
+                'amount' => (float) $transportFee->amount,
+                'origin' => 'transport',
+            ]);
         }
         
         // Deduplicate and sum (this handles cases where same votehead appears multiple times)
@@ -1368,6 +1396,10 @@ class FeePostingService
             $invoice = InvoiceService::ensure($student->id, $resolvedYear, $resolvedTerm);
 
             foreach ($proposed as $item) {
+                // Transport is synced below via TransportFeeService::syncInvoice
+                if (($item['origin'] ?? '') === 'transport') {
+                    continue;
+                }
                 $invoiceItem = InvoiceItem::updateOrCreate(
                     ['invoice_id' => $invoice->id, 'votehead_id' => $item['votehead_id']],
                     [

@@ -70,11 +70,12 @@ class OptionalFeeObserver
     }
 
     /**
-     * Handle billing change (billed or unbilled)
+     * Handle billing change (billed or unbilled).
+     * NOTE: Swimming per term is ONLY set via OptionalFee (manual or import). A student's
+     * daily-attendance (wallet) balance must NEVER auto-create or activate swimming per term billing.
      */
     protected function handleBillingChange(OptionalFee $optionalFee, string $action): void
     {
-        // Check if this is a swimming optional fee
         if (!$this->isSwimmingVotehead($optionalFee->votehead_id)) {
             return;
         }

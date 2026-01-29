@@ -113,7 +113,7 @@
       <div class="fw-semibold mb-2">
         <i class="bi bi-question-circle"></i> Changes Detected
       </div>
-      <p class="small mb-0">Some students already have transport fees with different amounts or drop-off points. Please confirm whether to use the new values or keep the existing ones.</p>
+      <p class="small mb-0">Some students already have transport fees with different amounts or drop-off points. Choose <strong>Use new</strong> or <strong>Keep existing</strong>. After commit, run <strong>Post Pending Fees</strong> to apply transport changes to invoices.</p>
     </div>
   @endif
 

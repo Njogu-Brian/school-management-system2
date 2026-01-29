@@ -91,7 +91,7 @@
       @if($needsConfirmationCount > 0)
         <div class="alert alert-info mb-3">
           <div class="fw-semibold mb-2">Changes Detected</div>
-          <p class="small mb-0">Some students already have optional fees with different amounts. Please confirm whether to use the new values or keep the existing ones.</p>
+          <p class="small mb-0">Some students already have optional fees with different amounts. Choose <strong>Use new</strong> or <strong>Keep existing</strong>. After commit, run <strong>Post Pending Fees</strong> to apply changes to invoices.</p>
         </div>
       @endif
 

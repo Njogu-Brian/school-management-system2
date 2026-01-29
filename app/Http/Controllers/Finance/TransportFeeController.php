@@ -534,37 +534,10 @@ class TransportFeeController extends Controller
             }
 
             try {
-                // Determine if we should skip invoice creation
-                // Only create invoice items for rows with status 'ok' AND valid amount > 0
-                // Skip invoice for: own means, missing amounts, or any status other than 'ok'
-                $shouldSkipInvoice = $isOwnMeans 
-                    || $status === 'missing_amount' 
-                    || $status === 'own_means' 
-                    || $status !== 'ok'  // Only 'ok' status should create invoice items
-                    || $amount === null 
-                    || $amount <= 0;
-                
-                // For own means, set amount to 0
-                // For missing amounts, also set to 0 but skip invoice
-                // For valid amounts (status 'ok'), use the actual amount
-                // For 'new' entries, always use the new amount from import
+                // Import path: always skip direct invoice sync so changes go through Post Pending Fees
                 $finalAmount = $isOwnMeans ? 0 : ($amount ?? 0);
-                
-                // Ensure new entries use the new amount (not existing amount)
                 if (($row['change_type'] ?? '') === 'new' && $amount !== null && $amount > 0) {
                     $finalAmount = $amount;
-                }
-                
-                // Log for debugging (only for status 'ok' to see what's happening)
-                if ($status === 'ok') {
-                    Log::info('Transport fee import processing', [
-                        'student_id' => $studentId,
-                        'status' => $status,
-                        'raw_amount' => $row['amount'] ?? 'not set',
-                        'parsed_amount' => $amount,
-                        'final_amount' => $finalAmount,
-                        'skip_invoice' => $shouldSkipInvoice,
-                    ]);
                 }
                 
                 TransportFeeService::upsertFee([
@@ -576,7 +549,7 @@ class TransportFeeController extends Controller
                     'drop_off_point_name' => $isOwnMeans ? 'OWN MEANS' : $dropName,
                     'source' => 'import',
                     'note' => $isOwnMeans ? 'Own means transport (no fee)' : ($amount === null || $status === 'missing_amount' ? 'Imported from transport fee upload - amount missing, drop-off point only' : 'Imported from transport fee upload'),
-                    'skip_invoice' => $shouldSkipInvoice,
+                    'skip_invoice' => true, // Apply to invoices via Post Pending Fees
                 ]);
                 $createdOrUpdated++;
                 
@@ -605,19 +578,30 @@ class TransportFeeController extends Controller
             'total_amount' => $totalAmount,
         ]);
 
-        $message = "{$createdOrUpdated} transport fee(s) imported successfully";
+        $message = "{$createdOrUpdated} transport fee(s) imported successfully.";
         if ($skipped > 0) {
-            $message .= ", {$skipped} skipped (already billed or kept existing)";
+            $message .= " {$skipped} skipped (already billed or kept existing).";
         }
         if ($dropOffPointsCreated > 0) {
-            $message .= ", {$dropOffPointsCreated} drop-off point(s) created";
+            $message .= " {$dropOffPointsCreated} drop-off point(s) created.";
         }
         if ($failed > 0) {
-            $message .= ", {$failed} failed (check logs for details)";
+            $message .= " {$failed} failed (check logs for details).";
         }
-        $message .= " for Term {$term}, {$year}.";
+        $message .= " Run Post Pending Fees to apply transport changes to invoices.";
 
         $alertType = $failed > 0 ? 'warning' : 'success';
+
+        Log::info('Transport fee import committed', [
+            'import_batch_id' => $importBatch->id,
+            'created_or_updated' => $createdOrUpdated,
+            'drop_off_points_created' => $dropOffPointsCreated,
+            'failed' => $failed,
+            'user_id' => auth()->id(),
+        ]);
+        if ($failed > 0) {
+            Log::warning('Transport fee import had failures', ['import_batch_id' => $importBatch->id, 'failed' => $failed]);
+        }
 
         return redirect()
             ->route('finance.transport-fees.index', ['term' => $term, 'year' => $year])
