@@ -41,7 +41,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
-    @if($errors->any())
+    @if(isset($errors) && is_object($errors) && method_exists($errors, 'any') && $errors->any())
       <div class="alert alert-danger alert-dismissible fade show finance-animate" role="alert">
         <strong><i class="bi bi-exclamation-triangle me-2"></i>Please fix the following:</strong>
         <ul class="mb-0 mt-2">
