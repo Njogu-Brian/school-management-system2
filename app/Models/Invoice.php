@@ -210,7 +210,8 @@ class Invoice extends Model
                     // Temporarily disable auto-allocation to prevent recursion
                     $originalFlag = app('auto_allocating');
                     app()->instance('auto_allocating', false);
-                    \App\Services\PaymentAllocationService::autoAllocate($payment, $this->student_id);
+                    $allocationService = app(\App\Services\PaymentAllocationService::class);
+                    $allocationService->autoAllocate($payment, $this->student_id);
                     app()->instance('auto_allocating', $originalFlag);
                 } catch (\Exception $e) {
                     // Log but don't fail - auto-allocation is best effort
