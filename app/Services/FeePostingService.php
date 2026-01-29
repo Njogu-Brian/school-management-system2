@@ -33,10 +33,43 @@ class FeePostingService
             
             // Get proposed items from structures/optional fees
             $proposedItems = $this->getProposedItems($student, $year, $term, $filters);
+
+            // Handle transport diffs explicitly so we only show real changes
+            $transportVotehead = TransportFeeService::transportVotehead();
+            $transportVoteheadId = $transportVotehead?->id;
+            $existingTransport = null;
+            if ($transportVoteheadId) {
+                $transportInvoice = Invoice::where('student_id', $student->id)
+                    ->where('year', $year)
+                    ->where('term', $term)
+                    ->first();
+                if ($transportInvoice) {
+                    $transportItem = InvoiceItem::where('invoice_id', $transportInvoice->id)
+                        ->where('votehead_id', $transportVoteheadId)
+                        ->where('status', 'active')
+                        ->first();
+                    if ($transportItem) {
+                        $existingTransport = [
+                            'id' => $transportItem->id,
+                            'votehead_id' => $transportItem->votehead_id,
+                            'amount' => (float) $transportItem->amount,
+                            'source' => $transportItem->source ?? 'transport',
+                        ];
+                    }
+                }
+            }
             
             // Calculate diffs
             foreach ($proposedItems as $proposed) {
                 $voteheadId = $proposed['votehead_id'];
+                if (($proposed['origin'] ?? '') === 'transport') {
+                    // Only show transport when it actually changes (added/increased/decreased)
+                    $diff = $this->calculateDiff($student, $voteheadId, $existingTransport, $proposed);
+                    if ($diff) {
+                        $diffs->push($diff);
+                    }
+                    continue;
+                }
                 $existing = $existingItems->firstWhere('votehead_id', $voteheadId);
                 
                 $diff = $this->calculateDiff($student, $voteheadId, $existing, $proposed);
@@ -45,6 +78,23 @@ class FeePostingService
                 }
             }
             
+            // If transport exists on invoice but no transport fee proposed, mark as removed
+            if ($transportVoteheadId
+                && empty($proposedItems->firstWhere('votehead_id', $transportVoteheadId))
+                && $existingTransport
+                && (empty($filters['votehead_id']) || (int) $filters['votehead_id'] === (int) $transportVoteheadId)
+            ) {
+                $diffs->push([
+                    'action' => 'removed',
+                    'student_id' => $student->id,
+                    'votehead_id' => $transportVoteheadId,
+                    'old_amount' => $existingTransport['amount'],
+                    'new_amount' => 0,
+                    'invoice_item_id' => $existingTransport['id'],
+                    'origin' => $existingTransport['source'] ?? 'transport',
+                ]);
+            }
+
             // Check for removed items (existing but not in proposed)
             // Only mark items as removed if they came from fee structure (source='structure')
             // AND they're not in the proposed items from fee structure
@@ -1026,10 +1076,17 @@ class FeePostingService
 
             return $allItems->map(function ($item) {
                 $originalAmount = $this->getOriginalAmountBeforeNotes($item);
+                $creditNotesTotal = (float) $item->creditNotes()->sum('amount');
+                $debitNotesTotal = (float) $item->debitNotes()->sum('amount');
+                $discountAmount = (float) ($item->discount_amount ?? 0);
                 return [
                     'id' => $item->id,
                     'votehead_id' => $item->votehead_id,
                     'amount' => $originalAmount,
+                    'current_amount' => (float) $item->amount,
+                    'credit_notes_total' => $creditNotesTotal,
+                    'debit_notes_total' => $debitNotesTotal,
+                    'discount_amount' => $discountAmount,
                     'source' => $item->source,
                 ];
             });
@@ -1043,10 +1100,17 @@ class FeePostingService
             ->get()
             ->map(function ($item) {
                 $originalAmount = $this->getOriginalAmountBeforeNotes($item);
+                $creditNotesTotal = (float) $item->creditNotes()->sum('amount');
+                $debitNotesTotal = (float) $item->debitNotes()->sum('amount');
+                $discountAmount = (float) ($item->discount_amount ?? 0);
                 return [
                     'id' => $item->id,
                     'votehead_id' => $item->votehead_id,
                     'amount' => $originalAmount,
+                    'current_amount' => (float) $item->amount,
+                    'credit_notes_total' => $creditNotesTotal,
+                    'debit_notes_total' => $debitNotesTotal,
+                    'discount_amount' => $discountAmount,
                     'source' => $item->source,
                 ];
             });
@@ -1303,6 +1367,22 @@ class FeePostingService
     {
         $oldAmount = (float)($existing['amount'] ?? 0);
         $newAmount = (float)($proposed['amount'] ?? 0);
+        
+        // If credit/debit notes or discounts reconcile the difference, skip the change
+        if ($existing) {
+            $currentAmount = (float)($existing['current_amount'] ?? $oldAmount);
+            $creditNotesTotal = (float)($existing['credit_notes_total'] ?? 0);
+            $debitNotesTotal = (float)($existing['debit_notes_total'] ?? 0);
+            $discountAmount = (float)($existing['discount_amount'] ?? 0);
+
+            // Effective amount the student is charged after notes/discounts
+            $effectiveAmount = $currentAmount - $discountAmount - $creditNotesTotal + $debitNotesTotal;
+            $reconciledOriginal = $currentAmount + $creditNotesTotal - $debitNotesTotal + $discountAmount;
+
+            if (abs($newAmount - $effectiveAmount) < 0.01 && abs($oldAmount - $reconciledOriginal) < 0.01) {
+                return null; // No real change; difference is explained by notes/discounts
+            }
+        }
         
         // Use bccomp for decimal comparison to avoid floating point precision issues
         // Consider amounts equal if difference is less than 0.01
