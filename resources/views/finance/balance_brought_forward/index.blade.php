@@ -27,15 +27,15 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
-    @if(session('errors') && is_array(session('errors')) && count(session('errors')) > 0)
+    @if(session('import_errors') && is_array(session('import_errors')) && count(session('import_errors')) > 0)
       <div class="alert alert-warning alert-dismissible fade show finance-animate" role="alert">
         <strong><i class="bi bi-exclamation-triangle me-2"></i>Import completed with some failures (check logs):</strong>
         <ul class="mb-0 mt-2 small">
-          @foreach(array_slice(session('errors'), 0, 10) as $err)
+          @foreach(array_slice(session('import_errors'), 0, 10) as $err)
             <li>{{ $err }}</li>
           @endforeach
-          @if(count(session('errors')) > 10)
-            <li><em>... and {{ count(session('errors')) - 10 }} more (see storage/logs)</em></li>
+          @if(count(session('import_errors')) > 10)
+            <li><em>... and {{ count(session('import_errors')) - 10 }} more (see storage/logs)</em></li>
           @endif
         </ul>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>

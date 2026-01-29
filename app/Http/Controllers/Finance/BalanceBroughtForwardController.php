@@ -561,7 +561,8 @@ class BalanceBroughtForwardController extends Controller
                 ->route('finance.balance-brought-forward.index')
                 ->with($alertType, $message)
                 ->with('import_batch_id', $importBatch->id)
-                ->with('errors', $errors);
+                // Do NOT use session key "errors" (reserved for Laravel's validation error bag)
+                ->with('import_errors', $errors);
         });
     }
 
