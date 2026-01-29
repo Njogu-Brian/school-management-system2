@@ -41,11 +41,14 @@
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
-    @if(isset($errors) && is_object($errors) && method_exists($errors, 'any') && $errors->any())
+    @php
+      $errorBag = (isset($errors) && is_object($errors) && method_exists($errors, 'has')) ? $errors : null;
+    @endphp
+    @if($errorBag && $errorBag->any())
       <div class="alert alert-danger alert-dismissible fade show finance-animate" role="alert">
         <strong><i class="bi bi-exclamation-triangle me-2"></i>Please fix the following:</strong>
         <ul class="mb-0 mt-2">
-          @foreach($errors->all() as $error)
+          @foreach($errorBag->all() as $error)
             <li>{{ $error }}</li>
           @endforeach
         </ul>
@@ -160,17 +163,17 @@
                     'placeholder' => 'Type name or admission #',
                     'initialLabel' => old('student_id') ? (\App\Models\Student::find(old('student_id'))?->full_name ?? '') : ''
                 ])
-                @error('student_id')
-                  <div class="invalid-feedback d-block">{{ $message }}</div>
-                @enderror
+                @if($errorBag && $errorBag->has('student_id'))
+                  <div class="invalid-feedback d-block">{{ $errorBag->first('student_id') }}</div>
+                @endif
               </div>
               <div class="mb-3">
                 <label class="finance-form-label">Balance Brought Forward <span class="text-danger">*</span></label>
-                <input type="number" name="balance" class="form-control @error('balance') is-invalid @enderror" step="0.01" min="0" value="{{ old('balance') }}" required>
+                <input type="number" name="balance" class="form-control {{ $errorBag && $errorBag->has('balance') ? 'is-invalid' : '' }}" step="0.01" min="0" value="{{ old('balance') }}" required>
                 <small class="text-muted">Enter the balance brought forward amount</small>
-                @error('balance')
-                  <div class="invalid-feedback">{{ $message }}</div>
-                @enderror
+                @if($errorBag && $errorBag->has('balance'))
+                  <div class="invalid-feedback">{{ $errorBag->first('balance') }}</div>
+                @endif
               </div>
               <button type="submit" class="btn btn-finance btn-finance-primary w-100">
                 <i class="bi bi-plus-circle"></i> Add/Update Balance
