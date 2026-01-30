@@ -506,13 +506,16 @@ class MpesaPaymentController extends Controller
             }
             $amount = array_sum(array_column($sharedAllocations, 'amount'));
             $firstStudent = Student::find($sharedAllocations[0]['student_id']);
-            $accountRef = $firstStudent ? $firstStudent->admission_number : ('FAM-' . $paymentLink->family_id);
+            $isSwimmingLink = (bool) ($paymentLink->metadata['is_swimming'] ?? false);
+            $accountRef = $firstStudent
+                ? ($isSwimmingLink ? 'SWIM-' . $firstStudent->admission_number : $firstStudent->admission_number)
+                : ('FAM-' . $paymentLink->family_id);
             $transaction = PaymentTransaction::create([
                 'student_id' => $firstStudent->id,
                 'invoice_id' => null,
                 'payment_link_id' => $paymentLink->id,
                 'gateway' => 'mpesa',
-                'reference' => $paymentLink->payment_reference ?? ('LINK-' . strtoupper(Str::random(10))),
+                'reference' => $accountRef,
                 'amount' => $amount,
                 'currency' => $paymentLink->currency ?? 'KES',
                 'status' => 'pending',
@@ -543,17 +546,19 @@ class MpesaPaymentController extends Controller
                 ], 400);
             }
             $student = Student::findOrFail($studentId);
+            $isSwimmingLink = (bool) ($paymentLink->metadata['is_swimming'] ?? false);
+            $accountRef = $isSwimmingLink ? 'SWIM-' . $student->admission_number : $student->admission_number;
             $transaction = PaymentTransaction::create([
                 'student_id' => $studentId,
                 'invoice_id' => null,
                 'payment_link_id' => $paymentLink->id,
                 'gateway' => 'mpesa',
-                'reference' => $paymentLink->payment_reference ?? ('LINK-' . strtoupper(Str::random(10))),
+                'reference' => $accountRef,
                 'amount' => $amount,
                 'currency' => $paymentLink->currency ?? 'KES',
                 'status' => 'pending',
                 'phone_number' => $request->phone_number,
-                'account_reference' => $student->admission_number,
+                'account_reference' => $accountRef,
             ]);
             try {
                 $result = $this->mpesaGateway->initiatePayment($transaction, ['phone_number' => $request->phone_number]);
@@ -1478,6 +1483,7 @@ class MpesaPaymentController extends Controller
         $student->load(['family', 'classroom', 'parent']);
         
         $familyData = null;
+        $parentInfo = $student->parent;
         if ($student->family) {
             $familyData = [
                 'id' => $student->family->id,
@@ -1490,23 +1496,48 @@ class MpesaPaymentController extends Controller
                 'mother_phone' => $student->family->mother_phone,
                 'mother_email' => $student->family->mother_email,
             ];
-            
-            // Add WhatsApp numbers from ParentInfo (parent relationship) if available
-            if ($student->parent) {
-                $familyData['father_whatsapp'] = $student->parent->father_whatsapp ?? null;
-                $familyData['mother_whatsapp'] = $student->parent->mother_whatsapp ?? null;
-                $familyData['guardian_phone'] = $student->parent->guardian_phone ?? null;
-                $familyData['guardian_whatsapp'] = $student->parent->guardian_whatsapp ?? null;
-            }
+        } elseif ($parentInfo) {
+            $familyData = [
+                'id' => null,
+                'phone' => $parentInfo->primary_contact_phone,
+                'email' => $parentInfo->primary_contact_email,
+                'father_name' => $parentInfo->father_name,
+                'father_phone' => $parentInfo->father_phone,
+                'father_email' => $parentInfo->father_email,
+                'mother_name' => $parentInfo->mother_name,
+                'mother_phone' => $parentInfo->mother_phone,
+                'mother_email' => $parentInfo->mother_email,
+                'guardian_name' => $parentInfo->guardian_name,
+                'guardian_phone' => $parentInfo->guardian_phone,
+                'guardian_email' => $parentInfo->guardian_email,
+            ];
+        }
+
+        if ($familyData && $parentInfo) {
+            $familyData['father_whatsapp'] = $parentInfo->father_whatsapp ?? $familyData['father_whatsapp'] ?? null;
+            $familyData['mother_whatsapp'] = $parentInfo->mother_whatsapp ?? $familyData['mother_whatsapp'] ?? null;
+            $familyData['guardian_whatsapp'] = $parentInfo->guardian_whatsapp ?? $familyData['guardian_whatsapp'] ?? null;
+            $familyData['guardian_phone'] = $familyData['guardian_phone'] ?? $parentInfo->guardian_phone ?? null;
+            $familyData['father_phone'] = $familyData['father_phone'] ?? $parentInfo->father_phone ?? null;
+            $familyData['mother_phone'] = $familyData['mother_phone'] ?? $parentInfo->mother_phone ?? null;
+            $familyData['father_email'] = $familyData['father_email'] ?? $parentInfo->father_email ?? null;
+            $familyData['mother_email'] = $familyData['mother_email'] ?? $parentInfo->mother_email ?? null;
+            $familyData['phone'] = $familyData['phone'] ?? $parentInfo->primary_contact_phone;
+            $familyData['email'] = $familyData['email'] ?? $parentInfo->primary_contact_email;
+        }
+        
+        if (!$familyData) {
+            Log::warning('Student API: no parent contact data found', [
+                'student_id' => $student->id,
+                'student_name' => $student->full_name,
+                'family_id' => $student->family_id,
+                'parent_id' => $student->parent_id,
+            ]);
         }
         
         // Fee balance (total outstanding from invoices)
-        $feeBalance = (float) Invoice::where('student_id', $student->id)
-            ->where(function ($q) {
-                $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
-            })
-            ->get()
-            ->sum(fn ($inv) => (float) ($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+        $feeBalance = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        $swimmingBalance = (float) (\App\Models\SwimmingWallet::getOrCreateForStudent($student->id)->balance ?? 0);
 
         // Siblings (same family, exclude self) with fee balance each
         $siblings = [];
@@ -1517,12 +1548,7 @@ class MpesaPaymentController extends Controller
                 ->with('classroom')
                 ->get()
                 ->map(function ($s) {
-                    $bal = (float) Invoice::where('student_id', $s->id)
-                        ->where(function ($q) {
-                            $q->where('balance', '>', 0)->orWhereRaw('(COALESCE(total,0) - COALESCE(paid_amount,0)) > 0');
-                        })
-                        ->get()
-                        ->sum(fn ($inv) => (float) ($inv->balance ?? ($inv->total ?? 0) - ($inv->paid_amount ?? 0)));
+                    $bal = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($s);
                     return [
                         'id' => $s->id,
                         'full_name' => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name),
@@ -1550,6 +1576,7 @@ class MpesaPaymentController extends Controller
             ] : null,
             'family' => $familyData,
             'fee_balance' => round($feeBalance, 2),
+            'swimming_balance' => round($swimmingBalance, 2),
             'siblings' => $siblings,
         ]);
     }
@@ -2196,59 +2223,8 @@ class MpesaPaymentController extends Controller
     protected function sendPaymentConfirmation(\App\Models\Payment $payment)
     {
         try {
-            $student = $payment->student;
-            $parent = $student->family;
-
-            if (!$parent) {
-                return;
-            }
-
-            $commService = app(\App\Services\CommunicationService::class);
-
-            $message = "Dear Parent,\n\n";
-            $message .= "Payment of KES " . number_format($payment->amount, 2) . " ";
-            $message .= "for {$student->first_name} {$student->last_name} has been received.\n\n";
-            $message .= "M-PESA Ref: " . ($payment->mpesa_receipt_number ?? 'N/A') . "\n";
-            $message .= "Receipt No: " . $payment->receipt_number . "\n";
-            $message .= "Date: " . $payment->payment_date->format('d M Y H:i') . "\n\n";
-            
-            // Add balance information
-            $balance = \App\Models\Invoice::where('student_id', $student->id)
-                ->where('status', '!=', 'paid')
-                ->sum('balance');
-            
-            if ($balance > 0) {
-                $message .= "Outstanding Balance: KES " . number_format($balance, 2) . "\n";
-            } else {
-                $message .= "✅ All fees paid. Thank you!\n";
-            }
-            
-            $message .= "\nView receipt: " . route('receipts.public', $payment->public_token);
-            $message .= "\n\nThank you!";
-
-            // Send SMS
-            if ($parent->primary_phone) {
-                $commService->sendSMS('parent', $parent->id, $parent->primary_phone, $message, 'Payment Confirmation');
-            }
-
-            // Send Email
-            if ($parent->primary_email) {
-                $htmlMessage = nl2br($message);
-                $commService->sendEmail('parent', $parent->id, $parent->primary_email, 'Payment Confirmation - ' . $payment->receipt_number, $htmlMessage);
-            }
-
-            // Send WhatsApp if available
-            try {
-                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->primary_phone ?? null;
-                if ($whatsappPhone) {
-                    $commService->sendWhatsApp('parent', $parent->id, $whatsappPhone, $message, 'Payment Confirmation');
-                }
-            } catch (\Exception $e) {
-                Log::warning('WhatsApp sending failed for payment confirmation', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
+            $paymentController->sendPaymentNotifications($payment);
         } catch (\Exception $e) {
             Log::error('Failed to send payment confirmation', [
                 'payment_id' => $payment->id,

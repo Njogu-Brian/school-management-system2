@@ -51,6 +51,7 @@
                 a.addEventListener('click', (e) => {
                     e.preventDefault();
                     hidden.value = stu.id;
+                    hidden.dispatchEvent(new Event('change', { bubbles: true }));
                     const displayValue = stu.classroom_name 
                         ? `${stu.full_name} (${stu.admission_number}) - ${stu.classroom_name}`
                         : `${stu.full_name} (${stu.admission_number})`;
@@ -58,6 +59,9 @@
                     if (enableBtn) enableBtn.disabled = false;
                     results.classList.add('d-none');
                     window.dispatchEvent(new CustomEvent('student-selected', { detail: stu }));
+                    if (window.jQuery) {
+                        window.jQuery(document).trigger('studentSelected', stu);
+                    }
                 });
                 results.appendChild(a);
             });

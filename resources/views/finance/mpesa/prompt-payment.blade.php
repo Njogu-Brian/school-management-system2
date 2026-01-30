@@ -179,6 +179,7 @@
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
                         </div>
+                    <div id="studentDataAlert" class="alert alert-warning border-0 d-none" role="alert"></div>
 
                         <!-- Parent contact: always visible; choose Father/Mother/Primary or custom -->
                         <div class="mb-4" id="phoneSelectionGroup">
@@ -257,10 +258,15 @@
                         <div class="mb-4" id="feeBalanceGroup">
                             <div class="alert alert-light border mb-0 py-3">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                    <span class="fw-semibold"><i class="bi bi-wallet2 me-2"></i>Current fee balance</span>
+                                    <span class="fw-semibold">
+                                        <i class="bi bi-wallet2 me-2"></i>
+                                        <span id="balanceLabel">Current fee balance</span>
+                                    </span>
                                     <span id="feeBalanceAmount" class="text-primary fs-5">—</span>
                                 </div>
-                                <small class="text-muted d-block mt-1">Select a student to see balance; you can collect full or partial.</small>
+                                <small class="text-muted d-block mt-1" id="balanceHelpText">
+                                    Select a student to see balance; you can collect full or partial.
+                                </small>
                             </div>
                         </div>
 
@@ -482,7 +488,13 @@ $(document).ready(function() {
     let currentFeeBalance = 0;
     let currentStudentData = null;
 
-    // Watch for student selection from live search
+    // Watch for student selection from live search (vanilla + jQuery)
+    window.addEventListener('student-selected', function(e) {
+        const student = e.detail;
+        if (student && student.id) {
+            loadStudentData(student.id);
+        }
+    });
     $(document).on('studentSelected', function(e, student) {
         if (student && student.id) {
             loadStudentData(student.id);
@@ -492,7 +504,31 @@ $(document).ready(function() {
     // If student is pre-selected, trigger load
     @if($student)
         loadStudentData({{ $student->id }});
+    @else
+        // Fallback if hidden input already has a value
+        var initialId = $('#student_id').val();
+        if (initialId) {
+            loadStudentData(initialId);
+        }
     @endif
+
+    // Fallback: react to hidden input changes
+    $('#student_id').on('change', function() {
+        const id = $(this).val();
+        if (id) {
+            loadStudentData(id);
+        }
+    });
+
+    function updateAccountReference(student) {
+        if (!student || !student.admission_number) {
+            $('#accountReferencePreview').text('N/A');
+            return;
+        }
+        const isSwimming = $('input[name="is_swimming"]:checked').val() === '1';
+        const accountRef = isSwimming ? `SWIM-${student.admission_number}` : student.admission_number;
+        $('#accountReferencePreview').text(accountRef);
+    }
 
     // Load student data (getStudentData returns fee_balance + siblings)
     function loadStudentData(studentId) {
@@ -500,10 +536,13 @@ $(document).ready(function() {
         $('#feeBalanceGroup').show();
         $('#invoiceSelectionGroup').show();
         $('#phoneSelectionGroup').show();
+        $('#studentDataAlert').addClass('d-none').text('');
 
         $.get('/api/students/' + studentId, function(student) {
             currentStudentData = student;
             currentFeeBalance = parseFloat(student.fee_balance || 0);
+            const currentSwimmingBalance = parseFloat(student.swimming_balance || 0);
+            updateAccountReference(student);
 
             // Update student info card
             let infoHtml = `
@@ -516,11 +555,29 @@ $(document).ready(function() {
             }
             $('#studentInfoBody').html(infoHtml);
 
-            // Fee balance (school fees only – hide when swimming)
-            $('#feeBalanceAmount').text('KES ' + (currentFeeBalance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
             var hasSiblings = student.siblings && student.siblings.length > 0;
             var isFees = $('input[name="is_swimming"]:checked').val() === '0';
-            $('#feeBalanceGroup').toggle(isFees);
+            if (isFees) {
+                $('#balanceLabel').text('Current fee balance');
+                $('#balanceHelpText').text('Select a student to see balance; you can collect full or partial.');
+                $('#feeBalanceAmount').text('KES ' + (currentFeeBalance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            } else {
+                $('#balanceLabel').text('Current swimming balance');
+                $('#balanceHelpText').text('Select a student to see swimming wallet balance.');
+                $('#feeBalanceAmount').text('KES ' + (currentSwimmingBalance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            }
+            $('#feeBalanceGroup').show();
+
+            if (!student.family) {
+                $('#studentDataAlert')
+                    .removeClass('d-none')
+                    .text('Parent contacts missing: no Family/ParentInfo data returned for this student.');
+            } else if (!student.family.father_phone && !student.family.mother_phone && !student.family.phone &&
+                       !student.family.father_whatsapp && !student.family.mother_whatsapp && !student.family.guardian_phone) {
+                $('#studentDataAlert')
+                    .removeClass('d-none')
+                    .text('Parent contacts missing: Family data has no phone/WhatsApp contacts.');
+            }
 
             // Share with siblings: only for school fees and when student has siblings
             if (hasSiblings && isFees) {
@@ -584,7 +641,20 @@ $(document).ready(function() {
                         invoiceSelect.append(`<option value="${invoice.id}" data-balance="${invoice.balance}">${invoice.invoice_number} - Balance: KES ${parseFloat(invoice.balance).toLocaleString()}</option>`);
                     }
                 });
+                if (!Array.isArray(invoices) || invoices.length === 0) {
+                    $('#studentDataAlert')
+                        .removeClass('d-none')
+                        .text('No invoices returned for this student. Check invoice status or API response.');
+                }
             });
+        }).fail(function(xhr) {
+            let message = 'Failed to load student data from /api/students/{id}.';
+            if (xhr?.responseJSON?.message) {
+                message += ' ' + xhr.responseJSON.message;
+            } else if (xhr?.status) {
+                message += ' HTTP ' + xhr.status + '.';
+            }
+            $('#studentDataAlert').removeClass('d-none').text(message);
         });
     }
 
@@ -635,11 +705,23 @@ $(document).ready(function() {
 
     $('input[name="is_swimming"]').on('change', function() {
         var isFees = $(this).val() === '0';
-        $('#feeBalanceGroup').toggle(isFees);
         if (currentStudentData) {
             var hasSiblings = currentStudentData.siblings && currentStudentData.siblings.length > 0;
             $('#shareSiblingsGroup').toggle(isFees && hasSiblings);
             if (!isFees) { $('#share_with_siblings').prop('checked', false); $('#siblingAllocationsBlock').hide(); $('#amount').prop('readonly', false); }
+            updateAccountReference(currentStudentData);
+            const feeBalance = parseFloat(currentStudentData.fee_balance || 0);
+            const swimBalance = parseFloat(currentStudentData.swimming_balance || 0);
+            if (isFees) {
+                $('#balanceLabel').text('Current fee balance');
+                $('#balanceHelpText').text('Select a student to see balance; you can collect full or partial.');
+                $('#feeBalanceAmount').text('KES ' + (feeBalance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            } else {
+                $('#balanceLabel').text('Current swimming balance');
+                $('#balanceHelpText').text('Select a student to see swimming wallet balance.');
+                $('#feeBalanceAmount').text('KES ' + (swimBalance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+            }
+            $('#feeBalanceGroup').show();
         }
     });
 

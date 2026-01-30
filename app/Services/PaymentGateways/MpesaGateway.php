@@ -557,7 +557,7 @@ class MpesaGateway implements PaymentGatewayInterface
             'student_id' => $studentId,
             'invoice_id' => $isShared ? null : $invoiceId,
             'gateway' => 'mpesa',
-            'reference' => $accountReference . '-' . time(),
+            'reference' => $accountReference,
             'amount' => $amount,
             'currency' => 'KES',
             'status' => 'pending',
@@ -626,17 +626,20 @@ class MpesaGateway implements PaymentGatewayInterface
         }
 
         // Create payment transaction
+        $accountReference = $paymentLink->account_reference
+            ?? $paymentLink->student?->admission_number
+            ?? null;
         $transaction = \App\Models\PaymentTransaction::create([
             'student_id' => $paymentLink->student_id,
             'invoice_id' => $paymentLink->invoice_id,
             'payment_link_id' => $paymentLink->id,
             'gateway' => 'mpesa',
-            'reference' => $paymentLink->payment_reference,
+            'reference' => $accountReference ?? $paymentLink->payment_reference,
             'amount' => $paymentAmount,
             'currency' => $paymentLink->currency,
             'status' => 'pending',
             'phone_number' => $phoneNumber,
-            'account_reference' => $paymentLink->account_reference ?? $paymentLink->student->admission_number,
+            'account_reference' => $accountReference,
         ]);
 
         try {

@@ -50,6 +50,7 @@
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
                         </div>
+                    <div id="studentDataAlertLink" class="alert alert-warning border-0 d-none" role="alert"></div>
 
                         <!-- Step 2: Select Parent(s) – always visible -->
                         <div class="mb-4" id="parentSelectionSection">
@@ -249,11 +250,20 @@ $(document).ready(function() {
         }
     @endif
 
+    // Fallback: react to hidden input changes
+    $('#student_id').on('change', function() {
+        const id = $(this).val();
+        if (id) {
+            loadStudentData(id);
+        }
+    });
+
     // Load student data (sections 2–5 are always visible; we just populate them)
     function loadStudentData(studentId) {
         $('#studentInfoCard').show();
         $('#invoicesList').html('<div class="text-center text-muted py-3"><i class="bi bi-hourglass-split"></i> Loading invoices...</div>');
         $('#parentsList').html('<div class="text-center text-muted py-2">Loading parent information...</div>');
+        $('#studentDataAlertLink').addClass('d-none').text('');
 
         $.get('/api/students/' + studentId)
             .done(function(student) {
@@ -284,6 +294,11 @@ $(document).ready(function() {
                     console.error('Error loading invoices:', error);
                     updateSubmitButton();
                 });
+                if (!student.family) {
+                    $('#studentDataAlertLink')
+                        .removeClass('d-none')
+                        .text('Parent contacts missing: no Family/ParentInfo data returned for this student.');
+                }
             })
             .fail(function(xhr, status, error) {
                 console.error('Failed to load student data:', xhr, status, error);
@@ -296,6 +311,7 @@ $(document).ready(function() {
                     errorMsg = 'You do not have permission to access this student.';
                 }
                 alert(errorMsg);
+                $('#studentDataAlertLink').removeClass('d-none').text(errorMsg);
                 $('#studentInfoBody').html('<div class="text-danger">' + errorMsg + '</div>');
             });
     }
@@ -348,6 +364,9 @@ $(document).ready(function() {
                     `);
                     $('#invoiceSelectionSection').show();
                     updateSubmitButton();
+                    $('#studentDataAlertLink')
+                        .removeClass('d-none')
+                        .text('No invoices returned for this student. Check invoice status or API response.');
                     return;
                 }
 
@@ -406,6 +425,7 @@ $(document).ready(function() {
                 `);
                 $('#invoiceSelectionSection').show();
                 updateSubmitButton();
+                $('#studentDataAlertLink').removeClass('d-none').text(errorMsg);
             });
     }
 

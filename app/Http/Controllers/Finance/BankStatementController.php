@@ -1628,7 +1628,7 @@ class BankStatementController extends Controller
                         
                         // Queue receipt generation and notifications
                         if (isset($payment)) {
-                            \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                            \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
                                 ->onQueue('default');
                         }
                     } catch (\App\Exceptions\PaymentConflictException $e) {
@@ -1982,7 +1982,7 @@ class BankStatementController extends Controller
                     
                     // Queue receipt generation and notifications
                     if (isset($payment)) {
-                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
                             ->onQueue('default');
                     }
                 }
@@ -2260,7 +2260,7 @@ class BankStatementController extends Controller
             }
 
             if (isset($payment)) {
-                \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
                     ->onQueue('default');
             }
         });
@@ -2344,7 +2344,7 @@ class BankStatementController extends Controller
                 }
 
                 if (isset($payment)) {
-                    \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                    \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
                         ->onQueue('default');
                 }
             } finally {
@@ -4268,7 +4268,7 @@ class BankStatementController extends Controller
                             if ($payment) {
                                 $allocationService = app(\App\Services\PaymentAllocationService::class);
                                 $allocationService->autoAllocate($payment);
-                                \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
+                                \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
                                     ->onQueue('default');
                             }
                         }
