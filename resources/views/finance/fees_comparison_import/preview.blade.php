@@ -49,7 +49,6 @@
         .comparison-table .col-stmt { width: 6%; }
         .comparison-table tbody tr:hover { background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%); }
         .row-missing { background: rgba(220, 53, 69, 0.08) !important; }
-        .row-family-mismatch { background: rgba(253, 126, 20, 0.08) !important; }
         .row-amount-diff { background: rgba(255, 193, 7, 0.12) !important; }
         .row-in-system-only { background: rgba(13, 202, 240, 0.08) !important; }
         .row-ok { }
@@ -77,13 +76,13 @@
             @if($hasIssues)
                 <div class="alert alert-warning alert-dismissible fade show finance-animate" role="alert">
                     <strong><i class="bi bi-exclamation-triangle"></i> Issues detected.</strong>
-                    Review the table below. Missing students, amount differences, and family total mismatches are highlighted.
+                    Review the table below. Missing students and amount differences are highlighted.
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             @else
                 <div class="alert alert-success alert-dismissible fade show finance-animate" role="alert">
                     <strong><i class="bi bi-check-circle"></i> All comparisons match.</strong>
-                    No missing students, amount differences, or family total mismatches.
+                    No missing students or amount differences.
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             @endif
@@ -120,28 +119,16 @@
                     </div>
                 </div>
                 <div class="col-6 col-md-4 col-lg-2">
-                    <div class="comparison-stat-card border-warning">
-                        <div class="comparison-stat-value text-warning">{{ $summary['family_total_mismatch'] }}</div>
-                        <div class="comparison-stat-label">Family mismatch</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-4 col-lg-2">
                     <div class="comparison-stat-card border-info">
                         <div class="comparison-stat-value text-info">{{ $summary['in_system_only'] }}</div>
                         <div class="comparison-stat-label">System only</div>
                     </div>
                 </div>
             </div>
-            @if(($summary['allocation_diff_families'] ?? 0) > 0)
-                <div class="alert alert-info border-0 mb-4">
-                    <i class="bi bi-people me-2"></i>
-                    <strong>{{ $summary['allocation_diff_families'] }}</strong> families have <strong>matching family totals</strong> but <strong>individual allocations differ</strong> between system and import.
-                </div>
-            @endif
 
             {{-- View filter tabs (like bank statements) --}}
             @php
-                $counts = $counts ?? ['all' => 0, 'match' => 0, 'families' => 0, 'individual' => 0];
+                $counts = $counts ?? ['all' => 0, 'match' => 0, 'individual' => 0];
                 $currentView = $view ?? 'all';
                 $baseUrl = route('finance.fees-comparison-import.show', $previewId ?? 0);
             @endphp
@@ -163,11 +150,6 @@
                                 Individual students <span class="badge bg-info">{{ $counts['individual'] ?? 0 }}</span>
                             </a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link {{ $currentView == 'families' ? 'active' : '' }}" href="{{ $baseUrl }}?view=families">
-                                Families <span class="badge bg-primary">{{ $counts['families'] ?? 0 }}</span>
-                            </a>
-                        </li>
                     </ul>
                 </div>
             </div>
@@ -182,8 +164,8 @@
                     </div>
                     <div class="d-flex gap-2">
                         <span class="badge bg-success">{{ $summary['ok'] }} OK</span>
-                        @if($summary['missing_student'] + $summary['amount_differs'] + $summary['family_total_mismatch'] > 0)
-                            <span class="badge bg-warning text-dark">{{ $summary['missing_student'] + $summary['amount_differs'] + $summary['family_total_mismatch'] }} issues</span>
+                        @if($summary['missing_student'] + $summary['amount_differs'] > 0)
+                            <span class="badge bg-warning text-dark">{{ $summary['missing_student'] + $summary['amount_differs'] }} issues</span>
                         @endif
                     </div>
                 </div>
@@ -202,7 +184,6 @@
                                     <th class="text-end col-num">Imp paid</th>
                                     <th class="text-end col-num">Diff</th>
                                     <th class="col-status">Status</th>
-                                    <th class="col-note">Note</th>
                                     @if(!empty($previewId))
                                     <th class="text-center col-stmt">Statement</th>
                                     @endif
@@ -212,22 +193,14 @@
                                 @foreach($previewGrouped as $groupKey => $group)
                                     @php
                                         $rows = $group['rows'] ?? [];
-                                        $isFamily = ($group['family_id'] ?? null) && count($rows) > 1;
                                     @endphp
-                                    @if($isFamily)
-                                        <tr class="family-header-row" style="background: color-mix(in srgb, var(--fin-primary) 6%, #fff 94%);">
-                                            <td colspan="{{ !empty($previewId) ? 12 : 11 }}" class="fw-bold py-2">
-                                                <i class="bi bi-people me-1"></i> Family — {{ count($rows) }} children
-                                            </td>
-                                        </tr>
-                                    @endif
                                     @foreach($rows as $row)
                                         @php
                                             $status = $row['status'] ?? 'ok';
                                             $rowClass = match($status) {
                                                 'missing_student' => 'row-missing',
-                                                'family_total_mismatch' => 'row-family-mismatch',
                                                 'amount_differs' => 'row-amount-diff',
+                                                'family_total_mismatch' => 'row-amount-diff',
                                                 'in_system_only' => 'row-in-system-only',
                                                 default => 'row-ok',
                                             };
@@ -282,21 +255,14 @@
                                                 @elseif($status === 'amount_differs')
                                                     <span class="badge bg-warning text-dark">Amount differs</span>
                                                 @elseif($status === 'family_total_mismatch')
-                                                    <span class="badge bg-warning text-dark">Family mismatch</span>
+                                                    <span class="badge bg-warning text-dark">Amount differs</span>
                                                 @elseif($status === 'in_system_only')
                                                     <span class="badge bg-info">System only</span>
                                                 @else
                                                     <span class="badge bg-secondary">{{ $status }}</span>
                                                 @endif
-                                                @if(!empty($row['message']))
+                                                @if(!empty($row['message']) && $status !== 'family_total_mismatch')
                                                     <br><small class="text-muted">{{ $row['message'] }}</small>
-                                                @endif
-                                            </td>
-                                            <td class="family-note-cell col-note">
-                                                @if(!empty($row['family_note']))
-                                                    <span class="text-info">{{ $row['family_note'] }}</span>
-                                                @else
-                                                    <span class="text-muted">—</span>
                                                 @endif
                                             </td>
                                             @if(!empty($previewId))
@@ -312,17 +278,6 @@
                                             @endif
                                         </tr>
                                     @endforeach
-                                    @if($isFamily)
-                                        <tr class="family-total-row fw-bold" style="background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%);">
-                                            <td colspan="4" class="text-end">Family total (payments)</td>
-                                            <td class="text-end"><span class="text-muted">—</span></td>
-                                            <td class="text-end"><span class="text-muted">—</span></td>
-                                            <td class="text-end"><span class="text-muted">—</span></td>
-                                            <td class="text-end">KES {{ number_format($group['system_paid_total'] ?? 0, 2) }}</td>
-                                            <td class="text-end">KES {{ number_format($group['import_paid_total'] ?? 0, 2) }}</td>
-                                            <td colspan="{{ !empty($previewId) ? 4 : 3 }}"></td>
-                                        </tr>
-                                    @endif
                                 @endforeach
                             </tbody>
                             @if(count($preview) > 0)
@@ -334,7 +289,7 @@
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_invoiced'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>
-                                    <td colspan="{{ !empty($previewId) ? 4 : 3 }}"></td>
+                                    <td colspan="{{ !empty($previewId) ? 2 : 1 }}"></td>
                                 </tr>
                             </tfoot>
                             @endif
@@ -369,9 +324,7 @@
                         </div>
                         <div class="col-md-6">
                             <ul class="list-unstyled mb-0">
-                                <li class="mb-2"><span class="badge bg-warning text-dark">Family mismatch</span> — Sibling family total in system ≠ family total in import.</li>
                                 <li class="mb-2"><span class="badge bg-info">System only</span> — In system but not in import file.</li>
-                                <li class="mb-0"><strong>Family total matches; individual allocations differ</strong> — Sibling family totals agree, but at least one child’s allocation differs.</li>
                             </ul>
                         </div>
                     </div>

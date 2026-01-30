@@ -70,7 +70,23 @@ class FeesComparisonImportController extends Controller
             return back()->withErrors(['file' => 'The uploaded file is empty or could not be read.']);
         }
 
-        $headerRow = array_shift($sheet);
+        // Detect header row (some files include an extra title row before headers)
+        $headerRowIndex = null;
+        $scanRows = array_slice($sheet, 0, 3);
+        foreach ($scanRows as $idx => $row) {
+            $cells = array_map(fn($c) => strtolower(trim((string) $c)), $row ?? []);
+            $hasAdmission = collect($cells)->contains(fn($c) => str_contains($c, 'admission') || str_contains($c, 'adm'));
+            $hasName = collect($cells)->contains(fn($c) => str_contains($c, 'student') || str_contains($c, 'name'));
+            if ($hasAdmission && $hasName) {
+                $headerRowIndex = $idx;
+                break;
+            }
+        }
+        if ($headerRowIndex === null) {
+            $headerRowIndex = 0;
+        }
+        $headerRow = $sheet[$headerRowIndex] ?? [];
+        $sheet = array_slice($sheet, $headerRowIndex + 1);
         if (empty($headerRow)) {
             return back()->withErrors(['file' => 'The file must contain a header row with column names.']);
         }
@@ -83,6 +99,49 @@ class FeesComparisonImportController extends Controller
         // Import columns: support separate invoiced and paid for like-with-like comparison.
         // Paid: only total_fees_paid / fees_paid / total_paid (do NOT use amount/total_fees as paid).
         // Invoiced: total_fees / total_invoiced / invoice_total / amount (for invoice-vs-invoice match).
+        $toNumber = function ($value): ?float {
+            if ($value === null) {
+                return null;
+            }
+            $str = trim((string) $value);
+            if ($str === '') {
+                return null;
+            }
+            // Remove currency and thousand separators (e.g. "KES 40,000.00")
+            $normalized = preg_replace('/[^0-9\.\-]/', '', $str);
+            if ($normalized === '' || $normalized === '-' || $normalized === '.') {
+                return null;
+            }
+            return is_numeric($normalized) ? (float) $normalized : null;
+        };
+        $findKey = function (array $assoc, array $needles, array $exclude = []): ?string {
+            foreach ($assoc as $key => $_val) {
+                $k = (string) $key;
+                $hasNeedle = false;
+                foreach ($needles as $needle) {
+                    if (str_contains($k, $needle)) {
+                        $hasNeedle = true;
+                        break;
+                    }
+                }
+                if (!$hasNeedle) {
+                    continue;
+                }
+                $isExcluded = false;
+                foreach ($exclude as $ex) {
+                    if (str_contains($k, $ex)) {
+                        $isExcluded = true;
+                        break;
+                    }
+                }
+                if ($isExcluded) {
+                    continue;
+                }
+                return $k;
+            }
+            return null;
+        };
+
         $importRows = [];
         foreach ($sheet as $row) {
             $assoc = [];
@@ -91,16 +150,67 @@ class FeesComparisonImportController extends Controller
             }
             $admission = trim((string) ($assoc['admission_number'] ?? $assoc['admission_no'] ?? $assoc['adm_no'] ?? ''));
             $name = trim((string) ($assoc['student_name'] ?? $assoc['name'] ?? $assoc['full_name'] ?? ''));
-            $paid = $assoc['total_fees_paid'] ?? $assoc['fees_paid'] ?? $assoc['total_paid'] ?? null;
-            $invoiced = $assoc['total_fees'] ?? $assoc['total_invoiced'] ?? $assoc['invoice_total'] ?? $assoc['total_fees_due'] ?? $assoc['amount'] ?? null;
+            // Some imports use "Expected Total" for paid and "Total Fees Paid" for invoiced
+            $paidPrimary = $assoc['expected_total']
+                ?? $assoc['expected']
+                ?? $assoc['expected_fees_paid']
+                ?? $assoc['expected_paid']
+                ?? null;
+            $hasExpectedPaid = false;
+            if ($paidPrimary === null) {
+                $expectedKey = $findKey($assoc, ['expected']);
+                if ($expectedKey) {
+                    $paidPrimary = $assoc[$expectedKey];
+                }
+            }
+            $paidFallback = $assoc['total_fees_paid']
+                ?? $assoc['fees_paid']
+                ?? $assoc['total_paid']
+                ?? $assoc['amount_paid']
+                ?? $assoc['paid']
+                ?? $assoc['paid_amount']
+                ?? null;
+            if ($paidFallback === null) {
+                $paidKey = $findKey($assoc, ['paid'], ['unpaid']);
+                if ($paidKey) {
+                    $paidFallback = $assoc[$paidKey];
+                }
+            }
+            $invoiced = $assoc['total_fees']
+                ?? $assoc['total_invoiced']
+                ?? $assoc['invoice_total']
+                ?? $assoc['total_fees_due']
+                ?? $assoc['amount']
+                ?? $assoc['total']
+                ?? null;
+            if ($invoiced === null) {
+                $invoiceKey = $findKey($assoc, ['total', 'fees'], ['paid', 'expected']);
+                if ($invoiceKey) {
+                    $invoiced = $assoc[$invoiceKey];
+                }
+            }
             if ($admission === '') {
                 continue;
+            }
+            $paidValue = $toNumber($paidPrimary);
+            $paidFallbackValue = $toNumber($paidFallback);
+            if ($paidValue !== null) {
+                $hasExpectedPaid = true;
+            }
+            $invoicedValue = $toNumber($invoiced);
+            if ($paidValue === null) {
+                $paidValue = $paidFallbackValue;
+            }
+            // If "Expected Total" used for paid and "Total Fees Paid" holds invoiced, capture both
+            if ($invoicedValue === null && $paidPrimary !== null && $paidFallbackValue !== null && $paidValue !== $paidFallbackValue) {
+                $invoicedValue = $paidFallbackValue;
             }
             $importRows[] = [
                 'admission_number' => $admission,
                 'student_name' => $name ?: $admission,
-                'total_fees_paid' => is_numeric($paid) ? (float) $paid : null,
-                'total_invoiced' => is_numeric($invoiced) ? (float) $invoiced : null,
+                'total_fees_paid' => $paidValue,
+                'total_invoiced' => $invoicedValue,
+                'has_expected_paid' => $hasExpectedPaid,
             ];
         }
 
@@ -140,7 +250,7 @@ class FeesComparisonImportController extends Controller
 
             // If import has one value in the "paid" column but it matches system INVOICED (not paid), treat it as invoiced-only.
             // Common case: file has "Total Fees" = 33,900 in a column labeled "Total Fees Paid", so Imp inv was blank and Imp paid showed 33,900.
-            if ($importInvoiced === null && $importPaid !== null && $systemInvoiced > 0) {
+            if ($importInvoiced === null && $importPaid !== null && $systemInvoiced > 0 && empty($imp['has_expected_paid'])) {
                 if (abs($importPaid - $systemInvoiced) <= 0.01 && abs($importPaid - $systemPaid) > 0.01) {
                     $importInvoiced = $importPaid;
                     $importPaid = null;
@@ -346,21 +456,20 @@ class FeesComparisonImportController extends Controller
         $term = $preview->term;
         $view = $request->get('view', 'all');
 
-        $previewGrouped = $this->groupPreviewByFamily($previewRows);
+        // Treat all students individually (no family grouping)
+        $previewGrouped = array_map(function ($row) {
+            return [
+                'family_id' => null,
+                'rows' => [$row],
+                'system_paid_total' => (float) ($row['system_total_paid'] ?? 0),
+                'import_paid_total' => (float) ($row['import_total_paid'] ?? 0),
+            ];
+        }, $previewRows);
 
         // Counts for filter tabs (like bank statements)
         $countMatch = (int) ($summary['ok'] ?? 0);
-        $countIndividual = 0;
+        $countIndividual = count($previewRows);
         $countFamilies = 0;
-        foreach ($previewGrouped as $g) {
-            $rows = $g['rows'] ?? [];
-            $isFamily = ($g['family_id'] ?? null) && count($rows) > 1;
-            if ($isFamily) {
-                $countFamilies++;
-            } else {
-                $countIndividual += count($rows);
-            }
-        }
         $counts = [
             'all' => count($previewRows),
             'match' => $countMatch,
@@ -376,21 +485,16 @@ class FeesComparisonImportController extends Controller
                 $okRows = array_values(array_filter($g['rows'] ?? [], fn ($r) => ($r['status'] ?? '') === 'ok'));
                 if (!empty($okRows)) {
                     $filtered[] = [
-                        'family_id' => $g['family_id'] ?? null,
+                        'family_id' => null,
                         'rows' => $okRows,
                         'system_paid_total' => array_sum(array_map(fn ($r) => (float) ($r['system_total_paid'] ?? 0), $okRows)),
                         'import_paid_total' => array_sum(array_map(fn ($r) => (float) ($r['import_total_paid'] ?? 0), $okRows)),
                     ];
                 }
             }
-        } elseif ($view === 'individual') {
-            $filtered = array_values(array_filter($previewGrouped, function ($g) {
-                return !($g['family_id'] ?? null) && count($g['rows'] ?? []) >= 1;
-            }));
         } elseif ($view === 'families') {
-            $filtered = array_values(array_filter($previewGrouped, function ($g) {
-                return ($g['family_id'] ?? null) && count($g['rows'] ?? []) > 1;
-            }));
+            // No family grouping; show empty list for families view
+            $filtered = [];
         }
 
         return view('finance.fees_comparison_import.preview', [
