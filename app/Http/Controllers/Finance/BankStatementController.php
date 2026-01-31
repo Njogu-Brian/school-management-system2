@@ -2363,6 +2363,10 @@ class BankStatementController extends Controller
      */
     public function updateAllocations(Request $request, $id)
     {
+        $transaction = $this->resolveTransaction($id);
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
+
         // Optimistic locking check
         if ($request->has('version') && $transaction->version != $request->version) {
             return back()->with('error', 
