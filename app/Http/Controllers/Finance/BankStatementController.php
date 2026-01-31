@@ -2443,7 +2443,7 @@ class BankStatementController extends Controller
             // Store old allocations for audit log
             $oldAllocations = $transaction->shared_allocations ?? [];
             
-            return DB::transaction(function () use ($transaction, $activeAllocations, $oldAllocations, $normalized) {
+            return DB::transaction(function () use ($transaction, $activeAllocations, $oldAllocations, $normalized, $id) {
                 // Update transaction shared allocations
                 $transaction->update([
                     'shared_allocations' => $activeAllocations,
