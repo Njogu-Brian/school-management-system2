@@ -158,6 +158,7 @@
                                         <div class="mt-3">
                                             <strong>Total Shared: Ksh <span id="total_shared">0.00</span></strong>
                                             <span class="text-danger" id="sharing_error" style="display: none;">Total must equal payment amount!</span>
+                                            <div class="text-warning small mt-2" id="sharing_notice" style="display: none;"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -232,6 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const siblingsList = document.getElementById('siblings_list');
     const totalSharedSpan = document.getElementById('total_shared');
     const sharingError = document.getElementById('sharing_error');
+    const sharingNotice = document.getElementById('sharing_notice');
     const submitBtn = document.getElementById('submit_btn');
     
     let currentStudentData = null;
@@ -417,6 +419,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const mainStudentId = document.getElementById('student_id').value;
         const mainStudentName = document.getElementById('studentLiveSearch').value;
         const mainStudentBalance = currentStudentData?.balance?.total_balance || 0;
+        const totalPaymentAmount = parseFloat(paymentAmount.value || 0);
         
         let html = '';
         
@@ -438,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                class="form-control sibling-amount" 
                                name="shared_amounts[]" 
                                data-sibling-id="${mainStudentId}"
-                               value="0"
+                               value="${totalPaymentAmount > 0 ? totalPaymentAmount : 0}"
                                oninput="updateTotalShared()">
                         <input type="hidden" name="shared_students[]" value="${mainStudentId}">
                     </div>
@@ -486,6 +489,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Only disable if payment sharing is active
         if (sharedPaymentInput.value === '1') {
             const paymentAmount = parseFloat(document.getElementById('payment_amount').value || 0);
+            if (paymentAmount <= 0) {
+                sharingNotice.textContent = 'Enter the payment amount to enable sharing.';
+                sharingNotice.style.display = 'block';
+                sharingError.style.display = 'none';
+                submitBtn.disabled = true;
+                return;
+            }
+            sharingNotice.style.display = 'none';
             if (Math.abs(total - paymentAmount) > 0.01) {
                 sharingError.style.display = 'inline';
                 submitBtn.disabled = true;

@@ -1581,43 +1581,43 @@ class BankStatementController extends Controller
         $transaction->refresh();
         $isSwimming = $bankStatement->is_swimming_transaction ?? false;
 
-        DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $bankStatement, $id) {
-            // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
-            $matchNotes = $bankStatement->match_notes ?? '';
-            if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
-                $matchNotes = $matchNotes ? str_replace('MANUALLY_REJECTED - ', '', $matchNotes) : 'Manually confirmed';
-            }
-            
-            // Update transaction status
-            if ($isC2B) {
-                $transaction->update([
-                    'status' => 'processed',
-                    'match_reason' => $matchNotes,
-                ]);
-            } else {
-                $transaction->confirm();
-                if (strpos($transaction->match_notes ?? '', 'MANUALLY_REJECTED') !== false) {
-                    $transaction->update(['match_notes' => $matchNotes]);
+        try {
+            DB::transaction(function () use ($transaction, $isSwimming, $isC2B, $bankStatement) {
+                // Clear MANUALLY_REJECTED marker when confirming (manual assignment)
+                $matchNotes = $bankStatement->match_notes ?? '';
+                if (strpos($matchNotes, 'MANUALLY_REJECTED') !== false) {
+                    $matchNotes = $matchNotes ? str_replace('MANUALLY_REJECTED - ', '', $matchNotes) : 'Manually confirmed';
                 }
-            }
-
-            if ($isSwimming) {
-                // Handle swimming transaction - allocate to swimming wallets
+                
+                // Update transaction status
                 if ($isC2B) {
-                    // For C2B, use the existing C2B allocation logic
-                    // This should already be handled when the transaction was allocated
-                    // But we can ensure payment is created if not already
-                    if (!$transaction->payment_id) {
-                        // Create payment for swimming C2B transaction
-                        $this->createSwimmingPaymentForC2B($transaction);
+                    $transaction->update([
+                        'status' => 'processed',
+                        'match_reason' => $matchNotes,
+                    ]);
+                } else {
+                    $transaction->confirm();
+                    if (strpos($transaction->match_notes ?? '', 'MANUALLY_REJECTED') !== false) {
+                        $transaction->update(['match_notes' => $matchNotes]);
+                    }
+                }
+
+                if ($isSwimming) {
+                    // Handle swimming transaction - allocate to swimming wallets
+                    if ($isC2B) {
+                        // For C2B, use the existing C2B allocation logic
+                        // This should already be handled when the transaction was allocated
+                        // But we can ensure payment is created if not already
+                        if (!$transaction->payment_id) {
+                            // Create payment for swimming C2B transaction
+                            $this->createSwimmingPaymentForC2B($transaction);
+                        }
+                    } else {
+                        $this->processSwimmingTransaction($transaction);
                     }
                 } else {
-                    $this->processSwimmingTransaction($transaction);
-                }
-            } else {
-                // Create payment for fee allocation if not already created
-                if (!$bankStatement->payment_created) {
-                    try {
+                    // Create payment for fee allocation if not already created
+                    if (!$bankStatement->payment_created) {
                         if ($isC2B) {
                             // For C2B, create payment using C2B logic
                             $payment = $this->createPaymentForC2B($transaction);
@@ -1630,26 +1630,33 @@ class BankStatementController extends Controller
                         if (isset($payment)) {
                             \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
                         }
-                    } catch (\App\Exceptions\PaymentConflictException $e) {
-                        return redirect()
-                            ->route('finance.bank-statements.show', $id)
-                            ->with('payment_conflict', [
-                                'conflicting_payments' => $e->conflictingPayments,
-                                'student_id' => $e->studentId,
-                                'transaction_code' => $e->transactionCode,
-                                'message' => $e->getMessage(),
-                            ])
-                            ->with('error', 'Payment conflict detected. Please review the conflicting payment(s) and choose an action.');
-                    } catch (\Exception $e) {
-                        Log::error('Failed to create payment from transaction', [
-                            'transaction_id' => $transaction->id,
-                            'error' => $e->getMessage(),
-                        ]);
-                        throw $e;
                     }
                 }
+            });
+        } catch (\App\Exceptions\PaymentConflictException $e) {
+            $linkedPayment = $this->autoLinkConflictingPayment($transaction, $e);
+            if ($linkedPayment) {
+                return redirect()
+                    ->route('finance.bank-statements.show', $id)
+                    ->with('success', 'Existing payment linked to this transaction automatically.');
             }
-        });
+
+            return redirect()
+                ->route('finance.bank-statements.show', $id)
+                ->with('payment_conflict', [
+                    'conflicting_payments' => $e->conflictingPayments,
+                    'student_id' => $e->studentId,
+                    'transaction_code' => $e->transactionCode,
+                    'message' => $e->getMessage(),
+                ])
+                ->with('error', 'Payment conflict detected. Please review the conflicting payment(s) and choose an action.');
+        } catch (\Exception $e) {
+            Log::error('Failed to create payment from transaction', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
 
         $message = $isSwimming 
             ? 'Transaction confirmed and allocated to swimming wallets'
@@ -2289,17 +2296,66 @@ class BankStatementController extends Controller
 
         // Link transaction to existing payment
         if ($isC2B) {
-            $transaction->update(['payment_id' => $payment->id]);
+            $transaction->update([
+                'payment_id' => $payment->id,
+                'student_id' => $payment->student_id,
+                'status' => 'processed',
+            ]);
         } else {
             $transaction->update([
                 'payment_id' => $payment->id,
                 'payment_created' => true,
+                'student_id' => $payment->student_id,
+                'match_status' => 'manual',
             ]);
         }
 
         return redirect()
             ->route('finance.bank-statements.show', $id)
             ->with('success', 'Transaction linked to existing payment successfully.');
+    }
+
+    /**
+     * Attempt to auto-link a conflicting payment to the transaction.
+     */
+    protected function autoLinkConflictingPayment($transaction, \App\Exceptions\PaymentConflictException $e): ?\App\Models\Payment
+    {
+        $conflictingIds = collect($e->conflictingPayments)
+            ->map(function ($payment) {
+                return $payment['id'] ?? null;
+            })
+            ->filter()
+            ->values();
+
+        if ($conflictingIds->isEmpty()) {
+            return null;
+        }
+
+        $payment = \App\Models\Payment::whereIn('id', $conflictingIds)
+            ->where('reversed', false)
+            ->first();
+
+        if (!$payment) {
+            return null;
+        }
+
+        $isC2B = $transaction instanceof \App\Models\MpesaC2BTransaction;
+        if ($isC2B) {
+            $transaction->update([
+                'payment_id' => $payment->id,
+                'student_id' => $payment->student_id,
+                'status' => 'processed',
+            ]);
+        } else {
+            $transaction->update([
+                'payment_id' => $payment->id,
+                'payment_created' => true,
+                'student_id' => $payment->student_id,
+                'match_status' => 'manual',
+            ]);
+        }
+
+        return $payment;
     }
 
     /**
@@ -2351,6 +2407,13 @@ class BankStatementController extends Controller
                 }
             });
         } catch (\App\Exceptions\PaymentConflictException $e) {
+            $linkedPayment = $this->autoLinkConflictingPayment($transaction, $e);
+            if ($linkedPayment) {
+                return redirect()
+                    ->route('finance.bank-statements.show', $id)
+                    ->with('success', 'Existing payment linked to this transaction automatically.');
+            }
+
             return redirect()
                 ->route('finance.bank-statements.show', $id)
                 ->with('payment_conflict', [

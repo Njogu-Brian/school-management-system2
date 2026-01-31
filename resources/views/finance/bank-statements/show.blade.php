@@ -981,7 +981,7 @@
                             </div>
                             <div class="modal-body">
                                 <p class="mb-3">
-                                    A payment conflict was detected. Please choose how to resolve it:
+                                    A payment conflict was detected. Please choose how to resolve it (existing payment linking is recommended):
                                 </p>
                                 <div class="alert alert-info mb-4">
                                     <strong>Transaction Code:</strong> <code>{{ $conflict['transaction_code'] }}</code><br>
@@ -1075,12 +1075,6 @@
                                                             </button>
                                                         </form>
                                                     @endif
-                                                    <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.create-new', $bankStatement->id) }}" class="flex-fill">
-                                                        @csrf
-                                                        <button type="submit" class="btn btn-finance btn-finance-primary w-100">
-                                                            <i class="bi bi-plus-circle"></i> Create New (Different Code)
-                                                        </button>
-                                                    </form>
                                                 </div>
                                             </div>
                                         @endif
@@ -1145,6 +1139,18 @@
                 shareBtn.classList.add('btn-secondary');
             }
         }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const shareInputs = Array.from(document.querySelectorAll('.sibling-amount'));
+            const shareBtn = document.getElementById('shareBtn');
+            if (shareInputs.length > 0 && shareBtn) {
+                const hasValue = shareInputs.some(input => parseFloat(input.value || 0) > 0);
+                if (!hasValue) {
+                    shareInputs[0].value = {{ $bankStatement->amount }};
+                }
+                updateTotal();
+            }
+        });
         
         function toggleEditAllocations() {
             const form = document.getElementById('editAllocationsForm');
@@ -1491,6 +1497,12 @@ async function showShareModalForStudent(studentId, studentName, siblings) {
     document.body.appendChild(modal);
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
+
+    const firstInput = modal.querySelector('.modal-sibling-amount');
+    if (firstInput) {
+        firstInput.value = {{ $bankStatement->amount }};
+        updateModalTotal();
+    }
     
     modal.addEventListener('hidden.bs.modal', function () {
         modal.remove();
