@@ -1099,6 +1099,10 @@ class StudentController extends Controller
 
         foreach ($existingItems as $existing) {
             if (!$proposed->contains('votehead_id', $existing['votehead_id'])) {
+                // Keep optional/manual items when only structure/category diffs are expected
+                if (in_array($existing['origin'], ['optional', 'manual'], true)) {
+                    continue;
+                }
                 $diffs->push([
                     'action' => 'removed',
                     'student_id' => $studentId,

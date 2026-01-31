@@ -230,8 +230,6 @@ class FeesComparisonImportController extends Controller
         }
 
         $allAdmissions = collect(array_keys($systemByAdmission))->merge(array_keys($importByAdmission))->unique();
-        $familyGroups = [];
-
         foreach ($allAdmissions as $admission) {
             $sys = $systemByAdmission[$admission] ?? null;
             $imp = $importByAdmission[$admission] ?? null;
@@ -263,8 +261,6 @@ class FeesComparisonImportController extends Controller
             $status = 'ok';
             $message = null;
             $difference = null;
-            $familyNote = null;
-
             if (!$student) {
                 $status = 'missing_student';
                 $message = 'Student not found or archived/alumni (excluded from import)';
@@ -284,7 +280,8 @@ class FeesComparisonImportController extends Controller
                     'difference' => null,
                     'status' => $status,
                     'message' => $message,
-                    'family_note' => null,
+                    'invoice_diff' => null,
+                    'payment_diff' => null,
                 ];
                 continue;
             }
@@ -301,34 +298,16 @@ class FeesComparisonImportController extends Controller
 
                 if (!$paidMatch || !$invMatch) {
                     $status = 'amount_differs';
-                    if (!$paidMatch && !$invMatch) {
-                        $difference = $paidDiff; // primary diff for sorting/display
-                        $message = 'Paid: Sys KES ' . number_format($systemPaid, 2) . ' vs Imp KES ' . number_format($importPaid ?? 0, 2)
-                            . '; Invoiced: Sys KES ' . number_format($systemInvoiced, 2) . ' vs Imp KES ' . number_format($importInvoiced ?? 0, 2);
-                    } elseif (!$paidMatch) {
-                        $difference = $paidDiff;
-                        $message = 'Paid: System KES ' . number_format($systemPaid, 2) . ' vs Import KES ' . number_format($importPaid, 2);
-                    } else {
-                        $difference = $invDiff;
-                        $message = 'Invoiced: System KES ' . number_format($systemInvoiced, 2) . ' vs Import KES ' . number_format($importInvoiced, 2);
+                    $difference = !$invMatch ? $invDiff : $paidDiff;
+                    $messageParts = [];
+                    if (!$invMatch) {
+                        $messageParts[] = 'Invoiced: Sys KES ' . number_format($systemInvoiced, 2) . ' vs Imp KES ' . number_format($importInvoiced ?? 0, 2);
                     }
+                    if (!$paidMatch) {
+                        $messageParts[] = 'Paid: Sys KES ' . number_format($systemPaid, 2) . ' vs Imp KES ' . number_format($importPaid ?? 0, 2);
+                    }
+                    $message = implode('; ', $messageParts);
                 }
-            }
-
-            $familyId = $student->family_id;
-            // Treat 0, empty string, or null as "no family" so we don't group unrelated students
-            if ($familyId === 0 || $familyId === '' || (is_string($familyId) && trim((string) $familyId) === '')) {
-                $familyId = null;
-            }
-            if ($familyId && $imp !== null) {
-                $familyGroups[$familyId] = $familyGroups[$familyId] ?? [
-                    'admissions' => [],
-                    'system_total' => 0,
-                    'import_total' => 0,
-                ];
-                $familyGroups[$familyId]['admissions'][] = $admission;
-                $familyGroups[$familyId]['system_total'] += $systemPaid;
-                $familyGroups[$familyId]['import_total'] += ($importPaid ?? 0);
             }
 
             $preview[] = [
@@ -336,7 +315,6 @@ class FeesComparisonImportController extends Controller
                 'student_name' => $student->full_name,
                 'student_id' => $student->id,
                 'classroom' => $student->classroom?->name ?? '—',
-                'family_id' => $familyId,
                 'parent_phone' => $sys['parent_phone'] ?? null,
                 'system_total_invoiced' => $systemInvoiced,
                 'system_total_paid' => $systemPaid,
@@ -347,49 +325,17 @@ class FeesComparisonImportController extends Controller
                 'difference' => $difference,
                 'status' => $status,
                 'message' => $message,
-                'family_note' => $familyNote,
+                'invoice_diff' => $invMatch ? null : $invDiff,
+                'payment_diff' => $paidMatch ? null : $paidDiff,
             ];
-        }
-
-        foreach ($familyGroups as $fid => $g) {
-            if (count($g['admissions']) < 2) {
-                continue;
-            }
-            $sysTot = $g['system_total'];
-            $impTot = $g['import_total'];
-            $familyMatch = abs($sysTot - $impTot) < 0.01;
-            $hasIndividualDiff = false;
-            foreach ($g['admissions'] as $adm) {
-                $row = collect($preview)->firstWhere('admission_number', $adm);
-                if ($row && ($row['status'] ?? '') === 'amount_differs') {
-                    $hasIndividualDiff = true;
-                    break;
-                }
-            }
-            foreach ($preview as &$r) {
-                if (!in_array($r['admission_number'], $g['admissions'], true)) {
-                    continue;
-                }
-                if (!$familyMatch) {
-                    $r['family_note'] = 'Family total mismatch: System KES ' . number_format($sysTot, 2) . ' vs Import KES ' . number_format($impTot, 2);
-                    if ($r['status'] === 'ok') {
-                        $r['status'] = 'family_total_mismatch';
-                        $r['message'] = $r['family_note'];
-                    }
-                } elseif ($hasIndividualDiff) {
-                    $r['family_note'] = 'Family total matches; individual allocations differ.';
-                }
-            }
-            unset($r);
         }
 
         usort($preview, function ($a, $b) {
             $order = [
                 'missing_student' => 1,
-                'family_total_mismatch' => 2,
-                'amount_differs' => 3,
-                'in_system_only' => 4,
-                'ok' => 5,
+                'amount_differs' => 2,
+                'in_system_only' => 3,
+                'ok' => 4,
             ];
             $ao = $order[$a['status']] ?? 5;
             $bo = $order[$b['status']] ?? 5;
@@ -401,35 +347,16 @@ class FeesComparisonImportController extends Controller
 
         $missingCount = collect($preview)->where('status', 'missing_student')->count();
         $amountDiffCount = collect($preview)->where('status', 'amount_differs')->count();
-        $familyMismatchCount = collect($preview)->where('status', 'family_total_mismatch')->count();
         $inSystemOnlyCount = collect($preview)->where('status', 'in_system_only')->count();
         $okCount = collect($preview)->where('status', 'ok')->count();
-        $allocationDiffFamilies = 0;
-        foreach ($familyGroups as $g) {
-            if (count($g['admissions']) < 2) {
-                continue;
-            }
-            if (abs($g['system_total'] - $g['import_total']) < 0.01) {
-                foreach ($g['admissions'] as $adm) {
-                    $row = collect($preview)->firstWhere('admission_number', $adm);
-                    if ($row && $row['status'] === 'amount_differs') {
-                        $allocationDiffFamilies++;
-                        break;
-                    }
-                }
-            }
-        }
-
-        $hasIssues = $missingCount > 0 || $amountDiffCount > 0 || $familyMismatchCount > 0;
+        $hasIssues = $missingCount > 0 || $amountDiffCount > 0;
 
         $summary = [
             'total' => count($preview),
             'ok' => $okCount,
             'missing_student' => $missingCount,
             'amount_differs' => $amountDiffCount,
-            'family_total_mismatch' => $familyMismatchCount,
             'in_system_only' => $inSystemOnlyCount,
-            'allocation_diff_families' => $allocationDiffFamilies,
         ];
 
         $saved = FeesComparisonPreview::create([

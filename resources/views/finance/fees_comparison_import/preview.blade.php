@@ -46,6 +46,7 @@
         .comparison-table .col-num { width: 8%; min-width: 4.5rem; }
         .comparison-table .col-status { width: 10%; }
         .comparison-table .col-note { width: 14%; max-width: 10rem; white-space: normal; word-break: break-word; }
+        .comparison-table .col-diff { width: 6%; text-align: center; }
         .comparison-table .col-stmt { width: 6%; }
         .comparison-table tbody tr:hover { background: color-mix(in srgb, var(--fin-primary) 4%, #fff 96%); }
         .row-missing { background: rgba(220, 53, 69, 0.08) !important; }
@@ -183,6 +184,8 @@
                                     <th class="text-end col-num">Sys paid</th>
                                     <th class="text-end col-num">Imp paid</th>
                                     <th class="text-end col-num">Diff</th>
+                                    <th class="col-diff">Inv Diff</th>
+                                    <th class="col-diff">Paid Diff</th>
                                     <th class="col-status">Status</th>
                                     @if(!empty($previewId))
                                     <th class="text-center col-stmt">Statement</th>
@@ -247,6 +250,24 @@
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
+                                            <td class="col-diff">
+                                                @if(isset($row['invoice_diff']) && $row['invoice_diff'] !== null && abs($row['invoice_diff']) > 0.01)
+                                                    <span class="text-warning" title="Invoice totals differ">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="col-diff">
+                                                @if(isset($row['payment_diff']) && $row['payment_diff'] !== null && abs($row['payment_diff']) > 0.01)
+                                                    <span class="text-warning" title="Payment totals differ">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
                                             <td class="col-status">
                                                 @if($status === 'ok')
                                                     <span class="badge bg-success">Match</span>
@@ -254,14 +275,12 @@
                                                     <span class="badge bg-danger">Missing</span>
                                                 @elseif($status === 'amount_differs')
                                                     <span class="badge bg-warning text-dark">Amount differs</span>
-                                                @elseif($status === 'family_total_mismatch')
-                                                    <span class="badge bg-warning text-dark">Amount differs</span>
                                                 @elseif($status === 'in_system_only')
                                                     <span class="badge bg-info">System only</span>
                                                 @else
                                                     <span class="badge bg-secondary">{{ $status }}</span>
                                                 @endif
-                                                @if(!empty($row['message']) && $status !== 'family_total_mismatch')
+                                                @if(!empty($row['message']))
                                                     <br><small class="text-muted">{{ $row['message'] }}</small>
                                                 @endif
                                             </td>
@@ -319,7 +338,7 @@
                             <ul class="list-unstyled mb-0">
                                 <li class="mb-2"><span class="badge bg-success">Match</span> — System and import agree on invoiced and paid (like-with-like).</li>
                                 <li class="mb-2"><span class="badge bg-danger">Missing</span> — In import but student not found in system.</li>
-                                <li class="mb-2"><span class="badge bg-warning text-dark">Amount differs</span> — System vs import differ on paid and/or invoiced; message shows which (Paid: Sys KES X vs Imp KES Y, or Invoiced: …).</li>
+                                <li class="mb-2"><span class="badge bg-warning text-dark">Amount differs</span> — System vs import differ on invoiced and/or paid; warning icons show which column differs.</li>
                             </ul>
                         </div>
                         <div class="col-md-6">
