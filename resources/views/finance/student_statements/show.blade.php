@@ -160,8 +160,8 @@
                                     ->first();
                                 $runningBalance = $firstTerm->starting_balance ?? 0;
                             } else {
-                                // For 2026+, start from balance brought forward
-                                $runningBalance = $balanceBroughtForward ?? 0;
+                                // For 2026+, start from balance brought forward only if not already in invoices
+                                $runningBalance = ($hasBalanceBroughtForwardInInvoices ?? false) ? 0 : ($balanceBroughtForward ?? 0);
                             }
                         @endphp
                         

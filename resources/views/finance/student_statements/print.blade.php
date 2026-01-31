@@ -8,7 +8,7 @@
     $schoolWebsite = $branding['website'] ?? '';
     
     // Calculate running balance
-    $runningBalance = 0;
+    $runningBalance = ($hasBalanceBroughtForwardInInvoices ?? false) ? 0 : ($balanceBroughtForward ?? 0);
     $transactionsWithBalance = [];
     foreach ($detailedTransactions ?? [] as $txn) {
         $runningBalance += ($txn['debit'] ?? 0) - ($txn['credit'] ?? 0);

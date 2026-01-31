@@ -64,25 +64,25 @@ class StudentStatementController extends Controller
 
         // Get all payments with allocations. For 2026+ with term: include any payment that has
         // at least one allocation to the displayed invoices (so the transaction list matches Total Payments).
+        $invoiceIds = $invoices->pluck('id')->toArray();
         $paymentsQuery = Payment::where('student_id', $student->id)
-            ->whereYear('payment_date', $year)
             ->with(['allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice']);
-            
-        if ($term) {
-            if ($year >= 2026) {
-                $invoiceIds = $invoices->pluck('id')->toArray();
-                if (!empty($invoiceIds)) {
-                    // Include payments that have at least one allocation to an invoice in this term
-                    $paymentsQuery->whereHas('allocations', function ($q) use ($invoiceIds) {
-                        $q->whereHas('invoiceItem', function ($q2) use ($invoiceIds) {
-                            $q2->whereIn('invoice_id', $invoiceIds);
-                        });
+
+        if ($year >= 2026) {
+            // For modern years, include payments allocated to the displayed invoices (ignore payment_date year).
+            if (!empty($invoiceIds)) {
+                $paymentsQuery->whereHas('allocations', function ($q) use ($invoiceIds) {
+                    $q->whereHas('invoiceItem', function ($q2) use ($invoiceIds) {
+                        $q2->whereIn('invoice_id', $invoiceIds);
                     });
-                } else {
-                    $paymentsQuery->whereRaw('1 = 0'); // no invoices => no payments to show
-                }
+                });
             } else {
-                // Legacy year: term filter includes unallocated when a legacy term is selected
+                $paymentsQuery->whereRaw('1 = 0'); // no invoices => no payments to show
+            }
+        } else {
+            // Legacy years rely on payment date year and term filter (if any).
+            $paymentsQuery->whereYear('payment_date', $year);
+            if ($term) {
                 $paymentsQuery->where(function ($q) use ($term) {
                     $q->whereHas('invoice', function ($q2) use ($term) {
                         $q2->whereHas('term', function ($q3) use ($term) {
@@ -154,6 +154,12 @@ class StudentStatementController extends Controller
         $debitNotes = $debitNotesQuery->orderBy('created_at')->get();
 
         $swimmingPaymentIds = $this->getSwimmingPaymentIdsForStatement();
+
+        // Detect if balance brought forward is already represented as an invoice item
+        $hasBalanceBroughtForwardInInvoices = $invoices->flatMap->items->contains(function ($item) {
+            $voteheadCode = $item->votehead->code ?? null;
+            return ($item->source ?? null) === 'balance_brought_forward' || $voteheadCode === 'BAL_BF';
+        });
         
         // Recalculate all invoices to ensure accurate balances
         foreach ($invoices as $invoice) {
@@ -203,16 +209,15 @@ class StudentStatementController extends Controller
                 $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                 $itemAmount = $item->amount ?? 0;
                 $discountAmount = $item->discount_amount ?? 0;
-                $netAmount = $itemAmount - $discountAmount;
                 
-                if ($netAmount > 0) {
+                if ($itemAmount > 0) {
                     $detailedTransactions->push([
                         'date' => $itemDate,
                         'type' => 'Invoice Item',
                         'description' => $voteheadName . ' - ' . ($invoice->term->name ?? 'Term') . ' ' . $year,
                         'reference' => $invoice->invoice_number,
                         'votehead' => $voteheadName,
-                        'debit' => $netAmount,
+                        'debit' => $itemAmount,
                         'credit' => 0,
                         'invoice_id' => $invoice->id,
                         'invoice_item_id' => $item->id,
@@ -343,15 +348,16 @@ class StudentStatementController extends Controller
                 continue; // Skip orphaned credit notes (e.g. invoice item soft-deleted)
             }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            $amountLabel = 'Ksh ' . number_format($note->amount, 2);
             
             $detailedTransactions->push([
                 'date' => $note->created_at,
                 'type' => 'Credit Note',
-                'description' => 'Credit Note - ' . $voteheadName . ': ' . ($note->reason ?? 'Adjustment'),
+                'description' => 'Credit Note - ' . $voteheadName . ': ' . ($note->reason ?? 'Adjustment') . " ({$amountLabel} noted)",
                 'reference' => $note->credit_note_number ?? 'CN-' . $note->id,
                 'votehead' => $voteheadName,
                 'debit' => 0,
-                'credit' => $note->amount,
+                'credit' => 0,
                 'invoice_id' => $note->invoice_id,
                 'invoice_item_id' => $note->invoice_item_id,
                 'model_type' => 'CreditNote',
@@ -366,14 +372,15 @@ class StudentStatementController extends Controller
                 continue; // Skip orphaned debit notes (e.g. invoice item soft-deleted)
             }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            $amountLabel = 'Ksh ' . number_format($note->amount, 2);
             
             $detailedTransactions->push([
                 'date' => $note->created_at,
                 'type' => 'Debit Note',
-                'description' => 'Debit Note - ' . $voteheadName . ': ' . ($note->reason ?? 'Adjustment'),
+                'description' => 'Debit Note - ' . $voteheadName . ': ' . ($note->reason ?? 'Adjustment') . " ({$amountLabel} noted)",
                 'reference' => $note->debit_note_number ?? 'DN-' . $note->id,
                 'votehead' => $voteheadName,
-                'debit' => $note->amount,
+                'debit' => 0,
                 'credit' => 0,
                 'invoice_id' => $note->invoice_id,
                 'invoice_item_id' => $note->invoice_item_id,
@@ -470,11 +477,11 @@ class StudentStatementController extends Controller
                 }
             })->sum('amount');
         }
-        $totalCreditNotes = $creditNotes->sum('amount');
-        $totalDebitNotes = $debitNotes->sum('amount');
+        $totalCreditNotes = 0;
+        $totalDebitNotes = 0;
         
-        // Balance: Charges - Discounts - Payments + Debit Notes - Credit Notes
-        $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
+        // Balance: Charges - Discounts - Payments (credit/debit notes already reflected in item amounts)
+        $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments;
         
         // For legacy years (pre-2026), calculate balance from legacy statement ending_balance
         // For 2026+, use invoice balance + balance brought forward
@@ -493,7 +500,9 @@ class StudentStatementController extends Controller
             $balanceBroughtForward = 0; // Not applicable for legacy years
         } else {
             // For 2026+, include balance brought forward from legacy data
-            $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+            $balanceBroughtForward = $hasBalanceBroughtForwardInInvoices
+                ? 0
+                : \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
             $balance = $invoiceBalance + $balanceBroughtForward;
         }
         
@@ -576,6 +585,7 @@ class StudentStatementController extends Controller
             'terms',
             'years',
             'detailedTransactions',
+            'hasBalanceBroughtForwardInInvoices',
             'comparisonPreviewId'
         ));
     }
@@ -617,23 +627,23 @@ class StudentStatementController extends Controller
 
         // Get all payments with allocations. For 2026+ with term: include any payment that has
         // at least one allocation to the displayed invoices (so the transaction list matches Total Payments).
+        $printInvoiceIds = $invoices->pluck('id')->toArray();
         $paymentsQuery = Payment::where('student_id', $student->id)
-            ->whereYear('payment_date', $year)
             ->with(['allocations.invoiceItem.votehead', 'allocations.invoiceItem.invoice', 'paymentMethod']);
-            
-        if ($term) {
-            if ($year >= 2026) {
-                $printInvoiceIds = $invoices->pluck('id')->toArray();
-                if (!empty($printInvoiceIds)) {
-                    $paymentsQuery->whereHas('allocations', function ($q) use ($printInvoiceIds) {
-                        $q->whereHas('invoiceItem', function ($q2) use ($printInvoiceIds) {
-                            $q2->whereIn('invoice_id', $printInvoiceIds);
-                        });
+
+        if ($year >= 2026) {
+            if (!empty($printInvoiceIds)) {
+                $paymentsQuery->whereHas('allocations', function ($q) use ($printInvoiceIds) {
+                    $q->whereHas('invoiceItem', function ($q2) use ($printInvoiceIds) {
+                        $q2->whereIn('invoice_id', $printInvoiceIds);
                     });
-                } else {
-                    $paymentsQuery->whereRaw('1 = 0');
-                }
+                });
             } else {
+                $paymentsQuery->whereRaw('1 = 0');
+            }
+        } else {
+            $paymentsQuery->whereYear('payment_date', $year);
+            if ($term) {
                 $paymentsQuery->where(function ($q) use ($term) {
                     $q->whereHas('invoice', function ($q2) use ($term) {
                         $q2->whereHas('term', function ($q3) use ($term) {
@@ -741,9 +751,8 @@ class StudentStatementController extends Controller
                 $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
                 $itemAmount = $item->amount ?? 0;
                 $discountAmount = $item->discount_amount ?? 0;
-                $netAmount = $itemAmount - $discountAmount;
                 
-                if ($netAmount > 0) {
+                if ($itemAmount > 0) {
                     $detailedTransactions->push([
                         'date' => $itemDate,
                         'type' => 'Invoice',
@@ -753,7 +762,7 @@ class StudentStatementController extends Controller
                         'term_name' => $invoice->term->name ?? '',
                         'term_year' => $year,
                         'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
-                        'debit' => $netAmount,
+                        'debit' => $itemAmount,
                         'credit' => 0,
                     ]);
                 }
@@ -829,16 +838,17 @@ class StudentStatementController extends Controller
                 continue;
             }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            $amountLabel = 'Ksh ' . number_format($note->amount, 2);
             $detailedTransactions->push([
                 'date' => $note->created_at,
                 'type' => 'Credit Note',
-                'narration' => 'CREDIT NOTE - ' . $voteheadName . ' - ' . ($note->credit_note_number ?? 'CN-' . $note->id),
+                'narration' => 'CREDIT NOTE - ' . $voteheadName . ' - ' . ($note->credit_note_number ?? 'CN-' . $note->id) . " ({$amountLabel} noted)",
                 'reference' => $note->credit_note_number ?? 'CN-' . $note->id,
                 'votehead' => $voteheadName,
                 'term_year' => $year,
                 'grade' => $student->currentClass->name ?? '',
                 'debit' => 0,
-                'credit' => $note->amount,
+                'credit' => 0,
             ]);
         }
         
@@ -849,15 +859,16 @@ class StudentStatementController extends Controller
                 continue;
             }
             $voteheadName = $item->votehead->name ?? 'Unknown Votehead';
+            $amountLabel = 'Ksh ' . number_format($note->amount, 2);
             $detailedTransactions->push([
                 'date' => $note->created_at,
                 'type' => 'Debit Note',
-                'narration' => 'DEBIT NOTE - ' . $voteheadName . ' - ' . ($note->debit_note_number ?? 'DN-' . $note->id),
+                'narration' => 'DEBIT NOTE - ' . $voteheadName . ' - ' . ($note->debit_note_number ?? 'DN-' . $note->id) . " ({$amountLabel} noted)",
                 'reference' => $note->debit_note_number ?? 'DN-' . $note->id,
                 'votehead' => $voteheadName,
                 'term_year' => $year,
                 'grade' => $student->currentClass->name ?? '',
-                'debit' => $note->amount,
+                'debit' => 0,
                 'credit' => 0,
             ]);
         }
@@ -870,6 +881,8 @@ class StudentStatementController extends Controller
         $totalCredit = $detailedTransactions->sum('credit');
         
         // Calculate balance properly
+        $balanceBroughtForward = 0;
+        $hasBalanceBroughtForwardInInvoices = false;
         // For legacy years (pre-2026), use ending_balance from last term
         // For 2026+, use invoice balance + balance brought forward
         if ($year < 2026) {
@@ -901,10 +914,16 @@ class StudentStatementController extends Controller
                     }
                 })->sum('amount');
             }
-            $totalCreditNotes = $creditNotes->sum('amount');
-            $totalDebitNotes = $debitNotes->sum('amount');
-            $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments + $totalDebitNotes - $totalCreditNotes;
-            $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
+            $totalCreditNotes = 0;
+            $totalDebitNotes = 0;
+            $invoiceBalance = $totalCharges - $totalDiscounts - $totalPayments;
+            $hasBalanceBroughtForwardInInvoices = $invoices->flatMap->items->contains(function ($item) {
+                $voteheadCode = $item->votehead->code ?? null;
+                return ($item->source ?? null) === 'balance_brought_forward' || $voteheadCode === 'BAL_BF';
+            });
+            $balanceBroughtForward = $hasBalanceBroughtForwardInInvoices
+                ? 0
+                : \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
             $finalBalance = $invoiceBalance + $balanceBroughtForward;
         }
         
@@ -925,7 +944,9 @@ class StudentStatementController extends Controller
             'statementFooter',
             'totalDebit',
             'totalCredit',
-            'finalBalance'
+            'finalBalance',
+            'balanceBroughtForward',
+            'hasBalanceBroughtForwardInInvoices'
         ));
     }
     
