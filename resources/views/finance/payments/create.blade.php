@@ -191,6 +191,7 @@
                     </div>
                     <div class="finance-card-body p-4" id="siblings_info">
                         <p class="text-muted small">This student has siblings in the system.</p>
+                        <div class="small text-muted mt-2" id="payment_sharing_state" style="display: none;"></div>
                     </div>
                 </div>
 
@@ -242,6 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const sharingNotice = document.getElementById('sharing_notice');
     const paymentSharingToggle = document.getElementById('payment_sharing_toggle');
     const submitBtn = document.getElementById('submit_btn');
+    const paymentSharingState = document.getElementById('payment_sharing_state');
     
     let currentStudentData = null;
     let siblings = [];
@@ -269,8 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!studentId) {
             balanceInfo.innerHTML = '<p class="text-muted text-center">Select a student to view balance</p>';
             siblingsCard.style.display = 'none';
-            paymentSharingSection.style.display = 'none';
-            sharedPaymentInput.value = '0';
+            setPaymentSharingEnabled(false);
             if (paymentSharingToggle) {
                 paymentSharingToggle.checked = false;
                 paymentSharingToggle.disabled = true;
@@ -279,9 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         // Reset sharing UI on student change
-        paymentSharingSection.style.display = 'none';
-        sharedPaymentInput.value = '0';
-        siblingsList.innerHTML = '';
+        setPaymentSharingEnabled(false);
         if (paymentSharingToggle) {
             paymentSharingToggle.checked = false;
         }
@@ -367,8 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         paymentSharingToggle.checked = false;
                         paymentSharingToggle.disabled = true;
                     }
-                    paymentSharingSection.style.display = 'none';
-                    sharedPaymentInput.value = '0';
+                    setPaymentSharingEnabled(false);
                 }
                 
                 checkOverpayment();
@@ -493,6 +491,27 @@ document.addEventListener('DOMContentLoaded', function() {
         updateTotalShared();
     }
 
+    function setPaymentSharingEnabled(enabled) {
+        if (enabled) {
+            showPaymentSharing();
+            if (paymentSharingState) {
+                paymentSharingState.textContent = 'Payment sharing enabled. Split the amount below.';
+                paymentSharingState.style.display = 'block';
+            }
+            if (paymentSharingSection?.scrollIntoView) {
+                paymentSharingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        } else {
+            paymentSharingSection.style.display = 'none';
+            sharedPaymentInput.value = '0';
+            siblingsList.innerHTML = '';
+            updateTotalShared();
+            if (paymentSharingState) {
+                paymentSharingState.style.display = 'none';
+            }
+        }
+    }
+
     window.updateTotalShared = function() {
         const amounts = document.querySelectorAll('.sibling-amount');
         let total = 0;
@@ -527,24 +546,14 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     document.getElementById('toggle_sharing')?.addEventListener('click', function() {
-        paymentSharingSection.style.display = 'none';
-        sharedPaymentInput.value = '0';
-        siblingsList.innerHTML = '';
-        updateTotalShared();
+        setPaymentSharingEnabled(false);
         if (paymentSharingToggle) {
             paymentSharingToggle.checked = false;
         }
     });
 
     paymentSharingToggle?.addEventListener('change', function() {
-        if (this.checked) {
-            showPaymentSharing();
-        } else {
-            paymentSharingSection.style.display = 'none';
-            sharedPaymentInput.value = '0';
-            siblingsList.innerHTML = '';
-            updateTotalShared();
-        }
+        setPaymentSharingEnabled(this.checked);
     });
 
     confirmOverpaymentCheck?.addEventListener('change', function() {
