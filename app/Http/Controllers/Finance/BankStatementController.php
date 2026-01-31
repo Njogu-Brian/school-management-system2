@@ -1628,8 +1628,7 @@ class BankStatementController extends Controller
                         
                         // Queue receipt generation and notifications
                         if (isset($payment)) {
-                            \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
-                                ->onQueue('default');
+                            \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
                         }
                     } catch (\App\Exceptions\PaymentConflictException $e) {
                         return redirect()
