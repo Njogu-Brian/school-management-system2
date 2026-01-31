@@ -5,6 +5,7 @@ import {
     LoginCredentials,
     AuthState,
 } from '@types/auth.types';
+import type { UserRole } from '@constants/roles';
 import {
     saveToken,
     getToken,
@@ -14,6 +15,12 @@ import {
     saveRememberMe,
     getRememberMe,
 } from '@utils/storage';
+import { normalizeRole } from '@utils/roleUtils';
+
+function normalizeUserRole(u: any): User {
+    if (!u) return u;
+    return { ...u, role: normalizeRole(u.role) as UserRole };
+}
 
 interface AuthContextType extends AuthState {
     login: (credentials: LoginCredentials) => Promise<void>;
@@ -52,9 +59,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 try {
                     const response = await authApi.getProfile();
                     if (response.success && response.data) {
+                        const user = normalizeUserRole(response.data);
                         setState({
                             isAuthenticated: true,
-                            user: response.data,
+                            user,
                             token,
                             loading: false,
                             error: null,
@@ -92,7 +100,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const response = await authApi.login(credentials);
 
             if (response.success && response.data) {
-                const { token, user } = response.data;
+                const { token, user: rawUser } = response.data;
+                const user = normalizeUserRole(rawUser);
 
                 // Save to storage
                 await saveToken(token);

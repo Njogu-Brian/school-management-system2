@@ -2260,8 +2260,7 @@ class BankStatementController extends Controller
             }
 
             if (isset($payment)) {
-                \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
-                    ->onQueue('default');
+                \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
             }
         });
 
@@ -2344,8 +2343,7 @@ class BankStatementController extends Controller
                 }
 
                 if (isset($payment)) {
-                    \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id)
-                        ->onQueue('default');
+                    \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
                 }
             } finally {
                 // Restore original reference_number

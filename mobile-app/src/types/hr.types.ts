@@ -47,6 +47,9 @@ export interface Leave {
     updated_at: string;
 }
 
+/** Alias for Leave (used by LeaveManagementScreen) */
+export type LeaveApplication = Leave;
+
 export interface StaffAttendance {
     id: number;
     staff_id: number;

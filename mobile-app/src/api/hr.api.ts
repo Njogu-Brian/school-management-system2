@@ -39,6 +39,10 @@ export const hrApi = {
         return apiClient.get<PaginatedResponse<Leave>>('/leaves', filters);
     },
 
+    async getLeaveApplications(filters?: LeaveFilters): Promise<ApiResponse<PaginatedResponse<Leave>>> {
+        return apiClient.get<PaginatedResponse<Leave>>('/leaves', filters);
+    },
+
     async getLeave(id: number): Promise<ApiResponse<Leave>> {
         return apiClient.get<Leave>(`/leaves/${id}`);
     },

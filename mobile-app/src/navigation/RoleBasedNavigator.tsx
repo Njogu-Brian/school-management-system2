@@ -4,6 +4,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { User, UserRole } from '../types/auth.types';
 import { AdminDashboard } from '@screens/Dashboard/AdminDashboard';
 import { StudentsNavigator, AttendanceNavigator, FinanceNavigator } from './ModuleNavigators';
+import { TeacherNavigator } from './TeacherNavigator';
 import { useTheme } from '@contexts/ThemeContext';
 
 const Tab = createBottomTabNavigator();
@@ -71,50 +72,9 @@ export const RoleBasedNavigator: React.FC<RoleBasedNavigatorProps> = ({ user }) 
         );
     }
 
-    // Teacher Navigation
-    if (user.role === UserRole.TEACHER || user.role === UserRole.SUPERVISOR) {
-        return (
-            <Tab.Navigator
-                screenOptions={{
-                    headerShown: false,
-                    tabBarActiveTintColor: colors.primary,
-                    tabBarInactiveTintColor: isDark ? colors.textSubDark : colors.textSubLight,
-                    tabBarStyle: {
-                        backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight,
-                        borderTopColor: isDark ? colors.borderDark : colors.borderLight,
-                    },
-                }}
-            >
-                <Tab.Screen
-                    name="Dashboard"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="dashboard" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="Classes"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="class" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="Attendance"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="fact-check" size={size} color={color} />,
-                    }}
-                />
-                <Tab.Screen
-                    name="More"
-                    component={PlaceholderScreen}
-                    options={{
-                        tabBarIcon: ({ color, size }) => <Icon name="menu" size={size} color={color} />,
-                    }}
-                />
-            </Tab.Navigator>
-        );
+    // Teacher & Senior Teacher Navigation – full stack: Dashboard, My Classes, Attendance, Academics, Transport, Diary, Profile, Salary; senior teachers get extra (Supervised Classrooms/Staff, Fee Balances)
+    if (user.role === UserRole.TEACHER || user.role === UserRole.SENIOR_TEACHER || user.role === UserRole.SUPERVISOR) {
+        return <TeacherNavigator />;
     }
 
     // Parent Navigation

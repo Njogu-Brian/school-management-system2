@@ -171,6 +171,57 @@ After login:
 - Quick action buttons
 - Logout button works
 
+### 5. Teacher & Senior Teacher Flow (Full Functionality)
+
+Log in with a **teacher** or **senior teacher** account. The app normalizes backend role names (e.g. "Teacher", "Senior Teacher") to `teacher` / `senior_teacher`. Both roles use the same **Teacher Navigator**; senior teachers see extra actions.
+
+**Teacher** – All of the below. **Senior Teacher** – All of the below plus: **Supervised Classes**, **Supervised Staff**, **Fee Balances**.
+
+Log in and you should see the **Teacher Dashboard** with:
+
+| Feature | How to test |
+|--------|--------------|
+| **Sign in** | Use teacher email/password; land on Teacher Dashboard |
+| **My Classes** | Tap "My Classes" → view students (assigned to you via backend) |
+| **Mark Attendance** | Tap "Mark Attendance" → select date, class, stream → mark present/absent |
+| **Attendance Records** | From Mark Attendance or back → view history |
+| **Transport** | Tap "Transport" → view routes/allocations |
+| **Diary** | Tap "Diary" → view homework you’ve set |
+| **Assignments** | Tap "Assignments" → issue/view homework |
+| **My Profile** | Tap "My Profile" → view your staff profile |
+| **My Salary** | Tap "My Salary" → view payroll/payslips (if staff_id linked) |
+| **Timetable** | Tap "My Timetable" → view your teaching schedule |
+| **Lesson Plans** | Tap "Lesson Plans" → list/create lesson plans |
+| **Exams & Marks** | Tap "Exams & Marks" → list exams → enter results (exam detail flow) |
+| **Notifications** | Tap bell icon in header |
+| **Settings** | Tap gear icon in header |
+| **Leave** | Tap "Leave" → view/request leave (uses `staff_id` for teachers) |
+| **Supervised Classes** (senior teacher only) | Tap "Supervised Classes" → classrooms you supervise |
+| **Supervised Staff** (senior teacher only) | Tap "Supervised Staff" → staff you supervise |
+| **Fee Balances** (senior teacher only) | Tap "Fee Balances" → student fee balances under your supervision |
+
+Ensure your Laravel API exposes the endpoints the app calls (e.g. `/api/...`) and that:
+- Teacher/senior teacher users have `staff_id` or `teacher_id` set for profile, salary, leave, and teacher-scoped data.
+- Backend returns a `role` the app can normalize (e.g. "Teacher", "Senior Teacher", "senior_teacher").
+- For senior teacher screens, expose `/api/senior-teacher/supervised-classrooms`, `/api/senior-teacher/supervised-staff`, `/api/senior-teacher/fee-balances` (or equivalent).
+
+---
+
+## Compile & Run (Quick Reference)
+
+1. **Backend** (project root):  
+   `php artisan serve --host=0.0.0.0 --port=8000`
+
+2. **Mobile app** (first terminal):  
+   `cd mobile-app` → `npm install` → `npm start`
+
+3. **Build & run Android** (second terminal):  
+   `cd mobile-app` → `npx react-native run-android`
+
+4. **API URL**: In `mobile-app/.env`, set `API_BASE_URL` to:
+   - Emulator: `http://10.0.2.2:8000` (or your API base)
+   - Physical device: `http://YOUR_PC_IP:8000`
+
 ---
 
 ## Testing with Browser (Alternative - React Native Web)
@@ -220,15 +271,13 @@ npx react-native start --reset-cache
 ## Current Status
 
 ✅ **Completed:**
-- .env file created
-- npm install running (in progress)
-- Project structure ready
+- Teacher flow: full stack (Dashboard, My Classes, Attendance, Timetable, Assignments, Lesson Plans, Diary, Transport, My Profile, My Salary, Exams, Settings, Notifications)
+- Teacher navigator wired; teachers see real screens instead of placeholders
+- Build and run steps documented above
 
 ⏳ **Next Steps:**
-1. Wait for npm install to complete
-2. Start Laravel backend
-3. Start Android emulator
-4. Run `npx react-native run-android`
+1. Ensure Laravel API serves the routes the app uses (students, attendance, academics, staff, payroll, transport, etc.) under the same base URL as `API_BASE_URL`
+2. Start Laravel backend, then Metro, then `npx react-native run-android`
 
 ---
 

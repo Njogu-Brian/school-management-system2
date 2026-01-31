@@ -1,9 +1,10 @@
-// User roles in the system
+// User roles in the system (must match backend role names when normalized)
 export enum UserRole {
     SUPER_ADMIN = 'super_admin',
     ADMIN = 'admin',
     SECRETARY = 'secretary',
     TEACHER = 'teacher',
+    SENIOR_TEACHER = 'senior_teacher',
     SUPERVISOR = 'supervisor',
     ACCOUNTANT = 'accountant',
     FINANCE = 'finance',

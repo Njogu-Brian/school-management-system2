@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useTheme } from '@contexts/ThemeContext';
 import { useAuth } from '@contexts/AuthContext';
+import { isSeniorTeacherRole } from '@utils/roleUtils';
 import { Card } from '@components/common/Card';
 import { SPACING, FONT_SIZES } from '@constants/theme';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -38,14 +39,28 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
         setTimeout(() => setRefreshing(false), 1000);
     };
 
-    const quickActions = [
+    const isSeniorTeacher = user?.role ? isSeniorTeacherRole(user.role) : false;
+    const baseActions = [
         { id: 1, title: 'Mark Attendance', icon: 'event', screen: 'MarkAttendance', color: '#3b82f6' },
-        { id: 2, title: 'Enter Marks', icon: 'edit', screen: 'MarksEntry', color: '#10b981' },
+        { id: 2, title: 'Exams & Marks', icon: 'edit', screen: 'ExamsList', color: '#10b981' },
         { id: 3, title: 'My Timetable', icon: 'schedule', screen: 'Timetable', color: '#f59e0b' },
         { id: 4, title: 'Assignments', icon: 'assignment', screen: 'Assignments', color: '#8b5cf6' },
         { id: 5, title: 'Lesson Plans', icon: 'menu-book', screen: 'LessonPlans', color: '#ec4899' },
         { id: 6, title: 'My Classes', icon: 'class', screen: 'MyClasses', color: '#14b8a6' },
+        { id: 7, title: 'Transport', icon: 'directions-bus', screen: 'Transport', color: '#06b6d4' },
+        { id: 8, title: 'Diary', icon: 'book', screen: 'Diary', color: '#84cc16' },
+        { id: 9, title: 'My Profile', icon: 'person', screen: 'MyProfile', color: '#6366f1' },
+        { id: 10, title: 'My Salary', icon: 'payments', screen: 'MySalary', color: '#22c55e' },
+        { id: 11, title: 'Leave', icon: 'event-busy', screen: 'Leave', color: '#a855f7' },
     ];
+    const seniorOnlyActions = isSeniorTeacher
+        ? [
+            { id: 12, title: 'Supervised Classes', icon: 'groups', screen: 'SupervisedClassrooms', color: '#0ea5e9' },
+            { id: 13, title: 'Supervised Staff', icon: 'badge', screen: 'SupervisedStaff', color: '#64748b' },
+            { id: 14, title: 'Fee Balances', icon: 'account-balance-wallet', screen: 'FeeBalances', color: '#eab308' },
+          ]
+        : [];
+    const quickActions = [...baseActions, ...seniorOnlyActions];
 
     const renderStatCard = (title: string, value: number, icon: string, color: string) => (
         <Card style={[styles.statCard, { backgroundColor: isDark ? colors.surfaceDark : colors.surfaceLight }]}>
@@ -90,9 +105,14 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ navigation }
                         {user?.name || 'Teacher'}
                     </Text>
                 </View>
-                <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
-                    <Icon name="notifications" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
-                </TouchableOpacity>
+                <View style={styles.headerIcons}>
+                    <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn}>
+                        <Icon name="notifications" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerIconBtn}>
+                        <Icon name="settings" size={24} color={isDark ? colors.textMainDark : colors.textMainLight} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView
@@ -176,6 +196,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: SPACING.xl,
         paddingVertical: SPACING.md,
     },
+    headerIcons: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    headerIconBtn: { padding: SPACING.xs },
     greeting: {
         fontSize: FONT_SIZES.sm,
     },

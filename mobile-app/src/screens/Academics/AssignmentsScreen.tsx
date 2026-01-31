@@ -33,7 +33,7 @@ export const AssignmentsScreen: React.FC<AssignmentsScreenProps> = ({ navigation
     const [refreshing, setRefreshing] = useState(false);
     const [filter, setFilter] = useState<'all' | 'active' | 'closed'>('active');
 
-    const isTeacher = user?.role === 'teacher' || user?.role === 'admin' || user?.role === 'super_admin';
+    const isTeacher = user?.role === 'teacher' || user?.role === 'senior_teacher' || user?.role === 'supervisor' || user?.role === 'admin' || user?.role === 'super_admin';
 
     const fetchAssignments = useCallback(async () => {
         try {
@@ -48,7 +48,7 @@ export const AssignmentsScreen: React.FC<AssignmentsScreenProps> = ({ navigation
             }
 
             if (isTeacher) {
-                filters.teacher_id = user?.id;
+                filters.teacher_id = (user as any).teacher_id ?? user.staff_id ?? user.id;
             } else {
                 // For students, filter by their class
                 filters.class_id = user?.class_id;

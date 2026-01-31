@@ -50,7 +50,7 @@ export const LeaveManagementScreen: React.FC<LeaveManagementScreenProps> = ({ na
             }
 
             if (!isAdmin) {
-                filters.staff_id = user?.id;
+                filters.staff_id = (user as any)?.staff_id ?? user?.id;
             }
 
             const response = await hrApi.getLeaveApplications(filters);

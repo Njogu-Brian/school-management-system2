@@ -40,9 +40,10 @@ export const TimetableScreen: React.FC<TimetableScreenProps> = ({ navigation }) 
             setLoading(true);
 
             let response;
-            if (user?.role === 'teacher' || user?.role === 'super_admin') {
-                // Load teacher timetable
-                response = await academicsApi.getTeacherTimetable(user.id, currentTerm);
+            if (user?.role === 'teacher' || user?.role === 'senior_teacher' || user?.role === 'supervisor' || user?.role === 'super_admin') {
+                // Load teacher timetable (use staff_id for backend if available)
+                const teacherId = (user as any).staff_id ?? (user as any).teacher_id ?? user.id;
+                response = await academicsApi.getTeacherTimetable(teacherId, currentTerm);
             } else if (user?.role === 'student') {
                 // Load student timetable
                 response = await academicsApi.getStudentTimetable(user.id, currentTerm);
