@@ -286,6 +286,11 @@ class FeesComparisonImportController extends Controller
                 continue;
             }
 
+            $paidDiff = null;
+            $invDiff = null;
+            $paidMatch = true;
+            $invMatch = true;
+
             if ($imp === null) {
                 $status = 'in_system_only';
                 $message = 'In system but not in import';
