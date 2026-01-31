@@ -2316,39 +2316,51 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'C2B transactions use different conflict resolution.']);
         }
 
-        DB::transaction(function () use ($transaction) {
-            // For shared transactions, we need to create payments for all siblings
-            // Temporarily modify reference_number to force unique transaction codes
-            $originalRef = $transaction->reference_number;
-            $tempRef = $originalRef . '-NEW-' . $transaction->id . '-' . time();
-            
-            // Temporarily update reference_number
-            $transaction->update(['reference_number' => $tempRef]);
-            $transaction->refresh();
-            
-            try {
-                $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+        try {
+            DB::transaction(function () use ($transaction) {
+                // For shared transactions, we need to create payments for all siblings
+                // Temporarily modify reference_number to force unique transaction codes
+                $originalRef = $transaction->reference_number;
+                $tempRef = $originalRef . '-NEW-' . $transaction->id . '-' . time();
                 
-                if ($payment && $payment->unallocated_amount > 0) {
-                    try {
-                        $allocationService = app(\App\Services\PaymentAllocationService::class);
-                        $allocationService->autoAllocate($payment);
-                    } catch (\Exception $e) {
-                        Log::warning('Auto-allocation failed after conflict resolution', [
-                            'payment_id' => $payment->id,
-                            'error' => $e->getMessage(),
-                        ]);
+                // Temporarily update reference_number
+                $transaction->update(['reference_number' => $tempRef]);
+                $transaction->refresh();
+                
+                try {
+                    $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                    
+                    if ($payment && $payment->unallocated_amount > 0) {
+                        try {
+                            $allocationService = app(\App\Services\PaymentAllocationService::class);
+                            $allocationService->autoAllocate($payment);
+                        } catch (\Exception $e) {
+                            Log::warning('Auto-allocation failed after conflict resolution', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
                     }
-                }
 
-                if (isset($payment)) {
-                    \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
+                    if (isset($payment)) {
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
+                    }
+                } finally {
+                    // Restore original reference_number
+                    $transaction->update(['reference_number' => $originalRef]);
                 }
-            } finally {
-                // Restore original reference_number
-                $transaction->update(['reference_number' => $originalRef]);
-            }
-        });
+            });
+        } catch (\App\Exceptions\PaymentConflictException $e) {
+            return redirect()
+                ->route('finance.bank-statements.show', $id)
+                ->with('payment_conflict', [
+                    'conflicting_payments' => $e->conflictingPayments,
+                    'student_id' => $e->studentId,
+                    'transaction_code' => $e->transactionCode,
+                    'message' => $e->getMessage(),
+                ])
+                ->with('error', 'Payment conflict detected. Please select an existing payment to link.');
+        }
 
         return redirect()
             ->route('finance.bank-statements.show', $id)
