@@ -181,11 +181,10 @@
                                     <th class="col-phone">Phone</th>
                                     <th class="text-end col-num">Sys inv</th>
                                     <th class="text-end col-num">Imp inv</th>
+                                    <th class="text-end col-num">Inv diff</th>
                                     <th class="text-end col-num">Sys paid</th>
                                     <th class="text-end col-num">Imp paid</th>
-                                    <th class="text-end col-num">Diff</th>
-                                    <th class="col-diff">Inv Diff</th>
-                                    <th class="col-diff">Paid Diff</th>
+                                    <th class="text-end col-num">Paid diff</th>
                                     <th class="col-status">Status</th>
                                     @if(!empty($previewId))
                                     <th class="text-center col-stmt">Statement</th>
@@ -228,6 +227,15 @@
                                                 @endif
                                             </td>
                                             <td class="text-end col-num">
+                                                @if(isset($row['invoice_diff']) && $row['invoice_diff'] !== null)
+                                                    <span class="{{ $row['invoice_diff'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                                        {{ $row['invoice_diff'] >= 0 ? '+' : '' }}{{ number_format($row['invoice_diff'], 0) }}
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end col-num">
                                                 @if(isset($row['system_total_paid']) && $row['system_total_paid'] !== null)
                                                     <strong>{{ number_format($row['system_total_paid'], 0) }}</strong>
                                                 @else
@@ -242,27 +250,9 @@
                                                 @endif
                                             </td>
                                             <td class="text-end col-num">
-                                                @if(isset($row['difference']) && $row['difference'] !== null)
-                                                    <span class="{{ $row['difference'] >= 0 ? 'text-success' : 'text-danger' }}">
-                                                        {{ $row['difference'] >= 0 ? '+' : '' }}{{ number_format($row['difference'], 0) }}
-                                                    </span>
-                                                @else
-                                                    <span class="text-muted">—</span>
-                                                @endif
-                                            </td>
-                                            <td class="col-diff">
-                                                @if(isset($row['invoice_diff']) && $row['invoice_diff'] !== null && abs($row['invoice_diff']) > 0.01)
-                                                    <span class="text-warning" title="Invoice totals differ">
-                                                        <i class="bi bi-exclamation-triangle-fill"></i>
-                                                    </span>
-                                                @else
-                                                    <span class="text-muted">—</span>
-                                                @endif
-                                            </td>
-                                            <td class="col-diff">
-                                                @if(isset($row['payment_diff']) && $row['payment_diff'] !== null && abs($row['payment_diff']) > 0.01)
-                                                    <span class="text-warning" title="Payment totals differ">
-                                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                                @if(isset($row['payment_diff']) && $row['payment_diff'] !== null)
+                                                    <span class="{{ $row['payment_diff'] >= 0 ? 'text-success' : 'text-danger' }}">
+                                                        {{ $row['payment_diff'] >= 0 ? '+' : '' }}{{ number_format($row['payment_diff'], 0) }}
                                                     </span>
                                                 @else
                                                     <span class="text-muted">—</span>
@@ -302,12 +292,13 @@
                             @if(count($preview) > 0)
                             <tfoot>
                                 <tr class="fw-bold">
-                                    <td colspan="5" class="text-end">Totals</td>
-                                    <td class="text-end">—</td>
+                                    <td colspan="4" class="text-end">Totals</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_invoiced'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_invoiced'] ?? 0)), 2) }}</td>
+                                    <td class="text-end">—</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>
+                                    <td class="text-end">—</td>
                                     <td colspan="{{ !empty($previewId) ? 2 : 1 }}"></td>
                                 </tr>
                             </tfoot>
