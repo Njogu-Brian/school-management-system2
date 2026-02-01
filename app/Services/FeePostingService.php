@@ -315,6 +315,94 @@ class FeePostingService
                 }
                 
                 $source = $diff['origin'] ?? 'structure';
+
+                // Handle removals (for optional, structure, and transport)
+                if (isset($diff['action']) && $diff['action'] === 'removed') {
+                    $invoice = Invoice::where('student_id', $diff['student_id'])
+                        ->where('year', $year)
+                        ->where('term', $term)
+                        ->first();
+
+                    if ($invoice) {
+                        // Transport removal: delete transport item directly
+                        if ($source === 'transport') {
+                            $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+                                ->where('votehead_id', $diff['votehead_id'])
+                                ->where('source', 'transport')
+                                ->first();
+
+                            if ($existingItem) {
+                                PostingDiff::create([
+                                    'posting_run_id' => $run->id,
+                                    'student_id' => $diff['student_id'],
+                                    'votehead_id' => $diff['votehead_id'],
+                                    'action' => 'removed',
+                                    'old_amount' => $existingItem->amount,
+                                    'new_amount' => 0,
+                                    'invoice_item_id' => $existingItem->id,
+                                    'source' => 'transport',
+                                ]);
+
+                                $existingItem->delete();
+                                InvoiceService::recalc($invoice);
+                                $count++;
+                            }
+                        } else {
+                            // Find the existing item - check by votehead_id and source
+                            $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+                                ->where('votehead_id', $diff['votehead_id'])
+                                ->where('source', $source)
+                                ->first();
+
+                            // If not found by source, try finding by votehead_id only (for structure fees that might have been changed)
+                            if (!$existingItem && $source === 'structure') {
+                                $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
+                                    ->where('votehead_id', $diff['votehead_id'])
+                                    ->where('source', 'structure')
+                                    ->first();
+                            }
+
+                            if ($existingItem) {
+                                // Check if item has payment allocations - if so, we need to handle them
+                                $hasAllocations = $existingItem->allocations()->exists();
+
+                                if ($hasAllocations) {
+                                    // If item has allocations, we can't just delete it
+                                    // Instead, set amount to 0 and mark as removed
+                                    // This preserves payment history
+                                    $existingItem->update([
+                                        'amount' => 0,
+                                        'original_amount' => 0,
+                                        'posting_run_id' => $run->id,
+                                        'posted_at' => now(),
+                                    ]);
+                                } else {
+                                    // No allocations - safe to delete
+                                    // Create diff record for removal before deleting
+                                    PostingDiff::create([
+                                        'posting_run_id' => $run->id,
+                                        'student_id' => $diff['student_id'],
+                                        'votehead_id' => $diff['votehead_id'],
+                                        'action' => 'removed',
+                                        'old_amount' => $existingItem->amount,
+                                        'new_amount' => 0,
+                                        'invoice_item_id' => $existingItem->id,
+                                        'source' => $source,
+                                    ]);
+
+                                    // Delete the invoice item
+                                    $existingItem->delete();
+                                }
+
+                                // Recalculate invoice
+                                InvoiceService::recalc($invoice);
+                                $count++;
+                            }
+                        }
+                    }
+                    continue; // Skip to next diff
+                }
+
                 // Transport: sync from TransportFee table to invoice (no InvoiceItem create here)
                 if ($source === 'transport') {
                     $transportFee = \App\Models\TransportFee::where('student_id', $diff['student_id'])
@@ -331,73 +419,11 @@ class FeePostingService
                 if ($source === 'balance_brought_forward' || $source === 'swimming_attendance') {
                     continue;
                 }
-                
+
                 // Additional safeguard: check votehead code for balance brought forward
                 $votehead = \App\Models\Votehead::find($diff['votehead_id']);
                 if ($votehead && ($votehead->code === 'BAL_BF' || strtoupper($votehead->code) === 'TRANSPORT')) {
                     continue;
-                }
-                
-                // Handle removals (for both optional fees and structure fees that are no longer in the fee structure)
-                if (isset($diff['action']) && $diff['action'] === 'removed') {
-                    $invoice = Invoice::where('student_id', $diff['student_id'])
-                        ->where('year', $year)
-                        ->where('term', $term)
-                        ->first();
-                    
-                    if ($invoice) {
-                        // Find the existing item - check by votehead_id and source
-                        $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
-                            ->where('votehead_id', $diff['votehead_id'])
-                            ->where('source', $source)
-                            ->first();
-                        
-                        // If not found by source, try finding by votehead_id only (for structure fees that might have been changed)
-                        if (!$existingItem && $source === 'structure') {
-                            $existingItem = InvoiceItem::where('invoice_id', $invoice->id)
-                                ->where('votehead_id', $diff['votehead_id'])
-                                ->where('source', 'structure')
-                                ->first();
-                        }
-                        
-                        if ($existingItem) {
-                            // Check if item has payment allocations - if so, we need to handle them
-                            $hasAllocations = $existingItem->allocations()->exists();
-                            
-                            if ($hasAllocations) {
-                                // If item has allocations, we can't just delete it
-                                // Instead, set amount to 0 and mark as removed
-                                // This preserves payment history
-                                $existingItem->update([
-                                    'amount' => 0,
-                                    'original_amount' => 0,
-                                    'posting_run_id' => $run->id,
-                                    'posted_at' => now(),
-                                ]);
-                            } else {
-                                // No allocations - safe to delete
-                                // Create diff record for removal before deleting
-                                PostingDiff::create([
-                                    'posting_run_id' => $run->id,
-                                    'student_id' => $diff['student_id'],
-                                    'votehead_id' => $diff['votehead_id'],
-                                    'action' => 'removed',
-                                    'old_amount' => $existingItem->amount,
-                                    'new_amount' => 0,
-                                    'invoice_item_id' => $existingItem->id,
-                                    'source' => $source,
-                                ]);
-                                
-                                // Delete the invoice item
-                                $existingItem->delete();
-                            }
-                            
-                            // Recalculate invoice
-                            InvoiceService::recalc($invoice);
-                            $count++;
-                        }
-                    }
-                    continue; // Skip to next diff
                 }
                 
                 // Idempotency check: skip if item already exists and is active
@@ -1058,38 +1084,9 @@ class FeePostingService
             ->first();
 
         if (!$invoice) {
-            // If no invoice for this specific term, check if items exist in any invoice for this student/year
-            $allInvoices = Invoice::where('student_id', $studentId)
-                ->where('year', $year)
-                ->get();
-
-            $allItems = collect();
-            foreach ($allInvoices as $inv) {
-                $allItems = $allItems->merge(
-                    $inv->items()
-                        ->where('status', 'active')
-                        ->where($excludeSources)
-                        ->with(['creditNotes', 'debitNotes'])
-                        ->get()
-                );
-            }
-
-            return $allItems->map(function ($item) {
-                $originalAmount = $this->getOriginalAmountBeforeNotes($item);
-                $creditNotesTotal = (float) $item->creditNotes()->sum('amount');
-                $debitNotesTotal = (float) $item->debitNotes()->sum('amount');
-                $discountAmount = (float) ($item->discount_amount ?? 0);
-                return [
-                    'id' => $item->id,
-                    'votehead_id' => $item->votehead_id,
-                    'amount' => $originalAmount,
-                    'current_amount' => (float) $item->amount,
-                    'credit_notes_total' => $creditNotesTotal,
-                    'debit_notes_total' => $debitNotesTotal,
-                    'discount_amount' => $discountAmount,
-                    'source' => $item->source,
-                ];
-            });
+            // No invoice for this term/year yet; do not pull items from other terms
+            // to avoid cross-term noise (e.g., swimming daily attendance showing as old amount).
+            return collect();
         }
 
         // Only include ACTIVE items; exclude transport, BBF, and swimming daily attendance
@@ -1368,21 +1365,8 @@ class FeePostingService
         $oldAmount = (float)($existing['amount'] ?? 0);
         $newAmount = (float)($proposed['amount'] ?? 0);
         
-        // If credit/debit notes or discounts reconcile the difference, skip the change
-        if ($existing) {
-            $currentAmount = (float)($existing['current_amount'] ?? $oldAmount);
-            $creditNotesTotal = (float)($existing['credit_notes_total'] ?? 0);
-            $debitNotesTotal = (float)($existing['debit_notes_total'] ?? 0);
-            $discountAmount = (float)($existing['discount_amount'] ?? 0);
-
-            // Effective amount the student is charged after notes/discounts
-            $effectiveAmount = $currentAmount - $discountAmount - $creditNotesTotal + $debitNotesTotal;
-            $reconciledOriginal = $currentAmount + $creditNotesTotal - $debitNotesTotal + $discountAmount;
-
-            if (abs($newAmount - $effectiveAmount) < 0.01 && abs($oldAmount - $reconciledOriginal) < 0.01) {
-                return null; // No real change; difference is explained by notes/discounts
-            }
-        }
+        // IMPORTANT: Ignore credit/debit notes when comparing structure/optional changes.
+        // We compare against the original/base amount so notes do not trigger false diffs.
         
         // Use bccomp for decimal comparison to avoid floating point precision issues
         // Consider amounts equal if difference is less than 0.01

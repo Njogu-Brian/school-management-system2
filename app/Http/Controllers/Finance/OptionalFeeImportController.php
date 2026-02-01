@@ -476,21 +476,7 @@ class OptionalFeeImportController extends Controller
                         $optionalFee->delete();
                     }
 
-                    // Delete invoice item
-                    $invoice = Invoice::where('student_id', $studentId)
-                        ->where('year', $year)
-                        ->where('term', $term)
-                        ->first();
-
-                    if ($invoice) {
-                        \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
-                            ->where('votehead_id', $voteheadId)
-                            ->where('source', 'optional')
-                            ->delete();
-
-                        // Recalculate invoice
-                        InvoiceService::recalc($invoice);
-                    }
+                    // Do not touch invoices here; Post Pending Fees handles invoice changes
                 });
 
                 $removed++;

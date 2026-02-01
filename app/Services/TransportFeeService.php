@@ -170,21 +170,18 @@ class TransportFeeService
             // Only create/update invoice item if amount > 0 and not explicitly skipped
             if ($amount > 0 && !$skipInvoice) {
                 self::syncInvoice($fee, self::transportVotehead());
-            } else {
-                // If amount is 0 or skipped, ensure no invoice item exists for this transport fee
-                // But only delete if we're updating from an existing fee with amount > 0
-                if ($amount == 0 || $skipInvoice) {
-                    $votehead = self::transportVotehead();
-                    DB::transaction(function () use ($fee, $votehead, $existing) {
-                        $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
-                        // Only delete transport items with source='transport' - this is safe as it only affects transport items
-                        \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
-                            ->where('votehead_id', $votehead->id)
-                            ->where('source', 'transport')
-                            ->delete();
-                        \App\Services\InvoiceService::recalc($invoice);
-                    });
-                }
+            } elseif ($amount == 0 && !$skipInvoice) {
+                // If amount is 0 and not skipped, remove any existing transport item immediately
+                $votehead = self::transportVotehead();
+                DB::transaction(function () use ($fee, $votehead) {
+                    $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
+                    // Only delete transport items with source='transport' - this is safe as it only affects transport items
+                    \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                        ->where('votehead_id', $votehead->id)
+                        ->where('source', 'transport')
+                        ->delete();
+                    \App\Services\InvoiceService::recalc($invoice);
+                });
             }
 
             return $fee;

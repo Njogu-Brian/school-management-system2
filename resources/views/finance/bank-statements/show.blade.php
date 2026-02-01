@@ -1074,6 +1074,13 @@
                                                                 <i class="bi bi-check-circle"></i> Keep Existing
                                                             </button>
                                                         </form>
+                                                    @else
+                                                        <form method="POST" action="{{ route('finance.bank-statements.resolve-conflict.create-new', $bankStatement->id) }}" class="flex-fill">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-finance btn-finance-primary w-100">
+                                                                <i class="bi bi-plus-circle"></i> Create New (Reversed Exists)
+                                                            </button>
+                                                        </form>
                                                     @endif
                                                 </div>
                                             </div>

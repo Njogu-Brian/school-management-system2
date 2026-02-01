@@ -109,7 +109,7 @@ class TransportFeeController extends Controller
                         'drop_off_point_name' => $dropOffPointName,
                         'source' => 'manual',
                         'note' => 'Updated from transport fee class view',
-                        'skip_invoice' => $amount === null || $amount == 0,
+                        'skip_invoice' => true, // Apply changes via Post Pending Fees
                     ]);
                 }
                 

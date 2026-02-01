@@ -200,7 +200,7 @@ class OptionalFeeController extends Controller
                     // DO NOT create invoice items here - they will be created during posting commit
                     // This ensures optional fees appear in the preview correctly
                 } else {
-                    // Exempt: remove optional fee + invoice item (and invoice if empty)
+                    // Exempt: only update OptionalFee; invoice changes happen via Post Pending Fees
                     // Find and delete the model instance (not bulk delete) so observer fires
                     $optionalFee = OptionalFee::where([
                         'student_id' => $studentId,
@@ -212,24 +212,6 @@ class OptionalFeeController extends Controller
                     if ($optionalFee) {
                         // Delete the model instance so the observer fires and handles wallet reversal
                         $optionalFee->delete();
-                    }
-
-                    $invoice = Invoice::where([
-                        'student_id' => $studentId,
-                        'term'       => $term,
-                        'year'       => $year,
-                    ])->first();
-
-                    if ($invoice) {
-                        $invoice->items()->where('votehead_id', $voteheadId)->delete();
-
-                        if ($invoice->items()->count() === 0) {
-                            $invoice->delete();
-                        } else {
-                            $invoice->update([
-                                'total' => $invoice->items()->sum('amount'),
-                            ]);
-                        }
                     }
                 }
             }
@@ -310,6 +292,7 @@ class OptionalFeeController extends Controller
                     // DO NOT create invoice items here - they will be created during posting commit
                     // This ensures optional fees appear in the preview correctly
                 } else {
+                    // Exempt: only update OptionalFee; invoice changes happen via Post Pending Fees
                     // Find and delete the model instance (not bulk delete) so observer fires
                     $optionalFee = OptionalFee::where([
                         'student_id' => $student->id,
@@ -321,24 +304,6 @@ class OptionalFeeController extends Controller
                     if ($optionalFee) {
                         // Delete the model instance so the observer fires and handles wallet reversal
                         $optionalFee->delete();
-                    }
-
-                    $invoice = Invoice::where([
-                        'student_id' => $student->id,
-                        'term'       => $term,
-                        'year'       => $year,
-                    ])->first();
-
-                    if ($invoice) {
-                        $invoice->items()->where('votehead_id', $voteheadId)->delete();
-
-                        if ($invoice->items()->count() === 0) {
-                            $invoice->delete();
-                        } else {
-                            $invoice->update([
-                                'total' => $invoice->items()->sum('amount'),
-                            ]);
-                        }
                     }
                 }
             }
