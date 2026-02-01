@@ -1548,8 +1548,28 @@ class BankStatementParser
                 ->get();
             
             if ($conflictingPayments->isNotEmpty()) {
-                // A payment with this transaction_code + student_id already exists
-                // Throw exception so controller can show user options
+                $existingPayment = $conflictingPayments->firstWhere('reversed', false) ?? null;
+                if ($existingPayment) {
+                    // Auto-link to existing non-reversed payment
+                    $transaction->update([
+                        'payment_id' => $existingPayment->id,
+                        'payment_created' => true,
+                        'student_id' => $existingPayment->student_id,
+                        'status' => 'confirmed',
+                        'match_status' => 'manual',
+                    ]);
+
+                    Log::info('Auto-linked existing payment for conflicting transaction code', [
+                        'transaction_id' => $transaction->id,
+                        'payment_id' => $existingPayment->id,
+                        'transaction_code' => $transaction->reference_number,
+                        'student_id' => $existingPayment->student_id,
+                    ]);
+
+                    return $existingPayment;
+                }
+
+                // No active payment to link; throw exception so controller can show user options
                 throw new \App\Exceptions\PaymentConflictException(
                     $conflictingPayments->toArray(),
                     $student->id,
