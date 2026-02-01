@@ -15,26 +15,26 @@ use Illuminate\Support\Facades\DB;
 class ReceiptService
 {
     /**
-     * Generate PDF receipt for payment
+     * Build receipt data array for a single payment
      */
-    public function generateReceipt(Payment $payment, array $options = []): string
+    public function buildReceiptData(Payment $payment): array
     {
         $payment->load([
-            'student.classroom', 
-            'invoice', 
-            'paymentMethod', 
+            'student.classroom',
+            'invoice',
+            'paymentMethod',
             'allocations.invoiceItem.votehead',
             'allocations.invoiceItem.invoice'
         ]);
-        
+
         // Get school settings and document header/footer
         $schoolSettings = $this->getSchoolSettings();
         $branding = $this->getBranding();
         $receiptHeader = \App\Models\Setting::get('receipt_header', '');
         $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
-        
+
         $student = $payment->student;
-        
+
         // Get ALL unpaid invoice items for the student (not just allocated ones)
         $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
             $q->where('student_id', $student->id);
@@ -45,15 +45,15 @@ class ReceiptService
         ->filter(function($item) {
             return $item->getBalance() > 0; // Only unpaid items
         });
-        
+
         // Get payment allocations for this specific payment
         $paymentAllocations = $payment->allocations;
-        
+
         // Build comprehensive receipt items showing:
         // 1. Items that received payment (with allocation details)
         // 2. All other unpaid items (with their balances)
         $receiptItems = collect();
-        
+
         // First, add items that received payment from this payment
         foreach ($paymentAllocations as $allocation) {
             $item = $allocation->invoiceItem;
@@ -62,7 +62,7 @@ class ReceiptService
             $allocatedAmount = $allocation->amount;
             $balanceBefore = $item->getBalance() + $allocatedAmount; // Balance before this payment
             $balanceAfter = $item->getBalance(); // Balance after this payment
-            
+
             $receiptItems->push([
                 'type' => 'paid',
                 'allocation' => $allocation,
@@ -75,7 +75,7 @@ class ReceiptService
                 'balance_after' => $balanceAfter,
             ]);
         }
-        
+
         // Then, add all other unpaid items that didn't receive payment
         $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
         foreach ($allUnpaidItems as $item) {
@@ -83,11 +83,11 @@ class ReceiptService
             if (in_array($item->id, $paidItemIds)) {
                 continue;
             }
-            
+
             $itemAmount = $item->amount ?? 0;
             $discountAmount = $item->discount_amount ?? 0;
             $balance = $item->getBalance();
-            
+
             $receiptItems->push([
                 'type' => 'unpaid',
                 'allocation' => null,
@@ -100,30 +100,30 @@ class ReceiptService
                 'balance_after' => $balance,
             ]);
         }
-        
+
         // Calculate totals
         $totalBalanceBefore = $receiptItems->sum('balance_before');
         $totalBalanceAfter = $receiptItems->sum('balance_after');
-        
+
         // Calculate TOTAL outstanding balance including balance brought forward
         $totalOutstandingBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
-        
+
         // Calculate total invoices for receipt display
         $invoices = \App\Models\Invoice::where('student_id', $student->id)
             ->with('items') // Eager load items to avoid N+1
             ->get();
-        
+
         $totalInvoices = $invoices->sum('total');
-        
+
         // Use receiptItems instead of allocations for template
         $allocations = $receiptItems;
-        
-        // Prepare data for PDF
-        $data = [
+        $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
+
+        return [
             'payment' => $payment,
             'school' => $schoolSettings,
             'branding' => $branding,
-            'receipt_number' => $payment->receipt_number,
+            'receipt_number' => $displayReceiptNumber,
             'date' => $payment->payment_date->format('d/m/Y'),
             'student' => $student,
             'allocations' => $allocations,
@@ -138,9 +138,35 @@ class ReceiptService
             'receipt_header' => $receiptHeader,
             'receipt_footer' => $receiptFooter,
         ];
-        
-        // Generate PDF
-        $pdf = Pdf::loadView('finance.receipts.pdf.template', $data);
+    }
+
+    /**
+     * Generate PDF receipt for payment
+     */
+    public function generateReceipt(Payment $payment, array $options = []): string
+    {
+        $data = $this->buildReceiptData($payment);
+
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        if ($sharedReceiptNumber) {
+            $sharedPayments = Payment::where('shared_receipt_number', $sharedReceiptNumber)
+                ->orderBy('id')
+                ->get();
+
+            $receipts = $sharedPayments->map(function ($sharedPayment) {
+                return $this->buildReceiptData($sharedPayment);
+            })->values()->all();
+
+            $pdf = Pdf::loadView('finance.receipts.bulk-print-pdf', [
+                'receipts' => $receipts,
+                'school' => $data['school'],
+                'branding' => $data['branding'],
+                'receiptHeader' => $data['receipt_header'],
+                'receiptFooter' => $data['receipt_footer'],
+            ]);
+        } else {
+            $pdf = Pdf::loadView('finance.receipts.pdf.template', $data);
+        }
         
         // Set paper size
         $paperSize = $options['paper_size'] ?? 'A4';
@@ -149,7 +175,7 @@ class ReceiptService
         
         // Save to storage if requested
         if ($options['save'] ?? false) {
-            $filename = 'receipts/receipt_' . $payment->receipt_number . '_' . time() . '.pdf';
+            $filename = 'receipts/receipt_' . ($data['receipt_number'] ?? $payment->receipt_number) . '_' . time() . '.pdf';
             Storage::disk('public')->put($filename, $pdf->output());
             return $filename;
         }
@@ -164,7 +190,7 @@ class ReceiptService
     public function downloadReceipt(Payment $payment): \Illuminate\Http\Response
     {
         $pdf = $this->generateReceipt($payment);
-        $filename = 'Receipt_' . $payment->receipt_number . '.pdf';
+        $filename = 'Receipt_' . ($payment->shared_receipt_number ?? $payment->receipt_number) . '.pdf';
         
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',

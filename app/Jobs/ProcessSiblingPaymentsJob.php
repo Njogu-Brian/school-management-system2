@@ -73,32 +73,44 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
 
             // Process sibling payments if transaction is shared
             if ($transaction->is_shared && $transaction->shared_allocations) {
-                foreach ($transaction->shared_allocations as $allocation) {
-                    $siblingPayment = Payment::where('student_id', $allocation['student_id'])
-                        ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                $sharedReceiptNumber = $payment->shared_receipt_number;
+                $siblingPayments = collect();
+
+                if ($sharedReceiptNumber) {
+                    $siblingPayments = Payment::where('shared_receipt_number', $sharedReceiptNumber)
                         ->where('id', '!=', $payment->id)
-                        ->first();
-                    
-                    if ($siblingPayment) {
+                        ->get();
+                } else {
+                    foreach ($transaction->shared_allocations as $allocation) {
+                        $siblingPayment = Payment::where('student_id', $allocation['student_id'])
+                            ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                            ->where('id', '!=', $payment->id)
+                            ->first();
+                        if ($siblingPayment) {
+                            $siblingPayments->push($siblingPayment);
+                        }
+                    }
+                }
+
+                foreach ($siblingPayments as $siblingPayment) {
+                    try {
+                        // Generate receipt for sibling payment
+                        $receiptService->generateReceipt($siblingPayment, ['save' => true]);
+
+                        // Send notifications for sibling payment
                         try {
-                            // Generate receipt for sibling payment
-                            $receiptService->generateReceipt($siblingPayment, ['save' => true]);
-                            
-                            // Send notifications for sibling payment
-                            try {
-                                $paymentController->sendPaymentNotifications($siblingPayment);
-                            } catch (\Exception $e) {
-                                Log::warning('Payment notification failed for sibling payment', [
-                                    'payment_id' => $siblingPayment->id,
-                                    'error' => $e->getMessage()
-                                ]);
-                            }
+                            $paymentController->sendPaymentNotifications($siblingPayment);
                         } catch (\Exception $e) {
-                            Log::warning('Receipt generation failed for sibling payment', [
+                            Log::warning('Payment notification failed for sibling payment', [
                                 'payment_id' => $siblingPayment->id,
                                 'error' => $e->getMessage()
                             ]);
                         }
+                    } catch (\Exception $e) {
+                        Log::warning('Receipt generation failed for sibling payment', [
+                            'payment_id' => $siblingPayment->id,
+                            'error' => $e->getMessage()
+                        ]);
                     }
                 }
             }

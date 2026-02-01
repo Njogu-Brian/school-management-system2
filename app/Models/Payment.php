@@ -18,6 +18,7 @@ class Payment extends Model
         'public_token',
         'hashed_id',
         'receipt_number',
+        'shared_receipt_number',
         'student_id',
         'family_id',
         'invoice_id',

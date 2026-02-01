@@ -270,6 +270,7 @@ class PaymentController extends Controller
                 
                 // Use same transaction code for all sibling payments
                 $sharedTransactionCode = $validated['transaction_code'];
+                $sharedReceiptNumber = $this->generateSharedReceiptNumber();
                 
                 // Create payments for each sibling
                 $createdPayments = [];
@@ -278,29 +279,8 @@ class PaymentController extends Controller
                     $siblingAmount = $sharedAmounts[$index] ?? 0;
                     
                     if ($siblingAmount > 0) {
-                        // Generate unique receipt number for each sibling payment
-                        $maxAttempts = 10;
-                        $attempt = 0;
-                        do {
-                            $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
-                            $exists = Payment::where('receipt_number', $receiptNumber)->exists();
-                            $attempt++;
-                            
-                            if ($exists && $attempt < $maxAttempts) {
-                                // Wait a tiny bit and try again (handles race conditions)
-                                usleep(10000); // 0.01 seconds
-                            }
-                        } while ($exists && $attempt < $maxAttempts);
-                        
-                        if ($exists) {
-                            // If still exists after max attempts, append student ID to make it unique
-                            $receiptNumber = $receiptNumber . '-S' . $siblingId;
-                            
-                            Log::warning('Receipt number collision after max attempts, using modified number', [
-                                'modified_receipt' => $receiptNumber,
-                                'student_id' => $siblingId,
-                            ]);
-                        }
+                        // Use shared receipt number for the group, and a unique receipt_number per payment
+                        $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber . '-S' . $siblingId, $siblingId);
                         
                         $payment = Payment::create([
                             'student_id' => $siblingId,
@@ -312,7 +292,8 @@ class PaymentController extends Controller
                             'payer_type' => $validated['payer_type'],
                             'narration' => $validated['narration'],
                             'transaction_code' => $sharedTransactionCode, // Same transaction code for all siblings
-                            'receipt_number' => $receiptNumber, // Unique receipt number for each sibling
+                            'receipt_number' => $receiptNumber, // Unique per payment
+                            'shared_receipt_number' => $sharedReceiptNumber, // Shared across siblings
                             'payment_date' => $validated['payment_date'],
                             // receipt_date is set automatically in Payment model
                         ]);
@@ -634,13 +615,14 @@ class PaymentController extends Controller
         // Get school name for template
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
         
+        $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
         $variables = [
             'parent_name' => $parentName ?? 'Parent', // Keep for backward compatibility
             'greeting' => $greeting, // New greeting variable: "Dear Parent" or "Dear [Name]"
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
             'amount' => 'Ksh ' . number_format($payment->amount, 2),
-            'receipt_number' => $payment->receipt_number,
+            'receipt_number' => $displayReceiptNumber,
             'transaction_code' => $payment->transaction_code,
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
@@ -949,16 +931,15 @@ class PaymentController extends Controller
         if (!$payment->transaction_code) {
             return null;
         }
-        
-        // Find all payments with the same transaction_code (sibling payments)
-        $siblingPayments = Payment::where('transaction_code', $payment->transaction_code)
-            ->where('id', '!=', $payment->id)
-            ->with('student')
-            ->get();
-        
-        if ($siblingPayments->isEmpty()) {
-            return null;
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        $allPaymentsQuery = Payment::with('student');
+        if ($sharedReceiptNumber) {
+            $allPaymentsQuery->where('shared_receipt_number', $sharedReceiptNumber);
+        } else {
+            $allPaymentsQuery->where('transaction_code', $payment->transaction_code);
         }
+        $allPayments = $allPaymentsQuery->get();
+        $siblingPayments = $allPayments->where('id', '!=', $payment->id)->values();
         
         // Find the source bank statement transaction
         $bankTransaction = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)
@@ -966,9 +947,12 @@ class PaymentController extends Controller
             ->whereNotNull('shared_allocations')
             ->first();
         
+        if (!$bankTransaction && $allPayments->count() <= 1) {
+            return null;
+        }
+        
         if (!$bankTransaction) {
             // If no bank transaction found, construct from payments
-            $allPayments = collect([$payment])->merge($siblingPayments);
             $sharedAllocations = $allPayments->map(function($p) {
                 return [
                     'student_id' => $p->student_id,
@@ -982,6 +966,7 @@ class PaymentController extends Controller
                 'sibling_payments' => $siblingPayments,
                 'shared_allocations' => $sharedAllocations,
                 'total_amount' => $allPayments->sum('amount'),
+                'shared_receipt_number' => $sharedReceiptNumber,
             ];
         }
         
@@ -991,6 +976,7 @@ class PaymentController extends Controller
             'sibling_payments' => $siblingPayments,
             'shared_allocations' => $bankTransaction->shared_allocations ?? [],
             'total_amount' => $bankTransaction->amount,
+            'shared_receipt_number' => $sharedReceiptNumber,
         ];
     }
     
@@ -1014,13 +1000,19 @@ class PaymentController extends Controller
             return back()->with('error', 'Cannot edit allocations for a reversed payment.');
         }
         
-        // Check if any sibling payments are reversed
-        $siblingPayments = Payment::where('transaction_code', $payment->transaction_code)
-            ->where('id', '!=', $payment->id)
+        // Check if any group payments are reversed
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        $reversedGroupPayments = Payment::where(function ($q) use ($payment, $sharedReceiptNumber) {
+                if ($sharedReceiptNumber) {
+                    $q->where('shared_receipt_number', $sharedReceiptNumber);
+                } else {
+                    $q->where('transaction_code', $payment->transaction_code);
+                }
+            })
             ->where('reversed', true)
             ->exists();
         
-        if ($siblingPayments) {
+        if ($reversedGroupPayments) {
             return back()->with('error', 
                 'Cannot edit allocations: One or more sibling payments have been reversed.'
             );
@@ -1065,7 +1057,7 @@ class PaymentController extends Controller
         // Store old allocations for audit log
         $oldAllocations = $sharedInfo['shared_allocations'] ?? [];
         
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $activeAllocations, $sharedInfo, $oldAllocations) {
+        $result = \Illuminate\Support\Facades\DB::transaction(function () use ($payment, $activeAllocations, $sharedInfo, $oldAllocations) {
             // Update bank statement transaction if it exists to keep in sync
             if ($sharedInfo['bank_transaction']) {
                 $sharedInfo['bank_transaction']->update([
@@ -1073,30 +1065,43 @@ class PaymentController extends Controller
                 ]);
                 $sharedInfo['bank_transaction']->increment('version');
             }
+
+            $sharedReceiptNumber = $sharedInfo['shared_receipt_number'] ?? $payment->shared_receipt_number;
+            if (!$sharedReceiptNumber) {
+                $sharedReceiptNumber = $this->generateSharedReceiptNumber();
+            }
             
-            // Update all sibling payments
+            // Update all sibling payments and allow new siblings
             $allPayments = collect([$payment])->merge($sharedInfo['sibling_payments']);
+            $paymentsByStudent = $allPayments->keyBy('student_id');
+            $activeStudentIds = collect($activeAllocations)->pluck('student_id')->toArray();
+            $paymentsToNotify = collect();
             
             foreach ($activeAllocations as $allocation) {
-                $siblingPayment = $allPayments->firstWhere('student_id', $allocation['student_id']);
+                $studentId = $allocation['student_id'];
+                $newAmount = (float) $allocation['amount'];
+                $siblingPayment = $paymentsByStudent->get($studentId);
                 
                 if ($siblingPayment) {
-                    // Update payment amount
-                    $oldAmount = $siblingPayment->amount;
-                    $newAmount = (float) $allocation['amount'];
+                    $oldAmount = (float) $siblingPayment->amount;
+                    $updates = [];
+                    if (!$siblingPayment->shared_receipt_number) {
+                        $updates['shared_receipt_number'] = $sharedReceiptNumber;
+                    }
+                    if (abs($oldAmount - $newAmount) > 0.01) {
+                        $updates['amount'] = $newAmount;
+                    }
+                    if (!empty($updates)) {
+                        $siblingPayment->update($updates);
+                    }
                     
                     if (abs($oldAmount - $newAmount) > 0.01) {
-                        $siblingPayment->update([
-                            'amount' => $newAmount,
-                        ]);
-                        
                         // If amount decreased, deallocate excess (FIFO - oldest allocations first)
                         if ($newAmount < $oldAmount) {
                             $excess = $oldAmount - $newAmount;
                             $remaining = $excess;
                             $affectedInvoices = collect();
                             
-                            // Get allocations ordered by date (oldest first) - FIFO
                             $allocations = \App\Models\PaymentAllocation::where('payment_id', $siblingPayment->id)
                                 ->with('invoiceItem.invoice')
                                 ->orderBy('allocated_at', 'asc')
@@ -1111,7 +1116,6 @@ class PaymentController extends Controller
                                 $invoice = $allocationRecord->invoiceItem->invoice;
                                 
                                 if ($allocationAmount <= $remaining) {
-                                    // Delete entire allocation
                                     $remaining -= $allocationAmount;
                                     $allocationRecord->delete();
                                     
@@ -1119,7 +1123,6 @@ class PaymentController extends Controller
                                         $affectedInvoices->push($invoice);
                                     }
                                 } else {
-                                    // Partially deallocate
                                     $newAllocationAmount = $allocationAmount - $remaining;
                                     $allocationRecord->update(['amount' => $newAllocationAmount]);
                                     $remaining = 0;
@@ -1130,30 +1133,101 @@ class PaymentController extends Controller
                                 }
                             }
                             
-                            // Recalculate affected invoices
                             foreach ($affectedInvoices as $invoice) {
                                 \App\Services\InvoiceService::recalc($invoice);
                             }
-                        }
-                        
-                        // Update allocation totals
-                        $siblingPayment->updateAllocationTotals();
-                        
-                        // Regenerate receipt if it exists
-                        if ($siblingPayment->receipt) {
+                        } else {
+                            // Amount increased - allocate additional amount
                             try {
-                                $receiptService = app(\App\Services\ReceiptService::class);
-                                $receiptService->generateReceipt($siblingPayment->fresh(), ['save' => true, 'regenerate' => true]);
+                                $this->allocationService->autoAllocate($siblingPayment, $siblingPayment->student_id);
                             } catch (\Exception $e) {
-                                \Log::warning('Failed to regenerate receipt after allocation update', [
+                                \Log::warning('Auto-allocation failed for increased shared payment', [
                                     'payment_id' => $siblingPayment->id,
-                                    'error' => $e->getMessage(),
+                                    'error' => $e->getMessage()
                                 ]);
                             }
                         }
                         
-                        // Note: Student statements are generated on-the-fly from database data,
-                        // so they will automatically reflect the updated payment amounts
+                        $siblingPayment->updateAllocationTotals();
+                        $paymentsToNotify->push($siblingPayment);
+                    }
+                    
+                    if ($siblingPayment->receipt) {
+                        try {
+                            $receiptService = app(\App\Services\ReceiptService::class);
+                            $receiptService->generateReceipt($siblingPayment->fresh(), ['save' => true, 'regenerate' => true]);
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to regenerate receipt after allocation update', [
+                                'payment_id' => $siblingPayment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                } else {
+                    $student = Student::withAlumni()->findOrFail($studentId);
+                    $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber . '-S' . $student->id, $student->id);
+                    $newPayment = Payment::create([
+                        'student_id' => $student->id,
+                        'family_id' => $student->family_id,
+                        'amount' => $newAmount,
+                        'payment_method_id' => $payment->payment_method_id,
+                        'payment_date' => $payment->payment_date,
+                        'transaction_code' => $payment->transaction_code,
+                        'receipt_number' => $receiptNumber,
+                        'shared_receipt_number' => $sharedReceiptNumber,
+                        'payer_name' => $payment->payer_name,
+                        'payer_type' => $payment->payer_type,
+                        'narration' => "Shared from {$payment->student->full_name} ({$payment->student->admission_number}) - Reshared payment",
+                    ]);
+                    
+                    try {
+                        $this->allocationService->autoAllocate($newPayment, $student->id);
+                    } catch (\Exception $e) {
+                        \Log::warning('Auto-allocation failed for new shared payment', [
+                            'payment_id' => $newPayment->id,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                    
+                    try {
+                        $this->receiptService->generateReceipt($newPayment->fresh(), ['save' => true]);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to generate receipt for new shared payment', [
+                            'payment_id' => $newPayment->id,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                    
+                    $paymentsToNotify->push($newPayment);
+                }
+            }
+            
+            // Remove payments no longer included
+            $paymentsToRemove = $allPayments->reject(function ($p) use ($activeStudentIds) {
+                return in_array($p->student_id, $activeStudentIds, true);
+            });
+            
+            foreach ($paymentsToRemove as $removePayment) {
+                $invoiceIds = collect();
+                foreach ($removePayment->allocations as $allocation) {
+                    if ($allocation->invoiceItem && $allocation->invoiceItem->invoice) {
+                        $invoiceIds->push($allocation->invoiceItem->invoice_id);
+                    }
+                    $allocation->delete();
+                }
+                
+                $removePayment->update([
+                    'reversed' => true,
+                    'reversed_by' => auth()->id(),
+                    'reversed_at' => now(),
+                    'reversal_reason' => 'Removed from shared allocation update',
+                ]);
+                $removePayment->delete();
+                
+                foreach ($invoiceIds->unique() as $invoiceId) {
+                    $invoice = \App\Models\Invoice::find($invoiceId);
+                    if ($invoice) {
+                        \App\Services\InvoiceService::recalc($invoice);
                     }
                 }
             }
@@ -1176,10 +1250,26 @@ class PaymentController extends Controller
             }
             
             $siblingCount = count($activeAllocations);
-            return redirect()
-                ->route('finance.payments.show', $payment)
-                ->with('success', "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s). Receipts and statements have been regenerated.");
+            return [
+                'message' => "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s). Receipts and statements have been regenerated.",
+                'payments_to_notify' => $paymentsToNotify->unique('id')->values(),
+            ];
         });
+        
+        foreach ($result['payments_to_notify'] as $notifyPayment) {
+            try {
+                $this->sendPaymentNotifications($notifyPayment->fresh());
+            } catch (\Exception $e) {
+                \Log::warning('Failed to send notification after shared allocation update', [
+                    'payment_id' => $notifyPayment->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+        
+        return redirect()
+            ->route('finance.payments.show', $payment)
+            ->with('success', $result['message']);
     }
 
     public function edit(Payment $payment)
@@ -1938,7 +2028,7 @@ class PaymentController extends Controller
                 'payment' => $payment,
                 'school' => $schoolSettings,
                 'branding' => $branding,
-                'receipt_number' => $payment->receipt_number,
+                'receipt_number' => $payment->shared_receipt_number ?? $payment->receipt_number,
                 'date' => $payment->payment_date->format('d M Y'),
                 'student' => $student,
                 'total_amount' => $payment->amount,
@@ -2112,7 +2202,7 @@ class PaymentController extends Controller
                     'payment' => $payment,
                     'school' => $schoolSettings,
                     'branding' => $branding,
-                    'receipt_number' => $payment->receipt_number,
+                    'receipt_number' => $payment->shared_receipt_number ?? $payment->receipt_number,
                     'date' => $payment->payment_date->format('d/m/Y'),
                     'student' => $student,
                     'allocations' => $receiptItems,
@@ -2146,6 +2236,30 @@ class PaymentController extends Controller
 
     public function viewReceipt(Payment $payment)
     {
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        $sharedPayments = collect();
+        if ($sharedReceiptNumber) {
+            $sharedPayments = Payment::where('shared_receipt_number', $sharedReceiptNumber)->orderBy('id')->get();
+        } else {
+            $sharedPayments = Payment::where('receipt_number', $payment->receipt_number)->orderBy('id')->get();
+        }
+
+        if ($sharedPayments->count() > 1) {
+            $receiptService = app(ReceiptService::class);
+            $receipts = $sharedPayments->map(function ($sharedPayment) use ($receiptService) {
+                return $receiptService->buildReceiptData($sharedPayment);
+            })->values()->all();
+
+            $first = $receipts[0] ?? [];
+            return view('finance.receipts.bulk-print', [
+                'receipts' => $receipts,
+                'school' => $first['school'] ?? $this->getSchoolSettings(),
+                'branding' => $first['branding'] ?? $this->branding(),
+                'receiptHeader' => $first['receipt_header'] ?? \App\Models\Setting::get('receipt_header', ''),
+                'receiptFooter' => $first['receipt_footer'] ?? \App\Models\Setting::get('receipt_footer', ''),
+            ]);
+        }
+
         $payment->load([
             'student.classroom', 
             'invoice', 
@@ -2300,6 +2414,30 @@ class PaymentController extends Controller
                 $student->family->refresh();
                 $student->family->load('updateLink');
             }
+        }
+
+        $sharedReceiptNumber = $payment->shared_receipt_number;
+        $sharedPayments = collect();
+        if ($sharedReceiptNumber) {
+            $sharedPayments = Payment::where('shared_receipt_number', $sharedReceiptNumber)->orderBy('id')->get();
+        } else {
+            $sharedPayments = Payment::where('receipt_number', $payment->receipt_number)->orderBy('id')->get();
+        }
+
+        if ($sharedPayments->count() > 1) {
+            $receiptService = app(ReceiptService::class);
+            $receipts = $sharedPayments->map(function ($sharedPayment) use ($receiptService) {
+                return $receiptService->buildReceiptData($sharedPayment);
+            })->values()->all();
+
+            $first = $receipts[0] ?? [];
+            return view('finance.receipts.bulk-print', [
+                'receipts' => $receipts,
+                'school' => $first['school'] ?? $this->getSchoolSettings(),
+                'branding' => $first['branding'] ?? $this->branding(),
+                'receiptHeader' => $first['receipt_header'] ?? \App\Models\Setting::get('receipt_header', ''),
+                'receiptFooter' => $first['receipt_footer'] ?? \App\Models\Setting::get('receipt_footer', ''),
+            ]);
         }
         
         // Get ALL unpaid invoice items for the student
@@ -3252,13 +3390,14 @@ class PaymentController extends Controller
         $carriedForward = $payment->unallocated_amount ?? 0;
         $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
 
+        $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
         $variables = [
             'parent_name' => $parentName ?? 'Parent',
             'greeting' => $greeting,
             'student_name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
             'admission_number' => $student->admission_number,
             'amount' => 'Ksh ' . number_format($payment->amount, 2),
-            'receipt_number' => $payment->receipt_number,
+            'receipt_number' => $displayReceiptNumber,
             'transaction_code' => $payment->transaction_code,
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
@@ -3372,5 +3511,44 @@ class PaymentController extends Controller
                 ]);
             }
         }
+    }
+
+    protected function generateSharedReceiptNumber(): string
+    {
+        $maxAttempts = 10;
+        $attempt = 0;
+        do {
+            $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
+            $exists = Payment::where('shared_receipt_number', $receiptNumber)
+                ->orWhere('receipt_number', $receiptNumber)
+                ->exists();
+            $attempt++;
+            if ($exists && $attempt < $maxAttempts) {
+                usleep(10000);
+            }
+        } while ($exists && $attempt < $maxAttempts);
+
+        if ($exists) {
+            $receiptNumber = $receiptNumber . '-' . time();
+        }
+
+        return $receiptNumber;
+    }
+
+    protected function ensureUniqueReceiptNumber(string $baseReceiptNumber, int $studentId): string
+    {
+        $receiptNumber = $baseReceiptNumber;
+        $attempt = 0;
+        while (Payment::where('receipt_number', $receiptNumber)->exists() && $attempt < 10) {
+            $attempt++;
+            $receiptNumber = $baseReceiptNumber . '-' . $attempt;
+            usleep(10000);
+        }
+
+        if (Payment::where('receipt_number', $receiptNumber)->exists()) {
+            $receiptNumber = $baseReceiptNumber . '-' . $studentId . '-' . time();
+        }
+
+        return $receiptNumber;
     }
 }

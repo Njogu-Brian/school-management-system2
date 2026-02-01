@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt - {{ $payment->receipt_number }}</title>
+    @php($displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number)
+    <title>Receipt - {{ $displayReceiptNumber }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     @include('finance.partials.styles')
@@ -70,7 +71,7 @@
         <div class="finance-shell py-4">
             <div class="d-flex justify-content-between align-items-center mb-3 no-print">
                 <h3 class="mb-0 d-flex align-items-center gap-2">
-                    <i class="bi bi-receipt"></i> Receipt: {{ $payment->receipt_number }}
+                    <i class="bi bi-receipt"></i> Receipt: {{ $displayReceiptNumber }}
                 </h3>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     @php
@@ -102,7 +103,7 @@
                         'payment' => $payment,
                         'school' => $schoolSettings ?? [],
                         'branding' => $branding ?? [],
-                        'receipt_number' => $payment->receipt_number,
+                        'receipt_number' => $displayReceiptNumber,
                         'date' => $payment->receipt_date ? \Carbon\Carbon::parse($payment->receipt_date)->format('d/m/Y') : ($payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') : date('d/m/Y')),
                         'student' => $payment->student,
                         'allocations' => $allocations ?? collect(),

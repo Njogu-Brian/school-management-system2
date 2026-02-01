@@ -1592,7 +1592,12 @@ class BankStatementParser
         }
         
         // Generate unique receipt number
+        $sharedReceiptNumber = null;
         $finalReceiptNumber = $receiptNumber;
+        if ($transaction->is_shared && $receiptNumber) {
+            $sharedReceiptNumber = $receiptNumber;
+            $finalReceiptNumber = $receiptNumber . '-S' . $student->id;
+        }
         if (!$finalReceiptNumber) {
             $maxAttempts = 10;
             $attempt = 0;
@@ -1783,6 +1788,7 @@ class BankStatementParser
                 'payment_method' => $paymentMethodName,
                 'transaction_code' => $finalTransactionCode,
                 'receipt_number' => $finalReceiptNumberCheck,
+                'shared_receipt_number' => $sharedReceiptNumber,
                 'payer_name' => $transaction->payer_name ?? $transaction->matched_student_name ?? $student->first_name . ' ' . $student->last_name,
                 'payer_type' => 'parent',
                 'narration' => $transaction->description,

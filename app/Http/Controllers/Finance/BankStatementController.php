@@ -1168,19 +1168,29 @@ class BankStatementController extends Controller
                     $allPayments = $allPayments->push($linked)->sortByDesc('created_at')->values();
                 }
             }
-            // Shared transactions: include all sibling payments by receipt base (only for bank statements)
+            // Shared transactions: include all sibling payments by shared receipt number (only for bank statements)
             if (!$isC2B && $bankStatement->is_shared && $allPayments->isNotEmpty()) {
-                $receipts = $allPayments->pluck('receipt_number')->unique()->filter()->values();
-                if ($receipts->isNotEmpty()) {
-                    $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
+                $sharedReceipts = $allPayments->pluck('shared_receipt_number')->unique()->filter()->values();
+                if ($sharedReceipts->isNotEmpty()) {
+                    $sharedNumber = $sharedReceipts->first();
                     $byReceipt = \App\Models\Payment::withTrashed()
                         ->with('student')
-                        ->where(function ($q) use ($base) {
-                            $q->where('receipt_number', $base)
-                              ->orWhere('receipt_number', 'LIKE', $base . '-%');
-                        })
+                        ->where('shared_receipt_number', $sharedNumber)
                         ->get();
                     $allPayments = $allPayments->merge($byReceipt)->unique('id')->sortByDesc('created_at')->values();
+                } else {
+                    $receipts = $allPayments->pluck('receipt_number')->unique()->filter()->values();
+                    if ($receipts->isNotEmpty()) {
+                        $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
+                        $byReceipt = \App\Models\Payment::withTrashed()
+                            ->with('student')
+                            ->where(function ($q) use ($base) {
+                                $q->where('receipt_number', $base)
+                                  ->orWhere('receipt_number', 'LIKE', $base . '-%');
+                            })
+                            ->get();
+                        $allPayments = $allPayments->merge($byReceipt)->unique('id')->sortByDesc('created_at')->values();
+                    }
                 }
             }
             $activePayments = $allPayments->where('reversed', false)->values();
@@ -2041,19 +2051,27 @@ class BankStatementController extends Controller
                     $relatedPayments = collect([$p]);
                 }
             }
-            // Shared transactions: all sibling receipts share a base (only for bank statements)
-            // Find by receipt base + prefix so we never miss any sibling (e.g. Dawn)
+            // Shared transactions: include all sibling payments by shared receipt number (only for bank statements)
             if (!$isC2B && ($bankStatement->is_shared ?? false) && $relatedPayments->isNotEmpty()) {
-                $receipts = $relatedPayments->pluck('receipt_number')->unique()->filter()->values();
-                if ($receipts->isNotEmpty()) {
-                    $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
+                $sharedReceipts = $relatedPayments->pluck('shared_receipt_number')->unique()->filter()->values();
+                if ($sharedReceipts->isNotEmpty()) {
+                    $sharedNumber = $sharedReceipts->first();
                     $byReceipt = Payment::where('reversed', false)
-                        ->where(function ($q) use ($base) {
-                            $q->where('receipt_number', $base)
-                              ->orWhere('receipt_number', 'LIKE', $base . '-%');
-                        })
+                        ->where('shared_receipt_number', $sharedNumber)
                         ->get();
                     $relatedPayments = $relatedPayments->merge($byReceipt)->unique('id');
+                } else {
+                    $receipts = $relatedPayments->pluck('receipt_number')->unique()->filter()->values();
+                    if ($receipts->isNotEmpty()) {
+                        $base = $receipts->sortBy(fn ($r) => strlen($r))->first();
+                        $byReceipt = Payment::where('reversed', false)
+                            ->where(function ($q) use ($base) {
+                                $q->where('receipt_number', $base)
+                                  ->orWhere('receipt_number', 'LIKE', $base . '-%');
+                            })
+                            ->get();
+                        $relatedPayments = $relatedPayments->merge($byReceipt)->unique('id');
+                    }
                 }
             }
 

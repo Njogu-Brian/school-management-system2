@@ -307,6 +307,10 @@
                             </div>
                         </div>
                         @endforeach
+                        <div id="sharedAllocationsExtras"></div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="addSharedAllocationStudent">
+                            <i class="bi bi-plus"></i> Add Another Student
+                        </button>
                         
                         <div class="mt-3 p-3 bg-light rounded">
                             <div class="d-flex justify-content-between align-items-center">
@@ -1172,11 +1176,80 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.shared-allocation-amount').forEach(input => {
         input.addEventListener('input', updateTotalSharedAllocations);
     });
+
+    const sharedAllocationsExtras = document.getElementById('sharedAllocationsExtras');
+    const addSharedAllocationStudent = document.getElementById('addSharedAllocationStudent');
+    let sharedAllocationsIndex = {{ count($sharedInfo['shared_allocations']) }};
+
+    function addSharedAllocationRow() {
+        const index = sharedAllocationsIndex++;
+        const wrapperId = `shared_allocation_wrapper_${index}`;
+        const hiddenId = `shared_allocation_student_id_${index}`;
+        const displayId = `shared_allocation_student_name_${index}`;
+        const resultsId = `shared_allocation_results_${index}`;
+        
+        const row = document.createElement('div');
+        row.className = 'mb-3 p-3 border rounded shared-allocation-item';
+        row.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <div>
+                    <strong>New Student</strong><br>
+                    <small class="text-muted">Select student to include</small>
+                </div>
+                <button type="button" class="btn btn-outline-danger btn-sm remove-shared-allocation">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            <div class="student-live-search student-live-search-wrapper"
+                 data-hidden="${hiddenId}"
+                 data-display="${displayId}"
+                 data-results="${resultsId}"
+                 data-include-alumni-archived="0">
+                <input type="hidden" id="${hiddenId}" name="allocations[${index}][student_id]" value="">
+                <input type="text" id="${displayId}" class="form-control" placeholder="Type name or admission #">
+                <div id="${resultsId}" class="list-group shadow-sm mt-1 d-none" style="max-height: 220px; overflow-y: auto;"></div>
+                <small class="text-muted">Start typing; results appear below automatically.</small>
+            </div>
+            <div class="input-group mt-2">
+                <span class="input-group-text">Ksh</span>
+                <input type="number"
+                       step="0.01"
+                       min="0"
+                       class="form-control shared-allocation-amount"
+                       name="allocations[${index}][amount]"
+                       value="0"
+                       oninput="updateTotalSharedAllocations()"
+                       required>
+            </div>
+        `;
+        
+        sharedAllocationsExtras.appendChild(row);
+        if (window.initLiveSearchWrapper) {
+            initLiveSearchWrapper(row.querySelector('.student-live-search-wrapper'));
+        }
+        row.querySelector('.shared-allocation-amount')?.addEventListener('input', updateTotalSharedAllocations);
+        row.querySelector('.remove-shared-allocation')?.addEventListener('click', function () {
+            row.remove();
+            updateTotalSharedAllocations();
+        });
+    }
+
+    addSharedAllocationStudent?.addEventListener('click', function () {
+        addSharedAllocationRow();
+    });
     
     // Form validation on submit
     const sharedAllocationsForm = document.getElementById('editSharedAllocationsForm');
     if (sharedAllocationsForm) {
         sharedAllocationsForm.addEventListener('submit', function(e) {
+            const studentInputs = document.querySelectorAll('#editSharedAllocationsForm input[name^="allocations"][name$="[student_id]"]');
+            const emptyStudent = Array.from(studentInputs).some(input => !input.value);
+            if (emptyStudent) {
+                e.preventDefault();
+                alert('Please select a valid student for all shared allocation rows.');
+                return false;
+            }
+
             const amounts = document.querySelectorAll('.shared-allocation-amount');
             const totalAmount = {{ $sharedInfo['total_amount'] }};
             let total = 0;
