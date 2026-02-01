@@ -72,8 +72,11 @@ class PostingController extends Controller
         // Use enhanced service with diffs
         $result = $this->postingService->previewWithDiffs($request->all());
         
-        // Group diffs by student for clustered view
-        $diffs = $result['diffs'];
+        // Add stable preview index for reject selections
+        $diffs = $result['diffs']->values()->map(function ($diff, $index) {
+            $diff['_preview_index'] = $index;
+            return $diff;
+        });
         $groupedByStudent = $diffs->groupBy('student_id');
         
         // Paginate students (not individual diffs) for better UX
@@ -127,6 +130,8 @@ class PostingController extends Controller
             'activate_now'=>'required|boolean',
             'effective_date'=>'nullable|date',
             'diffs_json'=>'required|string', // JSON-encoded diffs to avoid max_input_vars limit
+            'rejected' => 'nullable|array',
+            'rejected.*' => 'integer',
         ]);
 
         // Decode JSON-encoded diffs (base64 encoded to avoid issues with special characters)
@@ -136,6 +141,21 @@ class PostingController extends Controller
         }
         
         $diffs = collect($diffsArray);
+        $rejected = collect($request->input('rejected', []))->map(fn($v) => (int) $v)->unique()->values();
+        
+        if ($rejected->isNotEmpty()) {
+            $this->postingService->rejectPendingDiffs($diffs, (int) $request->year, (int) $request->term, $rejected->all());
+            $diffs = $diffs->reject(function ($diff) use ($rejected) {
+                return isset($diff['_preview_index']) && $rejected->contains((int) $diff['_preview_index']);
+            })->values();
+        }
+        
+        if ($diffs->isEmpty()) {
+            return redirect()
+                ->route('finance.posting.index')
+                ->with('info', 'All changes were rejected. No fees were posted.');
+        }
+        
         $run = $this->postingService->commitWithTracking(
             $diffs,
             (int)$request->year,

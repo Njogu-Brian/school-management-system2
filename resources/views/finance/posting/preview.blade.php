@@ -163,6 +163,7 @@
                                                         <th class="text-end">Old</th>
                                                         <th class="text-end">New</th>
                                                         <th class="text-end">Diff</th>
+                                                        <th class="text-end">Reject</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -172,6 +173,8 @@
                                                         $oldAmount = $diff['old_amount'] ?? 0;
                                                         $newAmount = $diff['new_amount'] ?? 0;
                                                         $difference = $newAmount - $oldAmount;
+                                                        $origin = $diff['origin'] ?? 'structure';
+                                                        $canReject = in_array($origin, ['optional', 'transport']);
                                                         
                                                         $badgeClass = match($diff['action']) {
                                                             'added' => 'bg-success',
@@ -187,6 +190,13 @@
                                                         <td class="text-end"><small>{{ $oldAmount > 0 ? 'Ksh ' . number_format($oldAmount, 2) : '—' }}</small></td>
                                                         <td class="text-end"><small>Ksh {{ number_format($newAmount, 2) }}</small></td>
                                                         <td class="text-end"><small>{{ $difference != 0 ? ($difference > 0 ? '+' : '') . number_format($difference, 2) : '0.00' }}</small></td>
+                                                        <td class="text-end">
+                                                            @if($canReject)
+                                                                <input type="checkbox" name="rejected[]" value="{{ $diff['_preview_index'] ?? '' }}">
+                                                            @else
+                                                                <span class="text-muted">—</span>
+                                                            @endif
+                                                        </td>
                                                     </tr>
                                                     @endforeach
                                                 </tbody>
@@ -262,6 +272,7 @@
                         <small class="text-muted">
                             <i class="bi bi-info-circle"></i> 
                             Review all changes before committing. This action will create/update invoice items.
+                            Reject is available for optional and transport changes only.
                         </small>
                     </div>
                     <div class="col-md-6 text-end">

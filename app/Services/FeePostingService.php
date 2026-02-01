@@ -565,6 +565,125 @@ class FeePostingService
             return $run;
         });
     }
+
+    /**
+     * Reject selected pending diffs and undo source changes where possible.
+     * Only optional and transport changes are reverted; structure changes are skipped.
+     */
+    public function rejectPendingDiffs(Collection $diffs, int $year, int $term, array $rejectedIndices): void
+    {
+        if (empty($rejectedIndices)) {
+            return;
+        }
+
+        $rejected = $diffs->filter(function ($diff) use ($rejectedIndices) {
+            return isset($diff['_preview_index']) && in_array((int) $diff['_preview_index'], $rejectedIndices, true);
+        });
+
+        foreach ($rejected as $diff) {
+            $origin = $diff['origin'] ?? 'structure';
+            if ($origin === 'optional') {
+                $this->revertOptionalFeeDiff($diff, $year, $term);
+            } elseif ($origin === 'transport') {
+                $this->revertTransportFeeDiff($diff, $year, $term);
+            }
+        }
+    }
+
+    private function revertOptionalFeeDiff(array $diff, int $year, int $term): void
+    {
+        $studentId = (int) ($diff['student_id'] ?? 0);
+        $voteheadId = (int) ($diff['votehead_id'] ?? 0);
+        if (!$studentId || !$voteheadId) {
+            return;
+        }
+
+        $optionalFee = OptionalFee::where('student_id', $studentId)
+            ->where('votehead_id', $voteheadId)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
+
+        $action = $diff['action'] ?? null;
+        $oldAmount = (float) ($diff['old_amount'] ?? 0);
+
+        if ($action === 'added') {
+            if ($optionalFee) {
+                $optionalFee->delete();
+            }
+            return;
+        }
+
+        if ($action === 'removed') {
+            if ($oldAmount <= 0) {
+                return;
+            }
+            $academicYearId = AcademicYear::where('year', $year)->first()?->id;
+            OptionalFee::updateOrCreate(
+                [
+                    'student_id' => $studentId,
+                    'votehead_id' => $voteheadId,
+                    'year' => $year,
+                    'term' => $term,
+                ],
+                [
+                    'academic_year_id' => $academicYearId,
+                    'amount' => $oldAmount,
+                    'status' => 'billed',
+                    'assigned_by' => auth()->id(),
+                    'assigned_at' => now(),
+                ]
+            );
+            return;
+        }
+
+        if (in_array($action, ['increased', 'decreased', 'unchanged'], true)) {
+            if ($optionalFee) {
+                if ($oldAmount <= 0) {
+                    $optionalFee->delete();
+                } else {
+                    $optionalFee->update(['amount' => $oldAmount, 'status' => 'billed']);
+                }
+            }
+        }
+    }
+
+    private function revertTransportFeeDiff(array $diff, int $year, int $term): void
+    {
+        $studentId = (int) ($diff['student_id'] ?? 0);
+        if (!$studentId) {
+            return;
+        }
+
+        $action = $diff['action'] ?? null;
+        $oldAmount = (float) ($diff['old_amount'] ?? 0);
+
+        if ($action === 'added') {
+            $existing = \App\Models\TransportFee::where('student_id', $studentId)
+                ->where('year', $year)
+                ->where('term', $term)
+                ->first();
+            if ($existing) {
+                $existing->delete();
+            }
+            return;
+        }
+
+        if (in_array($action, ['increased', 'decreased', 'removed', 'unchanged'], true)) {
+            if ($oldAmount <= 0) {
+                return;
+            }
+            TransportFeeService::upsertFee([
+                'student_id' => $studentId,
+                'amount' => $oldAmount,
+                'year' => $year,
+                'term' => $term,
+                'source' => 'rejected',
+                'note' => 'Reverted from posting preview rejection',
+                'skip_invoice' => true,
+            ]);
+        }
+    }
     
     /**
      * Reverse a posting run
