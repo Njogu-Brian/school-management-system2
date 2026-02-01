@@ -2390,6 +2390,12 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'C2B transactions use different conflict resolution.']);
         }
 
+        // Ensure transaction is confirmed before creating new payment
+        $transaction->refresh();
+        if ($transaction->status !== 'confirmed') {
+            $transaction->confirm();
+        }
+
         try {
             DB::transaction(function () use ($transaction) {
                 // For shared transactions, we need to create payments for all siblings
