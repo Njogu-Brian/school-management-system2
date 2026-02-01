@@ -452,12 +452,22 @@ class FeePostingService
                     continue;
                 }
 
+                // Also check for soft-deleted items to avoid duplicate constraint failures
+                $trashedItem = null;
+                if (!$existingItem) {
+                    $trashedItem = InvoiceItem::withTrashed()
+                        ->where('invoice_id', $invoice->id)
+                        ->where('votehead_id', $diff['votehead_id'])
+                        ->first();
+                }
+
                 // Get existing credit/debit notes if item exists
                 $existingCreditNotes = 0;
                 $existingDebitNotes = 0;
-                if ($existingItem) {
-                    $existingCreditNotes = (float)$existingItem->creditNotes()->sum('amount');
-                    $existingDebitNotes = (float)$existingItem->debitNotes()->sum('amount');
+                $notesItem = $existingItem ?: $trashedItem;
+                if ($notesItem) {
+                    $existingCreditNotes = (float)$notesItem->creditNotes()->sum('amount');
+                    $existingDebitNotes = (float)$notesItem->debitNotes()->sum('amount');
                 }
                 
                 // Calculate the final amount: new fee structure amount - credit notes + debit notes
@@ -469,51 +479,71 @@ class FeePostingService
                 // This allows proper comparison in future postings
                 $originalAmount = $newFeeStructureAmount;
                 
-                // Use updateOrCreate with proper error handling for race conditions
-                try {
-                    $item = InvoiceItem::updateOrCreate(
-                        ['invoice_id' => $invoice->id, 'votehead_id' => $diff['votehead_id']],
-                        [
-                            'amount' => $finalAmount, // Set to fee structure amount minus credit notes
-                            'original_amount' => $originalAmount, // Store current fee structure amount (before credit notes)
-                            'status' => $activateNow ? 'active' : 'pending',
-                            'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
-                            'source' => $diff['origin'] ?? 'structure',
-                            'posting_run_id' => $run->id,
-                            'posted_at' => now(),
-                        ]
-                    );
-                } catch (\Illuminate\Database\QueryException $e) {
-                    // Handle unique constraint violation (race condition)
-                    if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry') || str_contains($e->getMessage(), 'unique_invoice_votehead')) {
-                        // Another request created the item, fetch it
-                        $item = InvoiceItem::where('invoice_id', $invoice->id)
-                            ->where('votehead_id', $diff['votehead_id'])
-                            ->first();
-                        
-                        if (!$item) {
-                            // Item still not found, log and skip
-                            \Log::warning("Invoice item not found after unique constraint violation", [
-                                'invoice_id' => $invoice->id,
-                                'votehead_id' => $diff['votehead_id'],
-                                'error' => $e->getMessage()
+                // If a soft-deleted item exists, restore and update it
+                if ($trashedItem && $trashedItem->trashed()) {
+                    $trashedItem->restore();
+                    $trashedItem->update([
+                        'amount' => $finalAmount,
+                        'original_amount' => $originalAmount,
+                        'status' => $activateNow ? 'active' : 'pending',
+                        'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
+                        'source' => $diff['origin'] ?? 'structure',
+                        'posting_run_id' => $run->id,
+                        'posted_at' => now(),
+                    ]);
+                    $item = $trashedItem;
+                } else {
+                    // Use updateOrCreate with proper error handling for race conditions
+                    try {
+                        $item = InvoiceItem::updateOrCreate(
+                            ['invoice_id' => $invoice->id, 'votehead_id' => $diff['votehead_id']],
+                            [
+                                'amount' => $finalAmount, // Set to fee structure amount minus credit notes
+                                'original_amount' => $originalAmount, // Store current fee structure amount (before credit notes)
+                                'status' => $activateNow ? 'active' : 'pending',
+                                'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
+                                'source' => $diff['origin'] ?? 'structure',
+                                'posting_run_id' => $run->id,
+                                'posted_at' => now(),
+                            ]
+                        );
+                    } catch (\Illuminate\Database\QueryException $e) {
+                        // Handle unique constraint violation (race condition or soft-deleted row)
+                        if ($e->getCode() == 23000 || str_contains($e->getMessage(), 'Duplicate entry') || str_contains($e->getMessage(), 'unique_invoice_votehead')) {
+                            // Another request created the item, fetch it (including trashed)
+                            $item = InvoiceItem::withTrashed()
+                                ->where('invoice_id', $invoice->id)
+                                ->where('votehead_id', $diff['votehead_id'])
+                                ->first();
+                            
+                            if (!$item) {
+                                // Item still not found, log and skip
+                                \Log::warning("Invoice item not found after unique constraint violation", [
+                                    'invoice_id' => $invoice->id,
+                                    'votehead_id' => $diff['votehead_id'],
+                                    'error' => $e->getMessage()
+                                ]);
+                                continue;
+                            }
+                            
+                            if ($item->trashed()) {
+                                $item->restore();
+                            }
+                            
+                            // Update the existing item
+                            $item->update([
+                                'amount' => $finalAmount,
+                                'original_amount' => $originalAmount,
+                                'status' => $activateNow ? 'active' : 'pending',
+                                'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
+                                'source' => $diff['origin'] ?? 'structure',
+                                'posting_run_id' => $run->id,
+                                'posted_at' => now(),
                             ]);
-                            continue;
+                        } else {
+                            // Re-throw if it's not a unique constraint violation
+                            throw $e;
                         }
-                        
-                        // Update the existing item
-                        $item->update([
-                            'amount' => $finalAmount,
-                            'original_amount' => $originalAmount,
-                            'status' => $activateNow ? 'active' : 'pending',
-                            'effective_date' => $activateNow ? null : ($effectiveDate ?? null),
-                            'source' => $diff['origin'] ?? 'structure',
-                            'posting_run_id' => $run->id,
-                            'posted_at' => now(),
-                        ]);
-                    } else {
-                        // Re-throw if it's not a unique constraint violation
-                        throw $e;
                     }
                 }
                 
