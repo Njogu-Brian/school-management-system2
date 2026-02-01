@@ -43,7 +43,7 @@ class BankStatementController extends Controller
             ->selectRaw('SUM(amount) as total_amount')
             ->selectRaw('SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count')
             ->selectRaw('SUM(CASE WHEN status = "confirmed" AND payment_created = false THEN 1 ELSE 0 END) as confirmed_count')
-            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND payment_created = true THEN 1 ELSE 0 END) as collected_count')
+            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01 THEN 1 ELSE 0 END) as collected_count')
             ->selectRaw('SUM(CASE WHEN is_archived = true THEN 1 ELSE 0 END) as archived_count')
             ->selectRaw('SUM(CASE WHEN is_duplicate = true THEN 1 ELSE 0 END) as duplicate_count')
             ->selectRaw('SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected_count')
@@ -121,34 +121,12 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only credit transactions
                 break;
             case 'collected':
-                // Confirmed transactions where payment has been created and NOT reversed
+                // Confirmed transactions fully collected (sum of active payments equals transaction amount)
                 $query->where('status', 'confirmed')
-                      ->where('payment_created', true)
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit') // Only credit transactions
-                      ->where(function($q) {
-                          // Primary check: payment_id exists and payment is not reversed
-                          $q->where(function($subQ) {
-                              $subQ->whereNotNull('payment_id')
-                                   ->whereHas('payment', function($paymentQ) {
-                                       $paymentQ->where('reversed', false)
-                                                ->whereNull('deleted_at');
-                                   });
-                          })
-                          ->orWhere(function($subQ) {
-                              // Fallback: check by reference number for shared payments
-                              $subQ->whereNotNull('reference_number')
-                                   ->whereExists(function($existsQ) {
-                                       $existsQ->select(\DB::raw(1))
-                                               ->from('payments')
-                                               ->whereColumn('payments.transaction_code', 'bank_statement_transactions.reference_number')
-                                               ->orWhere('payments.transaction_code', 'LIKE', \DB::raw("CONCAT(bank_statement_transactions.reference_number, '-%')"))
-                                               ->where('payments.reversed', false)
-                                               ->whereNull('payments.deleted_at');
-                                   });
-                          });
-                      });
+                      ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01');
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
@@ -389,32 +367,10 @@ class BankStatementController extends Controller
                 })
                 ->count(),
             'collected' => BankStatementTransaction::where('status', 'confirmed')
-                ->where('payment_created', true)
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
-                ->where(function($q) {
-                    // Primary check: payment_id exists and payment is not reversed
-                    $q->where(function($subQ) {
-                        $subQ->whereNotNull('payment_id')
-                             ->whereHas('payment', function($paymentQ) {
-                                 $paymentQ->where('reversed', false)
-                                          ->whereNull('deleted_at');
-                             });
-                    })
-                    ->orWhere(function($subQ) {
-                        // Fallback: check by reference number for shared payments
-                        $subQ->whereNotNull('reference_number')
-                             ->whereExists(function($existsQ) {
-                                 $existsQ->select(\DB::raw(1))
-                                         ->from('payments')
-                                         ->whereColumn('payments.transaction_code', 'bank_statement_transactions.reference_number')
-                                         ->orWhere('payments.transaction_code', 'LIKE', \DB::raw("CONCAT(bank_statement_transactions.reference_number, '-%')"))
-                                         ->where('payments.reversed', false)
-                                         ->whereNull('payments.deleted_at');
-                             });
-                    });
-                })
+                ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01')
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
                         $subQ->where('is_swimming_transaction', false)
@@ -453,6 +409,28 @@ class BankStatementController extends Controller
             $currentPerPage = 25;
         }
         
+        // Enrich transactions with payment totals for badges
+        $transactions->getCollection()->transform(function ($transaction) {
+            if ($transaction instanceof \App\Models\BankStatementTransaction) {
+                $ref = $transaction->reference_number;
+                $activeTotal = 0.0;
+                if ($ref) {
+                    $activeTotal = (float) \App\Models\Payment::where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($ref) {
+                            $q->where('transaction_code', $ref)
+                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        })
+                        ->sum('amount');
+                }
+                $transaction->active_payment_total = $activeTotal;
+            } elseif ($transaction instanceof \App\Models\MpesaC2BTransaction) {
+                $payment = $transaction->payment ?? null;
+                $transaction->active_payment_total = ($payment && !$payment->reversed && $payment->deleted_at === null) ? (float) $payment->amount : 0.0;
+            }
+            return $transaction;
+        });
+
         return view('finance.bank-statements.index', compact('transactions', 'bankAccounts', 'view', 'counts', 'totalAmount', 'totalCount', 'perPageOptions', 'currentPerPage'));
     }
 
@@ -1264,7 +1242,25 @@ class BankStatementController extends Controller
             }
         }
 
-        return view('finance.bank-statements.show', compact('bankStatement', 'siblings', 'possibleMatches', 'allPayments', 'activePayments', 'reversedPayments', 'rawTransaction', 'isC2B'));
+        $activeTotal = (float) $activePayments->sum('amount');
+        $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal);
+        $canCreateAdditionalPayments = $bankStatement->status === 'confirmed'
+            && $remainingAmount > 0.01
+            && ($bankStatement->student_id || ($bankStatement->is_shared ?? false));
+
+        return view('finance.bank-statements.show', compact(
+            'bankStatement',
+            'siblings',
+            'possibleMatches',
+            'allPayments',
+            'activePayments',
+            'reversedPayments',
+            'rawTransaction',
+            'isC2B',
+            'activeTotal',
+            'remainingAmount',
+            'canCreateAdditionalPayments'
+        ));
     }
 
     /**
@@ -1856,7 +1852,22 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Only confirmed transactions can have payments created directly.']);
         }
         
-        if ($bankStatement->payment_created) {
+        // Allow creating missing payments even if payment_created is true (partial collection)
+        $activePayments = collect();
+        $remainingAmount = null;
+        if (!$isC2B && $bankStatement->reference_number) {
+            $ref = $bankStatement->reference_number;
+            $activePayments = \App\Models\Payment::where('reversed', false)
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
+                ->get();
+            $remainingAmount = max(0, (float) $bankStatement->amount - (float) $activePayments->sum('amount'));
+        }
+        
+        if ($bankStatement->payment_created && $remainingAmount !== null && $remainingAmount <= 0.01) {
             return redirect()->back()
                 ->withErrors(['error' => 'Payment already exists for this transaction.']);
         }
@@ -1886,7 +1897,7 @@ class BankStatementController extends Controller
                 }
                 
                 // If there are non-reversed payments, link to them instead of creating new ones
-                if ($nonReversedPayments->isNotEmpty()) {
+                if ($nonReversedPayments->isNotEmpty() && !$bankStatement->is_shared) {
                     $existingPayment = $bankStatement->payment_id 
                         ? \App\Models\Payment::find($bankStatement->payment_id)
                         : $nonReversedPayments->first();
@@ -1933,7 +1944,13 @@ class BankStatementController extends Controller
                     if ($isC2B) {
                         $payment = $this->createPaymentForC2B($transaction);
                     } else {
-                        $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                        // If payments already exist, create missing ones only
+                        if ($bankStatement->payment_created && $remainingAmount !== null && $remainingAmount > 0.01) {
+                            $created = $this->parser->createMissingPaymentsForTransaction($transaction, false);
+                            $payment = $created[0] ?? null;
+                        } else {
+                            $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                        }
                     }
                     
                     // Log all payments created (for shared transactions, log all siblings)
@@ -2016,6 +2033,62 @@ class BankStatementController extends Controller
             return redirect()->back()
                 ->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * Reconcile payment_created and payment_id for bank statement transactions.
+     */
+    public function reconcilePayments(Request $request)
+    {
+        $updated = 0;
+        $reset = 0;
+
+        BankStatementTransaction::whereNotNull('reference_number')
+            ->orderBy('id')
+            ->chunkById(200, function ($transactions) use (&$updated, &$reset) {
+                foreach ($transactions as $transaction) {
+                    $ref = $transaction->reference_number;
+                    if (!$ref) {
+                        continue;
+                    }
+
+                    $activePayments = Payment::where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($ref) {
+                            $q->where('transaction_code', $ref)
+                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        })
+                        ->orderBy('created_at')
+                        ->get();
+
+                    $activeTotal = (float) $activePayments->sum('amount');
+                    $firstPaymentId = $activePayments->first()?->id;
+
+                    if ($activeTotal > 0.01) {
+                        $needsUpdate = !$transaction->payment_created || $transaction->payment_id != $firstPaymentId;
+                        if ($needsUpdate) {
+                            $transaction->update([
+                                'payment_created' => true,
+                                'payment_id' => $firstPaymentId,
+                                'status' => $transaction->status === 'rejected' ? 'rejected' : 'confirmed',
+                            ]);
+                            $updated++;
+                        }
+                    } else {
+                        if ($transaction->payment_created || $transaction->payment_id) {
+                            $transaction->update([
+                                'payment_created' => false,
+                                'payment_id' => null,
+                            ]);
+                            $reset++;
+                        }
+                    }
+                }
+            });
+
+        return redirect()
+            ->route('finance.bank-statements.index')
+            ->with('success', "Reconcile complete. {$updated} updated, {$reset} reset.");
     }
 
     /**

@@ -1444,6 +1444,82 @@ class BankStatementParser
             return $payment;
         }
     }
+
+    /**
+     * Create missing payments for a transaction that already has partial payments.
+     */
+    public function createMissingPaymentsForTransaction(BankStatementTransaction $transaction, bool $skipAllocation = false): array
+    {
+        if (!$transaction->isConfirmed()) {
+            throw new \Exception('Transaction must be confirmed before creating payment');
+        }
+
+        $ref = $transaction->reference_number;
+        if (!$ref) {
+            throw new \Exception('Transaction reference number is required to create payments.');
+        }
+
+        $activePayments = \App\Models\Payment::where('reversed', false)
+            ->whereNull('deleted_at')
+            ->where(function ($q) use ($ref) {
+                $q->where('transaction_code', $ref)
+                  ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+            })
+            ->get();
+
+        $created = [];
+        $totalActive = (float) $activePayments->sum('amount');
+
+        if ($transaction->is_shared && $transaction->shared_allocations) {
+            $paidByStudent = $activePayments->groupBy('student_id')->map(fn($rows) => (float) $rows->sum('amount'));
+
+            $sharedReceiptNumber = $activePayments->pluck('shared_receipt_number')->filter()->first()
+                ?? $activePayments->pluck('receipt_number')->filter()->first();
+
+            foreach ($transaction->shared_allocations as $allocation) {
+                $studentId = (int) ($allocation['student_id'] ?? 0);
+                $expectedAmount = (float) ($allocation['amount'] ?? 0);
+                if ($studentId === 0 || $expectedAmount <= 0) {
+                    continue;
+                }
+
+                $alreadyPaid = (float) ($paidByStudent[$studentId] ?? 0);
+                $remaining = $expectedAmount - $alreadyPaid;
+                if ($remaining <= 0.01) {
+                    continue;
+                }
+
+                $student = Student::findOrFail($studentId);
+                $payment = $this->createSinglePayment(
+                    $transaction,
+                    $student,
+                    $remaining,
+                    $sharedReceiptNumber,
+                    $skipAllocation
+                );
+                $created[] = $payment;
+            }
+        } else {
+            $remaining = (float) $transaction->amount - $totalActive;
+            if ($remaining > 0.01) {
+                $student = Student::findOrFail($transaction->student_id);
+                $payment = $this->createSinglePayment($transaction, $student, $remaining, null, $skipAllocation);
+                $created[] = $payment;
+            }
+        }
+
+        if (!empty($created)) {
+            $firstPayment = $activePayments->first() ?? $created[0];
+            $transaction->update([
+                'payment_id' => $firstPayment->id,
+                'payment_created' => true,
+                'status' => 'confirmed',
+                'match_status' => 'manual',
+            ]);
+        }
+
+        return $created;
+    }
     
     /**
      * Create a single payment record

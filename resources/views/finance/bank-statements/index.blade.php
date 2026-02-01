@@ -245,13 +245,21 @@
             @endif
         </div>
         
-        <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
-            @csrf
-            <div id="autoAssignTransactionIdsContainer"></div>
-            <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()" id="autoAssignBtn">
-                <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
-            </button>
-        </form>
+        <div class="d-flex gap-2">
+            <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
+                @csrf
+                <div id="autoAssignTransactionIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()" id="autoAssignBtn">
+                    <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
+                </button>
+            </form>
+            <form method="POST" action="{{ route('finance.bank-statements.reconcile-payments') }}" onsubmit="return confirm('Reconcile payment links for all bank statement transactions?');">
+                @csrf
+                <button type="submit" class="btn btn-finance btn-finance-secondary">
+                    <i class="bi bi-arrow-repeat"></i> Reconcile Payments
+                </button>
+            </form>
+        </div>
     </div>
 
     <!-- Transactions Table -->
@@ -336,6 +344,9 @@
                             $txnIsShared = $isC2B ? false : ($transaction->is_shared ?? false);
                             $txnSharedAllocations = $isC2B ? [] : ($transaction->shared_allocations ?? []);
                             $txnAllocationStatus = $isC2B ? ($transaction->allocation_status ?? 'unallocated') : null;
+                            $activeTotal = (float) ($transaction->active_payment_total ?? 0);
+                            $isFullyCollected = $txnStatus === 'confirmed' && $activeTotal >= ($txnAmount - 0.01);
+                            $isPartiallyCollected = $txnStatus === 'confirmed' && $activeTotal > 0.01 && $activeTotal < ($txnAmount - 0.01);
                             
                             // Permission checks
                             $canConfirm = $txnStatus === 'draft' 
@@ -516,8 +527,10 @@
                                     <span class="badge bg-secondary">Archived</span>
                                 @elseif($txnIsDuplicate)
                                     <span class="badge bg-danger">Duplicate</span>
-                                @elseif($txnStatus == 'confirmed' && $txnPaymentCreated)
+                                @elseif($isFullyCollected)
                                     <span class="badge bg-success">Collected</span>
+                                @elseif($isPartiallyCollected)
+                                    <span class="badge bg-warning text-dark">Partially Collected</span>
                                 @elseif($txnStatus == 'confirmed')
                                     <span class="badge bg-primary">Confirmed</span>
                                 @elseif($txnStatus == 'rejected')

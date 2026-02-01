@@ -110,9 +110,15 @@
                             if (($bankStatement->payment_id && ($bankStatement->payment_created ?? false)) && $displayStatus !== 'rejected') {
                                 $displayStatus = 'confirmed';
                             }
+                            $isFullyCollected = ($remainingAmount ?? 0) <= 0.01 && ($activeTotal ?? 0) > 0.01;
+                            $isPartiallyCollected = ($remainingAmount ?? 0) > 0.01 && ($activeTotal ?? 0) > 0.01;
                         @endphp
                         @if($displayStatus == 'draft')
                             <span class="badge bg-warning">Draft</span>
+                        @elseif($displayStatus == 'confirmed' && $isFullyCollected)
+                            <span class="badge bg-success">Collected</span>
+                        @elseif($displayStatus == 'confirmed' && $isPartiallyCollected)
+                            <span class="badge bg-warning text-dark">Partially Collected</span>
                         @elseif($displayStatus == 'confirmed')
                             <span class="badge bg-success">Confirmed</span>
                         @else
@@ -662,6 +668,12 @@
                     <h5 class="mb-0">Created Payment(s)</h5>
                 </div>
                 <div class="finance-card-body p-4">
+                    @if(($remainingAmount ?? 0) > 0.01)
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i>
+                            Remaining unallocated amount: <strong>Ksh {{ number_format($remainingAmount, 2) }}</strong>
+                        </div>
+                    @endif
                     {{-- Reversed first (history), then active / newly created below --}}
                     @if($reversedPayments->isNotEmpty())
                         <div class="alert alert-warning mb-4">
@@ -874,13 +886,13 @@
                         <a href="{{ route('finance.bank-statements.edit', $bankStatement->id) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
                             <i class="bi bi-pencil"></i> Edit / Match Manually
                         </a>
-                    @elseif($bankStatement->status == 'confirmed' && !$bankStatement->payment_created)
+                    @elseif($canCreateAdditionalPayments ?? false)
                         <!-- Actions for confirmed transactions without payments (unallocated uncollected) -->
                         @if($bankStatement->student_id || ($bankStatement->is_shared ?? false))
-                            <form method="POST" action="{{ route('finance.bank-statements.create-payment', $bankStatement->id) }}" class="mb-2" onsubmit="return confirm('Create payment for this transaction? This will allocate the payment to student invoices.');">
+                            <form method="POST" action="{{ route('finance.bank-statements.create-payment', $bankStatement->id) }}" class="mb-2" onsubmit="return confirm('Create payment for remaining amount? This will allocate the payment to student invoices.');">
                                 @csrf
                                 <button type="submit" class="btn btn-finance btn-finance-success w-100">
-                                    <i class="bi bi-cash-coin"></i> Create Payment
+                                    <i class="bi bi-cash-coin"></i> Create Payment (Ksh {{ number_format($remainingAmount ?? 0, 2) }})
                                 </button>
                             </form>
                         @endif
