@@ -176,6 +176,9 @@ class StaffController extends Controller
             'department_id','job_title_id','supervisor_id','staff_category_id',
             'basic_salary','max_lessons_per_week'
         ]);
+        $phoneService = app(\App\Services\PhoneNumberService::class);
+        $staffData['phone_number'] = $phoneService->formatWithCountryCode($staffData['phone_number'] ?? null, '+254');
+        $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode($staffData['emergency_contact_phone'] ?? null, '+254');
         $staffData['user_id']  = $user->id;
         $staffData['staff_id'] = $staffId;
 
@@ -423,6 +426,9 @@ class StaffController extends Controller
                 'hire_date','termination_date','employment_status','employment_type',
                 'contract_start_date','contract_end_date'
             ]);
+            $phoneService = app(\App\Services\PhoneNumberService::class);
+            $staffData['phone_number'] = $phoneService->formatWithCountryCode($staffData['phone_number'] ?? null, '+254');
+            $staffData['emergency_contact_phone'] = $phoneService->formatWithCountryCode($staffData['emergency_contact_phone'] ?? null, '+254');
 
             if ($request->hasFile('photo')) {
                 // Delete old photo if exists

@@ -382,19 +382,24 @@ class LegacyFinanceImportController extends Controller
         }
 
         $students = Student::query()
-            ->select('id', 'first_name', 'last_name', 'admission_number')
+            ->select('id', 'first_name', 'last_name', 'admission_number', 'classroom_id')
             ->where(function ($w) use ($q) {
                 $w->where('first_name', 'like', "%{$q}%")
                     ->orWhere('last_name', 'like', "%{$q}%")
                     ->orWhere('admission_number', 'like', "%{$q}%");
             })
+            ->with('classroom')
             ->orderBy('first_name')
             ->limit(15)
             ->get()
             ->map(function ($s) {
+                $classroom = $s->classroom ? $s->classroom->name : null;
                 return [
                     'id' => $s->id,
-                    'label' => "{$s->first_name} {$s->last_name} ({$s->admission_number})",
+                    'label' => $classroom
+                        ? "{$s->first_name} {$s->last_name} ({$s->admission_number}) - {$classroom}"
+                        : "{$s->first_name} {$s->last_name} ({$s->admission_number})",
+                    'classroom_name' => $classroom,
                 ];
             });
 

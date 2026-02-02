@@ -621,19 +621,8 @@ class OnlineAdmissionController extends Controller
      */
     protected function normalizeCountryCode(?string $code): string
     {
-        if (!$code) {
-            return '+254';
-        }
-        $code = trim($code);
-        // Handle +ke or ke
-        if (strtolower($code) === '+ke' || strtolower($code) === 'ke') {
-            return '+254';
-        }
-        // Ensure it starts with +
-        if (!str_starts_with($code, '+')) {
-            return '+' . ltrim($code, '+');
-        }
-        return $code;
+        return app(\App\Services\PhoneNumberService::class)
+            ->normalizeCountryCode($code);
     }
 
     /**
@@ -641,18 +630,8 @@ class OnlineAdmissionController extends Controller
      */
     protected function formatPhoneWithCode(?string $number, ?string $code = '+254'): ?string
     {
-        if (!$number) {
-            return null;
-        }
-        // Ensure code is properly formatted (handle +ke or ke to +254)
-        $code = $this->normalizeCountryCode($code);
-        $cleanCode = ltrim(trim($code ?? '+254'), '+');
-        $cleanNumber = preg_replace('/\D+/', '', $number);
-        $cleanNumber = ltrim($cleanNumber, '0');
-        if ($cleanNumber === '') {
-            return null;
-        }
-        return '+' . $cleanCode . $cleanNumber;
+        return app(\App\Services\PhoneNumberService::class)
+            ->formatWithCountryCode($number, $code);
     }
 
     /**

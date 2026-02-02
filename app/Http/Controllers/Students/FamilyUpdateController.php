@@ -1058,54 +1058,14 @@ class FamilyUpdateController extends Controller
      */
     private function normalizeCountryCode(?string $code): string
     {
-        if (!$code) {
-            return '+254';
-        }
-        $code = trim($code);
-        // Handle +ke, ke, KE, +KE
-        $codeLower = strtolower($code);
-        if ($codeLower === '+ke' || $codeLower === 'ke') {
-            return '+254';
-        }
-        // Ensure it starts with +
-        if (!str_starts_with($code, '+')) {
-            return '+' . ltrim($code, '+');
-        }
-        return $code;
+        return app(\App\Services\PhoneNumberService::class)
+            ->normalizeCountryCode($code);
     }
 
     private function formatPhoneWithCode(?string $phone, ?string $code = '+254'): ?string
     {
-        if (!$phone) {
-            return null;
-        }
-
-        // Normalize country code first (convert +KE to +254)
-        $code = $this->normalizeCountryCode($code);
-        
-        // Check if phone already contains +KE and replace it
-        if (stripos($phone, '+KE') !== false) {
-            $phone = str_ireplace('+KE', '', $phone);
-        }
-        
-        $cleanPhone = preg_replace('/\D+/', '', $phone);
-        $cleanCode = ltrim($code, '+');
-
-        // If phone already starts with country code (with or without plus), keep as is
-        if (str_starts_with($phone, '+') && str_starts_with($phone, '+' . $cleanCode)) {
-            return $phone;
-        }
-        
-        if (str_starts_with($cleanPhone, $cleanCode)) {
-            return '+' . $cleanPhone;
-        }
-
-        // If starts with 0, drop it then prepend code
-        if (str_starts_with($cleanPhone, '0')) {
-            $cleanPhone = ltrim($cleanPhone, '0');
-        }
-
-        return $code . $cleanPhone;
+        return app(\App\Services\PhoneNumberService::class)
+            ->formatWithCountryCode($phone, $code);
     }
 }
 

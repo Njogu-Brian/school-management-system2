@@ -457,6 +457,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     {{-- ============================================ --}}
     @php
         $reportsActive = Request::is('finance/accountant-dashboard*') || Request::is('finance/student-statements*') || Request::is('finance/fee-balances*') || Request::is('finance/balance-brought-forward*') || Request::is('finance/fees-comparison-import*');
+        $systemReportsActive = Request::is('reports/phone-normalization*');
     @endphp
     <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Reports</span>
     <a href="#reportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $reportsActive ? 'true' : 'false' }}" class="{{ $reportsActive ? 'parent-active' : '' }}"><i class="bi bi-graph-up"></i> Financial Reports</a>
@@ -466,6 +467,10 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('finance.fee-balances.index') }}" class="sublink {{ Request::is('finance/fee-balances*') ? 'active' : '' }}"><i class="bi bi-wallet2"></i> Fee Balance Report</a>
         <a href="{{ route('finance.balance-brought-forward.index') }}" class="sublink {{ Request::is('finance/balance-brought-forward*') ? 'active' : '' }}"><i class="bi bi-arrow-left-circle"></i> Balance Brought Forward</a>
         <a href="{{ route('finance.fees-comparison-import.index') }}" class="sublink {{ Request::is('finance/fees-comparison-import*') ? 'active' : '' }}"><i class="bi bi-file-earmark-spreadsheet"></i> Fees Comparison Import</a>
+    </div>
+    <a href="#systemReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $systemReportsActive ? 'true' : 'false' }}" class="{{ $systemReportsActive ? 'parent-active' : '' }}"><i class="bi bi-clipboard-data"></i> System Reports</a>
+    <div class="collapse {{ $systemReportsActive ? 'show' : '' }}" id="systemReportsMenu" style="padding-left: 20px;">
+        <a href="{{ route('reports.phone-normalization.index') }}" class="sublink {{ Request::is('reports/phone-normalization*') ? 'active' : '' }}"><i class="bi bi-telephone"></i> Phone Normalization</a>
     </div>
 </div>
 

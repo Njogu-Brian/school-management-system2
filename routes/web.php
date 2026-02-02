@@ -32,6 +32,7 @@ use App\Http\Controllers\Admin\SeniorTeacherAssignmentController;
 use App\Http\Controllers\Academics\AcademicConfigController;
 use App\Http\Controllers\Settings\SchoolDayController;
 use App\Http\Controllers\Settings\SettingController;
+use App\Http\Controllers\Reports\PhoneNormalizationReportController;
 
 // Students & Parents
 use App\Http\Controllers\Students\StudentController;
@@ -777,6 +778,15 @@ Route::middleware('auth')->group(function () {
                 Route::post('/custom-deductions/{id}/suspend', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'suspend'])->name('custom-deductions.suspend');
                 Route::post('/custom-deductions/{id}/activate', [\App\Http\Controllers\Hr\CustomDeductionController::class, 'activate'])->name('custom-deductions.activate');
             });
+        });
+
+    // System Reports
+    Route::prefix('reports')
+        ->middleware('role:Super Admin|Admin|Secretary')
+        ->name('reports.')
+        ->group(function () {
+            Route::get('/phone-normalization', [PhoneNormalizationReportController::class, 'index'])
+                ->name('phone-normalization.index');
         });
 
     /*

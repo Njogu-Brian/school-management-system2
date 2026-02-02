@@ -602,7 +602,8 @@
           const a = document.createElement('a');
           a.href = '#';
           a.className = 'list-group-item list-group-item-action';
-          a.textContent = `${r.admission_number} — ${r.full_name}`;
+          const cls = r.classroom_name ? ` — ${r.classroom_name}` : '';
+          a.textContent = `${r.admission_number} — ${r.full_name}${cls}`;
           a.addEventListener('click', (e)=>{
             e.preventDefault();
             // set hidden field to copy family from this student

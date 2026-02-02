@@ -1558,7 +1558,8 @@ class StudentController extends Controller
                                      ->where('is_alumni', false);
                     }
                     
-                    $siblings = $siblingsQuery->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number')
+                    $siblings = $siblingsQuery->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
+                        ->with('classroom')
                         ->get()
                         ->map(function ($sib) {
                             $fullName = trim(implode(' ', array_filter([
@@ -1574,6 +1575,7 @@ class StudentController extends Controller
                                 'last_name' => $sib->last_name,
                                 'full_name' => $fullName,
                                 'admission_number' => $sib->admission_number ?? '',
+                                'classroom_name' => $sib->classroom ? $sib->classroom->name : null,
                             ];
                         })
                         ->values()
@@ -1593,6 +1595,9 @@ class StudentController extends Controller
                     'siblings' => $siblings,
                     'admission_number' => $st->admission_number ?? '',
                     'classroom_name' => $st->classroom ? $st->classroom->name : null,
+                    'label' => $st->classroom
+                        ? "{$full} ({$st->admission_number}) - {$st->classroom->name}"
+                        : "{$full} ({$st->admission_number})",
                     'family_id' => $st->family_id,
                     'is_alumni' => $st->is_alumni ?? false,
                     'is_archived' => $st->archive ?? false,
@@ -2067,18 +2072,8 @@ class StudentController extends Controller
      */
     protected function formatPhoneWithCode(?string $number, ?string $code = '+254'): ?string
     {
-        if (!$number) {
-            return null;
-        }
-        // Ensure code is properly formatted (handle +ke or ke to +254)
-        $code = $this->normalizeCountryCode($code);
-        $cleanCode = ltrim(trim($code ?? '+254'), '+');
-        $cleanNumber = preg_replace('/\D+/', '', $number);
-        $cleanNumber = ltrim($cleanNumber, '0');
-        if ($cleanNumber === '') {
-            return null;
-        }
-        return '+' . $cleanCode . $cleanNumber;
+        return app(\App\Services\PhoneNumberService::class)
+            ->formatWithCountryCode($number, $code);
     }
 
     /**
@@ -2086,19 +2081,8 @@ class StudentController extends Controller
      */
     protected function normalizeCountryCode(?string $code): string
     {
-        if (!$code) {
-            return '+254';
-        }
-        $code = trim($code);
-        // Handle +ke or ke
-        if (strtolower($code) === '+ke' || strtolower($code) === 'ke') {
-            return '+254';
-        }
-        // Ensure it starts with +
-        if (!str_starts_with($code, '+')) {
-            return '+' . ltrim($code, '+');
-        }
-        return $code;
+        return app(\App\Services\PhoneNumberService::class)
+            ->normalizeCountryCode($code);
     }
 
     /**
@@ -2107,22 +2091,8 @@ class StudentController extends Controller
      */
     protected function extractLocalPhone(?string $fullPhone, ?string $countryCode = '+254'): ?string
     {
-        if (!$fullPhone) {
-            return null;
-        }
-        $countryCode = $this->normalizeCountryCode($countryCode);
-        $cleanCode = ltrim($countryCode, '+');
-        
-        // Remove all non-digits from full phone
-        $digits = preg_replace('/\D+/', '', $fullPhone);
-        
-        // If phone starts with country code, remove it
-        if (str_starts_with($digits, $cleanCode)) {
-            return substr($digits, strlen($cleanCode));
-        }
-        
-        // If it's already just local digits, return as is
-        return $digits;
+        return app(\App\Services\PhoneNumberService::class)
+            ->extractLocalNumber($fullPhone, $countryCode);
     }
 
     /**

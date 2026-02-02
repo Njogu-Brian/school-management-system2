@@ -64,6 +64,9 @@ class StaffImport implements ToCollection
                     'supervisor_staff_id' => trim((string)($row[24] ?? '')),
                     'spatie_role_name'    => trim((string)($row[25] ?? '')),
                 ];
+                $phoneService = app(\App\Services\PhoneNumberService::class);
+                $data['phone_number'] = $phoneService->formatWithCountryCode($data['phone_number'] ?? null, '+254');
+                $data['emergency_contact_phone'] = $phoneService->formatWithCountryCode($data['emergency_contact_phone'] ?? null, '+254');
 
                 // Required checks
                 if (!$data['first_name'] || !$data['last_name'] || !$data['work_email'] || !$data['phone_number'] || !$data['id_number']) {

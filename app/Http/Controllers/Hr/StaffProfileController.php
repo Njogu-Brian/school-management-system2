@@ -67,6 +67,10 @@ class StaffProfileController extends Controller
         $data['bank_branch'] = !empty($data['bank_branch']) ? $data['bank_branch'] : null;
         $data['bank_account'] = !empty($data['bank_account']) ? $data['bank_account'] : null;
 
+        $phoneService = app(\App\Services\PhoneNumberService::class);
+        $data['phone_number'] = $phoneService->formatWithCountryCode($data['phone_number'] ?? null, '+254');
+        $data['emergency_contact_phone'] = $phoneService->formatWithCountryCode($data['emergency_contact_phone'] ?? null, '+254');
+
         // Handle photo upload separately (apply immediately, no approval needed)
         $photoUpdated = false;
         if ($request->hasFile('photo')) {
