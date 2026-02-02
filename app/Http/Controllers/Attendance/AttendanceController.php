@@ -243,13 +243,14 @@ public function mark(Request $request)
 
                 // Use preset reason for communication
                 $reasonForNotification = $presetReason ?? $attendance->reason ?? 'Not specified';
+                $statusForNotification = $status;
                 
                 if ($status === 'absent') {
-                    $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $reasonForNotification);
+                    $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $statusForNotification, $reasonForNotification);
                 } elseif ($status === 'late') {
-                    $this->notifyWithTemplate('attendance_late', $student, $humanDate, $reasonForNotification);
+                    $this->notifyWithTemplate('attendance_late', $student, $humanDate, $statusForNotification, $reasonForNotification);
                 } elseif ($oldStatus === 'absent' && $status === 'present') {
-                    $this->notifyWithTemplate('attendance_corrected', $student, $humanDate, $reasonForNotification);
+                    $this->notifyWithTemplate('attendance_corrected', $student, $humanDate, $statusForNotification, $reasonForNotification);
                 }
             }
         } catch (\Exception $e) {
@@ -261,7 +262,7 @@ public function mark(Request $request)
 }
 
 // -------------------- TEMPLATE NOTIFY --------------------
-private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $reason = null)
+private function notifyWithTemplate(string $code, Student $student, string $humanDate, ?string $status = null, ?string $reason = null)
 {
     // Map old codes to new seeder template codes
     $templateCodeMap = [
@@ -283,14 +284,14 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
                 'title' => 'Attendance: Absent (SMS)',
                 'type' => 'sms',
                 'subject' => null,
-                'content' => "Dear {{parent_name}},\n\n{{student_name}} was marked {{attendance_status}} on {{attendance_date}}.\nIf clarification is needed, kindly contact the school.\n\nRegards,\n{{school_name}}",
+                'content' => "Dear {{parent_name}},\n\n{{student_name}} was marked {{attendance_status}} on {{attendance_date}}.\nReason: {{attendance_reason}}\nIf clarification is needed, kindly contact the school.\n\nRegards,\n{{school_name}}",
             ]
         );
     }
 
     $message = $tpl
-        ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $reason)
-        : "Your child {$student->full_name} attendance update for {$humanDate}. Reason: {$reason}";
+        ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $status, $reason)
+        : "Your child {$student->full_name} was marked {$status} on {$humanDate}. Reason: {$reason}";
 
     $phones = array_filter([
         $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
@@ -333,7 +334,7 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
     }
 }
 
-private function applyPlaceholders(string $content, Student $student, string $humanDate, ?string $reason = null): string
+private function applyPlaceholders(string $content, Student $student, string $humanDate, ?string $status = null, ?string $reason = null): string
 {
     // Get school name
     $schoolName = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_name')->value('value') ?? config('app.name', 'School');
@@ -348,7 +349,8 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     $replacements = [
         // Seeder format ({{key}})
         '{{student_name}}' => $student->full_name,
-        '{{attendance_status}}' => $reason ?? 'absent',
+        '{{attendance_status}}' => $status ?? 'absent',
+        '{{attendance_reason}}' => $reason ?? 'Not specified',
         '{{attendance_date}}' => $humanDate,
         '{{parent_name}}' => $parentName,
         '{{school_name}}' => $schoolName,
@@ -359,6 +361,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
         '{date}' => $humanDate,
         '{parent_name}' => $parentName,
         '{reason}' => $reason ?? '',
+        '{attendance_reason}' => $reason ?? '',
     ];
 
     $result = $content;

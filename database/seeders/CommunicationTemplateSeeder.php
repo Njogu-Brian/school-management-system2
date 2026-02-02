@@ -138,14 +138,14 @@ class CommunicationTemplateSeeder extends Seeder
                 'title'   => 'Attendance: Absent (SMS)',
                 'type'    => 'sms',
                 'subject' => null,
-                'content' => "Dear {{parent_name}},\n\n{{student_name}} was marked {{attendance_status}} on {{attendance_date}}.\nIf clarification is needed, kindly contact the school.\n\nRegards,\n{{school_name}}",
+                'content' => "Dear {{parent_name}},\n\n{{student_name}} was marked {{attendance_status}} on {{attendance_date}}.\nReason: {{attendance_reason}}\nIf clarification is needed, kindly contact the school.\n\nRegards,\n{{school_name}}",
             ],
             [
                 'code'    => 'attendance_status_email',
                 'title'   => 'Attendance Update (Email)',
                 'type'    => 'email',
                 'subject' => 'Attendance Update – {{student_name}}',
-                'content' => "Dear {{parent_name}},\n\nWe wish to inform you that {{student_name}}’s attendance status for {{attendance_date}} has been updated to {{attendance_status}}.\n\nThank you for your cooperation.\n\nWarm regards,\n{{school_name}}",
+                'content' => "Dear {{parent_name}},\n\nWe wish to inform you that {{student_name}}’s attendance status for {{attendance_date}} has been updated to {{attendance_status}}.\nReason: {{attendance_reason}}\n\nThank you for your cooperation.\n\nWarm regards,\n{{school_name}}",
             ],
 
             // Transport
