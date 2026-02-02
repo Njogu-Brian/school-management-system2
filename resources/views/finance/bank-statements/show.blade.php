@@ -712,6 +712,10 @@
                             </h6>
                             <ul class="list-unstyled mb-0">
                                 @foreach($activePayments as $payment)
+                                    @php
+                                        $paymentAllocated = $payment->reversed ? 0 : (float) ($payment->allocations->sum('amount') ?? 0);
+                                        $paymentUnallocated = $payment->reversed ? 0 : max(0, (float) $payment->amount - $paymentAllocated);
+                                    @endphp
                                     <li class="mb-2">
                                         <a href="{{ route('finance.payments.show', $payment) }}" class="text-decoration-none">
                                             <strong>#{{ $payment->receipt_number ?? $payment->transaction_code }}</strong>
@@ -720,6 +724,14 @@
                                             - {{ $payment->student->full_name }} ({{ $payment->student->admission_number }})
                                         @endif
                                         - Ksh {{ number_format($payment->amount, 2) }}
+                                        @if($paymentUnallocated > 0.01)
+                                            <div class="small text-muted mt-1">
+                                                Unallocated: <strong>Ksh {{ number_format($paymentUnallocated, 2) }}</strong>
+                                            </div>
+                                            <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-finance btn-finance-primary mt-2">
+                                                <i class="bi bi-plus-circle"></i> Allocate Remaining
+                                            </a>
+                                        @endif
                                     </li>
                                 @endforeach
                             </ul>

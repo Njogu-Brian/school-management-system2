@@ -11,6 +11,13 @@
     ])
 
     @include('finance.invoices.partials.alerts')
+    @php
+        // Use live allocation totals to avoid stale cached fields
+        $actualAllocatedAmount = $payment->reversed ? 0 : (float) ($payment->allocations->sum('amount') ?? 0);
+        $actualUnallocatedAmount = $payment->reversed
+            ? (float) $payment->amount
+            : max(0, (float) $payment->amount - $actualAllocatedAmount);
+    @endphp
 
     <div class="row">
         <div class="col-md-8">
@@ -55,11 +62,6 @@
                             <dl class="row mb-0">
                                 <dt class="col-sm-5">Allocated Amount:</dt>
                                 <dd class="col-sm-7">
-                                    @php
-                                        // Calculate actual allocated amount from allocations (not cached field)
-                                        // This ensures accuracy even if cached field is stale
-                                        $actualAllocatedAmount = $payment->reversed ? 0 : ($payment->allocations->sum('amount') ?? 0);
-                                    @endphp
                                     <strong class="text-success">Ksh {{ number_format($actualAllocatedAmount, 2) }}</strong>
                                     @if($payment->reversed)
                                         <span class="badge bg-danger ms-2">Reversed</span>
@@ -68,9 +70,6 @@
 
                                 <dt class="col-sm-5">Unallocated Amount:</dt>
                                 <dd class="col-sm-7">
-                                    @php
-                                        $actualUnallocatedAmount = $payment->reversed ? $payment->amount : ($payment->amount - $actualAllocatedAmount);
-                                    @endphp
                                     <strong class="text-warning">Ksh {{ number_format($actualUnallocatedAmount, 2) }}</strong>
                                 </dd>
 
@@ -103,7 +102,7 @@
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Payment Allocations</h5>
-                    @if($payment->unallocated_amount > 0)
+                    @if(!$payment->reversed && $actualUnallocatedAmount > 0.01)
                     <button type="button" class="btn btn-sm btn-finance btn-finance-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
                         <i class="bi bi-plus-circle"></i> Allocate Payment
                     </button>
@@ -176,7 +175,7 @@
                     @else
                     <div class="p-4 text-center">
                         <p class="text-muted mb-3">No allocations yet.</p>
-                        @if($payment->unallocated_amount > 0)
+                        @if(!$payment->reversed && $actualUnallocatedAmount > 0.01)
                         <button type="button" class="btn btn-finance btn-finance-primary" data-bs-toggle="modal" data-bs-target="#allocateModal">
                             <i class="bi bi-plus-circle"></i> Allocate Payment
                         </button>
@@ -431,11 +430,6 @@
                             <span class="finance-badge badge-paid">Paid</span>
                         @endif
                     </div>
-                    @php
-                        // Calculate actual allocated amount from allocations (not cached field)
-                        $actualAllocatedAmount = $payment->reversed ? 0 : ($payment->allocations->sum('amount') ?? 0);
-                        $actualUnallocatedAmount = $payment->reversed ? $payment->amount : ($payment->amount - $actualAllocatedAmount);
-                    @endphp
                     <div class="mb-2">
                         <strong>Allocated:</strong><br>
                         <span class="h6 text-success">Ksh {{ number_format($actualAllocatedAmount, 2) }}</span>
@@ -452,7 +446,7 @@
 </div>
 
 <!-- Allocation Modal -->
-@if($payment->unallocated_amount > 0)
+@if(!$payment->reversed && $actualUnallocatedAmount > 0.01)
 <div class="modal fade" id="allocateModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -464,7 +458,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted mb-3">
-                        Available to allocate: <strong>Ksh {{ number_format($payment->unallocated_amount ?? $payment->amount, 2) }}</strong>
+                        Available to allocate: <strong>Ksh {{ number_format($actualUnallocatedAmount, 2) }}</strong>
                     </p>
                     
                     <div id="allocation_items">
@@ -540,7 +534,7 @@
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <strong>Available to transfer:</strong> Ksh {{ number_format($payment->amount, 2) }}
-                        @if($payment->unallocated_amount < $payment->amount)
+                        @if($actualAllocatedAmount > 0.01)
                             <div class="small text-info mt-1">
                                 <i class="bi bi-info-circle"></i> 
                                 Note: This payment has allocated amounts. Transferring allocated amounts will automatically deallocate them from the original student's invoices.
@@ -667,7 +661,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const allocationInputs = document.querySelectorAll('.allocation-amount');
-    const availableAmount = {{ $payment->unallocated_amount ?? $payment->amount }};
+    const availableAmount = {{ $actualUnallocatedAmount }};
     let totalAllocated = 0;
 
     allocationInputs.forEach(input => {
