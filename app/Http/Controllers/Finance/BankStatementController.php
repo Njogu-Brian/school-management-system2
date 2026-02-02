@@ -2406,7 +2406,6 @@ class BankStatementController extends Controller
             ->route('finance.bank-statements.show', $id, ['type' => $isC2B ? 'c2b' : 'bank'])
             ->with('success', 'Transaction split into fees and swimming successfully.');
     }
-    }
 
     /**
      * Reconcile payment_created and payment_id for bank statement transactions.
