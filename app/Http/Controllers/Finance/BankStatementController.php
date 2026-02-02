@@ -2152,10 +2152,9 @@ class BankStatementController extends Controller
                         }
                     }
                     
-                    // Queue receipt generation and notifications
+                    // Process receipt generation and notifications immediately
                     if (isset($payment)) {
-                        \App\Jobs\ProcessSiblingPaymentsJob::dispatch($transaction->id, $payment->id)
-                            ->onQueue('default');
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
                     }
                 }
             });

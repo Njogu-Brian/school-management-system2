@@ -690,7 +690,7 @@ class StudentController extends Controller
         $currentTerm = get_current_term_number();
         $currentTermModel = get_current_term_model();
         $oldCategoryId = $student->category_id;
-        $newCategoryId = (int) $request->category_id;
+        $newCategoryId = $request->filled('category_id') ? (int) $request->category_id : $oldCategoryId;
 
         $hasCurrentInvoice = $currentYear && $currentTerm && Invoice::where('student_id', $student->id)
             ->where('year', $currentYear)
@@ -701,7 +701,7 @@ class StudentController extends Controller
             : true;
         $shouldRebill = $hasCurrentInvoice && $termOpen;
 
-        if ($oldCategoryId !== $newCategoryId && $shouldRebill && !$request->boolean('confirm_category_change')) {
+        if ($request->filled('category_id') && $oldCategoryId !== $newCategoryId && $shouldRebill && !$request->boolean('confirm_category_change')) {
             $preview = $this->buildCategoryChangePreview($student, $newCategoryId, $currentYear, $currentTerm);
 
             return view('students.category_change_preview', [
@@ -732,6 +732,10 @@ class StudentController extends Controller
             'status', 'admission_date', 'graduation_date', 'transfer_date',
             'transfer_to_school', 'status_change_reason', 'is_readmission'
         ]);
+
+        if (!$request->filled('category_id')) {
+            unset($updateData['category_id']);
+        }
         
         // Normalize gender to lowercase
         if (isset($updateData['gender'])) {
@@ -771,7 +775,7 @@ class StudentController extends Controller
         }
         $updateData['drop_off_point'] = $dropOffPointLabel;
 
-        $categoryChanged = $oldCategoryId !== $newCategoryId;
+        $categoryChanged = $request->filled('category_id') && $oldCategoryId !== $newCategoryId;
         if ($categoryChanged && $shouldRebill && $request->boolean('confirm_category_change')) {
             $this->applyCategoryChangeRebilling($student, $newCategoryId, $currentYear, $currentTerm);
         }
@@ -1039,6 +1043,9 @@ class StudentController extends Controller
                 if (!$votehead || !$votehead->is_mandatory) {
                     return false;
                 }
+                if ($this->isTransportVotehead($votehead)) {
+                    return false;
+                }
                 return $votehead->canChargeForStudent($tempStudent, $year, $term);
             })
             ->map(function ($charge) {
@@ -1064,6 +1071,9 @@ class StudentController extends Controller
                     'votehead_id' => $item->votehead_id,
                     'amount' => (float) $item->amount,
                     'origin' => $item->source ?? 'structure',
+                    'votehead_code' => $item->votehead?->code,
+                    'votehead_name' => $item->votehead?->name,
+                    'votehead_category' => $item->votehead?->category,
                 ];
             })
             : collect();
@@ -1072,7 +1082,13 @@ class StudentController extends Controller
 
         foreach ($proposed as $item) {
             $existing = $existingItems->firstWhere('votehead_id', $item['votehead_id']);
+            if ($this->isTransportVoteheadFromArray($item)) {
+                continue;
+            }
             if ($existing) {
+                if ($this->isTransportVoteheadFromArray($existing)) {
+                    continue;
+                }
                 if (round($existing['amount'], 2) !== round($item['amount'], 2)) {
                     $diffs->push([
                         'action' => 'updated',
@@ -1098,6 +1114,9 @@ class StudentController extends Controller
         }
 
         foreach ($existingItems as $existing) {
+            if ($this->isTransportVoteheadFromArray($existing)) {
+                continue;
+            }
             if (!$proposed->contains('votehead_id', $existing['votehead_id'])) {
                 // Keep optional/manual items when only structure/category diffs are expected
                 if (in_array($existing['origin'], ['optional', 'manual'], true)) {
@@ -1116,6 +1135,28 @@ class StudentController extends Controller
         }
 
         return $diffs;
+    }
+
+    private function isTransportVotehead(?\App\Models\Votehead $votehead): bool
+    {
+        if (!$votehead) {
+            return false;
+        }
+
+        $code = strtolower((string) $votehead->code);
+        $name = strtolower((string) $votehead->name);
+        $category = strtolower((string) $votehead->category);
+
+        return $code === 'transport' || $name === 'transport' || $category === 'transport';
+    }
+
+    private function isTransportVoteheadFromArray(array $item): bool
+    {
+        $code = strtolower((string) ($item['votehead_code'] ?? ''));
+        $name = strtolower((string) ($item['votehead_name'] ?? ''));
+        $category = strtolower((string) ($item['votehead_category'] ?? ''));
+
+        return $code === 'transport' || $name === 'transport' || $category === 'transport';
     }
 
     /**
