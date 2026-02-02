@@ -1356,7 +1356,11 @@ class PaymentController extends Controller
             // Also find transactions with the same reference_number (for shared payments)
             $referenceLinkedTransactions = collect();
             if ($payment->transaction_code) {
-                $referenceLinkedTransactions = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)->get();
+                $possibleRefs = collect([$payment->transaction_code]);
+                if (preg_match('/^(.*)-\d+$/', $payment->transaction_code, $matches)) {
+                    $possibleRefs->push($matches[1]);
+                }
+                $referenceLinkedTransactions = \App\Models\BankStatementTransaction::whereIn('reference_number', $possibleRefs->unique()->values()->all())->get();
             }
             
             // Merge and deduplicate
@@ -1368,8 +1372,11 @@ class PaymentController extends Controller
                 $allRelatedPayments = 0;
                 
                 if ($transactionReference) {
-                    $allRelatedPayments = \App\Models\Payment::where('transaction_code', $transactionReference)
-                        ->where('reversed', false)
+                    $allRelatedPayments = \App\Models\Payment::where('reversed', false)
+                        ->where(function ($q) use ($transactionReference) {
+                            $q->where('transaction_code', $transactionReference)
+                              ->orWhere('transaction_code', 'LIKE', $transactionReference . '-%');
+                        })
                         ->count();
                 }
                 
