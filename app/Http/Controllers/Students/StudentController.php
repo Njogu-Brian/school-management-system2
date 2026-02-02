@@ -1516,8 +1516,25 @@ class StudentController extends Controller
                                      ->where('is_alumni', false);
                     }
                     
-                    $siblings = $siblingsQuery->select('id', 'first_name', 'last_name', 'admission_number')
+                    $siblings = $siblingsQuery->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number')
                         ->get()
+                        ->map(function ($sib) {
+                            $fullName = trim(implode(' ', array_filter([
+                                $sib->first_name,
+                                $sib->middle_name,
+                                $sib->last_name,
+                            ])));
+                            
+                            return [
+                                'id' => $sib->id,
+                                'first_name' => $sib->first_name,
+                                'middle_name' => $sib->middle_name,
+                                'last_name' => $sib->last_name,
+                                'full_name' => $fullName,
+                                'admission_number' => $sib->admission_number ?? '',
+                            ];
+                        })
+                        ->values()
                         ->toArray();
                 }
                 

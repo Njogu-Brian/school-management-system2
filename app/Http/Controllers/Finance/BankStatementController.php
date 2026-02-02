@@ -865,8 +865,10 @@ class BankStatementController extends Controller
             'payment_id' => $transaction->payment_id,
             'payment_created' => $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false),
             'is_duplicate' => $transaction->is_duplicate ?? false,
-            'is_shared' => $isC2B ? false : ($transaction->is_shared ?? false),
-            'shared_allocations' => $isC2B ? null : (is_string($transaction->shared_allocations ?? null) ? json_decode($transaction->shared_allocations, true) : ($transaction->shared_allocations ?? null)),
+            'is_shared' => $transaction->is_shared ?? false,
+            'shared_allocations' => is_string($transaction->shared_allocations ?? null)
+                ? json_decode($transaction->shared_allocations, true)
+                : ($transaction->shared_allocations ?? null),
             'is_swimming_transaction' => $transaction->is_swimming_transaction ?? false,
             'statement_file_path' => $isC2B ? null : $transaction->statement_file_path,
             'bank_type' => $isC2B ? 'MPESA' : ($transaction->bank_type ?? 'N/A'),
@@ -1680,6 +1682,80 @@ class BankStatementController extends Controller
     {
         // Check for existing payments
         $ref = $c2bTransaction->trans_id;
+        
+        // Shared allocations: create a payment per student
+        if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
+            $allocations = $c2bTransaction->shared_allocations;
+            $existingSharedReceipt = \App\Models\Payment::where('reversed', false)
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
+                ->pluck('shared_receipt_number')
+                ->filter()
+                ->first();
+            $sharedReceiptNumber = $existingSharedReceipt ?: \App\Services\DocumentNumberService::generateReceipt();
+            $payments = [];
+
+            foreach ($allocations as $index => $allocation) {
+                $studentId = (int) ($allocation['student_id'] ?? 0);
+                $amount = (float) ($allocation['amount'] ?? 0);
+
+                if ($studentId <= 0 || $amount <= 0) {
+                    continue;
+                }
+
+                $student = Student::findOrFail($studentId);
+                $transactionCode = $index === 0 ? $ref : $ref . '-' . ($index + 1);
+
+                $existingPayment = \App\Models\Payment::where('transaction_code', $transactionCode)
+                    ->where('student_id', $studentId)
+                    ->where('reversed', false)
+                    ->first();
+
+                if ($existingPayment) {
+                    if (!$existingPayment->shared_receipt_number) {
+                        $existingPayment->update(['shared_receipt_number' => $sharedReceiptNumber]);
+                    }
+                    $payments[] = $existingPayment;
+                    continue;
+                }
+
+                $payment = \App\Models\Payment::create([
+                    'student_id' => $student->id,
+                    'amount' => $amount,
+                    'payment_method' => 'mpesa',
+                    'payment_date' => $c2bTransaction->trans_time,
+                    'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
+                    'shared_receipt_number' => $sharedReceiptNumber,
+                    'transaction_code' => $transactionCode,
+                    'status' => 'approved',
+                    'notes' => 'M-PESA Paybill payment - ' . $c2bTransaction->full_name,
+                    'created_by' => \Illuminate\Support\Facades\Auth::id(),
+                ]);
+
+                $payments[] = $payment;
+
+                if (!$c2bTransaction->is_swimming_transaction) {
+                    $allocationService = app(\App\Services\PaymentAllocationService::class);
+                    $allocationService->autoAllocate($payment);
+                }
+            }
+
+            if (empty($payments)) {
+                throw new \Exception('No valid allocations provided for this C2B transaction.');
+            }
+
+            $c2bTransaction->update([
+                'payment_id' => $payments[0]->id,
+                'status' => 'processed',
+                'allocated_amount' => $c2bTransaction->trans_amount,
+                'unallocated_amount' => 0,
+            ]);
+
+            return $payments[0];
+        }
+
         $existingPayment = \App\Models\Payment::where('reversed', false)
             ->where(function ($q) use ($ref) {
                 $q->where('transaction_code', $ref)
@@ -2536,8 +2612,9 @@ class BankStatementController extends Controller
         $normalized = $this->normalizeTransaction($transaction);
         $bankStatement = (object) $normalized;
 
-        // Optimistic locking check
-        if ($request->has('version') && $transaction->version != $request->version) {
+        // Optimistic locking check (only when version column exists)
+        $hasVersionColumn = Schema::hasColumn($transaction->getTable(), 'version');
+        if ($request->has('version') && $hasVersionColumn && $transaction->version != $request->version) {
             return back()->with('error', 
                 'This transaction was modified by another user. Please refresh the page and try again.'
             );
@@ -2556,7 +2633,11 @@ class BankStatementController extends Controller
         // For confirmed transactions with payments, we need to update the related payments too
         if ($normalized['status'] === 'confirmed' && $normalized['payment_created']) {
             // Check if any related payments are reversed
-            $relatedPayments = \App\Models\Payment::where('transaction_code', $normalized['reference_number'])
+            $referenceNumber = $normalized['reference_number'];
+            $relatedPayments = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
+                    $q->where('transaction_code', $referenceNumber)
+                      ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
+                })
                 ->where('reversed', true)
                 ->exists();
             
@@ -2567,7 +2648,10 @@ class BankStatementController extends Controller
             }
             
             // Check if any payment is fully allocated (prevent editing if it would cause issues)
-            $fullyAllocatedPayments = \App\Models\Payment::where('transaction_code', $normalized['reference_number'])
+            $fullyAllocatedPayments = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
+                    $q->where('transaction_code', $referenceNumber)
+                      ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
+                })
                 ->where('reversed', false)
                 ->whereRaw('allocated_amount >= amount')
                 ->exists();
@@ -2621,7 +2705,11 @@ class BankStatementController extends Controller
                 // If transaction is confirmed and has payments, update the payments too
                 if ($normalized['status'] === 'confirmed' && $normalized['payment_created']) {
                     // Find all payments related to this transaction
-                    $relatedPayments = \App\Models\Payment::where('transaction_code', $normalized['reference_number'])
+                    $referenceNumber = $normalized['reference_number'];
+                    $relatedPayments = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
+                            $q->where('transaction_code', $referenceNumber)
+                              ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
+                        })
                         ->where('reversed', false)
                         ->get();
                     
@@ -2702,8 +2790,10 @@ class BankStatementController extends Controller
                     }
                 }
                 
-                // Increment version for optimistic locking
-                $transaction->increment('version');
+                // Increment version for optimistic locking when supported
+                if (Schema::hasColumn($transaction->getTable(), 'version')) {
+                    $transaction->increment('version');
+                }
                 
                 // Log audit trail
                 try {
@@ -2742,12 +2832,6 @@ class BankStatementController extends Controller
         $transaction = $this->resolveTransaction($id);
         $isC2B = $transaction instanceof MpesaC2BTransaction;
         
-        // Sharing is only for bank statements (C2B doesn't support sharing in the same way)
-        if ($isC2B) {
-            return redirect()->back()
-                ->withErrors(['error' => 'C2B transactions cannot be shared. Use the allocation feature instead.']);
-        }
-        
         $validated = $request->validate([
             'allocations' => 'required|array|min:1',
             'allocations.*.student_id' => 'required|exists:students,id',
@@ -2777,7 +2861,11 @@ class BankStatementController extends Controller
         }
 
         try {
-            $this->parser->shareTransaction($transaction, $activeAllocations);
+            if ($isC2B) {
+                $this->shareC2BTransaction($transaction, $activeAllocations);
+            } else {
+                $this->parser->shareTransaction($transaction, $activeAllocations);
+            }
             
             $siblingCount = count($activeAllocations);
             return redirect()
@@ -2787,6 +2875,36 @@ class BankStatementController extends Controller
             return redirect()->back()
                 ->withErrors(['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Share C2B transaction among siblings
+     */
+    protected function shareC2BTransaction(MpesaC2BTransaction $transaction, array $allocations): void
+    {
+        // Prevent sharing rejected/failed transactions
+        if ($transaction->status === 'failed') {
+            throw new \Exception('Rejected C2B transactions cannot be shared.');
+        }
+
+        $matchReason = $transaction->match_reason ?? '';
+        if (strpos($matchReason, 'MANUALLY_REJECTED') !== false) {
+            $matchReason = 'Manually shared among siblings';
+        } else {
+            $matchReason = $matchReason ?: 'Manually shared among siblings';
+        }
+
+        $primaryStudentId = $transaction->student_id ?: ($allocations[0]['student_id'] ?? null);
+
+        $transaction->update([
+            'is_shared' => true,
+            'shared_allocations' => $allocations,
+            'student_id' => $primaryStudentId,
+            'allocation_status' => 'manually_allocated',
+            'allocated_amount' => $transaction->trans_amount,
+            'unallocated_amount' => 0,
+            'match_reason' => $matchReason,
+        ]);
     }
 
     /**

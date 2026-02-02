@@ -35,6 +35,8 @@ class MpesaC2BTransaction extends Model
         'invoice_id',
         'payment_id',
         'allocation_status',
+        'is_shared',
+        'shared_allocations',
         'allocated_amount',
         'unallocated_amount',
         'matching_suggestions',
@@ -52,6 +54,8 @@ class MpesaC2BTransaction extends Model
 
     protected $casts = [
         'trans_amount' => 'decimal:2',
+        'is_shared' => 'boolean',
+        'shared_allocations' => 'array',
         'allocated_amount' => 'decimal:2',
         'unallocated_amount' => 'decimal:2',
         'match_confidence' => 'integer',
