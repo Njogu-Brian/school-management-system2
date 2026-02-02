@@ -1616,6 +1616,23 @@ class BankStatementParser
                 // CRITICAL: Return immediately to prevent duplicate creation
                 return $conflictingPayment;
             }
+
+            // If only reversed payments exist for this student/code, generate a new unique code
+            $reversedSameStudent = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
+                ->where('student_id', $student->id)
+                ->where('reversed', true)
+                ->exists();
+            if ($reversedSameStudent) {
+                $baseCode = $transaction->reference_number . '-' . $transaction->id . '-R';
+                $transactionCode = $baseCode;
+                $attempt = 0;
+                while (\App\Models\Payment::where('transaction_code', $transactionCode)
+                    ->where('student_id', $student->id)
+                    ->exists() && $attempt < 5) {
+                    $transactionCode = $baseCode . '-' . time() . '-' . rand(100, 999);
+                    $attempt++;
+                }
+            }
             
             // Legacy check for conflict handling (for different students with same code)
             $conflictingPayments = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
@@ -1645,14 +1662,8 @@ class BankStatementParser
                     return $existingPayment;
                 }
 
-                // No active payment to link; throw exception so controller can show user options
-                throw new \App\Exceptions\PaymentConflictException(
-                    $conflictingPayments->toArray(),
-                    $student->id,
-                    $transaction->reference_number,
-                    $transaction->id,
-                    "A payment already exists for student {$student->full_name} with transaction code {$transaction->reference_number}"
-                );
+                // Only reversed payments exist; allow creating a new payment
+                $conflictingPayments = collect(); // treat as no conflict
             } else {
                 // Check if transaction code (original or modified) is already used by other students
                 $originalCode = $transaction->reference_number;
@@ -1661,6 +1672,7 @@ class BankStatementParser
                 // Check both original and modified codes (for other students)
                 $codeExists = \App\Models\Payment::whereIn('transaction_code', [$originalCode, $modifiedCode])
                     ->where('student_id', '!=', $student->id)
+                    ->where('reversed', false)
                     ->exists();
                 
                 if ($codeExists) {
