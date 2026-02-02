@@ -690,7 +690,8 @@ class StudentController extends Controller
         $currentTerm = get_current_term_number();
         $currentTermModel = get_current_term_model();
         $oldCategoryId = $student->category_id;
-        $newCategoryId = $request->filled('category_id') ? (int) $request->category_id : $oldCategoryId;
+        $incomingCategoryId = $request->filled('category_id') ? (int) $request->category_id : null;
+        $newCategoryId = ($incomingCategoryId && $incomingCategoryId > 0) ? $incomingCategoryId : $oldCategoryId;
 
         $hasCurrentInvoice = $currentYear && $currentTerm && Invoice::where('student_id', $student->id)
             ->where('year', $currentYear)
@@ -701,7 +702,7 @@ class StudentController extends Controller
             : true;
         $shouldRebill = $hasCurrentInvoice && $termOpen;
 
-        if ($request->filled('category_id') && $oldCategoryId !== $newCategoryId && $shouldRebill && !$request->boolean('confirm_category_change')) {
+        if ($incomingCategoryId && $incomingCategoryId > 0 && $oldCategoryId !== $newCategoryId && $shouldRebill && !$request->boolean('confirm_category_change')) {
             $preview = $this->buildCategoryChangePreview($student, $newCategoryId, $currentYear, $currentTerm);
 
             return view('students.category_change_preview', [
@@ -733,7 +734,7 @@ class StudentController extends Controller
             'transfer_to_school', 'status_change_reason', 'is_readmission'
         ]);
 
-        if (!$request->filled('category_id')) {
+        if (!$incomingCategoryId || $incomingCategoryId <= 0) {
             unset($updateData['category_id']);
         }
         
@@ -775,7 +776,7 @@ class StudentController extends Controller
         }
         $updateData['drop_off_point'] = $dropOffPointLabel;
 
-        $categoryChanged = $request->filled('category_id') && $oldCategoryId !== $newCategoryId;
+        $categoryChanged = $incomingCategoryId && $incomingCategoryId > 0 && $oldCategoryId !== $newCategoryId;
         if ($categoryChanged && $shouldRebill && $request->boolean('confirm_category_change')) {
             $this->applyCategoryChangeRebilling($student, $newCategoryId, $currentYear, $currentTerm);
         }
