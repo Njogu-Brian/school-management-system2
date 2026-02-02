@@ -46,15 +46,22 @@
                 <div class="finance-card-body p-4">
                     <div class="list-group">
                         @foreach($potentialMatches as $student)
-                            <a href="#" class="list-group-item list-group-item-action" onclick="selectStudent({{ $student->id }}, '{{ $student->full_name }}', '{{ $student->admission_number }}'); return false;">
+                            @php
+                                $studentId = is_array($student) ? ($student['student_id'] ?? $student['id'] ?? null) : ($student->id ?? null);
+                                $studentName = is_array($student) ? ($student['student_name'] ?? $student['full_name'] ?? '') : ($student->full_name ?? '');
+                                $studentAdmission = is_array($student) ? ($student['admission_number'] ?? '') : ($student->admission_number ?? '');
+                            @endphp
+                            @if($studentId)
+                            <a href="#" class="list-group-item list-group-item-action" onclick="selectStudent({{ $studentId }}, @json($studentName), @json($studentAdmission)); return false;">
                                 <div class="d-flex justify-content-between">
                                     <div>
-                                        <strong>{{ $student->full_name }}</strong>
-                                        <br><small class="text-muted">Admission: {{ $student->admission_number }}</small>
+                                        <strong>{{ $studentName }}</strong>
+                                        <br><small class="text-muted">Admission: {{ $studentAdmission }}</small>
                                     </div>
                                     <button type="button" class="btn btn-sm btn-finance btn-finance-primary">Select</button>
                                 </div>
                             </a>
+                            @endif
                         @endforeach
                     </div>
                 </div>
