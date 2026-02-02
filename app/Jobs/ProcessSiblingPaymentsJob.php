@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Payment;
 use App\Models\BankStatementTransaction;
+use App\Models\MpesaC2BTransaction;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -34,11 +35,10 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
     {
         try {
             $transaction = BankStatementTransaction::find($this->transactionId);
+            $isC2B = false;
             if (!$transaction) {
-                Log::warning('Transaction not found for sibling payments processing', [
-                    'transaction_id' => $this->transactionId
-                ]);
-                return;
+                $transaction = MpesaC2BTransaction::find($this->transactionId);
+                $isC2B = (bool) $transaction;
             }
 
             $payment = Payment::find($this->paymentId);
@@ -72,22 +72,32 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
             }
 
             // Process sibling payments if transaction is shared
-            if ($transaction->is_shared && $transaction->shared_allocations) {
+            if ($transaction && $transaction->is_shared && $transaction->shared_allocations) {
                 $sharedReceiptNumber = $payment->shared_receipt_number;
                 $siblingPayments = collect();
 
                 if ($sharedReceiptNumber) {
                     $siblingPayments = Payment::where('shared_receipt_number', $sharedReceiptNumber)
+                        ->where('reversed', false)
                         ->where('id', '!=', $payment->id)
                         ->get();
                 } else {
-                    foreach ($transaction->shared_allocations as $allocation) {
-                        $siblingPayment = Payment::where('student_id', $allocation['student_id'])
-                            ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                    $baseCode = $isC2B ? ($transaction->trans_id ?? null) : ($transaction->reference_number ?? null);
+                    if ($baseCode) {
+                        $siblingPayments = Payment::where('transaction_code', 'LIKE', $baseCode . '%')
+                            ->where('reversed', false)
                             ->where('id', '!=', $payment->id)
-                            ->first();
-                        if ($siblingPayment) {
-                            $siblingPayments->push($siblingPayment);
+                            ->get();
+                    } else {
+                        foreach ($transaction->shared_allocations as $allocation) {
+                            $siblingPayment = Payment::where('student_id', $allocation['student_id'])
+                                ->where('transaction_code', 'LIKE', $payment->transaction_code . '%')
+                                ->where('reversed', false)
+                                ->where('id', '!=', $payment->id)
+                                ->first();
+                            if ($siblingPayment) {
+                                $siblingPayments->push($siblingPayment);
+                            }
                         }
                     }
                 }
@@ -117,7 +127,8 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
 
             Log::info('Sibling payments processed successfully', [
                 'transaction_id' => $this->transactionId,
-                'payment_id' => $this->paymentId
+                'payment_id' => $this->paymentId,
+                'transaction_type' => $isC2B ? 'c2b' : 'bank'
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to process sibling payments', [

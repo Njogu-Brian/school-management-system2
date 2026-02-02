@@ -1951,6 +1951,17 @@ class BankStatementController extends Controller
             'status' => 'processed', // Mark as processed when payment is created
         ]);
         
+        // Generate receipt and send notifications
+        try {
+            \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($c2bTransaction->id, $payment->id);
+        } catch (\Exception $e) {
+            Log::warning('Failed to process notifications for swimming C2B payment', [
+                'transaction_id' => $c2bTransaction->id,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        
         return $payment;
     }
 
