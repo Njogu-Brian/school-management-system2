@@ -1762,7 +1762,8 @@ class BankStatementController extends Controller
                 }
 
                 $student = Student::findOrFail($studentId);
-                $transactionCode = $index === 0 ? $ref : $ref . '-' . ($index + 1);
+                $baseCode = $index === 0 ? $ref : $ref . '-' . ($index + 1);
+                $transactionCode = $this->ensureUniqueTransactionCode($baseCode, $studentId);
 
                 $existingPayment = \App\Models\Payment::where('transaction_code', $transactionCode)
                     ->where('student_id', $studentId)
@@ -1851,13 +1852,15 @@ class BankStatementController extends Controller
             throw new \Exception('Student not found for C2B transaction');
         }
         
+        $transactionCode = $this->ensureUniqueTransactionCode($ref, $student->id);
+        
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
             'amount' => $c2bTransaction->trans_amount,
             'payment_method' => 'mpesa',
             'payment_date' => $c2bTransaction->trans_time,
             'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
-            'transaction_code' => $c2bTransaction->trans_id,
+            'transaction_code' => $transactionCode,
             'status' => 'approved',
             'notes' => 'M-PESA Paybill payment - ' . $c2bTransaction->full_name,
             'created_by' => \Illuminate\Support\Facades\Auth::id(),
@@ -1876,6 +1879,26 @@ class BankStatementController extends Controller
         }
         
         return $payment;
+    }
+
+    protected function ensureUniqueTransactionCode(string $baseCode, int $studentId): string
+    {
+        $exists = \App\Models\Payment::where('transaction_code', $baseCode)
+            ->where('student_id', $studentId)
+            ->exists();
+        if (!$exists) {
+            return $baseCode;
+        }
+
+        $suffix = 'R-' . time();
+        $code = $baseCode . '-' . $suffix;
+        $attempt = 0;
+        while (\App\Models\Payment::where('transaction_code', $code)->where('student_id', $studentId)->exists() && $attempt < 5) {
+            $code = $baseCode . '-R-' . time() . '-' . rand(100, 999);
+            $attempt++;
+            usleep(10000);
+        }
+        return $code;
     }
 
     protected function createSplitFeePaymentsForC2B(MpesaC2BTransaction $c2bTransaction, array $allocations): array

@@ -30,6 +30,7 @@ class PaymentAllocationService
         }
         
         return DB::transaction(function () use ($payment, $allocations) {
+            $currentAllocated = (float) $payment->allocations()->sum('amount');
             $totalAllocated = 0;
             
             foreach ($allocations as $allocation) {
@@ -37,7 +38,7 @@ class PaymentAllocationService
                 $amount = (float)$allocation['amount'];
                 
                 // Validate allocation doesn't exceed payment
-                if ($totalAllocated + $amount > $payment->amount) {
+                if ($currentAllocated + $totalAllocated + $amount > $payment->amount) {
                     throw new \Exception('Allocation exceeds payment amount.');
                 }
                 
