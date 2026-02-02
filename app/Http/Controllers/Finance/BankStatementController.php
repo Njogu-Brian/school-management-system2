@@ -42,7 +42,7 @@ class BankStatementController extends Controller
             ->selectRaw('COUNT(*) as total_transactions')
             ->selectRaw('SUM(amount) as total_amount')
             ->selectRaw('SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count')
-            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND payment_created = false THEN 1 ELSE 0 END) as confirmed_count')
+            ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) <= 0.01 THEN 1 ELSE 0 END) as confirmed_count')
             ->selectRaw('SUM(CASE WHEN status = "confirmed" AND (SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01 THEN 1 ELSE 0 END) as collected_count')
             ->selectRaw('SUM(CASE WHEN is_archived = true THEN 1 ELSE 0 END) as archived_count')
             ->selectRaw('SUM(CASE WHEN is_duplicate = true THEN 1 ELSE 0 END) as duplicate_count')
@@ -72,6 +72,10 @@ class BankStatementController extends Controller
         // View filters (all, auto-assigned, manual-assigned, draft, unassigned, confirmed, collected, archived)
         $view = $request->get('view', 'all');
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
+        $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
+        $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
+        $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
         switch ($view) {
             case 'auto-assigned':
@@ -83,11 +87,18 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only credit transactions
                 break;
             case 'manual-assigned':
-                $query->where('match_status', 'manual')
-                      ->where('payment_created', false) // Exclude collected transactions
-                      ->where('is_duplicate', false)
+                $query->where('is_duplicate', false)
                       ->where('is_archived', false)
-                      ->where('transaction_type', 'credit'); // Only credit transactions
+                      ->where('transaction_type', 'credit') // Only credit transactions
+                      ->where(function ($q) use ($bankIsPartialSql) {
+                          $q->where(function ($q2) {
+                              $q2->where('match_status', 'manual')
+                                 ->where('payment_created', false);
+                          })->orWhere(function ($q2) use ($bankIsPartialSql) {
+                              $q2->where('status', 'confirmed')
+                                 ->whereRaw($bankIsPartialSql);
+                          });
+                      });
                 break;
             case 'draft':
                 // Transactions that system has seen potential but not sure
@@ -115,7 +126,7 @@ class BankStatementController extends Controller
             case 'confirmed':
                 // Confirmed transactions that haven't been collected yet
                 $query->where('status', 'confirmed')
-                      ->where('payment_created', false) // Exclude collected transactions
+                      ->whereRaw($bankIsUncollectedSql) // Exclude collected/partial transactions
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
@@ -126,7 +137,7 @@ class BankStatementController extends Controller
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit') // Only credit transactions
-                      ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01');
+                      ->whereRaw($bankIsCollectedSql);
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
@@ -286,6 +297,10 @@ class BankStatementController extends Controller
 
         // Get counts for each view (exclude swimming and debit transactions from non-swimming views)
         $hasSwimmingColumn = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction');
+        $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
+        $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
+        $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
+        $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
         $counts = [
             'all' => BankStatementTransaction::where('is_archived', false)
@@ -311,11 +326,18 @@ class BankStatementController extends Controller
                     });
                 })
                 ->count(),
-            'manual-assigned' => BankStatementTransaction::where('match_status', 'manual')
-                ->where('payment_created', false) // Exclude collected transactions
-                ->where('is_duplicate', false)
+            'manual-assigned' => BankStatementTransaction::where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
+                ->where(function ($q) use ($bankIsPartialSql) {
+                    $q->where(function ($q2) {
+                        $q2->where('match_status', 'manual')
+                           ->where('payment_created', false);
+                    })->orWhere(function ($q2) use ($bankIsPartialSql) {
+                        $q2->where('status', 'confirmed')
+                           ->whereRaw($bankIsPartialSql);
+                    });
+                })
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
                         $subQ->where('is_swimming_transaction', false)
@@ -355,7 +377,7 @@ class BankStatementController extends Controller
                 })
                 ->count(),
             'confirmed' => BankStatementTransaction::where('status', 'confirmed')
-                ->where('payment_created', false) // Exclude collected transactions
+                ->whereRaw($bankIsUncollectedSql) // Exclude collected/partial transactions
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
@@ -370,7 +392,7 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
-                ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%"))) >= bank_statement_transactions.amount - 0.01')
+                ->whereRaw($bankIsCollectedSql)
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
                         $subQ->where('is_swimming_transaction', false)
@@ -450,6 +472,10 @@ class BankStatementController extends Controller
     protected function getC2BTransactionsQuery(Request $request, string $view)
     {
         $query = MpesaC2BTransaction::with(['student', 'payment', 'invoice']);
+        $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
+        $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
+        $c2bIsCollectedSql = $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01';
+        $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01';
 
         switch ($view) {
             case 'auto-assigned':
@@ -459,9 +485,15 @@ class BankStatementController extends Controller
                     ->where('is_duplicate', false);
                 break;
             case 'manual-assigned':
-                $query->where('allocation_status', 'manually_allocated')
-                    ->whereNull('payment_id')
-                    ->where('is_duplicate', false);
+                $query->where('is_duplicate', false)
+                    ->where(function ($q) use ($c2bIsPartialSql) {
+                        $q->where(function ($q2) {
+                            $q2->where('allocation_status', 'manually_allocated')
+                               ->whereNull('payment_id');
+                        })->orWhere(function ($q2) use ($c2bIsPartialSql) {
+                            $q2->whereRaw($c2bIsPartialSql);
+                        });
+                    });
                 break;
             case 'draft':
                 // C2B transactions with low confidence matches (similar to bank statement draft logic)
@@ -489,13 +521,13 @@ class BankStatementController extends Controller
             case 'confirmed':
                 // C2B transactions that are processed but don't have payment yet (uncollected)
                 $query->where('status', 'processed')
-                    ->whereNull('payment_id')
+                    ->whereRaw($c2bIsUncollectedSql)
                     ->where('is_duplicate', false);
                 break;
             case 'collected':
                 // C2B transactions fully collected (sum of active payments equals transaction amount)
                 $query->where('is_duplicate', false)
-                    ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%"))) >= mpesa_c2b_transactions.trans_amount - 0.01');
+                    ->whereRaw($c2bIsCollectedSql);
                 break;
             case 'archived':
                 // C2B doesn't have archived flag, so return empty
@@ -565,6 +597,10 @@ class BankStatementController extends Controller
     protected function getC2BCounts(string $view): array
     {
         $hasSwimmingColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction');
+        $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
+        $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
+        $c2bIsCollectedSql = $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01';
+        $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01';
         
         // Base query to exclude swimming transactions for non-swimming views
         $excludeSwimming = function($query) use ($view, $hasSwimmingColumn) {
@@ -586,9 +622,15 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
-            'manual-assigned' => MpesaC2BTransaction::where('allocation_status', 'manually_allocated')
-                ->whereNull('payment_id')
-                ->where('is_duplicate', false)
+            'manual-assigned' => MpesaC2BTransaction::where('is_duplicate', false)
+                ->where(function ($q) use ($c2bIsPartialSql) {
+                    $q->where(function ($q2) {
+                        $q2->where('allocation_status', 'manually_allocated')
+                           ->whereNull('payment_id');
+                    })->orWhere(function ($q2) use ($c2bIsPartialSql) {
+                        $q2->whereRaw($c2bIsPartialSql);
+                    });
+                })
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'draft' => MpesaC2BTransaction::where(function($q) {
@@ -615,12 +657,12 @@ class BankStatementController extends Controller
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'confirmed' => MpesaC2BTransaction::where('status', 'processed')
-                ->whereNull('payment_id')
+                ->whereRaw($c2bIsUncollectedSql)
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'collected' => MpesaC2BTransaction::where('is_duplicate', false)
-                ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%"))) >= mpesa_c2b_transactions.trans_amount - 0.01')
+                ->whereRaw($c2bIsCollectedSql)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'archived' => 0, // C2B doesn't have archived flag
@@ -1965,7 +2007,7 @@ class BankStatementController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($transaction, $bankStatement, $isC2B) {
+            DB::transaction(function () use ($transaction, $bankStatement, $isC2B, $remainingAmount) {
                 // Check if there are any non-reversed payments for this transaction
                 $nonReversedPayments = collect();
                 if ($bankStatement->reference_number) {
