@@ -1278,6 +1278,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::delete('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'destroy'])->name('destroy');
             Route::post('/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm'])->name('confirm');
             Route::post('/{bankStatement}/create-payment', [\App\Http\Controllers\Finance\BankStatementController::class, 'createPayment'])->name('create-payment');
+            Route::post('/{bankStatement}/split-transaction', [\App\Http\Controllers\Finance\BankStatementController::class, 'splitTransaction'])->name('split-transaction');
             Route::post('/{bankStatement}/reject', [\App\Http\Controllers\Finance\BankStatementController::class, 'reject'])->name('reject');
             Route::post('/{bankStatement}/resolve-conflict/reverse', [\App\Http\Controllers\Finance\BankStatementController::class, 'resolveConflictReverse'])->name('resolve-conflict.reverse');
             Route::post('/{bankStatement}/resolve-conflict/keep', [\App\Http\Controllers\Finance\BankStatementController::class, 'resolveConflictKeep'])->name('resolve-conflict.keep');

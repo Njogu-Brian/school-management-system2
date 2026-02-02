@@ -157,6 +157,71 @@ class SwimmingTransactionService
     }
 
     /**
+     * Allocate and immediately process swimming split allocations without marking the transaction as swimming-only.
+     */
+    public function allocateSplitAndProcess(BankStatementTransaction $transaction, array $allocations): array
+    {
+        if (!Schema::hasTable('swimming_transaction_allocations')) {
+            throw new \Exception('swimming_transaction_allocations table does not exist. Please run migrations: php artisan migrate');
+        }
+
+        return DB::transaction(function () use ($transaction, $allocations) {
+            $totalAllocated = 0;
+            $createdAllocations = [];
+            $createdPayments = [];
+
+            foreach ($allocations as $allocation) {
+                $studentId = (int) ($allocation['student_id'] ?? 0);
+                $amount = (float) ($allocation['amount'] ?? 0);
+                if ($studentId <= 0 || $amount <= 0) {
+                    continue;
+                }
+
+                $totalAllocated += $amount;
+                if ($totalAllocated > (float) $transaction->amount + 0.01) {
+                    throw new \Exception("Total swimming allocation ({$totalAllocated}) exceeds transaction amount ({$transaction->amount})");
+                }
+
+                $student = Student::findOrFail($studentId);
+                $allocationRecord = SwimmingTransactionAllocation::create([
+                    'bank_statement_transaction_id' => $transaction->id,
+                    'student_id' => $studentId,
+                    'amount' => $amount,
+                    'status' => SwimmingTransactionAllocation::STATUS_PENDING,
+                    'allocated_by' => auth()->id(),
+                    'allocated_at' => now(),
+                ]);
+                $createdAllocations[] = $allocationRecord;
+
+                $payment = $this->createSplitSwimmingPayment($transaction, $student, $amount, $allocationRecord->id);
+                $this->walletService->creditFromTransaction(
+                    $student,
+                    $payment,
+                    $amount,
+                    "Swimming split from transaction #{$transaction->reference_number}"
+                );
+
+                $allocationRecord->update([
+                    'status' => SwimmingTransactionAllocation::STATUS_ALLOCATED,
+                    'notes' => trim(($allocationRecord->notes ?? '') . "\nProcessed in split allocation."),
+                ]);
+
+                $createdPayments[] = $payment;
+            }
+
+            $transaction->update([
+                'swimming_allocated_amount' => (float) ($transaction->swimming_allocated_amount ?? 0) + $totalAllocated,
+            ]);
+
+            return [
+                'allocations' => $createdAllocations,
+                'payments' => $createdPayments,
+                'total' => $totalAllocated,
+            ];
+        });
+    }
+
+    /**
      * Process pending allocations (credit wallets)
      */
     public function processPendingAllocations(?int $allocationId = null): array
@@ -293,6 +358,29 @@ class SwimmingTransactionService
         }
         
         return $payment;
+    }
+
+    protected function createSplitSwimmingPayment(BankStatementTransaction $transaction, Student $student, float $amount, int $allocationId): Payment
+    {
+        $paymentMethod = \App\Models\PaymentMethod::where('name', 'like', '%bank%')->first();
+        $transactionCode = ($transaction->reference_number ?: 'TXN') . '-SWIM-' . $student->id . '-' . $allocationId;
+
+        return Payment::create([
+            'student_id' => $student->id,
+            'family_id' => $student->family_id,
+            'amount' => $amount,
+            'payment_method_id' => $paymentMethod?->id,
+            'payment_method' => $paymentMethod?->name ?? 'Bank Transfer',
+            'transaction_code' => $transactionCode,
+            'receipt_number' => 'SWIM-' . $transaction->id . '-' . $student->id . '-' . $allocationId,
+            'payer_name' => $transaction->payer_name ?? $student->first_name . ' ' . $student->last_name,
+            'payer_type' => 'parent',
+            'narration' => $transaction->description . ' (Swimming Split)',
+            'payment_date' => $transaction->transaction_date,
+            'bank_account_id' => $transaction->bank_account_id,
+            'allocated_amount' => $amount,
+            'unallocated_amount' => 0,
+        ]);
     }
 
     /**

@@ -1238,8 +1238,8 @@ class BankStatementParser
         // allocations: [['student_id' => X, 'amount' => Y], ...]
         $totalAmount = array_sum(array_column($allocations, 'amount'));
         
-        if (abs($totalAmount - $transaction->amount) > 0.01) {
-            throw new \Exception('Total allocation amount must equal transaction amount');
+        if ($totalAmount - $transaction->amount > 0.01) {
+            throw new \Exception('Total allocation amount cannot exceed transaction amount');
         }
         
         // Clear MANUALLY_REJECTED marker when manually shared
@@ -1258,6 +1258,11 @@ class BankStatementParser
         } elseif ($transaction->status === 'confirmed' && !$transaction->payment_created) {
             // Transaction is confirmed but payment was reversed - allow sharing by changing to draft
             $newStatus = 'draft';
+        }
+
+        if ($totalAmount + 0.01 < $transaction->amount) {
+            $newStatus = 'draft';
+            $matchNotes = $matchNotes . ' (Partially allocated; remaining balance unallocated)';
         }
         
         $transaction->update([
@@ -2157,6 +2162,45 @@ class BankStatementParser
         }
         
         return $payment;
+    }
+
+    /**
+     * Create fee payments for a split transaction (fees + swimming).
+     * Unlike shared allocations, fee allocations do NOT need to sum to full transaction amount.
+     */
+    public function createSplitFeePayments(BankStatementTransaction $transaction, array $allocations, bool $skipAllocation = false): array
+    {
+        if (!$transaction->isConfirmed()) {
+            throw new \Exception('Transaction must be confirmed before creating payments');
+        }
+
+        $payments = [];
+        foreach ($allocations as $allocation) {
+            $studentId = (int) ($allocation['student_id'] ?? 0);
+            $amount = (float) ($allocation['amount'] ?? 0);
+            if ($studentId <= 0 || $amount <= 0) {
+                continue;
+            }
+
+            $student = Student::findOrFail($studentId);
+            $payment = $this->createSinglePayment($transaction, $student, $amount, null, $skipAllocation);
+            $payments[] = $payment;
+
+            if (!$skipAllocation) {
+                try {
+                    $allocationService = app(\App\Services\PaymentAllocationService::class);
+                    $allocationService->autoAllocate($payment);
+                } catch (\Exception $e) {
+                    \Log::warning('Split fee auto-allocation failed', [
+                        'transaction_id' => $transaction->id,
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        return $payments;
     }
     
     /**

@@ -898,6 +898,12 @@
                         @endif
                     @endif
 
+                    @if($bankStatement->status === 'confirmed' && !($bankStatement->is_swimming_transaction ?? false))
+                        <button type="button" class="btn btn-finance btn-finance-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#splitTransactionModal">
+                            <i class="bi bi-diagram-3"></i> Split Fees + Swimming
+                        </button>
+                    @endif
+
                     @if($bankStatement->status !== 'rejected')
                     <button type="button" class="btn btn-finance btn-finance-danger w-100 mb-2" data-bs-toggle="modal" data-bs-target="#rejectTransactionModal">
                         <i class="bi bi-x-circle"></i> Reject
@@ -969,6 +975,56 @@
                                 </button>
                             </form>
                         </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
+            <!-- Split Transaction Modal -->
+            @if($bankStatement->status === 'confirmed' && !($bankStatement->is_swimming_transaction ?? false))
+            <div class="modal fade" id="splitTransactionModal" tabindex="-1" aria-labelledby="splitTransactionModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="splitTransactionModalLabel">
+                                Split Transaction into Fees + Swimming
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <form method="POST" action="{{ route('finance.bank-statements.split-transaction', $bankStatement->id) }}?type={{ $isC2B ? 'c2b' : 'bank' }}">
+                            @csrf
+                            <div class="modal-body">
+                                <p class="text-muted mb-3">
+                                    Total transaction amount: <strong>Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong>
+                                </p>
+
+                                <div class="mb-4">
+                                    <h6>Fees Allocation</h6>
+                                    <div id="feeAllocations" class="split-allocations"></div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="fee">
+                                        <i class="bi bi-plus-circle"></i> Add Fee Student
+                                    </button>
+                                </div>
+
+                                <div class="mb-4">
+                                    <h6>Swimming Allocation</h6>
+                                    <div id="swimAllocations" class="split-allocations"></div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-add-split="swim">
+                                        <i class="bi bi-plus-circle"></i> Add Swimming Student
+                                    </button>
+                                </div>
+
+                                <div class="alert alert-info mb-0">
+                                    <div>Fees Total: <strong id="feeTotal">Ksh 0.00</strong></div>
+                                    <div>Swimming Total: <strong id="swimTotal">Ksh 0.00</strong></div>
+                                    <div>Remaining: <strong id="splitRemaining">Ksh {{ number_format($bankStatement->amount ?? 0, 2) }}</strong></div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Split Transaction</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -1148,7 +1204,7 @@
             document.getElementById('remainingAmount').textContent = 'Ksh ' + remaining.toFixed(2);
             
             const shareBtn = document.getElementById('shareBtn');
-            if (Math.abs(remaining) < 0.01 && total > 0) {
+            if (remaining >= -0.01 && total > 0) {
                 shareBtn.disabled = false;
                 shareBtn.classList.remove('btn-secondary');
                 shareBtn.classList.add('btn-primary');
@@ -1391,7 +1447,7 @@ function updateShareTotal() {
     document.getElementById('shareRemainingAmount').textContent = 'Ksh ' + remaining.toFixed(2);
     
     const shareBtn = document.getElementById('shareSubmitBtn');
-    if (Math.abs(remaining) < 0.01 && total > 0) {
+            if (remaining >= -0.01 && total > 0) {
         shareBtn.disabled = false;
         shareBtn.classList.remove('btn-secondary');
         shareBtn.classList.add('btn-finance', 'btn-finance-primary');
@@ -1542,7 +1598,7 @@ function updateModalTotal() {
     document.getElementById('modalRemainingAmount').textContent = `Ksh ${remaining.toFixed(2)}`;
     
     const shareBtn = document.getElementById('modalShareBtn');
-    if (Math.abs(remaining) < 0.01 && total > 0) {
+            if (remaining >= -0.01 && total > 0) {
         shareBtn.disabled = false;
         shareBtn.classList.remove('btn-secondary');
         shareBtn.classList.add('btn-finance', 'btn-finance-primary');
@@ -1552,6 +1608,132 @@ function updateModalTotal() {
         shareBtn.classList.add('btn-secondary');
     }
 }
+
+// Split transaction logic
+(function () {
+    const splitModal = document.getElementById('splitTransactionModal');
+    if (!splitModal) return;
+
+    const searchUrl = `{{ route('students.search') }}`;
+    const txnAmount = parseFloat('{{ $bankStatement->amount ?? 0 }}');
+    const feeContainer = splitModal.querySelector('#feeAllocations');
+    const swimContainer = splitModal.querySelector('#swimAllocations');
+    const feeTotalEl = splitModal.querySelector('#feeTotal');
+    const swimTotalEl = splitModal.querySelector('#swimTotal');
+    const remainingEl = splitModal.querySelector('#splitRemaining');
+
+    let feeIndex = 0;
+    let swimIndex = 0;
+
+    const formatMoney = (amt) => `Ksh ${amt.toFixed(2)}`;
+
+    const updateTotals = () => {
+        const feeTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="fee"]'))
+            .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+        const swimTotal = Array.from(splitModal.querySelectorAll('.split-amount[data-target="swim"]'))
+            .reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+        feeTotalEl.textContent = formatMoney(feeTotal);
+        swimTotalEl.textContent = formatMoney(swimTotal);
+        remainingEl.textContent = formatMoney(Math.max(0, txnAmount - feeTotal - swimTotal));
+    };
+
+    const attachSearch = (row) => {
+        const input = row.querySelector('.split-student-search');
+        const results = row.querySelector('.split-results');
+        const hidden = row.querySelector('.split-student-id');
+        let timer = null;
+
+        input.addEventListener('input', () => {
+            clearTimeout(timer);
+            const q = input.value.trim();
+            hidden.value = '';
+            results.innerHTML = '';
+            if (q.length < 2) {
+                results.classList.add('d-none');
+                return;
+            }
+            results.classList.remove('d-none');
+            results.innerHTML = '<div class="list-group-item text-muted">Searching...</div>';
+            timer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`${searchUrl}?q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json' } });
+                    const data = await res.json();
+                    if (!data.length) {
+                        results.innerHTML = '<div class="list-group-item text-muted">No students found</div>';
+                        return;
+                    }
+                    results.innerHTML = data.map(stu => {
+                        const label = stu.label || `${stu.full_name} (${stu.admission_number})${stu.classroom_name ? ' - ' + stu.classroom_name : ''}`;
+                        return `
+                            <button type="button" class="list-group-item list-group-item-action split-pick"
+                                data-id="${stu.id}" data-label="${label}">
+                                ${label}
+                            </button>
+                        `;
+                    }).join('');
+                    results.querySelectorAll('.split-pick').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            hidden.value = btn.dataset.id;
+                            input.value = btn.dataset.label;
+                            results.classList.add('d-none');
+                        });
+                    });
+                } catch (e) {
+                    results.innerHTML = '<div class="list-group-item text-danger">Search failed</div>';
+                }
+            }, 300);
+        });
+    };
+
+    const createRow = (target, index) => {
+        const row = document.createElement('div');
+        row.className = 'split-row mb-2';
+        row.innerHTML = `
+            <div class="row g-2 align-items-end">
+                <div class="col-md-6">
+                    <label class="form-label">Student</label>
+                    <input type="text" class="form-control split-student-search" placeholder="Search student...">
+                    <input type="hidden" class="split-student-id" name="${target === 'fee' ? `fee_allocations[${index}][student_id]` : `swimming_allocations[${index}][student_id]`}">
+                    <div class="list-group split-results d-none"></div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Amount</label>
+                    <input type="number" step="0.01" min="0" class="form-control split-amount" data-target="${target}"
+                        name="${target === 'fee' ? `fee_allocations[${index}][amount]` : `swimming_allocations[${index}][amount]`}">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-danger remove-split-row w-100">Remove</button>
+                </div>
+            </div>
+        `;
+        row.querySelector('.split-amount').addEventListener('input', updateTotals);
+        row.querySelector('.remove-split-row').addEventListener('click', () => {
+            row.remove();
+            updateTotals();
+        });
+        attachSearch(row);
+        return row;
+    };
+
+    const addRow = (target) => {
+        if (target === 'fee') {
+            feeContainer.appendChild(createRow('fee', feeIndex++));
+        } else {
+            swimContainer.appendChild(createRow('swim', swimIndex++));
+        }
+        updateTotals();
+    };
+
+    splitModal.querySelectorAll('[data-add-split]').forEach(btn => {
+        btn.addEventListener('click', () => addRow(btn.dataset.addSplit));
+    });
+
+    splitModal.addEventListener('shown.bs.modal', () => {
+        if (!feeContainer.children.length) addRow('fee');
+        if (!swimContainer.children.length) addRow('swim');
+        updateTotals();
+    });
+})();
 </script>
 @endpush
 

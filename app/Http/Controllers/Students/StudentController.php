@@ -406,20 +406,26 @@ class StudentController extends Controller
             $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
             
             // Create ParentInfo with defaults for country codes and normalized phone numbers
+            $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
+            $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
+            $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
+            $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode);
+            $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode);
+            $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
             $parentData = [
                 'father_name' => $request->father_name,
-                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode),
-                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode),
+                'father_phone' => $fatherPhone,
+                'father_whatsapp' => $fatherWhatsapp,
                 'father_email' => $request->father_email,
                 'father_id_number' => $request->father_id_number,
                 'mother_name' => $request->mother_name,
-                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode),
-                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode),
+                'mother_phone' => $motherPhone,
+                'mother_whatsapp' => $motherWhatsapp,
                 'mother_email' => $request->mother_email,
                 'mother_id_number' => $request->mother_id_number,
                 'guardian_name' => $request->guardian_name,
-                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode),
-                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode),
+                'guardian_phone' => $guardianPhone,
+                'guardian_whatsapp' => $guardianWhatsapp,
                 'guardian_email' => $request->guardian_email,
                 'guardian_relationship' => $request->guardian_relationship,
                 'marital_status' => $request->marital_status,
@@ -429,6 +435,13 @@ class StudentController extends Controller
             ];
 
             $parent = ParentInfo::create($parentData);
+            $userId = auth()->id();
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_phone', $request->father_phone, $fatherPhone, $fatherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_whatsapp', $request->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_phone', $request->mother_phone, $motherPhone, $motherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_whatsapp', $request->mother_whatsapp, $motherWhatsapp, $motherCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_phone', $request->guardian_phone, $guardianPhone, $guardianCountryCode, 'student_create', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_whatsapp', $request->guardian_whatsapp, $guardianWhatsapp, $guardianCountryCode, 'student_create', $userId);
 
             $admission_number = $this->generateNextAdmissionNumber();
 
@@ -464,6 +477,10 @@ class StudentController extends Controller
                 $studentData['dob'] = null;
             }
             
+            $emergencyPhone = $this->formatPhoneWithCode(
+                $request->emergency_contact_phone,
+                $request->input('emergency_contact_country_code', '+254')
+            );
             $student = Student::create(array_merge(
                 $studentData,
                 [
@@ -471,12 +488,10 @@ class StudentController extends Controller
                     'parent_id' => $parent->id,
                     'family_id' => $familyId,
                     'drop_off_point' => $dropOffPointLabel,
-                    'emergency_contact_phone' => $this->formatPhoneWithCode(
-                        $request->emergency_contact_phone,
-                        $request->input('emergency_contact_country_code', '+254')
-                    ),
+                    'emergency_contact_phone' => $emergencyPhone,
                 ]
             ));
+            $this->logPhoneNormalization(Student::class, $student->id, 'emergency_contact_phone', $request->emergency_contact_phone, $emergencyPhone, $request->input('emergency_contact_country_code', '+254'), 'student_create', $userId);
             
             // Handle photo upload
             if ($request->hasFile('photo')) {
@@ -747,9 +762,20 @@ class StudentController extends Controller
         if (isset($updateData['dob']) && empty($updateData['dob'])) {
             $updateData['dob'] = null;
         }
-        $updateData['emergency_contact_phone'] = $this->formatPhoneWithCode(
+        $emergencyPhone = $this->formatPhoneWithCode(
             $request->emergency_contact_phone,
             '+254'
+        );
+        $updateData['emergency_contact_phone'] = $emergencyPhone;
+        $this->logPhoneNormalization(
+            Student::class,
+            $student->id,
+            'emergency_contact_phone',
+            $student->emergency_contact_phone,
+            $emergencyPhone,
+            '+254',
+            'student_update',
+            auth()->id()
         );
 
         // Enforce at least one parent/guardian name+phone
@@ -866,21 +892,27 @@ class StudentController extends Controller
             $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
             $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
             $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+            $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
+            $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
+            $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
+            $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode);
+            $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode);
+            $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
             
             $parentUpdateData = [
                 'father_name' => $request->father_name,
-                'father_phone' => $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode),
-                'father_whatsapp' => $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode),
+                'father_phone' => $fatherPhone,
+                'father_whatsapp' => $fatherWhatsapp,
                 'father_email' => $request->father_email,
                 'father_id_number' => $request->father_id_number,
                 'mother_name' => $request->mother_name,
-                'mother_phone' => $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode),
-                'mother_whatsapp' => $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode),
+                'mother_phone' => $motherPhone,
+                'mother_whatsapp' => $motherWhatsapp,
                 'mother_email' => $request->mother_email,
                 'mother_id_number' => $request->mother_id_number,
                 'guardian_name' => $request->guardian_name,
-                'guardian_phone' => $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode),
-                'guardian_whatsapp' => $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode),
+                'guardian_phone' => $guardianPhone,
+                'guardian_whatsapp' => $guardianWhatsapp,
                 'guardian_email' => $request->guardian_email,
                 'guardian_relationship' => $request->guardian_relationship,
                 'marital_status' => $request->marital_status,
@@ -888,6 +920,13 @@ class StudentController extends Controller
                 'mother_phone_country_code' => $motherCountryCode,
                 'guardian_phone_country_code' => $guardianCountryCode,
             ];
+            $userId = auth()->id();
+            $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'father_phone', $student->parent->father_phone, $fatherPhone, $fatherCountryCode, 'student_update', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'father_whatsapp', $student->parent->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_update', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'mother_phone', $student->parent->mother_phone, $motherPhone, $motherCountryCode, 'student_update', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'mother_whatsapp', $student->parent->mother_whatsapp, $motherWhatsapp, $motherCountryCode, 'student_update', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'guardian_phone', $student->parent->guardian_phone, $guardianPhone, $guardianCountryCode, 'student_update', $userId);
+            $this->logPhoneNormalization(ParentInfo::class, $student->parent->id, 'guardian_whatsapp', $student->parent->guardian_whatsapp, $guardianWhatsapp, $guardianCountryCode, 'student_update', $userId);
 
             $student->parent->update($parentUpdateData);
             \Log::info('Student Update: Parent info updated', ['parent_id' => $student->parent->id]);
@@ -2095,6 +2134,20 @@ class StudentController extends Controller
             ->extractLocalNumber($fullPhone, $countryCode);
     }
 
+    protected function logPhoneNormalization(
+        string $modelType,
+        ?int $modelId,
+        string $field,
+        ?string $oldValue,
+        ?string $newValue,
+        ?string $countryCode,
+        string $source,
+        ?int $userId
+    ): void {
+        app(\App\Services\PhoneNumberNormalizationLogger::class)
+            ->logIfChanged($modelType, $modelId, $field, $oldValue, $newValue, $countryCode, $source, $userId);
+    }
+
     /**
      * Show form for updating existing students via import
      */
@@ -2212,6 +2265,7 @@ class StudentController extends Controller
                 // Update student fields
                 $studentUpdateData = [];
                 $parentUpdateData = [];
+                $parentPhoneMeta = [];
 
                 // Student basic info
                 if (!empty($rowData['first_name'])) $studentUpdateData['first_name'] = $rowData['first_name'];
@@ -2274,7 +2328,18 @@ class StudentController extends Controller
                 }
                 if (!empty($rowData['emergency_contact_phone'])) {
                     $countryCode = $this->normalizeCountryCode($rowData['emergency_phone_country_code'] ?? '+254');
-                    $studentUpdateData['emergency_contact_phone'] = $this->formatPhoneWithCode($rowData['emergency_contact_phone'], $countryCode);
+                    $emergencyPhone = $this->formatPhoneWithCode($rowData['emergency_contact_phone'], $countryCode);
+                    $studentUpdateData['emergency_contact_phone'] = $emergencyPhone;
+                    $this->logPhoneNormalization(
+                        Student::class,
+                        $student->id,
+                        'emergency_contact_phone',
+                        $student->emergency_contact_phone,
+                        $emergencyPhone,
+                        $countryCode,
+                        'student_import',
+                        auth()->id()
+                    );
                 }
 
                 // Update student
@@ -2296,13 +2361,17 @@ class StudentController extends Controller
                 }
                 if (!empty($rowData['father_phone'])) {
                     $countryCode = $this->normalizeCountryCode($rowData['father_phone_country_code'] ?? '+254');
-                    $parentUpdateData['father_phone'] = $this->formatPhoneWithCode($rowData['father_phone'], $countryCode);
+                    $fatherPhone = $this->formatPhoneWithCode($rowData['father_phone'], $countryCode);
+                    $parentUpdateData['father_phone'] = $fatherPhone;
                     $parentUpdateData['father_phone_country_code'] = $countryCode;
+                    $parentPhoneMeta['father_phone'] = ['new' => $fatherPhone, 'code' => $countryCode];
                 }
                 if (!empty($rowData['father_whatsapp'])) {
                     $countryCode = $this->normalizeCountryCode($rowData['father_whatsapp_country_code'] ?? $rowData['father_phone_country_code'] ?? '+254');
-                    $parentUpdateData['father_whatsapp'] = $this->formatPhoneWithCode($rowData['father_whatsapp'], $countryCode);
+                    $fatherWhatsapp = $this->formatPhoneWithCode($rowData['father_whatsapp'], $countryCode);
+                    $parentUpdateData['father_whatsapp'] = $fatherWhatsapp;
                     $parentUpdateData['father_whatsapp_country_code'] = $countryCode;
+                    $parentPhoneMeta['father_whatsapp'] = ['new' => $fatherWhatsapp, 'code' => $countryCode];
                 }
                 if (!empty($rowData['father_email']) || isset($rowData['father_email'])) {
                     $parentUpdateData['father_email'] = $rowData['father_email'] ?: null;
@@ -2317,13 +2386,17 @@ class StudentController extends Controller
                 }
                 if (!empty($rowData['mother_phone'])) {
                     $countryCode = $this->normalizeCountryCode($rowData['mother_phone_country_code'] ?? '+254');
-                    $parentUpdateData['mother_phone'] = $this->formatPhoneWithCode($rowData['mother_phone'], $countryCode);
+                    $motherPhone = $this->formatPhoneWithCode($rowData['mother_phone'], $countryCode);
+                    $parentUpdateData['mother_phone'] = $motherPhone;
                     $parentUpdateData['mother_phone_country_code'] = $countryCode;
+                    $parentPhoneMeta['mother_phone'] = ['new' => $motherPhone, 'code' => $countryCode];
                 }
                 if (!empty($rowData['mother_whatsapp'])) {
                     $countryCode = $this->normalizeCountryCode($rowData['mother_whatsapp_country_code'] ?? $rowData['mother_phone_country_code'] ?? '+254');
-                    $parentUpdateData['mother_whatsapp'] = $this->formatPhoneWithCode($rowData['mother_whatsapp'], $countryCode);
+                    $motherWhatsapp = $this->formatPhoneWithCode($rowData['mother_whatsapp'], $countryCode);
+                    $parentUpdateData['mother_whatsapp'] = $motherWhatsapp;
                     $parentUpdateData['mother_whatsapp_country_code'] = $countryCode;
+                    $parentPhoneMeta['mother_whatsapp'] = ['new' => $motherWhatsapp, 'code' => $countryCode];
                 }
                 if (!empty($rowData['mother_email']) || isset($rowData['mother_email'])) {
                     $parentUpdateData['mother_email'] = $rowData['mother_email'] ?: null;
@@ -2338,8 +2411,10 @@ class StudentController extends Controller
                 }
                 if (!empty($rowData['guardian_phone'])) {
                     $countryCode = $this->normalizeCountryCode($rowData['guardian_phone_country_code'] ?? '+254');
-                    $parentUpdateData['guardian_phone'] = $this->formatPhoneWithCode($rowData['guardian_phone'], $countryCode);
+                    $guardianPhone = $this->formatPhoneWithCode($rowData['guardian_phone'], $countryCode);
+                    $parentUpdateData['guardian_phone'] = $guardianPhone;
                     $parentUpdateData['guardian_phone_country_code'] = $countryCode;
+                    $parentPhoneMeta['guardian_phone'] = ['new' => $guardianPhone, 'code' => $countryCode];
                 }
                 if (!empty($rowData['guardian_relationship']) || isset($rowData['guardian_relationship'])) {
                     $parentUpdateData['guardian_relationship'] = $rowData['guardian_relationship'] ?: null;
@@ -2355,7 +2430,20 @@ class StudentController extends Controller
 
                 // Update parent
                 if (!empty($parentUpdateData)) {
+                    $parentBefore = $parent->only(array_keys($parentPhoneMeta));
                     $parent->update($parentUpdateData);
+                    foreach ($parentPhoneMeta as $field => $meta) {
+                        $this->logPhoneNormalization(
+                            ParentInfo::class,
+                            $parent->id,
+                            $field,
+                            $parentBefore[$field] ?? null,
+                            $meta['new'] ?? null,
+                            $meta['code'] ?? null,
+                            'student_import',
+                            auth()->id()
+                        );
+                    }
                 }
 
                 $updated++;

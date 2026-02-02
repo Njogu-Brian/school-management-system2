@@ -1290,6 +1290,16 @@ class BankStatementController extends Controller
 
         $activeTotal = (float) $activePayments->sum('amount');
         $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal);
+
+        $swimmingAllocations = collect();
+        $swimmingTotal = 0.0;
+        if (!$isC2B && Schema::hasTable('swimming_transaction_allocations')) {
+            $swimmingAllocations = \App\Models\SwimmingTransactionAllocation::with('student')
+                ->where('bank_statement_transaction_id', $transaction->id)
+                ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                ->get();
+            $swimmingTotal = (float) $swimmingAllocations->sum('amount');
+        }
         $canCreateAdditionalPayments = $bankStatement->status === 'confirmed'
             && $remainingAmount > 0.01
             && ($bankStatement->student_id || ($bankStatement->is_shared ?? false));
@@ -1305,7 +1315,9 @@ class BankStatementController extends Controller
             'isC2B',
             'activeTotal',
             'remainingAmount',
-            'canCreateAdditionalPayments'
+            'canCreateAdditionalPayments',
+            'swimmingAllocations',
+            'swimmingTotal'
         ));
     }
 
@@ -1848,6 +1860,86 @@ class BankStatementController extends Controller
         
         return $payment;
     }
+
+    protected function createSplitFeePaymentsForC2B(MpesaC2BTransaction $c2bTransaction, array $allocations): array
+    {
+        $payments = [];
+        foreach ($allocations as $index => $allocation) {
+            $studentId = (int) ($allocation['student_id'] ?? 0);
+            $amount = (float) ($allocation['amount'] ?? 0);
+            if ($studentId <= 0 || $amount <= 0) {
+                continue;
+            }
+
+            $student = Student::findOrFail($studentId);
+            $transactionCode = $c2bTransaction->trans_id . '-FEE-' . ($index + 1);
+            $payment = \App\Models\Payment::create([
+                'student_id' => $student->id,
+                'amount' => $amount,
+                'payment_method' => 'mpesa',
+                'payment_date' => $c2bTransaction->trans_time,
+                'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
+                'transaction_code' => $transactionCode,
+                'status' => 'approved',
+                'notes' => 'M-PESA Paybill split (Fees) - ' . $c2bTransaction->full_name,
+                'created_by' => \Illuminate\Support\Facades\Auth::id(),
+            ]);
+            $payments[] = $payment;
+
+            $allocationService = app(\App\Services\PaymentAllocationService::class);
+            $allocationService->autoAllocate($payment);
+        }
+
+        if (empty($payments)) {
+            throw new \Exception('No valid fee allocations provided.');
+        }
+
+        return $payments;
+    }
+
+    protected function createSplitSwimmingPaymentsForC2B(MpesaC2BTransaction $c2bTransaction, array $allocations): array
+    {
+        $payments = [];
+        $walletService = app(\App\Services\SwimmingWalletService::class);
+
+        foreach ($allocations as $index => $allocation) {
+            $studentId = (int) ($allocation['student_id'] ?? 0);
+            $amount = (float) ($allocation['amount'] ?? 0);
+            if ($studentId <= 0 || $amount <= 0) {
+                continue;
+            }
+
+            $student = Student::findOrFail($studentId);
+            $transactionCode = $c2bTransaction->trans_id . '-SWIM-' . ($index + 1);
+            $payment = \App\Models\Payment::create([
+                'student_id' => $student->id,
+                'amount' => $amount,
+                'payment_method' => 'mpesa',
+                'payment_date' => $c2bTransaction->trans_time,
+                'receipt_number' => 'SWIM-' . strtoupper(\Illuminate\Support\Str::random(10)),
+                'transaction_code' => $transactionCode,
+                'status' => 'approved',
+                'notes' => 'M-PESA Paybill split (Swimming) - ' . $c2bTransaction->full_name,
+                'created_by' => \Illuminate\Support\Facades\Auth::id(),
+                'allocated_amount' => $amount,
+                'unallocated_amount' => 0,
+            ]);
+            $payments[] = $payment;
+
+            $walletService->creditFromTransaction(
+                $student,
+                $payment,
+                $amount,
+                "Swimming split from M-PESA #{$c2bTransaction->trans_id}"
+            );
+        }
+
+        if (empty($payments)) {
+            throw new \Exception('No valid swimming allocations provided.');
+        }
+
+        return $payments;
+    }
     
     /**
      * Helper: Create payment for bank statement transaction
@@ -2182,6 +2274,137 @@ class BankStatementController extends Controller
             return redirect()->back()
                 ->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
         }
+
+    /**
+     * Split a transaction into fee and swimming allocations.
+     */
+    public function splitTransaction(Request $request, $bankStatement)
+    {
+        $id = is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement;
+        $typeHint = $request->get('type');
+        $transaction = $this->resolveTransaction($id, $typeHint);
+        $isC2B = $transaction instanceof MpesaC2BTransaction;
+
+        $normalized = $this->normalizeTransaction($transaction);
+        $bankStatement = (object) $normalized;
+
+        if ($bankStatement->status !== 'confirmed') {
+            return redirect()->back()
+                ->withErrors(['error' => 'Only confirmed transactions can be split.']);
+        }
+
+        $data = $request->validate([
+            'fee_allocations' => 'required|array|min:1',
+            'fee_allocations.*.student_id' => 'required|exists:students,id',
+            'fee_allocations.*.amount' => 'required|numeric|min:0.01',
+            'swimming_allocations' => 'required|array|min:1',
+            'swimming_allocations.*.student_id' => 'required|exists:students,id',
+            'swimming_allocations.*.amount' => 'required|numeric|min:0.01',
+        ]);
+
+        $feeAllocations = collect($data['fee_allocations'])
+            ->map(fn($a) => ['student_id' => (int) $a['student_id'], 'amount' => (float) $a['amount']])
+            ->filter(fn($a) => $a['student_id'] > 0 && $a['amount'] > 0)
+            ->values()
+            ->all();
+
+        $swimAllocations = collect($data['swimming_allocations'])
+            ->map(fn($a) => ['student_id' => (int) $a['student_id'], 'amount' => (float) $a['amount']])
+            ->filter(fn($a) => $a['student_id'] > 0 && $a['amount'] > 0)
+            ->values()
+            ->all();
+
+        if (empty($feeAllocations) || empty($swimAllocations)) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Both fee and swimming allocations are required.']);
+        }
+
+        $feeTotal = (float) collect($feeAllocations)->sum('amount');
+        $swimTotal = (float) collect($swimAllocations)->sum('amount');
+        $total = $feeTotal + $swimTotal;
+        $txnAmount = (float) $bankStatement->amount;
+
+        if (abs($total - $txnAmount) > 0.01) {
+            return redirect()->back()
+                ->withErrors(['error' => 'Fee + swimming allocations must equal the transaction amount.']);
+        }
+
+        if (!$isC2B && $bankStatement->reference_number) {
+            $ref = $bankStatement->reference_number;
+            $activePayments = Payment::where('reversed', false)
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
+                ->exists();
+            if ($activePayments) {
+                return redirect()->back()
+                    ->withErrors(['error' => 'Split not allowed: active fee payments already exist for this transaction.']);
+            }
+            if (Schema::hasTable('swimming_transaction_allocations')) {
+                $hasSwim = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
+                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                    ->exists();
+                if ($hasSwim) {
+                    return redirect()->back()
+                        ->withErrors(['error' => 'Split not allowed: swimming allocations already exist for this transaction.']);
+                }
+            }
+        } elseif ($isC2B) {
+            $ref = $transaction->trans_id;
+            $activePayments = Payment::where('reversed', false)
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
+                ->exists();
+            if ($activePayments) {
+                return redirect()->back()
+                    ->withErrors(['error' => 'Split not allowed: active payments already exist for this transaction.']);
+            }
+        }
+
+        try {
+            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $swimAllocations, $feeTotal, $swimTotal) {
+                if ($isC2B) {
+                    $feePayments = $this->createSplitFeePaymentsForC2B($transaction, $feeAllocations);
+                    $swimPayments = $this->createSplitSwimmingPaymentsForC2B($transaction, $swimAllocations);
+
+                    $transaction->update([
+                        'payment_id' => $feePayments[0]->id ?? ($swimPayments[0]->id ?? null),
+                        'status' => 'processed',
+                        'allocation_status' => 'manually_allocated',
+                        'allocated_amount' => $feeTotal + $swimTotal,
+                        'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $swimTotal)),
+                    ]);
+                } else {
+                    $feePayments = $this->parser->createSplitFeePayments($transaction, $feeAllocations, false);
+                    $this->swimmingTransactionService->allocateSplitAndProcess($transaction, $swimAllocations);
+
+                    $transaction->update([
+                        'payment_id' => $feePayments[0]->id ?? $transaction->payment_id,
+                        'payment_created' => !empty($feePayments),
+                        'status' => 'confirmed',
+                        'match_status' => 'manual',
+                        'match_notes' => trim(($transaction->match_notes ?? '') . "\nSplit into fees + swimming."),
+                    ]);
+                }
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to split transaction', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()
+                ->withErrors(['error' => 'Failed to split transaction: ' . $e->getMessage()]);
+        }
+
+        return redirect()
+            ->route('finance.bank-statements.show', $id, ['type' => $isC2B ? 'c2b' : 'bank'])
+            ->with('success', 'Transaction split into fees and swimming successfully.');
+    }
     }
 
     /**
@@ -2760,9 +2983,9 @@ class BankStatementController extends Controller
 
         $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
-        if (abs($totalAmount - $normalized['amount']) > 0.01) {
+        if ($totalAmount - $normalized['amount'] > 0.01) {
             return redirect()->back()
-                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Required: Ksh ' . number_format($normalized['amount'], 2)]);
+                ->withErrors(['allocations' => 'Total allocation amount cannot exceed transaction amount. Current total: Ksh ' . number_format($totalAmount, 2) . ', Max: Ksh ' . number_format($normalized['amount'], 2)]);
         }
 
         try {
@@ -2928,9 +3151,9 @@ class BankStatementController extends Controller
         $normalized = $this->normalizeTransaction($transaction);
         $totalAmount = array_sum(array_column($activeAllocations, 'amount'));
         
-        if (abs($totalAmount - $normalized['amount']) > 0.01) {
+        if ($totalAmount - $normalized['amount'] > 0.01) {
             return redirect()->back()
-                ->withErrors(['allocations' => 'Total allocation amount must equal transaction amount. Current total: Ksh ' . number_format($totalAmount, 2)]);
+                ->withErrors(['allocations' => 'Total allocation amount cannot exceed transaction amount. Current total: Ksh ' . number_format($totalAmount, 2)]);
         }
 
         try {
@@ -2969,13 +3192,18 @@ class BankStatementController extends Controller
 
         $primaryStudentId = $transaction->student_id ?: ($allocations[0]['student_id'] ?? null);
 
+        $totalAmount = array_sum(array_column($allocations, 'amount'));
+        if ($totalAmount - $transaction->trans_amount > 0.01) {
+            throw new \Exception('Total allocation amount cannot exceed transaction amount.');
+        }
+
         $transaction->update([
             'is_shared' => true,
             'shared_allocations' => $allocations,
             'student_id' => $primaryStudentId,
             'allocation_status' => 'manually_allocated',
-            'allocated_amount' => $transaction->trans_amount,
-            'unallocated_amount' => 0,
+            'allocated_amount' => $totalAmount,
+            'unallocated_amount' => max(0, $transaction->trans_amount - $totalAmount),
             'match_reason' => $matchReason,
         ]);
     }
