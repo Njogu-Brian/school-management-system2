@@ -187,6 +187,9 @@ class StaffController extends Controller
         }
 
         $staff = Staff::create($staffData);
+        $userId = auth()->id();
+        $this->logPhoneNormalization(Staff::class, $staff->id, 'phone_number', $request->phone_number, $staffData['phone_number'] ?? null, '+254', 'staff_create', $userId);
+        $this->logPhoneNormalization(Staff::class, $staff->id, 'emergency_contact_phone', $request->emergency_contact_phone, $staffData['emergency_contact_phone'] ?? null, '+254', 'staff_create', $userId);
 
         // 5) Increment counter
         Setting::setInt('staff_id_start', $start + 1);
@@ -441,6 +444,9 @@ class StaffController extends Controller
             }
 
             $staff->update($staffData);
+            $userId = auth()->id();
+            $this->logPhoneNormalization(Staff::class, $staff->id, 'phone_number', $staff->getOriginal('phone_number'), $staffData['phone_number'] ?? null, '+254', 'staff_update', $userId);
+            $this->logPhoneNormalization(Staff::class, $staff->id, 'emergency_contact_phone', $staff->getOriginal('emergency_contact_phone'), $staffData['emergency_contact_phone'] ?? null, '+254', 'staff_update', $userId);
 
             $this->syncStatutoryExemptions($staff, $request->input('statutory_exemptions', []));
 
@@ -733,6 +739,20 @@ class StaffController extends Controller
                 'deduction_code' => $code,
             ]);
         }
+    }
+
+    private function logPhoneNormalization(
+        string $modelType,
+        ?int $modelId,
+        string $field,
+        ?string $oldValue,
+        ?string $newValue,
+        ?string $countryCode,
+        string $source,
+        ?int $userId
+    ): void {
+        app(\App\Services\PhoneNumberNormalizationLogger::class)
+            ->logIfChanged($modelType, $modelId, $field, $oldValue, $newValue, $countryCode, $source, $userId);
     }
 
     /**

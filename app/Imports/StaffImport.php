@@ -64,6 +64,8 @@ class StaffImport implements ToCollection
                     'supervisor_staff_id' => trim((string)($row[24] ?? '')),
                     'spatie_role_name'    => trim((string)($row[25] ?? '')),
                 ];
+                $rawPhone = $data['phone_number'];
+                $rawEmergency = $data['emergency_contact_phone'];
                 $phoneService = app(\App\Services\PhoneNumberService::class);
                 $data['phone_number'] = $phoneService->formatWithCountryCode($data['phone_number'] ?? null, '+254');
                 $data['emergency_contact_phone'] = $phoneService->formatWithCountryCode($data['emergency_contact_phone'] ?? null, '+254');
@@ -165,6 +167,12 @@ class StaffImport implements ToCollection
                         'status' => 'active',
                     ]);
                 });
+
+                if ($createdStaff) {
+                    $logger = app(\App\Services\PhoneNumberNormalizationLogger::class);
+                    $logger->logIfChanged(Staff::class, $createdStaff->id, 'phone_number', $rawPhone, $data['phone_number'] ?? null, '+254', 'staff_import', null);
+                    $logger->logIfChanged(Staff::class, $createdStaff->id, 'emergency_contact_phone', $rawEmergency, $data['emergency_contact_phone'] ?? null, '+254', 'staff_import', null);
+                }
 
                 // Send welcome notifications after successful creation
                 if ($createdStaff && $createdUser) {

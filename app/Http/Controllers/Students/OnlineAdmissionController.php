@@ -172,13 +172,20 @@ class OnlineAdmissionController extends Controller
         $data['stream_id'] = null;
 
         // Normalize phones with country codes
-        $data['father_phone'] = $this->formatPhoneWithCode($request->father_phone, $data['father_phone_country_code']);
-        $data['father_whatsapp'] = $this->formatPhoneWithCode($request->father_whatsapp, $data['father_phone_country_code']);
-        $data['mother_phone'] = $this->formatPhoneWithCode($request->mother_phone, $data['mother_phone_country_code']);
-        $data['mother_whatsapp'] = $this->formatPhoneWithCode($request->mother_whatsapp, $data['mother_phone_country_code']);
-        $data['guardian_phone'] = $this->formatPhoneWithCode($request->guardian_phone, $data['guardian_phone_country_code']);
-        $data['guardian_whatsapp'] = $this->formatPhoneWithCode($request->guardian_whatsapp, $data['guardian_phone_country_code']);
-        $data['emergency_contact_phone'] = $this->formatPhoneWithCode($request->emergency_contact_phone, '+254');
+        $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $data['father_phone_country_code']);
+        $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $data['father_phone_country_code']);
+        $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $data['mother_phone_country_code']);
+        $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $data['mother_phone_country_code']);
+        $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $data['guardian_phone_country_code']);
+        $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $data['guardian_phone_country_code']);
+        $emergencyPhone = $this->formatPhoneWithCode($request->emergency_contact_phone, '+254');
+        $data['father_phone'] = $fatherPhone;
+        $data['father_whatsapp'] = $fatherWhatsapp;
+        $data['mother_phone'] = $motherPhone;
+        $data['mother_whatsapp'] = $motherWhatsapp;
+        $data['guardian_phone'] = $guardianPhone;
+        $data['guardian_whatsapp'] = $guardianWhatsapp;
+        $data['emergency_contact_phone'] = $emergencyPhone;
 
         // Require at least one parent/guardian name + phone
         $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
@@ -203,7 +210,15 @@ class OnlineAdmissionController extends Controller
             $data['mother_id_document'] = $request->file('mother_id_document')->store('admissions/documents', 'private');
         }
 
-        OnlineAdmission::create($data);
+        $admission = OnlineAdmission::create($data);
+        $userId = auth()->id();
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'father_phone', $request->father_phone, $fatherPhone, $data['father_phone_country_code'], 'online_admission', $userId);
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'father_whatsapp', $request->father_whatsapp, $fatherWhatsapp, $data['father_phone_country_code'], 'online_admission', $userId);
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'mother_phone', $request->mother_phone, $motherPhone, $data['mother_phone_country_code'], 'online_admission', $userId);
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'mother_whatsapp', $request->mother_whatsapp, $motherWhatsapp, $data['mother_phone_country_code'], 'online_admission', $userId);
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'guardian_phone', $request->guardian_phone, $guardianPhone, $data['guardian_phone_country_code'], 'online_admission', $userId);
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'guardian_whatsapp', $request->guardian_whatsapp, $guardianWhatsapp, $data['guardian_phone_country_code'], 'online_admission', $userId);
+        $this->logPhoneNormalization(OnlineAdmission::class, $admission->id, 'emergency_contact_phone', $request->emergency_contact_phone, $emergencyPhone, '+254', 'online_admission', $userId);
 
         if ($request->filled('save_add_another')) {
             return redirect()->route('online-admissions.public-form')
@@ -632,6 +647,20 @@ class OnlineAdmissionController extends Controller
     {
         return app(\App\Services\PhoneNumberService::class)
             ->formatWithCountryCode($number, $code);
+    }
+
+    protected function logPhoneNormalization(
+        string $modelType,
+        ?int $modelId,
+        string $field,
+        ?string $oldValue,
+        ?string $newValue,
+        ?string $countryCode,
+        string $source,
+        ?int $userId
+    ): void {
+        app(\App\Services\PhoneNumberNormalizationLogger::class)
+            ->logIfChanged($modelType, $modelId, $field, $oldValue, $newValue, $countryCode, $source, $userId);
     }
 
     /**

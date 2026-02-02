@@ -70,6 +70,9 @@ class StaffProfileController extends Controller
         $phoneService = app(\App\Services\PhoneNumberService::class);
         $data['phone_number'] = $phoneService->formatWithCountryCode($data['phone_number'] ?? null, '+254');
         $data['emergency_contact_phone'] = $phoneService->formatWithCountryCode($data['emergency_contact_phone'] ?? null, '+254');
+        $userId = auth()->id();
+        $this->logPhoneNormalization(Staff::class, $staff->id, 'phone_number', $staff->phone_number, $data['phone_number'] ?? null, '+254', 'staff_profile_update', $userId);
+        $this->logPhoneNormalization(Staff::class, $staff->id, 'emergency_contact_phone', $staff->emergency_contact_phone, $data['emergency_contact_phone'] ?? null, '+254', 'staff_profile_update', $userId);
 
         // Handle photo upload separately (apply immediately, no approval needed)
         $photoUpdated = false;
@@ -131,5 +134,19 @@ class StaffProfileController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    private function logPhoneNormalization(
+        string $modelType,
+        ?int $modelId,
+        string $field,
+        ?string $oldValue,
+        ?string $newValue,
+        ?string $countryCode,
+        string $source,
+        ?int $userId
+    ): void {
+        app(\App\Services\PhoneNumberNormalizationLogger::class)
+            ->logIfChanged($modelType, $modelId, $field, $oldValue, $newValue, $countryCode, $source, $userId);
     }
 }

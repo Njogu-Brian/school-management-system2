@@ -472,6 +472,23 @@ class FamilyUpdateController extends Controller
                     $result = $parent->update($parentData);
                     $saveResult = $parent->save(); // Ensure save happens
                     $parent->refresh(); // Refresh to get updated values
+
+                    $userId = auth()->id();
+                    if (array_key_exists('father_phone', $parentData)) {
+                        $this->logPhoneNormalization(\App\Models\ParentInfo::class, $parent->id, 'father_phone', $parentBeforeSnapshot['father_phone'] ?? null, $parent->father_phone, $fatherCountryCode, 'family_update', $userId);
+                    }
+                    if (array_key_exists('father_whatsapp', $parentData)) {
+                        $this->logPhoneNormalization(\App\Models\ParentInfo::class, $parent->id, 'father_whatsapp', $parentBeforeSnapshot['father_whatsapp'] ?? null, $parent->father_whatsapp, $fatherWhatsappCountryCode, 'family_update', $userId);
+                    }
+                    if (array_key_exists('mother_phone', $parentData)) {
+                        $this->logPhoneNormalization(\App\Models\ParentInfo::class, $parent->id, 'mother_phone', $parentBeforeSnapshot['mother_phone'] ?? null, $parent->mother_phone, $motherCountryCode, 'family_update', $userId);
+                    }
+                    if (array_key_exists('mother_whatsapp', $parentData)) {
+                        $this->logPhoneNormalization(\App\Models\ParentInfo::class, $parent->id, 'mother_whatsapp', $parentBeforeSnapshot['mother_whatsapp'] ?? null, $parent->mother_whatsapp, $motherWhatsappCountryCode, 'family_update', $userId);
+                    }
+                    if (array_key_exists('guardian_phone', $parentData)) {
+                        $this->logPhoneNormalization(\App\Models\ParentInfo::class, $parent->id, 'guardian_phone', $parentBeforeSnapshot['guardian_phone'] ?? null, $parent->guardian_phone, $guardianCountryCode, 'family_update', $userId);
+                    }
                     
                     \Log::info('FamilyUpdate: Parent updated', [
                         'parent_id' => $parent->id,
@@ -1066,6 +1083,20 @@ class FamilyUpdateController extends Controller
     {
         return app(\App\Services\PhoneNumberService::class)
             ->formatWithCountryCode($phone, $code);
+    }
+
+    private function logPhoneNormalization(
+        string $modelType,
+        ?int $modelId,
+        string $field,
+        ?string $oldValue,
+        ?string $newValue,
+        ?string $countryCode,
+        string $source,
+        ?int $userId
+    ): void {
+        app(\App\Services\PhoneNumberNormalizationLogger::class)
+            ->logIfChanged($modelType, $modelId, $field, $oldValue, $newValue, $countryCode, $source, $userId);
     }
 }
 
