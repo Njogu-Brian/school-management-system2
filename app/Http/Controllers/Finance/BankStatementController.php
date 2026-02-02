@@ -1973,6 +1973,7 @@ class BankStatementController extends Controller
     {
         $transaction = $this->resolveTransaction($id);
         $isC2B = $transaction instanceof MpesaC2BTransaction;
+        $createdPayment = null;
         
         // Normalize for checks
         $normalized = $this->normalizeTransaction($transaction);
@@ -2018,7 +2019,7 @@ class BankStatementController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($transaction, $bankStatement, $isC2B, $remainingAmount) {
+            DB::transaction(function () use ($transaction, $bankStatement, $isC2B, $remainingAmount, &$createdPayment) {
                 // Check if there are any non-reversed payments for this transaction
                 $nonReversedPayments = collect();
                 if ($bankStatement->reference_number) {
@@ -2074,13 +2075,16 @@ class BankStatementController extends Controller
                     // Create payment with auto-allocation enabled
                     if ($isC2B) {
                         $payment = $this->createPaymentForC2B($transaction);
+                        $createdPayment = $payment;
                     } else {
                         // If payments already exist, create missing ones only
                         if ($bankStatement->payment_created && $remainingAmount !== null && $remainingAmount > 0.01) {
                             $created = $this->parser->createMissingPaymentsForTransaction($transaction, false);
                             $payment = $created[0] ?? null;
+                            $createdPayment = $payment;
                         } else {
                             $payment = $this->parser->createPaymentFromTransaction($transaction, false);
+                            $createdPayment = $payment;
                         }
                     }
                     
@@ -2152,6 +2156,17 @@ class BankStatementController extends Controller
                 }
             });
             
+            if (!$createdPayment) {
+                $message = 'No additional payment was created.';
+                if ($remainingAmount !== null && $remainingAmount <= 0.01) {
+                    $message = 'No additional payment was created because the transaction is already fully collected.';
+                }
+
+                return redirect()
+                    ->route('finance.bank-statements.show', $id)
+                    ->with('warning', $message);
+            }
+
             return redirect()
                 ->route('finance.bank-statements.show', $id)
                 ->with('success', 'Payment created and allocated successfully.');
