@@ -1777,6 +1777,21 @@ class BankStatementController extends Controller
                     continue;
                 }
 
+                $anyPaymentWithCode = \App\Models\Payment::where('transaction_code', $transactionCode)
+                    ->where('student_id', $studentId)
+                    ->first();
+                if ($anyPaymentWithCode) {
+                    $baseCode = $transactionCode . '-R';
+                    $transactionCode = $baseCode;
+                    $attempt = 0;
+                    while (\App\Models\Payment::where('transaction_code', $transactionCode)
+                        ->where('student_id', $studentId)
+                        ->exists() && $attempt < 5) {
+                        $transactionCode = $baseCode . '-' . time() . '-' . rand(100, 999);
+                        $attempt++;
+                    }
+                }
+
                 $payment = \App\Models\Payment::create([
                     'student_id' => $student->id,
                     'amount' => $amount,
