@@ -75,8 +75,7 @@
                 </h3>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     @php
-                        $family = $payment->student->family ?? null;
-                        $updateLink = $family->updateLink ?? null;
+                        $updateLink = optional(optional($payment->student)->family)->updateLink;
                     @endphp
                     @if($updateLink && $updateLink->is_active)
                         <a href="{{ route('family-update.form', $updateLink->token) }}" 
