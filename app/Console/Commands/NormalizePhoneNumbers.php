@@ -50,7 +50,7 @@ class NormalizePhoneNumbers extends Command
     {
         ParentInfo::query()
             ->when($limit, fn ($q) => $q->limit($limit))
-            ->chunkById(200, function ($rows) use ($service, $apply, &$summary) {
+            ->chunkById(200, function ($rows) use ($service, $logger, $apply, &$summary) {
                 foreach ($rows as $row) {
                     $summary['parents']['scanned']++;
                     $updates = [];
@@ -90,7 +90,7 @@ class NormalizePhoneNumbers extends Command
     {
         Student::withArchived()
             ->when($limit, fn ($q) => $q->limit($limit))
-            ->chunkById(200, function ($rows) use ($service, $apply, &$summary) {
+            ->chunkById(200, function ($rows) use ($service, $logger, $apply, &$summary) {
                 foreach ($rows as $row) {
                     $summary['students']['scanned']++;
                     $updates = [];
@@ -112,7 +112,7 @@ class NormalizePhoneNumbers extends Command
     {
         Staff::query()
             ->when($limit, fn ($q) => $q->limit($limit))
-            ->chunkById(200, function ($rows) use ($service, $apply, &$summary) {
+            ->chunkById(200, function ($rows) use ($service, $logger, $apply, &$summary) {
                 foreach ($rows as $row) {
                     $summary['staff']['scanned']++;
                     $updates = [];
@@ -135,7 +135,7 @@ class NormalizePhoneNumbers extends Command
     {
         OnlineAdmission::query()
             ->when($limit, fn ($q) => $q->limit($limit))
-            ->chunkById(200, function ($rows) use ($service, $apply, &$summary) {
+            ->chunkById(200, function ($rows) use ($service, $logger, $apply, &$summary) {
                 foreach ($rows as $row) {
                     $summary['online_admissions']['scanned']++;
                     $updates = [];
