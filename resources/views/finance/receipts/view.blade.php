@@ -74,11 +74,8 @@
                     <i class="bi bi-receipt"></i> Receipt: {{ $displayReceiptNumber }}
                 </h3>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                    @php
-                        $updateLink = optional(optional($payment->student)->family)->updateLink;
-                    @endphp
-                    @if($updateLink && $updateLink->is_active)
-                        <a href="{{ route('family-update.form', $updateLink->token) }}" 
+                    @if(optional(optional($payment->student)->family)->updateLink?->is_active)
+                        <a href="{{ route('family-update.form', optional(optional($payment->student)->family)->updateLink?->token) }}" 
                            target="_blank" 
                            class="btn btn-update-profile">
                             <i class="bi bi-person-gear me-1"></i> Update Profile
