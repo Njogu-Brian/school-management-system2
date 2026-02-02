@@ -367,6 +367,11 @@
                         <button type="button" class="btn btn-finance btn-finance-secondary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
                             <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
                         </button>
+                        @if(isset($siblings) && $siblings->isNotEmpty())
+                        <a href="{{ route('finance.payments.show', $payment, ['action' => 'share']) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
+                            <i class="bi bi-people"></i> Share with Siblings
+                        </a>
+                        @endif
                         <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" id="reversePaymentForm" onsubmit="return confirmPaymentReversal(event)">
                             @csrf
                             @method('DELETE')
@@ -578,6 +583,23 @@
                             <div class="alert alert-warning">
                                 <i class="bi bi-exclamation-triangle"></i> Total shared amounts must equal exactly <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
                             </div>
+                            @if(isset($siblings) && $siblings->isNotEmpty())
+                                <div class="mb-3">
+                                    <label class="form-label text-muted small">Siblings</label>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        @foreach($siblings as $sibling)
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary btn-sm add-sibling-btn"
+                                                    data-student-id="{{ $sibling->id }}"
+                                                    data-student-name="{{ $sibling->full_name }}"
+                                                    data-student-admission="{{ $sibling->admission_number }}">
+                                                <i class="bi bi-person-plus"></i> {{ $sibling->full_name }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                    <small class="text-muted">Click a sibling to add them to the share list.</small>
+                                </div>
+                            @endif
                             <div id="sharedStudentsList">
                                 <!-- Original student (pre-populated) -->
                                 <div class="shared-student-item mb-3 border-bottom pb-2">
@@ -596,7 +618,7 @@
                                     </small>
                                     <div class="input-group mt-2">
                                         <span class="input-group-text">Ksh</span>
-                                        <input type="number" step="0.01" min="0" max="{{ $payment->amount }}" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount / 2, 2, '.', '') }}" required>
+                                        <input type="number" step="0.01" min="0" max="{{ $payment->amount }}" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount, 2, '.', '') }}" required>
                                         <span class="input-group-text bg-secondary text-white">Cannot Remove</span>
                                     </div>
                                 </div>
@@ -612,7 +634,7 @@
                                     ])
                                     <div class="input-group mt-2">
                                         <span class="input-group-text">Ksh</span>
-                                        <input type="number" step="0.01" min="0.01" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount / 2, 2, '.', '') }}" required>
+                                        <input type="number" step="0.01" min="0" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="0.00" required>
                                         <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
                                             <i class="bi bi-x"></i>
                                         </button>
@@ -876,47 +898,110 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
     
+    function getSharedStudentIds() {
+        return Array.from(document.querySelectorAll('#sharedStudentsList input[name="shared_students[]"]'))
+            .map(el => parseInt(el.value, 10))
+            .filter(id => !Number.isNaN(id) && id > 0);
+    }
+    
+    function getSharedTemplateItem(list) {
+        const items = Array.from(list.querySelectorAll('.shared-student-item'));
+        const candidates = items.filter(item => item.querySelector('.student-live-search-wrapper') && !item.dataset.readonly);
+        return candidates[candidates.length - 1] || items[items.length - 1];
+    }
+    
+    function addSharedStudentRow({ studentId = null, studentLabel = '', readOnly = false } = {}) {
+        const list = document.getElementById('sharedStudentsList');
+        if (!list) return;
+        
+        const existingIds = getSharedStudentIds();
+        if (studentId && existingIds.includes(parseInt(studentId, 10))) {
+            return;
+        }
+        
+        const template = getSharedTemplateItem(list);
+        if (!template) return;
+        
+        const clone = template.cloneNode(true);
+        const newIndex = list.querySelectorAll('.shared-student-item').length + 1;
+        
+        clone.setAttribute('data-index', newIndex);
+        if (readOnly) {
+            clone.dataset.readonly = '1';
+        } else {
+            delete clone.dataset.readonly;
+        }
+        clone.querySelectorAll('[id]').forEach(el => {
+            const oldId = el.id;
+            const baseName = oldId.replace(/_\d+$/, '');
+            el.id = `${baseName}_${newIndex}`;
+        });
+        
+        // Reset values
+        clone.querySelectorAll('[name="shared_students[]"]').forEach(el => el.value = '');
+        clone.querySelectorAll('[name="shared_amounts[]"]').forEach(el => el.value = '0.00');
+        clone.querySelectorAll('input[type="text"]').forEach(el => {
+            el.value = '';
+            el.readOnly = false;
+            el.classList.remove('bg-light');
+        });
+        clone.querySelectorAll('.student-search-results').forEach(el => {
+            el.classList.add('d-none');
+            el.innerHTML = '';
+        });
+        clone.querySelectorAll('.student-balance-info').forEach(el => el.remove());
+        
+        list.appendChild(clone);
+        
+        const wrapper = clone.querySelector('.student-live-search-wrapper');
+        if (wrapper && !readOnly) {
+            initLiveSearchWrapper(wrapper);
+        }
+        
+        const displayInput = clone.querySelector('input[type="text"]');
+        const hiddenInput = clone.querySelector('input[type="hidden"]');
+        if (studentId && hiddenInput) {
+            hiddenInput.value = studentId;
+        }
+        if (studentLabel && displayInput) {
+            displayInput.value = studentLabel;
+            if (readOnly) {
+                displayInput.readOnly = true;
+                displayInput.classList.add('bg-light');
+            }
+        }
+        
+        if (studentId && wrapper) {
+            loadStudentBalanceInfo(studentId, wrapper);
+        }
+        
+        clone.querySelector('.remove-student-btn')?.addEventListener('click', function() {
+            clone.remove();
+            updateTotalShared();
+        });
+        
+        clone.querySelector('.shared-amount')?.addEventListener('input', updateTotalShared);
+        
+        updateTotalShared();
+    }
+    
     // Add shared student (clones the last added item's markup)
     const addSharedStudentBtn = document.getElementById('addSharedStudent');
     if (addSharedStudentBtn) {
-        let sharedIndex = 2; // Start at 2 since 0 is original student, 1 is first additional
-        const list = document.getElementById('sharedStudentsList');
-        
         addSharedStudentBtn.addEventListener('click', function() {
-            const items = list.querySelectorAll('.shared-student-item');
-            const template = items[items.length - 1]; // Get the last item as template
-            const clone = template.cloneNode(true);
-            const newIndex = sharedIndex++;
-            
-            // Clear the clone
-            clone.setAttribute('data-index', newIndex);
-            clone.querySelectorAll('[id]').forEach(el => {
-                const oldId = el.id;
-                const baseName = oldId.replace(/_\d+$/, '');
-                el.id = `${baseName}_${newIndex}`;
-            });
-            clone.querySelectorAll('[name="shared_students[]"]').forEach(el => el.value = '');
-            clone.querySelectorAll('[name="shared_amounts[]"]').forEach(el => el.value = '');
-            clone.querySelectorAll('input[type="text"]').forEach(el => el.value = '');
-            
-            list.appendChild(clone);
-            
-            // Initialize live search for the new clone
-            const wrapper = clone.querySelector('.student-live-search-wrapper');
-            initLiveSearchWrapper(wrapper);
-            
-            // Add remove functionality
-            clone.querySelector('.remove-student-btn')?.addEventListener('click', function() {
-                clone.remove();
-                updateTotalShared();
-            });
-            
-            // Add amount change listener
-            clone.querySelector('.shared-amount')?.addEventListener('input', updateTotalShared);
-            
-            updateTotalShared();
+            addSharedStudentRow();
         });
     }
+    
+    document.querySelectorAll('.add-sibling-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const studentId = this.getAttribute('data-student-id');
+            const studentName = this.getAttribute('data-student-name');
+            const admission = this.getAttribute('data-student-admission');
+            const label = admission ? `${studentName} (${admission})` : studentName;
+            addSharedStudentRow({ studentId, studentLabel: label, readOnly: true });
+        });
+    });
     
     // Update total shared amount with exact validation
     function updateTotalShared() {
@@ -1024,30 +1109,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     return false;
                 }
             } else if (transferType && transferType.value === 'share') {
-                // Validate all students are selected
+                // Validate students with non-zero amounts
                 const studentInputs = document.querySelectorAll('#sharedStudentsList input[name="shared_students[]"]');
-                let hasEmptyStudent = false;
-                let emptyIndex = -1;
+                const amountInputs = document.querySelectorAll('#sharedStudentsList .shared-amount');
+                let hasMissingStudent = false;
+                let missingIndex = -1;
+                let total = 0;
                 
-                studentInputs.forEach((input, index) => {
-                    if (!input.value || input.value.trim() === '') {
-                        hasEmptyStudent = true;
-                        emptyIndex = index;
+                amountInputs.forEach((amountInput, index) => {
+                    const amount = parseFloat(amountInput.value) || 0;
+                    total += amount;
+                    const studentInput = studentInputs[index];
+                    if (amount > 0 && (!studentInput || !studentInput.value || studentInput.value.trim() === '')) {
+                        hasMissingStudent = true;
+                        missingIndex = index;
                     }
                 });
                 
-                if (hasEmptyStudent) {
+                if (hasMissingStudent) {
                     e.preventDefault();
-                    alert(`Please select a valid student for all entries. Entry #${emptyIndex + 1} has no student selected. Make sure to:\n1. Type the student name\n2. Wait for search results\n3. Click on a student from the dropdown`);
+                    alert(`Please select a valid student for all entries with an amount. Entry #${missingIndex + 1} has an amount but no student selected. Make sure to:\n1. Type the student name\n2. Wait for search results\n3. Click on a student from the dropdown`);
                     return false;
                 }
-                
-                // Validate amounts
-                const amounts = document.querySelectorAll('.shared-amount');
-                let total = 0;
-                amounts.forEach(input => {
-                    total += parseFloat(input.value) || 0;
-                });
                 
                 const tolerance = 0.01;
                 if (Math.abs(total - maxTransferAmount) > tolerance) {
@@ -1066,6 +1149,18 @@ document.addEventListener('DOMContentLoaded', function() {
             // Reinitialize all live search wrappers in the modal
             document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
         });
+    }
+    
+    // Auto-open transfer/share modal from query param
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (transferModal && action && (action === 'share' || action === 'transfer')) {
+        const modal = new bootstrap.Modal(transferModal);
+        modal.show();
+        if (transferType) {
+            transferType.value = action === 'transfer' ? 'transfer' : 'share';
+            transferType.dispatchEvent(new Event('change'));
+        }
     }
 });
     

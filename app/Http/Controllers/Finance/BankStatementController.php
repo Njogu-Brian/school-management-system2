@@ -3082,90 +3082,7 @@ class BankStatementController extends Controller
                 
                 // If transaction is confirmed and has payments, update the payments too
                 if ($normalized['status'] === 'confirmed' && $normalized['payment_created']) {
-                    // Find all payments related to this transaction
-                    $referenceNumber = $normalized['reference_number'];
-                    $relatedPayments = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
-                            $q->where('transaction_code', $referenceNumber)
-                              ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
-                        })
-                        ->where('reversed', false)
-                        ->get();
-                    
-                    foreach ($activeAllocations as $allocation) {
-                        $payment = $relatedPayments->firstWhere('student_id', $allocation['student_id']);
-                        
-                        if ($payment) {
-                            $oldAmount = $payment->amount;
-                            $newAmount = (float) $allocation['amount'];
-                            
-                            if (abs($oldAmount - $newAmount) > 0.01) {
-                                // Update payment amount
-                                $payment->update(['amount' => $newAmount]);
-                                
-                                // If amount decreased, deallocate excess
-                                if ($newAmount < $oldAmount) {
-                                    $excess = $oldAmount - $newAmount;
-                                    $remaining = $excess;
-                                    $affectedInvoices = collect();
-                                    
-                                    // Get allocations ordered by date (oldest first) - FIFO
-                                    $allocations = \App\Models\PaymentAllocation::where('payment_id', $payment->id)
-                                        ->with('invoiceItem.invoice')
-                                        ->orderBy('allocated_at', 'asc')
-                                        ->get();
-                                    
-                                    foreach ($allocations as $allocation) {
-                                        if ($remaining <= 0) {
-                                            break;
-                                        }
-                                        
-                                        $allocationAmount = (float)$allocation->amount;
-                                        $invoice = $allocation->invoiceItem->invoice;
-                                        
-                                        if ($allocationAmount <= $remaining) {
-                                            // Delete entire allocation
-                                            $remaining -= $allocationAmount;
-                                            $allocation->delete();
-                                            
-                                            if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
-                                                $affectedInvoices->push($invoice);
-                                            }
-                                        } else {
-                                            // Partially deallocate
-                                            $newAllocationAmount = $allocationAmount - $remaining;
-                                            $allocation->update(['amount' => $newAllocationAmount]);
-                                            $remaining = 0;
-                                            
-                                            if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
-                                                $affectedInvoices->push($invoice);
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Recalculate affected invoices
-                                    foreach ($affectedInvoices as $invoice) {
-                                        \App\Services\InvoiceService::recalc($invoice);
-                                    }
-                                }
-                                
-                                // Update allocation totals
-                                $payment->updateAllocationTotals();
-                                
-                                // Regenerate receipt if exists
-                                if ($payment->receipt) {
-                                    try {
-                                        $receiptService = app(\App\Services\ReceiptService::class);
-                                        $receiptService->generateReceipt($payment->fresh(), ['save' => true, 'regenerate' => true]);
-                                    } catch (\Exception $e) {
-                                        \Log::warning('Failed to regenerate receipt after allocation update', [
-                                            'payment_id' => $payment->id,
-                                            'error' => $e->getMessage(),
-                                        ]);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    $this->syncSharedPayments($transaction, $normalized, $activeAllocations);
                 }
                 
                 // Increment version for optimistic locking when supported
@@ -3243,6 +3160,13 @@ class BankStatementController extends Controller
                 $this->shareC2BTransaction($transaction, $activeAllocations);
             } else {
                 $this->parser->shareTransaction($transaction, $activeAllocations);
+                
+                // If already collected, update existing payments and create missing ones
+                $transaction->refresh();
+                $normalized = $this->normalizeTransaction($transaction);
+                if (($normalized['status'] ?? null) === 'confirmed' && ($normalized['payment_created'] ?? false)) {
+                    $this->syncSharedPayments($transaction, $normalized, $activeAllocations);
+                }
             }
             
             $siblingCount = count($activeAllocations);
@@ -3288,6 +3212,129 @@ class BankStatementController extends Controller
             'unallocated_amount' => max(0, $transaction->trans_amount - $totalAmount),
             'match_reason' => $matchReason,
         ]);
+    }
+
+    /**
+     * Sync shared allocations with existing payments and create missing ones.
+     */
+    protected function syncSharedPayments($transaction, array $normalized, array $activeAllocations): void
+    {
+        $referenceNumber = $normalized['reference_number'] ?? null;
+        if (!$referenceNumber) {
+            return;
+        }
+        
+        $hasReversed = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
+                $q->where('transaction_code', $referenceNumber)
+                  ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
+            })
+            ->where('reversed', true)
+            ->exists();
+        
+        if ($hasReversed) {
+            throw new \Exception('Cannot share: One or more related payments have been reversed.');
+        }
+        
+        $relatedPayments = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
+                $q->where('transaction_code', $referenceNumber)
+                  ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
+            })
+            ->where('reversed', false)
+            ->get();
+        
+        $allocationStudentIds = collect($activeAllocations)->pluck('student_id')->map(fn($id) => (int) $id)->values();
+        $extraPayments = $relatedPayments->filter(function ($payment) use ($allocationStudentIds) {
+            return !$allocationStudentIds->contains((int) $payment->student_id);
+        });
+        if ($extraPayments->isNotEmpty()) {
+            throw new \Exception('Cannot share: There are existing payments for students not in the allocations. Reverse extra payments first.');
+        }
+        
+        foreach ($activeAllocations as $allocation) {
+            $payment = $relatedPayments->firstWhere('student_id', $allocation['student_id']);
+            
+            if ($payment) {
+                $oldAmount = (float) $payment->amount;
+                $newAmount = (float) $allocation['amount'];
+                
+                if (abs($oldAmount - $newAmount) > 0.01) {
+                    // Update payment amount
+                    $payment->update(['amount' => $newAmount]);
+                    
+                    // If amount decreased, deallocate excess
+                    if ($newAmount < $oldAmount) {
+                        $excess = $oldAmount - $newAmount;
+                        $remaining = $excess;
+                        $affectedInvoices = collect();
+                        
+                        // Get allocations ordered by date (oldest first) - FIFO
+                        $allocations = \App\Models\PaymentAllocation::where('payment_id', $payment->id)
+                            ->with('invoiceItem.invoice')
+                            ->orderBy('allocated_at', 'asc')
+                            ->get();
+                        
+                        foreach ($allocations as $allocationRecord) {
+                            if ($remaining <= 0) {
+                                break;
+                            }
+                            
+                            $allocationAmount = (float) $allocationRecord->amount;
+                            $invoice = $allocationRecord->invoiceItem->invoice;
+                            
+                            if ($allocationAmount <= $remaining) {
+                                // Delete entire allocation
+                                $remaining -= $allocationAmount;
+                                $allocationRecord->delete();
+                                
+                                if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                                    $affectedInvoices->push($invoice);
+                                }
+                            } else {
+                                // Partially deallocate
+                                $newAllocationAmount = $allocationAmount - $remaining;
+                                $allocationRecord->update(['amount' => $newAllocationAmount]);
+                                $remaining = 0;
+                                
+                                if ($invoice && !$affectedInvoices->contains('id', $invoice->id)) {
+                                    $affectedInvoices->push($invoice);
+                                }
+                            }
+                        }
+                        
+                        // Recalculate affected invoices
+                        foreach ($affectedInvoices as $invoice) {
+                            \App\Services\InvoiceService::recalc($invoice);
+                        }
+                    }
+                    
+                    // Update allocation totals
+                    $payment->updateAllocationTotals();
+                    
+                    // Regenerate receipt if exists
+                    if ($payment->receipt) {
+                        try {
+                            $receiptService = app(\App\Services\ReceiptService::class);
+                            $receiptService->generateReceipt($payment->fresh(), ['save' => true, 'regenerate' => true]);
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to regenerate receipt after allocation update', [
+                                'payment_id' => $payment->id,
+                                'error' => $e->getMessage(),
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Create missing payments for shared allocations
+        try {
+            $this->parser->createMissingPaymentsForTransaction($transaction, false);
+        } catch (\Exception $e) {
+            \Log::warning('Failed to create missing payments for shared allocations', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

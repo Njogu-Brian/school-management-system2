@@ -85,10 +85,10 @@
                     @endforeach
                 </p>
                 <p class="mb-0">
-                    @if($bankStatement->status === 'draft')
+                    @if(in_array($bankStatement->status, ['draft', 'confirmed']))
                         <strong>You can share this payment among siblings</strong> using the form below. This allows you to allocate the payment amount across multiple students in the same family.
                     @else
-                        <strong>Note:</strong> This transaction is {{ $bankStatement->status }}. To share payments, the transaction must be in draft status.
+                        <strong>Note:</strong> This transaction is {{ $bankStatement->status }}. To share payments, the transaction must be in draft or confirmed status.
                     @endif
                 </p>
             </div>
@@ -728,7 +728,7 @@
                                             <div class="small text-muted mt-1">
                                                 Unallocated: <strong>Ksh {{ number_format($paymentUnallocated, 2) }}</strong>
                                             </div>
-                                            <a href="{{ route('finance.payments.show', $payment) }}" class="btn btn-sm btn-finance btn-finance-primary mt-2">
+                                            <a href="{{ route('finance.payments.show', $payment, ['action' => 'share']) }}" class="btn btn-sm btn-finance btn-finance-primary mt-2">
                                                 <i class="bi bi-plus-circle"></i> Allocate Remaining
                                             </a>
                                         @endif
@@ -766,10 +766,9 @@
                     @php
                         // Check if there are any active (non-reversed) payments
                         $hasActivePayments = $activePayments->isNotEmpty();
-                        // Allow sharing if: draft, or confirmed without active payments, or not rejected
-                        $canShare = $bankStatement->status === 'draft' 
-                            || ($bankStatement->status === 'confirmed' && !$hasActivePayments)
-                            || ($bankStatement->status !== 'confirmed' && $bankStatement->status !== 'rejected' && !$hasActivePayments);
+                        // Allow sharing if: draft or confirmed (collected allowed)
+                        $canShare = in_array($bankStatement->status, ['draft', 'confirmed'], true)
+                            && $bankStatement->status !== 'rejected';
                     @endphp
                     @if($canShare)
                     <form method="POST" action="{{ route('finance.bank-statements.share', $bankStatement->id) }}">
@@ -864,12 +863,10 @@
                     <div class="alert alert-warning mb-0">
                         <i class="bi bi-exclamation-triangle"></i> 
                         <strong>Cannot share payment:</strong> This transaction is {{ ucfirst($bankStatement->status) }}. 
-                        @if($bankStatement->status === 'confirmed' && $activePayments->isNotEmpty())
-                            This transaction is confirmed and has active (non-reversed) payment(s). To share this payment, you must first reverse the existing payment(s).
-                        @elseif($bankStatement->status === 'rejected')
+                        @if($bankStatement->status === 'rejected')
                             Rejected transactions cannot be shared. Please assign a student first.
                         @else
-                            Only draft transactions or confirmed transactions without active payments can be shared among siblings.
+                            Only draft or confirmed transactions can be shared among siblings.
                         @endif
                     </div>
                     @endif

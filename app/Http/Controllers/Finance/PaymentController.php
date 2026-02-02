@@ -919,8 +919,17 @@ class PaymentController extends Controller
         
         // Check if this payment is part of a shared transaction
         $sharedInfo = $this->getSharedTransactionInfo($payment);
+        $siblings = collect();
+        if ($payment->student && $payment->student->family_id) {
+            $siblings = Student::where('family_id', $payment->student->family_id)
+                ->where('id', '!=', $payment->student_id)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->limit(10)
+                ->get();
+        }
         
-        return view('finance.payments.show', compact('payment', 'sharedInfo'));
+        return view('finance.payments.show', compact('payment', 'sharedInfo', 'siblings'));
     }
     
     /**
@@ -1475,9 +1484,9 @@ class PaymentController extends Controller
             'target_student_id' => 'required_if:transfer_type,transfer|exists:students,id',
             'transfer_amount' => 'required_if:transfer_type,transfer|numeric|min:0.01|max:' . $maxTransferAmount,
             'shared_students' => 'required_if:transfer_type,share|array',
-            'shared_students.*' => 'exists:students,id',
+            'shared_students.*' => 'nullable|exists:students,id',
             'shared_amounts' => 'required_if:transfer_type,share|array',
-            'shared_amounts.*' => 'numeric|min:0.01',
+            'shared_amounts.*' => 'nullable|numeric|min:0',
             'transfer_reason' => 'nullable|string|max:500',
         ]);
         
@@ -1562,14 +1571,49 @@ class PaymentController extends Controller
                 return back()->with('success', "Payment of Ksh " . number_format($transferAmount, 2) . " transferred to {$targetStudent->full_name}.");
             } else {
                 // Share among multiple students
-                $sharedStudents = $request->shared_students;
-                $sharedAmounts = $request->shared_amounts;
-                $totalShared = array_sum($sharedAmounts);
+                $sharedStudents = $request->shared_students ?? [];
+                $sharedAmounts = $request->shared_amounts ?? [];
+                
+                $rawAllocations = collect($sharedStudents)->map(function ($studentId, $index) use ($sharedAmounts) {
+                    $amount = (float) ($sharedAmounts[$index] ?? 0);
+                    return [
+                        'student_id' => (int) $studentId,
+                        'amount' => $amount,
+                    ];
+                })->filter(function ($allocation) {
+                    return $allocation['student_id'] > 0 && $allocation['amount'] > 0;
+                });
+                
+                if ($rawAllocations->isEmpty()) {
+                    return back()->with('error', 'At least one student must have an amount greater than 0.');
+                }
+                
+                // Combine duplicates by student id
+                $sharedAllocations = $rawAllocations
+                    ->groupBy('student_id')
+                    ->map(fn($rows) => (float) $rows->sum('amount'))
+                    ->map(fn($amount, $studentId) => ['student_id' => (int) $studentId, 'amount' => (float) $amount])
+                    ->values()
+                    ->all();
+                
+                $totalShared = (float) collect($sharedAllocations)->sum('amount');
                 
                 // Validate total equals exactly payment amount (with small tolerance for rounding)
                 $tolerance = 0.01;
                 if (abs($totalShared - $payment->amount) > $tolerance) {
                     return back()->with('error', 'Total shared amounts must equal exactly the payment amount of Ksh ' . number_format($payment->amount, 2) . '. Current total: Ksh ' . number_format($totalShared, 2));
+                }
+                
+                // Sync bank statement shared allocations if applicable
+                $bankTransaction = \App\Models\BankStatementTransaction::where('reference_number', $payment->transaction_code)
+                    ->first();
+                if ($bankTransaction) {
+                    $bankTransaction->update([
+                        'is_shared' => true,
+                        'shared_allocations' => $sharedAllocations,
+                        'match_status' => 'manual',
+                        'match_notes' => trim(($bankTransaction->match_notes ?? '') . "\nShared via payment transfer."),
+                    ]);
                 }
                 
                 // Deallocate all from original payment since we're sharing the entire amount
@@ -1580,9 +1624,10 @@ class PaymentController extends Controller
                 $originalPaymentAmount = $payment->amount;
                 $sharedReference = $payment->transaction_code;
                 
-                foreach ($sharedStudents as $index => $studentId) {
+                foreach ($sharedAllocations as $allocation) {
+                    $studentId = (int) ($allocation['student_id'] ?? 0);
+                    $amount = (float) ($allocation['amount'] ?? 0);
                     $student = Student::withAlumni()->findOrFail($studentId);
-                    $amount = (float)($sharedAmounts[$index] ?? 0);
                     
                     if ($amount <= 0) {
                         continue; // Skip if no amount allocated
