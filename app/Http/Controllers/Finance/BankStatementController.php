@@ -2274,6 +2274,7 @@ class BankStatementController extends Controller
             return redirect()->back()
                 ->withErrors(['error' => 'Failed to create payment: ' . $e->getMessage()]);
         }
+    }
 
     /**
      * Split a transaction into fee and swimming allocations.
