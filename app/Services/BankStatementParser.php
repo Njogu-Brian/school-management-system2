@@ -1635,66 +1635,69 @@ class BankStatementParser
             }
             
             // Legacy check for conflict handling (for different students with same code)
-            $conflictingPayments = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
-                ->where('student_id', '!=', $student->id)
-                ->with('student')
-                ->get();
-            
-            if ($conflictingPayments->isNotEmpty()) {
-                $existingPayment = $conflictingPayments->firstWhere('reversed', false) ?? null;
-                if ($existingPayment) {
-                    // Auto-link to existing non-reversed payment
-                    $transaction->update([
-                        'payment_id' => $existingPayment->id,
-                        'payment_created' => true,
-                        'student_id' => $existingPayment->student_id,
-                        'status' => 'confirmed',
-                        'match_status' => 'manual',
-                    ]);
-
-                    Log::info('Auto-linked existing payment for conflicting transaction code', [
-                        'transaction_id' => $transaction->id,
-                        'payment_id' => $existingPayment->id,
-                        'transaction_code' => $transaction->reference_number,
-                        'student_id' => $existingPayment->student_id,
-                    ]);
-
-                    return $existingPayment;
-                }
-
-                // Only reversed payments exist; allow creating a new payment
-                $conflictingPayments = collect(); // treat as no conflict
-            } else {
-                // Check if transaction code (original or modified) is already used by other students
-                $originalCode = $transaction->reference_number;
-                $modifiedCode = $originalCode . '-' . $transaction->id;
-                
-                // Check both original and modified codes (for other students)
-                $codeExists = \App\Models\Payment::whereIn('transaction_code', [$originalCode, $modifiedCode])
+            // Skip this for shared transactions (siblings can share the same code)
+            if (!$transaction->is_shared) {
+                $conflictingPayments = \App\Models\Payment::where('transaction_code', $transaction->reference_number)
                     ->where('student_id', '!=', $student->id)
-                    ->where('reversed', false)
-                    ->exists();
+                    ->with('student')
+                    ->get();
                 
-                if ($codeExists) {
-                    // Generate a unique transaction code by appending transaction ID and timestamp
-                    $uniqueSuffix = $transaction->id . '-' . time();
-                    $transactionCode = $originalCode . '-' . $uniqueSuffix;
-                    
-                    // Double-check the new code doesn't exist for this student (very unlikely but possible)
-                    $maxAttempts = 5;
-                    $attempt = 0;
-                    while (\App\Models\Payment::where('transaction_code', $transactionCode)->where('student_id', $student->id)->exists() && $attempt < $maxAttempts) {
-                        $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
-                        $transactionCode = $originalCode . '-' . $uniqueSuffix;
-                        $attempt++;
-                        usleep(10000); // 0.01 seconds
+                if ($conflictingPayments->isNotEmpty()) {
+                    $existingPayment = $conflictingPayments->firstWhere('reversed', false) ?? null;
+                    if ($existingPayment) {
+                        // Auto-link to existing non-reversed payment
+                        $transaction->update([
+                            'payment_id' => $existingPayment->id,
+                            'payment_created' => true,
+                            'student_id' => $existingPayment->student_id,
+                            'status' => 'confirmed',
+                            'match_status' => 'manual',
+                        ]);
+
+                        Log::info('Auto-linked existing payment for conflicting transaction code', [
+                            'transaction_id' => $transaction->id,
+                            'payment_id' => $existingPayment->id,
+                            'transaction_code' => $transaction->reference_number,
+                            'student_id' => $existingPayment->student_id,
+                        ]);
+
+                        return $existingPayment;
                     }
+
+                    // Only reversed payments exist; allow creating a new payment
+                    $conflictingPayments = collect(); // treat as no conflict
+                } else {
+                    // Check if transaction code (original or modified) is already used by other students
+                    $originalCode = $transaction->reference_number;
+                    $modifiedCode = $originalCode . '-' . $transaction->id;
                     
-                    Log::warning('Transaction code already exists for other students, using modified code', [
-                        'original_code' => $originalCode,
-                        'new_code' => $transactionCode,
-                        'transaction_id' => $transaction->id,
-                    ]);
+                    // Check both original and modified codes (for other students)
+                    $codeExists = \App\Models\Payment::whereIn('transaction_code', [$originalCode, $modifiedCode])
+                        ->where('student_id', '!=', $student->id)
+                        ->where('reversed', false)
+                        ->exists();
+                    
+                    if ($codeExists) {
+                        // Generate a unique transaction code by appending transaction ID and timestamp
+                        $uniqueSuffix = $transaction->id . '-' . time();
+                        $transactionCode = $originalCode . '-' . $uniqueSuffix;
+                        
+                        // Double-check the new code doesn't exist for this student (very unlikely but possible)
+                        $maxAttempts = 5;
+                        $attempt = 0;
+                        while (\App\Models\Payment::where('transaction_code', $transactionCode)->where('student_id', $student->id)->exists() && $attempt < $maxAttempts) {
+                            $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
+                            $transactionCode = $originalCode . '-' . $uniqueSuffix;
+                            $attempt++;
+                            usleep(10000); // 0.01 seconds
+                        }
+                        
+                        Log::warning('Transaction code already exists for other students, using modified code', [
+                            'original_code' => $originalCode,
+                            'new_code' => $transactionCode,
+                            'transaction_id' => $transaction->id,
+                        ]);
+                    }
                 }
             }
         }

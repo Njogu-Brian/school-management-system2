@@ -1974,6 +1974,7 @@ class BankStatementController extends Controller
         $transaction = $this->resolveTransaction($id);
         $isC2B = $transaction instanceof MpesaC2BTransaction;
         $createdPayment = null;
+        $createdPaymentWasNew = false;
         
         // Normalize for checks
         $normalized = $this->normalizeTransaction($transaction);
@@ -2019,7 +2020,7 @@ class BankStatementController extends Controller
         }
 
         try {
-            DB::transaction(function () use ($transaction, $bankStatement, $isC2B, $remainingAmount, &$createdPayment) {
+            DB::transaction(function () use ($transaction, $bankStatement, $isC2B, $remainingAmount, &$createdPayment, &$createdPaymentWasNew) {
                 // Check if there are any non-reversed payments for this transaction
                 $nonReversedPayments = collect();
                 if ($bankStatement->reference_number) {
@@ -2076,15 +2077,18 @@ class BankStatementController extends Controller
                     if ($isC2B) {
                         $payment = $this->createPaymentForC2B($transaction);
                         $createdPayment = $payment;
+                        $createdPaymentWasNew = $payment ? (bool) $payment->wasRecentlyCreated : false;
                     } else {
                         // If payments already exist, create missing ones only
                         if ($bankStatement->payment_created && $remainingAmount !== null && $remainingAmount > 0.01) {
                             $created = $this->parser->createMissingPaymentsForTransaction($transaction, false);
                             $payment = $created[0] ?? null;
                             $createdPayment = $payment;
+                            $createdPaymentWasNew = !empty($created);
                         } else {
                             $payment = $this->parser->createPaymentFromTransaction($transaction, false);
                             $createdPayment = $payment;
+                            $createdPaymentWasNew = $payment ? (bool) $payment->wasRecentlyCreated : false;
                         }
                     }
                     
@@ -2156,7 +2160,7 @@ class BankStatementController extends Controller
                 }
             });
             
-            if (!$createdPayment) {
+            if (!$createdPaymentWasNew) {
                 $message = 'No additional payment was created.';
                 if ($remainingAmount !== null && $remainingAmount <= 0.01) {
                     $message = 'No additional payment was created because the transaction is already fully collected.';
