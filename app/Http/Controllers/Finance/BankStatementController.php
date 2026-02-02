@@ -425,8 +425,18 @@ class BankStatementController extends Controller
                 }
                 $transaction->active_payment_total = $activeTotal;
             } elseif ($transaction instanceof \App\Models\MpesaC2BTransaction) {
-                $payment = $transaction->payment ?? null;
-                $transaction->active_payment_total = ($payment && !$payment->reversed && $payment->deleted_at === null) ? (float) $payment->amount : 0.0;
+                $ref = $transaction->trans_id ?? null;
+                $activeTotal = 0.0;
+                if ($ref) {
+                    $activeTotal = (float) \App\Models\Payment::where('reversed', false)
+                        ->whereNull('deleted_at')
+                        ->where(function ($q) use ($ref) {
+                            $q->where('transaction_code', $ref)
+                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        })
+                        ->sum('amount');
+                }
+                $transaction->active_payment_total = $activeTotal;
             }
             return $transaction;
         });
@@ -483,13 +493,9 @@ class BankStatementController extends Controller
                     ->where('is_duplicate', false);
                 break;
             case 'collected':
-                // C2B transactions with payment that is NOT reversed
-                $query->whereNotNull('payment_id')
-                    ->where('is_duplicate', false)
-                    ->whereHas('payment', function($q) {
-                        $q->where('reversed', false)
-                          ->whereNull('deleted_at');
-                    });
+                // C2B transactions fully collected (sum of active payments equals transaction amount)
+                $query->where('is_duplicate', false)
+                    ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%"))) >= mpesa_c2b_transactions.trans_amount - 0.01');
                 break;
             case 'archived':
                 // C2B doesn't have archived flag, so return empty
@@ -613,12 +619,8 @@ class BankStatementController extends Controller
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
-            'collected' => MpesaC2BTransaction::whereNotNull('payment_id')
-                ->where('is_duplicate', false)
-                ->whereHas('payment', function($q) {
-                    $q->where('reversed', false)
-                      ->whereNull('deleted_at');
-                })
+            'collected' => MpesaC2BTransaction::where('is_duplicate', false)
+                ->whereRaw('(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%"))) >= mpesa_c2b_transactions.trans_amount - 0.01')
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'archived' => 0, // C2B doesn't have archived flag
