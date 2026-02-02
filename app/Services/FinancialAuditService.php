@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\Payment;
 use App\Models\BankStatementTransaction;
+use App\Models\MpesaC2BTransaction;
 
 class FinancialAuditService
 {
@@ -42,7 +43,7 @@ class FinancialAuditService
      * Log transaction shared allocation edit
      */
     public static function logTransactionSharedAllocationEdit(
-        BankStatementTransaction $transaction, 
+        BankStatementTransaction|MpesaC2BTransaction $transaction, 
         array $oldAllocations, 
         array $newAllocations
     ): void {

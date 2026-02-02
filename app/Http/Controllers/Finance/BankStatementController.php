@@ -2289,9 +2289,9 @@ class BankStatementController extends Controller
         $normalized = $this->normalizeTransaction($transaction);
         $bankStatement = (object) $normalized;
 
-        if ($bankStatement->status !== 'confirmed') {
+        if (!in_array($bankStatement->status, ['draft', 'confirmed', 'processed'], true)) {
             return redirect()->back()
-                ->withErrors(['error' => 'Only confirmed transactions can be split.']);
+                ->withErrors(['error' => 'Only draft or confirmed transactions can be split.']);
         }
 
         $data = $request->validate([
@@ -2330,47 +2330,90 @@ class BankStatementController extends Controller
                 ->withErrors(['error' => 'Fee + swimming allocations must equal the transaction amount.']);
         }
 
-        if (!$isC2B && $bankStatement->reference_number) {
-            $ref = $bankStatement->reference_number;
-            $activePayments = Payment::where('reversed', false)
-                ->whereNull('deleted_at')
-                ->where(function ($q) use ($ref) {
-                    $q->where('transaction_code', $ref)
-                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                })
-                ->exists();
-            if ($activePayments) {
-                return redirect()->back()
-                    ->withErrors(['error' => 'Split not allowed: active fee payments already exist for this transaction.']);
-            }
-            if (Schema::hasTable('swimming_transaction_allocations')) {
-                $hasSwim = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
-                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
-                    ->exists();
-                if ($hasSwim) {
-                    return redirect()->back()
-                        ->withErrors(['error' => 'Split not allowed: swimming allocations already exist for this transaction.']);
-                }
-            }
-        } elseif ($isC2B) {
+        $activePayments = collect();
+        $ref = null;
+        if ($isC2B) {
             $ref = $transaction->trans_id;
+        } elseif ($bankStatement->reference_number) {
+            $ref = $bankStatement->reference_number;
+        }
+        if ($ref) {
             $activePayments = Payment::where('reversed', false)
                 ->whereNull('deleted_at')
                 ->where(function ($q) use ($ref) {
                     $q->where('transaction_code', $ref)
                       ->orWhere('transaction_code', 'LIKE', $ref . '-%');
                 })
+                ->orderBy('created_at')
+                ->get();
+        }
+        if (Schema::hasTable('swimming_transaction_allocations')) {
+            $hasSwim = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $transaction->id)
+                ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
                 ->exists();
-            if ($activePayments) {
+            if ($hasSwim) {
                 return redirect()->back()
-                    ->withErrors(['error' => 'Split not allowed: active payments already exist for this transaction.']);
+                    ->withErrors(['error' => 'Split not allowed: swimming allocations already exist for this transaction.']);
             }
         }
 
         try {
-            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $swimAllocations, $feeTotal, $swimTotal) {
+            DB::transaction(function () use ($transaction, $isC2B, $feeAllocations, $swimAllocations, $feeTotal, $swimTotal, $activePayments) {
+                if (!$isC2B && $transaction->status === 'draft') {
+                    $transaction->confirm();
+                }
+
+                $feePayments = [];
+                $allocationsToCreate = [];
+                $availablePayments = $activePayments->values();
+                $singlePaymentFallback = $availablePayments->count() === 1;
+                $allocationService = app(\App\Services\PaymentAllocationService::class);
+
+                foreach ($feeAllocations as $allocation) {
+                    $studentId = (int) ($allocation['student_id'] ?? 0);
+                    $amount = (float) ($allocation['amount'] ?? 0);
+                    if ($studentId <= 0 || $amount <= 0) {
+                        continue;
+                    }
+
+                    $payment = $availablePayments->firstWhere('student_id', $studentId);
+                    if ($payment) {
+                        $availablePayments = $availablePayments->reject(fn($p) => $p->id === $payment->id)->values();
+                    } elseif ($singlePaymentFallback && $availablePayments->isNotEmpty()) {
+                        $payment = $availablePayments->shift();
+                    }
+
+                    if ($payment) {
+                        $student = Student::findOrFail($studentId);
+                        $payment->allocations()->delete();
+                        $payment->update([
+                            'student_id' => $student->id,
+                            'family_id' => $student->family_id ?? null,
+                            'amount' => $amount,
+                            'allocated_amount' => 0,
+                            'unallocated_amount' => $amount,
+                        ]);
+                        $allocationService->autoAllocate($payment);
+                        $feePayments[] = $payment->fresh();
+                    } else {
+                        $allocationsToCreate[] = $allocation;
+                    }
+                }
+
+                if ($availablePayments->isNotEmpty()) {
+                    throw new \Exception('Split allocations do not cover existing fee payments. Reverse extra payments before splitting.');
+                }
+
+                if (!empty($allocationsToCreate)) {
+                    if ($isC2B) {
+                        $newPayments = $this->createSplitFeePaymentsForC2B($transaction, $allocationsToCreate);
+                    } else {
+                        $newPayments = $this->parser->createSplitFeePayments($transaction, $allocationsToCreate, false);
+                    }
+                    $feePayments = array_merge($feePayments, $newPayments);
+                }
+
                 if ($isC2B) {
-                    $feePayments = $this->createSplitFeePaymentsForC2B($transaction, $feeAllocations);
                     $swimPayments = $this->createSplitSwimmingPaymentsForC2B($transaction, $swimAllocations);
 
                     $transaction->update([
@@ -2381,7 +2424,6 @@ class BankStatementController extends Controller
                         'unallocated_amount' => max(0, (float) $transaction->trans_amount - ($feeTotal + $swimTotal)),
                     ]);
                 } else {
-                    $feePayments = $this->parser->createSplitFeePayments($transaction, $feeAllocations, false);
                     $this->swimmingTransactionService->allocateSplitAndProcess($transaction, $swimAllocations);
 
                     $transaction->update([

@@ -898,7 +898,7 @@
                         @endif
                     @endif
 
-                    @if($bankStatement->status === 'confirmed' && !($bankStatement->is_swimming_transaction ?? false))
+                    @if(in_array($bankStatement->status, ['draft', 'confirmed'], true) && !($bankStatement->is_swimming_transaction ?? false))
                         <button type="button" class="btn btn-finance btn-finance-primary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#splitTransactionModal">
                             <i class="bi bi-diagram-3"></i> Split Fees + Swimming
                         </button>
