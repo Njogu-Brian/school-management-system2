@@ -1141,11 +1141,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize transfer/share form defaults
     const transferFormSection = document.getElementById('transferShareSection');
-    const transferForm = document.getElementById('transferPaymentForm');
+    const transferFormEl = document.getElementById('transferPaymentForm');
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action');
     if (transferType) {
-        const defaultType = transferForm?.dataset?.defaultTransferType || 'transfer';
+        const defaultType = transferFormEl?.dataset?.defaultTransferType || 'transfer';
         if (action && (action === 'share' || action === 'transfer')) {
             transferType.value = action;
         } else if (!transferType.value) {
