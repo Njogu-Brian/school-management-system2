@@ -708,59 +708,63 @@ document.addEventListener('DOMContentLoaded', function() {
     const transferMultiple = document.getElementById('transferMultipleStudents');
     const maxTransferAmount = {{ $payment->amount }};
     
+    function applyTransferType(value) {
+        const transferAmountField = document.getElementById('transferAmount');
+        const targetStudentField = document.getElementById('targetStudentId');
+        const targetDisplayField = document.getElementById('targetStudentName');
+        
+        if (value === 'transfer') {
+            transferSingle.style.display = 'block';
+            transferMultiple.style.display = 'none';
+            // Enable validation and submission for single transfer fields
+            if (transferAmountField) {
+                transferAmountField.required = true;
+                transferAmountField.disabled = false;
+            }
+            if (targetStudentField) {
+                targetStudentField.required = true;
+                targetStudentField.disabled = false;
+            }
+            if (targetDisplayField) targetDisplayField.disabled = false;
+        } else if (value === 'share') {
+            transferSingle.style.display = 'none';
+            transferMultiple.style.display = 'block';
+            // Disable fields so they won't be submitted with the form
+            if (transferAmountField) {
+                transferAmountField.required = false;
+                transferAmountField.disabled = true;
+                transferAmountField.value = ''; // Clear the value
+            }
+            if (targetStudentField) {
+                targetStudentField.required = false;
+                targetStudentField.disabled = true;
+                targetStudentField.value = ''; // Clear the value
+            }
+            if (targetDisplayField) {
+                targetDisplayField.disabled = true;
+                targetDisplayField.value = ''; // Clear the value
+            }
+            // Initialize total calculation when share is selected
+            updateTotalShared();
+        } else {
+            transferSingle.style.display = 'none';
+            transferMultiple.style.display = 'none';
+            // Disable all fields when nothing selected
+            if (transferAmountField) {
+                transferAmountField.required = false;
+                transferAmountField.disabled = true;
+            }
+            if (targetStudentField) {
+                targetStudentField.required = false;
+                targetStudentField.disabled = true;
+            }
+            if (targetDisplayField) targetDisplayField.disabled = true;
+        }
+    }
+    
     if (transferType) {
         transferType.addEventListener('change', function() {
-            const transferAmountField = document.getElementById('transferAmount');
-            const targetStudentField = document.getElementById('targetStudentId');
-            const targetDisplayField = document.getElementById('targetStudentName');
-            
-            if (this.value === 'transfer') {
-                transferSingle.style.display = 'block';
-                transferMultiple.style.display = 'none';
-                // Enable validation and submission for single transfer fields
-                if (transferAmountField) {
-                    transferAmountField.required = true;
-                    transferAmountField.disabled = false;
-                }
-                if (targetStudentField) {
-                    targetStudentField.required = true;
-                    targetStudentField.disabled = false;
-                }
-                if (targetDisplayField) targetDisplayField.disabled = false;
-            } else if (this.value === 'share') {
-                transferSingle.style.display = 'none';
-                transferMultiple.style.display = 'block';
-                // Disable fields so they won't be submitted with the form
-                if (transferAmountField) {
-                    transferAmountField.required = false;
-                    transferAmountField.disabled = true;
-                    transferAmountField.value = ''; // Clear the value
-                }
-                if (targetStudentField) {
-                    targetStudentField.required = false;
-                    targetStudentField.disabled = true;
-                    targetStudentField.value = ''; // Clear the value
-                }
-                if (targetDisplayField) {
-                    targetDisplayField.disabled = true;
-                    targetDisplayField.value = ''; // Clear the value
-                }
-                // Initialize total calculation when share is selected
-                updateTotalShared();
-            } else {
-                transferSingle.style.display = 'none';
-                transferMultiple.style.display = 'none';
-                // Disable all fields when nothing selected
-                if (transferAmountField) {
-                    transferAmountField.required = false;
-                    transferAmountField.disabled = true;
-                }
-                if (targetStudentField) {
-                    targetStudentField.required = false;
-                    targetStudentField.disabled = true;
-                }
-                if (targetDisplayField) targetDisplayField.disabled = true;
-            }
+            applyTransferType(this.value);
         });
     }
     
@@ -1148,6 +1152,12 @@ document.addEventListener('DOMContentLoaded', function() {
         transferModal.addEventListener('shown.bs.modal', function () {
             // Reinitialize all live search wrappers in the modal
             document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
+            
+            // Default to transfer if nothing selected
+            if (transferType && !transferType.value) {
+                transferType.value = 'transfer';
+            }
+            applyTransferType(transferType?.value || '');
         });
     }
     
@@ -1159,7 +1169,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
         if (transferType) {
             transferType.value = action === 'transfer' ? 'transfer' : 'share';
-            transferType.dispatchEvent(new Event('change'));
+            applyTransferType(transferType.value);
         }
     }
 });
