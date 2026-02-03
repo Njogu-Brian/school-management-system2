@@ -1815,7 +1815,17 @@ class PaymentController extends Controller
                 // Don't fail the request - payments were already created successfully
             }
             
-            return back()->with('success', $result['message']);
+            if ($request->expectsJson()) {
+                return response()->json($result);
+            }
+            
+            return redirect()
+                ->route('finance.payments.show', $payment)
+                ->with('success', $result['message']);
+        }
+
+        if ($request->expectsJson() && is_array($result)) {
+            return response()->json($result);
         }
         
         return $result; // Return the redirect response from the transaction
