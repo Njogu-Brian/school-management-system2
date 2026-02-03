@@ -1726,16 +1726,56 @@ class BankStatementController extends Controller
             ? 'Transaction confirmed and allocated to swimming wallets'
             : 'Transaction confirmed and payment created';
 
-        return redirect()
+        $transaction->refresh();
+        $receiptIds = [];
+        if ($transaction->payment_id) {
+            $receiptIds[] = $transaction->payment_id;
+        }
+        $reference = $bankStatement->reference_number ?? null;
+        if ($reference) {
+            $refPayments = \App\Models\Payment::where('reversed', false)
+                ->where(function ($q) use ($reference) {
+                    $q->where('transaction_code', $reference)
+                      ->orWhere('transaction_code', 'LIKE', $reference . '-%');
+                })
+                ->pluck('id')
+                ->toArray();
+            $receiptIds = array_merge($receiptIds, $refPayments);
+        }
+        $receiptIds = array_values(array_unique($receiptIds));
+        
+        $redirect = redirect()
             ->route('finance.bank-statements.show', $id)
             ->with('success', $message);
+        if (!empty($receiptIds)) {
+            $redirect->with('receipt_ids', $receiptIds);
+        }
+        
+        return $redirect;
     }
     
     /**
      * Helper: Create payment for C2B transaction
      */
+    protected function ensureNotFuturePaymentDate($date, string $context): void
+    {
+        if (!$date) {
+            return;
+        }
+        
+        $paymentDate = \Carbon\Carbon::parse($date);
+        if ($paymentDate->gt(now()->endOfDay())) {
+            throw new \Exception("Cannot create payment with future payment date ({$paymentDate->format('d M Y')}) for {$context}.");
+        }
+    }
+
+    /**
+     * Helper: Create payment for C2B transaction
+     */
     protected function createPaymentForC2B($c2bTransaction)
     {
+        $this->ensureNotFuturePaymentDate($c2bTransaction->trans_time, 'C2B transaction');
+        
         // Check for existing payments
         $ref = $c2bTransaction->trans_id;
         
@@ -1990,6 +2030,8 @@ class BankStatementController extends Controller
      */
     protected function createPaymentForBankStatement($transaction, $normalized)
     {
+        $this->ensureNotFuturePaymentDate($transaction->transaction_date ?? null, 'bank statement transaction');
+        
         // Check for existing payments
         $ref = $normalized->reference_number;
         $nonReversedPayments = collect();
@@ -4304,9 +4346,14 @@ class BankStatementController extends Controller
             }
         }
 
-        return redirect()
+        $redirect = redirect()
             ->route('finance.bank-statements.index')
             ->with('success', $message);
+        if (!empty($createdPaymentIds)) {
+            $redirect->with('receipt_ids', array_values(array_unique($createdPaymentIds)));
+        }
+        
+        return $redirect;
     }
 
     /**

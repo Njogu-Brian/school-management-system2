@@ -332,6 +332,7 @@ class FeePostingService
                                 ->first();
 
                             if ($existingItem) {
+                                $paymentIds = $existingItem->allocations()->pluck('payment_id')->unique();
                                 PostingDiff::create([
                                     'posting_run_id' => $run->id,
                                     'student_id' => $diff['student_id'],
@@ -343,8 +344,14 @@ class FeePostingService
                                     'source' => 'transport',
                                 ]);
 
+                                $existingItem->allocations()->delete();
                                 $existingItem->delete();
                                 InvoiceService::recalc($invoice);
+                                foreach ($paymentIds as $paymentId) {
+                                    if ($payment = \App\Models\Payment::find($paymentId)) {
+                                        $payment->updateAllocationTotals();
+                                    }
+                                }
                                 $count++;
                             }
                         } else {
@@ -363,39 +370,30 @@ class FeePostingService
                             }
 
                             if ($existingItem) {
-                                // Check if item has payment allocations - if so, we need to handle them
-                                $hasAllocations = $existingItem->allocations()->exists();
+                                $paymentIds = $existingItem->allocations()->pluck('payment_id')->unique();
+                                
+                                PostingDiff::create([
+                                    'posting_run_id' => $run->id,
+                                    'student_id' => $diff['student_id'],
+                                    'votehead_id' => $diff['votehead_id'],
+                                    'action' => 'removed',
+                                    'old_amount' => $existingItem->amount,
+                                    'new_amount' => 0,
+                                    'invoice_item_id' => $existingItem->id,
+                                    'source' => $source,
+                                ]);
+                                
+                                // Remove allocations and item so it disappears from statements
+                                $existingItem->allocations()->delete();
+                                $existingItem->delete();
 
-                                if ($hasAllocations) {
-                                    // If item has allocations, we can't just delete it
-                                    // Instead, set amount to 0 and mark as removed
-                                    // This preserves payment history
-                                    $existingItem->update([
-                                        'amount' => 0,
-                                        'original_amount' => 0,
-                                        'posting_run_id' => $run->id,
-                                        'posted_at' => now(),
-                                    ]);
-                                } else {
-                                    // No allocations - safe to delete
-                                    // Create diff record for removal before deleting
-                                    PostingDiff::create([
-                                        'posting_run_id' => $run->id,
-                                        'student_id' => $diff['student_id'],
-                                        'votehead_id' => $diff['votehead_id'],
-                                        'action' => 'removed',
-                                        'old_amount' => $existingItem->amount,
-                                        'new_amount' => 0,
-                                        'invoice_item_id' => $existingItem->id,
-                                        'source' => $source,
-                                    ]);
-
-                                    // Delete the invoice item
-                                    $existingItem->delete();
-                                }
-
-                                // Recalculate invoice
+                                // Recalculate invoice and update payments
                                 InvoiceService::recalc($invoice);
+                                foreach ($paymentIds as $paymentId) {
+                                    if ($payment = \App\Models\Payment::find($paymentId)) {
+                                        $payment->updateAllocationTotals();
+                                    }
+                                }
                                 $count++;
                             }
                         }

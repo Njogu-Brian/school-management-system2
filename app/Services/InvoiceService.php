@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\{
-    Invoice, InvoiceItem, CreditNote, DebitNote, Votehead, Student
+    Invoice, InvoiceItem, CreditNote, DebitNote, Votehead, Student, Payment
 };
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -156,6 +156,39 @@ class InvoiceService
         $invoice->refresh();
         $invoice->recalculate(); // Use model method
     }
+
+    /**
+     * Auto-allocate any unallocated payments for a student
+     */
+    public static function allocateUnallocatedPaymentsForStudent(int $studentId): void
+    {
+        $payments = Payment::where('student_id', $studentId)
+            ->where('reversed', false)
+            ->where('receipt_number', 'not like', 'SWIM-%')
+            ->where(function ($q) {
+                $q->where('unallocated_amount', '>', 0)
+                  ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
+            })
+            ->get();
+        
+        if ($payments->isEmpty()) {
+            return;
+        }
+        
+        $allocationService = app(\App\Services\PaymentAllocationService::class);
+        
+        foreach ($payments as $payment) {
+            try {
+                $allocationService->autoAllocate($payment, $studentId);
+            } catch (\Exception $e) {
+                Log::warning('Auto-allocation failed after invoice update', [
+                    'payment_id' => $payment->id,
+                    'student_id' => $studentId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
     
     /**
      * Update invoice item amount with automatic credit/debit note creation
@@ -219,6 +252,7 @@ class InvoiceService
             
             // Recalculate invoice
             self::recalc($item->invoice);
+            self::allocateUnallocatedPaymentsForStudent($item->invoice->student_id);
             
             return [
                 'item' => $item->fresh(),
@@ -252,6 +286,7 @@ class InvoiceService
             }
             
             self::recalc($invoice);
+            self::allocateUnallocatedPaymentsForStudent($invoice->student_id);
             
                 // Log audit (if AuditLog model exists)
                 if (class_exists(\App\Models\AuditLog::class)) {

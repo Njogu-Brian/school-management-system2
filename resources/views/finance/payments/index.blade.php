@@ -10,14 +10,44 @@
 
     @include('finance.invoices.partials.alerts')
     
-    @if(session('payment_id'))
+    @if(session('receipt_ids'))
+        <script>
+            window.addEventListener('load', function() {
+                const receiptIds = @json(session('receipt_ids'));
+                if (!Array.isArray(receiptIds) || receiptIds.length === 0) {
+                    return;
+                }
+                
+                let receiptUrl = '';
+                if (receiptIds.length === 1) {
+                    receiptUrl = '{{ route("finance.payments.receipt.view", ":id") }}'.replace(':id', receiptIds[0]);
+                } else {
+                    const params = new URLSearchParams();
+                    params.set('payment_ids', receiptIds.join(','));
+                    receiptUrl = '{{ route("finance.payments.bulk-print") }}' + '?' + params.toString();
+                }
+                
+                const popup = window.open(
+                    receiptUrl,
+                    'ReceiptWindow',
+                    'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'
+                );
+                
+                if (!popup || popup.closed || typeof popup.closed == 'undefined') {
+                    alert('Popup blocked. Please allow popups for this site to view receipts automatically.');
+                    window.open(receiptUrl, '_blank');
+                } else {
+                    popup.focus();
+                }
+            });
+        </script>
+    @elseif(session('payment_id'))
         <script>
             window.addEventListener('load', function() {
                 // Open receipt in popup window (not tab)
                 const paymentId = {{ session('payment_id') }};
                 const receiptUrl = '{{ route("finance.payments.receipt.view", ":id") }}'.replace(':id', paymentId);
                 
-                // Request permission for popup
                 const popup = window.open(
                     receiptUrl,
                     'ReceiptWindow',
@@ -79,6 +109,21 @@
                             {{ $method->name }}
                         </option>
                     @endforeach
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Allocation</label>
+                <select name="allocation_status" class="finance-form-select">
+                    <option value="">All</option>
+                    <option value="allocated" {{ request('allocation_status') == 'allocated' ? 'selected' : '' }}>Allocated</option>
+                    <option value="unallocated" {{ request('allocation_status') == 'unallocated' ? 'selected' : '' }}>Unallocated</option>
+                </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+                <label class="finance-form-label">Sort By</label>
+                <select name="sort" class="finance-form-select">
+                    <option value="payment_date_desc" {{ request('sort') == 'payment_date_desc' || !request('sort') ? 'selected' : '' }}>Newest</option>
+                    <option value="amount_desc" {{ request('sort') == 'amount_desc' ? 'selected' : '' }}>Amount (High → Low)</option>
                 </select>
             </div>
             <div class="col-md-6 col-lg-2">

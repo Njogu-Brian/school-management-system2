@@ -90,8 +90,27 @@ class PaymentController extends Controller
             // Status filtering would need to be implemented based on payment status logic
             // For now, we'll skip this as it requires more complex logic
         }
+
+        if ($request->filled('allocation_status')) {
+            $status = $request->allocation_status;
+            if ($status === 'unallocated') {
+                $query->where(function ($q) {
+                    $q->where('unallocated_amount', '>', 0)
+                      ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
+                });
+            } elseif ($status === 'allocated') {
+                $query->whereRaw('COALESCE(unallocated_amount, amount - COALESCE(allocated_amount, 0)) <= 0');
+            }
+        }
+
+        $sort = $request->input('sort', 'payment_date_desc');
+        if ($sort === 'amount_desc') {
+            $query->orderByDesc('amount')->orderByDesc('payment_date');
+        } else {
+            $query->latest('payment_date');
+        }
         
-        $payments = $query->latest('payment_date')->paginate(20)->appends($request->all());
+        $payments = $query->paginate(20)->appends($request->all());
         
         // Get filter options for the view
         $classrooms = \App\Models\Academics\Classroom::orderBy('name')->get();
@@ -210,7 +229,7 @@ class PaymentController extends Controller
             'student_id' => 'required|exists:students,id',
             'invoice_id' => 'nullable|exists:invoices,id',
             'amount' => 'required|numeric|min:1',
-            'payment_date' => 'required|date',
+            'payment_date' => 'required|date|before_or_equal:today',
             'payment_method_id' => 'required|exists:payment_methods,id',
             'payer_name' => 'nullable|string|max:255',
             'payer_type' => 'nullable|in:parent,sponsor,student,other',
@@ -465,6 +484,40 @@ class PaymentController extends Controller
      * Send payment notifications (SMS, Email, WhatsApp)
      * Made public so it can be called from other controllers (e.g., BankStatementController)
      */
+    protected function getProfileUpdateLinkForStudent(Student $student): ?string
+    {
+        $student->loadMissing('family.updateLink');
+        
+        if (!$student->family_id) {
+            $family = \App\Models\Family::create([
+                'guardian_name' => $student->full_name
+                    ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+            ]);
+            $student->update(['family_id' => $family->id]);
+            $student->load('family.updateLink');
+        }
+        
+        if (!$student->family) {
+            return null;
+        }
+        
+        if (!$student->family->updateLink) {
+            \App\Models\FamilyUpdateLink::create([
+                'family_id' => $student->family->id,
+                'is_active' => true,
+            ]);
+            $student->family->refresh();
+            $student->family->load('updateLink');
+        }
+        
+        $updateLink = $student->family->updateLink;
+        if (!$updateLink || !$updateLink->is_active) {
+            return null;
+        }
+        
+        return route('family-update.form', $updateLink->token);
+    }
+
     public function sendPaymentNotifications(Payment $payment)
     {
         // Check if this is a swimming payment - if so, use swimming-specific notification
@@ -479,6 +532,7 @@ class PaymentController extends Controller
         
         $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
+        $profileUpdateLink = $this->getProfileUpdateLinkForStudent($student);
         
         // Get parent contact info
         $parent = $student->parent;
@@ -513,7 +567,7 @@ class PaymentController extends Controller
                     'title' => 'Payment Receipt SMS',
                     'type' => 'sms',
                     'subject' => null,
-                    'content' => "Dear {{parent_name}}, Payment of Ksh {{amount}} received for {{student_name}} ({{admission_number}}). Receipt #{{receipt_number}}. View: {{receipt_link}}",
+                    'content' => "{{greeting}},\n\nPayment of {{amount}} received for {{student_name}} ({{admission_number}}) on {{payment_date}}.\nReceipt: {{receipt_number}}\nView receipt: {{receipt_link}}\nUpdate profile: {{profile_update_link}}\n\nThank you.\n{{school_name}}",
                 ]
             );
         }
@@ -525,7 +579,7 @@ class PaymentController extends Controller
                     'title' => 'Payment Receipt Email',
                     'type' => 'email',
                     'subject' => 'Payment Receipt - {{receipt_number}}',
-                    'content' => "<p>Dear {{parent_name}},</p><p>Payment of <strong>Ksh {{amount}}</strong> has been received for <strong>{{student_name}}</strong> (Admission: {{admission_number}}).</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}<br><strong>Payment Date:</strong> {{payment_date}}</p><p>Please find the receipt attached.</p><p><a href=\"{{receipt_link}}\">View Receipt Online</a></p>",
+                    'content' => "<p>{{greeting}},</p><p>We have received a payment of <strong>{{amount}}</strong> for <strong>{{student_name}}</strong> (Admission: {{admission_number}}) on {{payment_date}}.</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}</p><p><a href=\"{{receipt_link}}\" style=\"display:inline-block;padding:10px 16px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;\">View Receipt</a></p><p><a href=\"{{profile_update_link}}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p><p>Thank you for your continued support.<br>{{school_name}}</p>",
                 ]
             );
         }
@@ -627,6 +681,7 @@ class PaymentController extends Controller
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
             'finance_portal_link' => $receiptLink, // Alias for seeder template compatibility
+            'profile_update_link' => $profileUpdateLink,
             'outstanding_amount' => 'Ksh ' . number_format($outstandingBalance, 2),
             'carried_forward' => number_format($carriedForward, 2),
             'school_name' => $schoolName,
@@ -644,6 +699,9 @@ class PaymentController extends Controller
         if ($parentPhone) {
             try {
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                if ($profileUpdateLink && strpos($smsMessage, $profileUpdateLink) === false) {
+                    $smsMessage .= "\nUpdate profile: {$profileUpdateLink}";
+                }
                 
                 // Get finance sender ID for payment notifications
                 $smsService = app(\App\Services\SMSService::class);
@@ -683,6 +741,9 @@ class PaymentController extends Controller
             try {
                 $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+                if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
+                    $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
+                }
                 
                 Log::info('Attempting to send payment email', [
                     'payment_id' => $payment->id,
@@ -738,12 +799,15 @@ class PaymentController extends Controller
                             'title' => 'Payment Receipt WhatsApp',
                             'type' => 'whatsapp',
                             'subject' => null,
-                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                            'content' => "{{greeting}},\n\nPayment of {{amount}} received for {{student_name}} ({{admission_number}}) on {{payment_date}}.\nReceipt: {{receipt_number}}\nView receipt: {{receipt_link}}\nUpdate profile: {{profile_update_link}}\n\nThank you.\n{{school_name}}",
                         ]
                     );
                 }
                 
                 $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+                if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
+                    $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
+                }
                 
                 $whatsappService = app(\App\Services\WhatsAppService::class);
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
@@ -819,6 +883,7 @@ class PaymentController extends Controller
     {
         $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
+        $profileUpdateLink = $this->getProfileUpdateLinkForStudent($student);
         
         if (!$student) {
             Log::info('No student found for swimming payment notification', ['payment_id' => $payment->id]);
@@ -855,6 +920,24 @@ class PaymentController extends Controller
         $smsMessage .= "Receipt: {$payment->receipt_number}\n";
         $smsMessage .= "Date: " . $payment->payment_date->format('d M Y H:i') . "\n\n";
         $smsMessage .= "Swimming Wallet Balance: KES {$walletBalanceFormatted}\n\n";
+        $receiptLink = null;
+        if (!$payment->public_token) {
+            $payment->public_token = \App\Models\Payment::generatePublicToken();
+            $payment->save();
+        }
+        try {
+            $receiptLink = url('/receipt/' . $payment->public_token);
+            $receiptLink = $this->normalizeUrl($receiptLink);
+        } catch (\Exception $e) {
+            $receiptLink = null;
+        }
+        
+        if ($receiptLink) {
+            $smsMessage .= "View receipt: {$receiptLink}\n";
+        }
+        if ($profileUpdateLink) {
+            $smsMessage .= "Update profile: {$profileUpdateLink}\n";
+        }
         $smsMessage .= "Thank you!\nRoyal Kings School";
         
         // Email message
@@ -865,6 +948,12 @@ class PaymentController extends Controller
         $emailContent .= "<strong>Transaction Code:</strong> " . ($payment->transaction_code ?? 'N/A') . "<br>";
         $emailContent .= "<strong>Payment Date:</strong> " . $payment->payment_date->format('d M Y H:i') . "</p>";
         $emailContent .= "<p><strong>Swimming Wallet Balance:</strong> KES {$walletBalanceFormatted}</p>";
+        if ($receiptLink) {
+            $emailContent .= "<p><a href=\"{$receiptLink}\" style=\"display:inline-block;padding:10px 16px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;\">View Receipt</a></p>";
+        }
+        if ($profileUpdateLink) {
+            $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
+        }
         $emailContent .= "<p>Thank you for your continued support.</p>";
         $emailContent .= "<p>Royal Kings School</p>";
         
@@ -1568,7 +1657,10 @@ class PaymentController extends Controller
                 $this->sendFeeUpdateNotification($originalStudent, $transferAmount, $payment);
                 $this->sendPaymentNotifications($newPayment);
                 
-                return back()->with('success', "Payment of Ksh " . number_format($transferAmount, 2) . " transferred to {$targetStudent->full_name}.");
+                return redirect()
+                    ->route('finance.payments.index')
+                    ->with('success', "Payment of Ksh " . number_format($transferAmount, 2) . " transferred to {$targetStudent->full_name}.")
+                    ->with('payment_id', $newPayment->id);
             } else {
                 // Share among multiple students
                 $sharedStudents = $request->shared_students ?? [];
@@ -1802,8 +1894,9 @@ class PaymentController extends Controller
                     return $payload;
                 }
                 return redirect()
-                    ->route('finance.payments.show', $payment)
-                    ->with('success', $payload['message']);
+                    ->route('finance.payments.index')
+                    ->with('success', $payload['message'])
+                    ->with('payment_id', $payment->id);
             }
         });
 
@@ -3435,6 +3528,7 @@ class PaymentController extends Controller
         $payment->load(['student.parent', 'paymentMethod']);
         $student = $payment->student;
         $parent = $student->parent;
+        $profileUpdateLink = $this->getProfileUpdateLinkForStudent($student);
 
         if (!$parent) {
             return;
@@ -3479,6 +3573,7 @@ class PaymentController extends Controller
             'payment_date' => $payment->payment_date->format('d M Y'),
             'receipt_link' => $receiptLink,
             'finance_portal_link' => $receiptLink,
+            'profile_update_link' => $profileUpdateLink,
             'outstanding_amount' => 'Ksh ' . number_format($outstandingBalance, 2),
             'carried_forward' => number_format($carriedForward, 2),
             'school_name' => $schoolName,
@@ -3506,12 +3601,15 @@ class PaymentController extends Controller
                             'title' => 'Payment Receipt SMS',
                             'type' => 'sms',
                             'subject' => null,
-                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{finance_portal_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                            'content' => "{{greeting}},\n\nPayment of {{amount}} received for {{student_name}} ({{admission_number}}) on {{payment_date}}.\nReceipt: {{receipt_number}}\nView receipt: {{receipt_link}}\nUpdate profile: {{profile_update_link}}\n\nThank you.\n{{school_name}}",
                         ]
                     );
                 }
 
                 $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
+                if ($profileUpdateLink && strpos($smsMessage, $profileUpdateLink) === false) {
+                    $smsMessage .= "\nUpdate profile: {$profileUpdateLink}";
+                }
                 $smsService = app(\App\Services\SMSService::class);
                 $financeSenderId = $smsService->getFinanceSenderId();
                 $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
@@ -3530,13 +3628,16 @@ class PaymentController extends Controller
                             'title' => 'Payment Receipt Email',
                             'type' => 'email',
                             'subject' => 'Payment Receipt – {{student_name}}',
-                            'content' => "{{greeting}},\n\nThank you for your payment of {{amount}} received on {{payment_date}} for {{student_name}}.\nPlease find the payment receipt attached.\n\nYou may also view invoices, receipts, and statements here:\n{{finance_portal_link}}\n\nWe appreciate your cooperation.\n\nKind regards,\n{{school_name}} Finance Office",
+                            'content' => "<p>{{greeting}},</p><p>We have received a payment of <strong>{{amount}}</strong> for <strong>{{student_name}}</strong> (Admission: {{admission_number}}) on {{payment_date}}.</p><p><strong>Receipt Number:</strong> {{receipt_number}}<br><strong>Transaction Code:</strong> {{transaction_code}}</p><p><a href=\"{{receipt_link}}\" style=\"display:inline-block;padding:10px 16px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:6px;\">View Receipt</a></p><p><a href=\"{{profile_update_link}}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p><p>Thank you for your continued support.<br>{{school_name}}</p>",
                         ]
                     );
                 }
 
                 $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
                 $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+                if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
+                    $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
+                }
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
                 $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
             }
@@ -3556,12 +3657,15 @@ class PaymentController extends Controller
                             'title' => 'Payment Receipt WhatsApp',
                             'type' => 'whatsapp',
                             'subject' => null,
-                            'content' => "{{greeting}},\n\nWe have received a payment of {{amount}} for {{student_name}} ({{admission_number}}) on {{payment_date}}.\n\nReceipt Number: {{receipt_number}}\n\nView or download your receipt here:\n{{receipt_link}}\n\nThank you for your continued support.\n{{school_name}}",
+                            'content' => "{{greeting}},\n\nPayment of {{amount}} received for {{student_name}} ({{admission_number}}) on {{payment_date}}.\nReceipt: {{receipt_number}}\nView receipt: {{receipt_link}}\nUpdate profile: {{profile_update_link}}\n\nThank you.\n{{school_name}}",
                         ]
                     );
                 }
 
                 $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+                if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
+                    $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
+                }
                 $whatsappService = app(\App\Services\WhatsAppService::class);
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
                 

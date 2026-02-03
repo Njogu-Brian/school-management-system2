@@ -147,6 +147,8 @@ class InvoiceController extends Controller
 
                     // Update invoice total
                     $invoice->update(['total' => $invoice->items()->sum('amount')]);
+                    // Auto-allocate any unallocated payments for this student
+                    InvoiceService::allocateUnallocatedPaymentsForStudent($student->id);
                     $invoicesGenerated++;
                 }
             }

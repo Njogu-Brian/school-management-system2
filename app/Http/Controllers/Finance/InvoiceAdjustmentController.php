@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -31,8 +32,8 @@ class InvoiceAdjustmentController extends Controller
                 'amount' => $row['amount'],
             ]);
 
-            $invoice->total += $row['amount'];
-            $invoice->save();
+            InvoiceService::recalc($invoice);
+            InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
         }
 
         return back()->with('success', 'Adjustments imported.');

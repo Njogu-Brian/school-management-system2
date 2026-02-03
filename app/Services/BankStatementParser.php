@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Symfony\Component\Process\Process;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 
 class BankStatementParser
 {
@@ -1283,6 +1284,13 @@ class BankStatementParser
     {
         if (!$transaction->isConfirmed()) {
             throw new \Exception('Transaction must be confirmed before creating payment');
+        }
+        
+        if ($transaction->transaction_date) {
+            $transactionDate = Carbon::parse($transaction->transaction_date);
+            if ($transactionDate->gt(now()->endOfDay())) {
+                throw new \Exception('Cannot create payment with future payment date (' . $transactionDate->format('d M Y') . ').');
+            }
         }
         
         if ($transaction->payment_created) {

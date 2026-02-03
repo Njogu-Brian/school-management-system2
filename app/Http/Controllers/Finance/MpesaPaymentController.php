@@ -1844,6 +1844,13 @@ class MpesaPaymentController extends Controller
         }
 
         $transaction = MpesaC2BTransaction::findOrFail($id);
+        $transactionDate = \Carbon\Carbon::parse($transaction->trans_time);
+        if ($transactionDate->gt(now()->endOfDay())) {
+            return redirect()
+                ->back()
+                ->withErrors(['error' => 'Cannot create payment with a future payment date (' . $transactionDate->format('d M Y') . ').'])
+                ->withInput();
+        }
 
         try {
             DB::beginTransaction();
@@ -2008,9 +2015,21 @@ class MpesaPaymentController extends Controller
                 : "Transaction allocated successfully! Receipt: " . $receiptNumbers;
 
             // Redirect to unified bank-statements view
-            return redirect()
+            $receiptIds = [];
+            if ($isSwimming && !empty($payments)) {
+                $receiptIds = collect($payments)->pluck('id')->toArray();
+            } elseif (isset($payment) && $payment) {
+                $receiptIds = [$payment->id];
+            }
+            
+            $redirect = redirect()
                 ->route('finance.bank-statements.show', $id)
                 ->with('success', $message);
+            if (!empty($receiptIds)) {
+                $redirect->with('receipt_ids', array_values(array_unique($receiptIds)));
+            }
+            
+            return $redirect;
         } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
             

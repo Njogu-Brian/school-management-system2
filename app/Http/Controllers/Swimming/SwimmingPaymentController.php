@@ -53,7 +53,7 @@ class SwimmingPaymentController extends Controller
             'student_id' => 'required|exists:students,id',
             'amount' => 'required|numeric|min:0.01',
             'payment_method_id' => 'required|exists:payment_methods,id',
-            'payment_date' => 'required|date',
+            'payment_date' => 'required|date|before_or_equal:today',
             'payer_name' => 'nullable|string|max:255',
             'payer_type' => 'nullable|in:parent,student,other',
             'transaction_code' => 'nullable|string|max:255',
