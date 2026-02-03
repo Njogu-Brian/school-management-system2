@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\PaymentAllocation;
+use App\Models\Payment;
 use App\Models\Term;
 use App\Models\AcademicYear;
 use App\Models\FeesComparisonPreview;
@@ -15,6 +16,7 @@ use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -511,7 +513,7 @@ class FeesComparisonImportController extends Controller
                 });
                 $totalInvoiced = (float) $itemsQuery->get()->sum(fn ($i) => (float) ($i->amount ?? 0) - (float) ($i->discount_amount ?? 0));
 
-                // Total paid: only allocations to this term's invoice (no legacy, no other terms)
+                // Total paid: allocations to this term's invoice (no legacy, no other terms)
                 $allocationsQuery = PaymentAllocation::whereHas('invoiceItem', function ($q) use ($invoice) {
                     $q->where('invoice_id', $invoice->id);
                     $q->where(function ($q2) {
@@ -525,6 +527,19 @@ class FeesComparisonImportController extends Controller
                 });
                 $totalPaid = (float) $allocationsQuery->sum('amount');
             }
+
+            // Always include overpayment (unallocated amounts) in system paid
+            $overpayment = (float) Payment::where('student_id', $student->id)
+                ->where('reversed', false)
+                ->where(function ($q) {
+                    $q->where('unallocated_amount', '>', 0)
+                      ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
+                })
+                ->when(!empty($swimmingPaymentIds), function ($q) use ($swimmingPaymentIds) {
+                    $q->whereNotIn('id', $swimmingPaymentIds);
+                })
+                ->sum(DB::raw('GREATEST(COALESCE(unallocated_amount, amount - COALESCE(allocated_amount, 0)), 0)'));
+            $totalPaid += $overpayment;
 
             $invoiceBalance = $totalInvoiced - $totalPaid;
             $swimmingBalance = (float) (SwimmingWallet::where('student_id', $student->id)->value('balance') ?? 0);

@@ -274,8 +274,9 @@ class PaymentController extends Controller
         }
 
         $createdPayment = null;
+        $createdPaymentIds = [];
 
-        DB::transaction(function () use ($validated, $student, $isOverpayment, &$createdPayment) {
+        DB::transaction(function () use ($validated, $student, $isOverpayment, &$createdPayment, &$createdPaymentIds) {
             // Handle payment sharing among siblings
             if ($validated['shared_payment'] ?? false && !empty($validated['shared_students'])) {
                 $sharedStudents = $validated['shared_students'];
@@ -353,6 +354,7 @@ class PaymentController extends Controller
                         if ($index === 0) {
                             $createdPayment = $payment;
                         }
+                        $createdPaymentIds[] = $payment->id;
                     }
                 }
             } else {
@@ -416,6 +418,7 @@ class PaymentController extends Controller
                 }
                 
                 $createdPayment = $payment;
+                $createdPaymentIds[] = $payment->id;
             }
         });
 
@@ -459,6 +462,9 @@ class PaymentController extends Controller
         return redirect()
             ->route('finance.payments.index')
             ->with('success', 'Payment recorded successfully.')
+            ->when(!empty($createdPaymentIds), function ($redirect) use ($createdPaymentIds) {
+                return $redirect->with('receipt_ids', $createdPaymentIds);
+            })
             ->with('payment_id', $createdPayment->id);
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::info('Payment validation failed', ['errors' => $e->errors()]);
@@ -1660,6 +1666,7 @@ class PaymentController extends Controller
                 return redirect()
                     ->route('finance.payments.index')
                     ->with('success', "Payment of Ksh " . number_format($transferAmount, 2) . " transferred to {$targetStudent->full_name}.")
+                    ->with('receipt_ids', [$newPayment->id])
                     ->with('payment_id', $newPayment->id);
             } else {
                 // Share among multiple students
@@ -1896,6 +1903,7 @@ class PaymentController extends Controller
                 return redirect()
                     ->route('finance.payments.index')
                     ->with('success', $payload['message'])
+                    ->with('receipt_ids', array_values(array_unique(array_merge([$payment->id], collect($newPayments)->pluck('id')->all()))))
                     ->with('payment_id', $payment->id);
             }
         });
