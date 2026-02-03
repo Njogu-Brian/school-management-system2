@@ -1623,6 +1623,7 @@ class PaymentController extends Controller
                 $newPayments = [];
                 $originalPaymentAmount = $payment->amount;
                 $sharedReference = $payment->transaction_code;
+                $sharedReceiptNumber = $payment->shared_receipt_number ?: $this->generateSharedReceiptNumber();
                 
                 foreach ($sharedAllocations as $allocation) {
                     $studentId = (int) ($allocation['student_id'] ?? 0);
@@ -1656,6 +1657,9 @@ class PaymentController extends Controller
                         // Update the original payment with the new amount
                         $payment->amount = $amount;
                         $payment->narration = $narration;
+                        if (!$payment->shared_receipt_number) {
+                            $payment->shared_receipt_number = $sharedReceiptNumber;
+                        }
                         $payment->save();
                         
                         // Auto-allocate the reduced amount
@@ -1681,41 +1685,46 @@ class PaymentController extends Controller
                             'original_payment_id' => $payment->id
                         ]);
                         
-                        // Generate unique receipt number for this shared payment
-                        $maxAttempts = 10;
-                        $attempt = 0;
-                        do {
-                            $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
-                            $exists = Payment::where('receipt_number', $receiptNumber)->exists();
-                            $attempt++;
-                            
-                            if ($exists && $attempt < $maxAttempts) {
-                                // Wait a tiny bit and try again (handles race conditions)
-                                usleep(10000); // 0.01 seconds
-                            }
-                        } while ($exists && $attempt < $maxAttempts);
+                        $existingSharedPayment = Payment::where('transaction_code', $sharedReference)
+                            ->where('student_id', $student->id)
+                            ->where('id', '!=', $payment->id)
+                            ->first();
                         
-                        if ($exists) {
-                            // If still exists after max attempts, append student ID to make it unique
-                            $receiptNumber = $receiptNumber . '-S' . $student->id;
+                        if ($existingSharedPayment) {
+                            // Update existing shared payment to avoid duplicate constraint violation
+                            \App\Models\PaymentAllocation::where('payment_id', $existingSharedPayment->id)->delete();
                             
-                            Log::warning('Receipt number collision after max attempts, using modified number', [
-                                'modified_receipt' => $receiptNumber,
+                            $existingSharedPayment->fill([
+                                'amount' => $amount,
+                                'payment_method_id' => $payment->payment_method_id,
+                                'payment_date' => $payment->payment_date,
+                                'payer_name' => $payment->payer_name,
+                                'payer_type' => $payment->payer_type,
+                                'narration' => $narration,
+                            ]);
+                            
+                            if (!$existingSharedPayment->shared_receipt_number) {
+                                $existingSharedPayment->shared_receipt_number = $sharedReceiptNumber;
+                            }
+                            
+                            $existingSharedPayment->save();
+                            $newPayment = $existingSharedPayment;
+                        } else {
+                            $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber . '-S' . $student->id, $student->id);
+                            
+                            $newPayment = Payment::create([
                                 'student_id' => $student->id,
+                                'amount' => $amount,
+                                'payment_method_id' => $payment->payment_method_id,
+                                'payment_date' => $payment->payment_date,
+                                'transaction_code' => $sharedReference, // Same transaction code for all siblings
+                                'receipt_number' => $receiptNumber, // Unique receipt number for each sibling
+                                'shared_receipt_number' => $sharedReceiptNumber,
+                                'payer_name' => $payment->payer_name,
+                                'payer_type' => $payment->payer_type,
+                                'narration' => $narration,
                             ]);
                         }
-                        
-                        $newPayment = Payment::create([
-                            'student_id' => $student->id,
-                            'amount' => $amount,
-                            'payment_method_id' => $payment->payment_method_id,
-                            'payment_date' => $payment->payment_date,
-                            'transaction_code' => $sharedReference, // Same transaction code for all siblings
-                            'receipt_number' => $receiptNumber, // Unique receipt number for each sibling
-                            'payer_name' => $payment->payer_name,
-                            'payer_type' => $payment->payer_type,
-                            'narration' => $narration,
-                        ]);
                         
                         \Log::info('Shared payment created successfully', [
                             'new_payment_id' => $newPayment->id,

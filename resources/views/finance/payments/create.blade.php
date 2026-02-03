@@ -414,11 +414,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!currentStudentData) return;
         
         const amount = parseFloat(paymentAmount.value || 0);
-        const balance = parseFloat(currentStudentData.balance.total_balance || 0);
+        const mainBalance = parseFloat(currentStudentData.balance.total_balance || 0);
+        const sharingEnabled = sharedPaymentInput.value === '1';
+        const siblingsTotalBalance = (currentStudentData.siblings || []).reduce((sum, sibling) => {
+            return sum + parseFloat(sibling.balance || 0);
+        }, 0);
+        const totalBalance = sharingEnabled ? (mainBalance + siblingsTotalBalance) : mainBalance;
         
-        if (amount > balance && amount > 0) {
-            const overpayment = amount - balance;
-            overpaymentMessage.textContent = `Payment amount (Ksh ${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}) exceeds balance (Ksh ${balance.toLocaleString('en-US', {minimumFractionDigits: 2})}). Overpayment of Ksh ${overpayment.toLocaleString('en-US', {minimumFractionDigits: 2})} will be carried forward.`;
+        if (amount > totalBalance && amount > 0) {
+            const overpayment = amount - totalBalance;
+            const balanceLabel = sharingEnabled ? 'family balances' : 'balance';
+            overpaymentMessage.textContent = `Payment amount (Ksh ${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}) exceeds ${balanceLabel} (Ksh ${totalBalance.toLocaleString('en-US', {minimumFractionDigits: 2})}). Overpayment of Ksh ${overpayment.toLocaleString('en-US', {minimumFractionDigits: 2})} will be carried forward.`;
             overpaymentWarning.style.display = 'block';
         } else {
             overpaymentWarning.style.display = 'none';
@@ -510,6 +516,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 paymentSharingState.style.display = 'none';
             }
         }
+        checkOverpayment();
     }
 
     window.updateTotalShared = function() {
@@ -519,6 +526,7 @@ document.addEventListener('DOMContentLoaded', function() {
             total += parseFloat(input.value || 0);
         });
         totalSharedSpan.textContent = total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        checkOverpayment();
         
         // Only disable if payment sharing is active
         if (sharedPaymentInput.value === '1') {
