@@ -11,6 +11,11 @@ use App\Models\DebitNote;
 use App\Models\FeeConcession;
 use App\Models\LegacyStatementLine;
 use App\Models\PaymentAllocation;
+use App\Models\LegacyStatementLineEditHistory;
+use App\Models\InvoiceItem;
+use App\Models\Votehead;
+use App\Services\InvoiceService;
+use App\Services\LegacyStatementRecalcService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
@@ -166,19 +171,15 @@ class StudentStatementController extends Controller
             $invoice->recalculate();
         }
         
-        // Legacy transactions (read-only): only for years < 2026; when legacy, show all entries (no term filter)
-        $legacyLines = collect();
-        if ($year < 2026) {
-            $legacyLines = LegacyStatementLine::with('term')
-                ->whereHas('term', function ($q) use ($student, $year) {
-                    $q->where('student_id', $student->id)
-                      ->where('academic_year', '<', 2026)
-                      ->where('academic_year', $year);
-                })
-                ->orderBy('txn_date')
-                ->orderBy('sequence_no')
-                ->get();
-        }
+        // Legacy transactions: show entries for the selected year
+        $legacyLines = LegacyStatementLine::with('term')
+            ->whereHas('term', function ($q) use ($student, $year) {
+                $q->where('student_id', $student->id)
+                  ->where('academic_year', $year);
+            })
+            ->orderBy('txn_date')
+            ->orderBy('sequence_no')
+            ->get();
 
         $legacyTransactions = collect();
         foreach ($legacyLines as $line) {
@@ -564,6 +565,7 @@ class StudentStatementController extends Controller
         }
         
         $comparisonPreviewId = $request->get('comparison_preview_id');
+        $voteheads = Votehead::where('is_active', true)->orderBy('name')->get();
 
         return view('finance.student_statements.show', compact(
             'student',
@@ -586,8 +588,191 @@ class StudentStatementController extends Controller
             'years',
             'detailedTransactions',
             'hasBalanceBroughtForwardInInvoices',
-            'comparisonPreviewId'
+            'comparisonPreviewId',
+            'voteheads'
         ));
+    }
+
+    public function updateLegacyLine(Request $request, Student $student, LegacyStatementLine $line)
+    {
+        if (!$line->term || (int) $line->term->student_id !== (int) $student->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'txn_date' => 'nullable|date',
+            'narration_raw' => 'required|string',
+            'reference_number' => 'required|string|max:255',
+            'votehead' => 'required|string|max:255',
+            'amount_dr' => 'nullable|numeric|min:0',
+            'amount_cr' => 'nullable|numeric|min:0',
+            'confidence' => 'nullable|in:high,draft',
+        ]);
+
+        if (!empty($validated['amount_dr']) && !empty($validated['amount_cr'])) {
+            return back()->withErrors(['amount_cr' => 'Dr and Cr cannot both be set.'])->withInput();
+        }
+
+        $beforeValues = [
+            'txn_date' => $line->txn_date?->toDateString(),
+            'narration_raw' => $line->narration_raw,
+            'amount_dr' => $line->amount_dr,
+            'amount_cr' => $line->amount_cr,
+            'running_balance' => $line->running_balance,
+            'confidence' => $line->confidence,
+            'reference_number' => $line->reference_number,
+            'txn_code' => $line->txn_code,
+            'votehead' => $line->votehead,
+        ];
+
+        $narration = $validated['narration_raw'];
+        $reference = $validated['reference_number'];
+        $txnCode = $line->txn_code;
+        if ($narration !== $line->narration_raw) {
+            $service = app(\App\Services\LegacyFinanceImportService::class);
+            $reference = $service->extractReference($narration) ?: $reference;
+            $txnCode = $service->extractTxnCode($narration) ?: $txnCode;
+        }
+
+        $line->update([
+            'txn_date' => $validated['txn_date'] ?? null,
+            'narration_raw' => $validated['narration_raw'],
+            'amount_dr' => $validated['amount_dr'] ?? null,
+            'amount_cr' => $validated['amount_cr'] ?? null,
+            'confidence' => $validated['confidence'] ?? 'high',
+            'reference_number' => $reference,
+            'txn_code' => $txnCode,
+            'votehead' => $validated['votehead'],
+        ]);
+
+        app(LegacyStatementRecalcService::class)->recalcFromLine($line);
+        $line->refresh();
+
+        $afterValues = [
+            'txn_date' => $line->txn_date?->toDateString(),
+            'narration_raw' => $line->narration_raw,
+            'amount_dr' => $line->amount_dr,
+            'amount_cr' => $line->amount_cr,
+            'running_balance' => $line->running_balance,
+            'confidence' => $line->confidence,
+            'reference_number' => $line->reference_number,
+            'txn_code' => $line->txn_code,
+            'votehead' => $line->votehead,
+        ];
+
+        $changedFields = [];
+        foreach ($beforeValues as $field => $beforeValue) {
+            $afterValue = $afterValues[$field] ?? null;
+            if ($beforeValue != $afterValue) {
+                $changedFields[] = $field;
+            }
+        }
+
+        if (!empty($changedFields)) {
+            LegacyStatementLineEditHistory::create([
+                'line_id' => $line->id,
+                'batch_id' => $line->batch_id,
+                'edited_by' => auth()->id(),
+                'before_values' => $beforeValues,
+                'after_values' => $afterValues,
+                'changed_fields' => $changedFields,
+            ]);
+        }
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Line updated successfully',
+                'running_balance' => $line->running_balance,
+            ]);
+        }
+
+        return back()->with('success', 'Line updated.');
+    }
+
+    public function storeEntry(Request $request, Student $student)
+    {
+        $validated = $request->validate([
+            'year' => 'required|integer',
+            'term' => 'required|string',
+            'entry_date' => 'required|date',
+            'entry_type' => 'required|in:debit,credit',
+            'description' => 'required|string',
+            'reference' => 'required|string|max:255',
+            'votehead_id' => 'required|exists:voteheads,id',
+            'amount' => 'required|numeric|min:0.01',
+            'invoice_id' => 'nullable|exists:invoices,id',
+            'invoice_item_id' => 'required_if:entry_type,credit|exists:invoice_items,id',
+        ]);
+
+        $termNumber = $this->resolveTermNumber($validated['term']);
+        if (!$termNumber) {
+            return back()->withErrors(['term' => 'Please select a valid term.'])->withInput();
+        }
+
+        if ($validated['entry_type'] === 'debit') {
+            $invoice = null;
+            if (!empty($validated['invoice_id'])) {
+                $invoice = Invoice::find($validated['invoice_id']);
+                if (!$invoice || (int) $invoice->student_id !== (int) $student->id) {
+                    return back()->withErrors(['invoice_id' => 'Invalid invoice for this student.'])->withInput();
+                }
+            } else {
+                $invoice = InvoiceService::ensure($student->id, (int) $validated['year'], $termNumber);
+            }
+
+            $item = InvoiceItem::create([
+                'invoice_id' => $invoice->id,
+                'votehead_id' => $validated['votehead_id'],
+                'amount' => $validated['amount'],
+                'discount_amount' => 0,
+                'original_amount' => $validated['amount'],
+                'status' => 'active',
+                'source' => 'statement_adjustment',
+                'effective_date' => $validated['entry_date'],
+                'posted_at' => now(),
+            ]);
+
+            InvoiceService::recalc($invoice);
+
+            return back()->with('success', 'Debit entry added successfully.');
+        }
+
+        $invoiceItem = InvoiceItem::with('invoice')->find($validated['invoice_item_id']);
+        if (!$invoiceItem || !$invoiceItem->invoice || (int) $invoiceItem->invoice->student_id !== (int) $student->id) {
+            return back()->withErrors(['invoice_item_id' => 'Invalid invoice item for this student.'])->withInput();
+        }
+
+        CreditNote::create([
+            'invoice_id' => $invoiceItem->invoice_id,
+            'invoice_item_id' => $invoiceItem->id,
+            'amount' => $validated['amount'],
+            'reason' => $validated['description'],
+            'notes' => $validated['reference'],
+            'issued_at' => $validated['entry_date'],
+            'issued_by' => auth()->id(),
+        ]);
+
+        InvoiceService::recalc($invoiceItem->invoice);
+
+        return back()->with('success', 'Credit entry added successfully.');
+    }
+
+    private function resolveTermNumber(string $termValue): ?int
+    {
+        if (str_starts_with($termValue, 'legacy-')) {
+            $termNumber = (int) str_replace('legacy-', '', $termValue);
+            return $termNumber > 0 ? $termNumber : null;
+        }
+
+        if (is_numeric($termValue)) {
+            $termModel = \App\Models\Term::find($termValue);
+            if ($termModel && preg_match('/Term\s*(\d+)/i', $termModel->name ?? '', $matches)) {
+                return (int) $matches[1];
+            }
+        }
+
+        return null;
     }
 
     public function print(Request $request, Student $student)

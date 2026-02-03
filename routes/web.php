@@ -1313,6 +1313,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Student Statements
         Route::get('student-statements', [StudentStatementController::class, 'index'])->name('student-statements.index');
         Route::get('student-statements/{student}', [StudentStatementController::class, 'show'])->name('student-statements.show');
+        Route::put('student-statements/{student}/legacy-lines/{line}', [StudentStatementController::class, 'updateLegacyLine'])->name('student-statements.legacy-lines.update');
+        Route::post('student-statements/{student}/entries', [StudentStatementController::class, 'storeEntry'])->name('student-statements.entries.store');
         Route::get('student-statements/{student}/print', [StudentStatementController::class, 'print'])->name('student-statements.print');
         Route::get('student-statements/{student}/export', [StudentStatementController::class, 'export'])->name('student-statements.export');
         

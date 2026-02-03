@@ -8,6 +8,7 @@ use App\Models\LegacyStatementLine;
 use App\Models\LegacyStatementTerm;
 use App\Models\LegacyStatementLineEditHistory;
 use App\Services\LegacyFinanceImportService;
+use App\Services\LegacyStatementRecalcService;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -182,7 +183,7 @@ class LegacyFinanceImportController extends Controller
         }
 
         // Recalculate running balances for all subsequent transactions (including across terms)
-        $this->recalculateRunningBalancesFromLine($line);
+        app(LegacyStatementRecalcService::class)->recalcFromLine($line);
         
         // Refresh the line to get the updated running balance after recalculation
         $line->refresh();
@@ -334,7 +335,7 @@ class LegacyFinanceImportController extends Controller
         ]);
 
         // Recalculate running balances after revert
-        $this->recalculateRunningBalancesFromLine($line);
+        app(LegacyStatementRecalcService::class)->recalcFromLine($line);
         $line->refresh();
 
         // Capture the reverted values
@@ -420,117 +421,6 @@ class LegacyFinanceImportController extends Controller
         }
 
         return null;
-    }
-
-    private function recalculateTermRunningBalance(int $termId): void
-    {
-        $lines = LegacyStatementLine::where('term_id', $termId)
-            ->orderBy('sequence_no')
-            ->get();
-
-        $running = 0;
-        foreach ($lines as $l) {
-            $dr = (float) ($l->amount_dr ?? 0);
-            $cr = (float) ($l->amount_cr ?? 0);
-            $running += ($dr - $cr);
-            $l->running_balance = $running;
-            $l->save();
-        }
-    }
-
-    /**
-     * Recalculate running balances for all transactions from the edited line onwards,
-     * including all subsequent transactions in the same term and all subsequent terms for the same student.
-     * If editing a transaction in the first term, recalculate all subsequent transactions including in later terms.
-     */
-    private function recalculateRunningBalancesFromLine(LegacyStatementLine $line): void
-    {
-        $term = $line->term;
-        if (!$term) {
-            return;
-        }
-
-        // Get all terms for this student in this batch, ordered by academic year and term number
-        $allTerms = LegacyStatementTerm::where('batch_id', $term->batch_id)
-            ->where('admission_number', $term->admission_number)
-            ->orderBy('academic_year')
-            ->orderBy('term_number')
-            ->get();
-
-        // Determine starting balance and whether to recalculate from start of term
-        $startingBalance = 0;
-        $isFirstTerm = ($term->term_number == 1);
-        $recalculateFromStartOfTerm = $isFirstTerm;
-        
-        if ($recalculateFromStartOfTerm) {
-            // For first term, use the term's starting_balance
-            $startingBalance = (float) ($term->starting_balance ?? 0);
-        } else {
-            // For subsequent terms, get ending balance from previous term
-            $previousTerm = $allTerms->where('academic_year', $term->academic_year)
-                ->where('term_number', $term->term_number - 1)
-                ->first();
-            
-            if ($previousTerm) {
-                // Get the last line of previous term to get its running balance
-                $lastLineOfPreviousTerm = LegacyStatementLine::where('term_id', $previousTerm->id)
-                    ->orderBy('sequence_no', 'desc')
-                    ->first();
-                
-                if ($lastLineOfPreviousTerm && $lastLineOfPreviousTerm->running_balance !== null) {
-                    $startingBalance = (float) $lastLineOfPreviousTerm->running_balance;
-                } elseif ($previousTerm->ending_balance !== null) {
-                    $startingBalance = (float) $previousTerm->ending_balance;
-                }
-            }
-        }
-
-        $currentRunningBalance = $startingBalance;
-        $foundEditedLine = false;
-
-        foreach ($allTerms as $t) {
-            $termLines = LegacyStatementLine::where('term_id', $t->id)
-                ->orderBy('sequence_no')
-                ->get();
-
-            // If we're recalculating from start of term and this is the term with the edited line
-            if ($recalculateFromStartOfTerm && $t->id === $term->id) {
-                // Recalculate all lines in this term from the start
-                foreach ($termLines as $l) {
-                    $dr = (float) ($l->amount_dr ?? 0);
-                    $cr = (float) ($l->amount_cr ?? 0);
-                    $currentRunningBalance += ($dr - $cr);
-                    $l->running_balance = $currentRunningBalance;
-                    $l->save();
-                }
-            } else {
-                // For other terms or if not recalculating from start
-                foreach ($termLines as $l) {
-                    // If we've reached the edited line, start recalculating from here
-                    if ($l->id === $line->id) {
-                        $foundEditedLine = true;
-                    }
-
-                    if ($foundEditedLine) {
-                        $dr = (float) ($l->amount_dr ?? 0);
-                        $cr = (float) ($l->amount_cr ?? 0);
-                        $currentRunningBalance += ($dr - $cr);
-                        $l->running_balance = $currentRunningBalance;
-                        $l->save();
-                    } else {
-                        // Use existing running balance for lines before the edited one
-                        $currentRunningBalance = (float) ($l->running_balance ?? $currentRunningBalance);
-                    }
-                }
-            }
-
-            // Update term ending balance
-            if ($termLines->isNotEmpty()) {
-                $lastLine = $termLines->last();
-                $t->ending_balance = $lastLine->running_balance;
-                $t->save();
-            }
-        }
     }
 
     /**

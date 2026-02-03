@@ -1784,14 +1784,20 @@ class PaymentController extends Controller
                 $recipientCount = count(array_filter($sharedAmounts, function($amt) { return $amt > 0; }));
                 
                 // Return success with notification data
-                return [
+                $payload = [
                     'success' => true,
                     'message' => 'Payment of Ksh ' . number_format($originalPaymentAmount, 2) . ' successfully shared among ' . $recipientCount . ' student(s).',
                     'notification_data' => $notificationData
                 ];
+                if ($request->expectsJson()) {
+                    return $payload;
+                }
+                return redirect()
+                    ->route('finance.payments.show', $payment)
+                    ->with('success', $payload['message']);
             }
         });
-        
+
         // If transaction was successful, send notifications
         if (is_array($result) && isset($result['success']) && $result['success']) {
             $notificationData = $result['notification_data'];

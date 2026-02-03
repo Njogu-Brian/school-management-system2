@@ -123,6 +123,81 @@
         </div>
     </div>
 
+    {{-- Add Statement Entry --}}
+    <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
+        <div class="finance-card-header d-flex align-items-center gap-2">
+            <i class="bi bi-plus-circle"></i> <span>Add Statement Entry</span>
+        </div>
+        <div class="finance-card-body p-4">
+            <form method="POST" action="{{ route('finance.student-statements.entries.store', $student) }}" id="statementEntryForm">
+                @csrf
+                <input type="hidden" name="year" value="{{ $year }}">
+                <input type="hidden" name="term" value="{{ $term }}">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="finance-form-label">Entry Type</label>
+                        <select name="entry_type" id="entryType" class="finance-form-select" required>
+                            <option value="debit">Debit (Charge)</option>
+                            <option value="credit">Credit (Credit Note)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="finance-form-label">Date</label>
+                        <input type="date" name="entry_date" class="finance-form-input" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="finance-form-label">Reference</label>
+                        <input type="text" name="reference" class="finance-form-input" required placeholder="Reference number">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="finance-form-label">Votehead</label>
+                        <select name="votehead_id" class="finance-form-select" required>
+                            @foreach($voteheads as $votehead)
+                                <option value="{{ $votehead->id }}">{{ $votehead->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="finance-form-label">Description</label>
+                        <input type="text" name="description" class="finance-form-input" required placeholder="Narration / notes">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="finance-form-label">Amount</label>
+                        <input type="number" step="0.01" min="0.01" name="amount" class="finance-form-input" required>
+                    </div>
+                    <div class="col-md-3" id="debitInvoiceGroup">
+                        <label class="finance-form-label">Invoice (Debit)</label>
+                        <select name="invoice_id" class="finance-form-select">
+                            <option value="">Auto-create invoice</option>
+                            @foreach($invoices as $invoice)
+                                <option value="{{ $invoice->id }}">{{ $invoice->invoice_number }} ({{ $invoice->term->name ?? 'Term' }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-6" id="creditItemGroup" style="display: none;">
+                        <label class="finance-form-label">Invoice Item (Credit)</label>
+                        <select name="invoice_item_id" id="creditInvoiceItem" class="finance-form-select">
+                            <option value="">Select invoice item</option>
+                            @foreach($invoices as $invoice)
+                                @foreach($invoice->items as $item)
+                                    <option value="{{ $item->id }}" data-invoice-id="{{ $invoice->id }}">
+                                        {{ $invoice->invoice_number }} - {{ $item->votehead->name ?? 'Votehead' }} (Ksh {{ number_format($item->amount, 2) }})
+                                    </option>
+                                @endforeach
+                            @endforeach
+                        </select>
+                        <small class="text-muted">Select the invoice item to credit.</small>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-finance btn-finance-primary">
+                            <i class="bi bi-check-circle"></i> Add Entry
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     {{-- Transactions --}}
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
         <div class="finance-card-header d-flex align-items-center gap-2">
@@ -306,6 +381,19 @@
                                                     <i class="bi bi-arrow-counterclockwise"></i>
                                                 </button>
                                             </form>
+                                        @elseif($transactionType == 'Legacy' && $transactionId)
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-secondary edit-legacy-line"
+                                                    data-line-id="{{ $transactionId }}"
+                                                    data-date="{{ \Carbon\Carbon::parse($transaction['date'])->toDateString() }}"
+                                                    data-description="{{ $transaction['description'] }}"
+                                                    data-reference="{{ $transaction['reference'] }}"
+                                                    data-votehead="{{ $transaction['votehead'] }}"
+                                                    data-debit="{{ $transaction['debit'] }}"
+                                                    data-credit="{{ $transaction['credit'] }}"
+                                                    title="Edit legacy entry">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
                                         @endif
                                     </div>
                                 </td>
@@ -465,6 +553,120 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             // Remove modal on close
+            modal.addEventListener('hidden.bs.modal', function() {
+                modal.remove();
+            });
+        });
+    });
+
+    // Add entry form toggles
+    const entryType = document.getElementById('entryType');
+    const creditGroup = document.getElementById('creditItemGroup');
+    const debitGroup = document.getElementById('debitInvoiceGroup');
+    const creditItemSelect = document.getElementById('creditInvoiceItem');
+    if (entryType) {
+        const toggleEntryGroups = () => {
+            if (entryType.value === 'credit') {
+                if (creditGroup) creditGroup.style.display = 'block';
+                if (debitGroup) debitGroup.style.display = 'none';
+                if (creditItemSelect) creditItemSelect.required = true;
+            } else {
+                if (creditGroup) creditGroup.style.display = 'none';
+                if (debitGroup) debitGroup.style.display = 'block';
+                if (creditItemSelect) creditItemSelect.required = false;
+            }
+        };
+        entryType.addEventListener('change', toggleEntryGroups);
+        toggleEntryGroups();
+    }
+
+    // Legacy line editing
+    const legacyUpdateBase = "{{ url('/finance/student-statements/' . $student->id . '/legacy-lines') }}";
+    document.querySelectorAll('.edit-legacy-line').forEach(button => {
+        button.addEventListener('click', function() {
+            const lineId = this.dataset.lineId;
+            const currentDebit = parseFloat(this.dataset.debit || 0);
+            const currentCredit = parseFloat(this.dataset.credit || 0);
+
+            const modal = document.createElement('div');
+            modal.className = 'modal fade';
+            modal.id = 'editLegacyLineModal';
+            modal.innerHTML = `
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Legacy Entry</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form id="editLegacyLineForm">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Date</label>
+                                    <input type="date" name="txn_date" class="form-control" value="${this.dataset.date || ''}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <input type="text" name="narration_raw" class="form-control" value="${this.dataset.description || ''}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Reference</label>
+                                    <input type="text" name="reference_number" class="form-control" value="${this.dataset.reference || ''}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Votehead</label>
+                                    <input type="text" name="votehead" class="form-control" value="${this.dataset.votehead || ''}" required>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Debit</label>
+                                        <input type="number" step="0.01" min="0" name="amount_dr" class="form-control" value="${currentDebit || ''}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Credit</label>
+                                        <input type="number" step="0.01" min="0" name="amount_cr" class="form-control" value="${currentCredit || ''}">
+                                    </div>
+                                </div>
+                                <input type="hidden" name="confidence" value="high">
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-finance btn-finance-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+
+            document.getElementById('editLegacyLineForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                formData.append('_method', 'PUT');
+                formData.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+
+                fetch(`${legacyUpdateBase}/${lineId}`, {
+                    method: 'POST',
+                    headers: { 'Accept': 'application/json' },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        bsModal.hide();
+                        modal.remove();
+                        window.location.reload();
+                    } else {
+                        alert(data.error || 'Failed to update legacy entry');
+                    }
+                })
+                .catch(() => {
+                    alert('Failed to update legacy entry');
+                });
+            });
+
             modal.addEventListener('hidden.bs.modal', function() {
                 modal.remove();
             });
