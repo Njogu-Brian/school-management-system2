@@ -531,14 +531,11 @@ class FeesComparisonImportController extends Controller
             // Always include overpayment (unallocated amounts) in system paid
             $overpayment = (float) Payment::where('student_id', $student->id)
                 ->where('reversed', false)
-                ->where(function ($q) {
-                    $q->where('unallocated_amount', '>', 0)
-                      ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
-                })
+                ->where('unallocated_amount', '>', 0)
                 ->when(!empty($swimmingPaymentIds), function ($q) use ($swimmingPaymentIds) {
                     $q->whereNotIn('id', $swimmingPaymentIds);
                 })
-                ->sum(DB::raw('GREATEST(COALESCE(unallocated_amount, amount - COALESCE(allocated_amount, 0)), 0)'));
+                ->sum(DB::raw('COALESCE(unallocated_amount, 0)'));
             $totalPaid += $overpayment;
 
             $invoiceBalance = $totalInvoiced - $totalPaid;
