@@ -1852,7 +1852,7 @@ class PaymentController extends Controller
             }
             
             $allocationAmount = (float)$allocation->amount;
-            $invoice = $allocation->invoiceItem->invoice;
+            $invoice = $allocation->invoiceItem?->invoice;
             
             if ($allocationAmount <= $remaining) {
                 // Delete entire allocation
