@@ -893,8 +893,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
-    
     function getSharedStudentIds() {
         return Array.from(document.querySelectorAll('#sharedStudentsList input[name="shared_students[]"]'))
             .map(el => parseInt(el.value, 10))
@@ -1351,7 +1349,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     @endif
-});
 </script>
 @endpush
 
