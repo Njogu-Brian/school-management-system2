@@ -1883,7 +1883,8 @@ class BankStatementController extends Controller
 
     protected function ensureUniqueTransactionCode(string $baseCode, int $studentId): string
     {
-        $exists = \App\Models\Payment::where('transaction_code', $baseCode)
+        $exists = \App\Models\Payment::withTrashed()
+            ->where('transaction_code', $baseCode)
             ->where('student_id', $studentId)
             ->exists();
         if (!$exists) {
@@ -1893,7 +1894,10 @@ class BankStatementController extends Controller
         $suffix = 'R-' . time();
         $code = $baseCode . '-' . $suffix;
         $attempt = 0;
-        while (\App\Models\Payment::where('transaction_code', $code)->where('student_id', $studentId)->exists() && $attempt < 5) {
+        while (\App\Models\Payment::withTrashed()
+            ->where('transaction_code', $code)
+            ->where('student_id', $studentId)
+            ->exists() && $attempt < 5) {
             $code = $baseCode . '-R-' . time() . '-' . rand(100, 999);
             $attempt++;
             usleep(10000);

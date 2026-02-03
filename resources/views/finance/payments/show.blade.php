@@ -364,14 +364,12 @@
                         </a>
                         @endif
                         @if(!$payment->reversed)
-                        <button type="button" class="btn btn-finance btn-finance-secondary w-100 mb-2" data-bs-toggle="modal" data-bs-target="#transferPaymentModal">
-                            <i class="bi bi-arrow-left-right"></i> Transfer/Share Payment
-                        </button>
-                        @if(isset($siblings) && $siblings->isNotEmpty())
-                        <a href="{{ route('finance.payments.show', $payment, ['action' => 'share']) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
+                        <a href="{{ route('finance.payments.show', $payment, ['action' => 'transfer']) }}#transferShareSection" class="btn btn-finance btn-finance-secondary w-100 mb-2">
+                            <i class="bi bi-arrow-left-right"></i> Transfer Payment
+                        </a>
+                        <a href="{{ route('finance.payments.show', $payment, ['action' => 'share']) }}#transferShareSection" class="btn btn-finance btn-finance-primary w-100 mb-2">
                             <i class="bi bi-people"></i> Share with Siblings
                         </a>
-                        @endif
                         <form action="{{ route('finance.payments.reverse', $payment) }}" method="POST" id="reversePaymentForm" onsubmit="return confirmPaymentReversal(event)">
                             @csrf
                             @method('DELETE')
@@ -525,158 +523,153 @@
 </div>
 @endif
 
-<!-- Transfer/Share Payment Modal -->
+<!-- Transfer/Share Payment Form -->
 @if(!$payment->reversed)
-<div class="modal fade" id="transferPaymentModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <form action="{{ route('finance.payments.transfer', $payment) }}" method="POST" id="transferPaymentForm">
-                @csrf
-                <div class="modal-header">
-                    <h5 class="modal-title">Transfer/Share Payment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div id="transferShareSection" class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
+    <div class="finance-card-header">
+        <h5 class="mb-0">Transfer/Share Payment</h5>
+    </div>
+    <div class="finance-card-body p-4">
+        <form action="{{ route('finance.payments.transfer', $payment) }}" method="POST" id="transferPaymentForm" data-default-transfer-type="{{ (isset($siblings) && $siblings->isNotEmpty()) ? 'share' : 'transfer' }}">
+            @csrf
+            <div class="alert alert-info">
+                <strong>Available to transfer:</strong> Ksh {{ number_format($payment->amount, 2) }}
+                @if($actualAllocatedAmount > 0.01)
+                    <div class="small text-info mt-1">
+                        <i class="bi bi-info-circle"></i> 
+                        Note: This payment has allocated amounts. Transferring allocated amounts will automatically deallocate them from the original student's invoices.
+                    </div>
+                @endif
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Transfer Type <span class="text-danger">*</span></label>
+                <select name="transfer_type" id="transferType" class="form-select" required>
+                    <option value="">-- Select Type --</option>
+                    <option value="transfer">Transfer to Another Student</option>
+                    <option value="share">Share Among Multiple Students</option>
+                </select>
+            </div>
+            
+            <div id="transferSingleStudent" style="display: none;">
+                <div class="mb-3">
+                    <label class="form-label">Student <span class="text-danger">*</span></label>
+                @include('partials.student_live_search', [
+                    'hiddenInputId' => 'targetStudentId',
+                    'hiddenInputName' => 'target_student_id',
+                    'displayInputId' => 'targetStudentName',
+                    'resultsId' => 'targetStudentResults',
+                    'placeholder' => 'Type name or admission #',
+                    'inputClass' => 'form-control'
+                ])
                 </div>
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <strong>Available to transfer:</strong> Ksh {{ number_format($payment->amount, 2) }}
-                        @if($actualAllocatedAmount > 0.01)
-                            <div class="small text-info mt-1">
-                                <i class="bi bi-info-circle"></i> 
-                                Note: This payment has allocated amounts. Transferring allocated amounts will automatically deallocate them from the original student's invoices.
+                <div class="mb-3">
+                    <label class="form-label">Amount to Transfer <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text">Ksh</span>
+                        <input type="number" step="0.01" min="0.01" max="{{ $payment->amount }}" name="transfer_amount" id="transferAmount" class="form-control">
+                    </div>
+                </div>
+            </div>
+            
+            <div id="transferMultipleStudents" style="display: none;">
+                <div class="mb-3">
+                    <label class="form-label">Students to Share With <span class="text-danger">*</span></label>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Total shared amounts must equal exactly <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                    </div>
+                    @if(isset($siblings) && $siblings->isNotEmpty())
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Siblings</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach($siblings as $sibling)
+                                    <button type="button"
+                                            class="btn btn-outline-secondary btn-sm add-sibling-btn"
+                                            data-student-id="{{ $sibling->id }}"
+                                            data-student-name="{{ $sibling->full_name }}"
+                                            data-student-admission="{{ $sibling->admission_number }}">
+                                        <i class="bi bi-person-plus"></i> {{ $sibling->full_name }}
+                                    </button>
+                                @endforeach
                             </div>
-                        @endif
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Transfer Type <span class="text-danger">*</span></label>
-                        <select name="transfer_type" id="transferType" class="form-select" required>
-                            <option value="">-- Select Type --</option>
-                            <option value="transfer">Transfer to Another Student</option>
-                            <option value="share">Share Among Multiple Students</option>
-                        </select>
-                    </div>
-                    
-                    <div id="transferSingleStudent" style="display: none;">
-                        <div class="mb-3">
-                            <label class="form-label">Student <span class="text-danger">*</span></label>
-                        @include('partials.student_live_search', [
-                            'hiddenInputId' => 'targetStudentId',
-                            'hiddenInputName' => 'target_student_id',
-                            'displayInputId' => 'targetStudentName',
-                            'resultsId' => 'targetStudentResults',
-                            'placeholder' => 'Type name or admission #',
-                            'inputClass' => 'form-control'
-                        ])
+                            <small class="text-muted">Click a sibling to add them to the share list.</small>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Amount to Transfer <span class="text-danger">*</span></label>
-                            <div class="input-group">
+                    @endif
+                    <div id="sharedStudentsList">
+                        <!-- Original student (pre-populated) -->
+                        <div class="shared-student-item mb-3 border-bottom pb-2">
+                            <label class="form-label text-muted small">Original Student</label>
+                            <input type="hidden" name="shared_students[]" value="{{ $payment->student_id }}" class="shared-student-id">
+                            <input type="text" class="form-control shared-student-name" value="{{ $payment->student->full_name }} ({{ $payment->student->admission_number }})" readonly>
+                            @php
+                                $studentBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($payment->student);
+                                $studentInvoiced = \App\Models\Invoice::where('student_id', $payment->student_id)->sum('total') ?? 0;
+                                $studentPaid = \App\Models\Payment::where('student_id', $payment->student_id)->where('reversed', false)->sum('amount') ?? 0;
+                            @endphp
+                            <small class="text-muted d-block mt-1">
+                                <strong>Balance:</strong> <span class="text-danger">Ksh {{ number_format($studentBalance, 2) }}</span>
+                                | <strong>Invoiced:</strong> Ksh {{ number_format($studentInvoiced, 2) }}
+                                | <strong>Paid:</strong> <span class="text-success">Ksh {{ number_format($studentPaid, 2) }}</span>
+                            </small>
+                            <div class="input-group mt-2">
                                 <span class="input-group-text">Ksh</span>
-                                <input type="number" step="0.01" min="0.01" max="{{ $payment->amount }}" name="transfer_amount" id="transferAmount" class="form-control">
+                                <input type="number" step="0.01" min="0" max="{{ $payment->amount }}" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount, 2, '.', '') }}" required>
+                                <span class="input-group-text bg-secondary text-white">Cannot Remove</span>
+                            </div>
+                        </div>
+                        <!-- Additional students start here -->
+                        <div class="shared-student-item mb-2" data-index="1">
+                            @include('partials.student_live_search', [
+                                'hiddenInputId' => 'shared_student_id_1',
+                                'hiddenInputName' => 'shared_students[]',
+                                'displayInputId' => 'shared_student_name_1',
+                                'resultsId' => 'shared_student_results_1',
+                                'placeholder' => 'Type name or admission #',
+                                'inputClass' => 'form-control shared-student-name'
+                            ])
+                            <div class="input-group mt-2">
+                                <span class="input-group-text">Ksh</span>
+                                <input type="number" step="0.01" min="0" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="0.00" required>
+                                <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
+                                    <i class="bi bi-x"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
-                    
-                    <div id="transferMultipleStudents" style="display: none;">
-                        <div class="mb-3">
-                            <label class="form-label">Students to Share With <span class="text-danger">*</span></label>
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i> Total shared amounts must equal exactly <strong>Ksh {{ number_format($payment->amount, 2) }}</strong>
+                    <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addSharedStudent">
+                        <i class="bi bi-plus"></i> Add Another Student
+                    </button>
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Total Allocated:</strong>
+                                <span id="totalSharedAmount" class="fs-5">Ksh 0.00</span>
                             </div>
-                            @if(isset($siblings) && $siblings->isNotEmpty())
-                                <div class="mb-3">
-                                    <label class="form-label text-muted small">Siblings</label>
-                                    <div class="d-flex flex-wrap gap-2">
-                                        @foreach($siblings as $sibling)
-                                            <button type="button"
-                                                    class="btn btn-outline-secondary btn-sm add-sibling-btn"
-                                                    data-student-id="{{ $sibling->id }}"
-                                                    data-student-name="{{ $sibling->full_name }}"
-                                                    data-student-admission="{{ $sibling->admission_number }}">
-                                                <i class="bi bi-person-plus"></i> {{ $sibling->full_name }}
-                                            </button>
-                                        @endforeach
-                                    </div>
-                                    <small class="text-muted">Click a sibling to add them to the share list.</small>
-                                </div>
-                            @endif
-                            <div id="sharedStudentsList">
-                                <!-- Original student (pre-populated) -->
-                                <div class="shared-student-item mb-3 border-bottom pb-2">
-                                    <label class="form-label text-muted small">Original Student</label>
-                                    <input type="hidden" name="shared_students[]" value="{{ $payment->student_id }}" class="shared-student-id">
-                                    <input type="text" class="form-control shared-student-name" value="{{ $payment->student->full_name }} ({{ $payment->student->admission_number }})" readonly>
-                                    @php
-                                        $studentBalance = \App\Services\StudentBalanceService::getTotalOutstandingBalance($payment->student);
-                                        $studentInvoiced = \App\Models\Invoice::where('student_id', $payment->student_id)->sum('total') ?? 0;
-                                        $studentPaid = \App\Models\Payment::where('student_id', $payment->student_id)->where('reversed', false)->sum('amount') ?? 0;
-                                    @endphp
-                                    <small class="text-muted d-block mt-1">
-                                        <strong>Balance:</strong> <span class="text-danger">Ksh {{ number_format($studentBalance, 2) }}</span>
-                                        | <strong>Invoiced:</strong> Ksh {{ number_format($studentInvoiced, 2) }}
-                                        | <strong>Paid:</strong> <span class="text-success">Ksh {{ number_format($studentPaid, 2) }}</span>
-                                    </small>
-                                    <div class="input-group mt-2">
-                                        <span class="input-group-text">Ksh</span>
-                                        <input type="number" step="0.01" min="0" max="{{ $payment->amount }}" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="{{ number_format($payment->amount, 2, '.', '') }}" required>
-                                        <span class="input-group-text bg-secondary text-white">Cannot Remove</span>
-                                    </div>
-                                </div>
-                                <!-- Additional students start here -->
-                                <div class="shared-student-item mb-2" data-index="1">
-                                    @include('partials.student_live_search', [
-                                        'hiddenInputId' => 'shared_student_id_1',
-                                        'hiddenInputName' => 'shared_students[]',
-                                        'displayInputId' => 'shared_student_name_1',
-                                        'resultsId' => 'shared_student_results_1',
-                                        'placeholder' => 'Type name or admission #',
-                                        'inputClass' => 'form-control shared-student-name'
-                                    ])
-                                    <div class="input-group mt-2">
-                                        <span class="input-group-text">Ksh</span>
-                                        <input type="number" step="0.01" min="0" name="shared_amounts[]" class="form-control shared-amount" placeholder="Amount" value="0.00" required>
-                                        <button type="button" class="btn btn-outline-danger btn-sm remove-student-btn">
-                                            <i class="bi bi-x"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="addSharedStudent">
-                                <i class="bi bi-plus"></i> Add Another Student
-                            </button>
-                            <div class="mt-3 p-3 bg-light rounded">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>Total Allocated:</strong>
-                                        <span id="totalSharedAmount" class="fs-5">Ksh 0.00</span>
-                                    </div>
-                                    <div>
-                                        <strong>Remaining:</strong>
-                                        <span id="remainingAmount" class="fs-5">Ksh {{ number_format($payment->amount, 2) }}</span>
-                                    </div>
-                                </div>
-                                <div class="progress mt-2" style="height: 8px;">
-                                    <div id="allocationProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
-                                </div>
-                                <small id="allocationStatus" class="text-muted">Allocate exactly Ksh {{ number_format($payment->amount, 2) }}</small>
+                            <div>
+                                <strong>Remaining:</strong>
+                                <span id="remainingAmount" class="fs-5">Ksh {{ number_format($payment->amount, 2) }}</span>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Reason/Notes</label>
-                        <textarea name="transfer_reason" class="form-control" rows="2" placeholder="Reason for transfer/share"></textarea>
+                        <div class="progress mt-2" style="height: 8px;">
+                            <div id="allocationProgress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small id="allocationStatus" class="text-muted">Allocate exactly Ksh {{ number_format($payment->amount, 2) }}</small>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-finance btn-finance-primary">Transfer Payment</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Reason/Notes</label>
+                <textarea name="transfer_reason" class="form-control" rows="2" placeholder="Reason for transfer/share"></textarea>
+            </div>
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-finance btn-finance-primary">Transfer/Share Payment</button>
+                <button type="reset" class="btn btn-secondary">Reset</button>
+            </div>
+        </form>
     </div>
 </div>
-
 @endif
 
 @push('scripts')
@@ -1146,31 +1139,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Reinitialize live search when modal is shown
-    const transferModal = document.getElementById('transferPaymentModal');
-    if (transferModal) {
-        transferModal.addEventListener('shown.bs.modal', function () {
-            // Reinitialize all live search wrappers in the modal
-            document.querySelectorAll('#transferPaymentModal .student-live-search-wrapper').forEach(initLiveSearchWrapper);
-            
-            // Default to transfer if nothing selected
-            if (transferType && !transferType.value) {
-                transferType.value = 'transfer';
-            }
-            applyTransferType(transferType?.value || '');
-        });
-    }
-    
-    // Auto-open transfer/share modal from query param
+    // Initialize transfer/share form defaults
+    const transferFormSection = document.getElementById('transferShareSection');
+    const transferForm = document.getElementById('transferPaymentForm');
     const params = new URLSearchParams(window.location.search);
     const action = params.get('action');
-    if (transferModal && action && (action === 'share' || action === 'transfer')) {
-        const modal = new bootstrap.Modal(transferModal);
-        modal.show();
-        if (transferType) {
-            transferType.value = action === 'transfer' ? 'transfer' : 'share';
-            applyTransferType(transferType.value);
+    if (transferType) {
+        const defaultType = transferForm?.dataset?.defaultTransferType || 'transfer';
+        if (action && (action === 'share' || action === 'transfer')) {
+            transferType.value = action;
+        } else if (!transferType.value) {
+            transferType.value = defaultType;
         }
+        applyTransferType(transferType.value);
+    }
+    document.querySelectorAll('#transferShareSection .student-live-search-wrapper').forEach(initLiveSearchWrapper);
+    if (action && transferFormSection) {
+        transferFormSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 });
     
