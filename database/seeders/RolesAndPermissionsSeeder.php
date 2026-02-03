@@ -15,6 +15,7 @@ class RolesAndPermissionsSeeder extends Seeder
         // ---------------------------
         $roles = [
             'Super Admin',
+            'Director',
             'Admin',
             'Secretary',
             'Teacher',
@@ -111,6 +112,12 @@ class RolesAndPermissionsSeeder extends Seeder
         // Super Admin → everything
         $superAdmin = Role::where('name', 'Super Admin')->first();
         $superAdmin->syncPermissions(Permission::all());
+
+        // Director → same as Super Admin
+        $director = Role::where('name', 'Director')->first();
+        if ($director) {
+            $director->syncPermissions(Permission::all());
+        }
 
         // Admin
         $admin = Role::where('name', 'Admin')->first();

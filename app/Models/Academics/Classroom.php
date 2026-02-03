@@ -11,7 +11,16 @@ class Classroom extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'next_class_id', 'is_beginner', 'is_alumni', 'level_type'];
+    protected $fillable = [
+        'name',
+        'campus',
+        'academic_group',
+        'level',
+        'next_class_id',
+        'is_beginner',
+        'is_alumni',
+        'level_type',
+    ];
 
     protected $casts = [
         'is_beginner' => 'boolean',
@@ -124,4 +133,20 @@ class Classroom extends Model
         )->withPivot(['subject_id','stream_id','academic_year_id','term_id','is_compulsory']);
     }
 
+    /**
+     * Scope: classrooms that belong to the given campus (lower/upper).
+     * Uses campus column and level_type fallback for compatibility.
+     */
+    public function scopeForCampus($query, string $campus)
+    {
+        $campus = strtolower($campus);
+        return $query->where(function ($q) use ($campus) {
+            $q->where('campus', $campus);
+            if ($campus === 'lower') {
+                $q->orWhereIn('level_type', ['upper_primary', 'junior_high']);
+            } else {
+                $q->orWhereIn('level_type', ['preschool', 'lower_primary']);
+            }
+        });
+    }
 }

@@ -782,11 +782,45 @@ Route::middleware('auth')->group(function () {
 
     // System Reports
     Route::prefix('reports')
-        ->middleware('role:Super Admin|Admin|Secretary')
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher|Director')
         ->name('reports.')
         ->group(function () {
             Route::get('/phone-normalization', [PhoneNormalizationReportController::class, 'index'])
                 ->name('phone-normalization.index');
+        });
+
+    // Academic Heatmaps (Lower/Upper Campus)
+    Route::prefix('reports/heatmaps')
+        ->middleware('role:Super Admin|Admin|Senior Teacher|Director')
+        ->name('reports.heatmaps.')
+        ->group(function () {
+            Route::get('/{campus}', [\App\Http\Controllers\Reports\HeatmapController::class, 'show'])
+                ->name('show');
+        });
+
+    // Weekly Reports
+    Route::prefix('weekly-reports')
+        ->middleware('role:Super Admin|Admin|Senior Teacher|Teacher|teacher')
+        ->group(function () {
+            Route::get('/class-reports', [\App\Http\Controllers\Reports\ClassReportController::class, 'index'])->name('reports.class-reports.index');
+            Route::get('/class-reports/create', [\App\Http\Controllers\Reports\ClassReportController::class, 'create'])->name('reports.class-reports.create');
+            Route::post('/class-reports', [\App\Http\Controllers\Reports\ClassReportController::class, 'store'])->name('reports.class-reports.store');
+
+            Route::get('/subject-reports', [\App\Http\Controllers\Reports\SubjectReportController::class, 'index'])->name('reports.subject-reports.index');
+            Route::get('/subject-reports/create', [\App\Http\Controllers\Reports\SubjectReportController::class, 'create'])->name('reports.subject-reports.create');
+            Route::post('/subject-reports', [\App\Http\Controllers\Reports\SubjectReportController::class, 'store'])->name('reports.subject-reports.store');
+
+            Route::get('/staff-weekly', [\App\Http\Controllers\Reports\StaffWeeklyController::class, 'index'])->name('reports.staff-weekly.index');
+            Route::get('/staff-weekly/create', [\App\Http\Controllers\Reports\StaffWeeklyController::class, 'create'])->name('reports.staff-weekly.create');
+            Route::post('/staff-weekly', [\App\Http\Controllers\Reports\StaffWeeklyController::class, 'store'])->name('reports.staff-weekly.store');
+
+            Route::get('/student-followups', [\App\Http\Controllers\Reports\StudentFollowupController::class, 'index'])->name('reports.student-followups.index');
+            Route::get('/student-followups/create', [\App\Http\Controllers\Reports\StudentFollowupController::class, 'create'])->name('reports.student-followups.create');
+            Route::post('/student-followups', [\App\Http\Controllers\Reports\StudentFollowupController::class, 'store'])->name('reports.student-followups.store');
+
+            Route::get('/operations-facilities', [\App\Http\Controllers\Reports\OperationsFacilityController::class, 'index'])->name('reports.operations-facilities.index');
+            Route::get('/operations-facilities/create', [\App\Http\Controllers\Reports\OperationsFacilityController::class, 'create'])->name('reports.operations-facilities.create');
+            Route::post('/operations-facilities', [\App\Http\Controllers\Reports\OperationsFacilityController::class, 'store'])->name('reports.operations-facilities.store');
         });
 
     /*
@@ -799,11 +833,7 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
             Route::get('/', [SeniorTeacherAssignmentController::class, 'index'])->name('index');
             Route::get('/{id}/edit', [SeniorTeacherAssignmentController::class, 'edit'])->name('edit');
-            Route::put('/{id}/classrooms', [SeniorTeacherAssignmentController::class, 'updateClassrooms'])->name('update_classrooms');
-            Route::put('/{id}/staff', [SeniorTeacherAssignmentController::class, 'updateStaff'])->name('update_staff');
-            Route::delete('/{seniorTeacherId}/classrooms/{classroomId}', [SeniorTeacherAssignmentController::class, 'removeClassroom'])->name('remove_classroom');
-            Route::delete('/{seniorTeacherId}/staff/{staffId}', [SeniorTeacherAssignmentController::class, 'removeStaff'])->name('remove_staff');
-            Route::post('/bulk-assign', [SeniorTeacherAssignmentController::class, 'bulkAssign'])->name('bulk_assign');
+            Route::put('/{id}/campus', [SeniorTeacherAssignmentController::class, 'updateCampus'])->name('update_campus');
         });
 
     // Supervisor routes (for supervisors to access their subordinates' data)
@@ -1501,6 +1531,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::prefix('academics')->as('academics.')->middleware('role:Super Admin|Admin|Secretary|Teacher|teacher|Senior Teacher')->group(function () {
         Route::get('exam-analytics', [ExamAnalyticsController::class, 'index'])->name('exam-analytics.index');
         Route::get('exam-analytics/classroom/{classroom}', [ExamAnalyticsController::class, 'classroomPerformance'])->name('exam-analytics.classroom');
+
+        Route::get('assessments', [\App\Http\Controllers\Academics\AssessmentController::class, 'index'])->name('assessments.index');
+        Route::get('assessments/create', [\App\Http\Controllers\Academics\AssessmentController::class, 'create'])->name('assessments.create');
+        Route::post('assessments', [\App\Http\Controllers\Academics\AssessmentController::class, 'store'])->name('assessments.store');
     });
 
     /*

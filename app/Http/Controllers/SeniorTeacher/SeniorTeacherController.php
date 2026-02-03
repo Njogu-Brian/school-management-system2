@@ -77,13 +77,13 @@ class SeniorTeacherController extends Controller
         $totalStudents = $students->count();
         $activeStudents = (clone $students)->where('status', 'Active')->count();
         
-        // Supervised classrooms
-        $supervisedClassrooms = Classroom::whereIn('id', $user->getSupervisedClassroomIds())
+        // Supervised classrooms (from assigned campus)
+        $supervisedClassrooms = Classroom::whereIn('id', $supervisedClassroomIds)
             ->withCount('students')
             ->get();
-        
-        // Supervised staff
-        $supervisedStaff = Staff::whereIn('id', $staffIds)
+
+        // Supervised staff (from assigned campus)
+        $supervisedStaff = Staff::whereIn('id', $supervisedStaffIds)
             ->with(['user', 'position'])
             ->get();
         
@@ -258,29 +258,31 @@ class SeniorTeacherController extends Controller
     }
 
     /**
-     * Show all supervised classrooms
+     * Show all supervised classrooms (from assigned campus)
      */
     public function supervisedClassrooms()
     {
         $user = auth()->user();
-        $classrooms = $user->supervisedClassrooms()
+        $classroomIds = $user->getSupervisedClassroomIds();
+        $classrooms = Classroom::whereIn('id', $classroomIds)
             ->withCount('students')
             ->with(['teachers'])
             ->get();
-        
+
         return view('senior_teacher.supervised_classrooms', compact('classrooms'));
     }
 
     /**
-     * Show all supervised staff
+     * Show all supervised staff (from assigned campus)
      */
     public function supervisedStaff()
     {
         $user = auth()->user();
-        $staff = $user->supervisedStaff()
+        $staffIds = $user->getSupervisedStaffIds();
+        $staff = Staff::whereIn('id', $staffIds)
             ->with(['user', 'position', 'department'])
             ->get();
-        
+
         return view('senior_teacher.supervised_staff', compact('staff'));
     }
 

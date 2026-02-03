@@ -7,7 +7,6 @@ use App\Models\Student;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\PaymentAllocation;
-use App\Models\Payment;
 use App\Models\Term;
 use App\Models\AcademicYear;
 use App\Models\FeesComparisonPreview;
@@ -16,7 +15,6 @@ use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -527,16 +525,6 @@ class FeesComparisonImportController extends Controller
                 });
                 $totalPaid = (float) $allocationsQuery->sum('amount');
             }
-
-            // Always include overpayment (unallocated amounts) in system paid
-            $overpayment = (float) Payment::where('student_id', $student->id)
-                ->where('reversed', false)
-                ->where('unallocated_amount', '>', 0)
-                ->when(!empty($swimmingPaymentIds), function ($q) use ($swimmingPaymentIds) {
-                    $q->whereNotIn('id', $swimmingPaymentIds);
-                })
-                ->sum(DB::raw('COALESCE(unallocated_amount, 0)'));
-            $totalPaid += $overpayment;
 
             $invoiceBalance = $totalInvoiced - $totalPaid;
             $swimmingBalance = (float) (SwimmingWallet::where('student_id', $student->id)->value('balance') ?? 0);

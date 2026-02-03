@@ -43,64 +43,78 @@ class User extends Authenticatable
     }
 
     /**
-     * Senior Teacher Relationships
+     * Senior Teacher: campus assignment (one campus per senior teacher).
+     * Supervisory scope is derived solely from this campus.
      */
-    
-    // Classrooms supervised by this senior teacher
-    public function supervisedClassrooms()
+    public function campusAssignment()
     {
-        return $this->belongsToMany(\App\Models\Academics\Classroom::class, 'senior_teacher_classrooms', 'senior_teacher_id', 'classroom_id')->withTimestamps();
-    }
-
-    // Staff supervised by this senior teacher
-    public function supervisedStaff()
-    {
-        return $this->belongsToMany(\App\Models\Staff::class, 'senior_teacher_staff', 'senior_teacher_id', 'staff_id')->withTimestamps();
+        return $this->hasOne(\App\Models\CampusSeniorTeacher::class, 'senior_teacher_id');
     }
 
     /**
      * Check if this user is a senior teacher supervising a specific classroom
+     * (classroom must belong to the senior teacher's assigned campus).
      */
     public function isSupervisingClassroom($classroomId): bool
     {
-        return $this->supervisedClassrooms()->where('classrooms.id', $classroomId)->exists();
+        $ids = $this->getSupervisedClassroomIds();
+        return in_array((int) $classroomId, $ids, true);
     }
 
     /**
      * Check if this user is a senior teacher supervising a specific staff member
+     * (staff must be assigned to at least one classroom in the senior teacher's campus).
      */
     public function isSupervisingStaff($staffId): bool
     {
-        return $this->supervisedStaff()->where('staff.id', $staffId)->exists();
+        $ids = $this->getSupervisedStaffIds();
+        return in_array((int) $staffId, $ids, true);
     }
 
     /**
-     * Get all classroom IDs supervised by this senior teacher
+     * Get all classroom IDs supervised by this senior teacher (from assigned campus only).
      */
     public function getSupervisedClassroomIds(): array
     {
-        return $this->supervisedClassrooms()->pluck('classrooms.id')->toArray();
+        $assignment = $this->campusAssignment;
+        if (!$assignment || !$this->hasRole('Senior Teacher')) {
+            return [];
+        }
+        return \App\Models\Academics\Classroom::forCampus($assignment->campus)->pluck('id')->toArray();
     }
 
     /**
-     * Get all staff IDs supervised by this senior teacher
+     * Get all staff IDs supervised by this senior teacher (staff in assigned campus classrooms).
      */
     public function getSupervisedStaffIds(): array
     {
-        return $this->supervisedStaff()->pluck('staff.id')->toArray();
+        $classroomIds = $this->getSupervisedClassroomIds();
+        if (empty($classroomIds)) {
+            return [];
+        }
+        $fromSubjectAssignments = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+            ->whereIn('classroom_id', $classroomIds)
+            ->distinct()
+            ->pluck('staff_id')
+            ->toArray();
+        $teacherUserIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
+            ->whereIn('classroom_id', $classroomIds)
+            ->distinct()
+            ->pluck('teacher_id')
+            ->toArray();
+        $fromTeachers = \App\Models\Staff::whereIn('user_id', $teacherUserIds)->pluck('id')->toArray();
+        return array_values(array_unique(array_merge($fromSubjectAssignments, $fromTeachers)));
     }
 
     /**
-     * Get all students in supervised classrooms (for senior teachers)
+     * Get all students in supervised classrooms (for senior teachers; scope = assigned campus).
      */
     public function getSupervisedStudents()
     {
         $classroomIds = $this->getSupervisedClassroomIds();
-        
         if (empty($classroomIds)) {
-            return Student::whereRaw('1 = 0'); // No access
+            return Student::whereRaw('1 = 0');
         }
-        
         return Student::whereIn('classroom_id', $classroomIds);
     }
 

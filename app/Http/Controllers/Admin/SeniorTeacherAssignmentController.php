@@ -5,180 +5,63 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\Staff;
-use App\Models\Academics\Classroom;
-use Illuminate\Support\Facades\DB;
+use App\Models\CampusSeniorTeacher;
 
 class SeniorTeacherAssignmentController extends Controller
 {
     /**
-     * Show the assignment form for a senior teacher
+     * List senior teachers and their campus assignment only.
      */
     public function index()
     {
-        // Get all users with Senior Teacher role
-        $seniorTeachers = User::whereHas('roles', function($q) {
+        $seniorTeachers = User::whereHas('roles', function ($q) {
             $q->where('name', 'Senior Teacher');
-        })->with(['staff', 'supervisedClassrooms', 'supervisedStaff'])->get();
-        
-        return view('admin.senior_teacher_assignments.index', compact('seniorTeachers'));
+        })->with(['staff', 'campusAssignment'])->get();
+
+        $campusAssignments = CampusSeniorTeacher::all()->keyBy('senior_teacher_id');
+
+        return view('admin.senior_teacher_assignments.index', compact('seniorTeachers', 'campusAssignments'));
     }
 
     /**
-     * Show the assignment form for a specific senior teacher
+     * Edit page: assign senior teacher to a campus only.
      */
     public function edit($id)
     {
-        $seniorTeacher = User::whereHas('roles', function($q) {
+        $seniorTeacher = User::whereHas('roles', function ($q) {
             $q->where('name', 'Senior Teacher');
-        })->with(['staff', 'supervisedClassrooms', 'supervisedStaff'])->findOrFail($id);
-        
-        $allClassrooms = Classroom::with('students')->orderBy('name')->get();
-        
-        // Get all active staff excluding the senior teacher themselves
-        $allStaff = Staff::where('status', 'Active')
-            ->where('id', '!=', $seniorTeacher->staff->id ?? null)
-            ->with(['user', 'position'])
-            ->orderBy('first_name')
-            ->get();
-        
-        // Sync supervised staff with supervisor_id field
-        // Ensure staff who have this senior teacher as supervisor are marked as supervised
-        if ($seniorTeacher->staff) {
-            $staffWithThisSupervisor = Staff::where('supervisor_id', $seniorTeacher->staff->id)
-                ->pluck('id')
-                ->toArray();
-            
-            // Sync the pivot table to match the supervisor_id relationships
-            $currentSupervised = $seniorTeacher->supervisedStaff->pluck('id')->toArray();
-            $allSupervisedIds = array_unique(array_merge($currentSupervised, $staffWithThisSupervisor));
-            
-            // Update the pivot table if there's a mismatch
-            if ($currentSupervised != $allSupervisedIds) {
-                $seniorTeacher->supervisedStaff()->sync($allSupervisedIds);
-                $seniorTeacher->load('supervisedStaff'); // Reload the relationship
-            }
-        }
-        
-        return view('admin.senior_teacher_assignments.edit', compact(
-            'seniorTeacher',
-            'allClassrooms',
-            'allStaff'
-        ));
+        })->with(['staff', 'campusAssignment'])->findOrFail($id);
+
+        $campusAssignment = CampusSeniorTeacher::where('senior_teacher_id', $seniorTeacher->id)->first();
+
+        return view('admin.senior_teacher_assignments.edit', compact('seniorTeacher', 'campusAssignment'));
     }
 
     /**
-     * Update classroom assignments for a senior teacher
+     * Assign a senior teacher to a campus. Scope = campus only (no separate classroom/staff assignment).
      */
-    public function updateClassrooms(Request $request, $id)
+    public function updateCampus(Request $request, $id)
     {
         $request->validate([
-            'classroom_ids' => 'nullable|array',
-            'classroom_ids.*' => 'exists:classrooms,id',
+            'campus' => 'required|in:lower,upper',
         ]);
 
-        $seniorTeacher = User::whereHas('roles', function($q) {
+        $seniorTeacher = User::whereHas('roles', function ($q) {
             $q->where('name', 'Senior Teacher');
         })->findOrFail($id);
 
-        // Sync the supervised classrooms
-        $seniorTeacher->supervisedClassrooms()->sync($request->classroom_ids ?? []);
+        $campus = $request->campus;
+
+        CampusSeniorTeacher::where('campus', $campus)
+            ->where('senior_teacher_id', '!=', $seniorTeacher->id)
+            ->delete();
+
+        CampusSeniorTeacher::updateOrCreate(
+            ['campus' => $campus],
+            ['senior_teacher_id' => $seniorTeacher->id]
+        );
 
         return redirect()->route('admin.senior_teacher_assignments.edit', $id)
-            ->with('success', 'Supervised classrooms updated successfully.');
-    }
-
-    /**
-     * Update staff assignments for a senior teacher
-     */
-    public function updateStaff(Request $request, $id)
-    {
-        $request->validate([
-            'staff_ids' => 'nullable|array',
-            'staff_ids.*' => 'exists:staff,id',
-        ]);
-
-        $seniorTeacher = User::whereHas('roles', function($q) {
-            $q->where('name', 'Senior Teacher');
-        })->findOrFail($id);
-
-        // Prevent assigning themselves
-        $staffIds = $request->staff_ids ?? [];
-        if ($seniorTeacher->staff && in_array($seniorTeacher->staff->id, $staffIds)) {
-            return redirect()->back()
-                ->with('error', 'A senior teacher cannot supervise themselves.');
-        }
-
-        // Get previously supervised staff to clear their supervisor_id
-        $previouslySupervised = $seniorTeacher->supervisedStaff->pluck('id')->toArray();
-        
-        // Sync the supervised staff pivot table
-        $seniorTeacher->supervisedStaff()->sync($staffIds);
-
-        // Update supervisor_id on the Staff model
-        // Clear supervisor_id for previously supervised staff that are no longer supervised
-        $toRemove = array_diff($previouslySupervised, $staffIds);
-        if (!empty($toRemove)) {
-            \App\Models\Staff::whereIn('id', $toRemove)
-                ->where('supervisor_id', $seniorTeacher->staff->id ?? null)
-                ->update(['supervisor_id' => null]);
-        }
-
-        // Set supervisor_id for newly supervised staff
-        if (!empty($staffIds) && $seniorTeacher->staff) {
-            \App\Models\Staff::whereIn('id', $staffIds)
-                ->update(['supervisor_id' => $seniorTeacher->staff->id]);
-        }
-
-        return redirect()->route('admin.senior_teacher_assignments.edit', $id)
-            ->with('success', 'Supervised staff updated successfully.');
-    }
-
-    /**
-     * Bulk assign classrooms to multiple senior teachers
-     */
-    public function bulkAssign(Request $request)
-    {
-        $request->validate([
-            'senior_teacher_id' => 'required|exists:users,id',
-            'classroom_ids' => 'required|array',
-            'classroom_ids.*' => 'exists:classrooms,id',
-        ]);
-
-        $seniorTeacher = User::findOrFail($request->senior_teacher_id);
-        
-        // Add to existing assignments (not replace)
-        $existingClassrooms = $seniorTeacher->supervisedClassrooms()->pluck('classrooms.id')->toArray();
-        $newClassrooms = array_unique(array_merge($existingClassrooms, $request->classroom_ids));
-        
-        $seniorTeacher->supervisedClassrooms()->sync($newClassrooms);
-
-        return redirect()->back()
-            ->with('success', 'Classrooms assigned successfully.');
-    }
-
-    /**
-     * Remove a classroom assignment
-     */
-    public function removeClassroom($seniorTeacherId, $classroomId)
-    {
-        $seniorTeacher = User::findOrFail($seniorTeacherId);
-        $seniorTeacher->supervisedClassrooms()->detach($classroomId);
-
-        return redirect()->back()
-            ->with('success', 'Classroom removed from supervision.');
-    }
-
-    /**
-     * Remove a staff assignment
-     */
-    public function removeStaff($seniorTeacherId, $staffId)
-    {
-        $seniorTeacher = User::findOrFail($seniorTeacherId);
-        $seniorTeacher->supervisedStaff()->detach($staffId);
-
-        return redirect()->back()
-            ->with('success', 'Staff removed from supervision.');
+            ->with('success', 'Campus assignment updated. Supervision scope is now all classrooms and staff on this campus.');
     }
 }
-

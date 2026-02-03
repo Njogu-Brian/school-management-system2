@@ -223,8 +223,7 @@
                 <div>
                     <h6 class="fw-bold mb-2">About Senior Teacher Role</h6>
                     <p class="mb-0">
-                        Senior Teachers can supervise specific classrooms and staff members. 
-                        They have teacher permissions plus the ability to view comprehensive data for their supervised classes and monitor their assigned staff.
+                        Senior Teachers are assigned to one campus (Lower or Upper). Their supervisory scope is the whole campus: all classrooms and staff on that campus. No separate classroom or staff assignment is needed.
                     </p>
                 </div>
             </div>
@@ -257,8 +256,7 @@
                             <tr>
                                 <th>Name</th>
                                 <th>Email</th>
-                                <th>Supervised Classrooms</th>
-                                <th>Supervised Staff</th>
+                                <th>Campus</th>
                                 <th class="text-center">Actions</th>
                             </tr>
                         </thead>
@@ -286,31 +284,13 @@
                                         </a>
                                     </td>
                                     <td>
-                                        @if($teacher->supervisedClassrooms->isNotEmpty())
-                                            <div>
-                                                <span class="admin-badge admin-badge-primary mb-2 d-inline-block">
-                                                    <i class="bi bi-building me-1"></i>{{ $teacher->supervisedClassrooms->count() }} {{ Str::plural('Class', $teacher->supervisedClassrooms->count()) }}
-                                                </span>
-                                                <div class="d-flex flex-wrap gap-1 mt-1">
-                                                    @foreach($teacher->supervisedClassrooms->take(3) as $classroom)
-                                                        <span class="badge bg-light text-dark border">{{ $classroom->name }}</span>
-                                                    @endforeach
-                                                    @if($teacher->supervisedClassrooms->count() > 3)
-                                                        <span class="badge bg-light text-muted border">+{{ $teacher->supervisedClassrooms->count() - 3 }}</span>
-                                                    @endif
-                                                </div>
-                                            </div>
+                                        @php
+                                            $campus = optional($campusAssignments[$teacher->id] ?? null)->campus;
+                                        @endphp
+                                        @if($campus)
+                                            <span class="admin-badge admin-badge-primary text-uppercase">{{ $campus }}</span>
                                         @else
-                                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>None assigned</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($teacher->supervisedStaff->isNotEmpty())
-                                            <span class="admin-badge admin-badge-success">
-                                                <i class="bi bi-person-check me-1"></i>{{ $teacher->supervisedStaff->count() }} {{ Str::plural('Staff', $teacher->supervisedStaff->count()) }}
-                                            </span>
-                                        @else
-                                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>None assigned</span>
+                                            <span class="text-muted"><i class="bi bi-dash-circle me-1"></i>Not assigned</span>
                                         @endif
                                     </td>
                                     <td class="text-center">
