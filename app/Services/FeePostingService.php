@@ -347,6 +347,7 @@ class FeePostingService
                                 $existingItem->allocations()->delete();
                                 $existingItem->delete();
                                 InvoiceService::recalc($invoice);
+                                InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
                                 foreach ($paymentIds as $paymentId) {
                                     if ($payment = \App\Models\Payment::find($paymentId)) {
                                         $payment->updateAllocationTotals();
@@ -389,6 +390,7 @@ class FeePostingService
 
                                 // Recalculate invoice and update payments
                                 InvoiceService::recalc($invoice);
+                                InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
                                 foreach ($paymentIds as $paymentId) {
                                     if ($payment = \App\Models\Payment::find($paymentId)) {
                                         $payment->updateAllocationTotals();
@@ -424,14 +426,16 @@ class FeePostingService
                     continue;
                 }
                 
-                // Idempotency check: skip if item already exists and is active
+                // Idempotency check: skip only if item already exists, is active, and fee-structure amount already matches.
+                // Compare original_amount (fee structure) so we don't skip when only credit/debit notes differ.
                 if (isset($diff['invoice_item_id']) && $diff['invoice_item_id']) {
                     $existingItem = InvoiceItem::find($diff['invoice_item_id']);
-                    if ($existingItem && $existingItem->status === 'active' && $existingItem->amount == ($diff['new_amount'] ?? 0)) {
+                    if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance'])) {
                         continue;
                     }
-                    // Additional safeguard: skip if existing item is transport, BBF, or swimming daily attendance
-                    if ($existingItem && in_array($existingItem->source, ['transport', 'balance_brought_forward', 'swimming_attendance'])) {
+                    $newAmount = (float)($diff['new_amount'] ?? 0);
+                    $currentOriginal = $existingItem ? (float)($existingItem->original_amount ?? $existingItem->amount) : 0;
+                    if ($existingItem && $existingItem->status === 'active' && abs($currentOriginal - $newAmount) < 0.01) {
                         continue;
                     }
                 }
@@ -562,7 +566,23 @@ class FeePostingService
                 $discountService->applyDiscountsToInvoice($invoice);
                 
                 \App\Services\InvoiceService::recalc($invoice);
+                // Auto-allocate any unallocated payments so student balance and statements update
+                \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
                 $count++;
+            }
+            
+            // Final pass: recalc and auto-allocate for all affected students so invoices, payments, receipts and statements are in sync
+            $affectedStudentIds = $diffs->pluck('student_id')->unique()->filter()->values();
+            foreach ($affectedStudentIds as $studentId) {
+                try {
+                    \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent((int) $studentId);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Posting run: auto-allocate after run failed for student', [
+                        'student_id' => $studentId,
+                        'run_id' => $run->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
             
             $run->update([
