@@ -161,12 +161,10 @@ class CommunicationHelperService
             });
         }
 
-        // Only recipients with fee balance: skip students with no outstanding balance or overpayment
+        // Only recipients with fee balance (students/parents who have at least one invoice with balance > 0)
         if (!empty($data['fee_balance_only'])) {
-            $studentIdsWithBalance = Invoice::query()
-                ->selectRaw('student_id')
-                ->groupBy('student_id')
-                ->havingRaw('SUM(balance) > 0')
+            $studentIdsWithBalance = Invoice::where('balance', '>', 0)
+                ->distinct()
                 ->pluck('student_id')
                 ->flip()
                 ->all();

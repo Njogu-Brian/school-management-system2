@@ -102,11 +102,42 @@ class CommunicationNoteController extends Controller
     }
 
     /**
-     * Get unique students for notes based on target (one note per student, addressed to parent).
+     * Get unique students for notes based on target (one note per student).
+     * For "All students" (target=parents) we include every student; for other targets we use the helper.
      */
     private function collectNoteRecipients(array $data): \Illuminate\Support\Collection
     {
         $target = $data['target'];
+
+        // All students: one note per student (include everyone, not only those with parent contact)
+        if ($target === 'parents') {
+            $query = Student::with('parent', 'classroom')
+                ->where('archive', 0)
+                ->where('is_alumni', false);
+            $students = $query->get();
+
+            $excludeIds = [];
+            if (! empty($data['exclude_student_ids'] ?? null)) {
+                $excludeIds = is_array($data['exclude_student_ids'])
+                    ? array_map('intval', $data['exclude_student_ids'])
+                    : array_filter(array_map('intval', explode(',', (string) $data['exclude_student_ids'])));
+            }
+            if (! empty($excludeIds)) {
+                $students = $students->filter(fn ($s) => ! in_array((int) $s->id, $excludeIds, true))->values();
+            }
+
+            if (! empty($data['fee_balance_only'] ?? null)) {
+                $studentIdsWithBalance = \App\Models\Invoice::where('balance', '>', 0)
+                    ->distinct()
+                    ->pluck('student_id')
+                    ->flip()
+                    ->all();
+                $students = $students->filter(fn ($s) => isset($studentIdsWithBalance[$s->id]))->values();
+            }
+
+            return $students;
+        }
+
         $recipients = CommunicationHelperService::collectRecipients(
             array_merge($data, ['custom_emails' => null, 'custom_numbers' => null]),
             'email'
