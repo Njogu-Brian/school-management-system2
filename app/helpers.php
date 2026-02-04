@@ -216,6 +216,35 @@ if (!function_exists('replace_placeholders')) {
                 '{father_name}'  => $fatherName,
                 '{profile_update_link}' => $profileUpdateLink,
             ];
+
+            // Invoice placeholders for student (if not already in $extra)
+            if (! isset($extra['outstanding_amount']) && $entity->id && class_exists(\App\Models\Invoice::class)) {
+                try {
+                    $invoices = \App\Models\Invoice::where('student_id', $entity->id)->get();
+                    $totalOutstanding = $invoices->sum(fn ($inv) => max(0, (float) $inv->balance));
+                    $latestInvoice = \App\Models\Invoice::where('student_id', $entity->id)
+                        ->orderBy('year', 'desc')
+                        ->orderBy('term', 'desc')
+                        ->first();
+                    $replacements['{{outstanding_amount}}'] = number_format(round($totalOutstanding, 2), 2);
+                    $replacements['{outstanding_amount}'] = $replacements['{{outstanding_amount}}'];
+                    $replacements['{{total_amount}}'] = $latestInvoice ? number_format((float) $latestInvoice->total, 2) : '0.00';
+                    $replacements['{total_amount}'] = $replacements['{{total_amount}}'];
+                    $replacements['{{invoice_number}}'] = $latestInvoice ? ($latestInvoice->invoice_number ?? 'N/A') : 'N/A';
+                    $replacements['{invoice_number}'] = $replacements['{{invoice_number}}'];
+                    $replacements['{{due_date}}'] = $latestInvoice && $latestInvoice->due_date ? $latestInvoice->due_date->format('d M Y') : 'N/A';
+                    $replacements['{due_date}'] = $replacements['{{due_date}}'];
+                } catch (\Throwable $e) {
+                    $replacements['{{outstanding_amount}}'] = '0.00';
+                    $replacements['{outstanding_amount}'] = '0.00';
+                    $replacements['{{total_amount}}'] = '0.00';
+                    $replacements['{total_amount}'] = '0.00';
+                    $replacements['{{invoice_number}}'] = 'N/A';
+                    $replacements['{invoice_number}'] = 'N/A';
+                    $replacements['{{due_date}}'] = 'N/A';
+                    $replacements['{due_date}'] = 'N/A';
+                }
+            }
         } elseif ($entity instanceof \App\Models\Staff) {
             $staffName = $entity->full_name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
             $replacements += [
