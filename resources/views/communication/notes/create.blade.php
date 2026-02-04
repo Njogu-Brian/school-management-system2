@@ -24,7 +24,7 @@
                     <i class="bi bi-info-circle fs-5"></i>
                     <div>
                         <div class="fw-semibold">Printed notes for parents</div>
-                        <small class="text-muted">Use placeholders like @{{ student_name }}, @{{ parent_name }}, @{{ outstanding_amount }}. Each recipient gets one note with the school letterhead. Click Print to open the notes in a new window, then use the browser print to issue them.</small>
+                        <small class="text-muted">Use placeholders like @{{ student_name }}, @{{ parent_name }}, @{{ outstanding_amount }}. Each student gets one note with the school letterhead. For fee reminders: check <strong>Only recipients with fee balance</strong> so students with no outstanding balance or overpayment are skipped; all other students still get the note.</small>
                     </div>
                 </div>
 
@@ -55,11 +55,12 @@
                         <label class="form-label fw-semibold">Recipients <span class="text-danger">*</span></label>
                         <select name="target" id="notes-target" class="form-select" required>
                             <option value="">-- Select --</option>
-                            <option value="parents" {{ old('target') === 'parents' ? 'selected' : '' }}>All parents</option>
+                            <option value="parents" {{ old('target') === 'parents' ? 'selected' : '' }}>All students (one note per student)</option>
                             <option value="class" {{ old('target') === 'class' ? 'selected' : '' }}>Specific class</option>
                             <option value="student" {{ old('target') === 'student' ? 'selected' : '' }}>Single student</option>
                             <option value="specific_students" {{ old('target') === 'specific_students' ? 'selected' : '' }}>Select students</option>
                         </select>
+                        <small class="text-muted d-block mt-1">One printed note per student, addressed to parent/guardian.</small>
                     </div>
 
                     <div class="col-lg-4 notes-target-field notes-target-class d-none">

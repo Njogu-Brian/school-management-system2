@@ -62,9 +62,15 @@ class CommunicationNoteController extends Controller
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['error' => 'No recipients selected.'], 422);
             }
+            $msg = 'No recipients selected.';
+            if (!empty($data['fee_balance_only'])) {
+                $msg = 'No students with an outstanding fee balance. If you selected "All students" with "Only recipients with fee balance" checked, every student may be clear or have overpayment—try unchecking the fee balance filter, or choose a class/specific students.';
+            } else {
+                $msg = 'No recipients selected. Please select All students, a class, student(s), or use the student selector.';
+            }
             return redirect()->route('communication.notes.create')
                 ->withInput()
-                ->with('error', 'No recipients selected. Please select a class, student(s), or all parents.');
+                ->with('error', $msg);
         }
 
         $branding = $this->branding();
