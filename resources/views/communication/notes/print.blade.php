@@ -7,29 +7,29 @@
     <style>
         * { box-sizing: border-box; }
         body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; color: #222; margin: 0; padding: 20px; }
-        .note-page { page-break-after: always; padding-bottom: 20px; }
-        .note-page:last-child { page-break-after: auto; }
-        .letterhead { margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid #333; }
+        .note-block { page-break-inside: avoid; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px dashed #ccc; }
+        .note-block:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .letterhead { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #333; }
         .letterhead-table { width: 100%; border-collapse: collapse; }
         .letterhead-table td { vertical-align: top; }
         .letterhead .logo-cell { width: 90px; }
         .letterhead .logo-cell img { max-width: 80px; max-height: 80px; object-fit: contain; }
         .letterhead .school-name { font-size: 18pt; font-weight: bold; margin: 0 0 4px 0; }
         .letterhead .school-contacts { font-size: 10pt; color: #555; }
-        .note-date { font-size: 11pt; margin-bottom: 8px; }
-        .note-title { font-size: 14pt; font-weight: bold; margin-bottom: 12px; }
-        .note-salutation { margin-bottom: 12px; }
-        .note-body { white-space: pre-wrap; }
+        .note-date { font-size: 11pt; margin-bottom: 4px; }
+        .note-title { font-size: 14pt; font-weight: bold; margin-bottom: 8px; }
+        .note-salutation { margin-bottom: 8px; }
+        .note-body { white-space: pre-wrap; margin-bottom: 0; }
         @media print {
             body { padding: 12px; }
-            .note-page { page-break-after: always; }
-            .note-page:last-child { page-break-after: auto; }
+            .note-block { page-break-inside: avoid; margin-bottom: 24px; padding-bottom: 16px; }
+            .note-block:last-child { margin-bottom: 0; padding-bottom: 0; }
         }
     </style>
 </head>
 <body>
     @foreach($notes as $note)
-        <div class="note-page">
+        <div class="note-block">
             <div class="letterhead">
                 <table class="letterhead-table">
                     <tr>

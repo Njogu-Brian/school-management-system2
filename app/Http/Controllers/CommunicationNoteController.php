@@ -71,17 +71,16 @@ class CommunicationNoteController extends Controller
         $notes = [];
         foreach ($students as $student) {
             $extra = [];
-            $invoice = \App\Models\Invoice::where('student_id', $student->id)
-                ->where('balance', '>', 0)
+            $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+            $totalOutstanding = $invoices->sum(fn ($inv) => max(0, (float) $inv->balance));
+            $latestInvoice = \App\Models\Invoice::where('student_id', $student->id)
                 ->orderBy('year', 'desc')
                 ->orderBy('term', 'desc')
                 ->first();
-            if ($invoice) {
-                $extra['outstanding_amount'] = number_format((float) $invoice->balance, 2);
-                $extra['total_amount'] = number_format((float) $invoice->total, 2);
-                $extra['invoice_number'] = $invoice->invoice_number ?? 'N/A';
-                $extra['due_date'] = $invoice->due_date ? $invoice->due_date->format('d M Y') : 'N/A';
-            }
+            $extra['outstanding_amount'] = number_format(round($totalOutstanding, 2), 2);
+            $extra['total_amount'] = $latestInvoice ? number_format((float) $latestInvoice->total, 2) : '0.00';
+            $extra['invoice_number'] = $latestInvoice ? ($latestInvoice->invoice_number ?? 'N/A') : 'N/A';
+            $extra['due_date'] = $latestInvoice && $latestInvoice->due_date ? $latestInvoice->due_date->format('d M Y') : 'N/A';
             $notes[] = [
                 'student' => $student,
                 'body' => replace_placeholders($data['message'], $student, $extra),
