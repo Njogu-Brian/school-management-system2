@@ -99,7 +99,7 @@ class CommunicationHelperService
                 });
         }
 
-        // All parents (exclude alumni and archived)
+        // All students (via parent contacts) – every non-archived, non-alumni student; send to parent when available
         if ($target === 'parents') {
             Student::with('parent')
                 ->where('archive', 0)
@@ -121,16 +121,19 @@ class CommunicationHelperService
                 });
         }
 
-        // All students
+        // All students (via student contact – email/phone)
         if ($target === 'students') {
-            Student::all()->each(function ($s) use (&$out, $type) {
-                $contact = match ($type) {
-                    'email' => $s->email,
-                    'whatsapp' => $s->phone_number, // fallback to primary phone for WhatsApp
-                    default => $s->phone_number,
-                };
-                if ($contact) $out[$contact] = $s;
-            });
+            Student::where('archive', 0)
+                ->where('is_alumni', false)
+                ->get()
+                ->each(function ($s) use (&$out, $type) {
+                    $contact = match ($type) {
+                        'email' => $s->email,
+                        'whatsapp' => $s->phone_number,
+                        default => $s->phone_number,
+                    };
+                    if ($contact) $out[$contact] = $s;
+                });
         }
 
         // All staff

@@ -58,8 +58,7 @@
         <label class="form-label fw-semibold">Target *</label>
         <select name="target" id="email-target" class="form-select" required>
             <option value="">-- Select Target --</option>
-            <option value="parents" {{ old('target')==='parents' ? 'selected' : '' }}>Parents (all)</option>
-            <option value="students" {{ old('target')==='students' ? 'selected' : '' }}>Students (all)</option>
+            <option value="parents" {{ old('target')==='parents' ? 'selected' : '' }}>All students</option>
             <option value="staff" {{ old('target')==='staff' ? 'selected' : '' }}>Staff</option>
             <option value="class" {{ old('target')==='class' ? 'selected' : '' }}>Specific Class</option>
             <option value="student" {{ old('target')==='student' ? 'selected' : '' }}>Single Student (parents)</option>

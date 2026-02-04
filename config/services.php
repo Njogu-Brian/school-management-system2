@@ -40,8 +40,9 @@ return [
         'api_key' => env('SMS_API_KEY'),
         'user_id' => env('SMS_USER_ID'),
         'password' => env('SMS_PASSWORD'),
+        // Customize via .env: SMS_SENDER_ID (default), SMS_SENDER_ID_FINANCE (finance option)
         'sender_id' => env('SMS_SENDER_ID', 'ROYAL_KINGS'),
-        'sender_id_finance' => env('SMS_SENDER_ID_FINANCE', 'RKS_FINANCE'),
+        'sender_id_finance' => env('SMS_SENDER_ID_FINANCE', 'rks_finance'),
     ],
 
     'mpesa' => [
