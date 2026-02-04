@@ -2531,7 +2531,7 @@ class BankStatementController extends Controller
         }
 
         return redirect()
-            ->route('finance.bank-statements.show', $id, ['type' => $isC2B ? 'c2b' : 'bank'])
+            ->route('finance.bank-statements.show', ['bankStatement' => $id, 'type' => $isC2B ? 'c2b' : 'bank'])
             ->with('success', 'Transaction split into fees and swimming successfully.');
     }
 
