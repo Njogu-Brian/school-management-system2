@@ -24,7 +24,7 @@
                     <i class="bi bi-info-circle fs-5"></i>
                     <div>
                         <div class="fw-semibold">Printed notes for parents</div>
-                        <small class="text-muted">Use placeholders like {{ '{{student_name}}' }}, {{ '{{parent_name}}' }}, {{ '{{outstanding_amount}}' }}. Each recipient gets one note with the school letterhead. Click Print to open the notes in a new window, then use the browser print to issue them.</small>
+                        <small class="text-muted">Use placeholders like @{{ student_name }}, @{{ parent_name }}, @{{ outstanding_amount }}. Each recipient gets one note with the school letterhead. Click Print to open the notes in a new window, then use the browser print to issue them.</small>
                     </div>
                 </div>
 
@@ -39,7 +39,7 @@
 
                     <div class="col-12">
                         <label class="form-label fw-semibold">Message <span class="text-danger">*</span></label>
-                        <textarea name="message" id="notes-message" rows="10" class="form-control" placeholder="Dear Parent/Guardian of {{ '{{parent_name}}' }},&#10;&#10;This is to remind you that fees for {{ '{{student_name}}' }} ({{ '{{class_name}}' }}) are outstanding.&#10;&#10;Outstanding amount: Ksh {{ '{{outstanding_amount}}' }}.&#10;&#10;Please clear the balance at your earliest convenience.&#10;&#10;{{ '{{school_name}}' }}&#10;{{ '{{date}}' }}" required>{{ old('message') }}</textarea>
+                        <textarea name="message" id="notes-message" rows="10" class="form-control" placeholder="Dear Parent/Guardian of @{{ parent_name }},&#10;&#10;This is to remind you that fees for @{{ student_name }} (@{{ class_name }}) are outstanding.&#10;&#10;Outstanding amount: Ksh @{{ outstanding_amount }}.&#10;&#10;Please clear the balance at your earliest convenience.&#10;&#10;@{{ school_name }}&#10;@{{ date }}" required>{{ old('message') }}</textarea>
                         <small class="text-muted">Use placeholders below to personalise each note.</small>
                     </div>
 
