@@ -2,7 +2,7 @@
     $groupedPlaceholders = collect($systemPlaceholders)->groupBy(function($ph) {
         if (in_array($ph['key'], ['school_name', 'school_phone', 'date'])) {
             return 'general';
-        } elseif (in_array($ph['key'], ['student_name', 'admission_number', 'class_name', 'parent_name', 'father_name'])) {
+        } elseif (in_array($ph['key'], ['student_name', 'admission_number', 'class_name', 'class', 'parent_name', 'father_name'])) {
             return 'student';
         } elseif (in_array($ph['key'], ['staff_name'])) {
             return 'staff';

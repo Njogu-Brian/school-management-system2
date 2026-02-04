@@ -173,6 +173,8 @@ if (!function_exists('replace_placeholders')) {
             $studentName = $entity->full_name ?? $entity->name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
             $admissionNo = $entity->admission_number ?? $entity->admission_no ?? '';
             $className = optional($entity->classroom)->name ?? '';
+            $streamName = optional($entity->stream)->name ?? '';
+            $classAndStream = trim($className . ($streamName ? ' ' . $streamName : ''));
             $parentName = optional($entity->parent)->father_name
                         ?? optional($entity->parent)->guardian_name
                         ?? optional($entity->parent)->mother_name
@@ -196,7 +198,8 @@ if (!function_exists('replace_placeholders')) {
                 '{{student_name}}' => $studentName,
                 '{{admission_number}}' => $admissionNo,
                 '{{admission_no}}' => $admissionNo,
-                '{{class_name}}'   => $className,
+                '{{class_name}}'   => $classAndStream,
+                '{{class}}'        => $classAndStream,
                 '{{grade}}'        => optional($entity->classroom)->section ?? '',
                 '{{parent_name}}'  => $parentName,
                 '{{father_name}}'  => $fatherName,
@@ -206,7 +209,8 @@ if (!function_exists('replace_placeholders')) {
                 '{student_name}' => $studentName,
                 '{admission_number}' => $admissionNo,
                 '{admission_no}' => $admissionNo,
-                '{class_name}'   => $className,
+                '{class_name}'   => $classAndStream,
+                '{class}'        => $classAndStream,
                 '{grade}'        => optional($entity->classroom)->section ?? '',
                 '{parent_name}'  => $parentName,
                 '{father_name}'  => $fatherName,
@@ -279,7 +283,7 @@ if (!function_exists('available_placeholders')) {
     {
         return [
             '{school_name}', '{school_phone}', '{school_email}', '{school_address}', '{term}', '{academic_year}', '{date}',
-            '{student_name}', '{admission_no}', '{class_name}', '{grade}', '{parent_name}',
+            '{student_name}', '{admission_no}', '{class_name}', '{class}', '{grade}', '{parent_name}',
             '{staff_name}', '{role}', '{experience}',
         ];
     }

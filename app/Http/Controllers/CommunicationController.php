@@ -842,7 +842,8 @@ class CommunicationController extends Controller
             // Student & Parent
             ['key' => 'student_name', 'value' => "Student's full name"],
             ['key' => 'admission_number', 'value' => 'Student admission number'],
-            ['key' => 'class_name',   'value' => 'Classroom name'],
+            ['key' => 'class_name',   'value' => 'Class name (and stream if set)'],
+            ['key' => 'class',        'value' => 'Same as class_name: class + stream when stream exists'],
             ['key' => 'parent_name',  'value' => "Parent's full name"],
             ['key' => 'father_name',  'value' => "Parent's full name"],
             ['key' => 'profile_update_link', 'value' => 'Profile update link for parents'],
