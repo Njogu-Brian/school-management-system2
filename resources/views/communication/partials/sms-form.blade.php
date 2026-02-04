@@ -113,6 +113,9 @@
         <small class="text-muted d-block mt-1">Use full country code; plus sign is optional.</small>
     </div>
 
+    @include('communication.partials.fee-balance-exclude-filters')
+    @include('communication.partials.exclude-student-modal')
+
     {{-- Schedule --}}
     <div class="col-lg-3">
         <label class="form-label fw-semibold">Schedule</label>
@@ -378,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewForm.appendChild(channelInput);
 
             // Add target data
-            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id'].forEach(field => {
+            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_student_ids'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');

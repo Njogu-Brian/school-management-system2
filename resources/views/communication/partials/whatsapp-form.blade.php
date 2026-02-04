@@ -122,6 +122,9 @@
         <small class="text-muted d-block mt-1">Use full country code; plus sign is optional.</small>
     </div>
 
+    @include('communication.partials.fee-balance-exclude-filters')
+    @include('communication.partials.exclude-student-modal')
+
     {{-- Body --}}
     <div class="col-12">
         <label class="form-label fw-semibold">Message</label>
@@ -494,7 +497,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewForm.appendChild(channelInput);
 
             // Add form fields
-            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id'].forEach(field => {
+            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_student_ids'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');

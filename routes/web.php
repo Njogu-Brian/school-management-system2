@@ -55,6 +55,7 @@ use App\Http\Controllers\PlaceholderController;
 use App\Http\Controllers\WhatsAppWebhookController;
 use App\Http\Controllers\WasenderSessionController;
 use App\Http\Controllers\CommunicationDocumentController;
+use App\Http\Controllers\CommunicationNoteController;
 
 // Finance
 use App\Http\Controllers\Finance\VoteheadController;
@@ -1149,6 +1150,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         Route::post('preview', [CommunicationController::class, 'preview'])->name('communication.preview');
         Route::post('send-document', [CommunicationDocumentController::class, 'send'])->name('communication.send.document');
+
+        // Printed notes (letterhead + placeholders, open in new window to print)
+        Route::get('notes', [CommunicationNoteController::class, 'create'])->name('communication.notes.create');
+        Route::post('notes/print', [CommunicationNoteController::class, 'printNotes'])->name('communication.notes.print');
         Route::get('whatsapp-sessions', [WasenderSessionController::class, 'index'])->name('communication.wasender.sessions');
         Route::post('whatsapp-sessions', [WasenderSessionController::class, 'store'])->name('communication.wasender.sessions.store');
         Route::post('whatsapp-sessions/{id}/connect', [WasenderSessionController::class, 'connect'])->name('communication.wasender.sessions.connect');

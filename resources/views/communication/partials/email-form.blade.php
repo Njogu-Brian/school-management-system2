@@ -111,6 +111,9 @@
         <small class="text-muted d-block mt-1">Comma-separated list.</small>
     </div>
 
+    @include('communication.partials.fee-balance-exclude-filters')
+    @include('communication.partials.exclude-student-modal')
+
     {{-- Schedule --}}
     <div class="col-lg-3">
         <label class="form-label fw-semibold">Send Timing</label>
@@ -428,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
             channelInput.value = 'email';
             previewForm.appendChild(channelInput);
 
-            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id'].forEach(field => {
+            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_student_ids'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');

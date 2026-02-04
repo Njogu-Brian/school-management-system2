@@ -595,6 +595,10 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/send-whatsapp*') ? 'active' : '' }}">
     <i class="bi bi-whatsapp"></i> Send WhatsApp
     </a>
+    <a href="{{ route('communication.notes.create') }}" 
+    class="sublink {{ Request::is('communication/notes*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-text"></i> Print Notes
+    </a>
     <a href="{{ route('communication.wasender.sessions') }}" 
     class="sublink {{ Request::is('communication/whatsapp-sessions*') ? 'active' : '' }}">
     <i class="bi bi-hdd-network"></i> WhatsApp Sessions

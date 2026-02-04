@@ -4,13 +4,14 @@ namespace App\Services;
 
 use App\Models\Student;
 use App\Models\Staff;
+use App\Models\Invoice;
 
 class CommunicationHelperService
 {
     /**
      * Build a map of recipients => entity used for personalization.
      * $target: students|parents|staff|class|student|specific_students|custom
-     * $data: ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers']
+     * $data: ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers', 'fee_balance_only', 'exclude_student_ids']
      * $type: 'email', 'sms', or 'whatsapp'
      */
     public static function collectRecipients(array $data, string $type): array
@@ -141,6 +142,37 @@ class CommunicationHelperService
                     default => $st->phone_number,
                 };
                 if ($contact) $out[$contact] = $st;
+            });
+        }
+
+        // Exclude specific students (applies to any target that yields student/parent recipients)
+        $excludeIds = [];
+        if (!empty($data['exclude_student_ids'])) {
+            $excludeIds = is_array($data['exclude_student_ids'])
+                ? array_map('intval', $data['exclude_student_ids'])
+                : array_filter(array_map('intval', explode(',', (string) $data['exclude_student_ids'])));
+        }
+        if (!empty($excludeIds)) {
+            $out = array_filter($out, function ($entity) use ($excludeIds) {
+                if (!$entity instanceof Student) {
+                    return true;
+                }
+                return !in_array((int) $entity->id, $excludeIds, true);
+            });
+        }
+
+        // Only recipients with fee balance (students/parents who have at least one invoice with balance > 0)
+        if (!empty($data['fee_balance_only'])) {
+            $studentIdsWithBalance = Invoice::where('balance', '>', 0)
+                ->distinct()
+                ->pluck('student_id')
+                ->flip()
+                ->all();
+            $out = array_filter($out, function ($entity) use ($studentIdsWithBalance) {
+                if (!$entity instanceof Student) {
+                    return true; // keep non-student entries (e.g. custom emails)
+                }
+                return isset($studentIdsWithBalance[$entity->id]);
             });
         }
 
