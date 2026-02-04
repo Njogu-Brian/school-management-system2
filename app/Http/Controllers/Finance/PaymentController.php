@@ -459,13 +459,14 @@ class PaymentController extends Controller
         }
         
         // Return with payment ID for receipt popup
-        return redirect()
+        $redirect = redirect()
             ->route('finance.payments.index')
             ->with('success', 'Payment recorded successfully.')
-            ->when(!empty($createdPaymentIds), function ($redirect) use ($createdPaymentIds) {
-                return $redirect->with('receipt_ids', $createdPaymentIds);
-            })
             ->with('payment_id', $createdPayment->id);
+        if (!empty($createdPaymentIds)) {
+            $redirect->with('receipt_ids', $createdPaymentIds);
+        }
+        return $redirect;
         } catch (\Illuminate\Validation\ValidationException $e) {
             Log::info('Payment validation failed', ['errors' => $e->errors()]);
             return back()

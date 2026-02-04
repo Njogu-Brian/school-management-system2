@@ -102,6 +102,36 @@
   </div>
 @endif
 
+{{-- Assessments --}}
+<a href="{{ route('academics.assessments.index') }}" class="{{ Request::is('academics/assessments*') ? 'active' : '' }}">
+  <i class="bi bi-clipboard-data"></i> Assessments
+</a>
+
+{{-- Weekly Reports --}}
+@php $weeklyReportsActive = Request::is('weekly-reports*'); @endphp
+<a href="#weeklyReportsMenu" data-bs-toggle="collapse"
+   aria-expanded="{{ $weeklyReportsActive ? 'true' : 'false' }}"
+   class="{{ $weeklyReportsActive ? 'parent-active' : '' }}">
+  <i class="bi bi-journal-check"></i> Weekly Reports
+</a>
+<div class="collapse {{ $weeklyReportsActive ? 'show' : '' }}" id="weeklyReportsMenu">
+  <a href="{{ route('reports.class-reports.index') }}" class="sublink {{ Request::is('weekly-reports/class-reports*') ? 'active' : '' }}">
+    <i class="bi bi-journal-text"></i> Class Reports
+  </a>
+  <a href="{{ route('reports.subject-reports.index') }}" class="sublink {{ Request::is('weekly-reports/subject-reports*') ? 'active' : '' }}">
+    <i class="bi bi-book"></i> Subject Reports
+  </a>
+  <a href="{{ route('reports.staff-weekly.index') }}" class="sublink {{ Request::is('weekly-reports/staff-weekly*') ? 'active' : '' }}">
+    <i class="bi bi-person-lines-fill"></i> Staff Weekly
+  </a>
+  <a href="{{ route('reports.student-followups.index') }}" class="sublink {{ Request::is('weekly-reports/student-followups*') ? 'active' : '' }}">
+    <i class="bi bi-person-check"></i> Student Followups
+  </a>
+  <a href="{{ route('reports.operations-facilities.index') }}" class="sublink {{ Request::is('weekly-reports/operations-facilities*') ? 'active' : '' }}">
+    <i class="bi bi-building-gear"></i> Operations & Facilities
+  </a>
+</div>
+
 {{-- Report Cards --}}
 @if (can_access('report_cards.view') || can_access('report_card_skills.edit') || can_access('report_cards.remarks.edit'))
   <a href="#reportMenu" data-bs-toggle="collapse"

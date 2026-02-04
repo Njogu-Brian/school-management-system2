@@ -72,6 +72,11 @@
 <div class="mt-3 pt-3 border-top">
   <div class="text-muted small fw-bold px-3 mb-2">Teaching & Academics</div>
 
+  {{-- Assessments --}}
+  <a href="{{ route('academics.assessments.index') }}" class="{{ Request::is('academics/assessments*') ? 'active' : '' }}">
+    <i class="bi bi-clipboard-data"></i> Assessments
+  </a>
+
   {{-- Attendance --}}
   @if (can_access('attendance.view') || can_access('attendance.create'))
     <a href="#attendanceMenu" data-bs-toggle="collapse"
@@ -267,12 +272,43 @@
 </div>
 
 {{-- Reports Section --}}
+@php
+  $campusReportsActive = Request::is('reports/heatmaps*') || Request::is('weekly-reports*');
+@endphp
 <div class="mt-3 pt-3 border-top">
   <div class="text-muted small fw-bold px-3 mb-2">Reports</div>
 
+  {{-- Campus Heatmaps (access by assigned campus) --}}
+  <a href="#campusReportsMenu" data-bs-toggle="collapse" aria-expanded="{{ $campusReportsActive ? 'true' : 'false' }}" class="{{ $campusReportsActive ? 'parent-active' : '' }}">
+    <i class="bi bi-grid-3x3-gap"></i> Campus & Weekly Reports
+  </a>
+  <div class="collapse {{ $campusReportsActive ? 'show' : '' }}" id="campusReportsMenu">
+    <a href="{{ route('reports.heatmaps.show', 'lower') }}" class="sublink {{ Request::is('reports/heatmaps/lower*') ? 'active' : '' }}">
+      <i class="bi bi-thermometer-half"></i> Heatmap – Lower
+    </a>
+    <a href="{{ route('reports.heatmaps.show', 'upper') }}" class="sublink {{ Request::is('reports/heatmaps/upper*') ? 'active' : '' }}">
+      <i class="bi bi-thermometer-half"></i> Heatmap – Upper
+    </a>
+    <a href="{{ route('reports.class-reports.index') }}" class="sublink {{ Request::is('weekly-reports/class-reports*') ? 'active' : '' }}">
+      <i class="bi bi-journal-text"></i> Class Reports
+    </a>
+    <a href="{{ route('reports.subject-reports.index') }}" class="sublink {{ Request::is('weekly-reports/subject-reports*') ? 'active' : '' }}">
+      <i class="bi bi-book"></i> Subject Reports
+    </a>
+    <a href="{{ route('reports.staff-weekly.index') }}" class="sublink {{ Request::is('weekly-reports/staff-weekly*') ? 'active' : '' }}">
+      <i class="bi bi-person-lines-fill"></i> Staff Weekly
+    </a>
+    <a href="{{ route('reports.student-followups.index') }}" class="sublink {{ Request::is('weekly-reports/student-followups*') ? 'active' : '' }}">
+      <i class="bi bi-person-check"></i> Student Followups
+    </a>
+    <a href="{{ route('reports.operations-facilities.index') }}" class="sublink {{ Request::is('weekly-reports/operations-facilities*') ? 'active' : '' }}">
+      <i class="bi bi-building-gear"></i> Operations & Facilities
+    </a>
+  </div>
+
   {{-- HR Reports --}}
   <a href="{{ route('hr.reports.index') }}" class="{{ $hrReportsActive ? 'active' : '' }}">
-    <i class="bi bi-file-earmark-text"></i> Reports
+    <i class="bi bi-file-earmark-text"></i> HR Reports
   </a>
 </div>
 
