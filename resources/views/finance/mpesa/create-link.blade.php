@@ -43,7 +43,7 @@
                                 'displayInputId' => 'studentSearchDisplay',
                                 'resultsId' => 'studentSearchResults',
                                 'placeholder' => 'Type name or admission #',
-                                'initialLabel' => $student ? $student->full_name . ' (' . $student->admission_number . ')' : '',
+                                'initialLabel' => $student ? $student->search_display : '',
                                 'initialStudentId' => $student ? $student->id : null,
                             ])
                             @error('student_id')
@@ -217,26 +217,26 @@
     </div>
 @endsection
 
-@section('js')
+@push('scripts')
 <script>
 $(document).ready(function() {
     let selectedInvoices = [];
     let studentData = null;
 
-    // Watch for student selection from live search (vanilla JS event)
+    // Watch for student selection from live search (vanilla + jQuery)
+    // Prefer hidden input value (set by live search) so selection always triggers load
+    function onStudentSelected(e, studentFromJq) {
+        var student = studentFromJq != null ? studentFromJq : (e && e.detail) ? e.detail : null;
+        var id = ($('#student_id').val() || (student && student.id) || '').toString().trim();
+        if (id) {
+            loadStudentData(id);
+        }
+    }
     window.addEventListener('student-selected', function(e) {
-        const student = e.detail;
-        console.log('Student selected:', student);
-        if (student && student.id) {
-            loadStudentData(student.id);
-        }
+        onStudentSelected(e, null);
     });
-
-    // Also listen for jQuery event for compatibility
     $(document).on('studentSelected', function(e, student) {
-        if (student && student.id) {
-            loadStudentData(student.id);
-        }
+        onStudentSelected(e, student);
     });
 
     // If student is pre-selected (from URL or controller), trigger load
@@ -604,4 +604,4 @@ $(document).ready(function() {
     });
 });
 </script>
-@endsection
+@endpush

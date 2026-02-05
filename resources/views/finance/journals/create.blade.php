@@ -27,7 +27,7 @@
                         'resultsId' => 'journalStudentResults',
                         'placeholder' => 'Search by name or admission #',
                         'inputClass' => 'finance-form-control',
-                        'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : ''
+                        'initialLabel' => old('student_id') ? optional(\App\Models\Student::find(old('student_id')))->search_display : ''
                     ])
                     <small class="text-muted">Pick a student using the search box</small>
                 </div>

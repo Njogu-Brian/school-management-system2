@@ -45,6 +45,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchUrl = `{{ route('students.search') }}`;
     const debounceMs = 2000; // wait ~2 seconds after typing stops
     let timer = null;
+    const escapeHtml = (s) => {
+        if (s == null || s === '') return '';
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    };
 
     const renderRows = (rows) => {
         if (!rows || !rows.length) {
@@ -55,12 +61,12 @@ document.addEventListener('DOMContentLoaded', function() {
         resultsBody.innerHTML = rows.map(stu => {
             const adm = stu.admission_number || '—';
             const name = stu.full_name || '—';
-            const cls = stu.classroom_name || '—';
+            const cls = (stu.class_display && stu.class_display.trim()) ? stu.class_display : (stu.classroom_name || '—');
             return `
                 <tr>
-                    <td class="fw-semibold">${adm}</td>
-                    <td>${name}</td>
-                    <td>${cls}</td>
+                    <td class="fw-semibold">${escapeHtml(adm)}</td>
+                    <td>${escapeHtml(name)}</td>
+                    <td>${escapeHtml(cls)}</td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-primary selectStudentBtn"
                             data-id="${stu.id}"

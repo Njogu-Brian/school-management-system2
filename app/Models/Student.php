@@ -184,6 +184,24 @@ class Student extends Model
         return implode(' ', $parts);
     }
 
+    /**
+     * Display label for student search / dropdowns: "Name (Admission) – Class" or with stream.
+     */
+    public function getSearchDisplayAttribute()
+    {
+        $base = $this->full_name . ' (' . ($this->admission_number ?? '') . ')';
+        if (!$this->relationLoaded('classroom') && $this->classroom_id) {
+            $this->load('classroom');
+        }
+        if (!$this->relationLoaded('stream') && $this->stream_id) {
+            $this->load('stream');
+        }
+        $classPart = $this->classroom
+            ? ($this->stream ? $this->classroom->name . ' – ' . $this->stream->name : $this->classroom->name)
+            : null;
+        return $classPart ? $base . ' – ' . $classPart : $base;
+    }
+
     public function classroom()
     {
         return $this->belongsTo(Classroom::class);

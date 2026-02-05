@@ -1577,8 +1577,8 @@ class StudentController extends Controller
                         );
                     }
                 })
-                ->with('classroom') // Load classroom relationship
-                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'family_id', 'archive', 'is_alumni')
+                ->with(['classroom', 'stream'])
+                ->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'stream_id', 'family_id', 'archive', 'is_alumni')
                 ->orderBy('first_name')
                 ->limit(25)
                 ->get();
@@ -1597,8 +1597,8 @@ class StudentController extends Controller
                                      ->where('is_alumni', false);
                     }
                     
-                    $siblings = $siblingsQuery->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id')
-                        ->with('classroom')
+                    $siblings = $siblingsQuery->select('id', 'first_name', 'middle_name', 'last_name', 'admission_number', 'classroom_id', 'stream_id')
+                        ->with(['classroom', 'stream'])
                         ->get()
                         ->map(function ($sib) {
                             $fullName = trim(implode(' ', array_filter([
@@ -1606,7 +1606,9 @@ class StudentController extends Controller
                                 $sib->middle_name,
                                 $sib->last_name,
                             ])));
-                            
+                            $classDisplay = $sib->classroom
+                                ? ($sib->stream ? $sib->classroom->name . ' – ' . $sib->stream->name : $sib->classroom->name)
+                                : null;
                             return [
                                 'id' => $sib->id,
                                 'first_name' => $sib->first_name,
@@ -1615,16 +1617,25 @@ class StudentController extends Controller
                                 'full_name' => $fullName,
                                 'admission_number' => $sib->admission_number ?? '',
                                 'classroom_name' => $sib->classroom ? $sib->classroom->name : null,
+                                'stream_name' => $sib->stream ? $sib->stream->name : null,
+                                'class_display' => $classDisplay,
                             ];
                         })
                         ->values()
                         ->toArray();
                 }
                 
-                // Ensure classroom is loaded (refresh if needed)
+                // Ensure classroom and stream are loaded
                 if (!$st->relationLoaded('classroom') && $st->classroom_id) {
                     $st->load('classroom');
                 }
+                if (!$st->relationLoaded('stream') && $st->stream_id) {
+                    $st->load('stream');
+                }
+                
+                $classDisplay = $st->classroom
+                    ? ($st->stream ? $st->classroom->name . ' – ' . $st->stream->name : $st->classroom->name)
+                    : null;
                 
                 return [
                     'id' => $st->id,
@@ -1634,8 +1645,10 @@ class StudentController extends Controller
                     'siblings' => $siblings,
                     'admission_number' => $st->admission_number ?? '',
                     'classroom_name' => $st->classroom ? $st->classroom->name : null,
-                    'label' => $st->classroom
-                        ? "{$full} ({$st->admission_number}) - {$st->classroom->name}"
+                    'stream_name' => $st->stream ? $st->stream->name : null,
+                    'class_display' => $classDisplay,
+                    'label' => $classDisplay
+                        ? "{$full} ({$st->admission_number}) – {$classDisplay}"
                         : "{$full} ({$st->admission_number})",
                     'family_id' => $st->family_id,
                     'is_alumni' => $st->is_alumni ?? false,

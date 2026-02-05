@@ -173,7 +173,7 @@
                                 'displayInputId' => 'studentSearchDisplay',
                                 'resultsId' => 'studentSearchResults',
                                 'placeholder' => 'Type name or admission #',
-                                'initialLabel' => $student ? $student->full_name . ' (' . $student->admission_number . ')' : ''
+                                'initialLabel' => $student ? $student->search_display : ''
                             ])
                             @error('student_id')
                                 <div class="finance-form-error">{{ $message }}</div>
@@ -482,23 +482,26 @@
     </div>
 @endsection
 
-@section('js')
+@push('scripts')
 <script>
 $(document).ready(function() {
     let currentFeeBalance = 0;
     let currentStudentData = null;
 
     // Watch for student selection from live search (vanilla + jQuery)
-    window.addEventListener('student-selected', function(e) {
-        const student = e.detail;
-        if (student && student.id) {
-            loadStudentData(student.id);
+    // Prefer hidden input value (set by live search) so selection always triggers load
+    function onStudentSelected(e, studentFromJq) {
+        var student = studentFromJq != null ? studentFromJq : (e && e.detail) ? e.detail : null;
+        var id = ($('#student_id').val() || (student && student.id) || '').toString().trim();
+        if (id) {
+            loadStudentData(id);
         }
+    }
+    window.addEventListener('student-selected', function(e) {
+        onStudentSelected(e, null);
     });
     $(document).on('studentSelected', function(e, student) {
-        if (student && student.id) {
-            loadStudentData(student.id);
-        }
+        onStudentSelected(e, student);
     });
 
     // If student is pre-selected, trigger load
@@ -793,4 +796,4 @@ $(document).ready(function() {
     @endif
 });
 </script>
-@endsection
+@endpush

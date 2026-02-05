@@ -403,16 +403,18 @@
                         }
                         
                         let html = '<div class="list-group">';
+                        const classDisplay = (s) => (s.class_display && s.class_display.trim()) ? s.class_display : (s.classroom_name || '');
                         students.forEach(student => {
+                            const cls = classDisplay(student);
                             html += `<button type="button" class="list-group-item list-group-item-action py-2 student-result" 
                                             data-id="${student.id}" 
                                             data-name="${student.full_name}"
                                             data-admission="${student.admission_number}"
-                                            data-class="${student.classroom_name || ''}"
+                                            data-class="${cls}"
                                             data-row="${row}">
                                         <strong>${student.full_name}</strong> 
                                         <span class="badge bg-secondary">${student.admission_number}</span>
-                                        ${student.classroom_name ? `<span class="badge bg-info">${student.classroom_name}</span>` : ''}
+                                        ${cls ? `<span class="badge bg-info">${cls}</span>` : ''}
                                     </button>`;
                         });
                         html += '</div>';

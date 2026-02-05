@@ -52,7 +52,7 @@
                             'displayInputId' => 'studentFilterSearchSpecialAssignmentCreate',
                             'resultsId' => 'studentFilterResultsSpecialAssignmentCreate',
                             'placeholder' => 'Type name or admission #',
-                            'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : ''
+                            'initialLabel' => old('student_id') ? optional(\App\Models\Student::find(old('student_id')))->search_display : ''
                         ])
                         <small class="form-text text-muted">Required for student-specific assignments</small>
                     </div>

@@ -98,7 +98,7 @@
                     'displayInputId' => 'studentFilterSearch',
                     'resultsId' => 'studentFilterResults',
                     'placeholder' => 'Type name or admission #',
-                    'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                    'initialLabel' => request('student_id') ? optional(\App\Models\Student::find(request('student_id')))->search_display : ''
                 ])
             </div>
             <div class="col-md-2">
@@ -387,7 +387,7 @@
                                             'displayInputId' => 'studentLiveSearchModal',
                                             'resultsId' => 'studentLiveResultsModal',
                                             'placeholder' => 'Type name or admission #',
-                                            'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : '',
+                                            'initialLabel' => old('student_id') ? optional(\App\Models\Student::find(old('student_id')))->search_display : '',
                                             'enableButtonId' => 'saveAllocationBtn'
                                         ])
                                         @error('student_id')

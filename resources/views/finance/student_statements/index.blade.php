@@ -21,7 +21,7 @@
                         'displayInputId' => 'studentLiveSearch',
                         'resultsId' => 'studentLiveResults',
                         'enableButtonId' => 'viewStatementBtn',
-                        'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                        'initialLabel' => request('student_id') ? optional(\App\Models\Student::find(request('student_id')))->search_display : ''
                     ])
                 </div>
                 

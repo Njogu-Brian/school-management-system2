@@ -1,6 +1,12 @@
 (() => {
     const defaultUrl = '/students/search';
     const apiFallback = '/api/students/search';
+    const escapeHtml = (s) => {
+        if (s == null || s === '') return '';
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    };
     const debounce = (fn, ms = 600) => {
         let t;
         return (...args) => {
@@ -43,17 +49,20 @@
                     badges += ' <span class="badge bg-secondary">Archived</span>';
                 }
                 
-                // Display with class if available
-                const classDisplay = (stu.classroom_name && stu.classroom_name.trim() !== '') 
-                    ? ` - ${stu.classroom_name}` 
-                    : '';
-                a.innerHTML = `${stu.full_name} (${stu.admission_number})${classDisplay}${badges}`;
+                // Class display: use class_display (class + stream) or classroom_name
+                const classText = (stu.class_display && stu.class_display.trim() !== '')
+                    ? stu.class_display
+                    : (stu.classroom_name && stu.classroom_name.trim() !== '')
+                        ? stu.classroom_name
+                        : '';
+                const classDisplay = classText ? ` <span class="text-muted">·</span> <span class="fw-medium">${escapeHtml(classText)}</span>` : '';
+                a.innerHTML = `${escapeHtml(stu.full_name)} (${escapeHtml(stu.admission_number || '')})${classDisplay}${badges}`;
                 a.addEventListener('click', (e) => {
                     e.preventDefault();
                     hidden.value = stu.id;
                     hidden.dispatchEvent(new Event('change', { bubbles: true }));
-                    const displayValue = stu.classroom_name 
-                        ? `${stu.full_name} (${stu.admission_number}) - ${stu.classroom_name}`
+                    const displayValue = classText
+                        ? `${stu.full_name} (${stu.admission_number}) – ${classText}`
                         : `${stu.full_name} (${stu.admission_number})`;
                     input.value = displayValue;
                     if (enableBtn) enableBtn.disabled = false;
@@ -128,10 +137,6 @@
                         continue; // try next URL
                     }
                     const data = await res.json();
-                    // Debug: log first student to check if classroom_name is present
-                    if (data.length > 0 && !data[0].classroom_name) {
-                        console.warn('Student search result missing classroom_name:', data[0]);
-                    }
                     render(Array.isArray(data) ? data : []);
                     return;
                 } catch (e) {

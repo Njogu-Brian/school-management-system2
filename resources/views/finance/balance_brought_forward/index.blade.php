@@ -161,7 +161,7 @@
                     'displayInputId' => 'addBalanceStudentSearch',
                     'resultsId' => 'addBalanceStudentResults',
                     'placeholder' => 'Type name or admission #',
-                    'initialLabel' => old('student_id') ? (\App\Models\Student::find(old('student_id'))?->full_name ?? '') : ''
+                    'initialLabel' => old('student_id') ? (\App\Models\Student::find(old('student_id'))?->search_display ?? '') : ''
                 ])
                 @if($errorBag && $errorBag->has('student_id'))
                   <div class="invalid-feedback d-block">{{ $errorBag->first('student_id') }}</div>

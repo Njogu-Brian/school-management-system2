@@ -85,8 +85,9 @@
                                 'displayInputId' => 'studentSearch',
                                 'resultsId' => 'studentResults',
                                 'placeholder' => 'Type name or admission number',
-                                'initialLabel' => ($rawTransaction->student ?? null) ? ($rawTransaction->student->full_name . ' (' . $rawTransaction->student->admission_number . ')') : '',
-                                'includeAlumniArchived' => true
+                                'initialLabel' => ($rawTransaction->student ?? null) ? $rawTransaction->student->search_display : '',
+                                'includeAlumniArchived' => true,
+                                'initialStudentId' => ($rawTransaction->student ?? null) ? $rawTransaction->student->id : null
                             ])
                             <small class="form-text text-muted">Search and select a student to assign this transaction</small>
                         </div>

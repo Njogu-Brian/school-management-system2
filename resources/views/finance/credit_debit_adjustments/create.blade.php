@@ -19,7 +19,7 @@
                         'displayInputId' => 'selectedStudentName',
                         'resultsId' => 'studentLiveResultsCDAForm',
                         'placeholder' => 'Type name or admission #',
-                        'initialLabel' => old('student_id') ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') : ''
+                        'initialLabel' => old('student_id') ? optional(\App\Models\Student::find(old('student_id')))->search_display : ''
                     ])
                     <div class="form-text">Start typing to search and select.</div>
                 </div>

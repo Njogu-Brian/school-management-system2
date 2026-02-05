@@ -30,8 +30,8 @@
                                     'resultsId' => 'studentLiveResults',
                                     'placeholder' => 'Type student name or admission #',
                                     'initialLabel' => old('student_id') 
-                                        ? (optional(\App\Models\Student::find(old('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(old('student_id')))->admission_number . ')') 
-                                        : ($student ? $student->full_name . ' (' . $student->admission_number . ')' : '')
+                                        ? optional(\App\Models\Student::find(old('student_id')))->search_display 
+                                        : ($student ? $student->search_display : '')
                                 ])
                                 @error('student_id')
                                     <div class="invalid-feedback">{{ $message }}</div>

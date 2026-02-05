@@ -131,7 +131,7 @@
                                 'displayInputId' => 'studentSearchDisplay',
                                 'resultsId' => 'studentSearchResults',
                                 'placeholder' => 'Search by name or admission number',
-                                'initialLabel' => $transaction->student ? $transaction->student->full_name . ' (' . $transaction->student->admission_number . ')' : '',
+                                'initialLabel' => $transaction->student ? $transaction->student->search_display : '',
                                 'initialStudentId' => $transaction->student_id
                             ])
                             @error('student_id')

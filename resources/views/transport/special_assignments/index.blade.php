@@ -39,7 +39,7 @@
                             'displayInputId' => 'studentFilterSearchSpecialAssignments',
                             'resultsId' => 'studentFilterResultsSpecialAssignments',
                             'placeholder' => 'Type name or admission #',
-                            'initialLabel' => request('student_id') ? (optional(\App\Models\Student::find(request('student_id')))->full_name . ' (' . optional(\App\Models\Student::find(request('student_id')))->admission_number . ')') : ''
+                            'initialLabel' => request('student_id') ? optional(\App\Models\Student::find(request('student_id')))->search_display : ''
                         ])
                     </div>
                     <div class="col-md-3">

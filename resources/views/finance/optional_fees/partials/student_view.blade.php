@@ -8,7 +8,7 @@
             'displayInputId' => 'selectedStudentName',
             'resultsId' => 'studentLiveResultsOptionalFees',
             'placeholder' => 'Type name or admission #',
-            'initialLabel' => isset($student) ? ($student->full_name.' ('.$student->admission_number.')') : ''
+            'initialLabel' => isset($student) ? $student->search_display : ''
         ])
         <button class="btn btn-primary mt-2" type="submit">Load</button>
     </div>
