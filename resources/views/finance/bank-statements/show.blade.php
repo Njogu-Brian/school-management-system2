@@ -436,7 +436,7 @@
                             <p class="text-muted mb-0">
                                 Admission: <code>{{ $rawTransaction->student->admission_number }}</code>
                                 @if($rawTransaction->student->classroom)
-                                    | Class: {{ $rawTransaction->student->classroom->name }}
+                                    | Class: {{ $rawTransaction->student->classroom->name }}@if($rawTransaction->student->stream) – {{ $rawTransaction->student->stream->name }}@endif
                                 @endif
                             </p>
                         </div>
@@ -1370,11 +1370,12 @@ async function showStudentBalanceForAssign(student) {
         
         const balance = data.balance || 0;
         const label = data.label || 'Balance';
-        
+        const classDisplay = (student.class_display && student.class_display.trim()) ? student.class_display : (student.classroom_name || '');
+        const classHtml = classDisplay ? `<br><span class="text-muted">Class: ${escapeHtml(classDisplay)}</span>` : '';
         balanceContainer.innerHTML = `
             <small class="text-muted">
-                <strong>${student.full_name}</strong> 
-                (${student.admission_number || 'N/A'})
+                <strong>${escapeHtml(student.full_name || '')}</strong> 
+                (${escapeHtml(student.admission_number || 'N/A')})${classHtml}
                 <br>
                 <span class="text-danger">${label}: Ksh ${parseFloat(balance).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
             </small>
@@ -1451,11 +1452,13 @@ async function populateShareForm() {
     
     // Add selected student and siblings with balances
     studentsWithBalances.forEach(({student, balance, label}) => {
+        const classDisplay = (student.class_display && student.class_display.trim()) ? student.class_display : (student.classroom_name || '');
+        const classHtml = classDisplay ? ` <span class="text-muted">· Class: ${escapeHtml(classDisplay)}</span>` : '';
         html += `
             <div class="mb-3 p-3 border rounded">
                 <label class="form-label">
-                    <strong>${student.full_name || ''}</strong>
-                    <small class="text-muted">(${student.admission_number || 'N/A'})</small>
+                    <strong>${escapeHtml(student.full_name || '')}</strong>
+                    <small class="text-muted">(${escapeHtml(student.admission_number || 'N/A')})</small>${classHtml}
                     <br><small class="text-danger">${label}: Ksh ${parseFloat(balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</small>
                 </label>
                 <input type="hidden" name="allocations[${index}][student_id]" value="${student.id}">
@@ -1705,7 +1708,8 @@ function updateModalTotal() {
                         return;
                     }
                     results.innerHTML = data.map(stu => {
-                        const label = stu.label || `${stu.full_name} (${stu.admission_number})${stu.classroom_name ? ' - ' + stu.classroom_name : ''}`;
+                        const classPart = (stu.class_display && stu.class_display.trim()) ? stu.class_display : (stu.classroom_name || '');
+                        const label = stu.label || `${stu.full_name} (${stu.admission_number})${classPart ? ' – ' + classPart : ''}`;
                         return `
                             <button type="button" class="list-group-item list-group-item-action split-pick"
                                 data-id="${stu.id}" data-label="${label}">
