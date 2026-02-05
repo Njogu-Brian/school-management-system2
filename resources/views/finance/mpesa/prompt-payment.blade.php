@@ -131,34 +131,6 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Configuration Summary (Non-sensitive) -->
-                    <div class="alert alert-light border mb-4">
-                        <div class="row g-2 small">
-                            <div class="col-md-6">
-                                <strong>Environment:</strong> 
-                                <span class="badge {{ $configValidation['environment'] === 'production' ? 'bg-success' : 'bg-warning text-dark' }}">
-                                    {{ strtoupper($configValidation['environment'] ?? 'Not Set') }}
-                                </span>
-                            </div>
-                            <div class="col-md-6">
-                                <strong>Shortcode:</strong> 
-                                <code>{{ $configValidation['shortcode'] ?? 'Not Set' }}</code>
-                            </div>
-                            <div class="col-md-6">
-                                <strong>OAuth URL:</strong> 
-                                <code class="small">{{ $configValidation['oauth_url'] ?? 'N/A' }}</code>
-                            </div>
-                            <div class="col-md-6">
-                                <strong>Status:</strong> 
-                                @if($configValidation['valid'] ?? false)
-                                    <span class="badge bg-success"><i class="bi bi-check-circle"></i> Valid</span>
-                                @else
-                                    <span class="badge bg-danger"><i class="bi bi-x-circle"></i> Issues Found</span>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
 
                     <form action="{{ route('finance.mpesa.prompt-payment') }}" method="POST" id="promptPaymentForm">
                         @csrf
