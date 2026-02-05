@@ -445,10 +445,10 @@ function showSuccess(data) {
         if (mpesaCodeEl) mpesaCodeEl.textContent = data.mpesa_code;
     }
     
-    // Open receipt print window if receipt ID is available
+    // Open receipt window automatically (same as other payments)
     if (receiptId) {
         setTimeout(function() {
-            const receiptUrl = '/finance/payments/receipt/' + receiptId + '/view';
+            const receiptUrl = '{{ route("finance.payments.receipt.view", ["payment" => "__ID__"]) }}'.replace('__ID__', receiptId);
             const printWindow = window.open(
                 receiptUrl,
                 'ReceiptWindow',
@@ -456,17 +456,14 @@ function showSuccess(data) {
             );
             
             if (!printWindow || printWindow.closed || typeof printWindow.closed == 'undefined') {
-                console.warn('Popup blocked. Receipt will not open automatically.');
+                console.warn('Popup blocked. Click "View Receipt" to open the receipt.');
             } else {
                 printWindow.focus();
             }
-        }, 500); // Small delay to ensure page is ready
+        }, 600);
     }
     
-    // Auto-close after 5 seconds
-    setTimeout(function() {
-        window.location.href = '{{ route("finance.mpesa.dashboard") }}';
-    }, 5000);
+    // Do not auto-redirect so user can view receipt and success message
 }
 
 function showFailed(data) {
@@ -581,9 +578,10 @@ function retry() {
 
 function viewReceipt() {
     if (receiptId) {
-        window.open('/finance/receipts/' + receiptId + '/print', '_blank');
+        const receiptUrl = '{{ route("finance.payments.receipt.view", ["payment" => "__ID__"]) }}'.replace('__ID__', receiptId);
+        window.open(receiptUrl, 'ReceiptWindow', 'width=800,height=900,scrollbars=yes,resizable=yes');
     } else {
-        window.location.href = '{{ route('finance.mpesa.transaction.show', $transaction->id) }}';
+        window.location.href = '{{ route("finance.mpesa.transaction.show", $transaction->id) }}';
     }
 }
 </script>

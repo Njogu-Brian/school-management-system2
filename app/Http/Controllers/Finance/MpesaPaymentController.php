@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentLink;
@@ -1054,27 +1055,31 @@ class MpesaPaymentController extends Controller
                 'completed_at' => now(),
             ]);
 
-            // Allocate payment to invoices
+            // Allocate payment to invoice items
             $this->allocatePaymentToInvoices($payment, $transaction);
 
             DB::commit();
+
+            // Refresh so receipt and notification use allocated amounts and relations
+            $payment->refresh();
+            $payment->load(['allocations.invoiceItem.invoice', 'student']);
 
             // Generate receipt PDF (outside transaction to avoid locking)
             try {
                 $receiptService = app(\App\Services\ReceiptService::class);
                 $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
-                Log::info('Receipt generated for M-PESA payment (query response)', [
+                Log::info('Receipt generated for M-PESA payment', [
                     'payment_id' => $payment->id,
                     'pdf_path' => $pdfPath,
                 ]);
             } catch (\Exception $e) {
-                Log::error('Failed to generate receipt for M-PESA payment (query response)', [
+                Log::error('Failed to generate receipt for M-PESA payment', [
                     'payment_id' => $payment->id,
                     'error' => $e->getMessage(),
                 ]);
             }
 
-            // Send payment confirmation
+            // Send payment confirmation (SMS/email via RKS Finance, same as other payments)
             try {
                 $this->sendPaymentConfirmation($payment);
             } catch (\Exception $e) {
@@ -1103,76 +1108,86 @@ class MpesaPaymentController extends Controller
     }
 
     /**
-     * Allocate payment to invoices
+     * Allocate payment to invoice items (payment_allocations require invoice_item_id).
+     * Uses PaymentAllocationService so allocations and invoice recalc are consistent.
      */
     protected function allocatePaymentToInvoices(Payment $payment, PaymentTransaction $transaction)
     {
-        $remainingAmount = $payment->amount;
-
-        // If transaction has specific invoice, prioritize it
-        if ($transaction->invoice_id) {
-            $invoice = Invoice::find($transaction->invoice_id);
-            if ($invoice && $invoice->balance > 0) {
-                $allocationAmount = min($remainingAmount, $invoice->balance);
-                
-                PaymentAllocation::create([
-                    'payment_id' => $payment->id,
-                    'invoice_id' => $invoice->id,
-                    'amount' => $allocationAmount,
-                ]);
-
-                $remainingAmount -= $allocationAmount;
-
-                // Update invoice
-                $invoice->amount_paid += $allocationAmount;
-                if ($invoice->amount_paid >= $invoice->total_amount) {
-                    $invoice->status = 'paid';
-                }
-                $invoice->save();
-            }
+        // Swimming payments are handled by wallet, not invoice items
+        if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0) {
+            $payment->update([
+                'allocated_amount' => $payment->amount,
+                'unallocated_amount' => 0,
+            ]);
+            return;
         }
 
-        // If there's remaining amount, allocate to oldest unpaid invoices
-        if ($remainingAmount > 0) {
-            $unpaidInvoices = Invoice::where('student_id', $transaction->student_id)
-                ->where('status', '!=', 'paid')
-                ->where('balance', '>', 0)
-                ->orderBy('due_date', 'asc')
-                ->orderBy('created_at', 'asc')
-                ->get();
+        $studentId = $transaction->student_id;
+        $remainingAmount = (float) $payment->amount;
+        $allocations = [];
 
-            foreach ($unpaidInvoices as $invoice) {
+        // Helper: get unpaid invoice items for an invoice (or for student), sorted by invoice issued_date
+        $getUnpaidItems = function (?int $invoiceId = null) use ($studentId) {
+            $q = InvoiceItem::whereHas('invoice', function ($qb) use ($studentId, $invoiceId) {
+                $qb->where('student_id', $studentId);
+                if ($invoiceId !== null) {
+                    $qb->where('id', $invoiceId);
+                }
+            })
+                ->where('status', 'active')
+                ->with(['invoice'])
+                ->get()
+                ->filter(function ($item) {
+                    return $item->getBalance() > 0;
+                });
+            return $q->sortBy('invoice.issued_date')->values();
+        };
+
+        // If transaction has a specific invoice, allocate to its items first
+        if ($transaction->invoice_id && $remainingAmount > 0) {
+            $items = $getUnpaidItems($transaction->invoice_id);
+            foreach ($items as $item) {
                 if ($remainingAmount <= 0) {
                     break;
                 }
-
-                // Skip if already allocated in this payment
-                if ($invoice->id == $transaction->invoice_id) {
-                    continue;
+                $balance = $item->getBalance();
+                $amount = min($remainingAmount, $balance);
+                if ($amount > 0) {
+                    $allocations[] = ['invoice_item_id' => $item->id, 'amount' => $amount];
+                    $remainingAmount -= $amount;
                 }
-
-                $allocationAmount = min($remainingAmount, $invoice->balance);
-                
-                PaymentAllocation::create([
-                    'payment_id' => $payment->id,
-                    'invoice_id' => $invoice->id,
-                    'amount' => $allocationAmount,
-                ]);
-
-                $remainingAmount -= $allocationAmount;
-
-                // Update invoice
-                $invoice->amount_paid += $allocationAmount;
-                if ($invoice->amount_paid >= $invoice->total_amount) {
-                    $invoice->status = 'paid';
-                }
-                $invoice->save();
             }
         }
 
-        // If still remaining (overpayment), create credit note or mark as advance payment
+        // Allocate remainder to oldest unpaid items (any invoice for this student)
+        if ($remainingAmount > 0) {
+            $items = $getUnpaidItems(null);
+            foreach ($items as $item) {
+                if ($remainingAmount <= 0) {
+                    break;
+                }
+                if ($transaction->invoice_id && $item->invoice_id == $transaction->invoice_id) {
+                    continue; // already considered above
+                }
+                $balance = $item->getBalance();
+                $amount = min($remainingAmount, $balance);
+                if ($amount > 0) {
+                    $allocations[] = ['invoice_item_id' => $item->id, 'amount' => $amount];
+                    $remainingAmount -= $amount;
+                }
+            }
+        }
+
+        if (!empty($allocations)) {
+            $this->allocationService->allocate($payment, $allocations);
+        } else {
+            $payment->update([
+                'allocated_amount' => 0,
+                'unallocated_amount' => $payment->amount,
+            ]);
+        }
+
         if ($remainingAmount > 0.01) {
-            // This could be handled by creating a credit note or marking as advance payment
             Log::info('Overpayment detected', [
                 'payment_id' => $payment->id,
                 'overpayment_amount' => $remainingAmount,
@@ -1931,24 +1946,27 @@ class MpesaPaymentController extends Controller
                     'created_by' => Auth::id(),
                 ]);
 
-                // Allocate to invoices (if any)
+                // Allocate to invoice items (payment_allocations require invoice_item_id)
                 if (!empty($request->allocations) && is_array($request->allocations)) {
+                    $allocationsForService = [];
                     foreach ($request->allocations as $allocation) {
                         $invoice = Invoice::findOrFail($allocation['invoice_id']);
-                        $allocationAmount = $allocation['amount'];
-
-                        PaymentAllocation::create([
-                            'payment_id' => $payment->id,
-                            'invoice_id' => $invoice->id,
-                            'amount' => $allocationAmount,
-                        ]);
-
-                        // Update invoice
-                        $invoice->amount_paid += $allocationAmount;
-                        if ($invoice->amount_paid >= $invoice->total_amount) {
-                            $invoice->status = 'paid';
+                        $remaining = (float) $allocation['amount'];
+                        $items = $invoice->items()->where('status', 'active')->with('invoice')->get()
+                            ->filter(fn ($item) => $item->getBalance() > 0)
+                            ->sortBy('invoice.issued_date')->values();
+                        foreach ($items as $item) {
+                            if ($remaining <= 0) break;
+                            $balance = $item->getBalance();
+                            $amount = min($remaining, $balance);
+                            if ($amount > 0) {
+                                $allocationsForService[] = ['invoice_item_id' => $item->id, 'amount' => $amount];
+                                $remaining -= $amount;
+                            }
                         }
-                        $invoice->save();
+                    }
+                    if (!empty($allocationsForService)) {
+                        $this->allocationService->allocate($payment, $allocationsForService);
                     }
                 }
                 // If no allocations, payment is recorded as advance payment (unallocated_amount will be the full amount)
