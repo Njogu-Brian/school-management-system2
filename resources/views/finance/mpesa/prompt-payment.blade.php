@@ -578,19 +578,19 @@ $(document).ready(function() {
             phoneSelect.append('<option value="">-- Select Phone Number --</option>');
             
             if (student.family) {
-                // Father's phone (prefer WhatsApp if available)
-                let fatherPhone = student.family.father_whatsapp || student.family.father_phone;
+                // Father: prefer phone over WhatsApp for STK push
+                let fatherPhone = student.family.father_phone || student.family.father_whatsapp;
                 if (fatherPhone) {
                     let fatherName = student.family.father_name ? ` (${student.family.father_name})` : '';
-                    let phoneLabel = student.family.father_whatsapp ? 'Father\'s WhatsApp' : 'Father\'s Phone';
+                    let phoneLabel = student.family.father_phone ? 'Father\'s Phone' : 'Father\'s WhatsApp';
                     phoneSelect.append(`<option value="father" data-phone="${fatherPhone}">${phoneLabel} - ${fatherPhone}${fatherName}</option>`);
                 }
                 
-                // Mother's phone (prefer WhatsApp if available)
-                let motherPhone = student.family.mother_whatsapp || student.family.mother_phone;
+                // Mother: prefer phone over WhatsApp for STK push
+                let motherPhone = student.family.mother_phone || student.family.mother_whatsapp;
                 if (motherPhone) {
                     let motherName = student.family.mother_name ? ` (${student.family.mother_name})` : '';
-                    let phoneLabel = student.family.mother_whatsapp ? 'Mother\'s WhatsApp' : 'Mother\'s Phone';
+                    let phoneLabel = student.family.mother_phone ? 'Mother\'s Phone' : 'Mother\'s WhatsApp';
                     phoneSelect.append(`<option value="mother" data-phone="${motherPhone}">${phoneLabel} - ${motherPhone}${motherName}</option>`);
                 }
                 
