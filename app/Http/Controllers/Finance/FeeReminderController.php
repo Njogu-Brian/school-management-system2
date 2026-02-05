@@ -189,7 +189,8 @@ class FeeReminderController extends Controller
         if ($reminder->channel === 'email' || $reminder->channel === 'both') {
             $email = null;
             if ($parent) {
-                $email = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
+            $email = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
             }
             
             if ($email) {
@@ -216,7 +217,8 @@ class FeeReminderController extends Controller
         if ($reminder->channel === 'sms' || $reminder->channel === 'both') {
             $phone = null;
             if ($parent) {
-                $phone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
+            $phone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             }
             $phone = $phone ?? $student->phone_number ?? null;
             
@@ -243,12 +245,11 @@ class FeeReminderController extends Controller
         if ($reminder->channel === 'whatsapp' || $reminder->channel === 'both') {
             $whatsappPhone = null;
             if ($parent) {
-                $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
+                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
+            $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
                     : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
-                    : (!empty($parent->guardian_whatsapp) ? $parent->guardian_whatsapp 
                     : (!empty($parent->father_phone) ? $parent->father_phone 
-                    : (!empty($parent->mother_phone) ? $parent->mother_phone 
-                    : (!empty($parent->guardian_phone) ? $parent->guardian_phone : null)))));
+                    : (!empty($parent->mother_phone) ? $parent->mother_phone : null)));
             }
             $whatsappPhone = $whatsappPhone ?? (!empty($student->phone_number) ? $student->phone_number : null);
             

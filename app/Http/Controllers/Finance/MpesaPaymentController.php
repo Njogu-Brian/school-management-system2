@@ -1310,12 +1310,11 @@ class MpesaPaymentController extends Controller
             $whatsappPhone = null;
             
             if ($parent) {
+                // Never send fee-related communications to guardian; guardians are reached via manual number entry only
                 $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
                     : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
-                    : (!empty($parent->guardian_whatsapp) ? $parent->guardian_whatsapp 
                     : (!empty($parent->father_phone) ? $parent->father_phone 
-                    : (!empty($parent->mother_phone) ? $parent->mother_phone 
-                    : (!empty($parent->guardian_phone) ? $parent->guardian_phone : null)))));
+                    : (!empty($parent->mother_phone) ? $parent->mother_phone : null)));
             }
             
             if ($whatsappPhone) {

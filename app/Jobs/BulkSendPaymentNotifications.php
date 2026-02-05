@@ -260,13 +260,14 @@ class BulkSendPaymentNotifications implements ShouldQueue
      */
     protected function checkContactAvailable($parent, string $channel): bool
     {
+        // Never consider guardian as available for fee-related communications; guardians are reached via manual number entry only
         if ($channel === 'sms') {
-            return !empty($parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null);
+            return !empty($parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null);
         } elseif ($channel === 'email') {
-            return !empty($parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null);
+            return !empty($parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null);
         } elseif ($channel === 'whatsapp') {
-            return !empty($parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null);
+            return !empty($parent->father_whatsapp ?? $parent->mother_whatsapp
+                ?? $parent->father_phone ?? $parent->mother_phone ?? null);
         }
         
         return false;
@@ -325,7 +326,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
 
         // Send via specific channel
         if ($channel === 'sms') {
-            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             if ($parentPhone) {
                 $smsTemplate = CommunicationTemplate::where('code', 'payment_receipt_sms')
                     ->orWhere('code', 'finance_payment_received_sms')
@@ -349,7 +350,7 @@ class BulkSendPaymentNotifications implements ShouldQueue
                 $commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
             }
         } elseif ($channel === 'email') {
-            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
             if ($parentEmail) {
                 $emailTemplate = CommunicationTemplate::where('code', 'payment_receipt_email')
                     ->orWhere('code', 'finance_payment_received_email')
@@ -374,8 +375,8 @@ class BulkSendPaymentNotifications implements ShouldQueue
                 $commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
             }
         } elseif ($channel === 'whatsapp') {
-            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp
+                ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             
             if ($whatsappPhone) {
                 $whatsappTemplate = CommunicationTemplate::where('code', 'payment_receipt_whatsapp')

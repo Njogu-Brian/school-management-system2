@@ -774,15 +774,14 @@ class CommunicationController extends Controller
                                 ?? $firstStudent->parent->mother_name
                                 ?? 'Parent';
                     
+                    // Preview uses father/mother only; guardians are reached via manual number entry
                     if ($data['channel'] === 'email') {
                         $parentContact = $firstStudent->parent->father_email 
                                       ?? $firstStudent->parent->mother_email 
-                                      ?? $firstStudent->parent->guardian_email 
                                       ?? '';
                     } else {
                         $parentContact = $firstStudent->parent->father_phone 
                                       ?? $firstStudent->parent->mother_phone 
-                                      ?? $firstStudent->parent->guardian_phone 
                                       ?? '';
                     }
                 }

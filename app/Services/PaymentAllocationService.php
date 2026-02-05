@@ -307,68 +307,66 @@ class PaymentAllocationService
     }
 
     /**
-     * Allocate payment to payment plan installments (oldest unpaid first)
-     * Applies payment to oldest unpaid installment, carrying surplus to next
+     * Allocate payment to payment plan installments (oldest unpaid first).
+     * Optionally limit the amount applied (e.g. when splitting one payment across multiple plans).
+     * Returns the amount actually applied to installments.
      */
-    public function allocatePaymentToInstallments(Payment $payment, FeePaymentPlan $paymentPlan): Payment
+    public function allocatePaymentToInstallments(Payment $payment, FeePaymentPlan $paymentPlan, ?float $maxAmount = null): float
     {
-        return DB::transaction(function () use ($payment, $paymentPlan) {
-            $remainingAmount = $payment->amount;
-            
-            // Get unpaid installments ordered by due date (oldest first)
+        $limit = $maxAmount !== null ? min((float) $payment->amount, $maxAmount) : (float) $payment->amount;
+        $amountApplied = 0;
+
+        DB::transaction(function () use ($payment, $paymentPlan, $limit, &$amountApplied) {
+            $remainingAmount = $limit;
+
             $unpaidInstallments = FeePaymentPlanInstallment::where('payment_plan_id', $paymentPlan->id)
                 ->whereIn('status', ['pending', 'partial', 'overdue'])
                 ->orderBy('due_date')
                 ->orderBy('installment_number')
                 ->get();
-            
+
             foreach ($unpaidInstallments as $installment) {
                 if ($remainingAmount <= 0) {
                     break;
                 }
-                
+
                 $outstanding = $installment->amount - $installment->paid_amount;
                 if ($outstanding <= 0) {
-                    continue; // Skip fully paid installments
+                    continue;
                 }
-                
+
                 $amountToApply = min($remainingAmount, $outstanding);
                 $newPaidAmount = $installment->paid_amount + $amountToApply;
-                
-                // Update installment
+
                 $installment->update([
                     'paid_amount' => $newPaidAmount,
                     'paid_date' => $installment->paid_date ?? now()->toDateString(),
                     'status' => $newPaidAmount >= $installment->amount ? 'paid' : 'partial',
                     'payment_id' => $payment->id,
                 ]);
-                
+
                 $remainingAmount -= $amountToApply;
-                
-                // If installment is now paid, cancel any pending reminders for it
+                $amountApplied += $amountToApply;
+
                 if ($installment->status === 'paid') {
                     FeeReminder::where('payment_plan_installment_id', $installment->id)
                         ->where('status', 'pending')
                         ->update(['status' => 'cancelled']);
                 }
             }
-            
-            // Refresh payment plan to check if it should be closed
+
             $paymentPlan->refresh();
             $totalPaid = $paymentPlan->installments()->sum('paid_amount');
-            
+
             if ($totalPaid >= $paymentPlan->total_amount) {
-                // All installments are paid - close the plan
                 $paymentPlan->update(['status' => 'completed']);
-                
-                // Cancel all pending reminders for this plan
                 FeeReminder::where('payment_plan_id', $paymentPlan->id)
                     ->where('status', 'pending')
                     ->update(['status' => 'cancelled']);
             }
-            
-            return $payment->fresh();
         });
+
+        return $amountApplied;
     }
 
     /**
@@ -377,39 +375,27 @@ class PaymentAllocationService
     public function autoAllocateWithInstallments(Payment $payment, ?int $studentId = null): Payment
     {
         $studentId = $studentId ?? $payment->student_id;
-        
-        // First, try to allocate to payment plan installments
+
         $activePaymentPlans = FeePaymentPlan::where('student_id', $studentId)
             ->whereIn('status', ['active', 'compliant', 'overdue'])
             ->with('installments')
+            ->orderBy('start_date')
             ->get();
-        
-        $remainingAmount = $payment->amount;
-        
+
+        $remainingAmount = (float) $payment->amount;
+
         foreach ($activePaymentPlans as $plan) {
             if ($remainingAmount <= 0) {
                 break;
             }
-            
-            // Create a temporary payment record for allocation tracking
-            // In practice, you might want to track installment allocations separately
-            $this->allocatePaymentToInstallments($payment, $plan);
-            
-            // Recalculate remaining (in a real implementation, track allocations)
-            $plan->refresh();
-            $totalPaid = $plan->installments()->sum('paid_amount');
-            $planBalance = $plan->total_amount - $totalPaid;
-            $remainingAmount = max(0, $remainingAmount - $planBalance);
+            $amountApplied = $this->allocatePaymentToInstallments($payment, $plan, $remainingAmount);
+            $remainingAmount -= $amountApplied;
         }
-        
-        // If payment is fully allocated to installments, return
+
         if ($remainingAmount <= 0) {
             return $payment->fresh();
         }
-        
-        // Otherwise, allocate remaining to invoice items
-        // Create a new payment record for remaining amount or adjust allocation logic
-        // For now, fall back to standard auto-allocation
+
         return $this->autoAllocate($payment, $studentId);
     }
 

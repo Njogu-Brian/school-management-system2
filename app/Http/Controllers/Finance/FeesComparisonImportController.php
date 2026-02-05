@@ -529,7 +529,7 @@ class FeesComparisonImportController extends Controller
             $invoiceBalance = $totalInvoiced - $totalPaid;
             $swimmingBalance = (float) (SwimmingWallet::where('student_id', $student->id)->value('balance') ?? 0);
             $parentPhone = $student->parent
-                ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? null)
+                ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? null)
                 : null;
 
             $out[$student->admission_number] = [

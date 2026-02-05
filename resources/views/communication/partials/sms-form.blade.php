@@ -109,7 +109,7 @@
     <div class="col-12 sms-target-field sms-target-custom d-none">
         <label class="form-label fw-semibold">Custom Numbers</label>
         <textarea name="custom_numbers" class="form-control" rows="3" placeholder="+2547..., +2547...">{{ old('custom_numbers') }}</textarea>
-        <small class="text-muted d-block mt-1">Use full country code; plus sign is optional.</small>
+        <small class="text-muted d-block mt-1">Use full country code; plus sign is optional. Use this to send to guardians by entering their numbers manually.</small>
     </div>
 
     @include('communication.partials.fee-balance-exclude-filters')

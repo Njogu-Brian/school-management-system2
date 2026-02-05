@@ -21,6 +21,9 @@ class Kernel extends ConsoleKernel
         // Send fee reminders daily at 9 AM
         $schedule->job(new \App\Jobs\SendFeeRemindersJob)->dailyAt('09:00');
 
+        // Update payment plan statuses (overdue, completed, broken) daily
+        $schedule->command('payment-plans:update-statuses')->dailyAt('00:15');
+
         // Database backup schedule checker (honors frequency/time in settings)
         $schedule->call(function () {
             BackupRestoreController::runScheduledIfDue();

@@ -41,14 +41,14 @@ class CommunicationHelperService
                     ->get()
                     ->each(function ($s) use (&$out, $type) {
                         if ($s->parent) {
+                            // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
                             $contacts = match ($type) {
-                                'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
+                                'email' => [$s->parent->father_email, $s->parent->mother_email],
                                 'whatsapp' => [
                                     !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
                                     !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
-                                    !empty($s->parent->guardian_whatsapp) ? $s->parent->guardian_whatsapp : $s->parent->guardian_phone,
                                 ],
-                                default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
+                                default => [$s->parent->father_phone, $s->parent->mother_phone],
                             };
                             foreach ($contacts as $c) if ($c) $out[$c] = $s;
                         }
@@ -63,14 +63,14 @@ class CommunicationHelperService
                 ->where('is_alumni', false)
                 ->find($data['student_id']);
             if ($student && $student->parent) {
+                // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
                 $contacts = match ($type) {
-                    'email' => [$student->parent->father_email, $student->parent->mother_email, $student->parent->guardian_email],
+                    'email' => [$student->parent->father_email, $student->parent->mother_email],
                     'whatsapp' => [
                         !empty($student->parent->father_whatsapp) ? $student->parent->father_whatsapp : $student->parent->father_phone,
                         !empty($student->parent->mother_whatsapp) ? $student->parent->mother_whatsapp : $student->parent->mother_phone,
-                        !empty($student->parent->guardian_whatsapp) ? $student->parent->guardian_whatsapp : $student->parent->guardian_phone,
                     ],
-                    default => [$student->parent->father_phone, $student->parent->mother_phone, $student->parent->guardian_phone],
+                    default => [$student->parent->father_phone, $student->parent->mother_phone],
                 };
                 foreach ($contacts as $c) if ($c) $out[$c] = $student;
             }
@@ -85,14 +85,14 @@ class CommunicationHelperService
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
+                        // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
                         $contacts = match ($type) {
-                            'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
+                            'email' => [$s->parent->father_email, $s->parent->mother_email],
                             'whatsapp' => [
                                 !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
                                 !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
-                                !empty($s->parent->guardian_whatsapp) ? $s->parent->guardian_whatsapp : $s->parent->guardian_phone,
                             ],
-                            default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
+                            default => [$s->parent->father_phone, $s->parent->mother_phone],
                         };
                         foreach ($contacts as $c) if ($c) $out[$c] = $s;
                     }
@@ -107,14 +107,14 @@ class CommunicationHelperService
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
+                        // Never include guardian when selecting parents/students; guardians are reached via manual number entry only
                         $contacts = match ($type) {
-                            'email' => [$s->parent->father_email, $s->parent->mother_email, $s->parent->guardian_email],
+                            'email' => [$s->parent->father_email, $s->parent->mother_email],
                             'whatsapp' => [
                                 !empty($s->parent->father_whatsapp) ? $s->parent->father_whatsapp : $s->parent->father_phone,
                                 !empty($s->parent->mother_whatsapp) ? $s->parent->mother_whatsapp : $s->parent->mother_phone,
-                                !empty($s->parent->guardian_whatsapp) ? $s->parent->guardian_whatsapp : $s->parent->guardian_phone,
                             ],
-                            default => [$s->parent->father_phone, $s->parent->mother_phone, $s->parent->guardian_phone],
+                            default => [$s->parent->father_phone, $s->parent->mother_phone],
                         };
                         foreach ($contacts as $c) if ($c) $out[$c] = $s;
                     }

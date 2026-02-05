@@ -320,7 +320,9 @@ class PaymentController extends Controller
                         
                         // Auto-allocate for sibling
                         try {
-                            if (method_exists($this->allocationService, 'autoAllocate')) {
+                            if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                                $this->allocationService->autoAllocateWithInstallments($payment);
+                            } elseif (method_exists($this->allocationService, 'autoAllocate')) {
                                 $this->allocationService->autoAllocate($payment);
                             }
                         } catch (\Exception $e) {
@@ -376,7 +378,11 @@ class PaymentController extends Controller
             // Allocate payment
                 if (isset($validated['auto_allocate']) && $validated['auto_allocate']) {
                     try {
-                $this->allocationService->autoAllocate($payment);
+                if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                    $this->allocationService->autoAllocateWithInstallments($payment);
+                } else {
+                    $this->allocationService->autoAllocate($payment);
+                }
                     } catch (\Exception $e) {
                         Log::warning('Auto-allocation failed: ' . $e->getMessage());
                         // Continue without allocation - payment is still created
@@ -550,8 +556,8 @@ class PaymentController extends Controller
         }
         
         // Get primary contact phone and email from ParentInfo model
-        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
+        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
         
         if (!$parentPhone && !$parentEmail) {
             Log::info('No parent contact info found for payment notification', ['payment_id' => $payment->id]);
@@ -785,12 +791,11 @@ class PaymentController extends Controller
         
         // Send WhatsApp notification
         // Get WhatsApp number with fallback to phone number (prioritize father/mother)
+        // Never send fee-related communications to guardian; guardians are reached via manual number entry only
         $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
             : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
-            : (!empty($parent->guardian_whatsapp) ? $parent->guardian_whatsapp 
             : (!empty($parent->father_phone) ? $parent->father_phone 
-            : (!empty($parent->mother_phone) ? $parent->mother_phone 
-            : (!empty($parent->guardian_phone) ? $parent->guardian_phone : null)))));
+            : (!empty($parent->mother_phone) ? $parent->mother_phone : null)));
         
         if ($whatsappPhone) {
             try {
@@ -904,8 +909,8 @@ class PaymentController extends Controller
         }
         
         // Get parent contact info
-        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
+        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
         
         if (!$parentPhone && !$parentEmail) {
             Log::info('No parent contact info found for swimming payment notification', ['payment_id' => $payment->id]);
@@ -1244,7 +1249,11 @@ class PaymentController extends Controller
                         } else {
                             // Amount increased - allocate additional amount
                             try {
-                                $this->allocationService->autoAllocate($siblingPayment, $siblingPayment->student_id);
+                                if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                                    $this->allocationService->autoAllocateWithInstallments($siblingPayment, $siblingPayment->student_id);
+                                } else {
+                                    $this->allocationService->autoAllocate($siblingPayment, $siblingPayment->student_id);
+                                }
                             } catch (\Exception $e) {
                                 \Log::warning('Auto-allocation failed for increased shared payment', [
                                     'payment_id' => $siblingPayment->id,
@@ -1286,7 +1295,11 @@ class PaymentController extends Controller
                     ]);
                     
                     try {
-                        $this->allocationService->autoAllocate($newPayment, $student->id);
+                        if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                            $this->allocationService->autoAllocateWithInstallments($newPayment, $student->id);
+                        } else {
+                            $this->allocationService->autoAllocate($newPayment, $student->id);
+                        }
                     } catch (\Exception $e) {
                         \Log::warning('Auto-allocation failed for new shared payment', [
                             'payment_id' => $newPayment->id,
@@ -1631,8 +1644,12 @@ class PaymentController extends Controller
                     \App\Services\InvoiceService::recalc($invoice);
                 }
                 
-                // Auto-allocate to target student's invoices
-                $this->allocationService->autoAllocate($newPayment, $targetStudent->id);
+                // Auto-allocate to target student's payment plan installments then invoices
+                if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                    $this->allocationService->autoAllocateWithInstallments($newPayment, $targetStudent->id);
+                } else {
+                    $this->allocationService->autoAllocate($newPayment, $targetStudent->id);
+                }
                 
                 // Get invoices for target student that were affected
                 $targetInvoices = \App\Models\Invoice::where('student_id', $targetStudent->id)->get();
@@ -1762,8 +1779,12 @@ class PaymentController extends Controller
                         }
                         $payment->save();
                         
-                        // Auto-allocate the reduced amount
-                        $this->allocationService->autoAllocate($payment, $student->id);
+                        // Auto-allocate the reduced amount (installments first, then invoice items)
+                        if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                            $this->allocationService->autoAllocateWithInstallments($payment, $student->id);
+                        } else {
+                            $this->allocationService->autoAllocate($payment, $student->id);
+                        }
                         
                         // Update receipt for original payment with new amount
                         try {
@@ -1834,9 +1855,13 @@ class PaymentController extends Controller
                         
                         $newPayments[] = $newPayment;
                         
-                        // Auto-allocate to new student's invoices
+                        // Auto-allocate to new student's payment plan installments then invoices
                         try {
-                            $this->allocationService->autoAllocate($newPayment, $student->id);
+                            if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                                $this->allocationService->autoAllocateWithInstallments($newPayment, $student->id);
+                            } else {
+                                $this->allocationService->autoAllocate($newPayment, $student->id);
+                            }
                         } catch (\Exception $e) {
                             \Log::error('Failed to auto-allocate shared payment', [
                                 'payment_id' => $newPayment->id,
@@ -2005,8 +2030,8 @@ class PaymentController extends Controller
         }
         
         // Get parent contact info
-        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
-        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
+        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
         
         if (!$parentPhone && !$parentEmail) {
             return;
@@ -3062,7 +3087,11 @@ class PaymentController extends Controller
                 ->isNotEmpty();
                 
                 if ($hasUnpaidItems) {
-                    $this->allocationService->autoAllocate($payment);
+                    if (method_exists($this->allocationService, 'autoAllocateWithInstallments')) {
+                        $this->allocationService->autoAllocateWithInstallments($payment);
+                    } else {
+                        $this->allocationService->autoAllocate($payment);
+                    }
                     $allocated++;
                 } else {
                     // No unpaid items - this is an overpayment, skip it
@@ -3448,14 +3477,14 @@ class PaymentController extends Controller
                             
                             // Check if parent has contact for this channel
                             if ($channel === 'sms') {
-                                $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                                $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
                                 $hasContact = !empty($parentPhone);
                             } elseif ($channel === 'email') {
-                                $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+                                $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
                                 $hasContact = !empty($parentEmail);
                             } elseif ($channel === 'whatsapp') {
-                                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                                    ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+                                $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp
+                                    ?? $parent->father_phone ?? $parent->mother_phone ?? null;
                                 $hasContact = !empty($whatsappPhone);
                             }
 
@@ -3597,7 +3626,7 @@ class PaymentController extends Controller
 
         // Send via specific channel
         if ($channel === 'sms') {
-            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             if ($parentPhone) {
                 $smsTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_sms')
                     ->orWhere('code', 'finance_payment_received_sms')
@@ -3624,7 +3653,7 @@ class PaymentController extends Controller
                 $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
             }
         } elseif ($channel === 'email') {
-            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
             if ($parentEmail) {
                 $emailTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_email')
                     ->orWhere('code', 'finance_payment_received_email')
@@ -3651,8 +3680,8 @@ class PaymentController extends Controller
                 $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
             }
         } elseif ($channel === 'whatsapp') {
-            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp
+                ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             
             if ($whatsappPhone) {
                 $whatsappTemplate = \App\Models\CommunicationTemplate::where('code', 'payment_receipt_whatsapp')

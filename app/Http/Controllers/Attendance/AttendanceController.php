@@ -293,10 +293,10 @@ private function notifyWithTemplate(string $code, Student $student, string $huma
         ? $this->applyPlaceholders($tpl->content, $student, $humanDate, $status, $reason)
         : "Your child {$student->full_name} was marked {$status} on {$humanDate}. Reason: {$reason}";
 
+    // Never send attendance notifications to guardian; guardians are reached via manual number entry only
     $phones = array_filter([
         $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
         $student->parent->mother_phone ?? null,
-        $student->parent->guardian_phone ?? null,
     ]);
 
     foreach ($phones as $phone) {
@@ -765,10 +765,10 @@ private function applyPlaceholders(string $content, Student $student, string $hu
                 $message = str_replace('{{student_name}}', $student->full_name, $message);
                 $message = str_replace('{{school_name}}', $schoolName, $message);
                 
+                // Never send attendance notifications to guardian; guardians are reached via manual number entry only
                 $phones = array_filter([
                     $student->parent->primary_contact_phone ?? $student->parent->father_phone ?? null,
                     $student->parent->mother_phone ?? null,
-                    $student->parent->guardian_phone ?? null,
                 ]);
 
                 foreach ($phones as $phone) {

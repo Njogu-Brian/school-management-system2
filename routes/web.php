@@ -1438,6 +1438,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('credit-debit-notes/import/template', [\App\Http\Controllers\Finance\CreditDebitNoteImportController::class, 'template'])->name('credit-debit-notes.import.template');
 
         // Fee Payment Plans
+        Route::get('fee-payment-plans/student-invoices/{student}', [FeePaymentPlanController::class, 'getStudentInvoicesAndSiblings'])->name('fee-payment-plans.student-invoices');
         Route::resource('fee-payment-plans', FeePaymentPlanController::class)->parameters(['fee-payment-plans' => 'feePaymentPlan']);
         Route::post('fee-payment-plans/{feePaymentPlan}/update-status', [FeePaymentPlanController::class, 'updateStatus'])->name('fee-payment-plans.update-status');
 

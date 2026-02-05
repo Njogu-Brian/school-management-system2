@@ -404,7 +404,7 @@ class SwimmingPaymentController extends Controller
 
         // SMS
         if (in_array('sms', $channels)) {
-            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             if ($parentPhone) {
                 try {
                     $smsTemplate = CommunicationTemplate::where('code', 'swimming_balance_sms')->first();
@@ -437,7 +437,7 @@ class SwimmingPaymentController extends Controller
 
         // Email
         if (in_array('email', $channels)) {
-            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? $parent->guardian_email ?? null;
+            $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
             if ($parentEmail) {
                 try {
                     $emailTemplate = CommunicationTemplate::where('code', 'swimming_balance_email')->first();
@@ -470,8 +470,8 @@ class SwimmingPaymentController extends Controller
 
         // WhatsApp
         if (in_array('whatsapp', $channels)) {
-            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp ?? $parent->guardian_whatsapp
-                ?? $parent->father_phone ?? $parent->mother_phone ?? $parent->guardian_phone ?? null;
+            $whatsappPhone = $parent->father_whatsapp ?? $parent->mother_whatsapp
+                ?? $parent->father_phone ?? $parent->mother_phone ?? null;
             
             if ($whatsappPhone) {
                 try {

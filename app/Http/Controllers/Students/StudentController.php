@@ -1722,7 +1722,8 @@ class StudentController extends Controller
         // Send SMS
         if ($smsTemplate) {
             $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-            foreach ([$parent->primary_contact_phone ?? $parent->father_phone, $parent->mother_phone, $parent->guardian_phone] as $phone) {
+            // Never send to guardian when selecting parents/students; guardians are reached via manual number entry only
+            foreach ([$parent->primary_contact_phone ?? $parent->father_phone, $parent->mother_phone] as $phone) {
                 if ($phone) {
                     try {
                         $this->smsService->sendSMS($phone, $smsMessage);
@@ -1738,7 +1739,8 @@ class StudentController extends Controller
             $subject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
             $body = $replacePlaceholders($emailTemplate->content, $variables);
             
-            foreach ([$parent->primary_contact_email ?? $parent->father_email, $parent->mother_email, $parent->guardian_email] as $email) {
+            // Never send to guardian when selecting parents/students; guardians are reached via manual number entry only
+            foreach ([$parent->primary_contact_email ?? $parent->father_email, $parent->mother_email] as $email) {
                 if ($email) {
                     try {
                         Mail::to($email)->send(new GenericMail($subject, $body));

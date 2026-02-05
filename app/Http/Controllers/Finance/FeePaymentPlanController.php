@@ -7,6 +7,7 @@ use App\Models\FeePaymentPlan;
 use App\Models\FeePaymentPlanInstallment;
 use App\Models\Student;
 use App\Models\Invoice;
+use App\Services\PaymentPlanNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -39,7 +40,56 @@ class FeePaymentPlanController extends Controller
         return view('finance.fee_payment_plans.create', compact('students'));
     }
 
-    public function store(Request $request)
+    /**
+     * API: Get invoices and siblings for the given student (for payment plan form).
+     */
+    public function getStudentInvoicesAndSiblings(Student $student)
+    {
+        $invoices = Invoice::where('student_id', $student->id)
+            ->with(['academicYear', 'term'])
+            ->orderBy('due_date', 'desc')
+            ->get()
+            ->map(function ($inv) {
+                $balance = (float) ($inv->balance ?? $inv->total - $inv->paid_amount);
+                return [
+                    'id' => $inv->id,
+                    'invoice_number' => $inv->invoice_number,
+                    'total' => (float) $inv->total,
+                    'balance' => max(0, $balance),
+                    'due_date' => $inv->due_date?->format('Y-m-d'),
+                    'term' => $inv->term?->name,
+                    'academic_year' => $inv->academicYear?->year ?? $inv->year,
+                ];
+            });
+
+        $siblings = [];
+        if ($student->family_id) {
+            $siblings = Student::where('family_id', $student->family_id)
+                ->where('id', '!=', $student->id)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->orderBy('first_name')
+                ->get()
+                ->map(function ($s) {
+                    $totalBalance = Invoice::where('student_id', $s->id)->get()->sum(fn ($i) => max(0, (float) ($i->balance ?? $i->total - $i->paid_amount)));
+                    return [
+                        'id' => $s->id,
+                        'name' => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name),
+                        'admission_number' => $s->admission_number,
+                        'total_outstanding' => round($totalBalance, 2),
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return response()->json([
+            'invoices' => $invoices,
+            'siblings' => $siblings,
+        ]);
+    }
+
+public function store(Request $request)
     {
         $validated = $request->validate([
             'student_id' => 'required|exists:students,id',
@@ -49,55 +99,103 @@ class FeePaymentPlanController extends Controller
             'start_date' => 'required|date',
             'end_date' => 'nullable|date|after:start_date',
             'notes' => 'nullable|string',
+            'apply_to_siblings' => 'nullable|boolean',
         ]);
 
-        // Calculate end date dynamically if not provided (start date + (installment_count - 1) months)
         if (empty($validated['end_date'])) {
             $startDate = Carbon::parse($validated['start_date']);
             $validated['end_date'] = $startDate->copy()->addMonths($validated['installment_count'] - 1)->format('Y-m-d');
         }
 
+        $primaryStudent = Student::findOrFail($validated['student_id']);
+        $siblingStudents = [];
+        if (! empty($validated['apply_to_siblings']) && $primaryStudent->family_id) {
+            $siblingStudents = Student::where('family_id', $primaryStudent->family_id)
+                ->where('id', '!=', $primaryStudent->id)
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->get();
+        }
+
+        $studentsToPlan = collect([$primaryStudent])->merge($siblingStudents);
+        $createdPlans = [];
+
         DB::beginTransaction();
         try {
-            $installmentAmount = $validated['total_amount'] / $validated['installment_count'];
-            $daysBetween = Carbon::parse($validated['start_date'])->diffInDays(Carbon::parse($validated['end_date']));
-            $daysPerInstallment = floor($daysBetween / $validated['installment_count']);
+            foreach ($studentsToPlan as $index => $student) {
+                $totalAmount = $index === 0
+                    ? $validated['total_amount']
+                    : $this->getStudentTotalOutstanding($student);
+                if ($totalAmount <= 0 && $index > 0) {
+                    continue;
+                }
+                $invoiceId = $index === 0 ? ($validated['invoice_id'] ?? null) : $this->getFirstInvoiceIdForStudent($student);
+                $installmentAmount = $totalAmount / $validated['installment_count'];
+                $daysBetween = Carbon::parse($validated['start_date'])->diffInDays(Carbon::parse($validated['end_date']));
+                $daysPerInstallment = $validated['installment_count'] > 1 ? (int) floor($daysBetween / $validated['installment_count']) : 0;
 
-            $plan = FeePaymentPlan::create([
-                'student_id' => $validated['student_id'],
-                'invoice_id' => $validated['invoice_id'] ?? null,
-                'total_amount' => $validated['total_amount'],
-                'installment_count' => $validated['installment_count'],
-                'installment_amount' => $installmentAmount,
-                'start_date' => $validated['start_date'],
-                'end_date' => $validated['end_date'],
-                'status' => 'active',
-                'notes' => $validated['notes'],
-                'created_by' => auth()->id(),
-            ]);
-
-            // Create installments
-            $currentDate = Carbon::parse($validated['start_date']);
-            for ($i = 1; $i <= $validated['installment_count']; $i++) {
-                FeePaymentPlanInstallment::create([
-                    'payment_plan_id' => $plan->id,
-                    'installment_number' => $i,
-                    'amount' => $i === $validated['installment_count'] 
-                        ? $validated['total_amount'] - ($installmentAmount * ($validated['installment_count'] - 1))
-                        : $installmentAmount,
-                    'due_date' => $currentDate->copy(),
-                    'status' => 'pending',
+                $plan = FeePaymentPlan::create([
+                    'student_id' => $student->id,
+                    'invoice_id' => $invoiceId,
+                    'total_amount' => $totalAmount,
+                    'installment_count' => $validated['installment_count'],
+                    'installment_amount' => $installmentAmount,
+                    'start_date' => $validated['start_date'],
+                    'end_date' => $validated['end_date'],
+                    'status' => 'active',
+                    'notes' => $validated['notes'] . ($index > 0 ? ' (Same schedule – family)' : ''),
+                    'created_by' => auth()->id(),
                 ]);
-                $currentDate->addDays($daysPerInstallment);
+
+                $currentDate = Carbon::parse($validated['start_date']);
+                for ($i = 1; $i <= $validated['installment_count']; $i++) {
+                    $instAmount = $i === $validated['installment_count']
+                        ? $totalAmount - ($installmentAmount * ($validated['installment_count'] - 1))
+                        : $installmentAmount;
+                    FeePaymentPlanInstallment::create([
+                        'payment_plan_id' => $plan->id,
+                        'installment_number' => $i,
+                        'amount' => $instAmount,
+                        'due_date' => $currentDate->copy(),
+                        'status' => 'pending',
+                    ]);
+                    $currentDate->addDays($daysPerInstallment);
+                }
+                $createdPlans[] = $plan;
             }
 
             DB::commit();
-            return redirect()->route('finance.fee-payment-plans.show', $plan)
-                ->with('success', 'Payment plan created successfully.');
+
+            $notificationService = app(PaymentPlanNotificationService::class);
+            foreach ($createdPlans as $plan) {
+                try {
+                    $notificationService->notifyParentOnPlanCreated($plan);
+                } catch (\Throwable $e) {
+                    \Log::warning('Payment plan notification failed', ['plan_id' => $plan->id, 'error' => $e->getMessage()]);
+                }
+            }
+
+            $firstPlan = $createdPlans[0];
+            $msg = count($createdPlans) > 1
+                ? count($createdPlans) . ' payment plans created (one per sibling). Parents notified via SMS, WhatsApp and Email where available.'
+                : 'Payment plan created successfully. Parent has been notified via SMS, WhatsApp and Email where available.';
+            return redirect()->route('finance.fee-payment-plans.show', $firstPlan)
+                ->with('success', $msg);
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error creating payment plan: ' . $e->getMessage());
         }
+    }
+
+    protected function getStudentTotalOutstanding(Student $student): float
+    {
+        return (float) Invoice::where('student_id', $student->id)->get()->sum(fn ($i) => max(0, (float) ($i->balance ?? $i->total - $i->paid_amount)));
+    }
+
+    protected function getFirstInvoiceIdForStudent(Student $student): ?int
+    {
+        $inv = Invoice::where('student_id', $student->id)->orderBy('due_date', 'desc')->first();
+        return $inv ? (int) $inv->id : null;
     }
 
     public function show(FeePaymentPlan $feePaymentPlan)

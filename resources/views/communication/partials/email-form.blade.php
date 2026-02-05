@@ -107,7 +107,7 @@
     <div class="col-12 email-target-field email-target-custom d-none">
         <label class="form-label fw-semibold">Custom Emails</label>
         <textarea name="custom_emails" class="form-control" rows="3" placeholder="email1@example.com, email2@example.com">{{ old('custom_emails') }}</textarea>
-        <small class="text-muted d-block mt-1">Comma-separated list.</small>
+        <small class="text-muted d-block mt-1">Comma-separated list. Use this to send to guardians by entering their emails manually.</small>
     </div>
 
     @include('communication.partials.fee-balance-exclude-filters')
