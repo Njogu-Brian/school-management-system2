@@ -488,14 +488,18 @@ $(document).ready(function() {
     let currentFeeBalance = 0;
     let currentStudentData = null;
 
-    // Watch for student selection from live search (vanilla + jQuery)
-    // Prefer hidden input value (set by live search) so selection always triggers load
+    // Direct callback from student-live-search.js – ensures load runs when user clicks a result
+    window.__onStudentLiveSearchSelect = function(stu) {
+        if (stu && (stu.id != null && stu.id !== '')) {
+            loadStudentData(String(stu.id));
+        }
+    };
+
+    // Also listen for events (for other flows / compatibility)
     function onStudentSelected(e, studentFromJq) {
         var student = studentFromJq != null ? studentFromJq : (e && e.detail) ? e.detail : null;
         var id = ($('#student_id').val() || (student && student.id) || '').toString().trim();
-        if (id) {
-            loadStudentData(id);
-        }
+        if (id) loadStudentData(id);
     }
     window.addEventListener('student-selected', function(e) {
         onStudentSelected(e, null);

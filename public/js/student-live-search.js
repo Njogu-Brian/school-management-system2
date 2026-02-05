@@ -67,6 +67,14 @@
                     input.value = displayValue;
                     if (enableBtn) enableBtn.disabled = false;
                     results.classList.add('d-none');
+                    // Direct callback so pages (prompt-payment, create-link) can load student data reliably
+                    if (typeof window.__onStudentLiveSearchSelect === 'function') {
+                        try {
+                            window.__onStudentLiveSearchSelect(stu);
+                        } catch (err) {
+                            console.warn('student-live-search callback error:', err);
+                        }
+                    }
                     window.dispatchEvent(new CustomEvent('student-selected', { detail: stu }));
                     if (window.jQuery) {
                         window.jQuery(document).trigger('studentSelected', stu);
