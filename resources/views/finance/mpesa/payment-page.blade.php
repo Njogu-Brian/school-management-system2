@@ -1,10 +1,14 @@
+@php
+    $brandPrimary = setting('finance_primary_color', '#3a1a59');
+    $brandSecondary = setting('finance_secondary_color', '#14b8a6');
+    $brandMpesaGreen = setting('finance_mpesa_green', '#007e33');
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    @include('layouts.partials.branding-vars')
     <meta name="theme-color" content="{{ $brandMpesaGreen }}">
     <title>Pay School Fees - M-PESA</title>
     @include('layouts.partials.favicon')
