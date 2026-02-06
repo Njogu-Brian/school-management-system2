@@ -3,10 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    @php($displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number)
+    @php
+        $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
+        $brandPrimary = setting('finance_primary_color', '#3a1a59');
+        $brandSecondary = setting('finance_secondary_color', '#14b8a6');
+    @endphp
     <title>Receipt - {{ $displayReceiptNumber }}</title>
     @include('layouts.partials.favicon')
-    @include('layouts.partials.branding-vars')
     <style>:root { --brand-primary: {{ $brandPrimary }}; --brand-accent: {{ $brandSecondary }}; }</style>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
