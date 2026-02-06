@@ -78,6 +78,7 @@ class SeniorTeacherController extends Controller
         $activeStudents = (clone $students)->where('status', 'Active')->count();
         
         // Supervised classrooms (from assigned campus)
+        $supervisedClassroomIds = $user->getSupervisedClassroomIds();
         $supervisedClassrooms = Classroom::whereIn('id', $supervisedClassroomIds)
             ->withCount('students')
             ->get();
