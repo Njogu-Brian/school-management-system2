@@ -10,9 +10,14 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         :root {
-            --pay-green: #007e33;
+            /* Branding from settings */
+            --brand-primary: {{ \App\Models\Setting::get('finance_primary_color', '#3a1a59') }};
+            --brand-secondary: {{ \App\Models\Setting::get('finance_secondary_color', '#14b8a6') }};
+            /* M-PESA green for Pay button and balance only */
+            --mpesa-green: #007e33;
+            --pay-green: var(--mpesa-green);
             --pay-green-light: #00c851;
-            --pay-bg: linear-gradient(160deg, #0d5c2e 0%, #007e33 40%, #00a844 100%);
+            --pay-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 50%, color-mix(in srgb, var(--brand-primary) 80%, var(--brand-secondary)) 100%);
             --card-radius: 1rem;
             --tap-min: 44px;
         }
@@ -57,7 +62,7 @@
             margin-bottom: 1.25rem;
         }
         .balance-box .label { font-size: 0.8rem; color: #555; font-weight: 600; }
-        .balance-box .value { font-size: 1.5rem; font-weight: 700; color: var(--pay-green); }
+        .balance-box .value { font-size: 1.5rem; font-weight: 700; color: var(--mpesa-green); }
         .child-row {
             display: flex;
             align-items: center;
@@ -69,7 +74,7 @@
         .child-row:last-child { border-bottom: none; }
         .child-name { font-weight: 600; color: #333; }
         .child-meta { font-size: 0.8rem; color: #666; }
-        .child-balance { font-weight: 700; color: var(--pay-green); font-size: 0.95rem; }
+        .child-balance { font-weight: 700; color: var(--mpesa-green); font-size: 0.95rem; }
         .form-label { font-weight: 600; color: #333; margin-bottom: 0.35rem; }
         .form-control, .input-group-text {
             min-height: var(--tap-min);
@@ -82,12 +87,12 @@
             font-weight: 700;
             border: none;
             border-radius: 0.75rem;
-            background: var(--pay-bg);
+            background: var(--mpesa-green);
             color: #fff;
             margin-top: 1.25rem;
             box-shadow: 0 4px 14px rgba(0,126,51,0.35);
         }
-        .btn-pay:hover, .btn-pay:focus { color: #fff; opacity: 0.95; transform: translateY(-1px); }
+        .btn-pay:hover, .btn-pay:focus { color: #fff; background: #006629; opacity: 0.95; transform: translateY(-1px); }
         .btn-pay:disabled { opacity: 0.7; transform: none; }
         .btn-quick {
             min-height: 36px;
@@ -335,8 +340,12 @@
             $.ajax({ url: payUrl, method: 'POST', data: payload })
                 .done(function(res) {
                     if (res.success) {
-                        showStatus('success', '<strong>Request sent.</strong> Enter your M-PESA PIN on your phone to complete the payment.');
-                        setTimeout(function() { location.reload(); }, 5000);
+                        if (res.transaction_id) {
+                            window.location.href = '{{ url("/pay/waiting") }}/' + res.transaction_id;
+                        } else {
+                            showStatus('success', '<strong>Request sent.</strong> Enter your M-PESA PIN on your phone to complete the payment.');
+                            setTimeout(function() { location.reload(); }, 5000);
+                        }
                     } else {
                         btn.prop('disabled', false).html('<i class="bi bi-lock-fill me-2"></i>PAY WITH M-PESA');
                         showStatus('error', res.message || 'Request failed.');

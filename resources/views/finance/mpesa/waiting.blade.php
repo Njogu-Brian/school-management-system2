@@ -2,6 +2,10 @@
 
 @section('content')
 <style>
+    :root {
+        --brand-primary: {{ \App\Models\Setting::get('finance_primary_color', '#3a1a59') }};
+        --mpesa-green: #007e33;
+    }
     /* Prevent navigation during payment */
     body.payment-in-progress {
         position: relative;
@@ -45,7 +49,7 @@
         width: 80px;
         height: 80px;
         border: 6px solid #f3f3f3;
-        border-top: 6px solid #0f766e;
+        border-top: 6px solid var(--mpesa-green, #007e33);
         border-radius: 50%;
         animation: spin 1s linear infinite;
         margin: 0 auto;
@@ -56,7 +60,7 @@
     }
     .phone-icon {
         font-size: 64px;
-        color: #0f766e;
+        color: var(--brand-primary, #007e33);
         animation: pulse 2s ease-in-out infinite;
     }
     @keyframes pulse {
@@ -66,7 +70,7 @@
     .countdown {
         font-size: 32px;
         font-weight: bold;
-        color: #0f766e;
+        color: var(--mpesa-green, #007e33);
         margin: 20px 0;
     }
     .status-text {
@@ -120,7 +124,7 @@
         100% { transform: scale(1); }
     }
     .btn-action {
-        background: #0f766e;
+        background: var(--mpesa-green, #007e33);
         color: white;
         border: none;
         padding: 12px 32px;
@@ -131,7 +135,7 @@
         transition: background 0.3s;
     }
     .btn-action:hover {
-        background: #0b5c54;
+        background: #006629;
     }
 </style>
 
@@ -155,7 +159,7 @@
             <div class="transaction-details">
                 <div class="detail-row">
                     <span><strong>Student:</strong></span>
-                    <span>{{ $transaction->student->full_name }}</span>
+                    <span>{{ $transaction->student?->full_name ?? '—' }}</span>
                 </div>
                 <div class="detail-row">
                     <span><strong>Amount:</strong></span>
@@ -245,9 +249,11 @@
             <h3 class="mt-3 text-warning">Transaction Cancelled</h3>
             <p class="status-text">The payment has been cancelled</p>
             
+            @if($transaction->student_id)
             <button class="btn-action" onclick="window.location.href='{{ route('finance.mpesa.prompt-payment.form', ['student_id' => $transaction->student_id]) }}'">
                 <i class="bi bi-arrow-clockwise"></i> Start New Payment
             </button>
+            @endif
             <button class="btn-action" onclick="window.location.href='{{ route('finance.mpesa.dashboard') }}'">
                 <i class="bi bi-house"></i> Back to Dashboard
             </button>
@@ -329,7 +335,8 @@ function startPolling() {
 }
 
 function checkTransactionStatus() {
-    return fetch('{{ route("finance.api.transaction.status", ":id") }}'.replace(':id', transactionId), {
+    var statusUrl = @json($statusCheckUrl ?? route('finance.api.transaction.status', $transaction));
+    return fetch(statusUrl, {
         method: 'GET',
         headers: {
             'Accept': 'application/json',
@@ -445,8 +452,14 @@ function showSuccess(data) {
         if (mpesaCodeEl) mpesaCodeEl.textContent = data.mpesa_code;
     }
     
-    // Open receipt window automatically (same as other payments)
-    if (receiptId) {
+    // Redirect to public receipt page automatically (payment link flow) or open receipt in new tab (admin flow)
+    if (data.receipt_public_token) {
+        // Public payment link: redirect to receipt after 2 seconds
+        setTimeout(function() {
+            window.location.href = '{{ url("/receipt") }}/' + data.receipt_public_token;
+        }, 2000);
+    } else if (receiptId) {
+        // Admin prompt flow: open receipt in new window
         setTimeout(function() {
             const receiptUrl = '{{ route("finance.payments.receipt.view", ["payment" => "__ID__"]) }}'.replace('__ID__', receiptId);
             const printWindow = window.open(
@@ -454,16 +467,9 @@ function showSuccess(data) {
                 'ReceiptWindow',
                 'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no'
             );
-            
-            if (!printWindow || printWindow.closed || typeof printWindow.closed == 'undefined') {
-                console.warn('Popup blocked. Click "View Receipt" to open the receipt.');
-            } else {
-                printWindow.focus();
-            }
+            if (printWindow && !printWindow.closed) printWindow.focus();
         }, 600);
     }
-    
-    // Do not auto-redirect so user can view receipt and success message
 }
 
 function showFailed(data) {

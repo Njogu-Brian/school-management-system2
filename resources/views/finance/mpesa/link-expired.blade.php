@@ -9,8 +9,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         :root {
-            --pay-green: #007e33;
-            --pay-bg: linear-gradient(160deg, #0d5c2e 0%, #007e33 40%, #00a844 100%);
+            --brand-primary: {{ \App\Models\Setting::get('finance_primary_color', '#3a1a59') }};
+            --brand-secondary: {{ \App\Models\Setting::get('finance_secondary_color', '#14b8a6') }};
+            --pay-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
             --card-radius: 1rem;
         }
         * { box-sizing: border-box; }

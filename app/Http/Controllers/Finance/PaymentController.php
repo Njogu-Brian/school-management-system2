@@ -2558,6 +2558,12 @@ class PaymentController extends Controller
             $totalInvoices += $invoice->total ?? 0;
         }
         
+        // Ensure payment has public_token for Pay Now link
+        if (!$payment->public_token) {
+            $payment->public_token = Payment::generatePublicToken();
+            $payment->save();
+        }
+
         // Get school settings and branding (including logo)
         $schoolSettings = $this->getSchoolSettings();
         $branding = $this->branding();
@@ -2745,6 +2751,41 @@ class PaymentController extends Controller
             'total_outstanding_balance' => $totalOutstandingBalance,
             'total_invoices' => $totalInvoices
         ]);
+    }
+
+    /**
+     * Create a quick payment link from receipt (Pay Now) and redirect to payment page.
+     * Public route: used from receipt view when fee balance exists.
+     */
+    public function createPayNowFromReceiptToken(string $token)
+    {
+        $payment = Payment::where('public_token', $token)->whereRaw('LENGTH(public_token) = 10')->firstOrFail();
+        $payment->load('student');
+        $student = $payment->student;
+        if (!$student) {
+            return redirect()->to('/receipt/' . $token)->with('error', 'Student not found.');
+        }
+        $feeBalance = (float) Invoice::where('student_id', $student->id)
+            ->get()
+            ->sum(fn ($inv) => (float) ($inv->balance ?? 0));
+        if ($feeBalance < 1) {
+            return redirect()->to('/receipt/' . $token)->with('info', 'No fee balance to pay.');
+        }
+        $link = \App\Models\PaymentLink::create([
+            'student_id' => $student->id,
+            'invoice_id' => null,
+            'family_id' => $student->family_id,
+            'amount' => $feeBalance,
+            'currency' => 'KES',
+            'description' => 'Pay remaining fee balance - ' . $student->full_name,
+            'account_reference' => $student->admission_number ?? ('STU-' . $student->id),
+            'status' => 'active',
+            'expires_at' => now()->addDays(7),
+            'max_uses' => 999,
+            'created_by' => $payment->created_by ?? null,
+            'metadata' => ['source' => 'receipt_pay_now'],
+        ]);
+        return redirect()->route('payment.link.show', $link->hashed_id);
     }
     
     /**

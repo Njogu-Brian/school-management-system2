@@ -119,7 +119,13 @@
             @php
                 $family = $payment->student->family ?? null;
                 $updateLink = $family->updateLink ?? null;
+                $hasBalance = ($totalOutstandingBalance ?? 0) > 0;
             @endphp
+            @if($hasBalance)
+                <a href="{{ route('receipts.pay-now', $payment->public_token) }}" class="btn btn-success btn-sm">
+                    <i class="bi bi-phone me-1"></i> Pay Now (KES {{ number_format($totalOutstandingBalance ?? 0, 2) }})
+                </a>
+            @endif
             @if($family && $updateLink && $updateLink->is_active)
                 <a href="{{ route('family-update.form', $updateLink->token) }}" 
                    target="_blank" 
@@ -134,7 +140,7 @@
                     <i class="bi bi-person-gear me-1"></i> Update Profile
                 </a>
             @endif
-            <button onclick="window.print()" class="btn btn-success btn-sm">
+            <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Print</span>
             </button>
         </div>

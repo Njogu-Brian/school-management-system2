@@ -718,13 +718,25 @@ class MpesaPaymentController extends Controller
     }
 
     /**
-     * Show waiting screen for STK Push
+     * Show waiting screen for STK Push (auth: admin prompt flow)
      */
     public function waiting(PaymentTransaction $transaction)
     {
         $transaction->load(['student', 'invoice', 'student.family']);
+        $statusCheckUrl = route('finance.api.transaction.status', $transaction);
 
-        return view('finance.mpesa.waiting', compact('transaction'));
+        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl'));
+    }
+
+    /**
+     * Public waiting screen for payment link flow (no auth)
+     */
+    public function showPublicWaiting(PaymentTransaction $transaction)
+    {
+        $transaction->load(['student', 'invoice']);
+        $statusCheckUrl = route('payment.link.transaction.status', $transaction);
+
+        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl'));
     }
 
     /**
@@ -764,13 +776,14 @@ class MpesaPaymentController extends Controller
                 'message' => $transaction->failure_reason ?? 'Transaction ' . $transaction->status,
             ];
 
-            // If completed, include receipt info
+            // If completed, include receipt info (and public token for redirect to receipt)
             if ($transaction->status === 'completed' && $transaction->payment_id) {
                 $payment = Payment::find($transaction->payment_id);
                 if ($payment) {
                     $response['receipt_number'] = $payment->receipt_number;
                     $response['receipt_id'] = $payment->id;
                     $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
+                    $response['receipt_public_token'] = $payment->public_token ?? null;
                 }
             }
 
@@ -841,6 +854,7 @@ class MpesaPaymentController extends Controller
                             'receipt_number' => $payment->receipt_number ?? null,
                             'receipt_id' => $payment->id ?? null,
                             'mpesa_code' => $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id,
+                            'receipt_public_token' => $payment->public_token ?? null,
                         ]);
                     } 
                     
@@ -901,6 +915,7 @@ class MpesaPaymentController extends Controller
                         $response['receipt_number'] = $payment->receipt_number;
                         $response['receipt_id'] = $payment->id;
                         $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
+                        $response['receipt_public_token'] = $payment->public_token ?? null;
                     }
                 }
                 
@@ -932,6 +947,7 @@ class MpesaPaymentController extends Controller
                         $response['receipt_number'] = $payment->receipt_number;
                         $response['receipt_id'] = $payment->id;
                         $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
+                        $response['receipt_public_token'] = $payment->public_token ?? null;
                     }
                 }
                 

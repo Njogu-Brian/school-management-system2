@@ -166,6 +166,9 @@ Route::get('/students/search', [StudentController::class, 'search'])->name('stud
 Route::get('receipt/{token}', [\App\Http\Controllers\Finance\PaymentController::class, 'publicViewReceipt'])
     ->where('token', '[A-Za-z0-9]{10}') // Only 10-char tokens, not numeric IDs
     ->name('receipts.public');
+Route::get('receipt/{token}/pay-now', [\App\Http\Controllers\Finance\PaymentController::class, 'createPayNowFromReceiptToken'])
+    ->where('token', '[A-Za-z0-9]{10}')
+    ->name('receipts.pay-now');
 Route::get('invoice/{hash}', [\App\Http\Controllers\Finance\InvoiceController::class, 'publicView'])
     ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
     ->name('invoices.public');
@@ -192,6 +195,8 @@ Route::post('/webhooks/payment/paypal', [\App\Http\Controllers\PaymentWebhookCon
 // Public Payment Pages (no auth required)
 Route::get('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPaymentPage'])->name('payment.link.show');
 Route::post('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processLinkPayment'])->name('payment.link.process');
+Route::get('/pay/waiting/{transaction}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPublicWaiting'])->name('payment.link.waiting');
+Route::get('/pay/transaction/{transaction}/status', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getTransactionStatus'])->name('payment.link.transaction.status');
 Route::get('/invoice/{invoice:hashed_id}/pay', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showInvoicePayment'])->name('invoice.pay');
 Route::post('/invoice/{invoice}/pay/mpesa', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processInvoicePayment'])->name('invoice.pay.mpesa');
 

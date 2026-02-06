@@ -74,6 +74,15 @@
                     <i class="bi bi-receipt"></i> Receipt: {{ $displayReceiptNumber }}
                 </h3>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
+                    @php
+                        $outstanding = $totalOutstandingBalance ?? 0;
+                        $hasFeeBalance = $outstanding > 0 && $payment->student;
+                    @endphp
+                    @if($hasFeeBalance)
+                        <a href="{{ route('receipts.pay-now', $payment->public_token) }}" class="btn btn-success">
+                            <i class="bi bi-phone me-1"></i> Pay Now (KES {{ number_format($outstanding, 2) }})
+                        </a>
+                    @endif
                     @if(optional(optional($payment->student)->family)->updateLink?->is_active)
                         <a href="{{ route('family-update.form', optional(optional($payment->student)->family)->updateLink?->token) }}" 
                            target="_blank" 
