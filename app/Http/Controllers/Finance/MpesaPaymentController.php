@@ -736,8 +736,9 @@ class MpesaPaymentController extends Controller
     {
         $transaction->load(['student', 'invoice']);
         $statusCheckUrl = route('payment.link.transaction.status', $transaction);
+        $cancelUrl = url('/pay/transaction/' . $transaction->id . '/cancel');
 
-        return view('finance.mpesa.waiting-standalone', compact('transaction', 'statusCheckUrl'));
+        return view('finance.mpesa.waiting-standalone', compact('transaction', 'statusCheckUrl', 'cancelUrl'));
     }
 
     /**

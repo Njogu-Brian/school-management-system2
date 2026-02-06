@@ -114,7 +114,7 @@
     <script>
     var transactionId = {{ $transaction->id }};
     var statusCheckUrl = @json($statusCheckUrl);
-    var cancelUrl = @json(route('payment.link.transaction.cancel', $transaction));
+    var cancelUrl = @json($cancelUrl ?? url('/pay/transaction/' . $transaction->id . '/cancel'));
     var receiptBaseUrl = @json(url('/receipt'));
     var pollInterval, countdownInterval, timeRemaining = 120, receiptId = null;
 
