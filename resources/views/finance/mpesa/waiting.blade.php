@@ -459,10 +459,10 @@ function showSuccess(data) {
     
     // Redirect to public receipt page automatically (payment link flow) or open receipt in new tab (admin flow)
     if (data.receipt_public_token) {
-        // Public payment link: redirect to receipt after 2 seconds
+        // Public payment link: redirect to receipt automatically after brief delay
         setTimeout(function() {
             window.location.href = '{{ url("/receipt") }}/' + data.receipt_public_token;
-        }, 2000);
+        }, 800);
     } else if (receiptId) {
         // Admin prompt flow: open receipt in new window
         setTimeout(function() {

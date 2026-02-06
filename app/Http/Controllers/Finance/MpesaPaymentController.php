@@ -782,10 +782,14 @@ class MpesaPaymentController extends Controller
             if ($transaction->status === 'completed' && $transaction->payment_id) {
                 $payment = Payment::find($transaction->payment_id);
                 if ($payment) {
+                    if (!$payment->public_token) {
+                        $payment->public_token = Payment::generatePublicToken();
+                        $payment->save();
+                    }
                     $response['receipt_number'] = $payment->receipt_number;
                     $response['receipt_id'] = $payment->id;
                     $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
-                    $response['receipt_public_token'] = $payment->public_token ?? null;
+                    $response['receipt_public_token'] = $payment->public_token;
                 }
             }
 
@@ -850,6 +854,10 @@ class MpesaPaymentController extends Controller
                         }
                         
                         $payment = Payment::find($transaction->payment_id);
+                        if ($payment && !$payment->public_token) {
+                            $payment->public_token = Payment::generatePublicToken();
+                            $payment->save();
+                        }
                         return response()->json([
                             'status' => 'completed',
                             'message' => 'Payment completed successfully',
@@ -914,10 +922,14 @@ class MpesaPaymentController extends Controller
                 if ($transaction->status === 'completed' && $transaction->payment_id) {
                     $payment = Payment::find($transaction->payment_id);
                     if ($payment) {
+                        if (!$payment->public_token) {
+                            $payment->public_token = Payment::generatePublicToken();
+                            $payment->save();
+                        }
                         $response['receipt_number'] = $payment->receipt_number;
                         $response['receipt_id'] = $payment->id;
                         $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
-                        $response['receipt_public_token'] = $payment->public_token ?? null;
+                        $response['receipt_public_token'] = $payment->public_token;
                     }
                 }
                 
@@ -946,10 +958,14 @@ class MpesaPaymentController extends Controller
                 if ($transaction->status === 'completed' && $transaction->payment_id) {
                     $payment = Payment::find($transaction->payment_id);
                     if ($payment) {
+                        if (!$payment->public_token) {
+                            $payment->public_token = Payment::generatePublicToken();
+                            $payment->save();
+                        }
                         $response['receipt_number'] = $payment->receipt_number;
                         $response['receipt_id'] = $payment->id;
                         $response['mpesa_code'] = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id;
-                        $response['receipt_public_token'] = $payment->public_token ?? null;
+                        $response['receipt_public_token'] = $payment->public_token;
                     }
                 }
                 

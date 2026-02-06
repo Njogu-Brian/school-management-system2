@@ -549,7 +549,7 @@ class PaymentController extends Controller
         $student = $payment->student;
         $profileUpdateLink = $this->getProfileUpdateLinkForStudent($student);
         
-        // Get parent contact info
+        // Get parent (family) contact info - payment received goes to both parents only, never guardian
         $parent = $student->parent;
         
         if (!$parent) {
@@ -557,12 +557,22 @@ class PaymentController extends Controller
             return;
         }
         
-        // Get primary contact phone and email from ParentInfo model
-        $parentPhone = $parent->primary_contact_phone ?? $parent->father_phone ?? $parent->mother_phone ?? null;
-        $parentEmail = $parent->primary_contact_email ?? $parent->father_email ?? $parent->mother_email ?? null;
+        // Collect parent contacts from father and mother only (never guardian)
+        $parentPhones = array_values(array_unique(array_filter([
+            $parent->father_phone ?? null,
+            $parent->mother_phone ?? null,
+        ])));
+        $parentEmails = array_values(array_unique(array_filter([
+            $parent->father_email ?? null,
+            $parent->mother_email ?? null,
+        ])));
+        $parentWhatsappNumbers = array_values(array_unique(array_filter([
+            $parent->father_whatsapp ?? $parent->father_phone ?? null,
+            $parent->mother_whatsapp ?? $parent->mother_phone ?? null,
+        ])));
         
-        if (!$parentPhone && !$parentEmail) {
-            Log::info('No parent contact info found for payment notification', ['payment_id' => $payment->id]);
+        if (empty($parentPhones) && empty($parentEmails)) {
+            Log::info('No parent contact info found for payment notification (father/mother only)', ['payment_id' => $payment->id]);
             return;
         }
         
@@ -623,8 +633,8 @@ class PaymentController extends Controller
             $receiptLink = 'Contact school for receipt details';
         }
         
-        // Get parent name - return null if not found (not 'Parent')
-        $parentName = $parent->primary_contact_name ?? $parent->father_name ?? $parent->mother_name ?? $parent->guardian_name ?? null;
+        // Get parent name for greeting - father or mother only (never guardian)
+        $parentName = $parent->father_name ?? $parent->mother_name ?? null;
         
         // Create greeting: "Dear Parent" when name is unknown, "Dear [Name]" when name is known
         $greeting = $parentName ? "Dear {$parentName}" : "Dear Parent";
