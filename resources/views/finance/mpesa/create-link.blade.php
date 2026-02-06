@@ -50,7 +50,12 @@
                                 <div class="finance-form-error">{{ $message }}</div>
                             @enderror
                         </div>
-                    <div id="studentDataAlertLink" class="alert alert-warning border-0 d-none" role="alert"></div>
+                    <div id="studentDataAlertLink" class="alert alert-warning border-0 d-none mb-4" role="alert">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-exclamation-triangle fs-4 me-3"></i>
+                            <span class="alert-message"></span>
+                        </div>
+                    </div>
 
                         <!-- Step 2: Select Parent(s) – always visible -->
                         <div class="mb-4" id="parentSelectionSection">
@@ -58,7 +63,7 @@
                                 <span class="badge bg-primary me-2">2</span>
                                 Select Parent(s) to Send Link To <span class="text-danger">*</span>
                             </label>
-                            <div id="parentsList" class="border rounded p-3">
+                            <div id="parentsList" class="border rounded p-3 bg-light">
                                 <div class="text-center text-muted py-2">
                                     Select a student above to load parent contacts
                                 </div>
@@ -126,7 +131,7 @@
                                 <span class="badge bg-primary me-2">5</span>
                                 Select Invoices to Pay
                             </label>
-                            <div id="invoicesList" class="border rounded p-3 bg-light">
+                            <div id="invoicesList" class="border rounded p-3 bg-light" style="min-height: 80px;">
                                 <div class="text-center text-muted py-3">
                                     Select a student to load invoices
                                 </div>
@@ -267,18 +272,24 @@ $(document).ready(function() {
         $('#studentInfoCard').show();
         $('#invoicesList').html('<div class="text-center text-muted py-3"><i class="bi bi-hourglass-split"></i> Loading invoices...</div>');
         $('#parentsList').html('<div class="text-center text-muted py-2">Loading parent information...</div>');
-        $('#studentDataAlertLink').addClass('d-none').text('');
+        $('#studentDataAlertLink').addClass('d-none').find('.alert-message').text('');
 
         $.get('/api/students/' + studentId)
             .done(function(student) {
                 console.log('Student data loaded:', student);
                 studentData = student;
                 
-                // Update student info card
+                // Update student info card (safe: classroom may be object or string in some APIs)
+                let classDisplay = 'N/A';
+                if (student.classroom && typeof student.classroom === 'object' && student.classroom.name) {
+                    classDisplay = student.classroom.name;
+                } else if (student.classroom_name) {
+                    classDisplay = student.classroom_name;
+                }
                 let infoHtml = `
-                    <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.full_name}</span></div>
-                    <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number}</span></div>
-                    <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${student.classroom?.name || 'N/A'}</span></div>
+                    <div class="mb-2"><strong>Name:</strong> <span class="text-muted">${student.full_name || ''}</span></div>
+                    <div class="mb-2"><strong>Admission No:</strong> <span class="text-muted">${student.admission_number || ''}</span></div>
+                    <div class="mb-2"><strong>Class:</strong> <span class="text-muted">${classDisplay}</span></div>
                 `;
                 if (student.family) {
                     if (student.family.phone) {
@@ -301,21 +312,20 @@ $(document).ready(function() {
                 if (!student.family) {
                     $('#studentDataAlertLink')
                         .removeClass('d-none')
-                        .text('Parent contacts missing: no Family/ParentInfo data returned for this student.');
+                        .find('.alert-message').text('Parent contacts missing: no Family/ParentInfo data returned for this student.');
                 }
             })
             .fail(function(xhr, status, error) {
                 console.error('Failed to load student data:', xhr, status, error);
                 let errorMsg = 'Failed to load student data. Please try again.';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMsg = xhr.responseJSON.message;
-                } else if (xhr.status === 404) {
+                if (xhr.status === 404) {
                     errorMsg = 'Student not found. Please search again.';
                 } else if (xhr.status === 403) {
                     errorMsg = 'You do not have permission to access this student.';
+                } else if (xhr.responseJSON && xhr.responseJSON.message && typeof xhr.responseJSON.message === 'string' && xhr.responseJSON.message.length < 200 && !xhr.responseJSON.message.includes('property')) {
+                    errorMsg = xhr.responseJSON.message;
                 }
-                alert(errorMsg);
-                $('#studentDataAlertLink').removeClass('d-none').text(errorMsg);
+                $('#studentDataAlertLink').removeClass('d-none').find('.alert-message').text(errorMsg);
                 $('#studentInfoBody').html('<div class="text-danger">' + errorMsg + '</div>');
             });
     }
@@ -370,7 +380,7 @@ $(document).ready(function() {
                     updateSubmitButton();
                     $('#studentDataAlertLink')
                         .removeClass('d-none')
-                        .text('No invoices returned for this student. Check invoice status or API response.');
+                        .find('.alert-message').text('No invoices returned for this student. Check invoice status or API response.');
                     return;
                 }
 
@@ -414,12 +424,12 @@ $(document).ready(function() {
             .fail(function(xhr, status, error) {
                 console.error('Failed to load invoices:', xhr, status, error);
                 let errorMsg = 'Failed to load invoices. Please try again.';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMsg = xhr.responseJSON.message;
-                } else if (xhr.status === 404) {
+                if (xhr.status === 404) {
                     errorMsg = 'Student not found.';
                 } else if (xhr.status === 403) {
                     errorMsg = 'You do not have permission to access invoices.';
+                } else if (xhr.responseJSON && xhr.responseJSON.message && typeof xhr.responseJSON.message === 'string' && xhr.responseJSON.message.length < 200 && !xhr.responseJSON.message.includes('property')) {
+                    errorMsg = xhr.responseJSON.message;
                 }
                 $('#invoicesList').html(`
                     <div class="text-center text-danger py-3">
@@ -429,7 +439,7 @@ $(document).ready(function() {
                 `);
                 $('#invoiceSelectionSection').show();
                 updateSubmitButton();
-                $('#studentDataAlertLink').removeClass('d-none').text(errorMsg);
+                $('#studentDataAlertLink').removeClass('d-none').find('.alert-message').text(errorMsg);
             });
     }
 

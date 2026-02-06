@@ -1179,7 +1179,7 @@ class MpesaPaymentController extends Controller
         }
 
         if (!empty($allocations)) {
-            $this->allocationService->allocate($payment, $allocations);
+            $this->allocationService->allocatePayment($payment, $allocations);
         } else {
             $payment->update([
                 'allocated_amount' => 0,
@@ -1563,17 +1563,26 @@ class MpesaPaymentController extends Controller
                 ->get()
                 ->map(function ($s) {
                     $bal = (float) \App\Services\StudentBalanceService::getTotalOutstandingBalance($s);
+                    $cr = $s->classroom;
+                    $classroomName = (is_object($cr) && isset($cr->name)) ? $cr->name : null;
                     return [
                         'id' => $s->id,
                         'full_name' => $s->full_name ?? trim($s->first_name . ' ' . $s->last_name),
                         'admission_number' => $s->admission_number,
-                        'classroom_name' => $s->classroom?->name,
+                        'classroom_name' => $classroomName,
                         'fee_balance' => round($bal, 2),
                     ];
                 })
                 ->values()
                 ->toArray();
         }
+
+        $classroom = $student->classroom;
+        $classroomName = (is_object($classroom) && isset($classroom->name)) ? $classroom->name : null;
+        $classroomPayload = (is_object($classroom) && isset($classroom->id)) ? [
+            'id' => $classroom->id,
+            'name' => $classroomName,
+        ] : null;
 
         return response()->json([
             'id' => $student->id,
@@ -1582,12 +1591,9 @@ class MpesaPaymentController extends Controller
             'full_name' => $student->full_name,
             'admission_number' => $student->admission_number,
             'classroom_id' => $student->classroom_id,
-            'classroom_name' => $student->classroom ? $student->classroom->name : null,
+            'classroom_name' => $classroomName,
             'family_id' => $student->family_id,
-            'classroom' => $student->classroom ? [
-                'id' => $student->classroom->id,
-                'name' => $student->classroom->name,
-            ] : null,
+            'classroom' => $classroomPayload,
             'family' => $familyData,
             'fee_balance' => round($feeBalance, 2),
             'swimming_balance' => round($swimmingBalance, 2),
@@ -1608,7 +1614,11 @@ class MpesaPaymentController extends Controller
             ->map(function ($invoice) {
                 // Calculate balance if not already set (Invoice uses total and paid_amount)
                 $balance = $invoice->balance ?? (float) ($invoice->total ?? 0) - (float) ($invoice->paid_amount ?? 0);
-                
+                $ay = $invoice->academicYear;
+                $term = $invoice->term;
+                $academicYearName = (is_object($ay) && isset($ay->name)) ? $ay->name : null;
+                $termName = (is_object($term) && isset($term->name)) ? $term->name : null;
+
                 return [
                     'id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
@@ -1617,8 +1627,8 @@ class MpesaPaymentController extends Controller
                     'balance' => max(0, (float) $balance), // Ensure balance is not negative
                     'status' => $invoice->status,
                     'due_date' => $invoice->due_date ? $invoice->due_date->format('Y-m-d') : null,
-                    'academic_year' => $invoice->academicYear?->name,
-                    'term' => $invoice->term?->name,
+                    'academic_year' => $academicYearName,
+                    'term' => $termName,
                 ];
             })
             ->filter(function ($invoice) {
@@ -1966,7 +1976,7 @@ class MpesaPaymentController extends Controller
                         }
                     }
                     if (!empty($allocationsForService)) {
-                        $this->allocationService->allocate($payment, $allocationsForService);
+                        $this->allocationService->allocatePayment($payment, $allocationsForService);
                     }
                 }
                 // If no allocations, payment is recorded as advance payment (unallocated_amount will be the full amount)
