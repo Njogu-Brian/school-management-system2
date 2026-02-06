@@ -181,5 +181,66 @@ class StudentBalanceService
         // Total outstanding = invoice balances + balance brought forward (only if not already in invoices)
         return max(0, $invoiceOutstanding + $balanceBroughtForwardFromLegacy);
     }
+
+    /**
+     * Total outstanding fees excluding swimming (for dashboard).
+     * Swimming is managed separately in the Swimming module and must not be included in main fee totals.
+     *
+     * @return float Total outstanding fees (invoice items only, excluding swimming votehead) + balance brought forward
+     */
+    public static function getTotalOutstandingFeesExcludingSwimming(): float
+    {
+        $swimmingVoteheadIds = \App\Models\Votehead::where(function ($q) {
+            $q->where('name', 'like', '%swim%')->orWhere('code', 'like', '%SWIM%');
+        })->pluck('id')->toArray();
+
+        // Sum unpaid portion of invoice items (excluding swimming) for unpaid/partial invoices
+        $invoiceOutstanding = \App\Models\InvoiceItem::whereHas('invoice', function ($q) {
+            $q->whereIn('status', ['unpaid', 'partial'])
+                ->where('status', '!=', 'reversed');
+        })
+            ->where('status', 'active')
+            ->when(!empty($swimmingVoteheadIds), fn ($q) => $q->whereNotIn('votehead_id', $swimmingVoteheadIds))
+            ->get()
+            ->sum(function ($item) {
+                $allocated = $item->allocations()->sum('amount');
+                return max(0, (float) $item->amount - (float) ($item->discount_amount ?? 0) - (float) $allocated);
+            });
+
+        // Balance brought forward from legacy (same logic as getTotalOutstandingFees)
+        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+        $balanceBroughtForwardFromLegacy = 0;
+        $studentsWithLegacy = \App\Models\LegacyStatementTerm::where('academic_year', '<', 2026)
+            ->whereNotNull('ending_balance')
+            ->whereNotNull('student_id')
+            ->select('student_id')
+            ->distinct()
+            ->pluck('student_id')
+            ->filter(fn ($studentId) => Student::where('id', $studentId)->exists());
+
+        foreach ($studentsWithLegacy as $studentId) {
+            try {
+                $bf = self::getBalanceBroughtForward($studentId);
+                if ($bf > 0) {
+                    $studentHasBfInInvoice = false;
+                    if ($balanceBroughtForwardVotehead) {
+                        $studentHasBfInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($studentId) {
+                            $q->where('student_id', $studentId)->where('status', '!=', 'reversed');
+                        })
+                            ->where('votehead_id', $balanceBroughtForwardVotehead->id)
+                            ->where('source', 'balance_brought_forward')
+                            ->exists();
+                    }
+                    if (!$studentHasBfInInvoice) {
+                        $balanceBroughtForwardFromLegacy += $bf;
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning("Failed to get balance brought forward for student {$studentId}: " . $e->getMessage());
+            }
+        }
+
+        return max(0, $invoiceOutstanding + $balanceBroughtForwardFromLegacy);
+    }
 }
 

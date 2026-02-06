@@ -197,6 +197,7 @@ Route::get('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentContr
 Route::post('/pay/{identifier}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processLinkPayment'])->name('payment.link.process');
 Route::get('/pay/waiting/{transaction}', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showPublicWaiting'])->name('payment.link.waiting');
 Route::get('/pay/transaction/{transaction}/status', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'getTransactionStatus'])->name('payment.link.transaction.status');
+Route::post('/pay/transaction/{transaction}/cancel', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'cancelTransaction'])->name('payment.link.transaction.cancel');
 Route::get('/invoice/{invoice:hashed_id}/pay', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'showInvoicePayment'])->name('invoice.pay');
 Route::post('/invoice/{invoice}/pay/mpesa', [\App\Http\Controllers\Finance\MpesaPaymentController::class, 'processInvoicePayment'])->name('invoice.pay.mpesa');
 

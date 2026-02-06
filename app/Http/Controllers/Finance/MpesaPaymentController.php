@@ -736,9 +736,8 @@ class MpesaPaymentController extends Controller
     {
         $transaction->load(['student', 'invoice']);
         $statusCheckUrl = route('payment.link.transaction.status', $transaction);
-        $isPaymentLinkFlow = true;
 
-        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl', 'isPaymentLinkFlow'));
+        return view('finance.mpesa.waiting-standalone', compact('transaction', 'statusCheckUrl'));
     }
 
     /**
@@ -779,8 +778,10 @@ class MpesaPaymentController extends Controller
             ];
 
             // If completed, include receipt info (and public token for redirect to receipt)
-            if ($transaction->status === 'completed' && $transaction->payment_id) {
-                $payment = Payment::find($transaction->payment_id);
+            if ($transaction->status === 'completed') {
+                $payment = $transaction->payment_id
+                    ? Payment::find($transaction->payment_id)
+                    : Payment::where('payment_transaction_id', $transaction->id)->first();
                 if ($payment) {
                     if (!$payment->public_token) {
                         $payment->public_token = Payment::generatePublicToken();

@@ -189,22 +189,33 @@ class DashboardController extends Controller
         $presentToday = (clone $attendanceQuery)->where('status', 'present')->count();
         $absentToday = (clone $attendanceQuery)->where('status', 'absent')->count();
 
-        // ---- Finance KPIs
+        // ---- Finance KPIs (exclude swimming - managed separately in Swimming module)
+        $excludeSwimmingPayments = function ($query) {
+            $query->whereRaw("COALESCE(receipt_number, '') NOT LIKE 'SWIM-%'")
+                ->whereRaw("(COALESCE(narration, '') NOT LIKE '%Swimming%' AND COALESCE(narration, '') NOT LIKE '%(Swimming)%')");
+        };
+
         $feesCollected = Payment::whereBetween('payment_date', [$filters['from'], $filters['to']])
             ->where('reversed', false)
+            ->where($excludeSwimmingPayments)
             ->sum('amount');
 
-        // Total invoiced - sum of all invoice totals within the date range
-        $totalInvoiced = Invoice::whereBetween('created_at', [$filters['from'], $filters['to']])
-            ->whereNull('reversed_at')
-            ->sum('total');
+        // Total invoiced - sum of invoice item amounts (minus discounts) within date range, excluding swimming votehead
+        $swimmingVoteheadIds = \App\Models\Votehead::where(function ($q) {
+            $q->where('name', 'like', '%swim%')->orWhere('code', 'like', '%SWIM%');
+        })->pluck('id')->toArray();
 
-        // Use centralized service to calculate outstanding fees
-        // This properly accounts for:
-        // - All invoice balances (includes payments, discounts, credit/debit notes)
-        // - Balance brought forward from legacy (only if not already in invoices)
-        // - All voteheads including transport (already in invoice items)
-        $feesOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingFees();
+        $totalInvoiced = (float) \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($filters) {
+            $q->whereBetween('created_at', [$filters['from'], $filters['to']])
+                ->whereNull('reversed_at');
+        })
+            ->where('status', 'active')
+            ->when(!empty($swimmingVoteheadIds), fn ($q) => $q->whereNotIn('votehead_id', $swimmingVoteheadIds))
+            ->get()
+            ->sum(fn ($item) => (float) $item->amount - (float) ($item->discount_amount ?? 0));
+
+        // Use centralized service to calculate outstanding fees (excluding swimming)
+        $feesOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingFeesExcludingSwimming();
 
         // Votehead breakdown - total invoiced per votehead
         $voteheadBreakdown = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($filters) {
@@ -236,9 +247,10 @@ class DashboardController extends Controller
                 $termStart = $term->opening_date ? $term->opening_date->toDateString() : $filters['from'];
                 $termEnd = $term->closing_date ? $term->closing_date->toDateString() : $filters['to'];
                 
-                // Group payments by week within the term
+                // Group payments by week within the term (exclude swimming)
                 $payments = Payment::whereBetween('payment_date', [$termStart, $termEnd])
                     ->where('reversed', false)
+                    ->where($excludeSwimmingPayments)
                     ->select(
                         DB::raw('YEARWEEK(payment_date, 1) as week'),
                         DB::raw('MIN(payment_date) as week_start'),
