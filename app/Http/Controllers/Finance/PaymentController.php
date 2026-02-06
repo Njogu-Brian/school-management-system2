@@ -720,127 +720,90 @@ class PaymentController extends Controller
             return $text;
         };
         
-        // Send SMS using finance sender ID (no profile update link in SMS; kept in receipt only)
-        if ($parentPhone) {
+        // Send SMS to each parent phone (father and mother only, never guardian)
+        $smsVariables = $variables;
+        $smsVariables['profile_update_link'] = '';
+        $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
+        $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
+        $smsService = app(\App\Services\SMSService::class);
+        $financeSenderId = $smsService->getFinanceSenderId();
+        foreach ($parentPhones as $parentPhone) {
             try {
-                $smsVariables = $variables;
-                $smsVariables['profile_update_link'] = '';
-                $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
-                // Remove any remaining "Update profile:" line if template had it
-                $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
-                
-                // Get finance sender ID for payment notifications
-                $smsService = app(\App\Services\SMSService::class);
-                $financeSenderId = $smsService->getFinanceSenderId();
-                
                 Log::info('Attempting to send payment SMS', [
                     'payment_id' => $payment->id,
                     'phone' => $parentPhone,
                     'template_code' => $smsTemplate->code,
-                    'message_length' => strlen($smsMessage),
-                    'sender_id' => $financeSenderId
                 ]);
-                
                 $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);
-                
-                Log::info('Payment SMS sent successfully', [
-                    'payment_id' => $payment->id, 
-                    'phone' => $parentPhone,
-                    'receipt_link' => $receiptLink
-                ]);
+                Log::info('Payment SMS sent successfully', ['payment_id' => $payment->id, 'phone' => $parentPhone]);
             } catch (\Exception $e) {
                 Log::error('Payment SMS sending failed', [
-                    'error' => $e->getMessage(), 
-                    'payment_id' => $payment->id, 
+                    'error' => $e->getMessage(),
+                    'payment_id' => $payment->id,
                     'phone' => $parentPhone,
-                    'template_code' => $smsTemplate->code ?? 'unknown',
-                    'trace' => $e->getTraceAsString()
                 ]);
                 flash_sms_credit_warning($e);
-                // Don't throw - allow email to still be sent
             }
-        } else {
+        }
+        if (empty($parentPhones)) {
             Log::info('Payment SMS skipped - no parent phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
-        
-        // Send Email with PDF attachment (queue PDF generation for better performance)
-        if ($parentEmail) {
+
+        // Send email to each parent email (father and mother only)
+        $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
+        $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
+        if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
+            $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
+        }
+        $pdfPath = null;
+        if (!empty($parentEmails)) {
             try {
-                $emailSubject = $replacePlaceholders($emailTemplate->subject ?? $emailTemplate->title, $variables);
-                $emailContent = $replacePlaceholders($emailTemplate->content, $variables);
-                if ($profileUpdateLink && strpos($emailContent, $profileUpdateLink) === false) {
-                    $emailContent .= "<p><a href=\"{$profileUpdateLink}\" style=\"display:inline-block;padding:8px 14px;background:#6c757d;color:#fff;text-decoration:none;border-radius:6px;\">Update Parent Profile</a></p>";
-                }
-                
-                Log::info('Attempting to send payment email', [
-                    'payment_id' => $payment->id,
-                    'email' => $parentEmail,
-                    'template_code' => $emailTemplate->code
-                ]);
-                
-                // Generate PDF receipt (this is still synchronous but optimized)
-                // TODO: Consider queuing PDF generation for bulk operations
                 $pdfPath = $this->receiptService->generateReceipt($payment, ['save' => true]);
-                
-                // Use CommunicationService to send email (handles logging automatically)
+            } catch (\Exception $e) {
+                Log::warning('Receipt PDF generation failed for email', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+            }
+        }
+        foreach ($parentEmails as $parentEmail) {
+            try {
+                Log::info('Attempting to send payment email', ['payment_id' => $payment->id, 'email' => $parentEmail]);
                 $this->commService->sendEmail('parent', $parent->id ?? null, $parentEmail, $emailSubject, $emailContent, $pdfPath);
-                
-                Log::info('Payment email sent successfully', [
-                    'payment_id' => $payment->id, 
-                    'email' => $parentEmail,
-                    'pdf_path' => $pdfPath
-                ]);
+                Log::info('Payment email sent successfully', ['payment_id' => $payment->id, 'email' => $parentEmail]);
             } catch (\Exception $e) {
                 Log::error('Payment email sending failed', [
-                    'error' => $e->getMessage(), 
-                    'payment_id' => $payment->id, 
+                    'error' => $e->getMessage(),
+                    'payment_id' => $payment->id,
                     'email' => $parentEmail,
-                    'template_code' => $emailTemplate->code ?? 'unknown',
-                    'trace' => $e->getTraceAsString()
                 ]);
             }
-        } else {
+        }
+        if (empty($parentEmails)) {
             Log::info('Payment email skipped - no parent email', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
-        
-        // Send WhatsApp notification
-        // Get WhatsApp number with fallback to phone number (prioritize father/mother)
-        // Never send fee-related communications to guardian; guardians are reached via manual number entry only
-        $whatsappPhone = !empty($parent->father_whatsapp) ? $parent->father_whatsapp 
-            : (!empty($parent->mother_whatsapp) ? $parent->mother_whatsapp 
-            : (!empty($parent->father_phone) ? $parent->father_phone 
-            : (!empty($parent->mother_phone) ? $parent->mother_phone : null)));
-        
-        if ($whatsappPhone) {
+
+        // Send WhatsApp to each parent (father and mother only, never guardian)
+        $whatsappTemplate = CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
+            ->orWhere('code', 'finance_payment_received_whatsapp')
+            ->first();
+        if (!$whatsappTemplate) {
+            $whatsappTemplate = CommunicationTemplate::firstOrCreate(
+                ['code' => 'payment_receipt_whatsapp'],
+                [
+                    'title' => 'Payment Receipt WhatsApp',
+                    'type' => 'whatsapp',
+                    'subject' => null,
+                    'content' => "{{greeting}},\n\nPayment of {{amount}} received for {{student_name}} ({{admission_number}}) on {{payment_date}}.\nReceipt: {{receipt_number}}\nView receipt: {{receipt_link}}\nUpdate profile: {{profile_update_link}}\n\nThank you.\n{{school_name}}",
+                ]
+            );
+        }
+        $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
+        if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
+            $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
+        }
+        foreach ($parentWhatsappNumbers as $whatsappPhone) {
             try {
-                // Get WhatsApp template
-                $whatsappTemplate = CommunicationTemplate::where('code', 'payment_receipt_whatsapp')
-                    ->orWhere('code', 'finance_payment_received_whatsapp')
-                    ->first();
-                
-                if (!$whatsappTemplate) {
-                    $whatsappTemplate = CommunicationTemplate::firstOrCreate(
-                        ['code' => 'payment_receipt_whatsapp'],
-                        [
-                            'title' => 'Payment Receipt WhatsApp',
-                            'type' => 'whatsapp',
-                            'subject' => null,
-                            'content' => "{{greeting}},\n\nPayment of {{amount}} received for {{student_name}} ({{admission_number}}) on {{payment_date}}.\nReceipt: {{receipt_number}}\nView receipt: {{receipt_link}}\nUpdate profile: {{profile_update_link}}\n\nThank you.\n{{school_name}}",
-                        ]
-                    );
-                }
-                
-                $whatsappMessage = $replacePlaceholders($whatsappTemplate->content, $variables);
-                if ($profileUpdateLink && strpos($whatsappMessage, $profileUpdateLink) === false) {
-                    $whatsappMessage .= "\nUpdate profile: {$profileUpdateLink}";
-                }
-                
                 $whatsappService = app(\App\Services\WhatsAppService::class);
                 $response = $whatsappService->sendMessage($whatsappPhone, $whatsappMessage);
-                
                 $status = data_get($response, 'status') === 'success' ? 'sent' : 'failed';
-                
-                // Log WhatsApp communication
                 CommunicationLog::create([
                     'recipient_type' => 'parent',
                     'recipient_id'   => $parent->id ?? null,
@@ -854,34 +817,23 @@ class PaymentController extends Controller
                     'scope'          => 'whatsapp',
                     'sent_at'        => now(),
                     'payment_id'     => $payment->id,
-                    'provider_id'    => data_get($response, 'body.data.id') 
-                                        ?? data_get($response, 'body.data.message.id')
-                                        ?? data_get($response, 'body.messageId')
-                                        ?? data_get($response, 'body.id'),
-                    'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                    'provider_id'    => data_get($response, 'body.data.id')
+                        ?? data_get($response, 'body.data.message.id')
+                        ?? data_get($response, 'body.messageId')
+                        ?? data_get($response, 'body.id'),
+                    'provider_status' => data_get($response, 'body.status') ?? data_get($response, 'status'),
                 ]);
-                
                 if ($status === 'sent') {
-                    Log::info('Payment WhatsApp sent successfully', [
-                        'payment_id' => $payment->id,
-                        'phone' => $whatsappPhone,
-                    ]);
+                    Log::info('Payment WhatsApp sent successfully', ['payment_id' => $payment->id, 'phone' => $whatsappPhone]);
                 } else {
-                    Log::warning('Payment WhatsApp sending failed', [
-                        'payment_id' => $payment->id,
-                        'phone' => $whatsappPhone,
-                        'response' => $response,
-                    ]);
+                    Log::warning('Payment WhatsApp sending failed', ['payment_id' => $payment->id, 'phone' => $whatsappPhone]);
                 }
             } catch (\Exception $e) {
                 Log::error('Payment WhatsApp sending failed', [
                     'error' => $e->getMessage(),
                     'payment_id' => $payment->id,
                     'phone' => $whatsappPhone,
-                    'trace' => $e->getTraceAsString()
                 ]);
-                
-                // Log failed WhatsApp attempt
                 CommunicationLog::create([
                     'recipient_type' => 'parent',
                     'recipient_id'   => $parent->id ?? null,
@@ -897,7 +849,8 @@ class PaymentController extends Controller
                     'payment_id'     => $payment->id,
                 ]);
             }
-        } else {
+        }
+        if (empty($parentWhatsappNumbers)) {
             Log::info('Payment WhatsApp skipped - no parent WhatsApp/phone', ['payment_id' => $payment->id, 'student_id' => $student->id]);
         }
     }
