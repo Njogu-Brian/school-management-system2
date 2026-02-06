@@ -561,3 +561,20 @@ if (!function_exists('get_subordinate_classroom_ids')) {
             ->toArray();
     }
 }
+
+/**
+ * If the exception is due to insufficient SMS credits, flash a warning to the user.
+ * Call this in catch blocks after SMS send attempts (web requests only).
+ */
+if (!function_exists('flash_sms_credit_warning')) {
+    function flash_sms_credit_warning(\Throwable $e): void
+    {
+        if ($e instanceof \App\Exceptions\InsufficientSmsCreditsException) {
+            session()->flash('warning', $e->getPublicMessage());
+            return;
+        }
+        if (str_contains($e->getMessage(), 'Insufficient SMS credits')) {
+            session()->flash('warning', 'SMS could not be sent: insufficient SMS credits. Please top up your SMS balance or check Communication → Logs for details.');
+        }
+    }
+}

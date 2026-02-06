@@ -348,6 +348,7 @@ class PaymentController extends Controller
                                 'payment_id' => $payment->id,
                                 'error' => $e->getMessage()
                             ]);
+                            flash_sms_credit_warning($e);
                         }
                         
                         $createdPayments[] = $payment;
@@ -450,6 +451,7 @@ class PaymentController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ]);
+            flash_sms_credit_warning($e);
             // Don't fail payment creation if notification fails
         }
         
@@ -743,6 +745,7 @@ class PaymentController extends Controller
                     'template_code' => $smsTemplate->code ?? 'unknown',
                     'trace' => $e->getTraceAsString()
                 ]);
+                flash_sms_credit_warning($e);
                 // Don't throw - allow email to still be sent
             }
         } else {
@@ -979,6 +982,7 @@ class PaymentController extends Controller
                     'payment_id' => $payment->id,
                     'error' => $e->getMessage(),
                 ]);
+                flash_sms_credit_warning($e);
             }
         }
         
@@ -1382,6 +1386,7 @@ class PaymentController extends Controller
                     'payment_id' => $notifyPayment->id,
                     'error' => $e->getMessage(),
                 ]);
+                flash_sms_credit_warning($e);
             }
         }
         
@@ -1954,6 +1959,7 @@ class PaymentController extends Controller
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString()
                 ]);
+                flash_sms_credit_warning($e);
                 // Don't fail the request - payments were already created successfully
             }
             
@@ -2111,6 +2117,7 @@ class PaymentController extends Controller
                     'student_id' => $student->id,
                     'error' => $e->getMessage()
                 ]);
+                flash_sms_credit_warning($e);
             }
         }
         
@@ -3149,8 +3156,11 @@ class PaymentController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-
-            return redirect()->back()->with('error', 'Failed to resend communication: ' . $e->getMessage());
+            flash_sms_credit_warning($e);
+            $errorMsg = $e instanceof \App\Exceptions\InsufficientSmsCreditsException
+                ? $e->getPublicMessage()
+                : 'Failed to resend communication: ' . $e->getMessage();
+            return redirect()->back()->with('error', $errorMsg);
         }
     }
 
@@ -3184,7 +3194,10 @@ class PaymentController extends Controller
                 $successCount++;
             } catch (\Exception $e) {
                 $failureCount++;
-                $errors[] = "Communication #{$logId}: " . $e->getMessage();
+                flash_sms_credit_warning($e);
+                $errors[] = $e instanceof \App\Exceptions\InsufficientSmsCreditsException
+                    ? "Communication #{$logId}: " . $e->getPublicMessage()
+                    : "Communication #{$logId}: " . $e->getMessage();
                 Log::error('Failed to resend payment communication in bulk', [
                     'communication_log_id' => $logId,
                     'error' => $e->getMessage()

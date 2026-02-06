@@ -277,6 +277,7 @@ class CommunicationController extends Controller
                     $failures[] = [
                         'phone' => $phone,
                         'reason' => $response,
+                        'insufficient_credits' => (is_array($response) && ($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS'),
                     ];
                 }
 
@@ -328,7 +329,12 @@ class CommunicationController extends Controller
         $flashType = ($failedCount > 0 || $skipped) ? 'warning' : 'success';
         $withData = [$flashType => $summary];
         if ($failedCount > 0) {
-            $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
+            $hasInsufficientCredits = collect($failures)->contains('insufficient_credits', true);
+            if ($hasInsufficientCredits) {
+                $withData['error'] = 'SMS could not be sent: insufficient SMS credits. Please top up your SMS balance. See Communication → Logs for details.';
+            } else {
+                $withData['error'] = 'Some sends failed. Sample: ' . json_encode(array_diff_key($failures[0] ?? [], ['insufficient_credits' => true]));
+            }
         }
 
         return redirect()->route('communication.send.sms')->with($withData);

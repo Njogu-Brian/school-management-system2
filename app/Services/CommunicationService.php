@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CommunicationLog;
+use App\Exceptions\InsufficientSmsCreditsException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\GenericMail;
@@ -27,7 +28,7 @@ class CommunicationService
 
             // Check for insufficient credits error
             if (isset($result['status']) && $result['status'] === 'error' && isset($result['error_code']) && $result['error_code'] === 'INSUFFICIENT_CREDITS') {
-                $balance = $result['balance'] ?? 0;
+                $balance = (float) ($result['balance'] ?? 0);
                 Log::error('SMS sending blocked: Insufficient credits', [
                     'phone' => $phone,
                     'balance' => $balance
@@ -49,8 +50,7 @@ class CommunicationService
                     'payment_id'     => $paymentId,
                 ]);
 
-                // Re-throw as exception so caller can handle it
-                throw new \Exception("Insufficient SMS credits. Current balance: {$balance}");
+                throw new InsufficientSmsCreditsException($balance);
             }
 
             // Check if the provider returned an error status

@@ -1101,6 +1101,7 @@ class MpesaPaymentController extends Controller
                     'payment_id' => $payment->id,
                     'error' => $e->getMessage(),
                 ]);
+                flash_sms_credit_warning($e);
             }
 
             Log::info('Payment processed successfully', [
@@ -1458,13 +1459,18 @@ class MpesaPaymentController extends Controller
                 $smsTemplate = "Dear {{name}}, Pay KES {{amount}} for {{student_name}}. Click: {{payment_link}} - Royal Kings School";
                 $smsMessage = $replacePlaceholders($smsTemplate, $contact);
                 try {
-                    $this->smsService->sendSMS(
+                    $result = $this->smsService->sendSMS(
                         $contact['phone'],
                         $smsMessage,
                         'RKS_FINANCE'
                     );
+                    if (is_array($result) && isset($result['error_code']) && $result['error_code'] === 'INSUFFICIENT_CREDITS') {
+                        $balance = $result['balance'] ?? 0;
+                        session()->flash('warning', 'Payment link was created and sent via other channels, but SMS could not be sent: insufficient SMS credits (balance: ' . $balance . '). Please top up your SMS balance.');
+                    }
                 } catch (\Exception $e) {
                     Log::warning('SMS send failed', ['phone' => $contact['phone'], 'error' => $e->getMessage()]);
+                    flash_sms_credit_warning($e);
                 }
             }
 
