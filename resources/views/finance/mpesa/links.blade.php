@@ -8,6 +8,25 @@
         'actions' => '<a href="' . route('finance.mpesa.links.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Link</a><a href="' . route('finance.mpesa.dashboard') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>'
     ])
 
+    @if(session('success'))
+    <div class="alert alert-success alert-dismissible fade show border-0 mb-4" role="alert">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-check-circle-fill fs-4 me-3"></i>
+            <div class="flex-grow-1">{{ session('success') }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+    @endif
+    @if(session('error'))
+    <div class="alert alert-danger alert-dismissible fade show border-0 mb-4" role="alert">
+        <div class="d-flex align-items-start">
+            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+            <div class="flex-grow-1">{{ session('error') }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+    @endif
+
     <!-- Filters -->
     <div class="finance-card finance-animate mb-4">
         <div class="finance-card-body">
@@ -74,9 +93,9 @@
                         <tr>
                             <td>
                                 <div>
-                                    <strong>{{ $link->student->full_name }}</strong>
+                                    <strong>{{ $link->student?->full_name ?? '—' }}</strong>
                                 </div>
-                                <small class="text-muted">{{ $link->student->admission_number }}</small>
+                                <small class="text-muted">{{ $link->student?->admission_number ?? '—' }}</small>
                                 @if($link->invoice)
                                 <div>
                                     <small class="text-info">

@@ -19,6 +19,15 @@
                     </h5>
                 </div>
                 <div class="finance-card-body">
+                    @if(session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show border-0 mb-4" role="alert">
+                        <div class="d-flex align-items-start">
+                            <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                            <div class="flex-grow-1">{{ session('error') }}</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    </div>
+                    @endif
                     <!-- Info Alert -->
                     <div class="alert alert-info border-0 mb-4">
                         <div class="d-flex align-items-start">
@@ -150,6 +159,12 @@
                         <!-- Additional Options – always visible -->
                         <div class="mb-4" id="optionsSection">
                             <label class="finance-form-label">Additional Options</label>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="quick_link" id="quick_link" value="1">
+                                <label class="form-check-label" for="quick_link">
+                                    <strong>Quick link</strong> — 7 days expiry, no usage/click limit (ideal for sending to parent once)
+                                </label>
+                            </div>
                             <div class="row g-3">
                                 <div class="col-md-6">
                                     <div class="form-check mb-2">
@@ -165,8 +180,9 @@
                                 <div class="col-md-6">
                                     <label for="max_uses" class="form-label small">Maximum Uses</label>
                                     <input type="number" name="max_uses" id="max_uses" 
-                                           class="finance-form-control" min="1" max="100"
+                                           class="finance-form-control" min="0" max="999" placeholder="1"
                                            value="1">
+                                    <small class="text-muted">Use 0 or leave blank for no limit</small>
                                 </div>
                             </div>
                         </div>
@@ -573,9 +589,25 @@ $(document).ready(function() {
     // Never expire: when checked, clear expires_in_days so link never expires
     $('#never_expire').on('change', function() {
         if ($(this).is(':checked')) {
+            $('#quick_link').prop('checked', false);
             $('#expires_in_days').val('').prop('readonly', true);
+            $('#max_uses').prop('readonly', false);
         } else {
             $('#expires_in_days').val('7').prop('readonly', false);
+        }
+    });
+
+    // Quick link: 7 days, no usage limit — set fields and optionally disable manual inputs
+    $('#quick_link').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#never_expire').prop('checked', false);
+            $('#expires_in_days').val(7).prop('readonly', true);
+            $('#max_uses').val(0).prop('readonly', true);
+        } else {
+            $('#expires_in_days').prop('readonly', false);
+            $('#max_uses').prop('readonly', false);
+            if (!$('#expires_in_days').val()) $('#expires_in_days').val(7);
+            if ($('#max_uses').val() === '0') $('#max_uses').val(1);
         }
     });
     

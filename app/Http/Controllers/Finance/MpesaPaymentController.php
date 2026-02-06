@@ -279,8 +279,9 @@ class MpesaPaymentController extends Controller
             'is_swimming' => 'nullable|boolean',
             'parents' => 'required|array|min:1',
             'parents.*' => 'in:father,mother,primary',
-            'expires_in_days' => 'nullable|integer|min:1|max:365',
-            'max_uses' => 'nullable|integer|min:1|max:100',
+            'expires_in_days' => 'nullable|integer|min:0|max:365',
+            'max_uses' => 'nullable|integer|min:0|max:999',
+            'quick_link' => 'nullable|boolean',
             'send_channels' => 'required|array|min:1',
             'send_channels.*' => 'in:sms,email,whatsapp',
         ]);
@@ -295,9 +296,18 @@ class MpesaPaymentController extends Controller
 
             $primaryInvoiceId = !empty($invoiceIds) ? (int) $invoiceIds[0] : null;
 
+            // Quick link: 7 days, no usage limit
+            $expiresInDays = $request->boolean('quick_link') ? 7 : (int) ($request->expires_in_days ?? 0);
+            $maxUses = $request->boolean('quick_link') ? 999 : (int) ($request->max_uses ?? 1);
+            if ($maxUses < 1) {
+                $maxUses = 999; // 0 or blank = no limit
+            }
+
             $expiresAt = null;
-            if (!$request->boolean('never_expire') && $request->filled('expires_in_days') && (int) $request->expires_in_days > 0) {
-                $expiresAt = now()->addDays((int) $request->expires_in_days);
+            if ($request->boolean('quick_link')) {
+                $expiresAt = now()->addDays(7);
+            } elseif (!$request->boolean('never_expire') && $expiresInDays > 0) {
+                $expiresAt = now()->addDays($expiresInDays);
             }
 
             $isSwimming = $request->boolean('is_swimming', false);
@@ -330,7 +340,7 @@ class MpesaPaymentController extends Controller
                     'description' => $description,
                     'account_reference' => $accountReference,
                     'expires_at' => $expiresAt,
-                    'max_uses' => (int) ($request->max_uses ?? 99),
+                    'max_uses' => $maxUses,
                     'created_by' => Auth::id(),
                     'status' => 'active',
                     'metadata' => [
@@ -357,7 +367,11 @@ class MpesaPaymentController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return back()->with('error', 'Failed to create payment link: ' . $e->getMessage());
+            $userMessage = 'Failed to create or send payment link. Please try again.';
+            if (str_contains($e->getMessage(), 'relationship') || str_contains($e->getMessage(), 'parentInfo')) {
+                $userMessage = 'Payment link could not be sent. Please check that the student has family/parent details saved.';
+            }
+            return back()->with('error', $userMessage)->withInput();
         }
     }
 
@@ -1356,8 +1370,8 @@ class MpesaPaymentController extends Controller
      */
     protected function sendPaymentLinkToParents($student, $paymentLink, $channels, $parents)
     {
-        // Load family and parent info
-        $student->load(['family', 'parentInfo']);
+        // Load family and parent info (relation name is parent, not parentInfo)
+        $student->load(['family', 'parent']);
         
         if (!$student->family) {
             Log::warning('Cannot send payment link: student has no family', ['student_id' => $student->id]);
@@ -1372,8 +1386,8 @@ class MpesaPaymentController extends Controller
         // Prepare parent contacts
         $contacts = [];
         
-        // Load parent info if available (for WhatsApp numbers)
-        $parentInfo = $student->parentInfo ?? null;
+        // Parent info (ParentInfo model via student->parent relation)
+        $parentInfo = $student->parent ?? null;
         
         if (in_array('father', $parents)) {
             // Try to get WhatsApp number from ParentInfo, fallback to family phone
@@ -1427,11 +1441,22 @@ class MpesaPaymentController extends Controller
             }
         }
 
+        // Template placeholders: {{payment_link}}, {{amount}}, {{student_name}}, {{name}}
+        $replacePlaceholders = function ($text, array $contact) use ($linkUrl, $amountFormatted, $studentName) {
+            $name = $contact['name'] ?? 'Parent';
+            return str_replace(
+                ['{{payment_link}}', '{{amount}}', '{{student_name}}', '{{name}}'],
+                [$linkUrl, $amountFormatted, $studentName, $name],
+                $text
+            );
+        };
+
         // Send to each contact
         foreach ($contacts as $contact) {
-            // SMS
+            // SMS (supports {{payment_link}} placeholder)
             if (in_array('sms', $channels) && !empty($contact['phone'])) {
-                $smsMessage = "Dear {$contact['name']}, Pay KES $amountFormatted for $studentName. Click: $linkUrl - Royal Kings School";
+                $smsTemplate = "Dear {{name}}, Pay KES {{amount}} for {{student_name}}. Click: {{payment_link}} - Royal Kings School";
+                $smsMessage = $replacePlaceholders($smsTemplate, $contact);
                 try {
                     $this->smsService->sendSMS(
                         $contact['phone'],
@@ -1443,17 +1468,17 @@ class MpesaPaymentController extends Controller
                 }
             }
 
-            // Email
+            // Email (supports {{payment_link}} placeholder)
             if (in_array('email', $channels) && !empty($contact['email'])) {
                 $subject = "Payment Link - $studentName";
-                $emailBody = "<p>Dear {$contact['name']},</p>
-                    <p>A payment link has been generated for <strong>$studentName</strong> (Admission: {$student->admission_number}).</p>
-                    <p><strong>Amount:</strong> KES $amountFormatted</p>
+                $emailTemplate = "<p>Dear {{name}},</p>
+                    <p>A payment link has been generated for <strong>{{student_name}}</strong> (Admission: {$student->admission_number}).</p>
+                    <p><strong>Amount:</strong> KES {{amount}}</p>
                     <p><strong>Description:</strong> {$paymentLink->description}</p>
-                    <p><a href='$linkUrl' style='background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>Pay Now</a></p>
+                    <p><a href='{{payment_link}}' style='background: #0f766e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;'>Pay Now</a></p>
                     " . ($paymentLink->expires_at ? "<p><em>Link expires: {$paymentLink->expires_at->format('d M Y H:i')}</em></p>" : "") . "
                     <p>Thank you,<br>Royal Kings School</p>";
-                
+                $emailBody = $replacePlaceholders($emailTemplate, $contact);
                 try {
                     $this->emailService->sendEmail(
                         $contact['email'],
@@ -1465,18 +1490,18 @@ class MpesaPaymentController extends Controller
                 }
             }
 
-            // WhatsApp
+            // WhatsApp (supports {{payment_link}} placeholder)
             if (in_array('whatsapp', $channels) && !empty($contact['phone'])) {
-                $whatsappMessage = "*Payment Link - Royal Kings School*\n\n";
-                $whatsappMessage .= "Dear {$contact['name']},\n\n";
-                $whatsappMessage .= "Pay *KES $amountFormatted* for *$studentName*\n";
-                $whatsappMessage .= "({$paymentLink->description})\n\n";
-                $whatsappMessage .= "Click to pay: $linkUrl\n\n";
+                $whatsappTemplate = "*Payment Link - Royal Kings School*\n\n";
+                $whatsappTemplate .= "Dear {{name}},\n\n";
+                $whatsappTemplate .= "Pay *KES {{amount}}* for *{{student_name}}*\n";
+                $whatsappTemplate .= "({$paymentLink->description})\n\n";
+                $whatsappTemplate .= "Click to pay: {{payment_link}}\n\n";
                 if ($paymentLink->expires_at) {
-                    $whatsappMessage .= "Link expires: {$paymentLink->expires_at->format('d M Y H:i')}\n\n";
+                    $whatsappTemplate .= "Link expires: {$paymentLink->expires_at->format('d M Y H:i')}\n\n";
                 }
-                $whatsappMessage .= "Thank you,\nRoyal Kings School";
-                
+                $whatsappTemplate .= "Thank you,\nRoyal Kings School";
+                $whatsappMessage = $replacePlaceholders($whatsappTemplate, $contact);
                 try {
                     $this->whatsappService->sendMessage(
                         $contact['phone'],
