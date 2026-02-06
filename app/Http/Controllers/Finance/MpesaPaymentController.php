@@ -724,8 +724,9 @@ class MpesaPaymentController extends Controller
     {
         $transaction->load(['student', 'invoice', 'student.family']);
         $statusCheckUrl = route('finance.api.transaction.status', $transaction);
+        $isPaymentLinkFlow = false;
 
-        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl'));
+        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl', 'isPaymentLinkFlow'));
     }
 
     /**
@@ -735,8 +736,9 @@ class MpesaPaymentController extends Controller
     {
         $transaction->load(['student', 'invoice']);
         $statusCheckUrl = route('payment.link.transaction.status', $transaction);
+        $isPaymentLinkFlow = true;
 
-        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl'));
+        return view('finance.mpesa.waiting', compact('transaction', 'statusCheckUrl', 'isPaymentLinkFlow'));
     }
 
     /**

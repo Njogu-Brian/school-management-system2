@@ -710,13 +710,14 @@ class PaymentController extends Controller
             return $text;
         };
         
-        // Send SMS using finance sender ID
+        // Send SMS using finance sender ID (no profile update link in SMS; kept in receipt only)
         if ($parentPhone) {
             try {
-                $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-                if ($profileUpdateLink && strpos($smsMessage, $profileUpdateLink) === false) {
-                    $smsMessage .= "\nUpdate profile: {$profileUpdateLink}";
-                }
+                $smsVariables = $variables;
+                $smsVariables['profile_update_link'] = '';
+                $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
+                // Remove any remaining "Update profile:" line if template had it
+                $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
                 
                 // Get finance sender ID for payment notifications
                 $smsService = app(\App\Services\SMSService::class);
@@ -950,9 +951,7 @@ class PaymentController extends Controller
         if ($receiptLink) {
             $smsMessage .= "View receipt: {$receiptLink}\n";
         }
-        if ($profileUpdateLink) {
-            $smsMessage .= "Update profile: {$profileUpdateLink}\n";
-        }
+        // Profile update link not included in SMS (kept in receipt only)
         $smsMessage .= "Thank you!\nRoyal Kings School";
         
         // Email message
@@ -3698,10 +3697,10 @@ class PaymentController extends Controller
                     );
                 }
 
-                $smsMessage = $replacePlaceholders($smsTemplate->content, $variables);
-                if ($profileUpdateLink && strpos($smsMessage, $profileUpdateLink) === false) {
-                    $smsMessage .= "\nUpdate profile: {$profileUpdateLink}";
-                }
+                $smsVariables = $variables;
+                $smsVariables['profile_update_link'] = '';
+                $smsMessage = $replacePlaceholders($smsTemplate->content, $smsVariables);
+                $smsMessage = preg_replace('/\n?Update profile:.*$/m', '', $smsMessage);
                 $smsService = app(\App\Services\SMSService::class);
                 $financeSenderId = $smsService->getFinanceSenderId();
                 $this->commService->sendSMS('parent', $parent->id ?? null, $parentPhone, $smsMessage, $smsTemplate->subject ?? $smsTemplate->title, $financeSenderId, $payment->id);

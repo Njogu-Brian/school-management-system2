@@ -210,12 +210,13 @@
                 </div>
             </div>
             
+            @if($isPaymentLinkFlow ?? false)
+            <p class="status-text mt-2" id="redirectMessage">Redirecting to your receipt...</p>
+            @else
             <button class="btn-action" onclick="window.location.href='{{ route('finance.mpesa.dashboard') }}'">
                 <i class="bi bi-house"></i> Back to Dashboard
             </button>
-            <button class="btn-action" onclick="viewReceipt()">
-                <i class="bi bi-file-text"></i> View Receipt
-            </button>
+            @endif
         </div>
 
         <!-- Failed State -->
