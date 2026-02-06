@@ -130,9 +130,9 @@
                                     </td>
                                     <td>
                                         <div>
-                                            <strong>{{ $transaction->student->full_name }}</strong>
+                                            <strong>{{ $transaction->student?->full_name ?? '—' }}</strong>
                                         </div>
-                                        <small class="text-muted">{{ $transaction->student->admission_number }}</small>
+                                        <small class="text-muted">{{ $transaction->student?->admission_number ?? '—' }}</small>
                                     </td>
                                     <td class="text-end">
                                         <strong>KES {{ number_format($transaction->amount, 2) }}</strong>
@@ -197,9 +197,9 @@
                                 <tr>
                                     <td>
                                         <div>
-                                            <strong>{{ $link->student->full_name }}</strong>
+                                            <strong>{{ $link->student?->full_name ?? '—' }}</strong>
                                         </div>
-                                        <small class="text-muted">{{ $link->student->admission_number }}</small>
+                                        <small class="text-muted">{{ $link->student?->admission_number ?? '—' }}</small>
                                     </td>
                                     <td class="text-end">
                                         <strong>KES {{ number_format($link->amount, 2) }}</strong>
