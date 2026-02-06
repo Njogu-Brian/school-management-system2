@@ -170,6 +170,30 @@
                                 </select>
                                 <div class="form-note mt-1">For headings and KPIs.</div>
                             </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-semibold">Body font size (px)</label>
+                                <input type="number" class="form-control" name="finance_body_font_size" min="10" max="24" step="1"
+                                       value="{{ isset($settings['finance_body_font_size']) ? $settings['finance_body_font_size']->value : '13' }}" placeholder="13">
+                                <div class="form-note mt-1">Receipts, statements, invoices</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-semibold">Heading font size (px)</label>
+                                <input type="number" class="form-control" name="finance_heading_font_size" min="12" max="32" step="1"
+                                       value="{{ $settings['finance_heading_font_size']->value ?? '19' }}" placeholder="19">
+                                <div class="form-note mt-1">Document titles</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fw-semibold">Small font size (px)</label>
+                                <input type="number" class="form-control" name="finance_small_font_size" min="8" max="14" step="1"
+                                       value="{{ isset($settings['finance_small_font_size']) ? $settings['finance_small_font_size']->value : '11' }}" placeholder="11">
+                                <div class="form-note mt-1">Footers, notes</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">Pay / M-PESA button color</label>
+                                <input type="color" class="form-control form-control-color" name="finance_mpesa_green"
+                                       value="{{ isset($settings['finance_mpesa_green']) ? $settings['finance_mpesa_green']->value : '#007e33' }}">
+                                <div class="form-note mt-1">Payment links & Pay Now buttons</div>
+                            </div>
                         </div>
 
                         <div class="mt-3 gradient-preview" style="background: linear-gradient(135deg, {{ $financePrimary }} 0%, {{ $financeSecondary }} 100%);">
@@ -196,8 +220,16 @@ function resetFinanceColors() {
         document.querySelector('input[name="finance_warning_color"]').value = '#f59e0b';
         document.querySelector('input[name="finance_danger_color"]').value = '#ef4444';
         document.querySelector('input[name="finance_info_color"]').value = '#06b6d4';
+        var s = document.querySelector('input[name="finance_surface_color"]'); if (s) s.value = '#ffffff';
+        var b = document.querySelector('input[name="finance_border_color"]'); if (b) b.value = '#e5e7eb';
+        var t = document.querySelector('input[name="finance_text_color"]'); if (t) t.value = '#0f172a';
+        var m = document.querySelector('input[name="finance_muted_color"]'); if (m) m.value = '#6b7280';
         document.querySelector('select[name="finance_primary_font"]').value = 'Inter';
         document.querySelector('select[name="finance_heading_font"]').value = 'Poppins';
+        var bodySize = document.querySelector('input[name="finance_body_font_size"]'); if (bodySize) bodySize.value = '13';
+        var headSize = document.querySelector('input[name="finance_heading_font_size"]'); if (headSize) headSize.value = '19';
+        var smallSize = document.querySelector('input[name="finance_small_font_size"]'); if (smallSize) smallSize.value = '11';
+        var mpesa = document.querySelector('input[name="finance_mpesa_green"]'); if (mpesa) mpesa.value = '#007e33';
     }
 }
 </script>

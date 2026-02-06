@@ -36,7 +36,7 @@
         background: url('{{ $bgImage }}') no-repeat center center fixed;
         background-size: cover;
         @else
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, {{ setting('finance_primary_color', '#667eea') }} 0%, {{ setting('finance_secondary_color', '#764ba2') }} 100%);
         @endif
         min-height: 100vh;
         display: flex;

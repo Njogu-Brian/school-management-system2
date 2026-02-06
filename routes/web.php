@@ -1281,6 +1281,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('payments/store', [PaymentController::class, 'store'])->name('payments.store');
         Route::get('payments/receipt/{payment}', [PaymentController::class, 'printReceipt'])->name('payments.receipt');
         Route::get('payments/receipt/{payment}/view', [PaymentController::class, 'viewReceipt'])->name('payments.receipt.view');
+        Route::get('payments/receipt/{payment}/pdf', [PaymentController::class, 'downloadReceiptPdf'])->name('payments.receipt.pdf');
         Route::post('payments/communications/{communicationLog}/resend', [PaymentController::class, 'resendCommunication'])->name('payments.communications.resend');
         Route::post('payments/communications/resend-multiple', [PaymentController::class, 'resendMultipleCommunications'])->name('payments.communications.resend-multiple');
         Route::get('payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');

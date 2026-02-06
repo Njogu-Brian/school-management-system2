@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Pay Invoice - M-PESA</title>
-    
+    @include('layouts.partials.branding-vars')
     <!-- Bootstrap CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <!-- Font Awesome -->
@@ -13,7 +13,7 @@
     
     <style>
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, {{ $brandPrimary }} 0%, {{ $brandSecondary }} 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -30,7 +30,7 @@
             width: 100%;
         }
         .payment-header {
-            background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+            background: {{ $brandMpesaGreen }};
             color: white;
             padding: 30px;
             text-align: center;
@@ -73,7 +73,7 @@
             margin: 20px 0;
         }
         .btn-pay {
-            background: linear-gradient(135deg, #00c851 0%, #007e33 100%);
+            background: {{ $brandMpesaGreen }};
             border: none;
             color: white;
             padding: 15px;

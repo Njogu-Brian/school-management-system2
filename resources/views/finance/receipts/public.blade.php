@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>Receipt - {{ $payment->receipt_number }}</title>
+    @include('layouts.partials.favicon')
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -35,7 +36,7 @@
         
         /* Update Profile Button - Smaller size */
         .btn-update-profile {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            background: linear-gradient(135deg, {{ $brandPrimary }} 0%, {{ $brandSecondary }} 100%) !important;
             border: none !important;
             color: white !important;
             font-weight: 500 !important;
@@ -81,13 +82,13 @@
         .profile-update-link strong {
             display: block;
             margin-bottom: 6px;
-            color: #3a1a59;
+            color: {{ $brandPrimary }};
             font-size: 14px;
         }
         
         .profile-update-link a {
             display: inline-block;
-            color: #667eea;
+            color: {{ $brandSecondary }};
             text-decoration: none;
             word-break: break-all;
             font-size: 12px;

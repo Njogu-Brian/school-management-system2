@@ -8,11 +8,13 @@
 <head>
 <meta charset="utf-8">
 <title>Invoice {{ $invoice->invoice_number }}</title>
+@include('layouts.partials.favicon')
+@include('layouts.partials.branding-vars')
 <style>
   *{ font-family: DejaVu Sans, sans-serif; }
   body{ 
-    font-size: 11.5px; 
-    color:#111;
+    font-size: {{ $brandBodyFont }}px; 
+    color: {{ setting('finance_text_color', '#111') }};
     position: relative;
   }
   @page { 
@@ -37,15 +39,15 @@
     pointer-events: none;
   }
 
-  /* Fixed header/footer for DomPDF */
-  .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; }
-  .footer{ position: fixed; bottom: -62px; left: 0; right: 0; height: 62px; color:#666; font-size: 10px; }
+  /* Fixed header/footer for DomPDF - same styling as receipt */
+  .header{ position: fixed; top: -105px; left: 0; right: 0; height: 105px; border-bottom: 2px solid {{ $brandPrimary }}; }
+  .footer{ position: fixed; bottom: -62px; left: 0; right: 0; height: 62px; color: {{ $brandMuted }}; font-size: {{ $brandSmallFont }}px; }
 
-  .small{ font-size: 10.5px; }
-  .muted{ color:#666; }
-  .h1{ font-size: 20px; font-weight: 700; margin:0; line-height:1.2; }
+  .small{ font-size: {{ $brandSmallFont }}px; }
+  .muted{ color: {{ $brandMuted }}; }
+  .h1{ font-size: {{ $brandHeadingFont }}px; font-weight: 700; margin:0; line-height:1.2; color: {{ $brandPrimary }}; }
 
-  .sep{ border:0; border-top:1px solid #ccc; margin:6px 0 0 0; }
+  .sep{ border:0; border-top:1px solid {{ $brandPrimary }}; margin:6px 0 0 0; }
 
   table{ border-collapse: collapse; width:100%; }
   .hdr td{ vertical-align: top; }
@@ -55,13 +57,14 @@
   .kv{ margin-top: 6px; table-layout: fixed; }
   .kv th,
   .kv td { padding: 6px 8px; border:1px solid #bbb; }
-  .kv th { width: 22%; background:#f5f5f5; text-align:left; white-space:nowrap; }
+  .kv th { width: 22%; background:#f5f5f5; text-align:left; white-space:nowrap; color: {{ $brandPrimary }}; }
   .kv td { width: 28%; word-wrap: break-word; }
 
   .items{ margin-top: 10px; }
   .items th,
-  .items td { padding: 7px 8px; border:1px solid #999; }
-  .items th{ background:#f2f2f2; }
+  .items td { padding: 7px 8px; border:1px solid #ddd; }
+  .items thead th{ background: {{ $brandPrimary }}; color: #fff; }
+  .items tbody tr.total-row th{ background:#f5f5f5; color: {{ setting('finance_text_color', '#333') }}; border-top: 2px solid {{ $brandPrimary }}; }
   .right{ text-align: right; }
   .center{ text-align: center; }
 
@@ -180,7 +183,7 @@
         <td class="right">{{ number_format($item->amount,2) }}</td>
       </tr>
     @endforeach
-    <tr>
+    <tr class="total-row">
       <th colspan="4" class="right">Total</th>
       <th class="right">{{ number_format($total,2) }}</th>
     </tr>

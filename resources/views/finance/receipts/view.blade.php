@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     @php($displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number)
     <title>Receipt - {{ $displayReceiptNumber }}</title>
+    @include('layouts.partials.favicon')
+    @include('layouts.partials.branding-vars')
+    <style>:root { --brand-primary: {{ $brandPrimary }}; --brand-accent: {{ $brandSecondary }}; }</style>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     @include('finance.partials.styles')
@@ -28,7 +31,7 @@
         
         /* Update Profile Button - Smaller size */
         .btn-update-profile {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            background: linear-gradient(135deg, {{ $brandPrimary }} 0%, {{ $brandSecondary }} 100%) !important;
             border: none !important;
             color: white !important;
             font-weight: 500 !important;
@@ -86,7 +89,7 @@
                             <i class="bi bi-person-gear me-1"></i> Update Profile
                         </a>
                     @endif
-                    <a href="{{ route('finance.payments.receipt', $payment) }}" target="_blank" class="btn btn-finance btn-finance-primary">
+                    <a href="{{ route('finance.payments.receipt.pdf', $payment) }}" class="btn btn-finance btn-finance-primary" download>
                         <i class="bi bi-download"></i> Download PDF
                     </a>
                     <button onclick="window.print()" class="btn btn-finance btn-finance-outline">

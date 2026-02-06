@@ -2142,116 +2142,10 @@ class PaymentController extends Controller
     public function printReceipt(Payment $payment)
     {
         try {
-            $payment->load([
-                'student.classroom', 
-                'student.family.updateLink',
-                'invoice', 
-                'paymentMethod', 
-                'allocations.invoiceItem.votehead',
-                'allocations.invoiceItem.invoice'
-            ]);
-            
-            $student = $payment->student;
-            
-            // Get ALL unpaid invoice items for the student
-            $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
-                $q->where('student_id', $student->id);
-            })
-            ->where('status', 'active')
-            ->with(['invoice', 'votehead', 'allocations'])
-            ->get()
-            ->filter(function($item) {
-                return $item->getBalance() > 0;
-            });
-            
-            // Get payment allocations for this specific payment
-            $paymentAllocations = $payment->allocations;
-            
-            // Build comprehensive receipt items
-            $receiptItems = collect();
-            
-            // First, add items that received payment
-            foreach ($paymentAllocations as $allocation) {
-                $item = $allocation->invoiceItem;
-                $itemAmount = $item->amount ?? 0;
-                $discountAmount = $item->discount_amount ?? 0;
-                $allocatedAmount = $allocation->amount;
-                $balanceBefore = $item->getBalance() + $allocatedAmount;
-                $balanceAfter = $item->getBalance();
-                
-                $receiptItems->push([
-                    'type' => 'paid',
-                    'allocation' => $allocation,
-                    'invoice' => $item->invoice ?? null,
-                    'votehead' => $item->votehead ?? null,
-                    'item_amount' => $itemAmount,
-                    'discount_amount' => $discountAmount,
-                    'allocated_amount' => $allocatedAmount,
-                    'balance_before' => $balanceBefore,
-                    'balance_after' => $balanceAfter,
-                ]);
-            }
-            
-            // Then, add all other unpaid items
-            $paidItemIds = $paymentAllocations->pluck('invoice_item_id')->toArray();
-            foreach ($allUnpaidItems as $item) {
-                if (in_array($item->id, $paidItemIds)) {
-                    continue;
-                }
-                
-                $itemAmount = $item->amount ?? 0;
-                $discountAmount = $item->discount_amount ?? 0;
-                $balance = $item->getBalance();
-                
-                $receiptItems->push([
-                    'type' => 'unpaid',
-                    'allocation' => null,
-                    'invoice' => $item->invoice ?? null,
-                    'votehead' => $item->votehead ?? null,
-                    'item_amount' => $itemAmount,
-                    'discount_amount' => $discountAmount,
-                    'allocated_amount' => 0,
-                    'balance_before' => $balance,
-                    'balance_after' => $balance,
-                ]);
-            }
-            
-            // Calculate total outstanding balance (current balance AFTER this payment)
-            $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
-            $currentOutstandingBalance = 0;
-            foreach ($invoices as $invoice) {
-                $invoice->recalculate();
-                $currentOutstandingBalance += max(0, $invoice->balance ?? 0);
-            }
-            
-            // Balance before this payment = current balance + payment amount
-            $balanceBeforePayment = $currentOutstandingBalance + $payment->amount;
-            
-            // Get school settings and branding
-            $schoolSettings = $this->getSchoolSettings();
-            $branding = $this->branding();
-            $receiptHeader = \App\Models\Setting::get('receipt_header', '');
-            $receiptFooter = \App\Models\Setting::get('receipt_footer', '');
-            
-            // Prepare data for print view
-            $data = [
-                'payment' => $payment,
-                'school' => $schoolSettings,
-                'branding' => $branding,
-                'receipt_number' => $payment->shared_receipt_number ?? $payment->receipt_number,
-                'date' => $payment->payment_date->format('d M Y'),
-                'student' => $student,
-                'total_amount' => $payment->amount,
-                'total_outstanding_balance' => $balanceBeforePayment, // This is the balance BEFORE payment
-                'current_outstanding_balance' => $currentOutstandingBalance, // Balance AFTER payment
-                'payment_method' => $payment->paymentMethod->name ?? $payment->payment_method,
-                'transaction_code' => $payment->transaction_code,
-                'narration' => $payment->narration,
-                'receiptHeader' => $receiptHeader,
-                'receiptFooter' => $receiptFooter,
-            ];
-            
-            return view('finance.receipts.print', $data);
+            $receiptService = app(ReceiptService::class);
+            $data = $receiptService->buildReceiptData($payment);
+            // Use same template as view so download/print matches view styling
+            return view('finance.receipts.pdf.template', $data);
         } catch (\Exception $e) {
             \Log::error('Receipt print view failed', [
                 'payment_id' => $payment->id,
@@ -2259,6 +2153,23 @@ class PaymentController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return back()->with('error', 'Receipt print view failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Download receipt as PDF file (same styling as view/print).
+     */
+    public function downloadReceiptPdf(Payment $payment)
+    {
+        try {
+            $receiptService = app(ReceiptService::class);
+            return $receiptService->downloadReceipt($payment);
+        } catch (\Exception $e) {
+            \Log::error('Receipt PDF download failed', [
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->with('error', 'Receipt download failed: ' . $e->getMessage());
         }
     }
 
@@ -2457,6 +2368,10 @@ class PaymentController extends Controller
         if ($sharedPayments->count() > 1) {
             $receiptService = app(ReceiptService::class);
             $receipts = $sharedPayments->map(function ($sharedPayment) use ($receiptService) {
+                if (!$sharedPayment->public_token) {
+                    $sharedPayment->public_token = Payment::generatePublicToken();
+                    $sharedPayment->save();
+                }
                 return $receiptService->buildReceiptData($sharedPayment);
             })->values()->all();
 
@@ -2471,8 +2386,8 @@ class PaymentController extends Controller
         }
 
         $payment->load([
-            'student.classroom', 
-            'invoice', 
+            'student.classroom',
+            'invoice',
             'paymentMethod', 
             'allocations.invoiceItem.votehead',
             'allocations.invoiceItem.invoice'

@@ -4,17 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#007e33">
+    @include('layouts.partials.branding-vars')
+    <meta name="theme-color" content="{{ $brandMpesaGreen }}">
     <title>Pay School Fees - M-PESA</title>
+    @include('layouts.partials.favicon')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         :root {
             /* Branding from settings */
-            --brand-primary: {{ \App\Models\Setting::get('finance_primary_color', '#3a1a59') }};
-            --brand-secondary: {{ \App\Models\Setting::get('finance_secondary_color', '#14b8a6') }};
-            /* M-PESA green for Pay button and balance only */
-            --mpesa-green: #007e33;
+            --brand-primary: {{ $brandPrimary }};
+            --brand-secondary: {{ $brandSecondary }};
+            /* Pay button color (M-PESA green or custom) */
+            --mpesa-green: {{ $brandMpesaGreen }};
             --pay-green: var(--mpesa-green);
             --pay-green-light: #00c851;
             --pay-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 50%, color-mix(in srgb, var(--brand-primary) 80%, var(--brand-secondary)) 100%);

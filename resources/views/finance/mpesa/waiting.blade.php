@@ -2,9 +2,13 @@
 
 @section('content')
 <style>
+    @php
+        $brandPrimary = setting('finance_primary_color', '#3a1a59');
+        $brandMpesaGreen = setting('finance_mpesa_green', '#007e33');
+    @endphp
     :root {
-        --brand-primary: {{ \App\Models\Setting::get('finance_primary_color', '#3a1a59') }};
-        --mpesa-green: #007e33;
+        --brand-primary: {{ $brandPrimary }};
+        --mpesa-green: {{ $brandMpesaGreen }};
     }
     /* Prevent navigation during payment */
     body.payment-in-progress {

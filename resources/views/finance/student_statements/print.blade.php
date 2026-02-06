@@ -29,6 +29,8 @@
 <head>
     <meta charset="utf-8">
     <title>Statement of Accounts - {{ $student->full_name }}</title>
+    @include('layouts.partials.favicon')
+    @include('layouts.partials.branding-vars')
     <style>
         * {
             margin: 0;
@@ -38,8 +40,8 @@
         
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 11px;
-            color: #000;
+            font-size: {{ $brandBodyFont }}px;
+            color: {{ setting('finance_text_color', '#000') }};
             width: 210mm; /* A4 width */
             min-height: 297mm; /* A4 height */
             padding: 10mm;
@@ -86,7 +88,7 @@
         
         .header {
             margin-bottom: 20px;
-            border-bottom: 2px solid #000;
+            border-bottom: 2px solid {{ $brandPrimary }};
             padding-bottom: 15px;
         }
         
@@ -113,6 +115,7 @@
             font-weight: 700;
             margin-bottom: 8px;
             text-transform: uppercase;
+            color: {{ $brandPrimary }};
         }
         
         .school-info {
@@ -122,10 +125,11 @@
         
         .statement-title {
             text-align: center;
-            font-size: 20px;
+            font-size: {{ (int)$brandHeadingFont + 1 }}px;
             font-weight: 700;
             margin: 20px 0;
             text-transform: uppercase;
+            color: {{ $brandPrimary }};
         }
         
         .student-info {
@@ -149,7 +153,8 @@
         }
         
         .transactions-table th {
-            background-color: #f5f5f5;
+            background-color: {{ $brandPrimary }};
+            color: #fff;
             font-weight: 700;
             text-align: center;
         }
@@ -186,7 +191,7 @@
         
         .summary-section {
             margin-top: 30px;
-            border-top: 2px solid #000;
+            border-top: 2px solid {{ $brandPrimary }};
             padding-top: 15px;
         }
         
@@ -210,36 +215,37 @@
         }
         
         .current-balance {
-            font-size: 16px;
+            font-size: {{ (int)$brandHeadingFont - 2 }}px;
             font-weight: 700;
             margin-top: 15px;
             padding-top: 15px;
-            border-top: 2px solid #000;
+            border-top: 2px solid {{ $brandPrimary }};
             text-align: right;
+            color: {{ $brandPrimary }};
         }
         
         .footer {
             margin-top: 40px;
             padding-top: 15px;
             border-top: 1px solid #ddd;
-            font-size: 9px;
-            color: #666;
+            font-size: {{ max(8, (int)$brandSmallFont - 2) }}px;
+            color: {{ $brandMuted }};
             text-align: center;
         }
         
         .print-btn {
             position: fixed;
             top: 20px;
-            left: 20px;
-            background: #3a1a59;
+            right: 20px;
+            background: {{ $brandPrimary }};
             color: white;
             border: none;
             padding: 12px 24px;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
             z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 8px rgba(58,26,89,0.3);
         }
         
         .print-btn:hover {

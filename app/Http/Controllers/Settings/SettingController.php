@@ -193,6 +193,10 @@ class SettingController extends Controller
             'finance_muted_color'     => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'finance_primary_font'    => 'nullable|string|max:100',
             'finance_heading_font'    => 'nullable|string|max:100',
+            'finance_body_font_size'     => 'nullable|integer|min:10|max:24',
+            'finance_heading_font_size'  => 'nullable|integer|min:12|max:32',
+            'finance_small_font_size'    => 'nullable|integer|min:8|max:14',
+            'finance_mpesa_green'        => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
         ]);
 
         // Handle file uploads (uses PUBLIC_WEB_ROOT when set for split deployment)
@@ -223,6 +227,10 @@ class SettingController extends Controller
             'finance_muted_color',
             'finance_primary_font',
             'finance_heading_font',
+            'finance_body_font_size',
+            'finance_heading_font_size',
+            'finance_small_font_size',
+            'finance_mpesa_green',
         ];
 
         foreach ($colorKeys as $key) {

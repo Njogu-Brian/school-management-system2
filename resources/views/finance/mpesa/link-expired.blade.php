@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#007e33">
+    @include('layouts.partials.branding-vars')
+    <meta name="theme-color" content="{{ $brandMpesaGreen }}">
     <title>Payment Link Unavailable - M-PESA</title>
+    @include('layouts.partials.favicon')
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <style>
         :root {
-            --brand-primary: {{ \App\Models\Setting::get('finance_primary_color', '#3a1a59') }};
-            --brand-secondary: {{ \App\Models\Setting::get('finance_secondary_color', '#14b8a6') }};
+            --brand-primary: {{ $brandPrimary }};
+            --brand-secondary: {{ $brandSecondary }};
             --pay-bg: linear-gradient(160deg, var(--brand-primary) 0%, var(--brand-secondary) 100%);
             --card-radius: 1rem;
         }

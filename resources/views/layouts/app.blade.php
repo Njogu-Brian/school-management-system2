@@ -98,14 +98,14 @@
             --brand-primary-dark: {{ setting('finance_primary_color', '#2e1344') }};
             --brand-accent: {{ setting('finance_secondary_color', '#14b8a6') }};
             --brand-bg: #f8f9fa;
-            --brand-surface: #ffffff;
-            --brand-border: #e5e7eb;
-            --brand-text: #0f172a;
-            --brand-muted: #6b7280;
+            --brand-surface: {{ setting('finance_surface_color', '#ffffff') }};
+            --brand-border: {{ setting('finance_border_color', '#e5e7eb') }};
+            --brand-text: {{ setting('finance_text_color', '#0f172a') }};
+            --brand-muted: {{ setting('finance_muted_color', '#6b7280') }};
             --nav-highlight: {{ setting('navigation_highlight_color', '#ffc107') }};
         }
         body {
-            font-family: 'Poppins', sans-serif;
+            font-family: '{{ setting('finance_primary_font', 'Poppins') }}', sans-serif;
             background-color: var(--brand-bg);
             color: var(--brand-text);
         }

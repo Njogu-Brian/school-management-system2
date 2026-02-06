@@ -21,6 +21,7 @@ class ReceiptService
     {
         $payment->load([
             'student.classroom',
+            'student.family.updateLink',
             'invoice',
             'paymentMethod',
             'allocations.invoiceItem.votehead',
