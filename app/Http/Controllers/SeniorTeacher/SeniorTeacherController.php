@@ -79,19 +79,26 @@ class SeniorTeacherController extends Controller
         
         // Supervised classrooms (from assigned campus)
         $supervisedClassroomIds = $user->getSupervisedClassroomIds();
-        $supervisedClassrooms = Classroom::whereIn('id', $supervisedClassroomIds)
-            ->withCount('students')
-            ->get();
+        $supervisedClassrooms = empty($supervisedClassroomIds)
+            ? collect()
+            : Classroom::whereIn('id', $supervisedClassroomIds)
+                ->withCount('students')
+                ->get();
 
         // Supervised staff (from assigned campus)
-        $supervisedStaff = Staff::whereIn('id', $supervisedStaffIds)
-            ->with(['user', 'position'])
-            ->get();
+        $supervisedStaff = empty($staffIds)
+            ? collect()
+            : Staff::whereIn('id', $staffIds)
+                ->with(['user', 'position'])
+                ->get();
         
         // Own assigned classes (as a teacher)
-        $assignedClassrooms = Classroom::whereIn('id', $user->getAssignedClassroomIds())
-            ->withCount('students')
-            ->get();
+        $assignedClassroomIds = $user->getAssignedClassroomIds();
+        $assignedClassrooms = empty($assignedClassroomIds)
+            ? collect()
+            : Classroom::whereIn('id', $assignedClassroomIds)
+                ->withCount('students')
+                ->get();
 
         // Attendance stats for today
         $todayAttendance = [
@@ -189,7 +196,7 @@ class SeniorTeacherController extends Controller
             'attendanceTrends' => $attendanceTrends,
             'years' => AcademicYear::all(),
             'terms' => Term::all(),
-            'classrooms' => Classroom::whereIn('id', $classroomIds)->get(),
+            'classrooms' => empty($classroomIds) ? collect() : Classroom::whereIn('id', $classroomIds)->get(),
             'role' => 'senior_teacher',
         ];
     }
