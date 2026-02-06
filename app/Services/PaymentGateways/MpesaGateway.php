@@ -548,16 +548,19 @@ class MpesaGateway implements PaymentGatewayInterface
         $student = \App\Models\Student::findOrFail($studentId);
         $isShared = !empty($sharedAllocations) && count($sharedAllocations) > 0;
 
-        // Set account reference: SWIM-{admission} for swimming, {admission} for regular fees
+        // Set account reference: SWIM-{admission} for swimming, {admission} for regular fees (sent to M-PESA)
         $accountReference = $isSwimming
             ? 'SWIM-' . $student->admission_number
             : $student->admission_number;
+
+        // Internal reference must be unique per transaction (DB unique constraint)
+        $reference = \App\Models\PaymentTransaction::generateReference();
 
         $transactionData = [
             'student_id' => $studentId,
             'invoice_id' => $isShared ? null : $invoiceId,
             'gateway' => 'mpesa',
-            'reference' => $accountReference,
+            'reference' => $reference,
             'amount' => $amount,
             'currency' => 'KES',
             'status' => 'pending',
@@ -625,7 +628,7 @@ class MpesaGateway implements PaymentGatewayInterface
             ];
         }
 
-        // Create payment transaction
+        // Create payment transaction (reference must be unique per transaction)
         $accountReference = $paymentLink->account_reference
             ?? $paymentLink->student?->admission_number
             ?? null;
@@ -634,7 +637,7 @@ class MpesaGateway implements PaymentGatewayInterface
             'invoice_id' => $paymentLink->invoice_id,
             'payment_link_id' => $paymentLink->id,
             'gateway' => 'mpesa',
-            'reference' => $accountReference ?? $paymentLink->payment_reference,
+            'reference' => \App\Models\PaymentTransaction::generateReference(),
             'amount' => $paymentAmount,
             'currency' => $paymentLink->currency,
             'status' => 'pending',
