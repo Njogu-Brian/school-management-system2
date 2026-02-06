@@ -1,3 +1,7 @@
+@php
+    $brandPrimary = setting('finance_primary_color', '#3a1a59');
+    $brandSecondary = setting('finance_secondary_color', '#14b8a6');
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
