@@ -114,7 +114,7 @@
         <div class="payment-header">
             <i class="fas fa-file-invoice-dollar"></i>
             <h2>Pay Invoice</h2>
-            <p class="mb-0">{{ \App\Models\Setting::getValue('school_name', 'School') }}</p>
+            <p class="mb-0">{{ \App\Models\Setting::get('school_name', 'School') }}</p>
         </div>
         
         <div class="payment-body">

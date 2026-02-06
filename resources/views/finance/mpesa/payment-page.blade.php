@@ -110,7 +110,7 @@
         <div class="pay-header">
             <i class="bi bi-phone"></i>
             <h1>M-PESA Payment</h1>
-            <p class="school mb-0">{{ \App\Models\Setting::getValue('school_name', 'School') }}</p>
+            <p class="school mb-0">{{ \App\Models\Setting::get('school_name', 'School') }}</p>
         </div>
 
         <div class="pay-body">
