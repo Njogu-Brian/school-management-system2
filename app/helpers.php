@@ -171,7 +171,7 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
         if ($student->family_id) {
             $familyLink = \App\Models\PaymentLink::active()
                 ->where('family_id', $student->family_id)
-                ->where(function ($q) {
+                ->where(function ($q) use ($student) {
                     $q->whereNull('student_id')->orWhere('student_id', $student->id);
                 })
                 ->first();
