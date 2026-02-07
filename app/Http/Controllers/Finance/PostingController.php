@@ -172,7 +172,11 @@ class PostingController extends Controller
     
     public function show(FeePostingRun $run)
     {
-        $run->load(['academicYear', 'term', 'postedBy', 'diffs.student', 'diffs.votehead']);
+        $run->load([
+            'academicYear', 'term', 'postedBy',
+            'diffs.student', 'diffs.votehead',
+            'invoiceItems.invoice.student', 'invoiceItems.votehead',
+        ]);
         return view('finance.posting.show', compact('run'));
     }
     

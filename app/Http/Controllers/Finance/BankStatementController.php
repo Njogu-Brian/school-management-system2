@@ -3517,15 +3517,13 @@ class BankStatementController extends Controller
                 ->route('finance.bank-statements.index')
                 ->with('error', 'Please select at least one draft transaction to confirm.');
         }
-        
-        // Validate that all IDs exist
-        $existingIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
-        $invalidIds = array_diff($transactionIds, $existingIds);
-        
-        if (!empty($invalidIds)) {
+
+        // Page shows both bank and C2B transactions; only bank IDs exist in bank_statement_transactions
+        $transactionIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+        if (empty($transactionIds)) {
             return redirect()
                 ->route('finance.bank-statements.index')
-                ->with('error', 'Some selected transaction IDs are invalid: ' . implode(', ', $invalidIds));
+                ->with('error', 'Selected transactions are M-PESA C2B. Only bank statement transactions can be bulk confirmed here. For C2B, open each transaction and confirm from its detail page.');
         }
 
         $confirmed = 0;
@@ -3638,6 +3636,13 @@ class BankStatementController extends Controller
         if (empty($transactionIds)) {
             return redirect()->route('finance.bank-statements.index')
                 ->with('error', 'Please select at least one transaction.');
+        }
+
+        // Page shows both bank and C2B; only bank statement IDs are processed here
+        $transactionIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+        if (empty($transactionIds)) {
+            return redirect()->route('finance.bank-statements.index')
+                ->with('error', 'Selected transactions are M-PESA C2B. Only bank statement transactions can be bulk confirmed here. For C2B, open each transaction and confirm from its detail page.');
         }
 
         $receiptIds = [];

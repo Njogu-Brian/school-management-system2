@@ -51,6 +51,7 @@ class FinancialAudit extends Command
             'payments_partially_allocated' => 0,
             'allocation_mismatches' => 0,
             'invoice_balance_issues' => 0,
+            'c2b_bank_payments_unallocated' => 0,
         ];
 
         // 1. AUDIT COLLECTED TRANSACTIONS
@@ -77,6 +78,11 @@ class FinancialAudit extends Command
         $this->info('📊 Step 5: Auditing Payment-Transaction Links...');
         $linkIssues = $this->auditPaymentTransactionLinks($stats);
         $issues = array_merge($issues, $linkIssues);
+
+        // 6. AUDIT C2B / STATEMENT PAYMENTS WITHOUT ALLOCATIONS
+        $this->info('📊 Step 6: Auditing C2B / Statement payments without allocations...');
+        $c2bBankIssues = $this->auditC2BAndStatementPaymentsWithoutAllocations($stats);
+        $issues = array_merge($issues, $c2bBankIssues);
 
         // Display Summary
         $this->displaySummary($stats, $issues);
@@ -306,7 +312,7 @@ class FinancialAudit extends Command
                 })
                 ->sum('amount');
 
-            $expectedBalance = $invoice->total_amount - $paidAmount;
+            $expectedBalance = (float) $invoice->total - $paidAmount;
             $actualBalance = $invoice->balance ?? 0;
 
             // Allow small floating point differences
@@ -318,7 +324,7 @@ class FinancialAudit extends Command
                     'invoice_id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number ?? 'N/A',
                     'student' => $invoice->student ? $invoice->student->full_name : 'N/A',
-                    'total_amount' => $invoice->total_amount,
+                    'total_amount' => $invoice->total,
                     'paid_amount' => $paidAmount,
                     'expected_balance' => $expectedBalance,
                     'actual_balance' => $actualBalance,
@@ -354,7 +360,7 @@ class FinancialAudit extends Command
                 continue;
             }
 
-            $totalInvoiced = $invoices->sum('total_amount');
+            $totalInvoiced = $invoices->sum('total');
             $totalPaid = PaymentAllocation::whereHas('invoiceItem', function($q) use ($invoices) {
                     $q->whereIn('invoice_id', $invoices->pluck('id'));
                 })
@@ -441,6 +447,67 @@ class FinancialAudit extends Command
     }
 
     /**
+     * Audit payments that originated from C2B or bank statement upload but have no allocations.
+     * These are problematic because the money is "collected" but not applied to any invoice.
+     */
+    protected function auditC2BAndStatementPaymentsWithoutAllocations(array &$stats): array
+    {
+        $issues = [];
+
+        $paymentIdsFromC2B = collect();
+        $paymentIdsFromBank = collect();
+
+        if (Schema::hasTable('mpesa_c2b_transactions')) {
+            $paymentIdsFromC2B = MpesaC2BTransaction::whereNotNull('payment_id')
+                ->where('is_duplicate', false)
+                ->pluck('payment_id')
+                ->unique()
+                ->filter();
+        }
+
+        $paymentIdsFromBank = BankStatementTransaction::whereNotNull('payment_id')
+            ->where('payment_created', true)
+            ->where('is_duplicate', false)
+            ->pluck('payment_id')
+            ->unique()
+            ->filter();
+
+        $allSourcePaymentIds = $paymentIdsFromC2B->merge($paymentIdsFromBank)->unique()->values();
+
+        foreach ($allSourcePaymentIds as $paymentId) {
+            $payment = Payment::where('id', $paymentId)
+                ->where('reversed', false)
+                ->whereNull('deleted_at')
+                ->first();
+
+            if (!$payment) {
+                continue;
+            }
+
+            $allocatedAmount = PaymentAllocation::where('payment_id', $payment->id)->sum('amount');
+
+            if ($allocatedAmount < 0.01) {
+                $stats['c2b_bank_payments_unallocated']++;
+                $fromC2B = $paymentIdsFromC2B->contains($paymentId);
+                $issues[] = [
+                    'type' => 'c2b_or_statement_payment_unallocated',
+                    'severity' => 'high',
+                    'payment_id' => $payment->id,
+                    'receipt' => $payment->receipt_number,
+                    'transaction_code' => $payment->transaction_code,
+                    'amount' => $payment->amount,
+                    'date' => $payment->payment_date?->format('Y-m-d'),
+                    'student' => $payment->student ? $payment->student->full_name : 'N/A',
+                    'source' => $fromC2B ? 'c2b' : 'bank_statement',
+                    'issue' => ($fromC2B ? 'C2B' : 'Bank statement') . ' payment has no allocations to any invoice',
+                ];
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
      * Display summary
      */
     protected function displaySummary(array $stats, array $issues): void
@@ -463,6 +530,9 @@ class FinancialAudit extends Command
         $this->line("   ├─ Unallocated: {$stats['payments_unallocated']}");
         $this->line("   ├─ Partially Allocated: {$stats['payments_partially_allocated']}");
         $this->line("   └─ Over-allocated: {$stats['allocation_mismatches']}");
+        $this->newLine();
+
+        $this->line("   C2B / Bank statement payments with no allocations: " . ($stats['c2b_bank_payments_unallocated'] ?? 0));
         $this->newLine();
 
         $this->line("   Invoice Balance Issues: {$stats['invoice_balance_issues']}");

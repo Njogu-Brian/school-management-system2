@@ -42,15 +42,15 @@
             'value' => $m($kpis['fees_collected'] ?? 0),
             'icon'  => 'bi-cash-coin',
             'delta'=> $kpis['fees_delta'] ?? null,
-            'muted'=> "Last 30 days",
+            'muted'=> ($kpis['finance_scope'] ?? '') === 'term' ? 'Current term' : 'In selected date range',
             'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
         ],
         [
-            'label' => 'Balances Collected',
+            'label' => 'Fees Outstanding',
             'value' => $m($kpis['fees_outstanding'] ?? 0),
             'icon'  => 'bi-wallet2',
             'delta'=> $kpis['fees_delta'] ?? null,
-            'muted'=> 'Outstanding',
+            'muted'=> ($kpis['finance_scope'] ?? '') === 'term' ? 'Current term balance' : 'All outstanding',
             'hide' => !in_array(($role ?? 'admin'), ['admin','finance']),
         ],
         [
