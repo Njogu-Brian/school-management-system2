@@ -1318,6 +1318,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/{bankStatement}/edit', [\App\Http\Controllers\Finance\BankStatementController::class, 'edit'])->name('edit');
             Route::put('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'update'])->name('update');
             Route::delete('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'destroy'])->name('destroy');
+            Route::get('/{bankStatement}/confirm', function ($bankStatement) {
+                return redirect()->route('finance.bank-statements.show', $bankStatement);
+            })->name('confirm.get');
             Route::post('/{bankStatement}/confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'confirm'])->name('confirm');
             Route::post('/{bankStatement}/create-payment', [\App\Http\Controllers\Finance\BankStatementController::class, 'createPayment'])->name('create-payment');
             Route::post('/{bankStatement}/split-transaction', [\App\Http\Controllers\Finance\BankStatementController::class, 'splitTransaction'])->name('split-transaction');
