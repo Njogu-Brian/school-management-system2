@@ -1532,6 +1532,18 @@ class BankStatementController extends Controller
                     'match_notes' => $matchNotes,
                 ]);
             }
+
+            // Learn from manual assignment: store so future matching can suggest this student for similar reference/description
+            if ($student) {
+                \App\Models\ManualMatchLearning::create([
+                    'transaction_type' => $isC2B ? 'c2b' : 'bank',
+                    'reference_text' => $isC2B ? ($transaction->trans_id ?? null) : ($transaction->reference_number ?? null),
+                    'description_text' => $isC2B ? ($transaction->bill_ref_number ?? $transaction->full_name ?? null) : ($transaction->description ?? null),
+                    'student_id' => $student->id,
+                    'user_id' => auth()->id(),
+                    'match_reason' => $matchNotes,
+                ]);
+            }
         });
 
             // Use the original ID from route parameter, not from closure
@@ -1643,9 +1655,22 @@ class BankStatementController extends Controller
             }
 
             // Paylinks/prompting: payment(s) already exist — we've linked and set status; treat as collected
-            return redirect()
+            $receiptIds = $nonReversedPayments->pluck('id')->unique()->values()->all();
+            try {
+                $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
+                foreach ($nonReversedPayments->take(10) as $p) {
+                    $paymentController->sendPaymentNotifications($p);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Send notification after link-existing-payment failed', ['message' => $e->getMessage()]);
+            }
+            $redirect = redirect()
                 ->route('finance.bank-statements.show', $id)
                 ->with('success', 'Transaction already had payment(s) and has been marked as collected.');
+            if (!empty($receiptIds)) {
+                $redirect->with('receipt_ids', $receiptIds);
+            }
+            return $redirect;
         }
 
         // Check if this is a swimming transaction
@@ -3595,6 +3620,122 @@ class BankStatementController extends Controller
         return redirect()
             ->route('finance.bank-statements.index')
             ->with($errors ? 'warning' : 'success', $message);
+    }
+
+    /**
+     * Bulk confirm and create payments: confirm selected transactions, create payments for matched,
+     * then open receipt view for all and send communication.
+     */
+    public function bulkConfirmAndCreatePayments(Request $request)
+    {
+        $transactionIds = $request->input('transaction_ids', []);
+        if (is_string($transactionIds)) {
+            $transactionIds = json_decode($transactionIds, true) ?? [];
+        }
+        $transactionIds = array_filter(array_map('intval', (array) $transactionIds));
+        $transactionIds = array_slice($transactionIds, 0, 20);
+
+        if (empty($transactionIds)) {
+            return redirect()->route('finance.bank-statements.index')
+                ->with('error', 'Please select at least one transaction.');
+        }
+
+        $receiptIds = [];
+        $errors = [];
+        $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
+
+        foreach ($transactionIds as $transactionId) {
+            try {
+                $transaction = BankStatementTransaction::find($transactionId);
+                if (!$transaction || !$transaction->student_id && !$transaction->is_shared) {
+                    continue;
+                }
+                if ($transaction->status === 'rejected') {
+                    continue;
+                }
+
+                $ref = $transaction->reference_number;
+                $existingPayments = \App\Models\Payment::where('reversed', false)
+                    ->where(function ($q) use ($ref) {
+                        $q->where('transaction_code', $ref)
+                          ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                    })
+                    ->get();
+
+                if ($existingPayments->isNotEmpty()) {
+                    $first = $existingPayments->first();
+                    if (!$transaction->payment_id) {
+                        $transaction->update([
+                            'payment_id' => $first->id,
+                            'payment_created' => true,
+                            'status' => $transaction->status === 'draft' ? 'confirmed' : $transaction->status,
+                        ]);
+                    } else {
+                        $transaction->update(['payment_created' => true, 'status' => 'confirmed']);
+                    }
+                    foreach ($existingPayments as $p) {
+                        $receiptIds[] = $p->id;
+                    }
+                    try {
+                        $paymentController->sendPaymentNotifications($first);
+                    } catch (\Throwable $e) {
+                        Log::warning('Bulk confirm: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                    }
+                    continue;
+                }
+
+                if ($transaction->status !== 'confirmed') {
+                    $transaction->confirm();
+                    if (!$transaction->match_status || $transaction->match_status === 'unmatched') {
+                        $transaction->update(['match_status' => 'manual']);
+                    }
+                }
+                $transaction->refresh();
+
+                if ($transaction->is_swimming_transaction ?? false) {
+                    try {
+                        $this->processSwimmingTransaction($transaction);
+                    } catch (\Exception $e) {
+                        $errors[] = "Transaction #{$transactionId} (swimming): " . $e->getMessage();
+                    }
+                    continue;
+                }
+
+                if ($transaction->payment_created) {
+                    if ($transaction->payment_id) {
+                        $receiptIds[] = $transaction->payment_id;
+                    }
+                    continue;
+                }
+
+                try {
+                    $normalized = (object) $this->normalizeTransaction($transaction);
+                    $payment = $this->createPaymentForBankStatement($transaction, $normalized);
+                    if ($payment) {
+                        $receiptIds[] = $payment->id;
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
+            }
+        }
+
+        $receiptIds = array_values(array_unique($receiptIds));
+        $message = count($receiptIds) > 0
+            ? 'Confirmed and created/linked payments. ' . count($receiptIds) . ' receipt(s) ready for printing. Communications sent.'
+            : 'No payments created or linked for selected transactions.';
+        if (!empty($errors)) {
+            $message .= ' Errors: ' . implode('; ', array_slice($errors, 0, 3));
+        }
+
+        $redirect = redirect()->route('finance.bank-statements.index')->with('success', $message);
+        if (!empty($receiptIds)) {
+            $redirect->with('receipt_ids', $receiptIds);
+        }
+        return $redirect;
     }
 
     /**

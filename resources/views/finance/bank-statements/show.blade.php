@@ -204,7 +204,11 @@
                                         <span class="badge bg-secondary">Unmatched</span>
                                     @endif
                                     @if($bankStatement->match_confidence)
-                                        <small class="text-muted">({{ number_format($bankStatement->match_confidence * 100, 0) }}%)</small>
+                                        @php
+                                            $conf = $bankStatement->match_confidence;
+                                            $confPct = $conf > 1 ? min(100, (int) round($conf)) : min(100, (int) round($conf * 100));
+                                        @endphp
+                                        <small class="text-muted">({{ $confPct }}%)</small>
                                     @endif
                                 </dd>
 

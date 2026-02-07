@@ -16,8 +16,13 @@ class MpesaSmartMatchingService
      */
     public function matchTransaction(MpesaC2BTransaction $transaction): array
     {
-        $suggestions = [];
-        
+        // Start with learned suggestions from past manual assignments (system improves over time)
+        $suggestions = \App\Models\ManualMatchLearning::findSuggestions(
+            'c2b',
+            $transaction->trans_id ?? null,
+            $transaction->bill_ref_number ?? $transaction->full_name ?? null
+        );
+
         // Method 1: Exact match by admission number in bill_ref_number
         $admissionMatch = $this->matchByAdmissionNumber($transaction);
         if ($admissionMatch) {
@@ -77,7 +82,7 @@ class MpesaSmartMatchingService
     }
 
     /**
-     * Match by admission number in bill reference
+     * Match by admission number in bill reference (case-insensitive; handles "Name RKS354", "RKS354", "gabriela muthoni RKS354")
      */
     protected function matchByAdmissionNumber(MpesaC2BTransaction $transaction): ?array
     {
@@ -85,11 +90,14 @@ class MpesaSmartMatchingService
             return null;
         }
 
-        $ref = strtoupper(trim($transaction->bill_ref_number));
-        
-        // Try exact match first
-        $student = Student::with('classroom')->whereRaw('UPPER(admission_number) = ?', [$ref])->first();
-        
+        $ref = trim($transaction->bill_ref_number);
+        $refUpper = strtoupper($ref);
+
+        // Try exact match first (case-insensitive)
+        $student = Student::with('classroom')->whereRaw('UPPER(TRIM(admission_number)) = ?', [$refUpper])
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->first();
         if ($student) {
             return [
                 'student_id' => $student->id,
@@ -102,15 +110,45 @@ class MpesaSmartMatchingService
             ];
         }
 
-        // Try to extract admission number from reference
-        // Pattern: ADM123, SCH123, 123, etc.
-        preg_match('/([A-Z]*\d+)/', $ref, $matches);
-        if (!empty($matches[1])) {
-            $extracted = $matches[1];
-            $student = Student::with('classroom')->whereRaw('UPPER(admission_number) = ?', [$extracted])
-                ->orWhereRaw('UPPER(admission_number) LIKE ?', ['%' . $extracted . '%'])
+        // Extract RKS123 or RKS 123 from reference (child name + admission in any case)
+        if (preg_match('/RKS\s*(\d{3,})/i', $ref, $rksMatch)) {
+            $digits = $rksMatch[1];
+            $adm = 'RKS' . $digits;
+            $admPadded = 'RKS' . str_pad($digits, 3, '0', STR_PAD_LEFT);
+            $student = Student::with('classroom')
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->where(function ($q) use ($adm, $admPadded, $digits) {
+                    $q->whereRaw('UPPER(TRIM(admission_number)) = ?', [strtoupper($adm)])
+                      ->orWhereRaw('UPPER(TRIM(admission_number)) = ?', [strtoupper($admPadded)])
+                      ->orWhereRaw('UPPER(admission_number) LIKE ?', ['%' . $digits . '%']);
+                })
                 ->first();
-            
+            if ($student) {
+                return [
+                    'student_id' => $student->id,
+                    'student_name' => $student->first_name . ' ' . $student->last_name,
+                    'admission_number' => $student->admission_number,
+                    'classroom_name' => $student->classroom ? $student->classroom->name : null,
+                    'confidence' => 95,
+                    'reason' => 'Admission number (RKS) extracted from reference',
+                    'match_type' => 'admission_extracted',
+                ];
+            }
+        }
+
+        // Fallback: extract any alphanumeric token that might be admission (ADM123, 354, etc.)
+        preg_match('/([A-Z]*\d{3,})/i', $ref, $matches);
+        if (!empty($matches[1])) {
+            $extracted = strtoupper(trim($matches[1]));
+            $student = Student::with('classroom')
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->where(function ($q) use ($extracted) {
+                    $q->whereRaw('UPPER(TRIM(admission_number)) = ?', [$extracted])
+                      ->orWhereRaw('UPPER(admission_number) LIKE ?', ['%' . $extracted . '%']);
+                })
+                ->first();
             if ($student) {
                 return [
                     'student_id' => $student->id,

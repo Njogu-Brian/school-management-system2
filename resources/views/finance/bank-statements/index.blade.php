@@ -235,6 +235,13 @@
                     <i class="bi bi-check-circle"></i> Confirm Selected
                 </button>
             </form>
+            <form id="bulkConfirmAndCreateForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm-and-create') }}">
+                @csrf
+                <div id="bulkConfirmAndCreateIdsContainer"></div>
+                <button type="button" class="btn btn-finance btn-finance-primary" onclick="bulkConfirmAndCreate()" id="bulkConfirmAndCreateBtn" style="display: none;">
+                    <i class="bi bi-check2-all"></i> Confirm & Create Payments
+                </button>
+            </form>
             
             <form id="bulkSwimmingForm" method="POST" action="{{ route('finance.bank-statements.bulk-mark-swimming') }}">
                 @csrf
@@ -545,7 +552,13 @@
                                 @if($txnMatchStatus == 'matched')
                                     <span class="badge bg-success">Matched</span>
                                     @if($txnMatchConfidence > 0)
-                                        <br><small class="text-muted">{{ round($txnMatchConfidence * 100) }}%</small>
+                                        @php
+                                            // C2B stores 0-100, bank stores 0-1; display always as 0-100%
+                                            $displayConfidence = $txnMatchConfidence > 1
+                                                ? min(100, (int) round($txnMatchConfidence))
+                                                : min(100, (int) round($txnMatchConfidence * 100));
+                                        @endphp
+                                        <br><small class="text-muted">{{ $displayConfidence }}%</small>
                                     @endif
                                 @elseif($txnMatchStatus == 'multiple_matches')
                                     <span class="badge bg-warning">Multiple</span>
@@ -709,15 +722,18 @@
             const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'));
             const checkedIds = checked.map(cb => parseInt(cb.value));
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
+            const bulkConfirmAndCreateIdsContainer = document.getElementById('bulkConfirmAndCreateIdsContainer');
             const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
             const bulkSwimmingIdsContainer = document.getElementById('bulkSwimmingTransactionIdsContainer');
             const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
+            const bulkConfirmAndCreateBtn = document.getElementById('bulkConfirmAndCreateBtn');
             const bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
             const bulkActionsContainer = document.getElementById('bulkActionsContainer');
             
             // Clear existing hidden inputs
             bulkIdsContainer.innerHTML = '';
+            if (bulkConfirmAndCreateIdsContainer) bulkConfirmAndCreateIdsContainer.innerHTML = '';
             autoAssignIdsContainer.innerHTML = '';
             if (bulkArchiveIdsContainer) {
                 bulkArchiveIdsContainer.innerHTML = '';
@@ -772,6 +788,13 @@
                 bulkInput.name = 'transaction_ids[]';
                 bulkInput.value = id;
                 bulkIdsContainer.appendChild(bulkInput);
+                if (bulkConfirmAndCreateIdsContainer) {
+                    const createInput = document.createElement('input');
+                    createInput.type = 'hidden';
+                    createInput.name = 'transaction_ids[]';
+                    createInput.value = id;
+                    bulkConfirmAndCreateIdsContainer.appendChild(createInput);
+                }
             });
             
             // Create hidden inputs for archivable transactions
@@ -801,8 +824,10 @@
             
             if (confirmableIds.length > 0) {
                 bulkConfirmBtn.style.display = 'inline-block';
+                if (bulkConfirmAndCreateBtn) bulkConfirmAndCreateBtn.style.display = 'inline-block';
             } else {
                 bulkConfirmBtn.style.display = 'none';
+                if (bulkConfirmAndCreateBtn) bulkConfirmAndCreateBtn.style.display = 'none';
             }
             
             // Show/hide bulk archive button
@@ -951,6 +976,29 @@
             
             if (confirm(`Confirm ${checked.length} transaction(s)? This will confirm draft, auto-assigned, and manual-assigned transactions.`)) {
                 document.getElementById('bulkConfirmForm').submit();
+            }
+        }
+
+        function bulkConfirmAndCreate() {
+            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
+                .filter(cb => cb.getAttribute('data-can-confirm') === '1')
+                .map(cb => parseInt(cb.value));
+            if (checked.length === 0) {
+                alert('Please select at least one transaction that can be confirmed (draft, matched to student or shared).');
+                return;
+            }
+            const container = document.getElementById('bulkConfirmAndCreateIdsContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            checked.forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'transaction_ids[]';
+                input.value = id;
+                container.appendChild(input);
+            });
+            if (confirm(`Confirm and create payments for ${checked.length} transaction(s)? Existing payments will be linked; matched transactions will get new payments. Receipts will open for printing and communications will be sent.`)) {
+                document.getElementById('bulkConfirmAndCreateForm').submit();
             }
         }
 

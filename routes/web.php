@@ -1334,6 +1334,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/{bankStatement}/serve-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'servePdf'])->name('serve-pdf');
             Route::get('/{bankStatement}/download-pdf', [\App\Http\Controllers\Finance\BankStatementController::class, 'downloadPdf'])->name('download-pdf');
             Route::post('/bulk-confirm', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkConfirm'])->middleware('throttle:10,1')->name('bulk-confirm');
+            Route::post('/bulk-confirm-and-create', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkConfirmAndCreatePayments'])->middleware('throttle:10,1')->name('bulk-confirm-and-create');
             Route::post('/bulk-archive', [\App\Http\Controllers\Finance\BankStatementController::class, 'bulkArchive'])->middleware('throttle:10,1')->name('bulk-archive');
             Route::post('/auto-assign', [\App\Http\Controllers\Finance\BankStatementController::class, 'autoAssign'])->middleware('throttle:5,1')->name('auto-assign');
             Route::post('/{bankStatement}/reparse', [\App\Http\Controllers\Finance\BankStatementController::class, 'reparse'])->name('reparse');

@@ -214,6 +214,24 @@ class BankStatementParser
         $phoneNumber = $transaction->phone_number;
         
         $matches = [];
+
+        // Use learned suggestions from past manual assignments (system improves over time)
+        $learned = \App\Models\ManualMatchLearning::findSuggestions(
+            'bank',
+            $transaction->reference_number ?? null,
+            $description
+        );
+        foreach ($learned as $s) {
+            $student = Student::with('classroom')->find($s['student_id']);
+            if ($student && $student->archive == 0 && !$student->is_alumni) {
+                $matches[] = [
+                    'student' => $student,
+                    'match_type' => 'learned',
+                    'confidence' => $s['confidence'] / 100.0,
+                    'matched_value' => $s['reason'],
+                ];
+            }
+        }
         
         // Parse MPESA paybill format: "Pay Bill from 25471****156 - FRANCISCAH WAMBUGU Acc. Trevor Osairi"
         $parsedData = $this->parseMpesaPaybillDescription($description);
@@ -845,6 +863,20 @@ class BankStatementParser
                 $exclude = ['Pay Bill', 'From 254', 'Acc Erastus'];
                 if (!in_array($name, $exclude) && strlen($name) > 5) {
                     $names[] = $name;
+                }
+            }
+        }
+
+        // Child name in small or capital or combined: "GABRIELA MUTHONI", "gabriela muthoni", "Gabriela MUTHONI"
+        // After "Acc." we may have 2+ words (name) possibly followed by RKS123 - match 2+ letter words
+        if (preg_match_all('/Acc\.\s*([A-Za-z\s]+?)(?:\s+RKS\d+|$)/i', $description, $accMatches)) {
+            foreach ($accMatches[1] as $segment) {
+                $segment = trim($segment);
+                if (preg_match('/^([A-Za-z]+\s+[A-Za-z]+)(?:\s+[A-Za-z]+)*$/i', $segment, $m)) {
+                    $name = ucwords(strtolower(trim($m[1])));
+                    if (strlen($name) > 5 && !preg_match('/^RKS\d+$/i', $name)) {
+                        $names[] = $name;
+                    }
                 }
             }
         }
@@ -2212,28 +2244,33 @@ class BankStatementParser
     }
     
     /**
-     * Find student by admission number (handles both RKS412 and 412 formats)
+     * Find student by admission number (handles RKS412, 412, case-insensitive and name+admission combined)
      */
     protected function findStudentByAdmissionNumber(string $admissionNumber): ?Student
     {
-        // Try matching with full format (RKS412) first
-        $student = Student::where('admission_number', $admissionNumber)
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->first();
-        
-        // If not found, try without RKS prefix (in case stored as just digits)
-        if (!$student && preg_match('/RKS(\d+)/i', $admissionNumber, $digitsMatch)) {
-            $digitsOnly = $digitsMatch[1];
-            $student = Student::where(function($q) use ($digitsOnly) {
-                $q->where('admission_number', $digitsOnly)
-                  ->orWhere('admission_number', 'LIKE', "%{$digitsOnly}");
-            })
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->first();
+        $admissionNumber = trim($admissionNumber);
+        if ($admissionNumber === '') {
+            return null;
         }
-        
+        // Case-insensitive match (child name may be in small/capital letters with admission)
+        $student = Student::whereRaw('UPPER(TRIM(admission_number)) = ?', [strtoupper($admissionNumber)])
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->first();
+        if ($student) {
+            return $student;
+        }
+        // Try without RKS prefix (in case stored as just digits)
+        if (preg_match('/RKS(\d+)/i', $admissionNumber, $digitsMatch)) {
+            $digitsOnly = $digitsMatch[1];
+            $student = Student::where('archive', 0)
+                ->where('is_alumni', false)
+                ->where(function($q) use ($digitsOnly) {
+                    $q->whereRaw('UPPER(TRIM(admission_number)) = ?', [strtoupper($digitsOnly)])
+                      ->orWhereRaw('UPPER(admission_number) LIKE ?', ['%' . $digitsOnly . '%']);
+                })
+                ->first();
+        }
         return $student;
     }
     

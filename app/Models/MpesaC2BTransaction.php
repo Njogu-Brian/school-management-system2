@@ -139,9 +139,11 @@ class MpesaC2BTransaction extends Model
         $phone = $this->msisdn;
         
         // M-PESA sends hashed phone numbers (SHA-256, 64 chars) in production for privacy
-        // If it's a hash, return a masked version
+        // If it's a hash, show masked digits only (no hex letters)
         if (strlen($phone) == 64 && ctype_xdigit($phone)) {
-            return '***' . substr($phone, -8); // Show last 8 chars of hash
+            $digitsOnly = preg_replace('/[^0-9]/', '', substr($phone, -8));
+            $suffix = strlen($digitsOnly) >= 4 ? substr($digitsOnly, -4) : (strlen($digitsOnly) ? $digitsOnly : '****');
+            return '***' . $suffix;
         }
         
         // Format regular phone numbers
