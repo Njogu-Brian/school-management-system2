@@ -144,7 +144,8 @@ if (!function_exists('can_access')) {
 
 /**
  * Get or create a payment link for a student (no expiry, no click limit).
- * Reuses existing active link for the student if one exists; otherwise creates one.
+ * Siblings share one family link: one link per family, parent can pay one transaction for all.
+ * Students without family_id get a single-student link.
  *
  * @param \App\Models\Student $student
  * @return \App\Models\PaymentLink|null
@@ -158,26 +159,52 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
 
         $UNLIMITED_USES = 999999;
 
-        // Prefer existing active link for this student
+        // Siblings share one link: prefer family link (student_id null, family_id set)
+        if ($student->family_id) {
+            $familyLink = \App\Models\PaymentLink::active()
+                ->where('family_id', $student->family_id)
+                ->whereNull('student_id')
+                ->first();
+
+            if ($familyLink) {
+                return $familyLink;
+            }
+
+            // Create one family link for all siblings; amount = total family balance
+            $familyTotalBalance = 0;
+            if (class_exists(\App\Models\Invoice::class) && class_exists(\App\Models\Student::class)) {
+                $siblingIds = \App\Models\Student::where('family_id', $student->family_id)->pluck('id');
+                $familyTotalBalance = \App\Models\Invoice::whereIn('student_id', $siblingIds)
+                    ->get()
+                    ->sum(fn($inv) => max(0, (float) $inv->balance));
+            }
+            $familyTotalBalance = $familyTotalBalance > 0 ? round($familyTotalBalance, 2) : 0;
+
+            $link = \App\Models\PaymentLink::create([
+                'student_id' => null,
+                'invoice_id' => null,
+                'family_id' => $student->family_id,
+                'amount' => $familyTotalBalance,
+                'currency' => 'KES',
+                'description' => 'Pay fee balance - All children',
+                'account_reference' => 'FAM-' . $student->family_id,
+                'status' => 'active',
+                'expires_at' => null,
+                'max_uses' => $UNLIMITED_USES,
+                'created_by' => \Illuminate\Support\Facades\Auth::id(),
+                'metadata' => ['source' => 'sms_placeholder'],
+            ]);
+
+            return $link;
+        }
+
+        // No family: one link per student
         $existing = \App\Models\PaymentLink::active()
             ->where('student_id', $student->id)
             ->first();
 
         if ($existing) {
             return $existing;
-        }
-
-        // Optional: one link per family (reuse family link if present)
-        if ($student->family_id) {
-            $familyLink = \App\Models\PaymentLink::active()
-                ->where('family_id', $student->family_id)
-                ->where(function ($q) use ($student) {
-                    $q->whereNull('student_id')->orWhere('student_id', $student->id);
-                })
-                ->first();
-            if ($familyLink) {
-                return $familyLink;
-            }
         }
 
         $totalOutstanding = 0;
@@ -198,7 +225,7 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
         $link = \App\Models\PaymentLink::create([
             'student_id' => $student->id,
             'invoice_id' => $latestInvoice ? $latestInvoice->id : null,
-            'family_id' => $student->family_id,
+            'family_id' => null,
             'amount' => $amount,
             'currency' => 'KES',
             'description' => $description,

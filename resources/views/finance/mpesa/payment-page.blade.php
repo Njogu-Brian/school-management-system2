@@ -152,15 +152,15 @@
                 @endif
 
                 <form id="paymentForm">
-                    <input type="hidden" name="share_with_siblings" id="share_with_siblings" value="0">
+                    <input type="hidden" name="share_with_siblings" id="share_with_siblings" value="1">
                     <div class="form-check form-switch mt-3 mb-2">
-                        <input class="form-check-input" type="checkbox" id="shareToggle" style="min-width: 3rem; min-height: 1.5rem;">
-                        <label class="form-check-label fw-semibold" for="shareToggle">Split this payment among children</label>
+                        <input class="form-check-input" type="checkbox" id="shareToggle" style="min-width: 3rem; min-height: 1.5rem;" checked>
+                        <label class="form-check-label fw-semibold" for="shareToggle">Pay for all children in one transaction</label>
                     </div>
-                    <p class="small text-muted">One M-PESA transaction; amounts go to each child you choose.</p>
+                    <p class="small text-muted">One M-PESA payment; adjust amounts below per child or pay the full total.</p>
 
-                    <div id="shareBlock" class="share-block" style="display: none;">
-                        <p class="small fw-semibold mb-2">Enter amount per child (one transaction):</p>
+                    <div id="shareBlock" class="share-block">
+                        <p class="small fw-semibold mb-2">Amount per child (one M-PESA payment for total):</p>
                         <div id="siblingAllocationsList"></div>
                         <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top">
                             <span class="fw-semibold">Total</span>
@@ -168,8 +168,8 @@
                         </div>
                     </div>
 
-                    <div id="singleBlock">
-                        <label class="form-label mt-2">Paying for</label>
+                    <div id="singleBlock" style="display: none;">
+                        <label class="form-label mt-2">Paying for one child only</label>
                         <select class="form-select form-select-lg" id="single_student_id" name="student_id" required>
                             <option value="">-- Select child --</option>
                             @foreach($familyStudents ?? [] as $s)
@@ -264,25 +264,35 @@
             var feeBalanceMap = {};
             familyStudents.forEach(function(s) { feeBalanceMap[s.id] = parseFloat(s.fee_balance) || 0; });
 
+            function buildSiblingList(prefillFullBalance) {
+                var list = '';
+                familyStudents.forEach(function(s) {
+                    var bal = parseFloat(s.fee_balance) || 0;
+                    var val = (prefillFullBalance && bal > 0) ? bal.toFixed(2) : '0';
+                    list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (bal).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 120px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="0.01" min="0" data-student-id="' + s.id + '" data-balance="' + bal + '" value="' + val + '" placeholder="0"></div></div>';
+                });
+                $('#siblingAllocationsList').html(list);
+                $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', function() {
+                    var t = 0;
+                    $('.sibling-amount').each(function() { t += parseFloat($(this).val()) || 0; });
+                    $('#siblingTotalDisplay').text('KES ' + t.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                    $('#payment_amount').val(t > 0 ? t.toFixed(2) : '');
+                });
+                var total = 0;
+                $('.sibling-amount').each(function() { total += parseFloat($(this).val()) || 0; });
+                $('#siblingTotalDisplay').text('KES ' + total.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                $('#payment_amount').val(total > 0 ? total.toFixed(2) : '');
+            }
+
             $('#shareToggle').on('change', function() {
                 var on = $(this).is(':checked');
                 $('#share_with_siblings').val(on ? '1' : '0');
                 $('#shareBlock').toggle(on);
                 $('#singleBlock').toggle(!on);
-                if (on) {
-                    var list = '';
-                    familyStudents.forEach(function(s, i) {
-                        list += '<div class="sibling-amount-row"><label class="flex-grow-1 small mb-0">' + s.full_name + ' <span class="text-muted">(bal. KES ' + (s.fee_balance || 0).toLocaleString('en-KE', {minimumFractionDigits: 2}) + ')</span></label><div class="input-group input-group-sm" style="max-width: 120px;"><span class="input-group-text">KES</span><input type="number" class="form-control sibling-amount" step="0.01" min="0" data-student-id="' + s.id + '" data-balance="' + (s.fee_balance || 0) + '" value="0" placeholder="0"></div></div>';
-                    });
-                    $('#siblingAllocationsList').html(list);
-                    $(document).off('input', '.sibling-amount').on('input', '.sibling-amount', function() {
-                        var t = 0;
-                        $('.sibling-amount').each(function() { t += parseFloat($(this).val()) || 0; });
-                        $('#siblingTotalDisplay').text('KES ' + t.toLocaleString('en-KE', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
-                        $('#payment_amount').val(t > 0 ? t.toFixed(2) : '');
-                    });
-                }
+                if (on) buildSiblingList(true);
             });
+
+            buildSiblingList(true);
 
             $('#single_student_id').on('change', function() {
                 var bal = $(this).find('option:selected').data('balance');
