@@ -9,6 +9,7 @@ use App\Models\FeeStructure;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\OptionalFee;
+use App\Services\InvoiceService;
 use App\Models\Student;
 use App\Models\Votehead;
 use Illuminate\Http\Request;
@@ -200,8 +201,7 @@ class OptionalFeeController extends Controller
                     // DO NOT create invoice items here - they will be created during posting commit
                     // This ensures optional fees appear in the preview correctly
                 } else {
-                    // Exempt: only update OptionalFee; invoice changes happen via Post Pending Fees
-                    // Find and delete the model instance (not bulk delete) so observer fires
+                    // Exempt: remove OptionalFee and remove the invoice item immediately (even if paid)
                     $optionalFee = OptionalFee::where([
                         'student_id' => $studentId,
                         'votehead_id'=> $voteheadId,
@@ -210,9 +210,9 @@ class OptionalFeeController extends Controller
                     ])->first();
 
                     if ($optionalFee) {
-                        // Delete the model instance so the observer fires and handles wallet reversal
                         $optionalFee->delete();
                     }
+                    $this->removeOptionalFeeFromInvoice((int) $studentId, $voteheadId, $term, $year);
                 }
             }
         });
@@ -292,8 +292,7 @@ class OptionalFeeController extends Controller
                     // DO NOT create invoice items here - they will be created during posting commit
                     // This ensures optional fees appear in the preview correctly
                 } else {
-                    // Exempt: only update OptionalFee; invoice changes happen via Post Pending Fees
-                    // Find and delete the model instance (not bulk delete) so observer fires
+                    // Exempt: remove OptionalFee and remove the invoice item immediately (even if paid)
                     $optionalFee = OptionalFee::where([
                         'student_id' => $student->id,
                         'votehead_id'=> $voteheadId,
@@ -302,14 +301,55 @@ class OptionalFeeController extends Controller
                     ])->first();
 
                     if ($optionalFee) {
-                        // Delete the model instance so the observer fires and handles wallet reversal
                         $optionalFee->delete();
                     }
+                    $this->removeOptionalFeeFromInvoice($student->id, (int) $voteheadId, $term, $year);
                 }
             }
         });
 
         return back()->with('success', 'Student optional fees updated.');
+    }
+
+    /**
+     * Remove optional fee invoice item for a student (even if partially or fully paid).
+     * Deletes allocations, then the item, recalculates invoice and re-allocates payments.
+     */
+    private function removeOptionalFeeFromInvoice(int $studentId, int $voteheadId, int $term, int $year): void
+    {
+        $invoice = Invoice::where('student_id', $studentId)
+            ->where('year', $year)
+            ->where('term', $term)
+            ->first();
+
+        if (!$invoice) {
+            return;
+        }
+
+        $item = InvoiceItem::where('invoice_id', $invoice->id)
+            ->where('votehead_id', $voteheadId)
+            ->where('source', 'optional')
+            ->where('status', 'active')
+            ->first();
+
+        if (!$item) {
+            return;
+        }
+
+        $paymentIds = $item->allocations()->pluck('payment_id')->unique()->filter()->values();
+
+        $item->allocations()->delete();
+        $item->delete();
+
+        InvoiceService::recalc($invoice);
+        InvoiceService::allocateUnallocatedPaymentsForStudent($studentId);
+
+        foreach ($paymentIds as $paymentId) {
+            $payment = \App\Models\Payment::find($paymentId);
+            if ($payment) {
+                $payment->updateAllocationTotals();
+            }
+        }
     }
 
     /**
