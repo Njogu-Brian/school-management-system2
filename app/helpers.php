@@ -143,6 +143,78 @@ if (!function_exists('can_access')) {
 }
 
 /**
+ * Get or create a payment link for a student (no expiry, no click limit).
+ * Reuses existing active link for the student if one exists; otherwise creates one.
+ *
+ * @param \App\Models\Student $student
+ * @return \App\Models\PaymentLink|null
+ */
+if (!function_exists('get_or_create_payment_link_for_student')) {
+    function get_or_create_payment_link_for_student($student)
+    {
+        if (!$student || !$student->id || !class_exists(\App\Models\PaymentLink::class)) {
+            return null;
+        }
+
+        $UNLIMITED_USES = 999999;
+
+        // Prefer existing active link for this student
+        $existing = \App\Models\PaymentLink::active()
+            ->where('student_id', $student->id)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        // Optional: one link per family (reuse family link if present)
+        if ($student->family_id) {
+            $familyLink = \App\Models\PaymentLink::active()
+                ->where('family_id', $student->family_id)
+                ->where(function ($q) {
+                    $q->whereNull('student_id')->orWhere('student_id', $student->id);
+                })
+                ->first();
+            if ($familyLink) {
+                return $familyLink;
+            }
+        }
+
+        $totalOutstanding = 0;
+        $latestInvoice = null;
+        if (class_exists(\App\Models\Invoice::class)) {
+            $invoices = \App\Models\Invoice::where('student_id', $student->id)->get();
+            $totalOutstanding = $invoices->sum(fn($inv) => max(0, (float) $inv->balance));
+            $latestInvoice = \App\Models\Invoice::where('student_id', $student->id)
+                ->orderBy('year', 'desc')
+                ->orderBy('term', 'desc')
+                ->first();
+        }
+
+        $amount = $totalOutstanding > 0 ? round($totalOutstanding, 2) : 0;
+        $description = 'Pay fee balance - ' . ($student->full_name ?? $student->name ?? 'Student');
+        $accountRef = $student->admission_number ?? ('STU-' . $student->id);
+
+        $link = \App\Models\PaymentLink::create([
+            'student_id' => $student->id,
+            'invoice_id' => $latestInvoice ? $latestInvoice->id : null,
+            'family_id' => $student->family_id,
+            'amount' => $amount,
+            'currency' => 'KES',
+            'description' => $description,
+            'account_reference' => $accountRef,
+            'status' => 'active',
+            'expires_at' => null,
+            'max_uses' => $UNLIMITED_USES,
+            'created_by' => \Illuminate\Support\Facades\Auth::id(),
+            'metadata' => ['source' => 'sms_placeholder'],
+        ]);
+
+        return $link;
+    }
+}
+
+/**
  * Replace placeholders in messages (single, canonical version)
  */
 if (!function_exists('replace_placeholders')) {
@@ -245,6 +317,14 @@ if (!function_exists('replace_placeholders')) {
                     $replacements['{due_date}'] = 'N/A';
                 }
             }
+
+            // Payment link placeholders: use existing link or create one (no expiry, no click limit)
+            $paymentLink = get_or_create_payment_link_for_student($entity);
+            $paymentLinkUrl = $paymentLink ? $paymentLink->getPaymentUrl() : '';
+            $replacements['{{invoice_link}}'] = $paymentLinkUrl;
+            $replacements['{invoice_link}'] = $paymentLinkUrl;
+            $replacements['{{payment_plan_link}}'] = $paymentLinkUrl;
+            $replacements['{payment_plan_link}'] = $paymentLinkUrl;
         } elseif ($entity instanceof \App\Models\Staff) {
             $staffName = $entity->full_name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
             $replacements += [
