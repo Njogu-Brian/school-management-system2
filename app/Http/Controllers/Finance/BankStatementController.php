@@ -112,6 +112,7 @@ class BankStatementController extends Controller
                       });
                 })
                 ->where('payment_created', false) // Exclude collected transactions
+                ->whereRaw($bankIsUncollectedSql) // Exclude already collected by payment ref (e.g. paylinks)
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit'); // Only credit transactions
@@ -119,6 +120,7 @@ class BankStatementController extends Controller
             case 'unassigned':
                 $query->where('match_status', 'unmatched')
                       ->whereNull('student_id')
+                      ->whereRaw($bankIsUncollectedSql) // Exclude already collected (e.g. paylinks)
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
@@ -132,9 +134,8 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only credit transactions
                 break;
             case 'collected':
-                // Confirmed transactions fully collected (sum of active payments equals transaction amount)
-                $query->where('status', 'confirmed')
-                      ->where('is_duplicate', false)
+                // Fully collected: sum of active payments >= amount (include even if status still draft, e.g. paylinks)
+                $query->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit') // Only credit transactions
                       ->whereRaw($bankIsCollectedSql);
@@ -354,6 +355,7 @@ class BankStatementController extends Controller
                       });
                 })
                 ->where('payment_created', false) // Exclude collected transactions
+                ->whereRaw($bankIsUncollectedSql) // Exclude already collected by payment ref
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
@@ -366,6 +368,7 @@ class BankStatementController extends Controller
                 ->count(),
             'unassigned' => BankStatementTransaction::where('match_status', 'unmatched')
                 ->whereNull('student_id')
+                ->whereRaw($bankIsUncollectedSql) // Exclude already collected
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
@@ -388,8 +391,7 @@ class BankStatementController extends Controller
                     });
                 })
                 ->count(),
-            'collected' => BankStatementTransaction::where('status', 'confirmed')
-                ->where('is_duplicate', false)
+            'collected' => BankStatementTransaction::where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
                 ->whereRaw($bankIsCollectedSql)
@@ -511,11 +513,13 @@ class BankStatementController extends Controller
                     });
                 })
                 ->whereNull('payment_id')
+                ->whereRaw($c2bIsUncollectedSql) // Exclude already collected by payment ref
                 ->where('is_duplicate', false);
                 break;
             case 'unassigned':
                 $query->where('allocation_status', 'unallocated')
                     ->whereNull('student_id')
+                    ->whereRaw($c2bIsUncollectedSql) // Exclude already collected (e.g. paylinks)
                     ->where('is_duplicate', false);
                 break;
             case 'confirmed':
@@ -648,11 +652,13 @@ class BankStatementController extends Controller
                     });
                 })
                 ->whereNull('payment_id')
+                ->whereRaw($c2bIsUncollectedSql) // Exclude already collected by payment ref
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'unassigned' => MpesaC2BTransaction::where('allocation_status', 'unallocated')
                 ->whereNull('student_id')
+                ->whereRaw($c2bIsUncollectedSql) // Exclude already collected
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
@@ -1635,10 +1641,11 @@ class BankStatementController extends Controller
                     }
                 }
             }
-            
-            return redirect()->back()
-                ->withErrors(['error' => 'This transaction already has active (non-reversed) payments. Cannot confirm again.'])
-                ->with('info', 'Payment has been automatically linked to this transaction.');
+
+            // Paylinks/prompting: payment(s) already exist — we've linked and set status; treat as collected
+            return redirect()
+                ->route('finance.bank-statements.show', $id)
+                ->with('success', 'Transaction already had payment(s) and has been marked as collected.');
         }
 
         // Check if this is a swimming transaction
