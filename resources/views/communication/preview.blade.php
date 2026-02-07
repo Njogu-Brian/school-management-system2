@@ -558,7 +558,7 @@
                 <h4>Message Preview</h4>
                 <p>This is how the message will appear to <strong>{{ $parentName }}</strong></p>
                 <div class="preview-details">
-                    <p><strong>Student:</strong> {{ $student->full_name }}</p>
+                    <p><strong>Student:</strong> {{ isset($student) ? ($student->full_name ?? trim(($student->first_name ?? '').' '.($student->last_name ?? '')) : 'N/A') }}</p>
                     <p><strong>Channel:</strong> {{ strtoupper($channel) }}</p>
                     <p><strong>Recipient:</strong> {{ $parentContact ?: 'N/A' }}</p>
                 </div>

@@ -799,7 +799,7 @@ class CommunicationController extends Controller
                 'message' => $previewMessage,
                 'originalMessage' => $data['message'],
                 'channel' => $data['channel'],
-                'student' => $firstStudent,
+                'student' => $firstStudent ?? new Student(['id' => 0, 'first_name' => 'John', 'last_name' => 'Doe', 'admission_number' => 'ADM001']),
                 'parentName' => $parentName,
                 'parentContact' => $parentContact,
                 'formData' => $data, // Pass all form data for sending
