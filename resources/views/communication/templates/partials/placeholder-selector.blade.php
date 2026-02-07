@@ -1,18 +1,25 @@
 @php
-    $groupedPlaceholders = collect($systemPlaceholders)->groupBy(function($ph) {
-        if (in_array($ph['key'], ['school_name', 'school_phone', 'date'])) {
+    $groupedPlaceholders = collect($systemPlaceholders ?? [])->groupBy(function($ph) {
+        $key = $ph['key'] ?? '';
+        if (in_array($key, ['school_name', 'school_phone', 'school_email', 'school_address', 'date'])) {
             return 'general';
-        } elseif (in_array($ph['key'], ['student_name', 'admission_number', 'class_name', 'class', 'parent_name', 'father_name'])) {
+        }
+        if (in_array($key, ['student_name', 'admission_number', 'class_name', 'class', 'parent_name', 'father_name', 'profile_update_link'])) {
             return 'student';
-        } elseif (in_array($ph['key'], ['staff_name'])) {
+        }
+        if (in_array($key, ['staff_name'])) {
             return 'staff';
-        } elseif (in_array($ph['key'], ['receipt_number', 'transaction_code', 'payment_date', 'amount', 'receipt_link'])) {
+        }
+        if (in_array($key, ['receipt_number', 'transaction_code', 'payment_date', 'amount', 'receipt_link', 'carried_forward'])) {
             return 'receipts';
-        } elseif (in_array($ph['key'], ['invoice_number', 'total_amount', 'due_date', 'outstanding_amount', 'status', 'invoice_link', 'days_overdue'])) {
+        }
+        if (in_array($key, ['invoice_number', 'total_amount', 'due_date', 'outstanding_amount', 'status', 'invoice_link', 'days_overdue'])) {
             return 'invoices';
-        } elseif (in_array($ph['key'], ['installment_count', 'installment_amount', 'installment_number', 'payment_plan_link', 'start_date', 'end_date', 'remaining_installments'])) {
+        }
+        if (in_array($key, ['installment_count', 'installment_amount', 'installment_number', 'payment_plan_link', 'start_date', 'end_date', 'remaining_installments'])) {
             return 'payment_plans';
-        } elseif (in_array($ph['key'], ['custom_message', 'custom_subject'])) {
+        }
+        if (in_array($key, ['custom_message', 'custom_subject'])) {
             return 'custom';
         }
         return 'other';
