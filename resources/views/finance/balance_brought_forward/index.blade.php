@@ -100,7 +100,7 @@
                               <form method="POST" action="{{ route('finance.balance-brought-forward.update', $student) }}" class="d-flex align-items-center gap-1 flex-nowrap" style="max-width: 200px;">
                                 @csrf
                                 @method('PUT')
-                                <input type="number" name="balance" class="form-control form-control-sm" step="0.01" min="0" value="{{ $balance }}" required style="width: 100px;">
+                                <input type="number" name="balance" class="form-control form-control-sm" step="0.01" value="{{ $balance }}" required style="width: 100px;" title="Negative = overpayment (credit)">
                                 <button type="submit" class="btn btn-sm btn-primary" title="Save changes">
                                   <i class="bi bi-check-lg"></i> Save
                                 </button>

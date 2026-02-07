@@ -199,6 +199,41 @@ class StudentStatementController extends Controller
 
         // Build detailed transaction list with votehead-level items
         $detailedTransactions = collect()->merge($legacyTransactions);
+
+        // For 2026+, prepend Balance Brought Forward from legacy (positive = debit owed, negative = credit/overpayment)
+        if ($year >= 2026 && !$hasBalanceBroughtForwardInInvoices) {
+            $legacyBbf = \App\Models\LegacyStatementTerm::getBalanceBroughtForward($student);
+            if ($legacyBbf !== null && abs((float) $legacyBbf) >= 0.01) {
+                $bfDate = \Carbon\Carbon::createFromDate((int) $year, 1, 1)->startOfDay();
+                if ((float) $legacyBbf > 0) {
+                    $detailedTransactions->prepend([
+                        'date' => $bfDate,
+                        'type' => 'Balance Brought Forward',
+                        'description' => 'Balance brought forward from ' . ($year - 1),
+                        'reference' => 'BBF-' . ($year - 1),
+                        'votehead' => 'Balance Brought Forward',
+                        'debit' => (float) $legacyBbf,
+                        'credit' => 0,
+                        'model_type' => 'LegacyStatementTerm',
+                        'model_id' => null,
+                        'legacy_balance' => (float) $legacyBbf,
+                    ]);
+                } else {
+                    $detailedTransactions->prepend([
+                        'date' => $bfDate,
+                        'type' => 'Balance Brought Forward',
+                        'description' => 'Overpayment brought forward from ' . ($year - 1),
+                        'reference' => 'BBF-' . ($year - 1),
+                        'votehead' => 'Balance Brought Forward',
+                        'debit' => 0,
+                        'credit' => abs((float) $legacyBbf),
+                        'model_type' => 'LegacyStatementTerm',
+                        'model_id' => null,
+                        'legacy_balance' => (float) $legacyBbf,
+                    ]);
+                }
+            }
+        }
         
         // 1. Add invoice items (each votehead as separate line item). Exclude daily-attendance swimming (source=swimming_attendance).
         foreach ($invoices as $invoice) {
@@ -220,6 +255,20 @@ class StudentStatementController extends Controller
                         'votehead' => $voteheadName,
                         'debit' => $itemAmount,
                         'credit' => 0,
+                        'invoice_id' => $invoice->id,
+                        'invoice_item_id' => $item->id,
+                        'model_type' => 'InvoiceItem',
+                        'model_id' => $item->id,
+                    ]);
+                } elseif ($itemAmount < 0) {
+                    $detailedTransactions->push([
+                        'date' => $itemDate,
+                        'type' => 'Balance Brought Forward',
+                        'description' => 'Overpayment - ' . $voteheadName,
+                        'reference' => $invoice->invoice_number,
+                        'votehead' => $voteheadName,
+                        'debit' => 0,
+                        'credit' => abs($itemAmount),
                         'invoice_id' => $invoice->id,
                         'invoice_item_id' => $item->id,
                         'model_type' => 'InvoiceItem',
@@ -924,6 +973,45 @@ class StudentStatementController extends Controller
         
         // Build detailed transactions - same exclusions as show: exclude daily-attendance swimming and payments marked as swimming
         $detailedTransactions = collect()->merge($legacyTransactions);
+
+        $hasBalanceBroughtForwardInInvoicesPrint = $invoices->flatMap->items->contains(function ($item) {
+            $voteheadCode = $item->votehead->code ?? null;
+            return ($item->source ?? null) === 'balance_brought_forward' || $voteheadCode === 'BAL_BF';
+        });
+        if ($year >= 2026 && !$hasBalanceBroughtForwardInInvoicesPrint) {
+            $legacyBbfPrint = \App\Models\LegacyStatementTerm::getBalanceBroughtForward($student);
+            if ($legacyBbfPrint !== null && abs((float) $legacyBbfPrint) >= 0.01) {
+                $bfDatePrint = \Carbon\Carbon::createFromDate((int) $year, 1, 1)->startOfDay();
+                if ((float) $legacyBbfPrint > 0) {
+                    $detailedTransactions->prepend([
+                        'date' => $bfDatePrint,
+                        'type' => 'Balance Brought Forward',
+                        'narration' => 'Balance brought forward from ' . ($year - 1),
+                        'reference' => 'BBF-' . ($year - 1),
+                        'votehead' => 'Balance Brought Forward',
+                        'term_name' => '',
+                        'term_year' => $year,
+                        'grade' => $student->classroom->name ?? '',
+                        'debit' => (float) $legacyBbfPrint,
+                        'credit' => 0,
+                    ]);
+                } else {
+                    $detailedTransactions->prepend([
+                        'date' => $bfDatePrint,
+                        'type' => 'Balance Brought Forward',
+                        'narration' => 'Overpayment brought forward from ' . ($year - 1),
+                        'reference' => 'BBF-' . ($year - 1),
+                        'votehead' => 'Balance Brought Forward',
+                        'term_name' => '',
+                        'term_year' => $year,
+                        'grade' => $student->classroom->name ?? '',
+                        'debit' => 0,
+                        'credit' => abs((float) $legacyBbfPrint),
+                    ]);
+                }
+            }
+        }
+
         $swimmingPaymentIdsSet = array_flip($swimmingPaymentIds);
 
         // Add invoice items (exclude source=swimming_attendance)
@@ -949,6 +1037,19 @@ class StudentStatementController extends Controller
                         'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
                         'debit' => $itemAmount,
                         'credit' => 0,
+                    ]);
+                } elseif ($itemAmount < 0) {
+                    $detailedTransactions->push([
+                        'date' => $itemDate,
+                        'type' => 'Balance Brought Forward',
+                        'narration' => 'Overpayment - ' . $voteheadName,
+                        'reference' => $invoice->invoice_number ?? 'N/A',
+                        'votehead' => $voteheadName,
+                        'term_name' => $invoice->term->name ?? '',
+                        'term_year' => $year,
+                        'grade' => $student->currentClass->name ?? $student->classroom->name ?? '',
+                        'debit' => 0,
+                        'credit' => abs($itemAmount),
                     ]);
                 }
                 

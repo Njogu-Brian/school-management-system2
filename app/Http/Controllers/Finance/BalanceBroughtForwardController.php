@@ -50,8 +50,8 @@ class BalanceBroughtForwardController extends Controller
             ->orderBy('admission_number')
             ->get()
             ->map(function($student) use ($balanceBroughtForwardVotehead) {
-                // Get balance brought forward from legacy
-                $legacyBf = StudentBalanceService::getBalanceBroughtForward($student);
+                // Legacy value for display/alignment (raw from LegacyStatementTerm)
+                $legacyBf = StudentBalanceService::getLegacyBalanceBroughtForward($student);
                 
                 // Get balance brought forward from invoices
                 // IMPORTANT: Show the ORIGINAL amount (as imported/manually set), not the outstanding balance
@@ -80,20 +80,20 @@ class BalanceBroughtForwardController extends Controller
                     }
                 }
                 
-                // Use invoice BF if exists, otherwise use legacy BF
-                $totalBf = $invoiceBf > 0 ? $invoiceBf : $legacyBf;
-                $source = $totalBf > 0 ? ($invoiceBf > 0 ? $invoiceBfSource : 'Legacy Import') : null;
+                // Use invoice BF if exists, otherwise use legacy BF (either can be negative = overpayment)
+                $totalBf = $invoiceBf != 0 ? $invoiceBf : $legacyBf;
+                $source = $totalBf != 0 ? ($invoiceBf != 0 ? $invoiceBfSource : 'Legacy Import') : null;
                 
                 return [
                     'student' => $student,
                     'balance_brought_forward' => $totalBf,
                     'source' => $source,
-                    'has_invoice_bf' => $invoiceBf > 0,
-                    'has_balance' => $totalBf > 0,
+                    'has_invoice_bf' => $invoiceBf != 0,
+                    'has_balance' => $totalBf != 0,
                 ];
             })
             ->filter(function($item) {
-                return $item['balance_brought_forward'] > 0;
+                return abs($item['balance_brought_forward']) >= 0.01;
             });
 
         // Get latest import batch for reversal
@@ -192,7 +192,7 @@ class BalanceBroughtForwardController extends Controller
             $student = Student::withArchived()->find($studentId);
             if (!$student) continue;
             
-            $legacyBf = StudentBalanceService::getBalanceBroughtForward($student);
+            $legacyBf = StudentBalanceService::getLegacyBalanceBroughtForward($student);
             
             $invoiceBf = 0;
             if ($balanceBroughtForwardVotehead) {
@@ -212,12 +212,12 @@ class BalanceBroughtForwardController extends Controller
                 }
             }
             
-            $systemBf = $invoiceBf > 0 ? $invoiceBf : $legacyBf;
-            if ($systemBf > 0) {
+            $systemBf = $invoiceBf != 0 ? $invoiceBf : $legacyBf;
+            if (abs($systemBf) >= 0.01) {
                 $systemData[$student->admission_number] = [
                     'student_id' => $student->id,
                     'student_name' => $student->full_name,
-                    'balance' => $systemBf,
+                    'balance' => $systemBf, // can be negative (overpayment)
                 ];
             }
         }
@@ -302,11 +302,11 @@ class BalanceBroughtForwardController extends Controller
             $message = null;
             $difference = null;
 
-            if ($systemBalance > 0 && $importBalance == 0) {
+            if ($systemBalance != 0 && $importBalance == 0) {
                 $status = 'exists_in_system_only';
                 $message = 'Exists in system but not in import';
                 $difference = $systemBalance;
-            } elseif ($systemBalance == 0 && $importBalance > 0) {
+            } elseif ($systemBalance == 0 && $importBalance != 0) {
                 $status = 'exists_in_import_only';
                 $message = 'Exists in import but not in system';
                 $difference = -$importBalance;
@@ -320,8 +320,8 @@ class BalanceBroughtForwardController extends Controller
                 'student_id' => $student->id,
                 'student_name' => $student->full_name,
                 'admission_number' => $admission,
-                'system_balance' => $systemBalance > 0 ? $systemBalance : null,
-                'import_balance' => $importBalance > 0 ? $importBalance : null,
+                'system_balance' => $systemBalance != 0 ? $systemBalance : null,
+                'import_balance' => $importBalance != 0 ? $importBalance : null,
                 'status' => $status,
                 'message' => $message,
                 'difference' => $difference,
@@ -431,7 +431,8 @@ class BalanceBroughtForwardController extends Controller
                 }
 
                 // Students in importStudentIds keep a balance; others (not in list) get deleted by deleteBalancesNotInImport
-                if ($finalBalance > 0) {
+                // Allow negative finalBalance (overpayment / credit to carry forward)
+                if (abs($finalBalance) >= 0.01) {
                     $importStudentIds[] = $studentId;
                     $importData[$studentId] = $finalBalance;
                 }
@@ -454,6 +455,12 @@ class BalanceBroughtForwardController extends Controller
                     if (!$student) {
                         $errors[] = "Student ID {$studentId}: Student not found (including archived/alumni)";
                         continue;
+                    }
+
+                    // Align with legacy: if this student has legacy BBF, use that value so invoice and legacy match
+                    $legacyBf = StudentBalanceService::getLegacyBalanceBroughtForward($student);
+                    if (abs($legacyBf) >= 0.01) {
+                        $balance = $legacyBf;
                     }
 
                     // Ensure invoice exists
@@ -734,14 +741,13 @@ class BalanceBroughtForwardController extends Controller
     public function add(Request $request)
     {
         $validated = $request->validate([
-            'balance' => 'required|numeric|min:0',
+            'balance' => 'required|numeric',
             'student_id' => 'required|exists:students,id',
         ], [
             'student_id.required' => 'Please select a student.',
             'student_id.exists' => 'The selected student was not found.',
             'balance.required' => 'Please enter the balance brought forward amount.',
-            'balance.numeric' => 'Balance must be a number.',
-            'balance.min' => 'Balance cannot be negative.',
+            'balance.numeric' => 'Balance must be a number. Use negative for overpayment (credit).',
         ]);
 
         try {
@@ -767,11 +773,10 @@ class BalanceBroughtForwardController extends Controller
     public function update(Request $request, Student $student)
     {
         $request->validate([
-            'balance' => 'required|numeric|min:0',
+            'balance' => 'required|numeric',
         ], [
             'balance.required' => 'Please enter the balance brought forward amount.',
-            'balance.numeric' => 'Balance must be a number.',
-            'balance.min' => 'Balance cannot be negative.',
+            'balance.numeric' => 'Balance must be a number. Use negative for overpayment (credit).',
         ]);
 
         try {
@@ -797,6 +802,14 @@ class BalanceBroughtForwardController extends Controller
                 'is_active' => true,
             ]
         );
+
+        // Align with legacy: if this student has legacy BBF, use that value so invoice and legacy match
+        $legacyBf = StudentBalanceService::getLegacyBalanceBroughtForward($student);
+        $alignedToLegacy = false;
+        if (abs($legacyBf) >= 0.01) {
+            $alignedToLegacy = abs((float) $balance - $legacyBf) >= 0.01;
+            $balance = $legacyBf;
+        }
 
         try {
             DB::transaction(function () use ($student, $balance, $balanceBroughtForwardVotehead) {
@@ -835,8 +848,12 @@ class BalanceBroughtForwardController extends Controller
                 'user_id' => auth()->id(),
             ]);
 
+            $message = 'Balance brought forward saved successfully. It will appear on the student statement, invoice, and any receipts that allocate to this invoice.';
+            if ($alignedToLegacy) {
+                $message .= ' Value was aligned to legacy import (Ksh ' . number_format($balance, 2) . ').';
+            }
             return redirect()->route('finance.balance-brought-forward.index')
-                ->with('success', 'Balance brought forward saved successfully. It will appear on the student statement, invoice, and any receipts that allocate to this invoice.');
+                ->with('success', $message);
         } catch (\Exception $e) {
             Log::error('Balance brought forward save error', [
                 'student_id' => $student->id,

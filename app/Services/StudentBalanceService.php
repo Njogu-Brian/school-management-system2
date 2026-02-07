@@ -21,51 +21,22 @@ class StudentBalanceService
             return 0.0;
         }
         
-        // Get balance brought forward from legacy data (ending_balance from last term before 2026)
+        // getBalanceBroughtForward() returns 0 when student already has BBF on invoice (single source of truth)
         $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
-        
-        // Check if balance brought forward is already included in invoices as an invoice item
-        $balanceBroughtForwardVotehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
-        $balanceBroughtForwardInInvoice = 0;
-        
-        if ($balanceBroughtForwardVotehead && $balanceBroughtForward > 0) {
-            // Get all unpaid balance brought forward items from invoices
-            $balanceBroughtForwardInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($studentModel) {
-                $q->where('student_id', $studentModel->id)
-                  ->where('status', '!=', 'reversed');
-            })
-            ->where('votehead_id', $balanceBroughtForwardVotehead->id)
-            ->where('source', 'balance_brought_forward')
-            ->get()
-            ->sum(function($item) {
-                // Calculate unpaid portion of balance brought forward item
-                $paid = $item->allocations()->sum('amount');
-                return max(0, $item->amount - $paid);
-            });
-        }
-        
-        // Get balance from all invoices
         $invoiceBalance = Invoice::where('student_id', $studentModel->id)
             ->where('status', '!=', 'reversed')
             ->sum('balance');
-        
-        // If balance brought forward is already in invoices, don't add it again
-        // Otherwise, add the balance brought forward from legacy data
-        if ($balanceBroughtForwardInInvoice > 0) {
-            // Balance brought forward is already included in invoice balance
-            return max(0, $invoiceBalance);
-        } else {
-            // Balance brought forward is not in invoices, add it separately
-            return max(0, $invoiceBalance + $balanceBroughtForward);
-        }
+        return $invoiceBalance + $balanceBroughtForward; // can be negative (overpayment)
     }
 
     /**
-     * Get balance brought forward from legacy data for a student.
-     * This is the ending_balance from the last term before 2026.
-     * 
+     * Get balance brought forward for use in calculations (statement balance, outstanding, etc.).
+     * When the student already has a BBF invoice item, returns 0 so legacy is never added on top.
+     * When they have no BBF on invoice, returns legacy value. This prevents double-counting
+     * (e.g. legacy 5,000 + invoice BBF 5,000 = 10,000). Invoice is the single source when it exists.
+     *
      * @param Student|int $student Student model or ID
-     * @return float Balance brought forward (0 if none or student doesn't exist)
+     * @return float Balance brought forward (0 if none or already on invoice; can be negative for overpayment)
      */
     public static function getBalanceBroughtForward($student): float
     {
@@ -73,9 +44,48 @@ class StudentBalanceService
         if (!$studentModel) {
             return 0.0;
         }
-        
+        if (self::studentHasBalanceBroughtForwardOnInvoice($studentModel)) {
+            return 0.0; // Invoice is source of truth; do not add legacy on top
+        }
+        return self::getLegacyBalanceBroughtForward($studentModel);
+    }
+
+    /**
+     * Get balance brought forward from legacy data only (last term before 2026).
+     * Use for display/alignment in BBF import and index. Does not check invoice.
+     *
+     * @param Student|int $student Student model or ID
+     * @return float Legacy BBF (0 if none; can be negative for overpayment)
+     */
+    public static function getLegacyBalanceBroughtForward($student): float
+    {
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return 0.0;
+        }
         $broughtForward = LegacyStatementTerm::getBalanceBroughtForward($studentModel);
-        return $broughtForward !== null && $broughtForward > 0 ? $broughtForward : 0;
+        return $broughtForward !== null ? (float) $broughtForward : 0.0;
+    }
+
+    /**
+     * Whether the student has a balance brought forward item on any invoice (BAL_BF votehead).
+     */
+    public static function studentHasBalanceBroughtForwardOnInvoice($student): bool
+    {
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return false;
+        }
+        $votehead = \App\Models\Votehead::where('code', 'BAL_BF')->first();
+        if (!$votehead) {
+            return false;
+        }
+        return \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($studentModel) {
+            $q->where('student_id', $studentModel->id)->where('status', '!=', 'reversed');
+        })
+            ->where('votehead_id', $votehead->id)
+            ->where('source', 'balance_brought_forward')
+            ->exists();
     }
 
     /**
@@ -154,8 +164,7 @@ class StudentBalanceService
         foreach ($studentsWithLegacy as $studentId) {
             try {
                 $bf = self::getBalanceBroughtForward($studentId);
-                if ($bf > 0) {
-                    // Check if this student has BAL_BF items in their invoices
+                if ($bf != 0) {
                     $studentHasBfInInvoice = false;
                     if ($balanceBroughtForwardVotehead) {
                         $studentHasBfInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($studentId) {
@@ -166,10 +175,8 @@ class StudentBalanceService
                         ->where('source', 'balance_brought_forward')
                         ->exists();
                     }
-                    
-                    // Only add if not already in invoices
                     if (!$studentHasBfInInvoice) {
-                        $balanceBroughtForwardFromLegacy += $bf;
+                        $balanceBroughtForwardFromLegacy += $bf; // negative reduces total
                     }
                 }
             } catch (\Exception $e) {
@@ -178,7 +185,6 @@ class StudentBalanceService
             }
         }
 
-        // Total outstanding = invoice balances + balance brought forward (only if not already in invoices)
         return max(0, $invoiceOutstanding + $balanceBroughtForwardFromLegacy);
     }
 
@@ -221,7 +227,7 @@ class StudentBalanceService
         foreach ($studentsWithLegacy as $studentId) {
             try {
                 $bf = self::getBalanceBroughtForward($studentId);
-                if ($bf > 0) {
+                if ($bf != 0) {
                     $studentHasBfInInvoice = false;
                     if ($balanceBroughtForwardVotehead) {
                         $studentHasBfInInvoice = \App\Models\InvoiceItem::whereHas('invoice', function ($q) use ($studentId) {
@@ -232,7 +238,7 @@ class StudentBalanceService
                             ->exists();
                     }
                     if (!$studentHasBfInInvoice) {
-                        $balanceBroughtForwardFromLegacy += $bf;
+                        $balanceBroughtForwardFromLegacy += $bf; // negative reduces total
                     }
                 }
             } catch (\Exception $e) {
