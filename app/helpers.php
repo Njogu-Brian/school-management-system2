@@ -242,6 +242,63 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
 }
 
 /**
+ * When siblings are linked (family_id set or family merged), ensure one shared family payment link
+ * and expire old per-student links for that family (like profile update link).
+ *
+ * @param int $familyId
+ * @return \App\Models\PaymentLink|null
+ */
+if (!function_exists('ensure_family_payment_link')) {
+    function ensure_family_payment_link($familyId)
+    {
+        if (!$familyId || !class_exists(\App\Models\PaymentLink::class) || !class_exists(\App\Models\Student::class)) {
+            return null;
+        }
+
+        $UNLIMITED_USES = 999999;
+
+        $familyLink = \App\Models\PaymentLink::active()
+            ->where('family_id', $familyId)
+            ->whereNull('student_id')
+            ->first();
+
+        if (!$familyLink) {
+            $siblingIds = \App\Models\Student::where('family_id', $familyId)->pluck('id');
+            $familyTotalBalance = 0;
+            if (class_exists(\App\Models\Invoice::class) && $siblingIds->isNotEmpty()) {
+                $familyTotalBalance = \App\Models\Invoice::whereIn('student_id', $siblingIds)
+                    ->get()
+                    ->sum(fn($inv) => max(0, (float) $inv->balance));
+            }
+            $familyTotalBalance = $familyTotalBalance > 0 ? round($familyTotalBalance, 2) : 0;
+
+            $familyLink = \App\Models\PaymentLink::create([
+                'student_id' => null,
+                'invoice_id' => null,
+                'family_id' => $familyId,
+                'amount' => $familyTotalBalance,
+                'currency' => 'KES',
+                'description' => 'Pay fee balance - All children',
+                'account_reference' => 'FAM-' . $familyId,
+                'status' => 'active',
+                'expires_at' => null,
+                'max_uses' => $UNLIMITED_USES,
+                'created_by' => \Illuminate\Support\Facades\Auth::id(),
+                'metadata' => ['source' => 'family_linked'],
+            ]);
+        }
+
+        // Expire per-student links for this family so only the family link is used
+        \App\Models\PaymentLink::where('family_id', $familyId)
+            ->whereNotNull('student_id')
+            ->where('status', 'active')
+            ->update(['status' => 'expired']);
+
+        return $familyLink;
+    }
+}
+
+/**
  * Replace placeholders in messages (single, canonical version)
  */
 if (!function_exists('replace_placeholders')) {

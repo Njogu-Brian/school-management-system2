@@ -286,7 +286,9 @@ class FamilyController extends Controller
             // Simply attach the student
             $student->update(['family_id' => $family->id]);
         }
-        
+
+        ensure_family_payment_link($family->id);
+
         return back()->with('success', 'Student linked to family as sibling.');
     }
 
@@ -307,6 +309,16 @@ class FamilyController extends Controller
         // Only detach if they belong to this family
         if ($student->family_id == $family->id) {
             $student->update(['family_id' => null]);
+            // No family may have only one child: if this family now has one child left, remove it
+            if ($family->students()->count() === 1) {
+                $last = $family->students()->first();
+                if ($last) {
+                    $last->update(['family_id' => null]);
+                }
+                \App\Models\FamilyUpdateLink::where('family_id', $family->id)->delete();
+                \App\Models\PaymentLink::where('family_id', $family->id)->whereNull('student_id')->update(['status' => 'expired']);
+                $family->delete();
+            }
         }
         return back()->with('success', 'Student removed from family.');
     }

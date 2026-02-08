@@ -326,10 +326,10 @@ class OptionalFeeController extends Controller
             return;
         }
 
+        // Remove optional fee line regardless of status (active, pending, etc.) and even if allocated
         $item = InvoiceItem::where('invoice_id', $invoice->id)
             ->where('votehead_id', $voteheadId)
             ->where('source', 'optional')
-            ->where('status', 'active')
             ->first();
 
         if (!$item) {

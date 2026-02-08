@@ -390,7 +390,7 @@ class MpesaPaymentController extends Controller
      */
     public function listLinks(Request $request)
     {
-        $query = PaymentLink::with(['student', 'invoice', 'creator']);
+        $query = PaymentLink::with(['student', 'invoice', 'creator', 'family.students']);
 
         // Apply filters
         if ($request->filled('status')) {
@@ -411,6 +411,11 @@ class MpesaPaymentController extends Controller
                 $q->where('token', 'like', "%{$search}%")
                   ->orWhere('payment_reference', 'like', "%{$search}%")
                   ->orWhereHas('student', function($q2) use ($search) {
+                      $q2->where('first_name', 'like', "%{$search}%")
+                         ->orWhere('last_name', 'like', "%{$search}%")
+                         ->orWhere('admission_number', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('family.students', function($q2) use ($search) {
                       $q2->where('first_name', 'like', "%{$search}%")
                          ->orWhere('last_name', 'like', "%{$search}%")
                          ->orWhere('admission_number', 'like', "%{$search}%");

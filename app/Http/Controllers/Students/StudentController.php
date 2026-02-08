@@ -1771,25 +1771,7 @@ class StudentController extends Controller
             ->with(['parent.documents','classroom','stream','category','family','documents'])
             ->findOrFail($id);
 
-        // Ensure single students also have a family + profile update link
-        if (!$student->family) {
-            $p = $student->parent;
-            $family = Family::create([
-                'guardian_name' => optional($p)->guardian_name
-                    ?? optional($p)->father_name
-                    ?? optional($p)->mother_name
-                    ?? ($student->first_name . ' Family'),
-                'guardian_phone' => optional($p)->guardian_phone
-                    ?? optional($p)->father_phone
-                    ?? optional($p)->mother_phone,
-                'guardian_email' => optional($p)->guardian_email
-                    ?? optional($p)->father_email
-                    ?? optional($p)->mother_email,
-            ]);
-            $student->family_id = $family->id;
-            $student->save();
-            $student->setRelation('family', $family);
-        }
+        // Families must have 2+ children; do not auto-create a family for a single student.
 
         if ($student->family && !$student->family->updateLink) {
             FamilyUpdateLink::create([
@@ -1798,6 +1780,10 @@ class StudentController extends Controller
                 'is_active' => true,
             ]);
             $student->family->load('updateLink');
+        }
+
+        if ($student->family_id) {
+            ensure_family_payment_link($student->family_id);
         }
 
         return view('students.show', compact('student'));

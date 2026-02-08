@@ -92,10 +92,26 @@
                         @forelse($links as $link)
                         <tr>
                             <td>
-                                <div>
-                                    <strong>{{ $link->student?->full_name ?? '—' }}</strong>
-                                </div>
-                                <small class="text-muted">{{ $link->student?->admission_number ?? '—' }}</small>
+                                @if($link->student_id)
+                                    <div>
+                                        <strong>{{ $link->student?->full_name ?? '—' }}</strong>
+                                    </div>
+                                    <small class="text-muted">{{ $link->student?->admission_number ?? '—' }}</small>
+                                @elseif($link->family_id && $link->family)
+                                    <div>
+                                        <strong><i class="bi bi-people-fill text-primary"></i> Family</strong>
+                                    </div>
+                                    <small class="text-muted">
+                                        @foreach($link->family->students->take(3) as $s)
+                                            {{ $s->full_name }}@if(!$loop->last), @endif
+                                        @endforeach
+                                        @if($link->family->students->count() > 3)
+                                            +{{ $link->family->students->count() - 3 }} more
+                                        @endif
+                                    </small>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
                                 @if($link->invoice)
                                 <div>
                                     <small class="text-info">
