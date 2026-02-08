@@ -44,11 +44,7 @@
 
                 <div class="row mb-3">
                     <div class="col-12">
-                        <div class="form-check">
-                            <input type="checkbox" name="apply_to_siblings" id="apply_to_siblings" value="1" class="form-check-input" {{ old('apply_to_siblings') ? 'checked' : '' }}>
-                            <label class="form-check-label" for="apply_to_siblings">Create same schedule for all siblings (one plan per sibling, same dates)</label>
-                        </div>
-                        <small class="text-muted">Money from one source: one plan per sibling with the same installment dates. Each sibling's plan total = their outstanding balance.</small>
+                        <p class="text-muted small mb-0">When the student has siblings, one combined payment plan is created for the family (all siblings’ invoices). Total amount = combined outstanding balance.</p>
                         <div id="siblings_preview" class="mt-2 small text-muted d-none"></div>
                     </div>
                 </div>
@@ -58,7 +54,7 @@
                         <label class="form-label">Total Amount <span class="text-danger">*</span></label>
                         <input type="number" step="0.01" name="total_amount" id="total_amount" class="form-control @error('total_amount') is-invalid @enderror" 
                                value="{{ old('total_amount') }}" required>
-                        <small class="text-muted">For the selected student. Siblings will use their own outstanding balance.</small>
+                        <small class="text-muted">Combined outstanding for selected student; when they have siblings, this is the family total.</small>
                         @error('total_amount')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -66,10 +62,25 @@
                 </div>
 
                 <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Schedule <span class="text-danger">*</span></label>
+                        <select name="schedule_type" id="schedule_type" class="form-select @error('schedule_type') is-invalid @enderror" required>
+                            <option value="one_time" {{ old('schedule_type', 'monthly') === 'one_time' ? 'selected' : '' }}>One time</option>
+                            <option value="weekly" {{ old('schedule_type') === 'weekly' ? 'selected' : '' }}>Weekly</option>
+                            <option value="monthly" {{ old('schedule_type', 'monthly') === 'monthly' ? 'selected' : '' }}>Monthly</option>
+                            <option value="custom" {{ old('schedule_type') === 'custom' ? 'selected' : '' }}>Custom (set each date and amount)</option>
+                        </select>
+                        @error('schedule_type')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+
+                <div id="installment_schedule_block" class="row mb-3">
                     <div class="col-md-4">
                         <label class="form-label">Number of Installments <span class="text-danger">*</span></label>
-                        <input type="number" name="installment_count" class="form-control @error('installment_count') is-invalid @enderror" 
-                               value="{{ old('installment_count', 3) }}" min="2" max="12" required>
+                        <input type="number" name="installment_count" id="installment_count" class="form-control @error('installment_count') is-invalid @enderror" 
+                               value="{{ old('installment_count', 3) }}" min="1" max="24">
                         @error('installment_count')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -85,14 +96,20 @@
                     </div>
 
                     <div class="col-md-4">
-                        <label class="form-label">End Date <span class="text-danger">*</span></label>
+                        <label class="form-label">End Date</label>
                         <input type="date" name="end_date" id="end_date" class="form-control @error('end_date') is-invalid @enderror" 
-                               value="{{ old('end_date') }}" required readonly>
-                        <small class="form-text text-muted">Automatically calculated based on start date and installments</small>
+                               value="{{ old('end_date') }}">
+                        <small class="form-text text-muted">Auto-calculated for weekly/monthly</small>
                         @error('end_date')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
+                </div>
+
+                <div id="custom_installments_block" class="mb-3 d-none">
+                    <label class="form-label">Custom installments (date and amount per installment)</label>
+                    <div id="custom_installments_list"></div>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add_custom_installment"><i class="bi bi-plus"></i> Add installment</button>
                 </div>
 
                 <div class="mb-3">
@@ -114,28 +131,84 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const startDateInput = document.getElementById('start_date');
-    const installmentCountInput = document.querySelector('input[name="installment_count"]');
+    const installmentCountInput = document.getElementById('installment_count');
     const endDateInput = document.getElementById('end_date');
+    const scheduleTypeSelect = document.getElementById('schedule_type');
+    const installmentScheduleBlock = document.getElementById('installment_schedule_block');
+    const customInstallmentsBlock = document.getElementById('custom_installments_block');
+    const customInstallmentsList = document.getElementById('custom_installments_list');
+    const addCustomInstallmentBtn = document.getElementById('add_custom_installment');
     const studentIdInput = document.getElementById('student_id');
     const invoiceSelect = document.getElementById('invoice_id');
-    const applyToSiblingsCheck = document.getElementById('apply_to_siblings');
     const siblingsPreview = document.getElementById('siblings_preview');
-    const baseUrl = '{{ url("/") }}';
-    const financePrefix = '{{ request()->routeIs("finance.*") ? "" : "" }}';
+    const totalAmountInput = document.getElementById('total_amount');
+    const studentInvoicesUrlTemplate = '{{ route("finance.fee-payment-plans.student-invoices", ["student" => 0]) }}';
+    function studentInvoicesUrl(id) { return studentInvoicesUrlTemplate.replace(/\/0$/, '/' + id); }
 
     function calculateEndDate() {
         const startDate = startDateInput.value;
-        const installmentCount = parseInt(installmentCountInput.value) || 3;
-        if (startDate && installmentCount >= 2) {
-            const start = new Date(startDate);
-            const end = new Date(start);
+        const scheduleType = scheduleTypeSelect.value;
+        const installmentCount = Math.max(1, parseInt(installmentCountInput.value) || 1);
+        if (!startDate) return;
+        const start = new Date(startDate);
+        const end = new Date(start);
+        if (scheduleType === 'weekly') {
+            end.setDate(end.getDate() + 7 * (installmentCount - 1));
+        } else if (scheduleType === 'monthly') {
             end.setMonth(end.getMonth() + (installmentCount - 1));
-            const year = end.getFullYear();
-            const month = String(end.getMonth() + 1).padStart(2, '0');
-            const day = String(end.getDate()).padStart(2, '0');
-            endDateInput.value = `${year}-${month}-${day}`;
+        } else if (scheduleType !== 'custom') {
+            end.setMonth(end.getMonth() + (installmentCount - 1));
+        }
+        const y = end.getFullYear(), m = String(end.getMonth() + 1).padStart(2, '0'), d = String(end.getDate()).padStart(2, '0');
+        endDateInput.value = y + '-' + m + '-' + d;
+    }
+
+    function refreshScheduleVisibility() {
+        const scheduleType = scheduleTypeSelect.value;
+        if (scheduleType === 'custom') {
+            installmentScheduleBlock.classList.add('d-none');
+            customInstallmentsBlock.classList.remove('d-none');
+            if (installmentCountInput) installmentCountInput.removeAttribute('required');
+            if (customInstallmentsList.children.length === 0) addCustomInstallmentRow('', '');
+        } else {
+            installmentScheduleBlock.classList.remove('d-none');
+            customInstallmentsBlock.classList.add('d-none');
+            if (installmentCountInput) {
+                installmentCountInput.setAttribute('required', 'required');
+                if (scheduleType === 'one_time') {
+                    installmentCountInput.value = '1';
+                    installmentCountInput.min = '1';
+                } else {
+                    installmentCountInput.min = '2';
+                }
+            }
+            calculateEndDate();
         }
     }
+
+    let customInstallmentIndex = 0;
+    function addCustomInstallmentRow(dueDate, amount) {
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-center custom-installment-row';
+        row.innerHTML = '<div class="col-md-5"><input type="date" name="installments[' + customInstallmentIndex + '][due_date]" class="form-control form-control-sm" value="' + (dueDate || '') + '"></div>' +
+            '<div class="col-md-5"><input type="number" step="0.01" min="0" name="installments[' + customInstallmentIndex + '][amount]" class="form-control form-control-sm" placeholder="Amount" value="' + (amount || '') + '"></div>' +
+            '<div class="col-md-2"><button type="button" class="btn btn-sm btn-outline-danger remove-custom-installment"><i class="bi bi-dash"></i></button></div>';
+        customInstallmentsList.appendChild(row);
+        customInstallmentIndex++;
+        row.querySelector('.remove-custom-installment').addEventListener('click', function() { row.remove(); });
+    }
+    addCustomInstallmentBtn.addEventListener('click', function() { addCustomInstallmentRow('', ''); });
+    scheduleTypeSelect.addEventListener('change', refreshScheduleVisibility);
+    refreshScheduleVisibility();
+
+    document.querySelector('form').addEventListener('submit', function() {
+        if (scheduleTypeSelect.value === 'custom') {
+            customInstallmentsList.querySelectorAll('.custom-installment-row').forEach(function(row, i) {
+                row.querySelector('input[name*="[due_date]"]').name = 'installments[' + i + '][due_date]';
+                row.querySelector('input[name*="[amount]"]').name = 'installments[' + i + '][amount]';
+            });
+        }
+    });
 
     function loadInvoicesAndSiblings(studentId) {
         if (!studentId) {
@@ -144,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         invoiceSelect.innerHTML = '<option value="">Loading...</option>';
-        fetch(`${baseUrl}/finance/fee-payment-plans/student-invoices/${studentId}`)
+        fetch(studentInvoicesUrl(studentId))
             .then(r => r.json())
             .then(data => {
                 invoiceSelect.innerHTML = '<option value="">-- No invoice link --</option>';
@@ -154,12 +227,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     opt.textContent = `${inv.invoice_number || 'Inv'} - KES ${parseFloat(inv.total || 0).toFixed(2)} (balance: ${parseFloat(inv.balance || 0).toFixed(2)})`;
                     invoiceSelect.appendChild(opt);
                 });
+                if (data.combined_total != null && data.combined_total > 0) {
+                    totalAmountInput.value = parseFloat(data.combined_total).toFixed(2);
+                }
                 if (data.siblings && data.siblings.length > 0) {
-                    applyToSiblingsCheck.closest('.row').querySelector('.form-check').classList.remove('d-none');
-                    if (applyToSiblingsCheck.checked) {
-                        siblingsPreview.classList.remove('d-none');
-                        siblingsPreview.innerHTML = 'Plans will also be created for: ' + data.siblings.map(s => `${s.name} (KES ${s.total_outstanding})`).join(', ');
-                    }
+                    siblingsPreview.classList.remove('d-none');
+                    siblingsPreview.innerHTML = 'One combined plan for family: ' + data.siblings.map(s => s.name + ' (KES ' + (s.total_outstanding || 0).toFixed(2) + ')').join(', ') + '. Total amount set above.';
                 } else {
                     siblingsPreview.classList.add('d-none');
                 }
@@ -177,26 +250,8 @@ document.addEventListener('DOMContentLoaded', function() {
             loadInvoicesAndSiblings(e.detail.id);
         }
     });
-    applyToSiblingsCheck.addEventListener('change', function() {
-        const sid = studentIdInput.value;
-        if (!sid || !this.checked) {
-            siblingsPreview.classList.add('d-none');
-            return;
-        }
-        fetch(`${baseUrl}/finance/fee-payment-plans/student-invoices/${sid}`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.siblings && data.siblings.length > 0) {
-                    siblingsPreview.classList.remove('d-none');
-                    siblingsPreview.innerHTML = 'Plans will also be created for: ' + data.siblings.map(s => `${s.name} (KES ${s.total_outstanding})`).join(', ');
-                } else {
-                    siblingsPreview.classList.add('d-none');
-                }
-            });
-    });
-
     startDateInput.addEventListener('change', calculateEndDate);
-    installmentCountInput.addEventListener('input', calculateEndDate);
+    if (installmentCountInput) installmentCountInput.addEventListener('input', calculateEndDate);
     if (startDateInput.value) calculateEndDate();
     if (studentIdInput.value) loadInvoicesAndSiblings(studentIdInput.value);
 });
