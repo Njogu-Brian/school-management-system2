@@ -62,16 +62,20 @@
     </div>
 
     <div class="settings-card">
+      @if(Route::has('families.bulk-destroy'))
       <form method="POST" action="{{ route('families.bulk-destroy') }}" id="families-bulk-form" onsubmit="return confirm('Delete the selected families? All students will be unlinked. This cannot be undone.');">
         @csrf
+      @endif
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-modern align-middle mb-0">
               <thead class="table-light">
                 <tr>
+                  @if(Route::has('families.bulk-destroy'))
                   <th style="width: 2.5rem;">
                     <input type="checkbox" id="select-all-families" class="form-check-input" aria-label="Select all on page">
                   </th>
+                  @endif
                   <th>#</th>
                   <th>Guardian</th>
                   <th>Phone</th>
@@ -83,9 +87,11 @@
               <tbody>
                 @forelse($families as $fam)
                   <tr>
+                    @if(Route::has('families.bulk-destroy'))
                     <td>
                       <input type="checkbox" name="ids[]" value="{{ $fam->id }}" class="form-check-input family-checkbox">
                     </td>
+                    @endif
                     <td class="fw-semibold">#{{ $fam->id }}</td>
                   <td>
                     <div class="fw-semibold">{{ $fam->guardian_name }}</div>
@@ -127,30 +133,36 @@
                   </td>
                 </tr>
               @empty
-                <tr><td colspan="7" class="text-center text-muted py-4">No families found.</td></tr>
+                <tr><td colspan="{{ Route::has('families.bulk-destroy') ? 7 : 6 }}" class="text-center text-muted py-4">No families found.</td></tr>
               @endforelse
             </tbody>
           </table>
         </div>
         </div>
         <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+          @if(Route::has('families.bulk-destroy'))
           <button type="submit" class="btn btn-outline-danger btn-sm" id="bulk-delete-btn" disabled>
             <i class="bi bi-trash"></i> Delete selected
           </button>
+          @endif
           {{ $families->links() }}
         </div>
+      @if(Route::has('families.bulk-destroy'))
       </form>
+      @endif
     </div>
   </div>
 </div>
 @endsection
 
 @push('scripts')
+@if(Route::has('families.bulk-destroy'))
 <script>
 (function () {
   var form = document.getElementById('families-bulk-form');
+  if (!form) return;
   var selectAll = document.getElementById('select-all-families');
-  var checkboxes = form ? form.querySelectorAll('.family-checkbox') : [];
+  var checkboxes = form.querySelectorAll('.family-checkbox');
   var bulkBtn = document.getElementById('bulk-delete-btn');
 
   function updateBulkButton() {
@@ -170,4 +182,5 @@
   updateBulkButton();
 })();
 </script>
+@endif
 @endpush
