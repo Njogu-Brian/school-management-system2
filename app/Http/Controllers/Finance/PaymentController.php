@@ -300,7 +300,7 @@ class PaymentController extends Controller
                     
                     if ($siblingAmount > 0) {
                         // Use shared receipt number for the group, and a unique receipt_number per payment
-                        $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber . '-S' . $siblingId, $siblingId);
+                        $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber, $siblingId);
                         
                         $payment = Payment::create([
                             'student_id' => $siblingId,
@@ -1245,7 +1245,7 @@ class PaymentController extends Controller
                     }
                 } else {
                     $student = Student::withAlumni()->findOrFail($studentId);
-                    $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber . '-S' . $student->id, $student->id);
+                    $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber, $student->id);
                     $newPayment = Payment::create([
                         'student_id' => $student->id,
                         'family_id' => $student->family_id,
@@ -1798,7 +1798,7 @@ class PaymentController extends Controller
                             $existingSharedPayment->save();
                             $newPayment = $existingSharedPayment;
                         } else {
-                            $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber . '-S' . $student->id, $student->id);
+                            $receiptNumber = $this->ensureUniqueReceiptNumber($sharedReceiptNumber, $student->id);
                             
                             $newPayment = Payment::create([
                                 'student_id' => $student->id,
@@ -3672,40 +3672,14 @@ class PaymentController extends Controller
 
     protected function generateSharedReceiptNumber(): string
     {
-        $maxAttempts = 10;
-        $attempt = 0;
-        do {
-            $receiptNumber = \App\Services\DocumentNumberService::generateReceipt();
-            $exists = Payment::where('shared_receipt_number', $receiptNumber)
-                ->orWhere('receipt_number', $receiptNumber)
-                ->exists();
-            $attempt++;
-            if ($exists && $attempt < $maxAttempts) {
-                usleep(10000);
-            }
-        } while ($exists && $attempt < $maxAttempts);
-
-        if ($exists) {
-            $receiptNumber = $receiptNumber . '-' . time();
-        }
-
-        return $receiptNumber;
+        return \App\Services\ReceiptNumberService::generateForPayment();
     }
 
+    /**
+     * For sibling shared payments: first child gets base, next get base-01, base-02, etc.
+     */
     protected function ensureUniqueReceiptNumber(string $baseReceiptNumber, int $studentId): string
     {
-        $receiptNumber = $baseReceiptNumber;
-        $attempt = 0;
-        while (Payment::where('receipt_number', $receiptNumber)->exists() && $attempt < 10) {
-            $attempt++;
-            $receiptNumber = $baseReceiptNumber . '-' . $attempt;
-            usleep(10000);
-        }
-
-        if (Payment::where('receipt_number', $receiptNumber)->exists()) {
-            $receiptNumber = $baseReceiptNumber . '-' . $studentId . '-' . time();
-        }
-
-        return $receiptNumber;
+        return \App\Services\ReceiptNumberService::nextReceiptNumberForSibling($baseReceiptNumber);
     }
 }

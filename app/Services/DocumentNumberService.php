@@ -80,11 +80,36 @@ class DocumentNumberService
     }
     
     /**
-     * Generate receipt number (separate sequence)
+     * Generate receipt number: systematic format RCPT/YYYY-NNNN (numeric, yearly sequence).
+     * Used for all new payments (C2B, manual, statement parse). Existing REC-* and legacy
+     * RCPT values are left unchanged.
      */
     public static function generateReceipt(): string
     {
-        return self::generate('receipt', 'RCPT', 6);
+        $counter = DocumentCounter::firstOrCreate(
+            ['type' => 'receipt'],
+            [
+                'prefix' => 'RCPT',
+                'suffix' => '',
+                'padding_length' => 4,
+                'next_number' => 1,
+                'reset_period' => 'yearly',
+            ]
+        );
+
+        self::checkAndResetCounter($counter);
+
+        $number = $counter->next_number;
+        $padLength = (int) ($counter->padding_length ?? 4);
+        $paddedNumber = str_pad((string) $number, $padLength, '0', STR_PAD_LEFT);
+
+        // Systematic format: RCPT/YYYY-NNNN (digits only after RCPT/)
+        $year = $counter->last_reset_year ?? now()->year;
+        $formatted = 'RCPT/' . $year . '-' . $paddedNumber;
+
+        $counter->increment('next_number');
+
+        return $formatted;
     }
     
     /**

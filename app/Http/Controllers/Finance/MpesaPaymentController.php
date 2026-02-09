@@ -1096,6 +1096,8 @@ class MpesaPaymentController extends Controller
             // Shared payment (siblings): create one payment per child, allocate, receipt and notify each
             if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
                 $firstPaymentId = null;
+                $sharedBaseReceipt = \App\Services\ReceiptNumberService::generateForPayment();
+                $siblingIndex = 0;
                 foreach ($transaction->shared_allocations as $alloc) {
                     $sid = (int) ($alloc['student_id'] ?? 0);
                     $amt = (float) ($alloc['amount'] ?? 0);
@@ -1115,12 +1117,14 @@ class MpesaPaymentController extends Controller
                         'amount' => $amt,
                         'payment_method' => 'mpesa',
                         'payment_date' => now(),
-                        'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                        'receipt_number' => \App\Services\ReceiptNumberService::receiptNumberForSibling($sharedBaseReceipt, $siblingIndex),
+                        'shared_receipt_number' => $sharedBaseReceipt,
                         'transaction_id' => $txnCode,
                         'status' => 'approved',
                         'notes' => 'M-PESA Payment (shared) - ' . $txnCode,
                         'created_by' => $transaction->initiated_by,
                     ]);
+                    $siblingIndex++;
                     if ($firstPaymentId === null) {
                         $firstPaymentId = $payment->id;
                     }
@@ -1162,7 +1166,7 @@ class MpesaPaymentController extends Controller
                 'amount' => $transaction->amount,
                 'payment_method' => 'mpesa',
                 'payment_date' => now(),
-                'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
                 'transaction_id' => $txnCode,
                 'status' => 'approved',
                 'notes' => 'M-PESA STK Push payment',
@@ -2061,7 +2065,7 @@ class MpesaPaymentController extends Controller
                         'amount' => $allocationAmount,
                         'payment_method' => 'mpesa',
                         'payment_date' => $transaction->trans_time,
-                        'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                        'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
                         'transaction_id' => $transaction->trans_id,
                         'status' => 'approved',
                         'notes' => 'M-PESA Paybill swimming payment - ' . $transaction->full_name . ' (Shared: ' . count($request->sibling_allocations) . ' students)',
@@ -2105,7 +2109,7 @@ class MpesaPaymentController extends Controller
                     'amount' => $request->amount,
                     'payment_method' => 'mpesa',
                     'payment_date' => $transaction->trans_time,
-                    'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                    'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
                     'transaction_id' => $transaction->trans_id,
                     'status' => 'approved',
                     'notes' => 'M-PESA Paybill payment - ' . $transaction->full_name,

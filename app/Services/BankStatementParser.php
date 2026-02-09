@@ -1408,57 +1408,13 @@ class BankStatementParser
         }
         
         if ($transaction->is_shared && $transaction->shared_allocations) {
-            // Generate same receipt number for all sibling payments
-            // Check if receipt number already exists and generate unique one if needed
-            $maxAttempts = 10;
-            $attempt = 0;
-            do {
-                $sharedReceiptNumber = \App\Services\DocumentNumberService::generateReceipt();
-                $exists = \App\Models\Payment::where('receipt_number', $sharedReceiptNumber)->exists();
-                $attempt++;
-                
-                if ($exists && $attempt < $maxAttempts) {
-                    // Wait a tiny bit and try again (handles race conditions)
-                    usleep(10000); // 0.01 seconds
-                }
-            } while ($exists && $attempt < $maxAttempts);
-            
-            if ($exists) {
-                // If still exists after max attempts, append transaction ID to make it unique
-                $sharedReceiptNumber = $sharedReceiptNumber . '-' . $transaction->id;
-                
-                \Log::warning('Shared receipt number collision after max attempts, using modified number', [
-                    'modified_receipt' => $sharedReceiptNumber,
-                    'transaction_id' => $transaction->id,
-                ]);
-            }
-            
-            // Final check: ensure shared receipt number is truly unique before creating payments
-            $finalSharedReceiptNumber = $sharedReceiptNumber;
-            $maxSharedReceiptAttempts = 10;
-            $sharedReceiptAttempt = 0;
-            while (\App\Models\Payment::where('receipt_number', $finalSharedReceiptNumber)->exists() && $sharedReceiptAttempt < $maxSharedReceiptAttempts) {
-                $uniqueSuffix = $transaction->id . '-' . time() . '-' . rand(1000, 9999);
-                $finalSharedReceiptNumber = ($sharedReceiptNumber ?: 'RCPT') . '-' . $uniqueSuffix;
-                $sharedReceiptAttempt++;
-                usleep(10000); // 0.01 seconds
-            }
-            
-            if ($sharedReceiptAttempt >= $maxSharedReceiptAttempts) {
-                // Last resort: use a completely unique receipt number
-                $finalSharedReceiptNumber = 'RCPT-' . $transaction->id . '-' . time() . '-' . uniqid();
-                \Log::error('Failed to generate unique shared receipt number after max attempts', [
-                    'transaction_id' => $transaction->id,
-                    'original_receipt' => $sharedReceiptNumber,
-                    'final_receipt' => $finalSharedReceiptNumber,
-                ]);
-            }
-            
-            // Create payments for each sibling
+            $finalSharedReceiptNumber = \App\Services\ReceiptNumberService::generateForPayment();
+
+            // Create payments for each sibling: first gets base, next base-01, base-02, etc.
             $payments = [];
-            foreach ($transaction->shared_allocations as $allocation) {
+            foreach ($transaction->shared_allocations as $index => $allocation) {
                 $student = Student::findOrFail($allocation['student_id']);
-                $payment = $this->createSinglePayment($transaction, $student, $allocation['amount'], $finalSharedReceiptNumber, $skipAllocation);
+                $payment = $this->createSinglePayment($transaction, $student, $allocation['amount'], $finalSharedReceiptNumber, $skipAllocation, $index);
                 $payments[] = $payment;
             }
             
@@ -1575,7 +1531,8 @@ class BankStatementParser
         Student $student,
         float $amount,
         ?string $receiptNumber = null,
-        bool $skipAllocation = false
+        bool $skipAllocation = false,
+        ?int $siblingIndex = null
     ): \App\Models\Payment {
         // Determine payment method based on bank type
         $paymentMethodName = $transaction->bank_type === 'mpesa' ? 'MPESA Paybill' : 'Equity Bank Transfer';
@@ -1750,9 +1707,11 @@ class BankStatementParser
         // Generate unique receipt number
         $sharedReceiptNumber = null;
         $finalReceiptNumber = $receiptNumber;
-        if ($transaction->is_shared && $receiptNumber) {
+        if ($transaction->is_shared && $receiptNumber !== null) {
             $sharedReceiptNumber = $receiptNumber;
-            $finalReceiptNumber = $receiptNumber . '-S' . $student->id;
+            $finalReceiptNumber = $siblingIndex !== null
+                ? \App\Services\ReceiptNumberService::receiptNumberForSibling($receiptNumber, $siblingIndex)
+                : \App\Services\ReceiptNumberService::nextReceiptNumberForSibling($receiptNumber);
         }
         if (!$finalReceiptNumber) {
             $maxAttempts = 10;

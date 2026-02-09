@@ -66,31 +66,7 @@ class Payment extends Model
                 $payment->transaction_code = self::generateTransactionCode();
             }
             if (!$payment->receipt_number) {
-                // Generate receipt number and ensure it's unique
-                $maxAttempts = 10;
-                $attempt = 0;
-                do {
-                    $receiptNumber = \App\Services\DocumentNumberService::generate('receipt', 'RCPT');
-                    $exists = self::where('receipt_number', $receiptNumber)->exists();
-                    $attempt++;
-                    
-                    if ($exists && $attempt < $maxAttempts) {
-                        // Wait a tiny bit and try again (handles race conditions)
-                        usleep(10000); // 0.01 seconds
-                    }
-                } while ($exists && $attempt < $maxAttempts);
-                
-                if ($exists) {
-                    // If still exists after max attempts, append timestamp to make it unique
-                    $receiptNumber = $receiptNumber . '-' . time() . '-' . rand(100, 999);
-                    
-                    \Log::warning('Receipt number collision after max attempts, using modified number', [
-                        'modified_receipt' => $receiptNumber,
-                        'student_id' => $payment->student_id,
-                    ]);
-                }
-                
-                $payment->receipt_number = $receiptNumber;
+                $payment->receipt_number = \App\Services\ReceiptNumberService::generateForPayment();
             } else {
                 // If receipt number is provided, check if it exists
                 $originalReceiptNumber = $payment->receipt_number;

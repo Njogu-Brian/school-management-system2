@@ -1834,7 +1834,7 @@ class BankStatementController extends Controller
                 ->pluck('shared_receipt_number')
                 ->filter()
                 ->first();
-            $sharedReceiptNumber = $existingSharedReceipt ?: \App\Services\DocumentNumberService::generateReceipt();
+            $sharedReceiptNumber = $existingSharedReceipt ?: \App\Services\ReceiptNumberService::generateForPayment();
             $payments = [];
 
             foreach ($allocations as $index => $allocation) {
@@ -1943,7 +1943,7 @@ class BankStatementController extends Controller
             'amount' => $c2bTransaction->trans_amount,
             'payment_method' => 'mpesa',
             'payment_date' => $c2bTransaction->trans_time,
-            'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
+            'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
             'transaction_code' => $transactionCode,
             'status' => 'approved',
             'notes' => 'M-PESA Paybill payment - ' . $c2bTransaction->full_name,
@@ -2044,7 +2044,7 @@ class BankStatementController extends Controller
                 'amount' => $amount,
                 'payment_method' => 'mpesa',
                 'payment_date' => $c2bTransaction->trans_time,
-                'receipt_number' => 'SWIM-' . strtoupper(\Illuminate\Support\Str::random(10)),
+                'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
                 'transaction_code' => $transactionCode,
                 'status' => 'approved',
                 'notes' => 'M-PESA Paybill split (Swimming) - ' . $c2bTransaction->full_name,
@@ -2140,7 +2140,7 @@ class BankStatementController extends Controller
             'amount' => $c2bTransaction->trans_amount,
             'payment_method' => 'mpesa',
             'payment_date' => $c2bTransaction->trans_time,
-            'receipt_number' => 'REC-' . strtoupper(\Illuminate\Support\Str::random(10)),
+            'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
             'transaction_code' => $c2bTransaction->trans_id,
             'status' => 'approved',
             'notes' => 'M-PESA Paybill swimming payment - ' . $c2bTransaction->full_name,
