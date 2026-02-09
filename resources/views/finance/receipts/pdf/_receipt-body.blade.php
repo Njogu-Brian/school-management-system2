@@ -1,6 +1,9 @@
 {{-- Shared receipt body: same content for view, print, and PDF. --}}
-@include('layouts.partials.branding-vars')
 @php
+    $brandPrimary = $brandPrimary ?? setting('finance_primary_color', '#3a1a59');
+    $brandSecondary = $brandSecondary ?? setting('finance_secondary_color', '#14b8a6');
+    $brandSuccess = $brandSuccess ?? setting('finance_success_color', '#28a745');
+    $brandDanger = $brandDanger ?? setting('finance_danger_color', '#dc3545');
     $school = $school ?? [];
     $branding = $branding ?? [];
     $logo = $branding['logoBase64'] ?? null;
