@@ -255,8 +255,14 @@ public function store(Request $request)
         
         $plan->load(['student.parent', 'invoice', 'installments', 'creator']);
         
-        // Get school settings
-        $schoolSettings = \App\Services\ReceiptService::getSchoolSettings();
+        // Ensure invoice has hashed_id for public pay link
+        if ($plan->invoice && !$plan->invoice->hashed_id) {
+            $plan->invoice->hashed_id = \App\Models\Invoice::generateHashedId();
+            $plan->invoice->save();
+        }
+        
+        // Get school settings (via ReceiptService for consistent branding)
+        $schoolSettings = app(\App\Services\ReceiptService::class)->getSchoolSettings();
         
         return view('finance.fee_payment_plans.public', compact('plan', 'schoolSettings'));
     }

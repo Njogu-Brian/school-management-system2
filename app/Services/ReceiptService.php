@@ -200,9 +200,9 @@ class ReceiptService
     }
     
     /**
-     * Get school settings for receipt header/footer
+     * Get school settings for receipt header/footer (public for use in views e.g. payment plan public page)
      */
-    private function getSchoolSettings(): array
+    public function getSchoolSettings(): array
     {
         // Try Setting model first
         if (class_exists(\App\Models\Setting::class)) {
