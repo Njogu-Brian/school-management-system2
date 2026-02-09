@@ -2631,8 +2631,9 @@ class PaymentController extends Controller
     }
 
     /**
-     * Create a quick payment link from receipt (Pay Now) and redirect to payment page.
-     * Public route: used from receipt view when fee balance exists.
+     * Create or reuse a family payment link and redirect to unified payment page.
+     * Public route: used from receipt "Pay now" and payment plan. Same /pay/{id} format for all.
+     * Family link allows paying for all children in one place.
      */
     public function createPayNowFromReceiptToken(string $token)
     {
@@ -2642,26 +2643,32 @@ class PaymentController extends Controller
         if (!$student) {
             return redirect()->to('/receipt/' . $token)->with('error', 'Student not found.');
         }
-        $feeBalance = (float) Invoice::where('student_id', $student->id)
-            ->get()
-            ->sum(fn ($inv) => (float) ($inv->balance ?? 0));
-        if ($feeBalance < 1) {
-            return redirect()->to('/receipt/' . $token)->with('info', 'No fee balance to pay.');
+        $familyId = $student->family_id;
+        if (!$familyId) {
+            // No family: create single-student link (same URL format /pay/{id})
+            $feeBalance = (float) Invoice::where('student_id', $student->id)
+                ->get()
+                ->sum(fn ($inv) => (float) ($inv->balance ?? 0));
+            if ($feeBalance < 1) {
+                return redirect()->to('/receipt/' . $token)->with('info', 'No fee balance to pay.');
+            }
+            $link = \App\Models\PaymentLink::create([
+                'student_id' => $student->id,
+                'invoice_id' => null,
+                'family_id' => null,
+                'amount' => $feeBalance,
+                'currency' => 'KES',
+                'description' => 'Pay remaining fee balance - ' . $student->full_name,
+                'status' => 'active',
+                'expires_at' => now()->addDays(30),
+                'max_uses' => 999,
+                'created_by' => $payment->created_by ?? null,
+                'metadata' => ['source' => 'receipt_pay_now'],
+            ]);
+            return redirect()->route('payment.link.show', $link->hashed_id);
         }
-        $link = \App\Models\PaymentLink::create([
-            'student_id' => $student->id,
-            'invoice_id' => null,
-            'family_id' => $student->family_id,
-            'amount' => $feeBalance,
-            'currency' => 'KES',
-            'description' => 'Pay remaining fee balance - ' . $student->full_name,
-            'account_reference' => $student->admission_number ?? ('STU-' . $student->id),
-            'status' => 'active',
-            'expires_at' => now()->addDays(7),
-            'max_uses' => 999,
-            'created_by' => $payment->created_by ?? null,
-            'metadata' => ['source' => 'receipt_pay_now'],
-        ]);
+        // Family: use unified family link (allows paying all siblings)
+        $link = \App\Models\PaymentLink::getOrCreateFamilyLink($familyId, $payment->created_by ?? null, 'receipt_pay_now');
         return redirect()->route('payment.link.show', $link->hashed_id);
     }
     

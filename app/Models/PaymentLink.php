@@ -217,6 +217,39 @@ class PaymentLink extends Model
     }
 
     /**
+     * Get or create an active family payment link (student_id null, family_id set).
+     * Reuses an existing active link for the family. Used by receipt pay-now and payment plan.
+     */
+    public static function getOrCreateFamilyLink(int $familyId, $createdBy = null, string $source = 'unified'): self
+    {
+        $existing = self::where('family_id', $familyId)
+            ->whereNull('student_id')
+            ->where('status', 'active')
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->whereRaw('use_count < max_uses')
+            ->orderByDesc('expires_at')
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+        return self::create([
+            'student_id' => null,
+            'invoice_id' => null,
+            'family_id' => $familyId,
+            'amount' => 0,
+            'currency' => 'KES',
+            'description' => 'Pay school fees - all children',
+            'status' => 'active',
+            'expires_at' => now()->addDays(90),
+            'max_uses' => 999,
+            'created_by' => $createdBy,
+            'metadata' => ['source' => $source],
+        ]);
+    }
+
+    /**
      * Scope: Active links
      */
     public function scopeActive($query)

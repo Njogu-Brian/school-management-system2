@@ -255,15 +255,42 @@ public function store(Request $request)
         
         $plan->load(['student.parent', 'invoice', 'installments', 'creator']);
         
-        // Ensure invoice has hashed_id for public pay link
-        if ($plan->invoice && !$plan->invoice->hashed_id) {
-            $plan->invoice->hashed_id = \App\Models\Invoice::generateHashedId();
-            $plan->invoice->save();
+        // Unified payment link: same /pay/{id} format as receipt pay-now. Family link allows paying all children.
+        $payNowUrl = null;
+        if ($plan->student) {
+            if ($plan->student->family_id) {
+                $link = \App\Models\PaymentLink::getOrCreateFamilyLink($plan->student->family_id, null, 'payment_plan');
+                $payNowUrl = route('payment.link.show', $link->hashed_id);
+            } else {
+                $existing = \App\Models\PaymentLink::where('student_id', $plan->student->id)
+                    ->where('status', 'active')
+                    ->where(function ($q) {
+                        $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                    })
+                    ->whereRaw('use_count < max_uses')
+                    ->first();
+                if ($existing) {
+                    $payNowUrl = route('payment.link.show', $existing->hashed_id);
+                } else {
+                    $link = \App\Models\PaymentLink::create([
+                        'student_id' => $plan->student->id,
+                        'family_id' => null,
+                        'amount' => (float) ($plan->invoice->balance ?? $plan->total_amount ?? 0),
+                        'currency' => 'KES',
+                        'description' => 'Payment plan - ' . $plan->student->full_name,
+                        'status' => 'active',
+                        'expires_at' => now()->addDays(90),
+                        'max_uses' => 999,
+                        'metadata' => ['source' => 'payment_plan'],
+                    ]);
+                    $payNowUrl = route('payment.link.show', $link->hashed_id);
+                }
+            }
         }
         
         // Get school settings (via ReceiptService for consistent branding)
         $schoolSettings = app(\App\Services\ReceiptService::class)->getSchoolSettings();
         
-        return view('finance.fee_payment_plans.public', compact('plan', 'schoolSettings'));
+        return view('finance.fee_payment_plans.public', compact('plan', 'schoolSettings', 'payNowUrl'));
     }
 }

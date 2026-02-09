@@ -154,12 +154,12 @@
                 </table>
             </div>
             @endif
-            @if($invoice && $plan->invoice->hashed_id && $balance > 0)
-            <a href="{{ route('invoice.pay', ['invoice' => $plan->invoice->hashed_id]) }}" class="btn-mpesa">
+            @if($payNowUrl ?? null)
+            <a href="{{ $payNowUrl }}" class="btn-mpesa">
                 <i class="bi bi-phone"></i> Pay with M-PESA
             </a>
             <p class="text-muted small mt-2 mb-0 text-center">
-                You will enter your M-PESA phone number and amount on the next page.
+                Same payment page for all your children. Enter M-PESA number and amount.
             </p>
             @elseif($balance <= 0)
             <p class="text-success text-center mt-3 mb-0">

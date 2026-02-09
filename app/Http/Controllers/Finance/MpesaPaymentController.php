@@ -1085,10 +1085,77 @@ class MpesaPaymentController extends Controller
             Log::info('Processing successful payment', [
                 'transaction_id' => $transaction->id,
                 'mpesa_receipt_number' => $mpesaReceiptNumber,
+                'is_shared' => $transaction->is_shared ?? false,
                 'data_keys' => array_keys($mpesaData),
             ]);
 
-            // Create payment record
+            $txnCode = $mpesaReceiptNumber ?? $transaction->transaction_id;
+            $receiptService = app(\App\Services\ReceiptService::class);
+            $allocationService = app(\App\Services\PaymentAllocationService::class);
+
+            // Shared payment (siblings): create one payment per child, allocate, receipt and notify each
+            if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
+                $firstPaymentId = null;
+                foreach ($transaction->shared_allocations as $alloc) {
+                    $sid = (int) ($alloc['student_id'] ?? 0);
+                    $amt = (float) ($alloc['amount'] ?? 0);
+                    if ($sid <= 0 || $amt <= 0) {
+                        continue;
+                    }
+                    $stu = Student::find($sid);
+                    if (!$stu) {
+                        continue;
+                    }
+                    $payment = Payment::create([
+                        'student_id' => $sid,
+                        'invoice_id' => null,
+                        'payment_link_id' => $transaction->payment_link_id,
+                        'payment_transaction_id' => $transaction->id,
+                        'family_id' => $stu->family_id,
+                        'amount' => $amt,
+                        'payment_method' => 'mpesa',
+                        'payment_date' => now(),
+                        'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
+                        'transaction_id' => $txnCode,
+                        'status' => 'approved',
+                        'notes' => 'M-PESA Payment (shared) - ' . $txnCode,
+                        'created_by' => $transaction->initiated_by,
+                    ]);
+                    if ($firstPaymentId === null) {
+                        $firstPaymentId = $payment->id;
+                    }
+                    try {
+                        $allocationService->autoAllocate($payment, $sid);
+                    } catch (\Exception $e) {
+                        Log::error('Payment allocation failed (shared)', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                    }
+                }
+                $transaction->update([
+                    'status' => 'completed',
+                    'payment_id' => $firstPaymentId,
+                    'external_transaction_id' => $mpesaReceiptNumber,
+                    'completed_at' => now(),
+                ]);
+                DB::commit();
+                // Generate receipts and send confirmations for all sibling payments (outside transaction)
+                $payments = Payment::where('payment_transaction_id', $transaction->id)->get();
+                foreach ($payments as $payment) {
+                    $payment->load(['allocations.invoiceItem.invoice', 'student']);
+                    try {
+                        $receiptService->generateReceipt($payment, ['save' => true]);
+                        $this->sendPaymentConfirmation($payment);
+                    } catch (\Exception $e) {
+                        Log::error('Receipt/notify failed (shared)', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
+                    }
+                }
+                Log::info('Shared payment processed – receipts for all children', [
+                    'transaction_id' => $transaction->id,
+                    'payment_count' => $payments->count(),
+                ]);
+                return;
+            }
+
+            // Single payment
             $payment = Payment::create([
                 'student_id' => $transaction->student_id,
                 'invoice_id' => $transaction->invoice_id,
@@ -1096,13 +1163,12 @@ class MpesaPaymentController extends Controller
                 'payment_method' => 'mpesa',
                 'payment_date' => now(),
                 'receipt_number' => 'REC-' . strtoupper(Str::random(10)),
-                'transaction_id' => $mpesaReceiptNumber ?? $transaction->transaction_id,
+                'transaction_id' => $txnCode,
                 'status' => 'approved',
                 'notes' => 'M-PESA STK Push payment',
                 'created_by' => $transaction->initiated_by,
             ]);
 
-            // Update transaction
             $transaction->update([
                 'status' => 'completed',
                 'payment_id' => $payment->id,
@@ -1110,38 +1176,23 @@ class MpesaPaymentController extends Controller
                 'completed_at' => now(),
             ]);
 
-            // Allocate payment to invoice items
             $this->allocatePaymentToInvoices($payment, $transaction);
 
             DB::commit();
 
-            // Refresh so receipt and notification use allocated amounts and relations
             $payment->refresh();
             $payment->load(['allocations.invoiceItem.invoice', 'student']);
 
-            // Generate receipt PDF (outside transaction to avoid locking)
             try {
-                $receiptService = app(\App\Services\ReceiptService::class);
-                $pdfPath = $receiptService->generateReceipt($payment, ['save' => true]);
-                Log::info('Receipt generated for M-PESA payment', [
-                    'payment_id' => $payment->id,
-                    'pdf_path' => $pdfPath,
-                ]);
+                $receiptService->generateReceipt($payment, ['save' => true]);
             } catch (\Exception $e) {
-                Log::error('Failed to generate receipt for M-PESA payment', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage(),
-                ]);
+                Log::error('Failed to generate receipt for M-PESA payment', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
             }
 
-            // Send payment confirmation (SMS/email via RKS Finance, same as other payments)
             try {
                 $this->sendPaymentConfirmation($payment);
             } catch (\Exception $e) {
-                Log::error('Failed to send payment confirmation', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage(),
-                ]);
+                Log::error('Failed to send payment confirmation', ['payment_id' => $payment->id, 'error' => $e->getMessage()]);
                 flash_sms_credit_warning($e);
             }
 
