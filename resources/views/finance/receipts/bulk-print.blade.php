@@ -71,15 +71,31 @@
     <div class="no-print bg-light border-bottom py-3 px-3 mb-3">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h5 class="mb-0"><i class="bi bi-receipt-cutoff"></i> {{ count($receipts) }} receipt(s)</h5>
-            <div class="d-flex flex-wrap gap-2">
+            <div class="d-flex flex-wrap gap-2 align-items-center">
                 @if($firstPayment)
-                    <a href="{{ route('finance.payments.receipt.pdf', $firstPayment) }}" class="btn btn-primary btn-sm">
+                    <a href="{{ route('finance.payments.receipt.pdf', $firstPayment) }}" class="btn btn-primary btn-sm" download>
                         <i class="bi bi-download"></i> Download PDF
                     </a>
                 @endif
                 <button type="button" onclick="window.print()" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-printer"></i> Print
                 </button>
+                @php
+                    $firstReceiptData = $receipts[0] ?? [];
+                    $firstStudent = $firstReceiptData['student'] ?? $firstPayment->student ?? null;
+                    $firstTotalOutstanding = $firstReceiptData['total_outstanding_balance'] ?? 0;
+                    $familyUpdateLink = $firstStudent ? optional(optional($firstStudent->family)->updateLink) : null;
+                @endphp
+                @if($familyUpdateLink && $familyUpdateLink->is_active)
+                    <a href="{{ route('family-update.form', $familyUpdateLink->token) }}" target="_blank" class="btn btn-sm" style="background: linear-gradient(135deg, {{ $brandPrimary }} 0%, {{ $brandSecondary }} 100%); color: white;">
+                        <i class="bi bi-person-gear"></i> Update Profile
+                    </a>
+                @endif
+                @if($firstTotalOutstanding > 0 && $firstPayment && $firstPayment->public_token)
+                    <a href="{{ route('receipts.pay-now', $firstPayment->public_token) }}" class="btn btn-success btn-sm">
+                        <i class="bi bi-phone"></i> Pay Now (KES {{ number_format($firstTotalOutstanding, 2) }})
+                    </a>
+                @endif
                 <a href="{{ url()->previous() }}" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-arrow-left"></i> Back
                 </a>
