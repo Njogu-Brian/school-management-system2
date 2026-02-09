@@ -118,7 +118,8 @@ class ReceiptService
 
         // Use receiptItems instead of allocations for template
         $allocations = $receiptItems;
-        $displayReceiptNumber = $payment->shared_receipt_number ?? $payment->receipt_number;
+        // Show this payment's actual receipt number (systematic: base for first, base-01, base-02 for siblings)
+        $displayReceiptNumber = $payment->receipt_number;
 
         return [
             'payment' => $payment,
@@ -191,7 +192,7 @@ class ReceiptService
     public function downloadReceipt(Payment $payment): \Illuminate\Http\Response
     {
         $pdf = $this->generateReceipt($payment);
-        $filename = 'Receipt_' . ($payment->shared_receipt_number ?? $payment->receipt_number) . '.pdf';
+        $filename = 'Receipt_' . $payment->receipt_number . '.pdf';
         
         return response($pdf, 200, [
             'Content-Type' => 'application/pdf',

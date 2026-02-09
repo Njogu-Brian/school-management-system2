@@ -2350,6 +2350,7 @@ class PaymentController extends Controller
 
         $payment->load([
             'student.classroom',
+            'student.family.updateLink',
             'invoice',
             'paymentMethod', 
             'allocations.invoiceItem.votehead',
@@ -2357,6 +2358,27 @@ class PaymentController extends Controller
         ]);
         
         $student = $payment->student;
+
+        // Ensure student has a family and profile update link (so Update Profile button shows)
+        if ($student) {
+            if (!$student->family_id) {
+                $family = \App\Models\Family::create([
+                    'guardian_name' => $student->full_name ?? trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+                ]);
+                $student->update(['family_id' => $family->id]);
+                $student->refresh();
+                $payment->refresh();
+            }
+            $student->load('family.updateLink');
+            if ($student->family && !$student->family->updateLink) {
+                \App\Models\FamilyUpdateLink::create([
+                    'family_id' => $student->family->id,
+                    'is_active' => true,
+                ]);
+                $student->family->refresh();
+                $student->family->load('updateLink');
+            }
+        }
         
         // Get ALL unpaid invoice items for the student
         $allUnpaidItems = \App\Models\InvoiceItem::whereHas('invoice', function($q) use ($student) {
