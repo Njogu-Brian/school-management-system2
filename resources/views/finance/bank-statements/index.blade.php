@@ -301,6 +301,7 @@
             </form>
         </div>
     </div>
+    <div id="bulkSelectionHint" class="small text-muted mt-1 mb-2" style="display: none;"></div>
 
     <!-- Transactions Table -->
     <div id="bank-statements-transactions-section" class="finance-table-wrapper finance-animate shadow-sm rounded-4 border-0">
@@ -828,6 +829,18 @@
             } else {
                 bulkConfirmBtn.style.display = 'none';
                 if (bulkConfirmAndCreateBtn) bulkConfirmAndCreateBtn.style.display = 'none';
+            }
+
+            // Hint when selection has no confirmable transactions
+            var hintEl = document.getElementById('bulkSelectionHint');
+            if (hintEl) {
+                if (checked.length > 0 && confirmableIds.length === 0) {
+                    hintEl.textContent = 'Selected transactions are already confirmed/collected. No confirmation needed. For C2B use "Confirm & Create Payments" if uncollected; for creating payments from confirmed bank transactions use "Auto-Assign".';
+                    hintEl.style.display = 'block';
+                } else {
+                    hintEl.textContent = '';
+                    hintEl.style.display = 'none';
+                }
             }
             
             // Show/hide bulk archive button

@@ -4042,22 +4042,24 @@ class BankStatementController extends Controller
         }
         
         $transactionIds = array_filter(array_map('intval', $transactionIds));
-        
-        // Validate IDs exist if provided
+        $requestedIds = $transactionIds;
+
+        // Validate IDs exist in either bank statements or C2B (page shows both)
         if (!empty($transactionIds)) {
-            $existingIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
-            $invalidIds = array_diff($transactionIds, $existingIds);
-            
+            $bankIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+            $c2bIds = MpesaC2BTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
+            $validIds = array_values(array_unique(array_merge($bankIds, $c2bIds)));
+            $invalidIds = array_diff($transactionIds, $validIds);
             if (!empty($invalidIds)) {
                 return redirect()
                     ->route('finance.bank-statements.index')
                     ->with('error', 'Some selected transaction IDs are invalid: ' . implode(', ', $invalidIds));
             }
         }
-        
+
         \Log::info('Auto-assign request', [
-            'transaction_ids' => $transactionIds,
-            'count' => count($transactionIds),
+            'transaction_ids' => $requestedIds,
+            'count' => count($requestedIds),
         ]);
         
         // Increase execution time limit for bulk operations (set early)
@@ -4118,10 +4120,13 @@ class BankStatementController extends Controller
             ->where('is_duplicate', false)
             ->where('is_archived', false);
 
-        if (!empty($transactionIds)) {
-            $unmatchedQuery->whereIn('id', $transactionIds);
-            $matchedQuery->whereIn('id', $transactionIds);
-            $allConfirmedQuery->whereIn('id', $transactionIds);
+        // Filter by selected IDs: use only bank statement IDs (C2B are collected or use Confirm & Create Payments)
+        if (!empty($requestedIds)) {
+            $bankOnlyIds = BankStatementTransaction::whereIn('id', $requestedIds)->pluck('id')->toArray();
+            $filterIds = !empty($bankOnlyIds) ? $bankOnlyIds : [0]; // [0] => no bank rows match, so no work
+            $unmatchedQuery->whereIn('id', $filterIds);
+            $matchedQuery->whereIn('id', $filterIds);
+            $allConfirmedQuery->whereIn('id', $filterIds);
         }
 
         $unmatchedTransactions = $unmatchedQuery->get();
@@ -4543,7 +4548,11 @@ class BankStatementController extends Controller
                 $message .= "{$paymentsCreated} payment(s) created, receipts generated, and notifications sent.";
             }
         } else {
-            $message .= "No payments created. Ensure transactions are confirmed and have a student assigned or are shared.";
+            if (!empty($requestedIds) && $totalProcessed === 0) {
+                $message .= "Selection contains only M-PESA C2B or no confirmed bank transactions. C2B that are already collected have payments; for uncollected C2B use \"Confirm & Create Payments\".";
+            } else {
+                $message .= "No payments created. Ensure transactions are confirmed and have a student assigned or are shared.";
+            }
         }
         if (!empty($errors)) {
             $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5)); // Limit error display
