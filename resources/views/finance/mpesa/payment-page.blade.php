@@ -170,7 +170,7 @@
 
                     <div id="singleBlock" style="display: none;">
                         <label class="form-label mt-2">Paying for one child only</label>
-                        <select class="form-select form-select-lg" id="single_student_id" name="student_id" required>
+                        <select class="form-select form-select-lg" id="single_student_id" name="student_id">
                             <option value="">-- Select child --</option>
                             @foreach($familyStudents ?? [] as $s)
                                 <option value="{{ $s['id'] }}" data-balance="{{ $s['fee_balance'] ?? 0 }}">{{ $s['full_name'] }} (KES {{ number_format($s['fee_balance'] ?? 0, 2) }})</option>
@@ -179,7 +179,7 @@
                         <label class="form-label mt-3">Amount (KES)</label>
                         <div class="input-group input-group-lg">
                             <span class="input-group-text">KES</span>
-                            <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" placeholder="0.00" required>
+                            <input type="number" class="form-control" id="payment_amount" name="amount" step="0.01" min="1" placeholder="0.00">
                         </div>
                         <div class="mt-2">
                             <button type="button" class="btn btn-outline-primary btn-quick me-2" id="payFullBtn">Pay full balance</button>
@@ -284,15 +284,25 @@
                 $('#payment_amount').val(total > 0 ? total.toFixed(2) : '');
             }
 
+            function syncSingleStudentRequired() {
+                var singleVisible = $('#singleBlock').is(':visible');
+                var sel = $('#single_student_id')[0];
+                if (sel) sel.required = singleVisible;
+                var amt = $('#payment_amount')[0];
+                if (amt) amt.required = singleVisible;
+            }
+
             $('#shareToggle').on('change', function() {
                 var on = $(this).is(':checked');
                 $('#share_with_siblings').val(on ? '1' : '0');
                 $('#shareBlock').toggle(on);
                 $('#singleBlock').toggle(!on);
+                syncSingleStudentRequired();
                 if (on) buildSiblingList(true);
             });
 
             buildSiblingList(true);
+            syncSingleStudentRequired();
 
             $('#single_student_id').on('change', function() {
                 var bal = $(this).find('option:selected').data('balance');
