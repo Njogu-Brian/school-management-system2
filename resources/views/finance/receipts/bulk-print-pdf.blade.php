@@ -1,10 +1,16 @@
+@php
+    $brandPrimary = setting('finance_primary_color', '#3a1a59');
+    $brandMuted = setting('finance_muted_color', '#6b7280');
+    $brandBodyFont = setting('finance_body_font_size', '13');
+    $brandHeadingFont = setting('finance_heading_font_size', '19');
+    $brandSmallFont = setting('finance_small_font_size', '11');
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bulk Receipts Print</title>
-    @include('layouts.partials.branding-vars')
     <style>
         * {
             margin: 0;

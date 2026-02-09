@@ -475,9 +475,10 @@ class BankStatementController extends Controller
     {
         $query = MpesaC2BTransaction::with(['student', 'payment', 'invoice']);
         $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
+        $c2bLinkedPaymentSql = '(SELECT COALESCE(amount,0) FROM payments WHERE payments.id = mpesa_c2b_transactions.payment_id AND payments.reversed = 0 AND payments.deleted_at IS NULL)';
         $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
-        $c2bIsCollectedSql = $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01';
-        $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01';
+        $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
+        $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01 AND (mpesa_c2b_transactions.payment_id IS NULL OR ' . $c2bLinkedPaymentSql . ' < mpesa_c2b_transactions.trans_amount - 0.01)';
 
         switch ($view) {
             case 'auto-assigned':
@@ -602,9 +603,10 @@ class BankStatementController extends Controller
     {
         $hasSwimmingColumn = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction');
         $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
+        $c2bLinkedPaymentSql = '(SELECT COALESCE(amount,0) FROM payments WHERE payments.id = mpesa_c2b_transactions.payment_id AND payments.reversed = 0 AND payments.deleted_at IS NULL)';
         $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';
-        $c2bIsCollectedSql = $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01';
-        $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01';
+        $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
+        $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01 AND (mpesa_c2b_transactions.payment_id IS NULL OR ' . $c2bLinkedPaymentSql . ' < mpesa_c2b_transactions.trans_amount - 0.01)';
         
         // Base query to exclude swimming transactions for non-swimming views
         $excludeSwimming = function($query) use ($view, $hasSwimmingColumn) {
