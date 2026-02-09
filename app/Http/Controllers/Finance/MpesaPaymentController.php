@@ -1844,6 +1844,39 @@ class MpesaPaymentController extends Controller
                 // Attempt smart matching using unified service
                 $unifiedService = app(\App\Services\UnifiedTransactionService::class);
                 $unifiedService->matchC2BTransaction($c2bTransaction);
+                $c2bTransaction->refresh();
+
+                // Auto-confirm and create payment when admission number matches a single student (no siblings)
+                $t = $c2bTransaction;
+                if ($t->student_id
+                    && $t->allocation_status === 'auto_matched'
+                    && (int) ($t->match_confidence ?? 0) >= 80
+                    && trim((string) ($t->bill_ref_number ?? '')) !== '') {
+                    $student = $t->student;
+                    if ($student) {
+                        $hasSiblings = \App\Models\Student::where('family_id', $student->family_id)
+                            ->where('id', '!=', $student->id)
+                            ->where('archive', 0)
+                            ->where('is_alumni', false)
+                            ->exists();
+                        if (!$hasSiblings && !$t->payment_id && $t->status !== 'processed') {
+                            try {
+                                app(\App\Http\Controllers\Finance\BankStatementController::class)
+                                    ->confirmAndCreatePaymentForC2B($t);
+                                \Illuminate\Support\Facades\Log::info('C2B auto-confirmed and payment created (admission match, no siblings)', [
+                                    'c2b_id' => $t->id,
+                                    'trans_id' => $t->trans_id,
+                                    'student_id' => $t->student_id,
+                                ]);
+                            } catch (\Throwable $e) {
+                                \Illuminate\Support\Facades\Log::warning('C2B auto-confirm failed', [
+                                    'c2b_id' => $t->id,
+                                    'error' => $e->getMessage(),
+                                ]);
+                            }
+                        }
+                    }
+                }
             }
 
             Log::info('C2B transaction created', [

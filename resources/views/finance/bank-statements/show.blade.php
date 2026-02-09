@@ -919,7 +919,11 @@
                     <h5 class="mb-0">Actions</h5>
                 </div>
                 <div class="finance-card-body p-4">
-                    @if($bankStatement->status === 'draft')
+                    @php
+                        $showConfirmButton = $bankStatement->status === 'draft'
+                            || (($isC2B ?? false) && !in_array($rawTransaction->status ?? '', ['processed', 'failed'], true) && ($bankStatement->student_id || ($bankStatement->is_shared ?? false)));
+                    @endphp
+                    @if($showConfirmButton)
                         @if($bankStatement->student_id || ($bankStatement->is_shared ?? false))
                             <form method="POST" action="{{ route('finance.bank-statements.confirm', $bankStatement->id) }}" class="mb-2">
                                 @csrf

@@ -1804,6 +1804,16 @@ class BankStatementController extends Controller
     }
 
     /**
+     * Public entry point to confirm and create payment for a C2B transaction.
+     * Used by C2B callback for auto-confirm when admission number matches single student (no siblings).
+     */
+    public function confirmAndCreatePaymentForC2B(MpesaC2BTransaction $c2bTransaction)
+    {
+        $this->ensureNotFuturePaymentDate($c2bTransaction->trans_time, 'C2B transaction');
+        return $this->createPaymentForC2B($c2bTransaction);
+    }
+
+    /**
      * Helper: Create payment for C2B transaction
      */
     protected function createPaymentForC2B($c2bTransaction)
@@ -3520,93 +3530,91 @@ class BankStatementController extends Controller
                 ->with('error', 'Please select at least one draft transaction to confirm.');
         }
 
-        // Page shows both bank and C2B transactions; only bank IDs exist in bank_statement_transactions
-        $transactionIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
-        if (empty($transactionIds)) {
-            return redirect()
-                ->route('finance.bank-statements.index')
-                ->with('error', 'Selected transactions are M-PESA C2B. Only bank statement transactions can be bulk confirmed here. For C2B, open each transaction and confirm from its detail page.');
-        }
-
         $confirmed = 0;
+        $c2bConfirmed = 0;
         $errors = [];
 
         foreach ($transactionIds as $transactionId) {
             try {
-                $transaction = BankStatementTransaction::findOrFail($transactionId);
-                
+                // Resolve: try C2B first, then bank (IDs may exist in only one table)
+                $c2bTransaction = MpesaC2BTransaction::find($transactionId);
+                if ($c2bTransaction) {
+                    if (!$c2bTransaction->student_id) {
+                        $errors[] = "C2B #{$transactionId} must be matched to a student before confirming";
+                        continue;
+                    }
+                    if ($c2bTransaction->status === 'processed' || $c2bTransaction->status === 'failed') {
+                        continue;
+                    }
+                    $c2bTransaction->update(['status' => 'processed']);
+                    if (!$c2bTransaction->payment_id) {
+                        try {
+                            $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
+                        } catch (\Exception $e) {
+                            $errors[] = "C2B #{$transactionId}: " . $e->getMessage();
+                            continue;
+                        }
+                    }
+                    $c2bConfirmed++;
+                    $confirmed++;
+                    continue;
+                }
+
+                $transaction = BankStatementTransaction::find($transactionId);
+                if (!$transaction) {
+                    continue;
+                }
+
                 if (!$transaction->student_id && !$transaction->is_shared) {
                     $errors[] = "Transaction #{$transactionId} must be matched before confirming";
                     continue;
                 }
 
-                // Allow confirming draft, matched (auto-assigned), and manual-assigned transactions
-                // Only skip if already confirmed or rejected
                 if ($transaction->status === 'confirmed') {
-                    // Already confirmed, skip but don't error
                     continue;
                 }
-                
                 if ($transaction->status === 'rejected') {
                     $errors[] = "Transaction #{$transactionId} is rejected and cannot be confirmed";
                     continue;
                 }
-                
-                // Confirm the transaction
+
                 $transaction->confirm();
-                
-                // If transaction has student_id or is_shared, ensure match_status is set
-                // Don't override if already matched/manual - keep existing status
                 if ($transaction->student_id || $transaction->is_shared) {
-                    // Only update if match_status is unmatched or null
                     if (!$transaction->match_status || $transaction->match_status === 'unmatched') {
                         $transaction->update(['match_status' => 'manual']);
                     }
                 }
-                
-                // Refresh to get latest swimming status
                 $transaction->refresh();
-                
-                // Check if this is a swimming transaction
-                $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
+
+                $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
                     && $transaction->is_swimming_transaction;
-                
+
                 if ($isSwimming) {
-                    // Process swimming transaction - allocate to swimming wallets
                     try {
                         $this->processSwimmingTransaction($transaction);
-                        Log::info('Bulk confirmed swimming transaction', [
-                            'transaction_id' => $transaction->id,
-                            'student_id' => $transaction->student_id,
-                        ]);
+                        Log::info('Bulk confirmed swimming transaction', ['transaction_id' => $transaction->id, 'student_id' => $transaction->student_id]);
                     } catch (\Exception $e) {
                         $errors[] = "Transaction #{$transactionId} (swimming): " . $e->getMessage();
-                        Log::error('Failed to process swimming transaction', [
-                            'transaction_id' => $transaction->id,
-                            'error' => $e->getMessage(),
-                        ]);
+                        Log::error('Failed to process swimming transaction', ['transaction_id' => $transaction->id, 'error' => $e->getMessage()]);
+                        continue;
                     }
                 } else {
-                    Log::info('Bulk confirmed transaction', [
-                        'transaction_id' => $transaction->id,
-                        'student_id' => $transaction->student_id,
-                    ]);
+                    Log::info('Bulk confirmed transaction', ['transaction_id' => $transaction->id, 'student_id' => $transaction->student_id]);
                 }
-                
                 $confirmed++;
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
             }
         }
 
-        $swimmingCount = BankStatementTransaction::whereIn('id', $transactionIds)
-            ->where('is_swimming_transaction', true)
-            ->where('status', 'confirmed')
-            ->count();
-        
+        $bankIds = array_intersect($transactionIds, BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray());
+        $swimmingCount = $bankIds ? BankStatementTransaction::whereIn('id', $bankIds)->where('is_swimming_transaction', true)->where('status', 'confirmed')->count() : 0;
         $feeCount = $confirmed - $swimmingCount;
-        
+
         $message = "Confirmed {$confirmed} transaction(s).";
+        if ($c2bConfirmed > 0) {
+            $message .= " {$c2bConfirmed} C2B (payment created/linked).";
+        }
         if ($swimmingCount > 0) {
             $message .= " {$swimmingCount} allocated to swimming wallets.";
         }
@@ -3640,19 +3648,62 @@ class BankStatementController extends Controller
                 ->with('error', 'Please select at least one transaction.');
         }
 
-        // Page shows both bank and C2B; only bank statement IDs are processed here
-        $transactionIds = BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray();
-        if (empty($transactionIds)) {
-            return redirect()->route('finance.bank-statements.index')
-                ->with('error', 'Selected transactions are M-PESA C2B. Only bank statement transactions can be bulk confirmed here. For C2B, open each transaction and confirm from its detail page.');
-        }
-
         $receiptIds = [];
         $errors = [];
         $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
 
         foreach ($transactionIds as $transactionId) {
             try {
+                // C2B: confirm and create/link payment
+                $c2bTransaction = MpesaC2BTransaction::find($transactionId);
+                if ($c2bTransaction) {
+                    if (!$c2bTransaction->student_id) {
+                        continue;
+                    }
+                    if ($c2bTransaction->status === 'failed') {
+                        continue;
+                    }
+                    $ref = $c2bTransaction->trans_id;
+                    $existingPayments = \App\Models\Payment::where('reversed', false)
+                        ->where(function ($q) use ($ref) {
+                            $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        })
+                        ->get();
+                    if ($existingPayments->isNotEmpty()) {
+                        $first = $existingPayments->first();
+                        if (!$c2bTransaction->payment_id) {
+                            $c2bTransaction->update(['payment_id' => $first->id, 'status' => 'processed']);
+                        }
+                        foreach ($existingPayments as $p) {
+                            $receiptIds[] = $p->id;
+                        }
+                        try {
+                            $paymentController->sendPaymentNotifications($first);
+                        } catch (\Throwable $e) {
+                            Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                        }
+                        continue;
+                    }
+                    if ($c2bTransaction->status !== 'processed') {
+                        try {
+                            $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
+                            if ($payment) {
+                                $receiptIds[] = $payment->id;
+                                try {
+                                    $paymentController->sendPaymentNotifications($payment);
+                                } catch (\Throwable $e) {
+                                    Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $payment->id, 'message' => $e->getMessage()]);
+                                }
+                            }
+                        } catch (\Exception $e) {
+                            $errors[] = "C2B #{$transactionId}: " . $e->getMessage();
+                        }
+                    } elseif ($c2bTransaction->payment_id) {
+                        $receiptIds[] = $c2bTransaction->payment_id;
+                    }
+                    continue;
+                }
+
                 $transaction = BankStatementTransaction::find($transactionId);
                 if (!$transaction || !$transaction->student_id && !$transaction->is_shared) {
                     continue;
