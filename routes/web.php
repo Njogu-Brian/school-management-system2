@@ -1098,6 +1098,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     Route::prefix('families')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
         Route::get('/',                [FamilyController::class,'index'])->name('families.index');
         Route::post('/populate-all',   [FamilyController::class,'populateAllFamilies'])->name('families.populate'); // fix existing families
+        Route::post('/bulk-delete',    [FamilyController::class,'bulkDestroy'])->name('families.bulk-destroy');
         Route::get('/link',            [FamilyController::class,'link'])->name('families.link');              // show link form
         Route::post('/link-students',   [FamilyController::class,'linkStudents'])->name('families.link.store'); // link two students
         Route::get('/{family}',        [FamilyController::class,'manage'])->name('families.manage');         // view + edit page

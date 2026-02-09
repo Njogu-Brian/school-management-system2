@@ -62,23 +62,31 @@
     </div>
 
     <div class="settings-card">
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-modern align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>#</th>
-                <th>Guardian</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Students</th>
-                <th class="text-end">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @forelse($families as $fam)
+      <form method="POST" action="{{ route('families.bulk-destroy') }}" id="families-bulk-form" onsubmit="return confirm('Delete the selected families? All students will be unlinked. This cannot be undone.');">
+        @csrf
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-modern align-middle mb-0">
+              <thead class="table-light">
                 <tr>
-                  <td class="fw-semibold">#{{ $fam->id }}</td>
+                  <th style="width: 2.5rem;">
+                    <input type="checkbox" id="select-all-families" class="form-check-input" aria-label="Select all on page">
+                  </th>
+                  <th>#</th>
+                  <th>Guardian</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Students</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                @forelse($families as $fam)
+                  <tr>
+                    <td>
+                      <input type="checkbox" name="ids[]" value="{{ $fam->id }}" class="form-check-input family-checkbox">
+                    </td>
+                    <td class="fw-semibold">#{{ $fam->id }}</td>
                   <td>
                     <div class="fw-semibold">{{ $fam->guardian_name }}</div>
                     @if($fam->phone || $fam->email)
@@ -119,16 +127,47 @@
                   </td>
                 </tr>
               @empty
-                <tr><td colspan="6" class="text-center text-muted py-4">No families found.</td></tr>
+                <tr><td colspan="7" class="text-center text-muted py-4">No families found.</td></tr>
               @endforelse
             </tbody>
           </table>
         </div>
-      </div>
-      <div class="card-footer d-flex justify-content-end">
-        {{ $families->links() }}
-      </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <button type="submit" class="btn btn-outline-danger btn-sm" id="bulk-delete-btn" disabled>
+            <i class="bi bi-trash"></i> Delete selected
+          </button>
+          {{ $families->links() }}
+        </div>
+      </form>
     </div>
   </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+  var form = document.getElementById('families-bulk-form');
+  var selectAll = document.getElementById('select-all-families');
+  var checkboxes = form ? form.querySelectorAll('.family-checkbox') : [];
+  var bulkBtn = document.getElementById('bulk-delete-btn');
+
+  function updateBulkButton() {
+    var any = Array.prototype.some.call(checkboxes, function (c) { return c.checked; });
+    if (bulkBtn) bulkBtn.disabled = !any;
+  }
+
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      checkboxes.forEach(function (c) { c.checked = selectAll.checked; });
+      updateBulkButton();
+    });
+  }
+  checkboxes.forEach(function (c) {
+    c.addEventListener('change', updateBulkButton);
+  });
+  updateBulkButton();
+})();
+</script>
+@endpush

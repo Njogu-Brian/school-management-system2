@@ -7,6 +7,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Student;
 use App\Models\AcademicYear;
 use App\Models\Term;
+use App\Services\FamilyArchiveService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -178,6 +179,8 @@ class StudentPromotionController extends Controller
                         'classroom_id' => null, // Remove from class
                         'stream_id' => null, // Remove from stream
                     ]);
+                    // If family has 0 or 1 active members left, remove family and store archived_family_id for restore
+                    app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student->fresh());
                 } else {
                     // Promote to next class, find matching stream
                     $nextClassroom = $classroom->nextClass;

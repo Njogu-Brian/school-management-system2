@@ -374,4 +374,36 @@ class FamilyController extends Controller
         return redirect()->route('families.index')
             ->with('success', 'Family deleted successfully. All students have been unlinked.');
     }
+
+    /**
+     * Bulk delete families (unlinks all students from each family, then deletes)
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:families,id',
+        ]);
+
+        $ids = $request->input('ids', []);
+        $count = 0;
+
+        foreach ($ids as $id) {
+            $family = Family::find($id);
+            if ($family) {
+                Student::where('family_id', $family->id)->update(['family_id' => null]);
+                $family->delete();
+                $count++;
+            }
+        }
+
+        $message = $count === 1
+            ? '1 family deleted. All students have been unlinked.'
+            : $count . ' families deleted. All students have been unlinked.';
+
+        return redirect()->route('families.index')->with('success', $message);
+    }
 }

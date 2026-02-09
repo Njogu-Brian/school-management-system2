@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Student;
 use App\Models\ArchiveAudit;
+use App\Services\FamilyArchiveService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -100,6 +101,9 @@ class RestoreStudentService
             $student->archived_notes = null;
             $student->archived_by = null;
             $student->save();
+
+            // Restore family if this student had one removed (archived_family_id set)
+            app(FamilyArchiveService::class)->onStudentRestored($student->fresh());
 
             ArchiveAudit::create([
                 'student_id' => $student->id,

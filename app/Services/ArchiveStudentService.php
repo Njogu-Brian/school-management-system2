@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Student;
 use App\Models\ArchiveAudit;
 use App\Models\Invoice;
+use App\Services\FamilyArchiveService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Model;
@@ -88,6 +89,9 @@ class ArchiveStudentService
                 'reason' => $reason,
                 'counts' => array_merge($counts, ['active_siblings' => $activeSiblings]),
             ]);
+
+            // If family has 0 or 1 active members left, remove family and store archived_family_id for restore
+            app(FamilyArchiveService::class)->onStudentArchivedOrAlumni($student);
         });
 
         return ['skipped' => false, 'counts' => $counts];

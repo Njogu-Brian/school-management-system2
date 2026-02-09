@@ -2020,7 +2020,13 @@ class StudentController extends Controller
     public function bulkRestore(Request $request)
     {
         $request->validate(['student_ids'=>'required|array']);
-        Student::withArchived()->whereIn('id', $request->student_ids)->update(['archive'=>0]);
+        $ids = $request->input('student_ids');
+        Student::withArchived()->whereIn('id', $ids)->update(['archive' => 0]);
+        // Restore families for any restored students that had archived_family_id set
+        $familyArchiveService = app(\App\Services\FamilyArchiveService::class);
+        foreach (Student::whereIn('id', $ids)->get() as $student) {
+            $familyArchiveService->onStudentRestored($student);
+        }
         return back()->with('success','Selected students restored.');
     }
 
