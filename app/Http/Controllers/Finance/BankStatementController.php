@@ -1458,9 +1458,30 @@ class BankStatementController extends Controller
             });
         }
 
-        $query->orderBy('payment_date', 'desc')->limit(50);
+        $query->orderBy('payment_date', 'desc')->limit(100);
+        $studentPayments = $query->get();
 
-        $payments = $query->get()->map(function ($p) {
+        // Include sibling payments that share a receipt with any of this student's payments
+        $sharedBases = $studentPayments->pluck('shared_receipt_number')->filter()->unique()->values();
+        if ($sharedBases->isNotEmpty()) {
+            $siblingQuery = Payment::with('student')
+                ->where(function ($qry) {
+                    $qry->where('reversed', false)->orWhereNull('reversed');
+                })
+                ->whereNull('deleted_at')
+                ->when(!empty($c2bPaymentIds), function ($qry) use ($c2bPaymentIds) {
+                    $qry->whereNotIn('id', $c2bPaymentIds);
+                })
+                ->where(function ($q) use ($sharedBases) {
+                    $q->whereIn('shared_receipt_number', $sharedBases->toArray());
+                });
+            $siblingPayments = $siblingQuery->orderBy('payment_date', 'desc')->get();
+            $studentPayments = $studentPayments->concat($siblingPayments)->unique('id')->sortByDesc(function ($p) {
+                return $p->payment_date ? $p->payment_date->format('Y-m-d H:i') : '';
+            })->values()->take(100);
+        }
+
+        $payments = $studentPayments->map(function ($p) {
             return [
                 'id' => $p->id,
                 'amount' => (float) $p->amount,
@@ -1472,7 +1493,7 @@ class BankStatementController extends Controller
                 'student_name' => $p->student ? $p->student->full_name : null,
                 'admission_number' => $p->student ? $p->student->admission_number : null,
             ];
-        });
+        })->values()->all();
         return response()->json(['payments' => $payments]);
     }
 

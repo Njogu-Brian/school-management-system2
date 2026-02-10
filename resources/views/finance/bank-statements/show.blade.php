@@ -1417,17 +1417,32 @@ function loadPaymentsForLink(q, studentId) {
                         return (parseInt(day,10) || '') + ' ' + (months[parseInt(m,10) - 1] || m) + ' ' + (y || '');
                     } catch (_) { return d; }
                 })(p.payment_date) : '';
+                const sharedReceipt = (p.shared_receipt_number || '').toString().replace(/"/g, '&quot;');
                 html += '<label class="list-group-item list-group-item-action d-flex align-items-center gap-2 cursor-pointer">';
-                html += '<input type="checkbox" class="form-check-input link-payment-cb" value="' + p.id + '" data-amount="' + p.amount + '" data-receipt="' + (p.receipt_number || '') + '" data-student="' + (p.student_name || '') + '">';
+                html += '<input type="checkbox" class="form-check-input link-payment-cb" value="' + p.id + '" data-amount="' + p.amount + '" data-receipt="' + (p.receipt_number || '') + '" data-student="' + (p.student_name || '') + '" data-shared-receipt="' + sharedReceipt + '">';
                 html += '<span class="flex-grow-1">#' + (p.receipt_number || p.id) + ' &ndash; Ksh ' + parseFloat(p.amount).toFixed(2);
                 if (dateStr) html += ' <span class="text-muted">(' + dateStr + ')</span>';
+                if (sharedReceipt) html += ' <span class="badge bg-secondary ms-1">Shared</span>';
                 if (p.student_name) html += ' &ndash; ' + p.student_name + (p.admission_number ? ' (' + p.admission_number + ')' : '');
                 html += '</span></label>';
             });
             html += '</div>';
             resultsEl.innerHTML = html;
             document.querySelectorAll('.link-payment-cb').forEach(cb => {
-                cb.addEventListener('change', updateLinkPaymentForm);
+                cb.addEventListener('change', function() {
+                    const base = (cb.getAttribute('data-shared-receipt') || '').trim();
+                    if (base) {
+                        const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
+                            return (el.getAttribute('data-shared-receipt') || '').trim() === base;
+                        });
+                        if (cb.checked) {
+                            sameReceipt.forEach(function(other) { other.checked = true; });
+                        } else {
+                            sameReceipt.forEach(function(other) { other.checked = false; });
+                        }
+                    }
+                    updateLinkPaymentForm();
+                });
             });
         })
         .catch(() => {
