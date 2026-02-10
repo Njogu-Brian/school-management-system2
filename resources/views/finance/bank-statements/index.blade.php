@@ -1058,36 +1058,27 @@
         }
 
         function autoAssign() {
-            console.log('Auto-assign clicked');
             const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
             const form = document.getElementById('autoAssignForm');
             const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             
             if (!form) {
-                console.error('Auto-assign form not found');
                 alert('Error: Auto-assign form not found. Please refresh the page.');
                 return;
             }
             
             if (!autoAssignIdsContainer) {
-                console.error('Auto-assign container not found');
                 alert('Error: Auto-assign container not found. Please refresh the page.');
                 return;
             }
             
-            // Clear existing hidden inputs
             autoAssignIdsContainer.innerHTML = '';
             
-            console.log('Checked transactions:', checked);
-            
-            // If no specific selection, process all confirmed transactions
             if (checked.length === 0) {
                 if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched (auto-assigned or manual-assigned) but don\'t have payments yet.')) {
-                    console.log('Submitting form for all confirmed transactions');
                     form.submit();
                 }
             } else {
-                // Add hidden inputs for each checked ID
                 checked.forEach(id => {
                     const input = document.createElement('input');
                     input.type = 'hidden';
@@ -1095,11 +1086,7 @@
                     input.value = id;
                     autoAssignIdsContainer.appendChild(input);
                 });
-                
-                console.log('Added hidden inputs:', autoAssignIdsContainer.innerHTML);
-                
                 if (confirm(`Create payments for ${checked.length} selected transaction(s)? This will process confirmed transactions that are matched (auto-assigned or manual-assigned) but don't have payments yet.`)) {
-                    console.log('Submitting form with selected transactions');
                     form.submit();
                 }
             }

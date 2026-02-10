@@ -1436,11 +1436,13 @@ class BankStatementController extends Controller
             return response()->json(['payments' => []]);
         }
 
-        // Exclude payments that originated from M-Pesa C2B (so only manual or Equity bank payments)
+        // Exclude reversed payments and those from M-Pesa C2B (only manual or Equity bank, non-reversed)
         $c2bPaymentIds = MpesaC2BTransaction::whereNotNull('payment_id')->pluck('payment_id')->toArray();
 
         $query = Payment::with('student')
-            ->where('reversed', false)
+            ->where(function ($qry) {
+                $qry->where('reversed', false)->orWhereNull('reversed');
+            })
             ->whereNull('deleted_at')
             ->when(!empty($c2bPaymentIds), function ($qry) use ($c2bPaymentIds) {
                 $qry->whereNotIn('id', $c2bPaymentIds);

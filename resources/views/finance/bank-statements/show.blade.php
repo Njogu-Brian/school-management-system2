@@ -1410,9 +1410,17 @@ function loadPaymentsForLink(q, studentId) {
             }
             let html = '<div class="list-group list-group-flush">';
             payments.forEach(p => {
+                const dateStr = p.payment_date ? (function(d) {
+                    try {
+                        const [y, m, day] = d.split('-');
+                        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                        return (parseInt(day,10) || '') + ' ' + (months[parseInt(m,10) - 1] || m) + ' ' + (y || '');
+                    } catch (_) { return d; }
+                })(p.payment_date) : '';
                 html += '<label class="list-group-item list-group-item-action d-flex align-items-center gap-2 cursor-pointer">';
                 html += '<input type="checkbox" class="form-check-input link-payment-cb" value="' + p.id + '" data-amount="' + p.amount + '" data-receipt="' + (p.receipt_number || '') + '" data-student="' + (p.student_name || '') + '">';
                 html += '<span class="flex-grow-1">#' + (p.receipt_number || p.id) + ' &ndash; Ksh ' + parseFloat(p.amount).toFixed(2);
+                if (dateStr) html += ' <span class="text-muted">(' + dateStr + ')</span>';
                 if (p.student_name) html += ' &ndash; ' + p.student_name + (p.admission_number ? ' (' + p.admission_number + ')' : '');
                 html += '</span></label>';
             });
