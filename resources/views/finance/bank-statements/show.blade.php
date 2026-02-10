@@ -942,7 +942,7 @@
                         $hasLinkedPayments = !($isC2B ?? false) && !empty($rawTransaction->linked_payment_ids);
                     @endphp
                     @if(!($isC2B ?? false) && in_array($bankStatement->status, ['draft', 'confirmed'], true) && !$hasLinkedPayments)
-                        <button type="button" class="btn btn-finance btn-finance-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#linkToExistingPaymentsModal" onclick="loadPaymentsForLink()">
+                        <button type="button" class="btn btn-finance btn-finance-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#linkToExistingPaymentsModal">
                             <i class="bi bi-link-45deg"></i> Link to existing payment(s)
                         </button>
                     @endif
@@ -1016,18 +1016,22 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted mb-3">Search by <strong>student name or admission number</strong>. Only manual or Equity bank payments appear (no M-Pesa C2B). Select payment(s); amount must match the transaction. If siblings share a receipt, select the full set. Once linked, the transaction moves to Collected.</p>
+                            <p class="text-muted mb-3">Search by <strong>student name or admission number</strong> (results appear as you type). Only manual or Equity bank payments appear (no M-Pesa C2B). Select payment(s); amount must match the transaction. If siblings share a receipt, select the full set. Once linked, the transaction moves to Collected.</p>
                             <div class="mb-3">
-                                <label class="form-label">Search by student</label>
-                                <div class="input-group">
-                                    <input type="text" id="linkPaymentSearch" class="form-control" placeholder="Student name or admission number..." onkeypress="if(event.key==='Enter'){event.preventDefault();loadPaymentsForLink(document.getElementById('linkPaymentSearch').value);}">
-                                    <button type="button" class="btn btn-finance btn-finance-primary" onclick="loadPaymentsForLink(document.getElementById('linkPaymentSearch').value)">
-                                        <i class="bi bi-search"></i> Search
-                                    </button>
-                                </div>
+                                <label class="form-label">Student</label>
+                                @include('partials.student_live_search', [
+                                    'hiddenInputId' => 'linkPaymentStudentId',
+                                    'displayInputId' => 'linkPaymentStudentSearch',
+                                    'resultsId' => 'linkPaymentStudentResults',
+                                    'placeholder' => 'Type name or admission #',
+                                    'includeAlumniArchived' => true,
+                                ])
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Payments for selected student</label>
                             </div>
                             <div id="linkPaymentResults" class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
-                                <p class="text-muted small mb-0">Enter student name or admission number to find payments to link.</p>
+                                <p class="text-muted small mb-0">Select a student above to load their payments.</p>
                             </div>
                             <form method="POST" action="{{ route('finance.bank-statements.link-to-existing-payments', $bankStatement->id) }}" id="linkToExistingPaymentsForm">
                                 @csrf
@@ -1373,17 +1377,17 @@
 <script>
 // The student_live_search partial already handles enabling the button via enableButtonId
 
-// Link to existing payment(s)
+// Link to existing payment(s) – uses student_live_search; when a student is selected, load their payments
 const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
-function loadPaymentsForLink(referenceOrQuery) {
-    const q = (referenceOrQuery || '').trim();
-    if (!q) {
+function loadPaymentsForLink(q) {
+    const query = (q || '').trim();
+    if (!query) {
         const resultsEl = document.getElementById('linkPaymentResults');
-        if (resultsEl) resultsEl.innerHTML = '<p class="text-muted small mb-0">Enter student name or admission number to find payments to link.</p>';
+        if (resultsEl) resultsEl.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
         return;
     }
     const url = new URL(linkPaymentsBaseUrl);
-    url.searchParams.set('q', q);
+    url.searchParams.set('q', query);
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
     resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
@@ -1392,7 +1396,7 @@ function loadPaymentsForLink(referenceOrQuery) {
         .then(data => {
             const payments = data.payments || [];
             if (payments.length === 0) {
-                resultsEl.innerHTML = '<p class="text-muted small mb-0">No payments found. Try another search or reference.</p>';
+                resultsEl.innerHTML = '<p class="text-muted small mb-0">No payments found for this student.</p>';
                 return;
             }
             let html = '<div class="list-group list-group-flush">';
@@ -1413,6 +1417,30 @@ function loadPaymentsForLink(referenceOrQuery) {
             resultsEl.innerHTML = '<p class="text-danger small mb-0">Failed to load payments.</p>';
         });
 }
+
+// When a student is selected from the live search inside the link modal, load their payments
+window.addEventListener('student-selected', function(event) {
+    const modal = document.getElementById('linkToExistingPaymentsModal');
+    if (!modal || !modal.classList.contains('show')) return;
+    const stu = event.detail;
+    const q = (stu.admission_number || stu.full_name || '').trim();
+    if (q) loadPaymentsForLink(q);
+});
+
+// Reset link modal state when it opens
+document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.bs.modal', function() {
+    const hid = document.getElementById('linkPaymentStudentId');
+    const display = document.getElementById('linkPaymentStudentSearch');
+    const results = document.getElementById('linkPaymentResults');
+    const btn = document.getElementById('linkToExistingPaymentsBtn');
+    if (hid) hid.value = '';
+    if (display) display.value = '';
+    if (results) results.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
+    if (btn) btn.disabled = true;
+    document.querySelectorAll('#linkPaymentResults .link-payment-cb').forEach(cb => cb.checked = false);
+    const container = document.getElementById('linkPaymentSelectedIds');
+    if (container) container.innerHTML = '';
+});
 function updateLinkPaymentForm() {
     const checked = document.querySelectorAll('.link-payment-cb:checked');
     const container = document.getElementById('linkPaymentSelectedIds');

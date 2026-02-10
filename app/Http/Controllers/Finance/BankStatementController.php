@@ -76,8 +76,12 @@ class BankStatementController extends Controller
         $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
         $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
         $hasLinkedPaymentIdsColumn = Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids');
+        // MariaDB-compatible: avoid CAST AS JSON / JSON_CONTAINS; use FIND_IN_SET on JSON array as comma list
+        $linkedIdsListSql = $hasLinkedPaymentIdsColumn
+            ? "REPLACE(REPLACE(REPLACE(REPLACE(bank_statement_transactions.linked_payment_ids, '[', ''), ']', ''), ' ', ''), '\"', '')"
+            : "''";
         $bankIsCollectedSqlWithLinked = $hasLinkedPaymentIdsColumn
-            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND JSON_LENGTH(bank_statement_transactions.linked_payment_ids) > 0 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND JSON_CONTAINS(bank_statement_transactions.linked_payment_ids, CAST(p.id AS JSON), \'$\')) >= bank_statement_transactions.amount - 0.01))'
+            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND LENGTH(bank_statement_transactions.linked_payment_ids) > 2 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND FIND_IN_SET(p.id, ' . $linkedIdsListSql . ') > 0) >= bank_statement_transactions.amount - 0.01))'
             : $bankIsCollectedSql;
         $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
@@ -328,8 +332,11 @@ class BankStatementController extends Controller
         $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
         $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
         $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
+        $linkedIdsListSqlCounts = $hasLinkedPaymentIdsColumn
+            ? "REPLACE(REPLACE(REPLACE(REPLACE(bank_statement_transactions.linked_payment_ids, '[', ''), ']', ''), ' ', ''), '\"', '')"
+            : "''";
         $bankIsCollectedSqlWithLinked = $hasLinkedPaymentIdsColumn
-            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND JSON_LENGTH(bank_statement_transactions.linked_payment_ids) > 0 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND JSON_CONTAINS(bank_statement_transactions.linked_payment_ids, CAST(p.id AS JSON), \'$\')) >= bank_statement_transactions.amount - 0.01))'
+            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND LENGTH(bank_statement_transactions.linked_payment_ids) > 2 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND FIND_IN_SET(p.id, ' . $linkedIdsListSqlCounts . ') > 0) >= bank_statement_transactions.amount - 0.01))'
             : $bankIsCollectedSql;
         $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
