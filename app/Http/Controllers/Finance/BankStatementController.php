@@ -299,6 +299,15 @@ class BankStatementController extends Controller
         }
         $currentPage = $request->get('page', 1);
         $items = $allTransactions->slice(($currentPage - 1) * $perPage, $perPage)->values();
+        // Auto-link bank transactions on this page by reference number (payment transaction_code)
+        $pageBankTransactions = $items->filter(fn ($t) => $t instanceof BankStatementTransaction)->values();
+        $this->autoLinkBankTransactionsByReference($pageBankTransactions);
+        // Refresh any that were updated so the view shows linked state
+        foreach ($pageBankTransactions as $t) {
+            if ($t->relationLoaded('payment') || $t->payment_id) {
+                $t->refresh();
+            }
+        }
         $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
             $items,
             $allTransactions->count(),
@@ -1126,36 +1135,40 @@ class BankStatementController extends Controller
                 }
             }
             
-            // For bank statements, check if payment exists by reference but transaction not updated
+            // For bank statements, auto-link when payment(s) exist by reference and amount matches
             if (!$isC2B && $allPayments->isEmpty() && $bankStatement->reference_number && !$bankStatement->payment_created) {
-                $bankPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
-                    ->orWhere('transaction_code', 'LIKE', $bankStatement->reference_number . '-%')
+                $ref = $bankStatement->reference_number;
+                $txAmount = (float) $bankStatement->amount;
+                $matchingPayments = Payment::where(function ($q) use ($ref) {
+                    $q->where('transaction_code', $ref)
+                      ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                })
                     ->where('reversed', false)
                     ->whereNull('deleted_at')
                     ->with('student')
                     ->orderBy('created_at', 'desc')
-                    ->first();
-                if ($bankPayment) {
-                    $allPayments = collect([$bankPayment]);
-                    // Update the bank statement transaction to link the payment
-                    if (!$rawTransaction->payment_id) {
-                        $rawTransaction->update([
-                            'payment_id' => $bankPayment->id,
-                            'payment_created' => true,
-                            'status' => 'confirmed', // Update status when payment is linked
-                        ]);
-                        // Refresh normalized data
-                        $normalized = $this->normalizeTransaction($rawTransaction);
-                        $bankStatement = (object) $normalized;
-                    } elseif (!$rawTransaction->payment_created) {
-                        // Update payment_created flag if payment_id was already set
-                        $rawTransaction->update([
-                            'payment_created' => true,
-                            'status' => $rawTransaction->status === 'draft' ? 'confirmed' : $rawTransaction->status,
-                        ]);
-                        $normalized = $this->normalizeTransaction($rawTransaction);
-                        $bankStatement = (object) $normalized;
+                    ->get();
+                $matchSum = (float) $matchingPayments->sum('amount');
+                if ($matchingPayments->isNotEmpty() && abs($matchSum - $txAmount) <= 0.01) {
+                    $allPayments = $matchingPayments;
+                    $firstPayment = $matchingPayments->first();
+                    $linkedIds = $matchingPayments->pluck('id')->values()->all();
+                    $updateData = [
+                        'payment_id' => $firstPayment->id,
+                        'payment_created' => true,
+                        'status' => $rawTransaction->status === 'rejected' ? 'rejected' : 'confirmed',
+                    ];
+                    if (Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids')) {
+                        $updateData['linked_payment_ids'] = $linkedIds;
                     }
+                    if (!$rawTransaction->payment_id) {
+                        $rawTransaction->update($updateData);
+                    } else {
+                        unset($updateData['payment_id']);
+                        $rawTransaction->update($updateData);
+                    }
+                    $normalized = $this->normalizeTransaction($rawTransaction->refresh());
+                    $bankStatement = (object) $normalized;
                 }
             }
             
@@ -1406,16 +1419,20 @@ class BankStatementController extends Controller
 
     /**
      * Search payments for linking to a bank statement transaction.
-     * Search by student name or admission number only. Returns only manually created or Equity bank
-     * payments; M-Pesa C2B / statement payments never appear.
+     * When student_id is provided, payments for that student are returned (most reliable).
+     * Otherwise search by student name or admission number (q). Returns only manually created or
+     * Equity bank payments; M-Pesa C2B / statement payments never appear.
      */
     public function searchPaymentsForLink(Request $request)
     {
         $request->validate([
-            'q' => 'required|string|max:255',
+            'q' => 'nullable|string|max:255',
+            'student_id' => 'nullable|integer|exists:students,id',
         ]);
-        $q = trim($request->input('q'));
-        if ($q === '') {
+        $q = trim((string) $request->input('q', ''));
+        $studentId = $request->input('student_id') ? (int) $request->input('student_id') : null;
+
+        if (!$studentId && $q === '') {
             return response()->json(['payments' => []]);
         }
 
@@ -1427,14 +1444,19 @@ class BankStatementController extends Controller
             ->whereNull('deleted_at')
             ->when(!empty($c2bPaymentIds), function ($qry) use ($c2bPaymentIds) {
                 $qry->whereNotIn('id', $c2bPaymentIds);
-            })
-            ->whereHas('student', function ($s) use ($q) {
+            });
+
+        if ($studentId) {
+            $query->where('student_id', $studentId);
+        } else {
+            $query->whereHas('student', function ($s) use ($q) {
                 $s->where('admission_number', 'LIKE', '%' . $q . '%')
                     ->orWhere('first_name', 'LIKE', '%' . $q . '%')
                     ->orWhere('last_name', 'LIKE', '%' . $q . '%');
-            })
-            ->orderBy('payment_date', 'desc')
-            ->limit(50);
+            });
+        }
+
+        $query->orderBy('payment_date', 'desc')->limit(50);
 
         $payments = $query->get()->map(function ($p) {
             return [
@@ -2781,6 +2803,54 @@ class BankStatementController extends Controller
         return redirect()
             ->route('finance.bank-statements.show', ['bankStatement' => $id, 'type' => $isC2B ? 'c2b' : 'bank'])
             ->with('success', 'Transaction split into fees and swimming successfully.');
+    }
+
+    /**
+     * Auto-link bank statement transactions to payments when reference_number matches
+     * payment transaction_code and amount matches. Runs on the given collection (e.g. current page).
+     */
+    protected function autoLinkBankTransactionsByReference($bankTransactions): void
+    {
+        $hasLinkedColumn = Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids');
+        foreach ($bankTransactions as $transaction) {
+            if (!($transaction instanceof BankStatementTransaction)) {
+                continue;
+            }
+            $ref = $transaction->reference_number;
+            if (!$ref || $transaction->payment_created) {
+                continue;
+            }
+            $linkedIds = $hasLinkedColumn && $transaction->linked_payment_ids
+                ? (is_array($transaction->linked_payment_ids) ? $transaction->linked_payment_ids : [])
+                : [];
+            if (!empty($linkedIds)) {
+                continue;
+            }
+            $txAmount = (float) $transaction->amount;
+            $matchingPayments = Payment::where(function ($q) use ($ref) {
+                $q->where('transaction_code', $ref)
+                  ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+            })
+                ->where('reversed', false)
+                ->whereNull('deleted_at')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            $matchSum = (float) $matchingPayments->sum('amount');
+            if ($matchingPayments->isEmpty() || abs($matchSum - $txAmount) > 0.01) {
+                continue;
+            }
+            $firstPayment = $matchingPayments->first();
+            $ids = $matchingPayments->pluck('id')->values()->all();
+            $updateData = [
+                'payment_id' => $firstPayment->id,
+                'payment_created' => true,
+                'status' => $transaction->status === 'rejected' ? 'rejected' : 'confirmed',
+            ];
+            if ($hasLinkedColumn) {
+                $updateData['linked_payment_ids'] = $ids;
+            }
+            $transaction->update($updateData);
+        }
     }
 
     /**

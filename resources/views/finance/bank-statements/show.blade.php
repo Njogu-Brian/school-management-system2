@@ -1379,15 +1379,17 @@
 
 // Link to existing payment(s) – uses student_live_search; when a student is selected, load their payments
 const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
-function loadPaymentsForLink(q) {
+function loadPaymentsForLink(q, studentId) {
     const query = (q || '').trim();
-    if (!query) {
+    const sid = studentId ? parseInt(studentId, 10) : null;
+    if (!sid && !query) {
         const resultsEl = document.getElementById('linkPaymentResults');
         if (resultsEl) resultsEl.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
         return;
     }
     const url = new URL(linkPaymentsBaseUrl);
-    url.searchParams.set('q', query);
+    if (sid) url.searchParams.set('student_id', sid);
+    if (query) url.searchParams.set('q', query);
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
     resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
@@ -1418,13 +1420,13 @@ function loadPaymentsForLink(q) {
         });
 }
 
-// When a student is selected from the live search inside the link modal, load their payments
+// When a student is selected from the live search inside the link modal, load their payments by ID (reliable)
 window.addEventListener('student-selected', function(event) {
     const modal = document.getElementById('linkToExistingPaymentsModal');
     if (!modal || !modal.classList.contains('show')) return;
     const stu = event.detail;
     const q = (stu.admission_number || stu.full_name || '').trim();
-    if (q) loadPaymentsForLink(q);
+    loadPaymentsForLink(q, stu.id);
 });
 
 // Reset link modal state when it opens
