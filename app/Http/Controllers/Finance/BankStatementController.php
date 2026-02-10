@@ -1558,7 +1558,16 @@ class BankStatementController extends Controller
         foreach ($payments as $payment) {
             $updates = [];
             if ($ref && $payment->transaction_code !== $ref && !str_starts_with((string) $payment->transaction_code, $ref . '-')) {
-                $updates['transaction_code'] = $ref;
+                // Unique constraint: (transaction_code, student_id). Don't set if another payment for same student already has this ref.
+                $conflict = Payment::where('transaction_code', $ref)
+                    ->where('student_id', $payment->student_id)
+                    ->where('id', '!=', $payment->id)
+                    ->where('reversed', false)
+                    ->whereNull('deleted_at')
+                    ->exists();
+                if (!$conflict) {
+                    $updates['transaction_code'] = $ref;
+                }
             }
             if ($txDate && $payment->payment_date && (abs($payment->payment_date->diffInSeconds($txDate)) > 0)) {
                 $updates['payment_date'] = $txDate;
