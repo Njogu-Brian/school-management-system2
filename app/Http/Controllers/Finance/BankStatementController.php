@@ -1522,11 +1522,14 @@ class BankStatementController extends Controller
             'payment_ids' => 'required|array',
             'payment_ids.*' => 'required|integer|exists:payments,id',
         ]);
+        // Preserve selection order: first selected is primary (payment_id)
         $paymentIds = array_values(array_unique(array_map('intval', $request->payment_ids)));
         $payments = Payment::with('student')->whereIn('id', $paymentIds)->where('reversed', false)->whereNull('deleted_at')->get();
         if ($payments->count() !== count($paymentIds)) {
             return redirect()->back()->with('error', 'One or more selected payments are invalid or reversed.');
         }
+        // Order payments by selection order (first selected first)
+        $payments = $payments->sortBy(fn ($p) => array_search($p->id, $paymentIds))->values();
 
         $txAmount = (float) $transaction->amount;
         $selectedTotal = $payments->sum('amount');
