@@ -936,7 +936,15 @@
                         <a href="{{ route('finance.bank-statements.edit', $bankStatement->id) }}" class="btn btn-finance btn-finance-primary w-100 mb-2">
                             <i class="bi bi-pencil"></i> Edit / Match Manually
                         </a>
-                    @elseif($canCreateAdditionalPayments ?? false)
+                    @endif
+
+                    @if(!($isC2B ?? false) && in_array($bankStatement->status, ['draft', 'confirmed'], true))
+                        <button type="button" class="btn btn-finance btn-finance-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#linkToExistingPaymentsModal" onclick="loadPaymentsForLink('{{ $bankStatement->reference_number ?? '' }}')">
+                            <i class="bi bi-link-45deg"></i> Link to existing payment(s)
+                        </button>
+                    @endif
+
+                    @if(!$showConfirmButton && ($canCreateAdditionalPayments ?? false))
                         <!-- Actions for confirmed transactions without payments (unallocated uncollected) -->
                         @if($bankStatement->student_id || ($bankStatement->is_shared ?? false))
                             <form method="POST" action="{{ route('finance.bank-statements.create-payment', $bankStatement->id) }}" class="mb-2" onsubmit="return confirm('Create payment for remaining amount? This will allocate the payment to student invoices.');">
@@ -992,6 +1000,44 @@
                     @endif
                 </div>
             </div>
+
+            <!-- Link to existing payment(s) Modal (bank statements only) -->
+            @if(!($isC2B ?? false))
+            <div class="modal fade" id="linkToExistingPaymentsModal" tabindex="-1" aria-labelledby="linkToExistingPaymentsModalLabel" aria-hidden="true" data-bs-backdrop="static">
+                <div class="modal-dialog modal-dialog-centered modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title" id="linkToExistingPaymentsModalLabel">
+                                <i class="bi bi-link-45deg me-2"></i>Link to existing payment(s)
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted mb-3">Search by reference, receipt number, or student name. Select one or more payments (e.g. siblings) to link this transaction to. Once linked, the transaction will appear under Collected if the total covers the amount.</p>
+                            <div class="mb-3">
+                                <label class="form-label">Search</label>
+                                <div class="input-group">
+                                    <input type="text" id="linkPaymentSearch" class="form-control" placeholder="Reference, receipt #, or student name..." onkeypress="if(event.key==='Enter'){event.preventDefault();loadPaymentsForLink(document.getElementById('linkPaymentSearch').value);}">
+                                    <button type="button" class="btn btn-finance btn-finance-primary" onclick="loadPaymentsForLink(document.getElementById('linkPaymentSearch').value)">
+                                        <i class="bi bi-search"></i> Search
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="linkPaymentResults" class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
+                                <p class="text-muted small mb-0">Enter a search term or use the transaction reference above to find payments to link.</p>
+                            </div>
+                            <form method="POST" action="{{ route('finance.bank-statements.link-to-existing-payments', $bankStatement->id) }}" id="linkToExistingPaymentsForm">
+                                @csrf
+                                <div id="linkPaymentSelectedIds"></div>
+                                <button type="submit" class="btn btn-finance btn-finance-success" id="linkToExistingPaymentsBtn" disabled>
+                                    <i class="bi bi-link-45deg"></i> Link selected payment(s)
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
 
             <!-- Reject Transaction Confirmation Modal -->
             @if($bankStatement->status !== 'rejected')
@@ -1323,6 +1369,59 @@
 @push('scripts')
 <script>
 // The student_live_search partial already handles enabling the button via enableButtonId
+
+// Link to existing payment(s)
+const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
+function loadPaymentsForLink(referenceOrQuery) {
+    const q = (referenceOrQuery || '').trim();
+    const ref = q || undefined;
+    const url = new URL(linkPaymentsBaseUrl);
+    if (ref) url.searchParams.set('reference', ref);
+    if (q) url.searchParams.set('q', q);
+    const resultsEl = document.getElementById('linkPaymentResults');
+    if (!resultsEl) return;
+    resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
+    fetch(url.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+            const payments = data.payments || [];
+            if (payments.length === 0) {
+                resultsEl.innerHTML = '<p class="text-muted small mb-0">No payments found. Try another search or reference.</p>';
+                return;
+            }
+            let html = '<div class="list-group list-group-flush">';
+            payments.forEach(p => {
+                html += '<label class="list-group-item list-group-item-action d-flex align-items-center gap-2 cursor-pointer">';
+                html += '<input type="checkbox" class="form-check-input link-payment-cb" value="' + p.id + '" data-amount="' + p.amount + '" data-receipt="' + (p.receipt_number || '') + '" data-student="' + (p.student_name || '') + '">';
+                html += '<span class="flex-grow-1">#' + (p.receipt_number || p.id) + ' &ndash; Ksh ' + parseFloat(p.amount).toFixed(2);
+                if (p.student_name) html += ' &ndash; ' + p.student_name + (p.admission_number ? ' (' + p.admission_number + ')' : '');
+                html += '</span></label>';
+            });
+            html += '</div>';
+            resultsEl.innerHTML = html;
+            document.querySelectorAll('.link-payment-cb').forEach(cb => {
+                cb.addEventListener('change', updateLinkPaymentForm);
+            });
+        })
+        .catch(() => {
+            resultsEl.innerHTML = '<p class="text-danger small mb-0">Failed to load payments.</p>';
+        });
+}
+function updateLinkPaymentForm() {
+    const checked = document.querySelectorAll('.link-payment-cb:checked');
+    const container = document.getElementById('linkPaymentSelectedIds');
+    const btn = document.getElementById('linkToExistingPaymentsBtn');
+    if (!container || !btn) return;
+    container.innerHTML = '';
+    checked.forEach(cb => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'payment_ids[]';
+        input.value = cb.value;
+        container.appendChild(input);
+    });
+    btn.disabled = checked.length === 0;
+}
 
 // Share functionality
 let selectedShareStudent = null;

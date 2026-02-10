@@ -1351,6 +1351,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/reprocess-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'reprocessSwimmingTransactions'])->name('reprocess-swimming');
             Route::post('/{bankStatement}/allocate-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateSwimmingTransaction'])->name('allocate-swimming');
             Route::get('/student/{student}/balance', [\App\Http\Controllers\Finance\BankStatementController::class, 'getStudentBalance'])->name('student-balance');
+            Route::get('/search-payments-for-link', [\App\Http\Controllers\Finance\BankStatementController::class, 'searchPaymentsForLink'])->name('search-payments-for-link');
+            Route::post('/{bankStatement}/link-to-existing-payments', [\App\Http\Controllers\Finance\BankStatementController::class, 'linkToExistingPayments'])->name('link-to-existing-payments');
         });
         
         // Document Settings

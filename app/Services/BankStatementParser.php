@@ -1193,13 +1193,15 @@ class BankStatementParser
     }
     
     /**
-     * Call Python parser
+     * Call Python parser. Uses Equity parser (Evimeria) for equity statements;
+     * uses existing bank_statement_parser for M-Pesa. C2B transactions are not affected (they come from API).
      */
     protected function callPythonParser(string $pdfPath, string $bankType): array
     {
-        $script = base_path('app/Services/python/bank_statement_parser.py');
-        // The parser from reference project only needs PDF path, it auto-detects MPESA vs Bank
-        // Try python3 first, fallback to python (for compatibility)
+        $script = $bankType === 'equity'
+            ? base_path('app/Services/python/equity_statement_parser.py')
+            : base_path('app/Services/python/bank_statement_parser.py');
+        // Equity: Evimeria parser (Equity bank statement format). M-Pesa: existing parser (paybill format).
         $pythonCmd = $this->getPythonCommand();
         $cmd = [$pythonCmd, $script, $pdfPath];
         

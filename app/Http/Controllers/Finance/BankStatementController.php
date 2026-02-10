@@ -75,6 +75,10 @@ class BankStatementController extends Controller
         $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
         $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
         $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
+        $hasLinkedPaymentIdsColumn = Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids');
+        $bankIsCollectedSqlWithLinked = $hasLinkedPaymentIdsColumn
+            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND JSON_LENGTH(bank_statement_transactions.linked_payment_ids) > 0 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND JSON_CONTAINS(bank_statement_transactions.linked_payment_ids, CAST(p.id AS JSON), \'$\')) >= bank_statement_transactions.amount - 0.01))'
+            : $bankIsCollectedSql;
         $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
         switch ($view) {
@@ -134,11 +138,11 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only credit transactions
                 break;
             case 'collected':
-                // Fully collected: sum of active payments >= amount (include even if status still draft, e.g. paylinks)
+                // Fully collected: sum of active payments >= amount, or linked existing payments cover amount
                 $query->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit') // Only credit transactions
-                      ->whereRaw($bankIsCollectedSql);
+                      ->whereRaw($bankIsCollectedSqlWithLinked);
                 break;
             case 'duplicate':
                 $query->where('is_duplicate', true)
@@ -157,6 +161,19 @@ class BankStatementController extends Controller
                 } else {
                     // If column doesn't exist, return empty results
                     $query->whereRaw('1 = 0');
+                }
+                break;
+            case 'equity':
+                // Equity bank statement transactions only (no C2B)
+                $query->where('bank_type', 'equity')
+                      ->where('is_archived', false)
+                      ->where('is_duplicate', false)
+                      ->where('transaction_type', 'credit');
+                if ($hasSwimmingColumn) {
+                    $query->where(function($q) {
+                        $q->where('is_swimming_transaction', false)
+                          ->orWhereNull('is_swimming_transaction');
+                    });
                 }
                 break;
             case 'all':
@@ -191,6 +208,10 @@ class BankStatementController extends Controller
             $query->where('statement_file_path', $request->statement_file);
         }
 
+        if ($request->filled('bank_type')) {
+            $query->where('bank_type', $request->bank_type);
+        }
+
         if ($request->filled('date_from')) {
             $query->where('transaction_date', '>=', $request->date_from);
         }
@@ -223,8 +244,10 @@ class BankStatementController extends Controller
             });
         }
 
-        // Get C2B transactions with same filters
-        $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
+        // Equity view: only bank statement transactions (no C2B - C2B are M-Pesa only)
+        $c2bQuery = $view === 'equity'
+            ? MpesaC2BTransaction::whereRaw('1 = 0')
+            : $this->getC2BTransactionsQuery($request, $view);
         $c2bTransactions = $c2bQuery->get();
         
         // Check for duplicates across both types
@@ -288,6 +311,9 @@ class BankStatementController extends Controller
         if ($view === 'all' || $view === 'swimming') {
             $totalAmount = $bankTransactions->sum('amount') + $c2bTransactions->sum('trans_amount');
             $totalCount = $bankTransactions->count() + $c2bTransactions->count();
+        } elseif ($view === 'equity') {
+            $totalAmount = $bankTransactions->sum('amount');
+            $totalCount = $bankTransactions->count();
         } elseif ($view === 'archived') {
             // For archived, only calculate total for credit (money IN) transactions
             $totalAmount = $bankTransactions->where('transaction_type', 'credit')->sum('amount') 
@@ -301,6 +327,9 @@ class BankStatementController extends Controller
         $bankActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = bank_statement_transactions.reference_number OR payments.transaction_code LIKE CONCAT(bank_statement_transactions.reference_number, "-%")))';
         $bankIsPartialSql = $bankActiveSumSql . ' > 0.01 AND ' . $bankActiveSumSql . ' < bank_statement_transactions.amount - 0.01';
         $bankIsCollectedSql = $bankActiveSumSql . ' >= bank_statement_transactions.amount - 0.01';
+        $bankIsCollectedSqlWithLinked = $hasLinkedPaymentIdsColumn
+            ? '(' . $bankIsCollectedSql . ' OR (bank_statement_transactions.linked_payment_ids IS NOT NULL AND JSON_LENGTH(bank_statement_transactions.linked_payment_ids) > 0 AND (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reversed=0 AND p.deleted_at IS NULL AND JSON_CONTAINS(bank_statement_transactions.linked_payment_ids, CAST(p.id AS JSON), \'$\')) >= bank_statement_transactions.amount - 0.01))'
+            : $bankIsCollectedSql;
         $bankIsUncollectedSql = $bankActiveSumSql . ' <= 0.01';
         
         $counts = [
@@ -394,7 +423,7 @@ class BankStatementController extends Controller
             'collected' => BankStatementTransaction::where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
-                ->whereRaw($bankIsCollectedSql)
+                ->whereRaw($bankIsCollectedSqlWithLinked)
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
                         $subQ->where('is_swimming_transaction', false)
@@ -419,6 +448,17 @@ class BankStatementController extends Controller
                     ->where('is_archived', false)
                     ->count()
                 : 0,
+            'equity' => BankStatementTransaction::where('bank_type', 'equity')
+                ->where('is_archived', false)
+                ->where('is_duplicate', false)
+                ->where('transaction_type', 'credit')
+                ->when($hasSwimmingColumn, function($q) {
+                    $q->where(function($subQ) {
+                        $subQ->where('is_swimming_transaction', false)
+                             ->orWhereNull('is_swimming_transaction');
+                    });
+                })
+                ->count(),
         ];
 
         // Add C2B counts to existing counts
@@ -433,7 +473,7 @@ class BankStatementController extends Controller
             $currentPerPage = 25;
         }
         
-        // Enrich transactions with payment totals for badges
+        // Enrich transactions with payment totals for badges (ref-based + linked existing payments)
         $transactions->getCollection()->transform(function ($transaction) {
             if ($transaction instanceof \App\Models\BankStatementTransaction) {
                 $ref = $transaction->reference_number;
@@ -446,6 +486,11 @@ class BankStatementController extends Controller
                               ->orWhere('transaction_code', 'LIKE', $ref . '-%');
                         })
                         ->sum('amount');
+                }
+                $linkedIds = $transaction->linked_payment_ids;
+                if (is_array($linkedIds) && !empty($linkedIds)) {
+                    $activeTotal += (float) \App\Models\Payment::whereIn('id', $linkedIds)
+                        ->where('reversed', false)->whereNull('deleted_at')->sum('amount');
                 }
                 $transaction->active_payment_total = $activeTotal;
             } elseif ($transaction instanceof \App\Models\MpesaC2BTransaction) {
@@ -1296,6 +1341,27 @@ class BankStatementController extends Controller
             }
         }
 
+        // Include linked existing payments (Equity / link-to-existing feature; supports siblings)
+        if (!$isC2B && $rawTransaction->linked_payment_ids && is_array($rawTransaction->linked_payment_ids)) {
+            $linkedIds = array_filter(array_map('intval', $rawTransaction->linked_payment_ids));
+            if (!empty($linkedIds)) {
+                $linkedPayments = \App\Models\Payment::withTrashed()->with('student')->whereIn('id', $linkedIds)->get();
+                foreach ($linkedPayments as $p) {
+                    if (!$allPayments->contains('id', $p->id)) {
+                        $allPayments->push($p);
+                    }
+                    if (!$p->reversed && !$activePayments->contains('id', $p->id)) {
+                        $activePayments->push($p);
+                    } elseif ($p->reversed && !$reversedPayments->contains('id', $p->id)) {
+                        $reversedPayments->push($p);
+                    }
+                }
+                $allPayments = $allPayments->unique('id')->values();
+                $activePayments = $activePayments->unique('id')->values();
+                $reversedPayments = $reversedPayments->unique('id')->values();
+            }
+        }
+
         $activeTotal = (float) $activePayments->sum('amount');
         $remainingAmount = max(0, (float) $bankStatement->amount - $activeTotal);
 
@@ -1327,6 +1393,93 @@ class BankStatementController extends Controller
             'swimmingAllocations',
             'swimmingTotal'
         ));
+    }
+
+    /**
+     * Search payments for linking to a bank statement transaction (by reference, receipt, student).
+     * Used by the "Link to existing payment(s)" feature (Equity and manual payments).
+     */
+    public function searchPaymentsForLink(Request $request)
+    {
+        $request->validate([
+            'q' => 'nullable|string|max:255',
+            'reference' => 'nullable|string|max:100',
+        ]);
+        $q = $request->input('q');
+        $reference = $request->input('reference');
+        $query = Payment::with('student')
+            ->where('reversed', false)
+            ->whereNull('deleted_at')
+            ->orderBy('payment_date', 'desc')
+            ->limit(50);
+        if ($reference) {
+            $query->where(function ($sub) use ($reference) {
+                $sub->where('transaction_code', $reference)
+                    ->orWhere('transaction_code', 'LIKE', $reference . '-%')
+                    ->orWhere('transaction_code', 'LIKE', '%' . $reference . '%');
+            });
+        }
+        if ($q) {
+            $query->where(function ($qry) use ($q) {
+                $qry->where('transaction_code', 'LIKE', '%' . $q . '%')
+                    ->orWhere('receipt_number', 'LIKE', '%' . $q . '%')
+                    ->orWhereHas('student', function ($s) use ($q) {
+                        $s->where('admission_number', 'LIKE', '%' . $q . '%')
+                            ->orWhere('first_name', 'LIKE', '%' . $q . '%')
+                            ->orWhere('last_name', 'LIKE', '%' . $q . '%');
+                    });
+            });
+        }
+        $payments = $query->get()->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'amount' => (float) $p->amount,
+                'receipt_number' => $p->receipt_number,
+                'transaction_code' => $p->transaction_code,
+                'payment_date' => $p->payment_date?->format('Y-m-d'),
+                'student_id' => $p->student_id,
+                'student_name' => $p->student ? $p->student->full_name : null,
+                'admission_number' => $p->student ? $p->student->admission_number : null,
+            ];
+        });
+        return response()->json(['payments' => $payments]);
+    }
+
+    /**
+     * Link a bank statement transaction to existing payment(s). Supports siblings (one transaction, multiple payments).
+     * Once linked, the transaction is treated as collected and appears in the Collected tab.
+     */
+    public function linkToExistingPayments(Request $request, $bankStatement)
+    {
+        $transaction = $this->resolveTransaction(is_object($bankStatement) ? $bankStatement->id : (int) $bankStatement);
+        if ($transaction instanceof MpesaC2BTransaction) {
+            return redirect()->back()->with('error', 'Linking to existing payments is only available for bank statement transactions (e.g. Equity), not M-Pesa C2B.');
+        }
+        $request->validate([
+            'payment_ids' => 'required|array',
+            'payment_ids.*' => 'required|integer|exists:payments,id',
+        ]);
+        $paymentIds = array_values(array_unique(array_map('intval', $request->payment_ids)));
+        $payments = Payment::with('student')->whereIn('id', $paymentIds)->where('reversed', false)->whereNull('deleted_at')->get();
+        if ($payments->count() !== count($paymentIds)) {
+            return redirect()->back()->with('error', 'One or more selected payments are invalid or reversed.');
+        }
+        $first = $payments->first();
+        $transaction->update([
+            'linked_payment_ids' => $paymentIds,
+            'payment_id' => $first->id,
+            'payment_created' => true,
+            'status' => 'confirmed',
+            'confirmed_at' => now(),
+            'confirmed_by' => auth()->id(),
+            'student_id' => $first->student_id,
+            'family_id' => $first->student_id ? optional($first->student)->family_id : null,
+            'match_status' => 'manual',
+            'match_confidence' => 1.0,
+            'match_notes' => 'Linked to existing payment(s)',
+        ]);
+        return redirect()->route('finance.bank-statements.show', ['bankStatement' => $transaction->id, 'type' => 'bank'])
+            ->with('success', 'Transaction linked to ' . count($paymentIds) . ' existing payment(s). It will appear under Collected when the linked total covers the transaction amount.');
     }
 
     /**

@@ -72,8 +72,8 @@
         </div>
     @endif
 
-    <!-- Summary Card - Only show for 'all', 'swimming', and 'archived' views -->
-    @if(in_array($view ?? 'all', ['all', 'swimming', 'archived']) && isset($totalAmount))
+    <!-- Summary Card - Only show for 'all', 'swimming', 'archived', and 'equity' views -->
+    @if(in_array($view ?? 'all', ['all', 'swimming', 'archived', 'equity']) && isset($totalAmount))
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="card-body">
             <div class="row">
@@ -83,6 +83,8 @@
                             Total Archived Amount (Money IN Only)
                         @elseif(($view ?? 'all') === 'swimming')
                             Total Swimming Amount
+                        @elseif(($view ?? 'all') === 'equity')
+                            Total Equity Amount
                         @else
                             Total Parsed Amount
                         @endif
@@ -96,6 +98,8 @@
                             Credit transactions only
                         @elseif(($view ?? 'all') === 'swimming')
                             Swimming transactions
+                        @elseif(($view ?? 'all') === 'equity')
+                            Equity bank transactions
                         @else
                             Compare with statement total
                         @endif
@@ -128,6 +132,11 @@
                 <li class="nav-item">
                     <a class="nav-link {{ ($view ?? 'all') == 'draft' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'draft'] + request()->except('view')) }}">
                         Draft <span class="badge bg-warning">{{ $counts['draft'] ?? 0 }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{ ($view ?? 'all') == 'equity' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'equity'] + request()->except('view')) }}">
+                        <i class="bi bi-bank2"></i> Equity <span class="badge bg-primary">{{ $counts['equity'] ?? 0 }}</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -192,6 +201,14 @@
                     <option value="">All Transactions</option>
                     <option value="1" {{ request('is_swimming') == '1' ? 'selected' : '' }}>Swimming Only</option>
                     <option value="0" {{ request('is_swimming') == '0' ? 'selected' : '' }}>Non-Swimming Only</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="finance-form-label">Bank Type</label>
+                <select name="bank_type" class="finance-form-select">
+                    <option value="">All (M-Pesa + Equity)</option>
+                    <option value="mpesa" {{ request('bank_type') == 'mpesa' ? 'selected' : '' }}>M-Pesa</option>
+                    <option value="equity" {{ request('bank_type') == 'equity' ? 'selected' : '' }}>Equity Bank</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -316,7 +333,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'unassigned', 'all', 'swimming']) || !request('view'))
+                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'unassigned', 'all', 'swimming', 'equity']) || !request('view'))
                                 <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                             @else
                                 <span class="text-muted">—</span>
