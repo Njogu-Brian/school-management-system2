@@ -1381,7 +1381,11 @@
 const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
 function loadPaymentsForLink(q, studentId) {
     const query = (q || '').trim();
-    const sid = studentId ? parseInt(studentId, 10) : null;
+    // Prefer student_id from hidden input (set by student-live-search on select) so we always target the selected student
+    const hid = document.getElementById('linkPaymentStudentId');
+    let sid = (studentId != null && studentId !== '') ? parseInt(studentId, 10) : null;
+    if (!sid && hid && hid.value) sid = parseInt(hid.value, 10);
+    if (isNaN(sid)) sid = null;
     if (!sid && !query) {
         const resultsEl = document.getElementById('linkPaymentResults');
         if (resultsEl) resultsEl.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
@@ -1393,7 +1397,10 @@ function loadPaymentsForLink(q, studentId) {
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
     resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
-    fetch(url.toString(), { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+    if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+    fetch(url.toString(), { headers })
         .then(r => r.json())
         .then(data => {
             const payments = data.payments || [];
@@ -1426,7 +1433,9 @@ window.addEventListener('student-selected', function(event) {
     if (!modal || !modal.classList.contains('show')) return;
     const stu = event.detail;
     const q = (stu.admission_number || stu.full_name || '').trim();
-    loadPaymentsForLink(q, stu.id);
+    // Use student id from detail or from hidden input (student-live-search sets it before dispatching)
+    const studentId = stu.id != null ? stu.id : (document.getElementById('linkPaymentStudentId')?.value || null);
+    loadPaymentsForLink(q, studentId);
 });
 
 // Reset link modal state when it opens
