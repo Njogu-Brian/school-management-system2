@@ -1551,7 +1551,27 @@ class BankStatementController extends Controller
 
         $txAmount = (float) $transaction->amount;
         $selectedTotal = $payments->sum('amount');
-        if (abs($selectedTotal - $txAmount) > 0.01) {
+
+        // Already-linked payments on this transaction (so we can add more and match remaining amount)
+        $existingLinkedIds = [];
+        if ($transaction->payment_id) {
+            $existingLinkedIds[] = (int) $transaction->payment_id;
+        }
+        if (!empty($transaction->linked_payment_ids)) {
+            $linked = is_array($transaction->linked_payment_ids) ? $transaction->linked_payment_ids : [];
+            $existingLinkedIds = array_values(array_unique(array_merge($existingLinkedIds, array_map('intval', $linked))));
+        }
+        $existingPayments = $existingLinkedIds ? Payment::whereIn('id', $existingLinkedIds)->where('reversed', false)->whereNull('deleted_at')->get() : collect();
+        $alreadyLinkedTotal = (float) $existingPayments->sum('amount');
+        $remainingAmount = $txAmount - $alreadyLinkedTotal;
+
+        // Accept if selected total equals full transaction amount, OR equals remaining (adding to existing links)
+        $selectedFillsRemaining = $remainingAmount > 0.01 && abs($selectedTotal - $remainingAmount) <= 0.01;
+        $selectedFillsFull = abs($selectedTotal - $txAmount) <= 0.01;
+        if (!$selectedFillsFull && !$selectedFillsRemaining) {
+            if ($alreadyLinkedTotal > 0.01) {
+                return redirect()->back()->with('error', 'Selected total (Ksh ' . number_format($selectedTotal, 2) . ') does not match remaining amount (Ksh ' . number_format($remainingAmount, 2) . '). Transaction total is Ksh ' . number_format($txAmount, 2) . '; already linked: Ksh ' . number_format($alreadyLinkedTotal, 2) . '.');
+            }
             return redirect()->back()->with('error', 'Selected payment total (Ksh ' . number_format($selectedTotal, 2) . ') does not match transaction amount (Ksh ' . number_format($txAmount, 2) . ').');
         }
 
@@ -1608,16 +1628,24 @@ class BankStatementController extends Controller
             }
         }
 
-        $first = $payments->first();
+        // Merge with already-linked when adding more; otherwise use selected only
+        $mergedPaymentIds = $selectedFillsRemaining && !empty($existingLinkedIds)
+            ? array_values(array_unique(array_merge($existingLinkedIds, $paymentIds)))
+            : $paymentIds;
+        $firstPaymentId = $mergedPaymentIds[0];
+        $firstPayment = $payments->firstWhere('id', $firstPaymentId) ?? $existingPayments->firstWhere('id', $firstPaymentId) ?? $payments->first();
+        if (!$firstPayment && $mergedPaymentIds) {
+            $firstPayment = Payment::find($mergedPaymentIds[0]);
+        }
         $transaction->update([
-            'linked_payment_ids' => $paymentIds,
-            'payment_id' => $first->id,
+            'linked_payment_ids' => $mergedPaymentIds,
+            'payment_id' => $firstPaymentId,
             'payment_created' => true,
             'status' => 'confirmed',
             'confirmed_at' => now(),
             'confirmed_by' => auth()->id(),
-            'student_id' => $first->student_id,
-            'family_id' => $first->student_id ? optional($first->student)->family_id : null,
+            'student_id' => $firstPayment ? $firstPayment->student_id : $transaction->student_id,
+            'family_id' => $firstPayment && $firstPayment->student_id ? optional($firstPayment->student)->family_id : $transaction->family_id,
             'match_status' => 'manual',
             'match_confidence' => 1.0,
             'match_notes' => 'Linked to existing payment(s)',

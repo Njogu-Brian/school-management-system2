@@ -1006,7 +1006,7 @@
 
             <!-- Link to existing payment(s) Modal (bank statements only) -->
             @if(!($isC2B ?? false))
-            <div class="modal fade" id="linkToExistingPaymentsModal" tabindex="-1" aria-labelledby="linkToExistingPaymentsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-transaction-amount="{{ $bankStatement->amount ?? 0 }}">
+            <div class="modal fade" id="linkToExistingPaymentsModal" tabindex="-1" aria-labelledby="linkToExistingPaymentsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-transaction-amount="{{ $bankStatement->amount ?? 0 }}" data-already-linked-total="{{ $activeTotal ?? 0 }}" data-remaining-amount="{{ $remainingAmount ?? 0 }}">
                 <div class="modal-dialog modal-dialog-centered modal-lg">
                     <div class="modal-content">
                         <div class="modal-header border-0 pb-0">
@@ -1573,13 +1573,21 @@ function updateLinkPaymentForm() {
     });
     const checkedCount = container.querySelectorAll('input[name="payment_ids[]"]').length;
     const txAmount = modal ? parseFloat(modal.getAttribute('data-transaction-amount') || 0) : 0;
-    const match = txAmount > 0 && Math.abs(selectedTotal - txAmount) <= 0.01;
+    const alreadyLinkedTotal = modal ? parseFloat(modal.getAttribute('data-already-linked-total') || 0) : 0;
+    const remainingAmount = modal ? parseFloat(modal.getAttribute('data-remaining-amount') || 0) : 0;
+    // When some is already linked, selected total must match remaining amount; otherwise match full transaction amount
+    const targetAmount = remainingAmount > 0.01 ? remainingAmount : txAmount;
+    const match = txAmount > 0 && (Math.abs(selectedTotal - targetAmount) <= 0.01);
     if (summaryEl) {
         if (txAmount > 0) {
-            summaryEl.textContent = 'Transaction: Ksh ' + txAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' \u2013 Selected: Ksh ' + selectedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            if (alreadyLinkedTotal > 0.01 && remainingAmount > 0.01) {
+                summaryEl.textContent = 'Already linked: Ksh ' + alreadyLinkedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' \u2013 Remaining: Ksh ' + remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' \u2013 Selected: Ksh ' + selectedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            } else {
+                summaryEl.textContent = 'Transaction: Ksh ' + txAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' \u2013 Selected: Ksh ' + selectedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            }
             if (checkedCount > 0 && !match) {
                 summaryEl.classList.add('text-danger');
-                summaryEl.title = 'Select payment(s) that total the transaction amount.';
+                summaryEl.title = remainingAmount > 0.01 ? 'Select payment(s) that total the remaining amount (Ksh ' + remainingAmount.toFixed(2) + ').' : 'Select payment(s) that total the transaction amount.';
             } else {
                 summaryEl.classList.remove('text-danger');
             }
