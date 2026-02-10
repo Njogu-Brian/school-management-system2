@@ -1391,8 +1391,10 @@
 // Link to existing payment(s) – supports one or more students; append = merge into list, !append = replace
 const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
 let linkPaymentAccumulated = []; // accumulated payments when adding multiple students
+let linkPaymentSelectionOrder = []; // payment ids in the order the user checked them (first selected = first)
 
 function renderLinkPaymentList(payments) {
+    linkPaymentSelectionOrder = []; // reset when list is re-rendered
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
     if (!payments || payments.length === 0) {
@@ -1421,15 +1423,37 @@ function renderLinkPaymentList(payments) {
     resultsEl.innerHTML = html;
     document.querySelectorAll('.link-payment-cb').forEach(cb => {
         cb.addEventListener('change', function() {
-            const base = (cb.getAttribute('data-shared-receipt') || '').trim();
-            if (base) {
-                const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
-                    return (el.getAttribute('data-shared-receipt') || '').trim() === base;
-                });
-                if (cb.checked) {
-                    sameReceipt.forEach(function(other) { other.checked = true; });
-                } else {
-                    sameReceipt.forEach(function(other) { other.checked = false; });
+            const id = cb.value;
+            if (cb.checked) {
+                if (linkPaymentSelectionOrder.indexOf(id) === -1) {
+                    linkPaymentSelectionOrder.push(id);
+                }
+                const base = (cb.getAttribute('data-shared-receipt') || '').trim();
+                if (base) {
+                    const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
+                        return (el.getAttribute('data-shared-receipt') || '').trim() === base;
+                    });
+                    sameReceipt.forEach(function(other) {
+                        if (!other.checked) {
+                            other.checked = true;
+                            const oid = other.value;
+                            if (linkPaymentSelectionOrder.indexOf(oid) === -1) {
+                                linkPaymentSelectionOrder.push(oid);
+                            }
+                        }
+                    });
+                }
+            } else {
+                linkPaymentSelectionOrder = linkPaymentSelectionOrder.filter(function(pid) { return pid !== id; });
+                const base = (cb.getAttribute('data-shared-receipt') || '').trim();
+                if (base) {
+                    const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
+                        return (el.getAttribute('data-shared-receipt') || '').trim() === base;
+                    });
+                    sameReceipt.forEach(function(other) {
+                        other.checked = false;
+                        linkPaymentSelectionOrder = linkPaymentSelectionOrder.filter(function(pid) { return pid !== other.value; });
+                    });
                 }
             }
             updateLinkPaymentForm();
@@ -1518,6 +1542,7 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     if (display1) display1.value = '';
     if (display2) display2.value = '';
     linkPaymentAccumulated = [];
+    linkPaymentSelectionOrder = [];
     if (results) results.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
     if (btn) btn.disabled = true;
     if (summaryEl) summaryEl.textContent = '';
@@ -1525,7 +1550,7 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     if (container) container.innerHTML = '';
 });
 function updateLinkPaymentForm() {
-    const checked = document.querySelectorAll('.link-payment-cb:checked');
+    const allCb = document.querySelectorAll('.link-payment-cb');
     const container = document.getElementById('linkPaymentSelectedIds');
     const btn = document.getElementById('linkToExistingPaymentsBtn');
     const summaryEl = document.getElementById('linkPaymentAmountSummary');
@@ -1533,20 +1558,26 @@ function updateLinkPaymentForm() {
     if (!container || !btn) return;
     container.innerHTML = '';
     let selectedTotal = 0;
-    checked.forEach(cb => {
-        selectedTotal += parseFloat(cb.getAttribute('data-amount') || 0);
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'payment_ids[]';
-        input.value = cb.value;
-        container.appendChild(input);
+    // Submit in selection order (first selected = first) so backend keeps it as primary
+    const orderToUse = linkPaymentSelectionOrder.length > 0 ? linkPaymentSelectionOrder.slice() : Array.from(allCb).filter(function(c) { return c.checked; }).map(function(c) { return c.value; });
+    orderToUse.forEach(function(pid) {
+        const cb = Array.from(allCb).find(function(c) { return c.value === pid && c.checked; });
+        if (cb) {
+            selectedTotal += parseFloat(cb.getAttribute('data-amount') || 0);
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'payment_ids[]';
+            input.value = cb.value;
+            container.appendChild(input);
+        }
     });
+    const checkedCount = container.querySelectorAll('input[name="payment_ids[]"]').length;
     const txAmount = modal ? parseFloat(modal.getAttribute('data-transaction-amount') || 0) : 0;
     const match = txAmount > 0 && Math.abs(selectedTotal - txAmount) <= 0.01;
     if (summaryEl) {
         if (txAmount > 0) {
             summaryEl.textContent = 'Transaction: Ksh ' + txAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' \u2013 Selected: Ksh ' + selectedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 });
-            if (checked.length > 0 && !match) {
+            if (checkedCount > 0 && !match) {
                 summaryEl.classList.add('text-danger');
                 summaryEl.title = 'Select payment(s) that total the transaction amount.';
             } else {
@@ -1556,7 +1587,7 @@ function updateLinkPaymentForm() {
             summaryEl.textContent = '';
         }
     }
-    btn.disabled = checked.length === 0 || (txAmount > 0 && !match);
+    btn.disabled = checkedCount === 0 || (txAmount > 0 && !match);
 }
 
 // Share functionality
