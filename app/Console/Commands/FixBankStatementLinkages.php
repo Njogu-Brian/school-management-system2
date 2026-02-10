@@ -10,14 +10,16 @@ class FixBankStatementLinkages extends Command
 {
     protected $signature = 'finance:fix-bank-statement-linkages
                             {--dry-run : Show what would be fixed without updating}
-                            {--transaction= : Only fix a specific transaction ID}';
+                            {--transaction= : Only fix a specific transaction ID}
+                            {--all : Fix all bank types (default: Equity only)}';
 
-    protected $description = 'Fix wrong or inconsistent payment linkages on bank statement transactions (sync payment_id with linked_payment_ids, remove reversed/deleted payments)';
+    protected $description = 'Fix wrong or inconsistent payment linkages on Equity bank statement transactions (sync payment_id with linked_payment_ids, remove reversed/deleted payments). Use --all to include M-Pesa/C2B.';
 
     public function handle(): int
     {
         $dryRun = $this->option('dry-run');
         $transactionId = $this->option('transaction');
+        $allTypes = $this->option('all');
 
         if ($dryRun) {
             $this->warn('Dry run – no changes will be made.');
@@ -33,6 +35,12 @@ class FixBankStatementLinkages extends Command
                 $q->whereNotNull('payment_id')
                     ->orWhereNotNull('linked_payment_ids');
             });
+
+        // Default: Equity only (link-to-existing-payments is for Equity; M-Pesa C2B uses different flow)
+        if (!$allTypes && \Schema::hasColumn('bank_statement_transactions', 'bank_type')) {
+            $query->where('bank_type', 'equity');
+            $this->line('Scope: <info>Equity</info> bank transactions only (use --all to include all bank types).');
+        }
 
         if ($transactionId !== null) {
             $query->where('id', (int) $transactionId);
