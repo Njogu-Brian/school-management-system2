@@ -938,8 +938,11 @@
                         </a>
                     @endif
 
-                    @if(!($isC2B ?? false) && in_array($bankStatement->status, ['draft', 'confirmed'], true))
-                        <button type="button" class="btn btn-finance btn-finance-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#linkToExistingPaymentsModal" onclick="loadPaymentsForLink('{{ $bankStatement->reference_number ?? '' }}')">
+                    @php
+                        $hasLinkedPayments = !($isC2B ?? false) && !empty($rawTransaction->linked_payment_ids);
+                    @endphp
+                    @if(!($isC2B ?? false) && in_array($bankStatement->status, ['draft', 'confirmed'], true) && !$hasLinkedPayments)
+                        <button type="button" class="btn btn-finance btn-finance-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#linkToExistingPaymentsModal" onclick="loadPaymentsForLink()">
                             <i class="bi bi-link-45deg"></i> Link to existing payment(s)
                         </button>
                     @endif
@@ -1013,18 +1016,18 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted mb-3">Search by reference, receipt number, or student name. Select one or more payments (e.g. siblings) to link this transaction to. Once linked, the transaction will appear under Collected if the total covers the amount.</p>
+                            <p class="text-muted mb-3">Search by <strong>student name or admission number</strong>. Only manual or Equity bank payments appear (no M-Pesa C2B). Select payment(s); amount must match the transaction. If siblings share a receipt, select the full set. Once linked, the transaction moves to Collected.</p>
                             <div class="mb-3">
-                                <label class="form-label">Search</label>
+                                <label class="form-label">Search by student</label>
                                 <div class="input-group">
-                                    <input type="text" id="linkPaymentSearch" class="form-control" placeholder="Reference, receipt #, or student name..." onkeypress="if(event.key==='Enter'){event.preventDefault();loadPaymentsForLink(document.getElementById('linkPaymentSearch').value);}">
+                                    <input type="text" id="linkPaymentSearch" class="form-control" placeholder="Student name or admission number..." onkeypress="if(event.key==='Enter'){event.preventDefault();loadPaymentsForLink(document.getElementById('linkPaymentSearch').value);}">
                                     <button type="button" class="btn btn-finance btn-finance-primary" onclick="loadPaymentsForLink(document.getElementById('linkPaymentSearch').value)">
                                         <i class="bi bi-search"></i> Search
                                     </button>
                                 </div>
                             </div>
                             <div id="linkPaymentResults" class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
-                                <p class="text-muted small mb-0">Enter a search term or use the transaction reference above to find payments to link.</p>
+                                <p class="text-muted small mb-0">Enter student name or admission number to find payments to link.</p>
                             </div>
                             <form method="POST" action="{{ route('finance.bank-statements.link-to-existing-payments', $bankStatement->id) }}" id="linkToExistingPaymentsForm">
                                 @csrf
@@ -1374,10 +1377,13 @@
 const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
 function loadPaymentsForLink(referenceOrQuery) {
     const q = (referenceOrQuery || '').trim();
-    const ref = q || undefined;
+    if (!q) {
+        const resultsEl = document.getElementById('linkPaymentResults');
+        if (resultsEl) resultsEl.innerHTML = '<p class="text-muted small mb-0">Enter student name or admission number to find payments to link.</p>';
+        return;
+    }
     const url = new URL(linkPaymentsBaseUrl);
-    if (ref) url.searchParams.set('reference', ref);
-    if (q) url.searchParams.set('q', q);
+    url.searchParams.set('q', q);
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
     resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';

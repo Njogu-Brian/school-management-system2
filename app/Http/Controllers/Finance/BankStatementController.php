@@ -164,11 +164,12 @@ class BankStatementController extends Controller
                 }
                 break;
             case 'equity':
-                // Equity bank statement transactions only (no C2B)
+                // Equity bank statement transactions only (no C2B); exclude collected so they appear in Collected tab
                 $query->where('bank_type', 'equity')
                       ->where('is_archived', false)
                       ->where('is_duplicate', false)
-                      ->where('transaction_type', 'credit');
+                      ->where('transaction_type', 'credit')
+                      ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')');
                 if ($hasSwimmingColumn) {
                     $query->where(function($q) {
                         $q->where('is_swimming_transaction', false)
@@ -452,6 +453,7 @@ class BankStatementController extends Controller
                 ->where('is_archived', false)
                 ->where('is_duplicate', false)
                 ->where('transaction_type', 'credit')
+                ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')')
                 ->when($hasSwimmingColumn, function($q) {
                     $q->where(function($subQ) {
                         $subQ->where('is_swimming_transaction', false)
@@ -1396,53 +1398,43 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Search payments for linking to a bank statement transaction (by reference, receipt, student).
-     * Used by the "Link to existing payment(s)" feature (Equity and manual payments).
+     * Search payments for linking to a bank statement transaction.
+     * Search by student name or admission number only. Returns only manually created or Equity bank
+     * payments; M-Pesa C2B / statement payments never appear.
      */
     public function searchPaymentsForLink(Request $request)
     {
         $request->validate([
-            'q' => 'nullable|string|max:255',
-            'reference' => 'nullable|string|max:100',
+            'q' => 'required|string|max:255',
         ]);
-        $q = $request->input('q');
-        $reference = $request->input('reference');
+        $q = trim($request->input('q'));
+        if ($q === '') {
+            return response()->json(['payments' => []]);
+        }
+
+        // Exclude payments that originated from M-Pesa C2B (so only manual or Equity bank payments)
+        $c2bPaymentIds = MpesaC2BTransaction::whereNotNull('payment_id')->pluck('payment_id')->toArray();
+
         $query = Payment::with('student')
             ->where('reversed', false)
             ->whereNull('deleted_at')
+            ->when(!empty($c2bPaymentIds), function ($qry) use ($c2bPaymentIds) {
+                $qry->whereNotIn('id', $c2bPaymentIds);
+            })
+            ->whereHas('student', function ($s) use ($q) {
+                $s->where('admission_number', 'LIKE', '%' . $q . '%')
+                    ->orWhere('first_name', 'LIKE', '%' . $q . '%')
+                    ->orWhere('last_name', 'LIKE', '%' . $q . '%');
+            })
             ->orderBy('payment_date', 'desc')
             ->limit(50);
-        if ($reference) {
-            $ref = $reference;
-            $query->where(function ($sub) use ($ref) {
-                $sub->where('transaction_code', $ref)
-                    ->orWhere('transaction_code', 'LIKE', $ref . '-%')
-                    ->orWhere('transaction_code', 'LIKE', '%' . $ref . '%')
-                    ->orWhere('receipt_number', $ref)
-                    ->orWhere('receipt_number', 'LIKE', $ref . '-%')
-                    ->orWhere('receipt_number', 'LIKE', '%' . $ref . '%')
-                    ->orWhere('shared_receipt_number', $ref)
-                    ->orWhere('shared_receipt_number', 'LIKE', $ref . '-%')
-                    ->orWhere('shared_receipt_number', 'LIKE', '%' . $ref . '%');
-            });
-        }
-        if ($q) {
-            $query->where(function ($qry) use ($q) {
-                $qry->where('transaction_code', 'LIKE', '%' . $q . '%')
-                    ->orWhere('receipt_number', 'LIKE', '%' . $q . '%')
-                    ->orWhere('shared_receipt_number', 'LIKE', '%' . $q . '%')
-                    ->orWhereHas('student', function ($s) use ($q) {
-                        $s->where('admission_number', 'LIKE', '%' . $q . '%')
-                            ->orWhere('first_name', 'LIKE', '%' . $q . '%')
-                            ->orWhere('last_name', 'LIKE', '%' . $q . '%');
-                    });
-            });
-        }
+
         $payments = $query->get()->map(function ($p) {
             return [
                 'id' => $p->id,
                 'amount' => (float) $p->amount,
                 'receipt_number' => $p->receipt_number,
+                'shared_receipt_number' => $p->shared_receipt_number,
                 'transaction_code' => $p->transaction_code,
                 'payment_date' => $p->payment_date?->format('Y-m-d'),
                 'student_id' => $p->student_id,
@@ -1455,7 +1447,9 @@ class BankStatementController extends Controller
 
     /**
      * Link a bank statement transaction to existing payment(s). Supports siblings (one transaction, multiple payments).
-     * Once linked, the transaction is treated as collected and appears in the Collected tab.
+     * Amount must match; if siblings (shared receipt), all siblings must be selected and their total must match.
+     * Updates payment date and transaction_code from the statement when they differ.
+     * Once linked, the transaction moves to Collected and the link option is hidden.
      */
     public function linkToExistingPayments(Request $request, $bankStatement)
     {
@@ -1472,6 +1466,47 @@ class BankStatementController extends Controller
         if ($payments->count() !== count($paymentIds)) {
             return redirect()->back()->with('error', 'One or more selected payments are invalid or reversed.');
         }
+
+        $txAmount = (float) $transaction->amount;
+        $selectedTotal = $payments->sum('amount');
+        if (abs($selectedTotal - $txAmount) > 0.01) {
+            return redirect()->back()->with('error', 'Selected payment total (Ksh ' . number_format($selectedTotal, 2) . ') does not match transaction amount (Ksh ' . number_format($txAmount, 2) . ').');
+        }
+
+        // If any selected payment has a shared receipt, require the full sibling set for that base
+        $sharedBases = $payments->pluck('shared_receipt_number')->filter()->unique();
+        foreach ($sharedBases as $base) {
+            $siblingPayments = Payment::where('reversed', false)->whereNull('deleted_at')
+                ->where(function ($q) use ($base) {
+                    $q->where('shared_receipt_number', $base)
+                        ->orWhere('receipt_number', $base)
+                        ->orWhere('receipt_number', 'LIKE', $base . '-%');
+                })
+                ->get();
+            $siblingIds = $siblingPayments->pluck('id')->sort()->values()->toArray();
+            $selectedForThisBase = $payments->whereIn('id', $siblingPayments->pluck('id'))->pluck('id')->sort()->values()->toArray();
+            if ($siblingIds !== $selectedForThisBase) {
+                $siblingTotal = $siblingPayments->sum('amount');
+                return redirect()->back()->with('error', 'Sibling payments must be selected as a full set. Include all ' . count($siblingPayments) . ' payment(s) sharing receipt ' . $base . ' (total Ksh ' . number_format($siblingTotal, 2) . ') so the amount matches the transaction.');
+            }
+        }
+
+        $ref = $transaction->reference_number ?? null;
+        $txDate = $transaction->transaction_date ?? now();
+
+        foreach ($payments as $payment) {
+            $updates = [];
+            if ($ref && $payment->transaction_code !== $ref && !str_starts_with((string) $payment->transaction_code, $ref . '-')) {
+                $updates['transaction_code'] = $ref;
+            }
+            if ($txDate && $payment->payment_date && (abs($payment->payment_date->diffInSeconds($txDate)) > 0)) {
+                $updates['payment_date'] = $txDate;
+            }
+            if (!empty($updates)) {
+                $payment->update($updates);
+            }
+        }
+
         $first = $payments->first();
         $transaction->update([
             'linked_payment_ids' => $paymentIds,
@@ -1486,8 +1521,9 @@ class BankStatementController extends Controller
             'match_confidence' => 1.0,
             'match_notes' => 'Linked to existing payment(s)',
         ]);
-        return redirect()->route('finance.bank-statements.show', ['bankStatement' => $transaction->id, 'type' => 'bank'])
-            ->with('success', 'Transaction linked to ' . count($paymentIds) . ' existing payment(s). It will appear under Collected when the linked total covers the transaction amount.');
+
+        return redirect()->route('finance.bank-statements.index', ['view' => 'collected'])
+            ->with('success', 'Transaction linked to ' . count($paymentIds) . ' existing payment(s). It has been moved to Collected.');
     }
 
     /**
