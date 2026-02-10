@@ -1448,6 +1448,18 @@ class BankStatementController extends Controller
         // Exclude reversed payments and those from M-Pesa C2B (only manual or Equity bank, non-reversed)
         $c2bPaymentIds = MpesaC2BTransaction::whereNotNull('payment_id')->pluck('payment_id')->toArray();
 
+        // Exclude payments already linked to a bank statement transaction (payment_id or in linked_payment_ids)
+        $linkedByPaymentId = BankStatementTransaction::whereNotNull('payment_id')->pluck('payment_id')->toArray();
+        $linkedByLinkedIds = BankStatementTransaction::whereNotNull('linked_payment_ids')
+            ->get()
+            ->pluck('linked_payment_ids')
+            ->flatten()
+            ->unique()
+            ->filter()
+            ->values()
+            ->toArray();
+        $alreadyLinkedPaymentIds = array_unique(array_merge($linkedByPaymentId, $linkedByLinkedIds));
+
         $query = Payment::with('student')
             ->where(function ($qry) {
                 $qry->where('reversed', false)->orWhereNull('reversed');
@@ -1455,6 +1467,9 @@ class BankStatementController extends Controller
             ->whereNull('deleted_at')
             ->when(!empty($c2bPaymentIds), function ($qry) use ($c2bPaymentIds) {
                 $qry->whereNotIn('id', $c2bPaymentIds);
+            })
+            ->when(!empty($alreadyLinkedPaymentIds), function ($qry) use ($alreadyLinkedPaymentIds) {
+                $qry->whereNotIn('id', $alreadyLinkedPaymentIds);
             });
 
         if ($studentId) {
@@ -1480,6 +1495,9 @@ class BankStatementController extends Controller
                 ->whereNull('deleted_at')
                 ->when(!empty($c2bPaymentIds), function ($qry) use ($c2bPaymentIds) {
                     $qry->whereNotIn('id', $c2bPaymentIds);
+                })
+                ->when(!empty($alreadyLinkedPaymentIds), function ($qry) use ($alreadyLinkedPaymentIds) {
+                    $qry->whereNotIn('id', $alreadyLinkedPaymentIds);
                 })
                 ->where(function ($q) use ($sharedBases) {
                     $q->whereIn('shared_receipt_number', $sharedBases->toArray());

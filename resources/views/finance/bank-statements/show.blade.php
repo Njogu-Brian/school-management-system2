@@ -1006,7 +1006,7 @@
 
             <!-- Link to existing payment(s) Modal (bank statements only) -->
             @if(!($isC2B ?? false))
-            <div class="modal fade" id="linkToExistingPaymentsModal" tabindex="-1" aria-labelledby="linkToExistingPaymentsModalLabel" aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal fade" id="linkToExistingPaymentsModal" tabindex="-1" aria-labelledby="linkToExistingPaymentsModalLabel" aria-hidden="true" data-bs-backdrop="static" data-transaction-amount="{{ $bankStatement->amount ?? 0 }}">
                 <div class="modal-dialog modal-dialog-centered modal-lg">
                     <div class="modal-content">
                         <div class="modal-header border-0 pb-0">
@@ -1037,8 +1037,9 @@
                                     'includeAlumniArchived' => true,
                                 ])
                             </div>
-                            <div class="mb-2">
-                                <label class="form-label">Payments (from selected student(s))</label>
+                            <div class="mb-2 d-flex justify-content-between align-items-center">
+                                <label class="form-label mb-0">Payments (from selected student(s))</label>
+                                <span id="linkPaymentAmountSummary" class="text-muted small"></span>
                             </div>
                             <div id="linkPaymentResults" class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
                                 <p class="text-muted small mb-0">Select a student above to load their payments.</p>
@@ -1511,6 +1512,7 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     const display2 = document.getElementById('linkPaymentStudent2Search');
     const results = document.getElementById('linkPaymentResults');
     const btn = document.getElementById('linkToExistingPaymentsBtn');
+    const summaryEl = document.getElementById('linkPaymentAmountSummary');
     if (hid1) hid1.value = '';
     if (hid2) hid2.value = '';
     if (display1) display1.value = '';
@@ -1518,6 +1520,7 @@ document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.b
     linkPaymentAccumulated = [];
     if (results) results.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
     if (btn) btn.disabled = true;
+    if (summaryEl) summaryEl.textContent = '';
     const container = document.getElementById('linkPaymentSelectedIds');
     if (container) container.innerHTML = '';
 });
@@ -1525,16 +1528,35 @@ function updateLinkPaymentForm() {
     const checked = document.querySelectorAll('.link-payment-cb:checked');
     const container = document.getElementById('linkPaymentSelectedIds');
     const btn = document.getElementById('linkToExistingPaymentsBtn');
+    const summaryEl = document.getElementById('linkPaymentAmountSummary');
+    const modal = document.getElementById('linkToExistingPaymentsModal');
     if (!container || !btn) return;
     container.innerHTML = '';
+    let selectedTotal = 0;
     checked.forEach(cb => {
+        selectedTotal += parseFloat(cb.getAttribute('data-amount') || 0);
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = 'payment_ids[]';
         input.value = cb.value;
         container.appendChild(input);
     });
-    btn.disabled = checked.length === 0;
+    const txAmount = modal ? parseFloat(modal.getAttribute('data-transaction-amount') || 0) : 0;
+    const match = txAmount > 0 && Math.abs(selectedTotal - txAmount) <= 0.01;
+    if (summaryEl) {
+        if (txAmount > 0) {
+            summaryEl.textContent = 'Transaction: Ksh ' + txAmount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' \u2013 Selected: Ksh ' + selectedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 });
+            if (checked.length > 0 && !match) {
+                summaryEl.classList.add('text-danger');
+                summaryEl.title = 'Select payment(s) that total the transaction amount.';
+            } else {
+                summaryEl.classList.remove('text-danger');
+            }
+        } else {
+            summaryEl.textContent = '';
+        }
+    }
+    btn.disabled = checked.length === 0 || (txAmount > 0 && !match);
 }
 
 // Share functionality
