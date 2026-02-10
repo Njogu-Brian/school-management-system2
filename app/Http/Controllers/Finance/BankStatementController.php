@@ -1558,12 +1558,11 @@ class BankStatementController extends Controller
         foreach ($payments as $payment) {
             $updates = [];
             if ($ref && $payment->transaction_code !== $ref && !str_starts_with((string) $payment->transaction_code, $ref . '-')) {
-                // Unique constraint: (transaction_code, student_id). Don't set if another payment for same student already has this ref.
+                // Unique constraint: (transaction_code, student_id) applies to all rows including reversed/deleted.
+                // Don't set if any other payment for same student already has this ref (e.g. a reversed one from confirm-then-reject).
                 $conflict = Payment::where('transaction_code', $ref)
                     ->where('student_id', $payment->student_id)
                     ->where('id', '!=', $payment->id)
-                    ->where('reversed', false)
-                    ->whereNull('deleted_at')
                     ->exists();
                 if (!$conflict) {
                     $updates['transaction_code'] = $ref;
