@@ -127,6 +127,30 @@ class BankStatementParser
                 'raw_data' => $txnData,
                 'created_by' => auth()->id(),
             ]);
+
+            // If another transaction already exists with same reference+amount+date (duplicate slipped through), mark this one as duplicate
+            if ($transactionCode) {
+                $existingOther = BankStatementTransaction::where('reference_number', $transactionCode)
+                    ->where('amount', $amount)
+                    ->where('id', '!=', $transaction->id)
+                    ->whereDate('transaction_date', $transactionDate)
+                    ->where('is_duplicate', false)
+                    ->first();
+                if ($existingOther) {
+                    $transaction->update([
+                        'is_duplicate' => true,
+                        'duplicate_of_payment_id' => $existingOther->payment_id,
+                    ]);
+                    \Log::info('Marked bank statement transaction as duplicate (post-create check)', [
+                        'transaction_id' => $transaction->id,
+                        'original_id' => $existingOther->id,
+                        'reference_number' => $transactionCode,
+                    ]);
+                    // Skip payment linking and matching for duplicates
+                    $created[] = $transaction->id;
+                    continue;
+                }
+            }
             
             // STEP 3: Check if a payment exists with this transaction reference number
             $existingPayment = null;

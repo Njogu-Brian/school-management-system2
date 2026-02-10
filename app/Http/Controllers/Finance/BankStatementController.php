@@ -158,20 +158,25 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only money IN transactions
                 break;
             case 'swimming':
-                // Swimming transactions (only if column exists)
+                // Swimming transactions (only if column exists); exclude duplicates
                 if ($hasSwimmingColumn) {
                     $query->where('is_swimming_transaction', true)
-                          ->where('is_archived', false);
+                          ->where('is_archived', false)
+                          ->where(function ($q) {
+                              $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                          });
                 } else {
                     // If column doesn't exist, return empty results
                     $query->whereRaw('1 = 0');
                 }
                 break;
             case 'equity':
-                // Equity bank statement transactions only (no C2B); exclude collected so they appear in Collected tab
+                // Equity bank statement transactions only (no C2B); exclude collected and duplicates
                 $query->where('bank_type', 'equity')
                       ->where('is_archived', false)
-                      ->where('is_duplicate', false)
+                      ->where(function ($q) {
+                          $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                      })
                       ->where('transaction_type', 'credit')
                       ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')');
                 if ($hasSwimmingColumn) {
@@ -184,14 +189,18 @@ class BankStatementController extends Controller
             case 'all':
                 // All transactions - exclude swimming, archived, and duplicates
                 $query->where('is_archived', false)
-                      ->where('is_duplicate', false)
+                      ->where(function ($q) {
+                          $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                      })
                       ->where('transaction_type', 'credit'); // Exclude debit transactions
                 // Swimming exclusion is handled below
                 break;
             default:
                 // Default to 'all' behavior
                 $query->where('is_archived', false)
-                      ->where('is_duplicate', false)
+                      ->where(function ($q) {
+                          $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                      })
                       ->where('transaction_type', 'credit'); // Exclude debit transactions
                 // Swimming exclusion is handled below
         }
