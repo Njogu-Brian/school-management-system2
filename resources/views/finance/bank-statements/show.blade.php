@@ -1016,7 +1016,7 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
-                            <p class="text-muted mb-3">Search by <strong>student name or admission number</strong> (results appear as you type). Only manual or Equity bank payments appear (no M-Pesa C2B). Select payment(s); amount must match the transaction. If siblings share a receipt, select the full set. Once linked, the transaction moves to Collected.</p>
+                            <p class="text-muted mb-3">Search by <strong>student name or admission number</strong> (results appear as you type). You can add payments from <strong>more than one student</strong> if manual payments were created for different students. Only manual or Equity bank payments appear (no M-Pesa C2B). Select payment(s); amount must match the transaction. If siblings share a receipt, select the full set. Once linked, the transaction moves to Collected.</p>
                             <div class="mb-3">
                                 <label class="form-label">Student</label>
                                 @include('partials.student_live_search', [
@@ -1027,8 +1027,18 @@
                                     'includeAlumniArchived' => true,
                                 ])
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted">Add another student (optional)</label>
+                                @include('partials.student_live_search', [
+                                    'hiddenInputId' => 'linkPaymentStudent2Id',
+                                    'displayInputId' => 'linkPaymentStudent2Search',
+                                    'resultsId' => 'linkPaymentStudent2Results',
+                                    'placeholder' => 'Add payments from another student…',
+                                    'includeAlumniArchived' => true,
+                                ])
+                            </div>
                             <div class="mb-2">
-                                <label class="form-label">Payments for selected student</label>
+                                <label class="form-label">Payments (from selected student(s))</label>
                             </div>
                             <div id="linkPaymentResults" class="border rounded p-2 mb-3" style="max-height: 280px; overflow-y: auto;">
                                 <p class="text-muted small mb-0">Select a student above to load their payments.</p>
@@ -1377,18 +1387,65 @@
 <script>
 // The student_live_search partial already handles enabling the button via enableButtonId
 
-// Link to existing payment(s) – uses student_live_search; when a student is selected, load their payments
+// Link to existing payment(s) – supports one or more students; append = merge into list, !append = replace
 const linkPaymentsBaseUrl = '{{ route("finance.bank-statements.search-payments-for-link") }}';
-function loadPaymentsForLink(q, studentId) {
+let linkPaymentAccumulated = []; // accumulated payments when adding multiple students
+
+function renderLinkPaymentList(payments) {
+    const resultsEl = document.getElementById('linkPaymentResults');
+    if (!resultsEl) return;
+    if (!payments || payments.length === 0) {
+        resultsEl.innerHTML = '<p class="text-muted small mb-0">No payments to show. Select a student above.</p>';
+        return;
+    }
+    let html = '<div class="list-group list-group-flush">';
+    payments.forEach(p => {
+        const dateStr = p.payment_date ? (function(d) {
+            try {
+                const [y, m, day] = d.split('-');
+                const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                return (parseInt(day,10) || '') + ' ' + (months[parseInt(m,10) - 1] || m) + ' ' + (y || '');
+            } catch (_) { return d; }
+        })(p.payment_date) : '';
+        const sharedReceipt = (p.shared_receipt_number || '').toString().replace(/"/g, '&quot;');
+        html += '<label class="list-group-item list-group-item-action d-flex align-items-center gap-2 cursor-pointer">';
+        html += '<input type="checkbox" class="form-check-input link-payment-cb" value="' + p.id + '" data-amount="' + p.amount + '" data-receipt="' + (p.receipt_number || '') + '" data-student="' + (p.student_name || '') + '" data-shared-receipt="' + sharedReceipt + '">';
+        html += '<span class="flex-grow-1">#' + (p.receipt_number || p.id) + ' &ndash; Ksh ' + parseFloat(p.amount).toFixed(2);
+        if (dateStr) html += ' <span class="text-muted">(' + dateStr + ')</span>';
+        if (sharedReceipt) html += ' <span class="badge bg-secondary ms-1">Shared</span>';
+        if (p.student_name) html += ' &ndash; ' + p.student_name + (p.admission_number ? ' (' + p.admission_number + ')' : '');
+        html += '</span></label>';
+    });
+    html += '</div>';
+    resultsEl.innerHTML = html;
+    document.querySelectorAll('.link-payment-cb').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const base = (cb.getAttribute('data-shared-receipt') || '').trim();
+            if (base) {
+                const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
+                    return (el.getAttribute('data-shared-receipt') || '').trim() === base;
+                });
+                if (cb.checked) {
+                    sameReceipt.forEach(function(other) { other.checked = true; });
+                } else {
+                    sameReceipt.forEach(function(other) { other.checked = false; });
+                }
+            }
+            updateLinkPaymentForm();
+        });
+    });
+    updateLinkPaymentForm();
+}
+
+function loadPaymentsForLink(q, studentId, append) {
     const query = (q || '').trim();
-    // Prefer student_id from hidden input (set by student-live-search on select) so we always target the selected student
-    const hid = document.getElementById('linkPaymentStudentId');
     let sid = (studentId != null && studentId !== '') ? parseInt(studentId, 10) : null;
-    if (!sid && hid && hid.value) sid = parseInt(hid.value, 10);
     if (isNaN(sid)) sid = null;
     if (!sid && !query) {
-        const resultsEl = document.getElementById('linkPaymentResults');
-        if (resultsEl) resultsEl.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
+        if (!append) {
+            linkPaymentAccumulated = [];
+            renderLinkPaymentList([]);
+        }
         return;
     }
     const url = new URL(linkPaymentsBaseUrl);
@@ -1396,82 +1453,71 @@ function loadPaymentsForLink(q, studentId) {
     if (query) url.searchParams.set('q', query);
     const resultsEl = document.getElementById('linkPaymentResults');
     if (!resultsEl) return;
-    resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
+    if (!append) resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading...</p>';
+    else resultsEl.innerHTML = '<p class="text-muted small mb-0">Loading more...</p>';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     const headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
     if (csrf) headers['X-CSRF-TOKEN'] = csrf;
     fetch(url.toString(), { headers })
         .then(r => r.json())
         .then(data => {
-            const payments = data.payments || [];
-            if (payments.length === 0) {
-                resultsEl.innerHTML = '<p class="text-muted small mb-0">No payments found for this student.</p>';
-                return;
-            }
-            let html = '<div class="list-group list-group-flush">';
-            payments.forEach(p => {
-                const dateStr = p.payment_date ? (function(d) {
-                    try {
-                        const [y, m, day] = d.split('-');
-                        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                        return (parseInt(day,10) || '') + ' ' + (months[parseInt(m,10) - 1] || m) + ' ' + (y || '');
-                    } catch (_) { return d; }
-                })(p.payment_date) : '';
-                const sharedReceipt = (p.shared_receipt_number || '').toString().replace(/"/g, '&quot;');
-                html += '<label class="list-group-item list-group-item-action d-flex align-items-center gap-2 cursor-pointer">';
-                html += '<input type="checkbox" class="form-check-input link-payment-cb" value="' + p.id + '" data-amount="' + p.amount + '" data-receipt="' + (p.receipt_number || '') + '" data-student="' + (p.student_name || '') + '" data-shared-receipt="' + sharedReceipt + '">';
-                html += '<span class="flex-grow-1">#' + (p.receipt_number || p.id) + ' &ndash; Ksh ' + parseFloat(p.amount).toFixed(2);
-                if (dateStr) html += ' <span class="text-muted">(' + dateStr + ')</span>';
-                if (sharedReceipt) html += ' <span class="badge bg-secondary ms-1">Shared</span>';
-                if (p.student_name) html += ' &ndash; ' + p.student_name + (p.admission_number ? ' (' + p.admission_number + ')' : '');
-                html += '</span></label>';
-            });
-            html += '</div>';
-            resultsEl.innerHTML = html;
-            document.querySelectorAll('.link-payment-cb').forEach(cb => {
-                cb.addEventListener('change', function() {
-                    const base = (cb.getAttribute('data-shared-receipt') || '').trim();
-                    if (base) {
-                        const sameReceipt = Array.from(document.querySelectorAll('.link-payment-cb')).filter(function(el) {
-                            return (el.getAttribute('data-shared-receipt') || '').trim() === base;
-                        });
-                        if (cb.checked) {
-                            sameReceipt.forEach(function(other) { other.checked = true; });
-                        } else {
-                            sameReceipt.forEach(function(other) { other.checked = false; });
-                        }
+            const newPayments = data.payments || [];
+            if (append) {
+                const seen = new Set(linkPaymentAccumulated.map(function(p) { return p.id; }));
+                newPayments.forEach(function(p) {
+                    if (!seen.has(p.id)) {
+                        seen.add(p.id);
+                        linkPaymentAccumulated.push(p);
                     }
-                    updateLinkPaymentForm();
                 });
-            });
+                renderLinkPaymentList(linkPaymentAccumulated);
+            } else {
+                linkPaymentAccumulated = newPayments.slice();
+                if (linkPaymentAccumulated.length === 0) {
+                    renderLinkPaymentList([]);
+                    document.getElementById('linkPaymentResults').innerHTML = '<p class="text-muted small mb-0">No payments found for this student.</p>';
+                } else {
+                    renderLinkPaymentList(linkPaymentAccumulated);
+                }
+            }
         })
         .catch(() => {
-            resultsEl.innerHTML = '<p class="text-danger small mb-0">Failed to load payments.</p>';
+            document.getElementById('linkPaymentResults').innerHTML = '<p class="text-danger small mb-0">Failed to load payments.</p>';
         });
 }
 
-// When a student is selected from the live search inside the link modal, load their payments by ID (reliable)
+// When a student is selected in the link modal, load their payments (replace or append depending on which search)
 window.addEventListener('student-selected', function(event) {
     const modal = document.getElementById('linkToExistingPaymentsModal');
     if (!modal || !modal.classList.contains('show')) return;
     const stu = event.detail;
     const q = (stu.admission_number || stu.full_name || '').trim();
-    // Use student id from detail or from hidden input (student-live-search sets it before dispatching)
-    const studentId = stu.id != null ? stu.id : (document.getElementById('linkPaymentStudentId')?.value || null);
-    loadPaymentsForLink(q, studentId);
+    const studentId = stu.id != null ? stu.id : null;
+    const hid1 = document.getElementById('linkPaymentStudentId');
+    const hid2 = document.getElementById('linkPaymentStudent2Id');
+    const append = (hid2 && hid2.value === String(studentId));
+    if (hid1 && hid1.value === String(studentId)) {
+        loadPaymentsForLink(q, studentId, false);
+    } else if (append) {
+        loadPaymentsForLink(q, studentId, true);
+    }
 });
 
 // Reset link modal state when it opens
 document.getElementById('linkToExistingPaymentsModal')?.addEventListener('show.bs.modal', function() {
-    const hid = document.getElementById('linkPaymentStudentId');
-    const display = document.getElementById('linkPaymentStudentSearch');
+    const hid1 = document.getElementById('linkPaymentStudentId');
+    const hid2 = document.getElementById('linkPaymentStudent2Id');
+    const display1 = document.getElementById('linkPaymentStudentSearch');
+    const display2 = document.getElementById('linkPaymentStudent2Search');
     const results = document.getElementById('linkPaymentResults');
     const btn = document.getElementById('linkToExistingPaymentsBtn');
-    if (hid) hid.value = '';
-    if (display) display.value = '';
+    if (hid1) hid1.value = '';
+    if (hid2) hid2.value = '';
+    if (display1) display1.value = '';
+    if (display2) display2.value = '';
+    linkPaymentAccumulated = [];
     if (results) results.innerHTML = '<p class="text-muted small mb-0">Select a student above to load their payments.</p>';
     if (btn) btn.disabled = true;
-    document.querySelectorAll('#linkPaymentResults .link-payment-cb').forEach(cb => cb.checked = false);
     const container = document.getElementById('linkPaymentSelectedIds');
     if (container) container.innerHTML = '';
 });
