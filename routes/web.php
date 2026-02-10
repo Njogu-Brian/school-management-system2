@@ -1313,6 +1313,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::get('/statements', [\App\Http\Controllers\Finance\BankStatementController::class, 'statements'])->name('statements');
             Route::get('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'index'])->name('index');
             Route::get('/create', [\App\Http\Controllers\Finance\BankStatementController::class, 'create'])->name('create');
+            Route::get('/search-payments-for-link', [\App\Http\Controllers\Finance\BankStatementController::class, 'searchPaymentsForLink'])->name('search-payments-for-link');
             Route::post('/', [\App\Http\Controllers\Finance\BankStatementController::class, 'store'])->name('store');
             Route::get('/{bankStatement}', [\App\Http\Controllers\Finance\BankStatementController::class, 'show'])->name('show');
             Route::get('/{bankStatement}/history', [\App\Http\Controllers\Finance\BankStatementController::class, 'history'])->name('history');
@@ -1351,7 +1352,6 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/reprocess-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'reprocessSwimmingTransactions'])->name('reprocess-swimming');
             Route::post('/{bankStatement}/allocate-swimming', [\App\Http\Controllers\Finance\BankStatementController::class, 'allocateSwimmingTransaction'])->name('allocate-swimming');
             Route::get('/student/{student}/balance', [\App\Http\Controllers\Finance\BankStatementController::class, 'getStudentBalance'])->name('student-balance');
-            Route::get('/search-payments-for-link', [\App\Http\Controllers\Finance\BankStatementController::class, 'searchPaymentsForLink'])->name('search-payments-for-link');
             Route::post('/{bankStatement}/link-to-existing-payments', [\App\Http\Controllers\Finance\BankStatementController::class, 'linkToExistingPayments'])->name('link-to-existing-payments');
         });
         
