@@ -1413,16 +1413,24 @@ class BankStatementController extends Controller
             ->orderBy('payment_date', 'desc')
             ->limit(50);
         if ($reference) {
-            $query->where(function ($sub) use ($reference) {
-                $sub->where('transaction_code', $reference)
-                    ->orWhere('transaction_code', 'LIKE', $reference . '-%')
-                    ->orWhere('transaction_code', 'LIKE', '%' . $reference . '%');
+            $ref = $reference;
+            $query->where(function ($sub) use ($ref) {
+                $sub->where('transaction_code', $ref)
+                    ->orWhere('transaction_code', 'LIKE', $ref . '-%')
+                    ->orWhere('transaction_code', 'LIKE', '%' . $ref . '%')
+                    ->orWhere('receipt_number', $ref)
+                    ->orWhere('receipt_number', 'LIKE', $ref . '-%')
+                    ->orWhere('receipt_number', 'LIKE', '%' . $ref . '%')
+                    ->orWhere('shared_receipt_number', $ref)
+                    ->orWhere('shared_receipt_number', 'LIKE', $ref . '-%')
+                    ->orWhere('shared_receipt_number', 'LIKE', '%' . $ref . '%');
             });
         }
         if ($q) {
             $query->where(function ($qry) use ($q) {
                 $qry->where('transaction_code', 'LIKE', '%' . $q . '%')
                     ->orWhere('receipt_number', 'LIKE', '%' . $q . '%')
+                    ->orWhere('shared_receipt_number', 'LIKE', '%' . $q . '%')
                     ->orWhereHas('student', function ($s) use ($q) {
                         $s->where('admission_number', 'LIKE', '%' . $q . '%')
                             ->orWhere('first_name', 'LIKE', '%' . $q . '%')
