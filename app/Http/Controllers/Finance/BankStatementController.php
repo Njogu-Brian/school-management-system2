@@ -1558,9 +1558,10 @@ class BankStatementController extends Controller
         foreach ($payments as $payment) {
             $updates = [];
             if ($ref && $payment->transaction_code !== $ref && !str_starts_with((string) $payment->transaction_code, $ref . '-')) {
-                // Unique constraint: (transaction_code, student_id) applies to all rows including reversed/deleted.
-                // Don't set if any other payment for same student already has this ref (e.g. a reversed one from confirm-then-reject).
-                $conflict = Payment::where('transaction_code', $ref)
+                // Unique constraint: (transaction_code, student_id) applies to ALL rows including soft-deleted/reversed.
+                // Check without SoftDeletes scope so we see conflicts with deleted or reversed payments.
+                $conflict = Payment::withoutGlobalScope(\Illuminate\Database\Eloquent\SoftDeletingScope::class)
+                    ->where('transaction_code', $ref)
                     ->where('student_id', $payment->student_id)
                     ->where('id', '!=', $payment->id)
                     ->exists();
@@ -1572,7 +1573,17 @@ class BankStatementController extends Controller
                 $updates['payment_date'] = $txDate;
             }
             if (!empty($updates)) {
-                $payment->update($updates);
+                try {
+                    $payment->update($updates);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                    // Unique (transaction_code, student_id) still violated (e.g. soft-deleted row or race). Skip this update; link still succeeds.
+                    if (isset($updates['transaction_code'])) {
+                        unset($updates['transaction_code']);
+                        if (!empty($updates)) {
+                            $payment->update($updates);
+                        }
+                    }
+                }
             }
         }
 
