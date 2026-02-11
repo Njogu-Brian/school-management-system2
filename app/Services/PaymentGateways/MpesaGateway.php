@@ -617,6 +617,14 @@ class MpesaGateway implements PaymentGatewayInterface
             ];
         }
 
+        // Family links (student_id null) must be handled by the controller with student_id or sibling_allocations
+        if ($paymentLink->student_id === null) {
+            return [
+                'success' => false,
+                'message' => 'Please select a child and enter an amount to pay.',
+            ];
+        }
+
         // Use provided amount or default to link amount
         $paymentAmount = $amount ?? $paymentLink->amount;
         

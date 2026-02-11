@@ -592,7 +592,13 @@ class MpesaPaymentController extends Controller
             }
         }
 
-        // Single-student link
+        // Single-student link (link must have a student_id; family links are handled above)
+        if ($paymentLink->student_id === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please select a child and enter an amount to pay.',
+            ], 400);
+        }
         $amount = (float) ($request->amount ?? $paymentLink->amount);
         if ($amount < 1) {
             return response()->json([
