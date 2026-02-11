@@ -941,7 +941,7 @@
                     @php
                         $hasLinkedPayments = !($isC2B ?? false) && !empty($rawTransaction->linked_payment_ids);
                     @endphp
-                    @if(!($isC2B ?? false) && in_array($bankStatement->status, ['draft', 'confirmed'], true) && !$hasLinkedPayments)
+                    @if(!($isC2B ?? false) && in_array($bankStatement->status, ['draft', 'confirmed', 'rejected', 'unmatched'], true) && !$hasLinkedPayments)
                         <button type="button" class="btn btn-finance btn-finance-info w-100 mb-2" data-bs-toggle="modal" data-bs-target="#linkToExistingPaymentsModal">
                             <i class="bi bi-link-45deg"></i> Link to existing payment(s)
                         </button>
