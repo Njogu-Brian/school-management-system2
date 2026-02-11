@@ -3204,7 +3204,7 @@ class BankStatementController extends Controller
                     'is_swimming_transaction' => false,
                 ]);
             } else {
-                $transaction->update([
+                $updateData = [
                     'status' => 'draft',
                     'student_id' => null,
                     'family_id' => null,
@@ -3220,7 +3220,11 @@ class BankStatementController extends Controller
                     'shared_allocations' => null,
                     'confirmed_by' => null,
                     'confirmed_at' => null,
-                ]);
+                ];
+                if (Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids')) {
+                    $updateData['linked_payment_ids'] = null;
+                }
+                $transaction->update($updateData);
             }
         });
 
