@@ -552,6 +552,7 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
     particulars_col = None
     credit_col = None
     instrument_id_col = None  # Track Instrument Id column - might contain part of particulars
+    transaction_reference_col = None  # Equity: "Transaction Reference" column (reference not in narration for APP)
     
     # First, look for header row in the first few rows
     header_row_found = None
@@ -579,6 +580,11 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 particulars_col = i
             elif "INSTRUMENT" in cell_str and "ID" in cell_str:
                 instrument_id_col = i  # Track this - might contain part of particulars
+            elif "TRANSACTION REFERENCE" in cell_str or ("REFERENCE" in cell_str and "CUSTOMER" not in cell_str) or "TRANS REF" in cell_str or "TRAN REF" in cell_str:
+                transaction_reference_col = i  # Equity statement: reference column (e.g. 54377534 for APP)
+            elif "CUSTOMER REFERENCE" in cell_str or "CUSTOMER REF" in cell_str:
+                if transaction_reference_col is None:
+                    transaction_reference_col = i  # Fallback: some statements use Customer Reference as ref
             elif "CREDIT" in cell_str:
                 # CRITICAL: Verify this is the Credit column by checking it's not Balance or Debit
                 # Only set credit_col if we explicitly see "CREDIT" in the header and it's not part of another word
@@ -1158,8 +1164,14 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 )
                 continue
             
-            # Extract transaction code from particulars
-            transaction_code = extract_transaction_code(particulars)
+            # Transaction code: prefer column from statement (Equity "Transaction Reference") when present
+            transaction_code = None
+            if transaction_reference_col is not None and transaction_reference_col < len(row) and row[transaction_reference_col]:
+                ref_cell = str(row[transaction_reference_col]).strip()
+                if ref_cell and len(ref_cell) >= 2 and not ref_cell.upper().startswith(('TOTAL', 'BALANCE', 'NOTE')):
+                    transaction_code = ref_cell
+            if not transaction_code:
+                transaction_code = extract_transaction_code(particulars)
             
             transaction_data = {
                 'tran_date': parsed_date,
@@ -1827,15 +1839,22 @@ def _parse_amount_internal(amount_str, allow_negative=False):
 def extract_transaction_code(particulars):
     """
     Extract transaction code from particulars field.
-    Looks for common patterns like:
-    - TL4SU4EMEF, TL54U4EMEF (M-Pesa transaction codes)
-    - S54508048, S45903272 (Statement reference codes)
-    - Reference numbers at the start or embedded in text
+    Equity formats:
+    - MPS <phone> <code> <payer>: e.g. "MPS 254722736110 UA6R831FVY ANTHONY NJIHIA KAMAU" -> UA6R831FVY (not phone)
+    - APP/... : reference is usually in statement's Transaction Reference column, not in narration
+    Other patterns:
+    - TL4SU4EMEF (M-Pesa), S54508048 (Statement ref), alphanumeric codes (exclude phone numbers)
     """
     if not particulars:
         return None
     
     particulars_str = str(particulars).strip()
+    
+    # Pattern 0 (Equity MPS): MPS <phone 10-12 digits> <alphanumeric code 8-12 chars> ...
+    # Do NOT use the phone number as transaction reference; use the code after it.
+    mps_match = re.search(r'^\s*MPS\s+(\d{10,12})\s+([A-Z0-9]{8,12})\b', particulars_str, re.IGNORECASE)
+    if mps_match:
+        return mps_match.group(2).upper()
     
     # Pattern 1: M-Pesa transaction codes (TL followed by alphanumeric, 8-12 chars)
     mpesa_match = re.search(r'\b(TL[A-Z0-9]{6,10})\b', particulars_str, re.IGNORECASE)
@@ -1848,29 +1867,35 @@ def extract_transaction_code(particulars):
         return ref_match.group(1).upper()
     
     # Pattern 3: Numeric transaction codes (8-15 digits, not phone numbers)
-    # Avoid matching phone numbers (254XXXXXXXXX)
     numeric_match = re.search(r'\b(?!254)(\d{8,15})\b', particulars_str)
     if numeric_match:
         code = numeric_match.group(1)
-        # Exclude if it looks like a phone number
         if not code.startswith('254') and not code.startswith('0'):
             return code
     
-    # Pattern 4: Other alphanumeric codes (like REMITLY reference numbers)
-    # Look for standalone alphanumeric strings (6-15 chars)
+    def is_phone_like(s):
+        """Kenyan phone: 9-12 digits, often starting with 254 or 0."""
+        if not re.match(r'^\d+$', s):
+            return False
+        return (len(s) >= 9 and len(s) <= 12 and (s.startswith('254') or s.startswith('0')))
+    
+    # Pattern 4: Other alphanumeric codes (exclude pure-digit phone numbers)
     alphanum_match = re.search(r'\b([A-Z0-9]{8,15})\b', particulars_str, re.IGNORECASE)
     if alphanum_match:
         code = alphanum_match.group(1).upper()
-        # Exclude common words/patterns
-        excluded_patterns = ['EVIMERIA', 'INITIATIVE', 'ENTERPRISE', 'REMITLY', 'PAYBILL', 'ACCOUNT']
-        if not any(pattern in code for pattern in excluded_patterns):
-            return code
+        if is_phone_like(code):
+            pass  # Skip, try next match or return None
+        else:
+            excluded_patterns = ['EVIMERIA', 'INITIATIVE', 'ENTERPRISE', 'REMITLY', 'PAYBILL', 'ACCOUNT']
+            if not any(pattern in code for pattern in excluded_patterns):
+                return code
     
-    # Pattern 5: Extract first meaningful code-like string from start of particulars
-    # (fallback for cases where code is at the beginning)
-    first_token_match = re.match(r'^([A-Z0-9]{6,15})', particulars_str, re.IGNORECASE)
+    # Pattern 5: First token 6-15 alphanumeric (not phone)
+    first_token_match = re.match(r'^([A-Z0-9]{6,15})\b', particulars_str, re.IGNORECASE)
     if first_token_match:
-        return first_token_match.group(1).upper()
+        code = first_token_match.group(1).upper()
+        if not is_phone_like(code):
+            return code
     
     return None
 

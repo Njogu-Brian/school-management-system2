@@ -15,6 +15,24 @@ use Illuminate\Support\Carbon;
 class BankStatementParser
 {
     /**
+     * Extract correct transaction reference from Equity statement description.
+     * MPS format: "MPS <phone> <code> <payer>" -> use code not phone.
+     * Returns null if no reliable code found (e.g. APP narrations have ref in statement column, not here).
+     */
+    public static function extractReferenceFromEquityDescription(?string $description): ?string
+    {
+        if ($description === null || trim($description) === '') {
+            return null;
+        }
+        $desc = trim($description);
+        // Equity MPS: MPS <10-12 digits> <alphanumeric code 8-12 chars>
+        if (preg_match('/^\s*MPS\s+\d{10,12}\s+([A-Z0-9]{8,12})\b/i', $desc, $m)) {
+            return strtoupper($m[1]);
+        }
+        return null;
+    }
+
+    /**
      * Parse bank statement PDF and create draft transactions
      */
     public function parseStatement(string $pdfPath, ?int $bankAccountId = null, ?string $bankType = null): array
@@ -160,8 +178,28 @@ class BankStatementParser
                     ->first();
             }
             
+            // Only auto-link if this payment is not already linked to another bank statement transaction
+            $paymentAlreadyLinked = false;
             if ($existingPayment) {
-                // Payment exists - automatically link transaction to payment
+                $otherWithPaymentId = BankStatementTransaction::where('payment_id', $existingPayment->id)->where('id', '!=', $transaction->id)->exists();
+                $otherWithLinkedIds = false;
+                if (\Schema::hasColumn('bank_statement_transactions', 'linked_payment_ids')) {
+                    $others = BankStatementTransaction::where('id', '!=', $transaction->id)
+                        ->whereNotNull('linked_payment_ids')
+                        ->get();
+                    foreach ($others as $o) {
+                        $ids = is_array($o->linked_payment_ids) ? $o->linked_payment_ids : json_decode($o->linked_payment_ids, true);
+                        if (is_array($ids) && in_array((int) $existingPayment->id, array_map('intval', $ids))) {
+                            $otherWithLinkedIds = true;
+                            break;
+                        }
+                    }
+                }
+                $paymentAlreadyLinked = $otherWithPaymentId || $otherWithLinkedIds;
+            }
+            
+            if ($existingPayment && !$paymentAlreadyLinked) {
+                // Payment exists and is not already linked to another transaction - link this one
                 $transaction->update([
                     'payment_id' => $existingPayment->id,
                     'payment_created' => true,
@@ -174,6 +212,11 @@ class BankStatementParser
                     'match_confidence' => 1.0,
                     'match_notes' => 'Automatically linked to existing payment from statement upload',
                 ]);
+                // Set payment narration from statement description if empty (same as manual payment)
+                $narration = $transaction->description ?? '';
+                if ($narration !== '' && (trim((string) $existingPayment->narration) === '')) {
+                    $existingPayment->update(['narration' => $narration]);
+                }
                 $linkedToExistingPayment++;
             } else {
                 // No payment exists - proceed to normal matching service and await manual confirmation

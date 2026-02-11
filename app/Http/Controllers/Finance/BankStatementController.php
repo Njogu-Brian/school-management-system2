@@ -90,6 +90,7 @@ class BankStatementController extends Controller
                 $query->where('match_status', 'matched')
                       ->where('match_confidence', '>=', 0.85)
                       ->where('payment_created', false) // Exclude collected transactions
+                      ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
                       ->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
@@ -98,6 +99,7 @@ class BankStatementController extends Controller
                 $query->where('is_duplicate', false)
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit') // Only credit transactions
+                      ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
                       ->where(function ($q) use ($bankIsPartialSql) {
                           $q->where(function ($q2) {
                               $q2->where('match_status', 'manual')
@@ -372,6 +374,7 @@ class BankStatementController extends Controller
             'auto-assigned' => BankStatementTransaction::where('match_status', 'matched')
                 ->where('match_confidence', '>=', 0.85)
                 ->where('payment_created', false) // Exclude collected transactions
+                ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
                 ->where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
@@ -385,6 +388,7 @@ class BankStatementController extends Controller
             'manual-assigned' => BankStatementTransaction::where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
+                ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')') // Exclude already collected (e.g. via linked_payment_ids)
                 ->where(function ($q) use ($bankIsPartialSql) {
                     $q->where(function ($q2) {
                         $q2->where('match_status', 'manual')
@@ -1650,6 +1654,16 @@ class BankStatementController extends Controller
             'match_confidence' => 1.0,
             'match_notes' => 'Linked to existing payment(s)',
         ]);
+
+        // Set payment narration from statement description when empty (same as manual payment)
+        $narration = $transaction->description ?? '';
+        if ($narration !== '') {
+            Payment::whereIn('id', $mergedPaymentIds)
+                ->where(function ($q) {
+                    $q->whereNull('narration')->orWhere('narration', '');
+                })
+                ->update(['narration' => $narration]);
+        }
 
         return redirect()->route('finance.bank-statements.index', ['view' => 'collected'])
             ->with('success', 'Transaction linked to ' . count($paymentIds) . ' existing payment(s). It has been moved to Collected.');
