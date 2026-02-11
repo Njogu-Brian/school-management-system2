@@ -13,9 +13,10 @@ class FixEquityRefsFromReparse extends Command
                             {--statement= : Statement file path (as in DB statement_file_path)}
                             {--file= : Use this local PDF path when stored file is missing (e.g. after DB import from production)}
                             {--list : List Equity statement paths from DB (then use one with --statement=)}
-                            {--dry-run : Show what would be updated without changing data}';
+                            {--dry-run : Show what would be updated without changing data}
+                            {--all : Update all matched rows; default is only rows with empty reference_number}';
 
-    protected $description = 'Fix reference_number for ALL Equity transaction types (incl. APP) by re-parsing the statement PDF. Uses Transaction Reference column from the PDF. Run for each statement file that has wrong/missing refs.';
+    protected $description = 'Fix reference_number for Equity transactions by re-parsing the PDF. By default only fills empty refs (keeps existing MPS refs). Use --all to overwrite all.';
 
     public function handle(): int
     {
@@ -23,6 +24,7 @@ class FixEquityRefsFromReparse extends Command
         $localFile = $this->option('file');
         $dryRun = $this->option('dry-run');
         $list = $this->option('list');
+        $updateAll = $this->option('all');
 
         if ($list) {
             $paths = BankStatementTransaction::where('bank_type', 'equity')
@@ -78,6 +80,9 @@ class FixEquityRefsFromReparse extends Command
         }
 
         $this->line('Parsed ' . count($parsed) . ' rows from statement. Matching to existing transactions…');
+        if (!$updateAll) {
+            $this->line('Only updating rows with empty reference_number (use --all to overwrite all).');
+        }
         $existing = BankStatementTransaction::where('bank_type', 'equity')
             ->where('statement_file_path', $statementPath)
             ->where('transaction_type', 'credit')
@@ -124,6 +129,11 @@ class FixEquityRefsFromReparse extends Command
 
                 $current = $txn->reference_number ?? '';
                 if (trim((string) $current) === $code) {
+                    $matchedIds[] = $txn->id;
+                    continue;
+                }
+                // By default only update when reference is empty (don't overwrite correct MPS refs)
+                if (!$updateAll && trim((string) $current) !== '') {
                     $matchedIds[] = $txn->id;
                     continue;
                 }
