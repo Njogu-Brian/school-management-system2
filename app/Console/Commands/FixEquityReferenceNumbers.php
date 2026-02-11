@@ -13,7 +13,7 @@ class FixEquityReferenceNumbers extends Command
                             {--dry-run : Show what would be updated without changing data}
                             {--limit= : Max number of transactions to process (default: all)}';
 
-    protected $description = 'Fix wrong or missing reference_number on Equity bank statement transactions by re-extracting from description (e.g. MPS <phone> <code> -> use code). Run after parser fix so future imports are correct.';
+    protected $description = 'Fix MPS-type Equity refs only: re-extract reference from description (MPS <phone> <code> -> use code). For APP/other types use finance:fix-equity-refs-from-reparse --statement=<path>.';
 
     public function handle(): int
     {
@@ -73,6 +73,9 @@ class FixEquityReferenceNumbers extends Command
             $this->info(($dryRun ? 'Would update ' : 'Updated ') . $updated . ' transaction(s).' . ($skipped > 0 ? " Skipped {$skipped} (no change or no MPS pattern)." : ''));
         } else {
             $this->info('No transactions needed updating.' . ($skipped > 0 ? " {$skipped} had no MPS pattern or already correct." : ''));
+        }
+        if ($skipped > 0) {
+            $this->line('For APP / other types (ref in statement column): php artisan finance:fix-equity-refs-from-reparse --statement=<path>');
         }
         if ($dryRun && $updated > 0) {
             $this->warn('Run without --dry-run to apply changes.');

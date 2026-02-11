@@ -33,6 +33,41 @@ class BankStatementParser
     }
 
     /**
+     * Parse a statement PDF and return raw transaction rows (no DB writes).
+     * Used to re-extract reference numbers (e.g. APP Transaction Reference column) for existing transactions.
+     *
+     * @param string $pdfPath Storage-relative path (e.g. statement_file_path from DB) or absolute path to a PDF file
+     * @param string|null $bankType Defaults to detection if null
+     * @return array List of [tran_date, particulars, credit, debit, transaction_code, ...]
+     */
+    public function parseStatementToArray(string $pdfPath, ?string $bankType = null): array
+    {
+        $fullPath = $this->resolvePdfPath($pdfPath);
+        if (!$fullPath || !file_exists($fullPath)) {
+            return [];
+        }
+        if (!$bankType) {
+            $bankType = $this->detectBankType($fullPath);
+        }
+        return $this->callPythonParser($fullPath, $bankType);
+    }
+
+    /**
+     * Resolve PDF path: if absolute (or has drive letter on Windows), use as-is; else resolve via private disk.
+     */
+    protected function resolvePdfPath(string $pdfPath): string
+    {
+        $pdfPath = trim($pdfPath);
+        if ($pdfPath === '') {
+            return '';
+        }
+        if (preg_match('#^[A-Za-z]:[/\\\\]#', $pdfPath) || str_starts_with($pdfPath, '/')) {
+            return $pdfPath;
+        }
+        return Storage::disk('private')->path($pdfPath);
+    }
+
+    /**
      * Parse bank statement PDF and create draft transactions
      */
     public function parseStatement(string $pdfPath, ?int $bankAccountId = null, ?string $bankType = null): array
