@@ -13,10 +13,11 @@ class FixEquityRefsFromReparse extends Command
                             {--statement= : Statement file path (as in DB statement_file_path)}
                             {--file= : Use this local PDF path when stored file is missing (e.g. after DB import from production)}
                             {--list : List Equity statement paths from DB (then use one with --statement=)}
+                            {--list-invalid : List all Equity transactions with empty or name-like reference (to fix via reparse)}
                             {--dry-run : Show what would be updated without changing data}
                             {--all : Update all matched rows; default is only rows with empty reference_number}';
 
-    protected $description = 'Fix reference_number for Equity transactions by re-parsing the PDF. By default only fills empty refs (keeps existing MPS refs). Use --all to overwrite all.';
+    protected $description = 'Fix reference_number for Equity transactions by re-parsing the PDF. By default updates empty or invalid refs (e.g. payer names like KINUTHIA); keeps valid refs (numeric, S+digits, MPS codes). Use --all to overwrite all.';
 
     public function handle(): int
     {
@@ -24,7 +25,12 @@ class FixEquityRefsFromReparse extends Command
         $localFile = $this->option('file');
         $dryRun = $this->option('dry-run');
         $list = $this->option('list');
+        $listInvalid = $this->option('list-invalid');
         $updateAll = $this->option('all');
+
+        if ($listInvalid) {
+            return $this->listInvalidRefs();
+        }
 
         if ($list) {
             $paths = BankStatementTransaction::where('bank_type', 'equity')
@@ -81,7 +87,7 @@ class FixEquityRefsFromReparse extends Command
 
         $this->line('Parsed ' . count($parsed) . ' rows from statement. Matching to existing transactions…');
         if (!$updateAll) {
-            $this->line('Only updating rows with empty reference_number (use --all to overwrite all).');
+            $this->line('Updating rows with empty or invalid reference (e.g. KINUTHIA); keeping valid refs. Use --all to overwrite all.');
         }
         $existing = BankStatementTransaction::where('bank_type', 'equity')
             ->where('statement_file_path', $statementPath)
@@ -127,13 +133,13 @@ class FixEquityRefsFromReparse extends Command
                     continue;
                 }
 
-                $current = $txn->reference_number ?? '';
-                if (trim((string) $current) === $code) {
+                $current = trim((string) ($txn->reference_number ?? ''));
+                if ($current === $code) {
                     $matchedIds[] = $txn->id;
                     continue;
                 }
-                // By default only update when reference is empty (don't overwrite correct MPS refs)
-                if (!$updateAll && trim((string) $current) !== '') {
+                // By default: update when empty or when current ref looks wrong (e.g. payer name like KINUTHIA, not a real code)
+                if (!$updateAll && $current !== '' && $this->looksValidReference($current)) {
                     $matchedIds[] = $txn->id;
                     continue;
                 }
@@ -143,7 +149,7 @@ class FixEquityRefsFromReparse extends Command
                     $txn->id,
                     $txn->amount,
                     $txnDate,
-                    $current === '' ? '(empty)' : $current,
+                    $current === '' ? '(empty)' : $txn->reference_number,
                     $code
                 ));
                 if (!$dryRun) {
@@ -182,5 +188,69 @@ class FixEquityRefsFromReparse extends Command
             return true;
         }
         return false;
+    }
+
+    /**
+     * True if the string looks like a real transaction reference (numeric, S+digits, or MPS-style code).
+     * False for payer names / words from narration (e.g. KINUTHIA, WAMUTITU, INVESTMENTS) so reparse will replace them.
+     */
+    private function looksValidReference(string $ref): bool
+    {
+        $ref = trim($ref);
+        if ($ref === '') {
+            return false;
+        }
+        if (preg_match('/\d/', $ref)) {
+            return true;
+        }
+        if (preg_match('/^S\d{6,12}$/i', $ref)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * List all Equity transactions with empty or name-like reference (will be fixed when reparse is run).
+     */
+    private function listInvalidRefs(): int
+    {
+        $query = BankStatementTransaction::where('bank_type', 'equity')
+            ->where('transaction_type', 'credit')
+            ->orderBy('transaction_date')
+            ->orderBy('id');
+
+        $rows = $query->get();
+        $invalid = [];
+        foreach ($rows as $txn) {
+            $ref = trim((string) ($txn->reference_number ?? ''));
+            if ($ref === '' || !$this->looksValidReference($ref)) {
+                $invalid[] = $txn;
+            }
+        }
+
+        if (empty($invalid)) {
+            $this->info('No Equity transactions with empty or name-like reference found.');
+            return 0;
+        }
+
+        $this->line('Equity transactions with empty or name-like reference (run reparse per statement to fix):');
+        $this->line('');
+        foreach ($invalid as $txn) {
+            $desc = $txn->description ?? '';
+            if (strlen($desc) > 60) {
+                $desc = substr($desc, 0, 57) . '...';
+            }
+            $this->line(sprintf(
+                '  #%d | %s | %s | Ref: %s | %s',
+                $txn->id,
+                $txn->transaction_date?->format('Y-m-d') ?? '',
+                number_format((float) $txn->amount, 2),
+                $txn->reference_number === null || $txn->reference_number === '' ? '(empty)' : $txn->reference_number,
+                $desc
+            ));
+        }
+        $this->line('');
+        $this->info(count($invalid) . ' transaction(s). Fix by running: php artisan finance:fix-equity-refs-from-reparse --statement=<path> [--file=<pdf>]');
+        return 0;
     }
 }
