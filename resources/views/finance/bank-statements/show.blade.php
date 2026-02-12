@@ -1299,8 +1299,9 @@
 
     <script>
         @php
-            $isSwimmingForJS = \Illuminate\Support\Facades\Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction') 
-                && $bankStatement->is_swimming_transaction;
+            // Use normalized is_swimming_transaction so both C2B and bank transactions behave correctly.
+            // For C2B the column is on mpesa_c2b_transactions; for bank it's on bank_statement_transactions.
+            $isSwimmingForJS = (bool) ($bankStatement->is_swimming_transaction ?? false);
         @endphp
         const isSwimmingTransaction = @json($isSwimmingForJS);
         

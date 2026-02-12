@@ -6,6 +6,16 @@
     $schoolPhone = $branding['phone'] ?? '';
     $schoolEmail = $branding['email'] ?? '';
     $schoolWebsite = $branding['website'] ?? '';
+
+    // Branding vars (fallbacks in case partial is not in scope)
+    $brandBodyFont = $brandBodyFont ?? setting('finance_body_font_size', '13');
+    $brandHeadingFont = $brandHeadingFont ?? setting('finance_heading_font_size', '19');
+    $brandSmallFont = $brandSmallFont ?? setting('finance_small_font_size', '11');
+    $brandPrimary = $brandPrimary ?? setting('finance_primary_color', '#3a1a59');
+    $brandSecondary = $brandSecondary ?? setting('finance_secondary_color', '#14b8a6');
+    $brandSuccess = $brandSuccess ?? setting('finance_success_color', '#28a745');
+    $brandDanger = $brandDanger ?? setting('finance_danger_color', '#dc3545');
+    $brandMuted = $brandMuted ?? setting('finance_muted_color', '#6b7280');
     
     // Calculate running balance
     $runningBalance = ($hasBalanceBroughtForwardInInvoices ?? false) ? 0 : ($balanceBroughtForward ?? 0);
