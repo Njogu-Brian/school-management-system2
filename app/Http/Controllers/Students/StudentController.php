@@ -846,6 +846,29 @@ class StudentController extends Controller
         
         $student->update($updateData);
         \Log::info('Student Update: Student record updated', ['student_id' => $student->id]);
+
+        // When transport is removed from the student (no drop-off, no trip), remove transport from their fee invoice
+        $transportRemoved = !$student->drop_off_point_id && !$student->trip_id;
+        if ($transportRemoved && $currentYear && $currentTerm) {
+            try {
+                TransportFeeService::upsertFee([
+                    'student_id' => $student->id,
+                    'amount' => 0,
+                    'year' => $currentYear,
+                    'term' => $currentTerm,
+                    'drop_off_point_id' => null,
+                    'drop_off_point_name' => null,
+                    'source' => 'manual',
+                    'note' => 'Transport removed from student profile',
+                    'skip_invoice' => false,
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('Student update: could not remove transport from invoice', [
+                    'student_id' => $student->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
         
         // Handle photo upload
         if ($request->hasFile('photo')) {
