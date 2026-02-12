@@ -2475,13 +2475,38 @@ class BankStatementController extends Controller
             throw new \Exception('Student not found for C2B swimming transaction');
         }
         
+        $ref = $c2bTransaction->trans_id;
+        
+        // Check for existing non-reversed payment with same transaction_code and student_id
+        // Note: Unique constraint applies to all rows (including soft-deleted), so we check withTrashed
+        // but only return non-reversed, non-deleted payments
+        $existingPayment = \App\Models\Payment::withTrashed()
+            ->where('transaction_code', $ref)
+            ->where('student_id', $student->id)
+            ->where('reversed', false)
+            ->whereNull('deleted_at')
+            ->first();
+        
+        if ($existingPayment) {
+            // Update C2B transaction with existing payment_id and status
+            $c2bTransaction->update([
+                'payment_id' => $existingPayment->id,
+                'status' => 'processed', // Mark as processed when payment exists
+            ]);
+            return $existingPayment;
+        }
+        
+        // Ensure transaction code is unique (checking withTrashed to respect unique constraint)
+        // This will handle cases where a soft-deleted payment exists with the same code
+        $transactionCode = $this->ensureUniqueTransactionCode($ref, $student->id);
+        
         $payment = \App\Models\Payment::create([
             'student_id' => $student->id,
             'amount' => $c2bTransaction->trans_amount,
             'payment_method' => 'mpesa',
             'payment_date' => $c2bTransaction->trans_time,
             'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
-            'transaction_code' => $c2bTransaction->trans_id,
+            'transaction_code' => $transactionCode,
             'status' => 'approved',
             'notes' => 'M-PESA Paybill swimming payment - ' . $c2bTransaction->full_name,
             'created_by' => \Illuminate\Support\Facades\Auth::id(),
@@ -2505,12 +2530,6 @@ class BankStatementController extends Controller
         $payment->update([
             'allocated_amount' => $c2bTransaction->trans_amount,
             'unallocated_amount' => 0,
-        ]);
-        
-        // Update C2B transaction with payment_id and status
-        $c2bTransaction->update([
-            'payment_id' => $payment->id,
-            'status' => 'processed', // Mark as processed when payment is created
         ]);
         
         // Generate receipt and send notifications
