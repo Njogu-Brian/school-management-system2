@@ -2043,13 +2043,10 @@ class BankStatementController extends Controller
                 if ($isSwimming) {
                     // Handle swimming transaction - allocate to swimming wallets
                     if ($isC2B) {
-                        // For C2B, use the existing C2B allocation logic
-                        // This should already be handled when the transaction was allocated
-                        // But we can ensure payment is created if not already
-                        if (!$transaction->payment_id) {
-                            // Create payment for swimming C2B transaction
-                            $this->createSwimmingPaymentForC2B($transaction);
-                        }
+                        // Always run swimming C2B logic so payment exists and wallet is credited.
+                        // Handles: new payment, existing payment (e.g. from duplicate), or payment_id
+                        // already set (e.g. was collected as fee first then marked swimming).
+                        $this->createSwimmingPaymentForC2B($transaction);
                     } else {
                         $this->processSwimmingTransaction($transaction);
                     }
@@ -2466,7 +2463,9 @@ class BankStatementController extends Controller
     }
     
     /**
-     * Helper: Create swimming payment for C2B
+     * Helper: Create swimming payment for C2B and ensure swimming wallet is credited.
+     * Handles: new payment, existing payment (by trans_id+student_id), or transaction
+     * already linked to a payment (e.g. was collected as fee then marked swimming).
      */
     protected function createSwimmingPaymentForC2B($c2bTransaction)
     {
@@ -2476,10 +2475,24 @@ class BankStatementController extends Controller
         }
         
         $ref = $c2bTransaction->trans_id;
+        $amount = (float) $c2bTransaction->trans_amount;
+        $swimmingWalletService = app(\App\Services\SwimmingWalletService::class);
+        $payment = null;
         
-        // Check for existing non-reversed payment with same transaction_code and student_id
-        // Note: Unique constraint applies to all rows (including soft-deleted), so we check withTrashed
-        // but only return non-reversed, non-deleted payments
+        // 1) Transaction already has a linked payment (e.g. was collected as fee first, then marked swimming)
+        if ($c2bTransaction->payment_id) {
+            $payment = \App\Models\Payment::where('id', $c2bTransaction->payment_id)
+                ->where('reversed', false)
+                ->where('student_id', $student->id)
+                ->first();
+            if ($payment) {
+                $c2bTransaction->update(['status' => 'processed']);
+                $this->ensureSwimmingWalletCreditedForPayment($swimmingWalletService, $student, $payment, $amount, $ref);
+                return $payment;
+            }
+        }
+        
+        // 2) Existing payment with same transaction_code and student_id (e.g. duplicate confirm or re-confirm)
         $existingPayment = \App\Models\Payment::withTrashed()
             ->where('transaction_code', $ref)
             ->where('student_id', $student->id)
@@ -2488,11 +2501,11 @@ class BankStatementController extends Controller
             ->first();
         
         if ($existingPayment) {
-            // Update C2B transaction with existing payment_id and status
             $c2bTransaction->update([
                 'payment_id' => $existingPayment->id,
-                'status' => 'processed', // Mark as processed when payment exists
+                'status' => 'processed',
             ]);
+            $this->ensureSwimmingWalletCreditedForPayment($swimmingWalletService, $student, $existingPayment, $amount, $ref);
             return $existingPayment;
         }
         
@@ -2518,8 +2531,7 @@ class BankStatementController extends Controller
             'status' => 'processed', // Mark as processed when payment is created
         ]);
         
-        // Credit swimming wallet
-        $swimmingWalletService = app(\App\Services\SwimmingWalletService::class);
+        // Credit swimming wallet (new payment always needs wallet credit)
         $swimmingWalletService->creditFromTransaction(
             $student,
             $payment,
@@ -2544,6 +2556,30 @@ class BankStatementController extends Controller
         }
         
         return $payment;
+    }
+
+    /**
+     * Credit swimming wallet for a payment if not already credited (idempotent).
+     */
+    protected function ensureSwimmingWalletCreditedForPayment(
+        \App\Services\SwimmingWalletService $swimmingWalletService,
+        \App\Models\Student $student,
+        \App\Models\Payment $payment,
+        float $amount,
+        string $transId
+    ): void {
+        $alreadyCredited = \App\Models\SwimmingLedger::where('source_type', \App\Models\Payment::class)
+            ->where('source_id', $payment->id)
+            ->where('source', \App\Models\SwimmingLedger::SOURCE_TRANSACTION)
+            ->exists();
+        if (!$alreadyCredited) {
+            $swimmingWalletService->creditFromTransaction(
+                $student,
+                $payment,
+                $amount,
+                "Swimming payment from M-PESA transaction #{$transId}"
+            );
+        }
     }
 
     /**
