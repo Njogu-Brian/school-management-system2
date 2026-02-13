@@ -52,6 +52,10 @@ class SeniorTeacherAssignmentController extends Controller
 
         $campus = $request->campus;
 
+        // Remove this senior teacher's previous campus assignment (so they only have one)
+        CampusSeniorTeacher::where('senior_teacher_id', $seniorTeacher->id)->delete();
+
+        // Remove any other teacher from the target campus, then assign this teacher
         CampusSeniorTeacher::where('campus', $campus)
             ->where('senior_teacher_id', '!=', $seniorTeacher->id)
             ->delete();

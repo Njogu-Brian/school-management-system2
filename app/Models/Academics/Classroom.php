@@ -135,7 +135,8 @@ class Classroom extends Model
 
     /**
      * Scope: classrooms that belong to the given campus (lower/upper).
-     * Uses campus column and level_type fallback for compatibility.
+     * Uses campus column and level_type fallback. Matches admin form labels:
+     * Lower Campus = Grade 4-9 (upper_primary, junior_high); Upper Campus = Creche–Grade 3 (preschool, lower_primary).
      */
     public function scopeForCampus($query, string $campus)
     {

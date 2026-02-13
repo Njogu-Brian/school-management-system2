@@ -137,7 +137,7 @@ use App\Http\Controllers\BackupRestoreController;
 | Public Routes
 |--------------------------------------------------------------------------
 */
-Route::get('/', fn () => view('welcome'));
+Route::get('/', fn () => redirect()->route('login'));
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');

@@ -84,26 +84,37 @@ class User extends Authenticatable
     }
 
     /**
-     * Get all staff IDs supervised by this senior teacher (staff in assigned campus classrooms).
+     * Get all staff IDs supervised by this senior teacher:
+     * - Staff in assigned campus classrooms (classroom_subjects + classroom_teacher)
+     * - Staff explicitly assigned "supervised by" this senior teacher (supervisor_id).
      */
     public function getSupervisedStaffIds(): array
     {
+        $ids = [];
+
         $classroomIds = $this->getSupervisedClassroomIds();
-        if (empty($classroomIds)) {
-            return [];
+        if (!empty($classroomIds)) {
+            $fromSubjectAssignments = \Illuminate\Support\Facades\DB::table('classroom_subjects')
+                ->whereIn('classroom_id', $classroomIds)
+                ->distinct()
+                ->pluck('staff_id')
+                ->toArray();
+            $teacherUserIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
+                ->whereIn('classroom_id', $classroomIds)
+                ->distinct()
+                ->pluck('teacher_id')
+                ->toArray();
+            $fromTeachers = \App\Models\Staff::whereIn('user_id', $teacherUserIds)->pluck('id')->toArray();
+            $ids = array_merge($ids, $fromSubjectAssignments, $fromTeachers);
         }
-        $fromSubjectAssignments = \Illuminate\Support\Facades\DB::table('classroom_subjects')
-            ->whereIn('classroom_id', $classroomIds)
-            ->distinct()
-            ->pluck('staff_id')
-            ->toArray();
-        $teacherUserIds = \Illuminate\Support\Facades\DB::table('classroom_teacher')
-            ->whereIn('classroom_id', $classroomIds)
-            ->distinct()
-            ->pluck('teacher_id')
-            ->toArray();
-        $fromTeachers = \App\Models\Staff::whereIn('user_id', $teacherUserIds)->pluck('id')->toArray();
-        return array_values(array_unique(array_merge($fromSubjectAssignments, $fromTeachers)));
+
+        // Include staff who have this senior teacher as supervisor ("supervised by" assignment)
+        if ($this->staff) {
+            $subordinateIds = \App\Models\Staff::where('supervisor_id', $this->staff->id)->pluck('id')->toArray();
+            $ids = array_merge($ids, $subordinateIds);
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 
     /**

@@ -18,7 +18,9 @@ return [
     |
     */
 
-    'default' => env('LOG_CHANNEL', 'stack'),
+    'default' => in_array(env('LOG_CHANNEL', 'stack'), ['stack', 'single', 'daily', 'slack', 'papertrail', 'stderr', 'syslog', 'errorlog', 'null'], true)
+        ? env('LOG_CHANNEL', 'stack')
+        : 'stack',
 
     /*
     |--------------------------------------------------------------------------
