@@ -2,6 +2,12 @@
   $school = $branding ?? [];
   $logo   = $school['logoBase64'] ?? null;
   $s      = $invoice->student;
+  // Ensure brand vars exist (DomPDF may not share scope with included partial)
+  $brandPrimary   = $brandPrimary ?? setting('finance_primary_color', '#3a1a59');
+  $brandMuted     = $brandMuted ?? setting('finance_muted_color', '#6b7280');
+  $brandBodyFont  = $brandBodyFont ?? setting('finance_body_font_size', '13');
+  $brandHeadingFont = $brandHeadingFont ?? setting('finance_heading_font_size', '19');
+  $brandSmallFont = $brandSmallFont ?? setting('finance_small_font_size', '11');
 @endphp
 <!doctype html>
 <html>
