@@ -58,14 +58,25 @@ class PaymentWebhookController extends Controller
                 'content_type' => $request->header('Content-Type'),
             ]);
 
-            // Log webhook
-            $webhook = PaymentWebhook::create([
-                'gateway' => 'mpesa',
-                'event_type' => 'stk_callback',
-                'event_id' => $payload['Body']['stkCallback']['CheckoutRequestID'] ?? uniqid(),
-                'payload' => $payload,
-                'signature' => $signature,
-            ]);
+            $eventId = $payload['Body']['stkCallback']['CheckoutRequestID'] ?? ('mpesa_' . uniqid());
+            // Idempotency: avoid duplicate key when M-Pesa retries the same callback
+            $webhook = PaymentWebhook::firstOrCreate(
+                [
+                    'gateway' => 'mpesa',
+                    'event_type' => 'stk_callback',
+                    'event_id' => $eventId,
+                ],
+                [
+                    'payload' => $payload,
+                    'signature' => $signature,
+                ]
+            );
+
+            // If we already processed this webhook (e.g. retry), return success without reprocessing
+            if ($webhook->processed) {
+                Log::info('M-PESA Webhook duplicate/retry – already processed', ['event_id' => $eventId]);
+                return response()->json(['success' => true], 200);
+            }
 
             // Process webhook
             $gateway = new MpesaGateway();
