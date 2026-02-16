@@ -12,7 +12,7 @@ class ReviewDuplicateTransactions extends Command
 {
     protected $signature = 'finance:review-duplicates
                             {--export= : Optional path to export report as CSV}
-                            {--fix : Fix issues: clear broken duplicate_of_payment_id links}';
+                            {--fix : Fix issues: clear broken links and unmark duplicates with no resolvable original (move them back to All for processing)}';
 
     protected $description = 'Review all duplicate transactions: confirm fees duplicates have existing payment, swimming originals appear in swimming tab';
 
@@ -21,21 +21,81 @@ class ReviewDuplicateTransactions extends Command
         $doFix = $this->option('fix');
         if ($doFix) {
             $this->info('Applying fixes to duplicate transactions...');
-            $fixed = 0;
-            $bankRowsToFix = BankStatementTransaction::where('is_duplicate', true)
-                ->whereNotNull('duplicate_of_payment_id')
-                ->get();
+            $unmarkedBank = 0;
+            $unmarkedC2b = 0;
+            $backfilledBank = 0;
+
+            // ---- Bank: fix broken duplicate_of_payment_id links & unmark orphans ----
+            $bankRowsToFix = BankStatementTransaction::where('is_duplicate', true)->get();
             foreach ($bankRowsToFix as $row) {
-                $payment = Payment::where('id', $row->duplicate_of_payment_id)->first();
-                $paymentOk = $payment && !$payment->reversed;
-                $original = BankStatementTransaction::where('payment_id', $row->duplicate_of_payment_id)->where('is_duplicate', false)->first();
-                if (!$paymentOk || !$original) {
-                    $row->update(['duplicate_of_payment_id' => null]);
-                    $fixed++;
+                if ($row->duplicate_of_payment_id) {
+                    $payment = Payment::where('id', $row->duplicate_of_payment_id)->first();
+                    $paymentOk = $payment && !$payment->reversed;
+                    $original = BankStatementTransaction::where('payment_id', $row->duplicate_of_payment_id)->where('is_duplicate', false)->first();
+                    if (!$paymentOk || !$original) {
+                        $row->update([
+                            'is_duplicate' => false,
+                            'duplicate_of_payment_id' => null,
+                            'duplicate_of_transaction_id' => null,
+                        ]);
+                        $unmarkedBank++;
+                        $this->line("Unmarked bank #{$row->id} ({$row->reference_number}): no resolvable original (payment missing or no original bank row).");
+                    }
+                } else {
+                    // No payment link: try to backfill duplicate_of_transaction_id from group
+                    $original = BankStatementTransaction::where('reference_number', $row->reference_number)
+                        ->where('amount', $row->amount)
+                        ->whereDate('transaction_date', $row->transaction_date)
+                        ->where('id', '!=', $row->id)
+                        ->where('is_duplicate', false)
+                        ->orderBy('id')
+                        ->first();
+                    if (!$original) {
+                        $original = BankStatementTransaction::where('reference_number', $row->reference_number)
+                            ->where('amount', $row->amount)
+                            ->whereDate('transaction_date', $row->transaction_date)
+                            ->where('id', '<', $row->id)
+                            ->orderBy('id')
+                            ->first();
+                    }
+                    if ($original && Schema::hasColumn('bank_statement_transactions', 'duplicate_of_transaction_id')) {
+                        $row->update(['duplicate_of_transaction_id' => $original->id]);
+                        $backfilledBank++;
+                    } elseif (!$original) {
+                        $row->update([
+                            'is_duplicate' => false,
+                            'duplicate_of_payment_id' => null,
+                            'duplicate_of_transaction_id' => null,
+                        ]);
+                        $unmarkedBank++;
+                        $this->line("Unmarked bank #{$row->id} ({$row->reference_number}): no original found in group.");
+                    }
                 }
             }
-            if ($fixed > 0) {
-                $this->info("Cleared duplicate_of_payment_id on {$fixed} bank row(s) where payment was missing or no original bank row had that payment.");
+
+            // ---- C2B: unmark orphans (original C2B or bank row missing) ----
+            $c2bRowsToFix = MpesaC2BTransaction::where('is_duplicate', true)->get();
+            foreach ($c2bRowsToFix as $row) {
+                if ($row->duplicate_of) {
+                    $original = MpesaC2BTransaction::find($row->duplicate_of);
+                    if (!$original) {
+                        $row->update(['is_duplicate' => false, 'duplicate_of' => null]);
+                        $unmarkedC2b++;
+                        $this->line("Unmarked C2B #{$row->id} (trans_id {$row->trans_id}): original C2B #{$row->duplicate_of} not found.");
+                    }
+                } else {
+                    $bankOrig = BankStatementTransaction::where('reference_number', $row->trans_id)->first();
+                    if (!$bankOrig) {
+                        $row->update(['is_duplicate' => false, 'duplicate_of' => null]);
+                        $unmarkedC2b++;
+                        $this->line("Unmarked C2B #{$row->id} (trans_id {$row->trans_id}): no bank original found (cross-type orphan).");
+                    }
+                }
+            }
+
+            if ($unmarkedBank > 0 || $unmarkedC2b > 0 || $backfilledBank > 0) {
+                $this->info("Fix complete: unmarked {$unmarkedBank} bank + {$unmarkedC2b} C2B duplicate(s) with no original; backfilled {$backfilledBank} bank duplicate_of_transaction_id link(s).");
+                $this->info('Unmarked transactions now appear in All tab and can be processed.');
             }
             $this->newLine();
         }

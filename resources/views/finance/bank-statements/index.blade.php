@@ -510,8 +510,14 @@
                                 @if($txnIsDuplicate)
                                     <span class="text-danger">
                                         <i class="bi bi-exclamation-triangle"></i> Duplicate
-                                        @if(!$isC2B && $transaction->duplicateOfPayment)
+                                        @if(!$isC2B && $transaction->duplicateOfTransaction)
+                                            <br><a href="{{ route('finance.bank-statements.show', $transaction->duplicateOfTransaction) }}?type=bank" class="text-primary text-decoration-none" title="View original transaction">Original #{{ $transaction->duplicateOfTransaction->id }}</a>
+                                        @elseif(!$isC2B && $transaction->duplicateOfPayment)
                                             <br><small>Payment: {{ $transaction->duplicateOfPayment->receipt_number ?? $transaction->duplicateOfPayment->transaction_code }}</small>
+                                        @elseif($isC2B && $transaction->duplicateOf)
+                                            <br><a href="{{ route('finance.bank-statements.show', $transaction->duplicateOf) }}?type=c2b" class="text-primary text-decoration-none" title="View original transaction">Original #{{ $transaction->duplicateOf->id }}</a>
+                                        @elseif($isC2B && !$transaction->duplicate_of)
+                                            <br><small class="text-muted">Cross-type (bank original)</small>
                                         @endif
                                     </span>
                                 @elseif($txnIsShared && !empty($txnSharedAllocations))

@@ -190,10 +190,14 @@ class BankStatementParser
                     ->where('is_duplicate', false)
                     ->first();
                 if ($existingOther) {
-                    $transaction->update([
+                    $update = [
                         'is_duplicate' => true,
                         'duplicate_of_payment_id' => $existingOther->payment_id,
-                    ]);
+                    ];
+                    if (\Schema::hasColumn('bank_statement_transactions', 'duplicate_of_transaction_id')) {
+                        $update['duplicate_of_transaction_id'] = $existingOther->id;
+                    }
+                    $transaction->update($update);
                     \Log::info('Marked bank statement transaction as duplicate (post-create check)', [
                         'transaction_id' => $transaction->id,
                         'original_id' => $existingOther->id,

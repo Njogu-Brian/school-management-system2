@@ -65,7 +65,7 @@ class BankStatementController extends Controller
      */
     public function index(Request $request)
     {
-        $query = BankStatementTransaction::with(['student', 'family', 'bankAccount', 'payment', 'duplicateOfPayment'])
+        $query = BankStatementTransaction::with(['student', 'family', 'bankAccount', 'payment', 'duplicateOfPayment', 'duplicateOfTransaction'])
             ->orderBy('transaction_date', 'desc')
             ->orderBy('created_at', 'desc');
 
@@ -549,7 +549,7 @@ class BankStatementController extends Controller
      */
     protected function getC2BTransactionsQuery(Request $request, string $view)
     {
-        $query = MpesaC2BTransaction::with(['student', 'payment', 'invoice']);
+        $query = MpesaC2BTransaction::with(['student', 'payment', 'invoice', 'duplicateOf']);
         $c2bActiveSumSql = '(SELECT COALESCE(SUM(amount),0) FROM payments WHERE payments.reversed = 0 AND payments.deleted_at IS NULL AND (payments.transaction_code = mpesa_c2b_transactions.trans_id OR payments.transaction_code LIKE CONCAT(mpesa_c2b_transactions.trans_id, "-%")))';
         $c2bLinkedPaymentSql = '(SELECT COALESCE(amount,0) FROM payments WHERE payments.id = mpesa_c2b_transactions.payment_id AND payments.reversed = 0 AND payments.deleted_at IS NULL)';
         $c2bIsPartialSql = $c2bActiveSumSql . ' > 0.01 AND ' . $c2bActiveSumSql . ' < mpesa_c2b_transactions.trans_amount - 0.01';

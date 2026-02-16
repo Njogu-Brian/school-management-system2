@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\BankStatementTransaction;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class MarkBankStatementDuplicates extends Command
 {
@@ -45,10 +46,14 @@ class MarkBankStatementDuplicates extends Command
                     continue; // already marked
                 }
                 if (!$dryRun) {
-                    $txn->update([
+                    $update = [
                         'is_duplicate' => true,
                         'duplicate_of_payment_id' => $keepFirst->payment_id,
-                    ]);
+                    ];
+                    if (Schema::hasColumn('bank_statement_transactions', 'duplicate_of_transaction_id')) {
+                        $update['duplicate_of_transaction_id'] = $keepFirst->id;
+                    }
+                    $txn->update($update);
                     $this->line("Marked duplicate: #{$txn->id} (original #{$keepFirst->id}) {$txn->reference_number} {$txn->amount}");
                 } else {
                     $this->line("[Would mark] #{$txn->id} (original #{$keepFirst->id}) {$txn->reference_number} {$txn->amount}");

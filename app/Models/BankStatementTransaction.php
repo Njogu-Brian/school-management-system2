@@ -35,6 +35,7 @@ class BankStatementTransaction extends Model
         'payment_created',
         'is_duplicate',
         'duplicate_of_payment_id',
+        'duplicate_of_transaction_id',
         'is_archived',
         'archived_at',
         'archived_by',
@@ -98,6 +99,11 @@ class BankStatementTransaction extends Model
     public function duplicateOfPayment(): BelongsTo
     {
         return $this->belongsTo(Payment::class, 'duplicate_of_payment_id');
+    }
+
+    public function duplicateOfTransaction(): BelongsTo
+    {
+        return $this->belongsTo(BankStatementTransaction::class, 'duplicate_of_transaction_id');
     }
 
     public function archivedBy(): BelongsTo
