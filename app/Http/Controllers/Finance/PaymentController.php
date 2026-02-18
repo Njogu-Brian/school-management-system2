@@ -2638,7 +2638,7 @@ class PaymentController extends Controller
         $branding = $this->branding();
 
         $myReceiptsUrl = null;
-        if ($student->family_id && class_exists(\App\Models\FamilyReceiptLink::class)) {
+        if ($student->family_id && class_exists(\App\Models\FamilyReceiptLink::class) && \Illuminate\Support\Facades\Route::has('receipts.my-receipts')) {
             $receiptLink = \App\Models\FamilyReceiptLink::firstOrCreate(
                 ['family_id' => $student->family_id],
                 ['is_active' => true]
