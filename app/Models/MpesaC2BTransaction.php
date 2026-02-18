@@ -218,26 +218,13 @@ class MpesaC2BTransaction extends Model
     }
 
     /**
-     * Check if this transaction is a duplicate
+     * Check if this transaction is a duplicate.
+     * Uses ONLY trans_id - Safaricom's unique ID per payment. Same trans_id = same physical payment (e.g. callback retry).
+     * Do NOT use phone+amount+time: different payments can share those (e.g. parent paying for 2 kids, same amount, same minute).
      */
     public function checkForDuplicate()
     {
         $duplicate = static::where('trans_id', $this->trans_id)
-            ->where('id', '!=', $this->id)
-            ->first();
-
-        if ($duplicate) {
-            $this->markAsDuplicate($duplicate->id);
-            return true;
-        }
-
-        // Also check for same amount, phone, and time (within 1 minute)
-        $duplicate = static::where('msisdn', $this->msisdn)
-            ->where('trans_amount', $this->trans_amount)
-            ->whereBetween('trans_time', [
-                $this->trans_time->subMinute(),
-                $this->trans_time->addMinute(),
-            ])
             ->where('id', '!=', $this->id)
             ->first();
 

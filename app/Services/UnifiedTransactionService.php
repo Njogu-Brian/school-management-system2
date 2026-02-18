@@ -82,23 +82,8 @@ class UnifiedTransactionService
                 ];
             }
 
-            // Check C2B (phone might be hashed, so we check by amount and date only)
-            $c2bFuzzy = MpesaC2BTransaction::where('trans_amount', $amount)
-                ->whereBetween('trans_time', [
-                    $transactionDate->copy()->subMinute(),
-                    $transactionDate->copy()->addMinute(),
-                ])
-                ->when($excludeId && $excludeType === 'c2b', fn($q) => $q->where('id', '!=', $excludeId))
-                ->first();
-
-            if ($c2bFuzzy) {
-                return [
-                    'type' => 'c2b',
-                    'transaction' => $c2bFuzzy,
-                    'id' => $c2bFuzzy->id,
-                    'fuzzy' => true,
-                ];
-            }
+            // Do NOT fuzzy-match C2B by amount+time only - different payments can have same amount within a minute.
+            // Cross-type C2B duplicate = same trans_id (already checked above).
         }
 
         return null;

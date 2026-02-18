@@ -73,7 +73,7 @@ class ReviewDuplicateTransactions extends Command
                 }
             }
 
-            // ---- C2B: unmark orphans (original C2B or bank row missing) ----
+            // ---- C2B: unmark orphans and false positives (wrong trans_id match) ----
             $c2bRowsToFix = MpesaC2BTransaction::where('is_duplicate', true)->get();
             foreach ($c2bRowsToFix as $row) {
                 if ($row->duplicate_of) {
@@ -82,6 +82,11 @@ class ReviewDuplicateTransactions extends Command
                         $row->update(['is_duplicate' => false, 'duplicate_of' => null]);
                         $unmarkedC2b++;
                         $this->line("Unmarked C2B #{$row->id} (trans_id {$row->trans_id}): original C2B #{$row->duplicate_of} not found.");
+                    } elseif ($original->trans_id !== $row->trans_id) {
+                        // False positive: marked as duplicate of different transaction (phone+amount+time heuristic was wrong)
+                        $row->update(['is_duplicate' => false, 'duplicate_of' => null, 'status' => 'pending', 'allocation_status' => 'unallocated']);
+                        $unmarkedC2b++;
+                        $this->line("Unmarked C2B #{$row->id} (trans_id {$row->trans_id}): false positive - original #{$original->id} has different trans_id ({$original->trans_id}).");
                     }
                 } else {
                     $bankOrig = BankStatementTransaction::where('reference_number', $row->trans_id)->first();
