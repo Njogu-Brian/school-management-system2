@@ -2636,6 +2636,15 @@ class PaymentController extends Controller
         // Get school settings and branding for receipt
         $schoolSettings = $this->getSchoolSettings();
         $branding = $this->branding();
+
+        $myReceiptsUrl = null;
+        if ($student->family_id && class_exists(\App\Models\FamilyReceiptLink::class)) {
+            $receiptLink = \App\Models\FamilyReceiptLink::firstOrCreate(
+                ['family_id' => $student->family_id],
+                ['is_active' => true]
+            );
+            $myReceiptsUrl = route('receipts.my-receipts', $receiptLink->token);
+        }
         
         return view('finance.receipts.public', compact(
             'payment', 
@@ -2648,7 +2657,8 @@ class PaymentController extends Controller
         ))->with([
             'allocations' => $receiptItems,
             'total_outstanding_balance' => $totalOutstandingBalance,
-            'total_invoices' => $totalInvoices
+            'total_invoices' => $totalInvoices,
+            'myReceiptsUrl' => $myReceiptsUrl,
         ]);
     }
 
@@ -2693,7 +2703,63 @@ class PaymentController extends Controller
         $link = \App\Models\PaymentLink::getOrCreateFamilyLink($familyId, $payment->created_by ?? null, 'receipt_pay_now');
         return redirect()->route('payment.link.show', $link->hashed_id);
     }
-    
+
+    /**
+     * Permanent "My receipts" page: one link per family. Shows all receipts for family's children (latest first).
+     * Same Pay now (family payment link) and Update profile (family update link) as on single receipt view.
+     */
+    public function myReceipts(string $token)
+    {
+        $receiptLink = \App\Models\FamilyReceiptLink::where('token', $token)->where('is_active', true)->firstOrFail();
+        $family = $receiptLink->family()->with(['students' => function ($q) {
+            $q->where('archive', 0)->with('classroom');
+        }, 'updateLink'])->firstOrFail();
+
+        $studentIds = $family->students->pluck('id')->toArray();
+        if (empty($studentIds)) {
+            abort(404, 'No active students in this family.');
+        }
+
+        $payments = Payment::with(['student', 'paymentMethod'])
+            ->whereIn('student_id', $studentIds)
+            ->where('reversed', false)
+            ->whereNull('deleted_at')
+            ->where('receipt_number', 'not like', 'SWIM-%')
+            ->orderByDesc('payment_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $paymentLink = \App\Models\PaymentLink::active()
+            ->where('family_id', $family->id)
+            ->whereNull('student_id')
+            ->first();
+        if (! $paymentLink) {
+            $paymentLink = ensure_family_payment_link($family->id);
+        }
+        $paymentLinkUrl = $paymentLink ? route('payment.link.show', $paymentLink->hashed_id) : null;
+        $updateLink = $family->updateLink;
+        $updateLinkUrl = ($updateLink && $updateLink->is_active) ? route('family-update.form', $updateLink->token) : null;
+
+        $totalOutstandingBalance = 0;
+        foreach (\App\Models\Invoice::whereIn('student_id', $studentIds)->get() as $inv) {
+            $inv->recalculate();
+            $totalOutstandingBalance += max(0, (float) ($inv->balance ?? 0));
+        }
+
+        $schoolSettings = $this->getSchoolSettings();
+        $branding = $this->branding();
+
+        return view('finance.receipts.my-receipts', compact(
+            'family',
+            'payments',
+            'paymentLinkUrl',
+            'updateLinkUrl',
+            'totalOutstandingBalance',
+            'schoolSettings',
+            'branding'
+        ));
+    }
+
     /**
      * Get school settings for receipt header/footer
      */

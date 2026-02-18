@@ -37,4 +37,9 @@ class Family extends Model
     {
         return $this->hasOne(FamilyUpdateLink::class);
     }
+
+    public function receiptLink()
+    {
+        return $this->hasOne(FamilyReceiptLink::class);
+    }
 }

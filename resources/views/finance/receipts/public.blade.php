@@ -145,6 +145,11 @@
                     <i class="bi bi-person-gear me-1"></i> Update Profile
                 </a>
             @endif
+            @if(!empty($myReceiptsUrl))
+                <a href="{{ $myReceiptsUrl }}" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-receipt-cutoff me-1"></i> All my receipts
+                </a>
+            @endif
             <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-printer"></i> <span class="d-none d-sm-inline">Print</span>
             </button>

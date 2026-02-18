@@ -169,6 +169,9 @@ Route::get('receipt/{token}', [\App\Http\Controllers\Finance\PaymentController::
 Route::get('receipt/{token}/pay-now', [\App\Http\Controllers\Finance\PaymentController::class, 'createPayNowFromReceiptToken'])
     ->where('token', '[A-Za-z0-9]{10}')
     ->name('receipts.pay-now');
+Route::get('my-receipts/{token}', [\App\Http\Controllers\Finance\PaymentController::class, 'myReceipts'])
+    ->where('token', '[A-Za-z0-9]{32}')
+    ->name('receipts.my-receipts');
 Route::get('invoice/{hash}', [\App\Http\Controllers\Finance\InvoiceController::class, 'publicView'])
     ->where('hash', '[A-Za-z0-9]{10}') // Only 10-char hashes, not numeric IDs
     ->name('invoices.public');
