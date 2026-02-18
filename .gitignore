@@ -11,6 +11,8 @@
 .env.prod
 .env.production
 erp-key.pem
+school_backup.sql
+*.sql
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
