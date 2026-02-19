@@ -41,11 +41,15 @@ class AttendanceController extends Controller
         $selectedStream = $request->get('stream');
         $selectedDate   = $request->get('date', Carbon::today()->toDateString());
         $q              = trim((string)$request->get('q'));
+        $selectedCampus = $request->get('campus'); // upper|lower|null
+        $markedFilter   = $request->get('marked_filter', 'all'); // all|marked|unmarked
 
         $user = auth()->user();
         
         // If user is a teacher or senior teacher, restrict to assigned classes/streams
         $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
+        $canUnmark = $user->hasAnyRole(['Super Admin', 'Admin']); // Only admin can unmark from this form
+
         if ($isTeacher) {
             // For Senior Teachers, include both assigned and supervised classrooms
             $assignedClassIds = $user->hasRole('Senior Teacher')
@@ -78,61 +82,51 @@ class AttendanceController extends Controller
                     ->whereIn('id', $assignedStreamIds)
                     ->pluck('name', 'id')
                 : Stream::whereIn('id', $assignedStreamIds)->pluck('name', 'id');
-            
-            // If a stream is selected, check if teacher is assigned to it
-            if ($selectedStream && !$user->isAssignedToStream($selectedStream)) {
-                return redirect()->route('attendance.mark.form')
-                    ->with('error', 'You are not assigned to this stream.');
-            }
         } else {
-            // Admin/Secretary can see all
-            $classes = Classroom::pluck('name', 'id');
+            // Admin/Secretary can see all; optionally filter by campus
+            $classesQuery = Classroom::query();
+            if (in_array($selectedCampus, ['upper', 'lower'])) {
+                $classesQuery->forCampus($selectedCampus);
+            }
+            $classes = $classesQuery->orderBy('name')->pluck('name', 'id');
             $streams = $selectedClass
                 ? Stream::where('classroom_id', $selectedClass)->pluck('name', 'id')
                 : collect();
         }
 
         $studentsQuery = Student::query()
+            ->with('classroom')
             ->where('archive', 0)
             ->where('is_alumni', false);
         
-        // For teachers and senior teachers, apply filtering
         if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
-            // For Senior Teachers, include both assigned and supervised classrooms
             $assignedClassIds = $user->hasRole('Senior Teacher')
                 ? array_unique(array_merge(
                     $user->getAssignedClassroomIds(),
                     $user->getSupervisedClassroomIds()
                 ))
                 : $user->getAssignedClassroomIds();
-            
-            // Use the helper method for consistent filtering
             $user->applyTeacherStudentFilter($studentsQuery, $streamAssignments, $assignedClassIds);
-            
-            // Apply selected class filter if specified
-            if ($selectedClass) {
-                // Only apply if teacher has access to this class
-                if (in_array($selectedClass, $assignedClassIds)) {
-                    $studentsQuery->where('classroom_id', $selectedClass);
-                }
+            if ($selectedClass && in_array($selectedClass, $assignedClassIds)) {
+                $studentsQuery->where('classroom_id', $selectedClass);
             }
-            
-            // Apply selected stream filter if specified
             if ($selectedStream) {
                 $studentsQuery->where('stream_id', $selectedStream);
             }
         } else {
-            // Admin view - apply filters normally
             if ($selectedClass) {
                 $studentsQuery->where('classroom_id', $selectedClass);
             }
             if ($selectedStream) {
                 $studentsQuery->where('stream_id', $selectedStream);
             }
+            // Campus filter (admin): filter by classroom's campus
+            if (in_array($selectedCampus, ['upper', 'lower'])) {
+                $studentsQuery->whereHas('classroom', fn ($q) => $q->forCampus($selectedCampus));
+            }
         }
         
-        // Apply search filter
         if ($q !== '') {
             $studentsQuery->where(function ($query) use ($q) {
                 $query->where('first_name', 'like', "%$q%")
@@ -149,15 +143,23 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy('student_id');
 
-        $unmarkedCount = max(0, $students->count() - $attendanceRecords->count());
+        // Marked/Unmarked filter: restrict list to marked or unmarked students only
+        if ($markedFilter === 'marked') {
+            $students = $students->filter(fn ($s) => $attendanceRecords->has($s->id));
+        } elseif ($markedFilter === 'unmarked') {
+            $students = $students->filter(fn ($s) => !$attendanceRecords->has($s->id));
+        }
+
+        $unmarkedCount = max(0, $students->count() - $students->filter(fn ($s) => $attendanceRecords->has($s->id))->count());
         
-        // Get preset reasons (reason codes) for the form
         $reasonCodes = AttendanceReasonCode::active()->get();
+
+        $showCampusFilter = !$isTeacher;
 
         return view('attendance.mark', compact(
             'classes', 'streams', 'students', 'attendanceRecords',
             'selectedClass', 'selectedStream', 'selectedDate', 'q', 'unmarkedCount',
-            'reasonCodes'
+            'reasonCodes', 'canUnmark', 'selectedCampus', 'markedFilter', 'showCampusFilter'
         ));
     }
 
@@ -183,6 +185,34 @@ public function mark(Request $request)
         }
         if ($selectedStream && !$user->isAssignedToStream($selectedStream)) {
             return back()->with('error', 'You are not assigned to this stream.');
+        }
+    }
+
+    // Admin-only: process unmark requests (click same status again to remove record)
+    $canUnmark = $user->hasAnyRole(['Super Admin', 'Admin']);
+    if ($canUnmark) {
+        foreach ($request->all() as $key => $value) {
+            if (!str_starts_with((string)$key, 'unmark_') || $value != '1') {
+                continue;
+            }
+            $studentId = (int) str_replace('unmark_', '', (string)$key);
+            if ($studentId <= 0) {
+                continue;
+            }
+            $attendance = Attendance::where('student_id', $studentId)
+                ->whereDate('date', $date)
+                ->first();
+            if ($attendance) {
+                $student = $attendance->student;
+                $attendance->forceDelete(); // Remove from DB completely (no soft delete)
+                if ($student) {
+                    $consecutive = $this->analyticsService->getConsecutiveAbsences($student, $date);
+                    $remaining = Attendance::where('student_id', $student->id)->where('date', $date)->first();
+                    if ($remaining) {
+                        $remaining->update(['consecutive_absence_count' => $consecutive]);
+                    }
+                }
+            }
         }
     }
 
@@ -231,20 +261,22 @@ public function mark(Request $request)
         $consecutive = $this->analyticsService->getConsecutiveAbsences($attendance->student, $date);
         $attendance->update(['consecutive_absence_count' => $consecutive]);
 
-        // ---- Trigger communications if status changed ----
+        // ---- Trigger communications (current day only) ----
+        // Same day: send when status CHANGES; never send duplicate for same status.
+        // Previous days: never send (mark/unmark/status change).
         try {
             if ($oldStatus !== $status) {
+                if (!Carbon::parse($date)->isToday()) {
+                    continue; // Never send for historical dates
+                }
+
                 $student = $attendance->student()->with('parent')->first();
                 if (!$student || !$student->parent) continue;
 
-                $humanDate = Carbon::parse($date)->isToday()
-                    ? 'today'
-                    : Carbon::parse($date)->format('d M Y');
-
-                // Use preset reason for communication
+                $humanDate = 'today';
                 $reasonForNotification = $presetReason ?? $attendance->reason ?? 'Not specified';
                 $statusForNotification = $status;
-                
+
                 if ($status === 'absent') {
                     $this->notifyWithTemplate('attendance_absent', $student, $humanDate, $statusForNotification, $reasonForNotification);
                 } elseif ($status === 'late') {
@@ -846,23 +878,22 @@ private function applyPlaceholders(string $content, Student $student, string $hu
     }
 
     /**
-     * Unmark/Delete attendance record
+     * Unmark/Delete attendance record (Admin only). Completely removes the record from the DB.
      */
     public function unmark($id)
     {
         $attendance = Attendance::with('student')->findOrFail($id);
         
-        // Check permissions - only Senior Teachers and Admins can unmark
         $user = auth()->user();
-        if (!$user->hasAnyRole(['Super Admin', 'Admin', 'Senior Teacher'])) {
+        if (!$user->hasAnyRole(['Super Admin', 'Admin'])) {
             return redirect()->route('attendance.records')
-                ->with('error', 'You do not have permission to unmark attendance records.');
+                ->with('error', 'Only administrators can unmark attendance records.');
         }
 
         $student = $attendance->student;
         $date = $attendance->date;
         
-        $attendance->delete();
+        $attendance->forceDelete();
 
         // Update consecutive absence count for the student
         if ($student) {

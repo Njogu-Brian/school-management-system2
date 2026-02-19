@@ -47,7 +47,17 @@
       </div>
       <div class="card-body">
         <form method="GET" action="{{ route('attendance.mark.form') }}" class="row g-3">
-          <div class="col-md-3">
+          @if(($showCampusFilter ?? false) && !$classes->isEmpty())
+          <div class="col-md-2">
+            <label class="form-label">Campus</label>
+            <select name="campus" class="form-select" onchange="this.form.submit()">
+              <option value="">-- All Campuses --</option>
+              <option value="upper" {{ ($selectedCampus ?? '') === 'upper' ? 'selected' : '' }}>Upper (Creche–Grade 3)</option>
+              <option value="lower" {{ ($selectedCampus ?? '') === 'lower' ? 'selected' : '' }}>Lower (Grade 4–9)</option>
+            </select>
+          </div>
+          @endif
+          <div class="col-md-2">
             <label class="form-label">Class</label>
             <select name="class" id="classSelect" class="form-select" onchange="this.form.submit()">
               <option value="">-- Select Class --</option>
@@ -57,7 +67,7 @@
             </select>
           </div>
 
-          <div class="col-md-3">
+          <div class="col-md-2">
             <label class="form-label">Stream</label>
             <select name="stream" id="streamSelect" class="form-select" {{ $streams->isEmpty() ? 'disabled' : '' }} onchange="this.form.submit()">
               <option value="">-- All Streams --</option>
@@ -72,7 +82,16 @@
             <input type="date" name="date" class="form-control" value="{{ $selectedDate }}" onchange="this.form.submit()">
           </div>
 
-          <div class="col-md-4">
+          <div class="col-md-2">
+            <label class="form-label">Show</label>
+            <select name="marked_filter" class="form-select" onchange="this.form.submit()">
+              <option value="all" {{ ($markedFilter ?? 'all') === 'all' ? 'selected' : '' }}>All students</option>
+              <option value="marked" {{ ($markedFilter ?? '') === 'marked' ? 'selected' : '' }}>Marked only</option>
+              <option value="unmarked" {{ ($markedFilter ?? '') === 'unmarked' ? 'selected' : '' }}>Unmarked only</option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
             <label class="form-label">Search (Name or Admission #)</label>
             <div class="input-group">
               <input type="text" name="q" class="form-control" value="{{ $q }}" placeholder="e.g. 01523 or Ann">
@@ -87,6 +106,8 @@
     <form id="attendanceForm" method="POST" action="{{ route('attendance.mark') }}">
       @csrf
       <input type="hidden" name="date" value="{{ $selectedDate }}">
+      <input type="hidden" name="class" value="{{ $selectedClass }}">
+      <input type="hidden" name="stream" value="{{ $selectedStream }}">
 
       <div class="settings-card mb-3">
         <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -139,16 +160,22 @@
                       @endif
                     </td>
                     <td>
-                      <div class="btn-group btn-group-sm" role="group">
+                      @if($canUnmark ?? false)
+                        <input type="hidden" name="unmark_{{ $student->id }}" class="unmark-input" data-student-id="{{ $student->id }}" value="">
+                      @endif
+                      <div class="btn-group btn-group-sm status-btn-group" role="group" data-student-id="{{ $student->id }}" data-can-unmark="{{ ($canUnmark ?? false) ? '1' : '0' }}">
                         <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="present" id="present_{{ $student->id }}" {{ $status === 'present' ? 'checked' : '' }}>
-                        <label class="btn btn-outline-success" for="present_{{ $student->id }}">Present</label>
+                        <label class="btn btn-outline-success status-label" for="present_{{ $student->id }}" data-value="present">Present</label>
 
                         <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="absent" id="absent_{{ $student->id }}" {{ $status === 'absent' ? 'checked' : '' }}>
-                        <label class="btn btn-outline-danger" for="absent_{{ $student->id }}">Absent</label>
+                        <label class="btn btn-outline-danger status-label" for="absent_{{ $student->id }}" data-value="absent">Absent</label>
 
                         <input type="radio" class="btn-check mark-radio" name="status_{{ $student->id }}" value="late" id="late_{{ $student->id }}" {{ $status === 'late' ? 'checked' : '' }}>
-                        <label class="btn btn-outline-warning" for="late_{{ $student->id }}">Late</label>
+                        <label class="btn btn-outline-warning status-label" for="late_{{ $student->id }}" data-value="late">Late</label>
                       </div>
+                      @if($canUnmark ?? false)
+                        <small class="text-muted d-block mt-1">Click same button again to unmark</small>
+                      @endif
                     </td>
                     <td>
                       <select name="reason_code_{{ $student->id }}" class="form-select form-select-sm reason-code-select" {{ $status === 'present' ? 'disabled' : '' }}>
@@ -296,13 +323,39 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
+  // Admin unmark: click same status button again to unmark (remove record)
+  document.querySelectorAll('.status-btn-group[data-can-unmark="1"]').forEach(function(group) {
+    const studentId = group.getAttribute('data-student-id');
+    const unmarkInput = document.querySelector(`.unmark-input[data-student-id="${studentId}"]`);
+    if (!unmarkInput) return;
+    group.querySelectorAll('.status-label').forEach(function(label) {
+      label.addEventListener('click', function(e) {
+        const value = this.getAttribute('data-value');
+        const radio = document.getElementById(value + '_' + studentId);
+        if (!radio) return;
+        if (radio.checked) {
+          e.preventDefault();
+          unmarkInput.value = '1';
+          radio.checked = false;
+          const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
+          row.querySelectorAll('.mark-radio').forEach(function(r) { r.checked = false; });
+          row.querySelectorAll('.reason-code-select, textarea[name^="excuse"]').forEach(function(f) {
+            f.disabled = false;
+            if (f.tagName === 'TEXTAREA') f.value = '';
+          });
+        }
+      });
+    });
+  });
+
   // Enable/disable fields based on status
   document.querySelectorAll('.mark-radio').forEach(r => {
     r.addEventListener('change', function() {
       const studentId = this.name.split('_')[1];
       const row = document.querySelector(`tr[data-student-id="${studentId}"]`);
       const isPresent = this.value === 'present';
-      
+      const unmarkInput = row.querySelector('.unmark-input[data-student-id="' + studentId + '"]');
+      if (unmarkInput) unmarkInput.value = '';
       // Toggle disabled state for all related fields
       row.querySelectorAll('.reason-code-select, .reason-input, textarea[name^="excuse"], input[type="checkbox"][name^="is_"]').forEach(field => {
         field.disabled = isPresent;

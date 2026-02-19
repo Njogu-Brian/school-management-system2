@@ -18,7 +18,8 @@ class Attendance extends Model
         'reason_code_id',
         'is_excused', 'is_medical_leave', 'excuse_notes',
         'excuse_document_path', 'subject_id', 'period_number',
-        'period_name', 'marked_by', 'marked_at', 'consecutive_absence_count'
+        'period_name', 'marked_by', 'marked_at', 'notification_sent_at',
+        'consecutive_absence_count'
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class Attendance extends Model
         'is_excused' => 'boolean',
         'is_medical_leave' => 'boolean',
         'marked_at' => 'datetime',
+        'notification_sent_at' => 'datetime',
         'consecutive_absence_count' => 'integer',
         'period_number' => 'integer',
         'archived_at' => 'datetime',
