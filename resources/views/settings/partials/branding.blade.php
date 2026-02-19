@@ -66,11 +66,15 @@
                                     <p class="small text-warning mb-0 mt-1 py-2 px-2 rounded border border-warning" style="display:none;">
                                         <strong>Preview not loading.</strong>
                                         @if(!$bgExists)
-                                            File “{{ $bgFilename }}” is missing. Add it to your public site’s <code>images/</code> folder.
+                                            File “{{ $bgFilename }}” is missing. Add it to your public site’s <code>images/</code> folder, or clear it below and upload a new image.
                                         @else
                                             File exists but the URL may be wrong. If you use a separate public folder (e.g. erp.royalkingsschools.sc.ke), ensure that folder has an <code>images/</code> directory containing this file, and <code>ASSET_URL</code> in .env points to that site.
                                         @endif
                                     </p>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input type="checkbox" class="form-check-input" name="remove_login_background" value="1" id="remove_login_background">
+                                    <label class="form-check-label small" for="remove_login_background">Clear login background (remove current image)</label>
                                 </div>
                             @endif
                         </div>

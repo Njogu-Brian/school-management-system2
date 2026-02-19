@@ -199,6 +199,11 @@ class SettingController extends Controller
             'finance_mpesa_green'        => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
         ]);
 
+        // Clear login background if requested (e.g. when file is missing or to remove it)
+        if ($request->boolean('remove_login_background')) {
+            Setting::updateOrCreate(['key' => 'login_background'], ['value' => '']);
+        }
+
         // Handle file uploads (uses PUBLIC_WEB_ROOT when set for split deployment)
         foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
