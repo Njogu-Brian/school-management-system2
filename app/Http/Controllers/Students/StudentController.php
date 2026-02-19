@@ -117,6 +117,43 @@ class StudentController extends Controller
     }
 
     /**
+     * Parents contact list: child name, class, admission number, father/mother name, phone, email, WhatsApp.
+     * Filter by class. No guardian column.
+     *
+     * @param Request $request
+     * @return \Illuminate\View\View
+     */
+    public function parentsContact(Request $request)
+    {
+        $perPage = (int) $request->input('per_page', 20);
+        $query = Student::with(['parent', 'classroom', 'stream'])
+            ->where('archive', 0)
+            ->where('is_alumni', false);
+
+        if ($request->filled('classroom_id')) {
+            $query->where('classroom_id', $request->classroom_id);
+        }
+        if ($request->filled('name')) {
+            $name = $request->name;
+            $searchTerm = '%' . addcslashes($name, '%_\\') . '%';
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('first_name', 'like', $searchTerm)
+                    ->orWhere('middle_name', 'like', $searchTerm)
+                    ->orWhere('last_name', 'like', $searchTerm);
+            });
+        }
+        if ($request->filled('admission_number')) {
+            $searchTerm = '%' . addcslashes($request->admission_number, '%_\\') . '%';
+            $query->where('admission_number', 'like', $searchTerm);
+        }
+
+        $students = $query->orderBy('first_name')->paginate($perPage)->withQueryString();
+        $classrooms = Classroom::orderBy('name')->get();
+
+        return view('students.parents_contact', compact('students', 'classrooms'));
+    }
+
+    /**
      * Archived students listing
      */
     public function archived(Request $request)

@@ -72,9 +72,10 @@
                                         @endif
                                     </p>
                                 </div>
-                                <div class="form-check mt-2">
+                                <div class="form-check mt-3 p-2 rounded border border-secondary bg-light">
                                     <input type="checkbox" class="form-check-input" name="remove_login_background" value="1" id="remove_login_background">
-                                    <label class="form-check-label small" for="remove_login_background">Clear login background (remove current image)</label>
+                                    <label class="form-check-label fw-semibold" for="remove_login_background">Clear login background (remove current image)</label>
+                                    <div class="small text-muted mt-1">Check this, then click <strong>Save Branding</strong> below. After saving, you can choose a new image above.</div>
                                 </div>
                             @endif
                         </div>

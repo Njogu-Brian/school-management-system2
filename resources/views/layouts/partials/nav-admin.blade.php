@@ -72,7 +72,8 @@ $studentRecordsActive = Request::is('students/*/medical-records*') || Request::i
     <i class="bi bi-person"></i> Students
 </a>
 <div class="collapse {{ $studentsActive ? 'show' : '' }}" id="studentsMenu">
-    <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
+    <a href="{{ route('students.index') }}" class="{{ Request::is('students') && !Request::is('students/parents-contact*') && !$studentRecordsActive ? 'active' : '' }}">Student Details</a>
+    <a href="{{ route('students.parents-contact') }}" class="{{ Request::is('students/parents-contact*') ? 'active' : '' }}"><i class="bi bi-telephone"></i> Parents Contact</a>
     <a href="{{ route('students.create') }}" class="{{ Request::is('students/create') ? 'active' : '' }}">Admissions</a>
     <a href="{{ route('students.bulk.assign-categories') }}" class="{{ Request::is('students/bulk-assign-categories*') ? 'active' : '' }}"><i class="bi bi-tag"></i> Assign Categories</a>
     <a href="{{ route('students.bulk') }}" class="{{ Request::is('students/bulk*') && !Request::is('students/update-import*') ? 'active' : '' }}">Bulk Upload</a>

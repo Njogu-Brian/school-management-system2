@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\DB;
  */
 class FamilyController extends Controller
 {
+    /** Parent info fields we consider when copying between siblings (blank fill / conflict resolution) */
+    private const PARENT_FIELDS = [
+        'father_name', 'father_phone', 'father_whatsapp', 'father_email',
+        'mother_name', 'mother_phone', 'mother_whatsapp', 'mother_email',
+    ];
     /**
      * Helper method to populate family details from parent info
      * Handles father, mother, and guardian separately
@@ -79,6 +84,229 @@ class FamilyController extends Controller
     }
 
     /**
+     * Merge family-level fields from all students' parents (only fill blanks).
+     */
+    private function mergeFamilyFromAllStudents(Family $family): void
+    {
+        foreach ($family->students as $student) {
+            if ($student->parent) {
+                $this->populateFamilyFromParent($family, $student->parent);
+                $family->refresh();
+            }
+        }
+    }
+
+    /**
+     * Build proposed changes and conflicts for "Fix blank fields" across all families.
+     * Returns [ 'familyFills' => [], 'studentFills' => [], 'conflicts' => [] ].
+     *
+     * @return array{familyFills: array, studentFills: array, conflicts: array}
+     */
+    private function buildPopulatePreview(): array
+    {
+        $families = Family::with(['students.parent'])->get();
+        $familyFills = [];
+        $studentFills = [];
+        $conflicts = [];
+
+        foreach ($families as $family) {
+            $students = $family->students->filter(fn ($s) => $s->parent);
+            if ($students->isEmpty()) {
+                continue;
+            }
+
+            // Family-level: which fields would get filled from which student (we merge from all; for preview we just note "from siblings")
+            $familyBefore = $family->only(['guardian_name', 'phone', 'email', 'father_name', 'father_phone', 'father_email', 'mother_name', 'mother_phone', 'mother_email']);
+            $merged = $familyBefore;
+            foreach ($students as $student) {
+                $p = $student->parent;
+                $candidates = [
+                    'guardian_name' => $p->guardian_name ?? $p->father_name ?? $p->mother_name,
+                    'phone' => $p->guardian_phone ?? $p->father_phone ?? $p->mother_phone,
+                    'email' => $p->guardian_email ?? $p->father_email ?? $p->mother_email,
+                    'father_name' => $p->father_name,
+                    'father_phone' => $p->father_phone,
+                    'father_email' => $p->father_email,
+                    'mother_name' => $p->mother_name,
+                    'mother_phone' => $p->mother_phone,
+                    'mother_email' => $p->mother_email,
+                ];
+                foreach ($candidates as $key => $value) {
+                    if (!empty($value) && (empty($merged[$key]) || $merged[$key] === 'Family' || $merged[$key] === 'New Family')) {
+                        $merged[$key] = $value;
+                    }
+                }
+            }
+            $familyChanges = [];
+            foreach ($merged as $key => $value) {
+                if (!empty($value) && (empty($familyBefore[$key]) || $familyBefore[$key] === 'Family' || $familyBefore[$key] === 'New Family')) {
+                    $familyChanges[$key] = $value;
+                }
+            }
+            if (!empty($familyChanges)) {
+                $familyFills[] = ['family' => $family, 'changes' => $familyChanges];
+            }
+
+            // Per-student parent fields: blanks we can fill from a sibling, and conflicts (different values)
+            foreach (self::PARENT_FIELDS as $field) {
+                $valuesByStudent = [];
+                foreach ($students as $student) {
+                    $v = $student->parent->getAttribute($field);
+                    $valuesByStudent[$student->id] = $v;
+                }
+                $uniqueValues = array_unique(array_filter(array_map('trim', $valuesByStudent)));
+                $uniqueValues = array_filter($uniqueValues, fn ($x) => $x !== '');
+                if (count($uniqueValues) > 1) {
+                    // Conflict: different non-empty values
+                    $conflicts[] = [
+                        'family' => $family,
+                        'field' => $field,
+                        'students' => $students->keyBy('id'),
+                        'values' => $valuesByStudent,
+                    ];
+                } else {
+                    // No conflict: fill blanks from first available
+                    $fillValue = null;
+                    foreach ($valuesByStudent as $v) {
+                        if (!empty(trim((string) $v))) {
+                            $fillValue = $v;
+                            break;
+                        }
+                    }
+                    if ($fillValue !== null) {
+                        foreach ($students as $student) {
+                            $current = $student->parent->getAttribute($field);
+                            if (empty(trim((string) $current))) {
+                                $studentFills[] = [
+                                    'family' => $family,
+                                    'student' => $student,
+                                    'field' => $field,
+                                    'value' => $fillValue,
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return [
+            'familyFills' => $familyFills,
+            'studentFills' => $studentFills,
+            'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * Show preview of "Fix blank fields" and optionally resolve conflicts.
+     *
+     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+     */
+    public function populatePreview()
+    {
+        $preview = $this->buildPopulatePreview();
+        $hasAny = !empty($preview['familyFills']) || !empty($preview['studentFills']) || !empty($preview['conflicts']);
+        if (!$hasAny) {
+            return redirect()->route('families.index')
+                ->with('info', 'No blank fields or conflicts found. All family and parent records are already filled or consistent.');
+        }
+        return view('families.populate-preview', $preview);
+    }
+
+    /**
+     * Apply "Fix blank fields" with optional conflict resolutions.
+     * Resolutions: request key "resolutions" => [ "familyId_field" => studentId (use this student's value) ]
+     * or "familyId_field" => "keep" to leave as is.
+     *
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function populateFromPreview(Request $request)
+    {
+        $resolutions = $request->input('resolutions', []);
+        if (!is_array($resolutions)) {
+            $resolutions = [];
+        }
+
+        $families = Family::with(['students.parent'])->get();
+        $familyUpdated = 0;
+        $parentUpdated = 0;
+
+        foreach ($families as $family) {
+            $beforeFamily = $family->only(['guardian_name', 'phone', 'email', 'father_name', 'father_phone', 'father_email', 'mother_name', 'mother_phone', 'mother_email']);
+            // 1. Merge family from all students (fill blanks only)
+            $this->mergeFamilyFromAllStudents($family);
+            $family->refresh();
+            $afterFamily = $family->only(array_keys($beforeFamily));
+            if ($beforeFamily !== $afterFamily) {
+                $familyUpdated++;
+            }
+
+            $students = $family->students->filter(fn ($s) => $s->parent);
+            if ($students->isEmpty()) {
+                continue;
+            }
+
+            // 2. For each parent field: apply resolution or fill blanks from first sibling
+            foreach (self::PARENT_FIELDS as $field) {
+                $valuesByStudent = [];
+                foreach ($students as $student) {
+                    $valuesByStudent[$student->id] = trim((string) $student->parent->getAttribute($field));
+                }
+                $uniqueNonEmpty = array_unique(array_filter($valuesByStudent));
+                $resolutionKey = $family->id . '_' . $field;
+                $chosenStudentId = $resolutions[$resolutionKey] ?? null;
+                if ($chosenStudentId === 'keep' || $chosenStudentId === '') {
+                    // Leave conflicting values as is; still fill blanks from first available
+                    $chosenStudentId = null;
+                }
+                if (count($uniqueNonEmpty) > 1 && $chosenStudentId) {
+                    $sourceStudent = $students->firstWhere('id', (int) $chosenStudentId);
+                    $valueToApply = $sourceStudent ? trim((string) $sourceStudent->parent->getAttribute($field)) : null;
+                    if ($valueToApply !== null && $valueToApply !== '') {
+                        foreach ($students as $student) {
+                            $current = trim((string) $student->parent->getAttribute($field));
+                            if ($current !== $valueToApply) {
+                                $student->parent->setAttribute($field, $valueToApply);
+                                $student->parent->save();
+                                $parentUpdated++;
+                            }
+                        }
+                    }
+                } else {
+                    // No conflict or no resolution: fill blanks from first non-empty
+                    $fillValue = null;
+                    foreach ($students as $student) {
+                        $v = trim((string) $student->parent->getAttribute($field));
+                        if ($v !== '') {
+                            $fillValue = $v;
+                            break;
+                        }
+                    }
+                    if ($fillValue !== null) {
+                        foreach ($students as $student) {
+                            $current = trim((string) $student->parent->getAttribute($field));
+                            if ($current === '') {
+                                $student->parent->setAttribute($field, $fillValue);
+                                $student->parent->save();
+                                $parentUpdated++;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        $message = 'Fix blank fields applied.';
+        if ($familyUpdated) {
+            $message .= " Family records updated.";
+        }
+        if ($parentUpdated) {
+            $message .= " {$parentUpdated} parent field(s) updated.";
+        }
+        return redirect()->route('families.index')->with('success', trim($message));
+    }
+
+    /**
      * List all families with optional search
      *
      * @param Request $request
@@ -100,15 +328,10 @@ class FamilyController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        // Auto-populate family details for families that are empty or have default values
+        // Auto-populate family details from any sibling's parent (fill blanks only)
         foreach ($families as $family) {
-            $firstStudent = $family->students->first();
-            if ($firstStudent && $firstStudent->parent) {
-                $this->populateFamilyFromParent($family, $firstStudent->parent);
-            }
+            $this->mergeFamilyFromAllStudents($family);
         }
-        
-        // Refresh to show updated values
         $families->load(['students.parent']);
 
         return view('families.index', compact('families','q'));
@@ -214,16 +437,11 @@ class FamilyController extends Controller
     public function manage(Family $family)
     {
         $family->load(['students.classroom','students.stream','students.parent','updateLink']);
-        
-        // Auto-populate family details from students' parent info if empty
-        $firstStudent = $family->students->first();
-        if ($firstStudent && $firstStudent->parent) {
-            $this->populateFamilyFromParent($family, $firstStudent->parent);
-            $family->refresh(); // Reload to show updated values
-            $family->load(['students.classroom','students.stream','students.parent','updateLink']);
-        }
-        
-        // Get parent info from first student if available
+        // Auto-populate family details from any sibling's parent (fill blanks only)
+        $this->mergeFamilyFromAllStudents($family);
+        $family->refresh();
+        $family->load(['students.classroom','students.stream','students.parent','updateLink']);
+        // Get parent info from first student if available (for display)
         $parentInfo = $family->students->first()?->parent;
         
         return view('families.manage', compact('family', 'parentInfo'));
@@ -321,40 +539,6 @@ class FamilyController extends Controller
             }
         }
         return back()->with('success', 'Student removed from family.');
-    }
-
-    /**
-     * Auto-populate all families with blank/default values from their students' parent info
-     * This is a one-time fix for existing families
-     *
-     * @return \Illuminate\Http\RedirectResponse
-     */
-    public function populateAllFamilies()
-    {
-        $families = Family::with(['students.parent'])->get();
-        $updated = 0;
-
-        foreach ($families as $family) {
-            $firstStudent = $family->students->first();
-            if ($firstStudent && $firstStudent->parent) {
-                $beforeUpdate = [
-                    'guardian_name' => $family->guardian_name,
-                    'father_name' => $family->father_name,
-                    'mother_name' => $family->mother_name,
-                ];
-                $this->populateFamilyFromParent($family, $firstStudent->parent);
-                $family->refresh();
-                // Check if anything changed
-                if ($beforeUpdate['guardian_name'] !== $family->guardian_name || 
-                    $beforeUpdate['father_name'] !== $family->father_name || 
-                    $beforeUpdate['mother_name'] !== $family->mother_name) {
-                    $updated++;
-                }
-            }
-        }
-
-        return redirect()->route('families.index')
-            ->with('success', "Updated {$updated} families with parent information.");
     }
 
     /**

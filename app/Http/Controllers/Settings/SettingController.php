@@ -179,8 +179,8 @@ class SettingController extends Controller
     public function updateBranding(Request $request)
     {
         $request->validate([
-            'school_logo'      => 'nullable|image|mimes:jpg,jpeg,png',
-            'login_background' => 'nullable|image|mimes:jpg,jpeg,png',
+            'school_logo'      => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'login_background' => 'nullable|image|mimes:jpg,jpeg,png,webp,gif|max:10240',
             'finance_primary_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'finance_secondary_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'finance_success_color'   => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
@@ -207,12 +207,13 @@ class SettingController extends Controller
         // Handle file uploads (uses PUBLIC_WEB_ROOT when set for split deployment)
         foreach (['school_logo', 'login_background'] as $imageKey) {
             if ($request->hasFile($imageKey)) {
-                $filename = time() . '_' . $request->file($imageKey)->getClientOriginalName();
+                $file = $request->file($imageKey);
+                $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file->getClientOriginalName());
                 $targetDir = public_images_path();
                 if (!is_dir($targetDir)) {
                     @mkdir($targetDir, 0755, true);
                 }
-                $request->file($imageKey)->move($targetDir, $filename);
+                $file->move($targetDir, $filename);
 
                 Setting::updateOrCreate(['key' => $imageKey], ['value' => $filename]);
             }

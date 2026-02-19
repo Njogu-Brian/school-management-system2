@@ -57,6 +57,9 @@
     <div class="alert alert-soft border-0 mt-3">
       <i class="bi bi-info-circle"></i> Linking students enables family-level billing, sibling discounts, and unified family communication. Guardian details are pulled from student parent records and can be edited later from the family page.
     </div>
+    <div class="alert alert-soft border-warning mt-2">
+      <strong>Same mother, different fathers:</strong> The system treats a family as one set of parents. If children share a mother but have different fathers, keep them <strong>unlinked</strong> (do not add them to the same family), or create separate families per father. Profile update links and "Fix blank fields" assume one father and one mother per family.
+    </div>
   </div>
 </div>
 

@@ -121,9 +121,11 @@ class AttendanceController extends Controller
             if ($selectedStream) {
                 $studentsQuery->where('stream_id', $selectedStream);
             }
-            // Campus filter (admin): filter by classroom's campus
+            // Campus filter (admin): classroom matches campus or has no campus set (so students still load)
             if (in_array($selectedCampus, ['upper', 'lower'])) {
-                $studentsQuery->whereHas('classroom', fn ($q) => $q->forCampus($selectedCampus));
+                $studentsQuery->whereHas('classroom', function ($q) use ($selectedCampus) {
+                    $q->forCampus($selectedCampus)->orWhereNull('campus');
+                });
             }
         }
         

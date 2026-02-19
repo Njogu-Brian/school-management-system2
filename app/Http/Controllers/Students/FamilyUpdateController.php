@@ -46,46 +46,20 @@ class FamilyUpdateController extends Controller
     }
 
     /**
-     * Admin: reset/generate links for all families.
-     * Ensures all students have families and all families have active links.
+     * Admin: reset/generate links for existing families only.
+     * Does NOT create new families for students without families (a family = 2+ siblings).
+     * Only ensures every existing family has an active update link.
      */
     public function resetAll()
     {
         DB::beginTransaction();
         try {
-            // Step 1: Ensure all active students have families
-            $studentsWithoutFamilies = Student::where('archive', 0)
-                ->where('is_alumni', false)
-                ->whereNull('family_id')
-                ->get();
-            
-            $familiesCreated = 0;
-            foreach ($studentsWithoutFamilies as $student) {
-                // Create a family for this student
-                $family = Family::create([
-                    'guardian_name' => $student->parent 
-                        ? ($student->parent->guardian_name ?? $student->parent->father_name ?? $student->parent->mother_name ?? 'Family ' . $student->admission_number)
-                        : 'Family ' . $student->admission_number,
-                    'phone' => $student->parent 
-                        ? ($student->parent->guardian_phone ?? $student->parent->father_phone ?? $student->parent->mother_phone)
-                        : null,
-                    'email' => $student->parent 
-                        ? ($student->parent->guardian_email ?? $student->parent->father_email ?? $student->parent->mother_email)
-                        : null,
-                ]);
-                
-                $student->update(['family_id' => $family->id]);
-                $familiesCreated++;
-            }
-            
-            // Step 2: Get all families (including newly created ones)
             $families = Family::with('updateLink')->get();
             $linksCreated = 0;
             $linksReset = 0;
-            
+
             foreach ($families as $family) {
                 if ($family->updateLink) {
-                    // Reset existing link - generate new token and ensure it's active
                     $family->updateLink->update([
                         'token' => FamilyUpdateLink::generateToken(),
                         'is_active' => true,
@@ -93,7 +67,6 @@ class FamilyUpdateController extends Controller
                     ]);
                     $linksReset++;
                 } else {
-                    // Create new link for family
                     FamilyUpdateLink::create([
                         'family_id' => $family->id,
                         'token' => FamilyUpdateLink::generateToken(),
@@ -102,20 +75,18 @@ class FamilyUpdateController extends Controller
                     $linksCreated++;
                 }
             }
-            
+
             DB::commit();
-            
-            $message = 'All profile update links have been regenerated.';
-            if ($familiesCreated > 0) {
-                $message .= " Created {$familiesCreated} new families for students without families.";
-            }
+
+            $message = 'Profile update links regenerated for all existing families.';
             if ($linksCreated > 0) {
                 $message .= " Created {$linksCreated} new links.";
             }
             if ($linksReset > 0) {
                 $message .= " Reset {$linksReset} existing links.";
             }
-            
+            $message .= ' Students without a family (no siblings linked) were left unchanged.';
+
             return back()->with('success', $message);
         } catch (\Exception $e) {
             DB::rollBack();

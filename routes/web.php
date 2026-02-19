@@ -1005,6 +1005,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     // Alumni and Archived students comprehensive view
     Route::get('/students/alumni-and-archived', [StudentController::class, 'alumniAndArchived'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.alumni-and-archived');
+
+    // Parents contact list (child, class, admission, father/mother name, phone, email, whatsapp)
+    Route::get('/students/parents-contact', [StudentController::class, 'parentsContact'])
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.parents-contact');
     
     // AJAX endpoint for student details
     Route::get('/students/{id}/details-ajax', [StudentController::class, 'detailsAjax'])
@@ -1100,7 +1104,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
     //families
     Route::prefix('families')->middleware('role:Super Admin|Admin|Secretary|Teacher')->group(function () {
         Route::get('/',                [FamilyController::class,'index'])->name('families.index');
-        Route::post('/populate-all',   [FamilyController::class,'populateAllFamilies'])->name('families.populate'); // fix existing families
+        Route::get('/populate-preview', [FamilyController::class,'populatePreview'])->name('families.populate-preview');
+        Route::post('/populate-all',   [FamilyController::class,'populateFromPreview'])->name('families.populate'); // fix blank fields (with optional resolutions)
         Route::post('/bulk-delete',    [FamilyController::class,'bulkDestroy'])->name('families.bulk-destroy');
         Route::get('/link',            [FamilyController::class,'link'])->name('families.link');              // show link form
         Route::post('/link-students',   [FamilyController::class,'linkStudents'])->name('families.link.store'); // link two students
