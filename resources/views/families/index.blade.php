@@ -18,7 +18,7 @@
           <a href="{{ route('families.populate-preview') }}" class="btn btn-ghost-strong btn-sm">
             <i class="bi bi-arrow-clockwise"></i> Fix Blank Fields
           </a>
-        @else
+        @elseif(Route::has('families.populate'))
           <form action="{{ route('families.populate') }}" method="POST" class="d-inline" onsubmit="return confirm('This will auto-populate all families with blank fields from their students\\' parent records. Continue?')">
             @csrf
             <button type="submit" class="btn btn-ghost-strong btn-sm">
