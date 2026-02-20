@@ -365,24 +365,24 @@
                                 <label class="form-label">Marital Status</label>
                                 <select name="marital_status" class="form-select">
                                     <option value="">Select</option>
-                                    <option value="married" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='married')>Married</option>
-                                    <option value="single_parent" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='single_parent')>Single Parent</option>
-                                    <option value="co_parenting" @selected(old('marital_status', $family->students->first()->parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
+                                    <option value="married" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='married')>Married</option>
+                                    <option value="single_parent" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='single_parent')>Single Parent</option>
+                                    <option value="co_parenting" @selected(old('marital_status', $students->first()->parent->marital_status ?? '')=='co_parenting')>Co-parenting</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father Name</label>
-                                <input type="text" name="father_name" class="form-control" value="{{ old('father_name', $family->students->first()->parent->father_name ?? '') }}">
+                                <input type="text" name="father_name" class="form-control" value="{{ old('father_name', $students->first()->parent->father_name ?? '') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father ID Number</label>
-                                <input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number', $family->students->first()->parent->father_id_number ?? '') }}">
+                                <input type="text" name="father_id_number" class="form-control" value="{{ old('father_id_number', $students->first()->parent->father_id_number ?? '') }}">
                             </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Father Phone</label>
                                     @php
-                                        $fatherPhone = old('father_phone', $family->students->first()->parent->father_phone ?? '');
-                                        $fatherCountryCode = old('father_phone_country_code', $family->students->first()->parent->father_phone_country_code ?? '+254');
+                                        $fatherPhone = old('father_phone', $students->first()->parent->father_phone ?? '');
+                                        $fatherCountryCode = old('father_phone_country_code', $students->first()->parent->father_phone_country_code ?? '+254');
                                         // Normalize +KE to +254
                                         $fatherCountryCode = strtolower($fatherCountryCode) === '+ke' || strtolower($fatherCountryCode) === 'ke' ? '+254' : $fatherCountryCode;
                                         $fatherLocalPhone = extract_local_phone($fatherPhone, $fatherCountryCode);
@@ -401,8 +401,8 @@
                             <div class="col-md-6">
                                 <label class="form-label">Father WhatsApp</label>
                                     @php
-                                        $fatherWhatsapp = old('father_whatsapp', $family->students->first()->parent->father_whatsapp ?? '');
-                                        $fatherWhatsappCountryCode = old('father_whatsapp_country_code', $family->students->first()->parent->father_whatsapp_country_code ?? $fatherCountryCode);
+                                        $fatherWhatsapp = old('father_whatsapp', $students->first()->parent->father_whatsapp ?? '');
+                                        $fatherWhatsappCountryCode = old('father_whatsapp_country_code', $students->first()->parent->father_whatsapp_country_code ?? $fatherCountryCode);
                                         // Normalize +KE to +254
                                         $fatherWhatsappCountryCode = strtolower($fatherWhatsappCountryCode) === '+ke' || strtolower($fatherWhatsappCountryCode) === 'ke' ? '+254' : $fatherWhatsappCountryCode;
                                         $fatherWhatsappLocal = extract_local_phone($fatherWhatsapp, $fatherWhatsappCountryCode);
@@ -420,7 +420,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father Email</label>
-                                <input type="email" name="father_email" class="form-control" value="{{ old('father_email', $family->students->first()->parent->father_email ?? '') }}">
+                                <input type="email" name="father_email" class="form-control" value="{{ old('father_email', $students->first()->parent->father_email ?? '') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Father ID Document</label>
@@ -438,7 +438,7 @@
                                     </div>
                                     <div id="father_id_document_preview" class="file-preview" style="display:none;"></div>
                                     @php
-                                        $parent = $family->students->first()->parent ?? null;
+                                        $parent = $students->first()->parent ?? null;
                                         $fatherIdDocs = $parent ? $parent->documents()->where(function($q) {
                                             $q->where('category', 'parent_id_card')
                                               ->orWhere('document_type', 'id_card');
@@ -468,17 +468,17 @@
 
                             <div class="col-md-6">
                                 <label class="form-label">Mother Name</label>
-                                <input type="text" name="mother_name" class="form-control" value="{{ old('mother_name', $family->students->first()->parent->mother_name ?? '') }}">
+                                <input type="text" name="mother_name" class="form-control" value="{{ old('mother_name', $students->first()->parent->mother_name ?? '') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother ID Number</label>
-                                <input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number', $family->students->first()->parent->mother_id_number ?? '') }}">
+                                <input type="text" name="mother_id_number" class="form-control" value="{{ old('mother_id_number', $students->first()->parent->mother_id_number ?? '') }}">
                             </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Mother Phone</label>
                                     @php
-                                        $motherPhone = old('mother_phone', $family->students->first()->parent->mother_phone ?? '');
-                                        $motherCountryCode = old('mother_phone_country_code', $family->students->first()->parent->mother_phone_country_code ?? '+254');
+                                        $motherPhone = old('mother_phone', $students->first()->parent->mother_phone ?? '');
+                                        $motherCountryCode = old('mother_phone_country_code', $students->first()->parent->mother_phone_country_code ?? '+254');
                                         // Normalize +KE to +254
                                         $motherCountryCode = strtolower($motherCountryCode) === '+ke' || strtolower($motherCountryCode) === 'ke' ? '+254' : $motherCountryCode;
                                         $motherLocalPhone = extract_local_phone($motherPhone, $motherCountryCode);
@@ -497,8 +497,8 @@
                             <div class="col-md-6">
                                 <label class="form-label">Mother WhatsApp</label>
                                     @php
-                                        $motherWhatsapp = old('mother_whatsapp', $family->students->first()->parent->mother_whatsapp ?? '');
-                                        $motherWhatsappCountryCode = old('mother_whatsapp_country_code', $family->students->first()->parent->mother_whatsapp_country_code ?? $motherCountryCode);
+                                        $motherWhatsapp = old('mother_whatsapp', $students->first()->parent->mother_whatsapp ?? '');
+                                        $motherWhatsappCountryCode = old('mother_whatsapp_country_code', $students->first()->parent->mother_whatsapp_country_code ?? $motherCountryCode);
                                         // Normalize +KE to +254
                                         $motherWhatsappCountryCode = strtolower($motherWhatsappCountryCode) === '+ke' || strtolower($motherWhatsappCountryCode) === 'ke' ? '+254' : $motherWhatsappCountryCode;
                                         $motherWhatsappLocal = extract_local_phone($motherWhatsapp, $motherWhatsappCountryCode);
@@ -516,7 +516,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother Email</label>
-                                <input type="email" name="mother_email" class="form-control" value="{{ old('mother_email', $family->students->first()->parent->mother_email ?? '') }}">
+                                <input type="email" name="mother_email" class="form-control" value="{{ old('mother_email', $students->first()->parent->mother_email ?? '') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Mother ID Document</label>
@@ -534,7 +534,7 @@
                                     </div>
                                     <div id="mother_id_document_preview" class="file-preview" style="display:none;"></div>
                                     @php
-                                        $parent = $family->students->first()->parent ?? null;
+                                        $parent = $students->first()->parent ?? null;
                                         $motherIdDocs = $parent ? $parent->documents()->where(function($q) {
                                             $q->where('category', 'parent_id_card')
                                               ->orWhere('document_type', 'id_card');
@@ -564,13 +564,13 @@
 
                             <div class="col-md-6">
                                 <label class="form-label">Guardian Name</label>
-                                <input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name', $family->students->first()->parent->guardian_name ?? '') }}">
+                                <input type="text" name="guardian_name" class="form-control" value="{{ old('guardian_name', $students->first()->parent->guardian_name ?? '') }}">
                             </div>
                                 <div class="col-md-6">
                                     <label class="form-label">Guardian Phone</label>
                                     @php
-                                        $guardianPhone = old('guardian_phone', $family->students->first()->parent->guardian_phone ?? '');
-                                        $guardianCountryCode = old('guardian_phone_country_code', $family->students->first()->parent->guardian_phone_country_code ?? '+254');
+                                        $guardianPhone = old('guardian_phone', $students->first()->parent->guardian_phone ?? '');
+                                        $guardianCountryCode = old('guardian_phone_country_code', $students->first()->parent->guardian_phone_country_code ?? '+254');
                                         // Normalize +KE to +254
                                         $guardianCountryCode = strtolower($guardianCountryCode) === '+ke' || strtolower($guardianCountryCode) === 'ke' ? '+254' : $guardianCountryCode;
                                         $guardianLocalPhone = extract_local_phone($guardianPhone, $guardianCountryCode);
@@ -588,7 +588,7 @@
                                 </div>
                             <div class="col-md-6">
                                 <label class="form-label">Guardian Relationship</label>
-                                <input type="text" name="guardian_relationship" class="form-control" value="{{ old('guardian_relationship', $family->students->first()->parent->guardian_relationship ?? '') }}">
+                                <input type="text" name="guardian_relationship" class="form-control" value="{{ old('guardian_relationship', $students->first()->parent->guardian_relationship ?? '') }}">
                             </div>
                         </div>
 
@@ -597,12 +597,12 @@
                             <div class="col-md-6">
                                 <label class="form-label">Emergency Contact Name</label>
                                 <small class="text-muted d-block mb-1">Person we call if parents/guardians cannot be reached.</small>
-                                <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name', $family->students->first()->emergency_contact_name ?? '') }}">
+                                <input type="text" name="emergency_contact_name" class="form-control" value="{{ old('emergency_contact_name', $students->first()->emergency_contact_name ?? '') }}">
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Emergency Contact Phone</label>
                                 @php
-                                    $emergencyPhone = old('emergency_contact_phone', $family->students->first()->emergency_contact_phone ?? '');
+                                    $emergencyPhone = old('emergency_contact_phone', $students->first()->emergency_contact_phone ?? '');
                                     $emergencyCountryCode = old('emergency_phone_country_code', '+254');
                                     // Normalize +KE to +254
                                     $emergencyCountryCode = strtolower($emergencyCountryCode) === '+ke' || strtolower($emergencyCountryCode) === 'ke' ? '+254' : $emergencyCountryCode;
@@ -621,7 +621,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label">Preferred Hospital / Medical Facility</label>
-                                <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital', $family->students->first()->preferred_hospital ?? '') }}">
+                                <input type="text" name="preferred_hospital" class="form-control" value="{{ old('preferred_hospital', $students->first()->preferred_hospital ?? '') }}">
                             </div>
                         </div>
 
@@ -629,7 +629,7 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="form-label">Residential Area</label>
-                                <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $family->students->first()->residential_area ?? '') }}">
+                                <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $students->first()->residential_area ?? '') }}">
                             </div>
                         </div>
 
