@@ -175,7 +175,7 @@
                     <div>
                         <div class="fw-semibold text-uppercase small" style="letter-spacing:0.6px;">Secure Update</div>
                         <h4 class="mb-0">Student Details</h4>
-                        <small class="opacity-75">Family ID: {{ $family->id }}</small>
+                        <small class="opacity-75">{{ $family ? 'Family ID: ' . $family->id : 'Student Update' }}</small>
                     </div>
                 </div>
                 <span class="badge-pill">Encrypted Link</span>

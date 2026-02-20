@@ -9,6 +9,7 @@ class FamilyUpdateLink extends Model
 {
     protected $fillable = [
         'family_id',
+        'student_id',
         'token',
         'is_active',
         'last_sent_at',
@@ -55,6 +56,17 @@ class FamilyUpdateLink extends Model
     public function family()
     {
         return $this->belongsTo(Family::class);
+    }
+
+    public function student()
+    {
+        return $this->belongsTo(\App\Models\Student::class);
+    }
+
+    /** Whether this link is for a single student (no family). */
+    public function isStudentOnly(): bool
+    {
+        return $this->student_id !== null && $this->family_id === null;
     }
 }
 

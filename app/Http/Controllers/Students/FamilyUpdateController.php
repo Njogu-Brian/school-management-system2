@@ -46,18 +46,19 @@ class FamilyUpdateController extends Controller
     }
 
     /**
-     * Admin: reset/generate links for existing families only.
-     * Does NOT create new families for students without families (a family = 2+ siblings).
-     * Only ensures every existing family has an active update link.
+     * Admin: reset/generate links for families and create links for students without families.
+     * Does NOT create new families. Students without families get their own profile update link.
      */
     public function resetAll()
     {
         DB::beginTransaction();
         try {
-            $families = Family::with('updateLink')->get();
             $linksCreated = 0;
             $linksReset = 0;
+            $studentLinksCreated = 0;
 
+            // Families
+            $families = Family::with('updateLink')->get();
             foreach ($families as $family) {
                 if ($family->updateLink) {
                     $family->updateLink->update([
@@ -76,16 +77,44 @@ class FamilyUpdateController extends Controller
                 }
             }
 
+            // Students without families: create student-only links (no family)
+            $studentsWithoutFamilies = Student::where('archive', 0)
+                ->where('is_alumni', false)
+                ->whereNull('family_id')
+                ->get();
+
+            foreach ($studentsWithoutFamilies as $student) {
+                $existingLink = FamilyUpdateLink::where('student_id', $student->id)->whereNull('family_id')->first();
+                if ($existingLink) {
+                    $existingLink->update([
+                        'token' => FamilyUpdateLink::generateToken(),
+                        'is_active' => true,
+                        'last_sent_at' => null,
+                    ]);
+                    $linksReset++;
+                } else {
+                    FamilyUpdateLink::create([
+                        'family_id' => null,
+                        'student_id' => $student->id,
+                        'token' => FamilyUpdateLink::generateToken(),
+                        'is_active' => true,
+                    ]);
+                    $studentLinksCreated++;
+                }
+            }
+
             DB::commit();
 
-            $message = 'Profile update links regenerated for all existing families.';
+            $message = 'Profile update links regenerated.';
             if ($linksCreated > 0) {
-                $message .= " Created {$linksCreated} new links.";
+                $message .= " Created {$linksCreated} family links.";
             }
             if ($linksReset > 0) {
-                $message .= " Reset {$linksReset} existing links.";
+                $message .= " Reset {$linksReset} links.";
             }
-            $message .= ' Students without a family (no siblings linked) were left unchanged.';
+            if ($studentLinksCreated > 0) {
+                $message .= " Created {$studentLinksCreated} links for students without families.";
+            }
 
             return back()->with('success', $message);
         } catch (\Exception $e) {
@@ -167,11 +196,22 @@ class FamilyUpdateController extends Controller
             $link->save();
         }
         
-        $family = $link->family()->with(['students' => function ($q) {
-            $q->where('archive', 0)->with(['classroom', 'documents', 'parent']);
-        }, 'students.parent.documents'])->firstOrFail();
+        $family = null;
+        $students = collect();
 
-        $students = $family->students;
+        if ($link->student_id && !$link->family_id) {
+            // Student-only link (no family)
+            $student = Student::where('id', $link->student_id)->where('archive', 0)
+                ->with(['classroom', 'documents', 'parent', 'parent.documents'])
+                ->firstOrFail();
+            $students = collect([$student]);
+        } else {
+            $family = $link->family()->with(['students' => function ($q) {
+                $q->where('archive', 0)->with(['classroom', 'documents', 'parent']);
+            }, 'students.parent.documents'])->firstOrFail();
+            $students = $family->students;
+        }
+
         if ($students->isEmpty()) {
             abort(404);
         }
@@ -199,17 +239,26 @@ class FamilyUpdateController extends Controller
             \Log::info('FamilyUpdate Submit: Link found', [
                 'link_id' => $link->id,
                 'family_id' => $link->family_id,
+                'student_id' => $link->student_id,
                 'is_active' => $link->is_active,
             ]);
 
-            $family = $link->family()->with(['students' => function ($q) {
-                $q->where('archive', 0)->with('parent');
-            }])->firstOrFail();
-            \Log::info('FamilyUpdate Submit: Family found', ['family_id' => $family->id]);
+            $family = null;
+            $students = collect();
 
-            $students = $family->students;
+            if ($link->student_id && !$link->family_id) {
+                $student = Student::where('id', $link->student_id)->where('archive', 0)->with('parent')->firstOrFail();
+                $students = collect([$student]);
+                \Log::info('FamilyUpdate Submit: Student-only link', ['student_id' => $student->id]);
+            } else {
+                $family = $link->family()->with(['students' => function ($q) {
+                    $q->where('archive', 0)->with('parent');
+                }])->firstOrFail();
+                $students = $family->students;
+                \Log::info('FamilyUpdate Submit: Family found', ['family_id' => $family->id]);
+            }
+
             if ($students->isEmpty()) {
-                \Log::warning('FamilyUpdate Submit: No students found for family', ['family_id' => $family->id]);
                 abort(404);
             }
 
@@ -320,7 +369,7 @@ class FamilyUpdateController extends Controller
                 $userId = auth()->id();
                 
                 \Log::info('FamilyUpdate: Starting transaction', [
-                    'family_id' => $family->id,
+                    'family_id' => $family?->id,
                     'students_count' => count($validated['students'] ?? []),
                     'user_id' => $userId,
                     'validated_data_keys' => array_keys($validated),
@@ -516,7 +565,7 @@ class FamilyUpdateController extends Controller
                             ]);
                             
                             $audits[] = [
-                                'family_id' => $family->id,
+                                'family_id' => $family?->id,
                                 'student_id' => $stu->id,
                                 'changed_by_user_id' => $userId,
                                 'source' => $source,
@@ -776,7 +825,7 @@ class FamilyUpdateController extends Controller
                         ]);
                         
                         $audits[] = [
-                            'family_id' => $family->id,
+                            'family_id' => $family?->id,
                             'student_id' => $student->id,
                             'changed_by_user_id' => $userId,
                             'source' => $source,
@@ -885,7 +934,7 @@ class FamilyUpdateController extends Controller
                 }
             } else {
                 \Log::warning('FamilyUpdate: No audits to insert - no changes detected', [
-                    'family_id' => $family->id,
+                    'family_id' => $family?->id,
                     'students_count' => count($validated['students'] ?? []),
                 ]);
             }
@@ -902,7 +951,7 @@ class FamilyUpdateController extends Controller
                 'audits_created' => $auditsCreated,
                 'students_updated' => $studentsUpdated,
                 'parents_updated' => $parentsUpdated,
-                'family_id' => $family->id,
+                'family_id' => $family?->id,
             ]);
             
             return [
@@ -987,7 +1036,7 @@ class FamilyUpdateController extends Controller
         if ($studentsUpdated === 0 && $auditsCreated === 0 && $parentsUpdated === 0) {
             \Log::warning('FamilyUpdate: No updates detected after transaction', [
                 'token' => $token,
-                'family_id' => $family->id,
+                'family_id' => $family?->id,
                 'result' => $transactionResult,
             ]);
             
@@ -996,11 +1045,11 @@ class FamilyUpdateController extends Controller
         }
         
         // Clear cached relationships - the redirect will reload fresh data from database
-        $family->unsetRelation('students');
+        $family?->unsetRelation('students');
         
         \Log::info('FamilyUpdate Submit: Update completed successfully', [
             'token' => $token,
-            'family_id' => $family->id,
+            'family_id' => $family?->id,
             'students_updated' => $studentsUpdated,
             'parents_updated' => $parentsUpdated,
             'audits_created' => $auditsCreated,
