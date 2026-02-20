@@ -14,9 +14,18 @@
         <p class="text-muted mb-0">Manage sibling links and guardian details for billing/discounts.</p>
       </div>
       <div class="d-flex gap-2 flex-wrap">
-        <a href="{{ route('families.populate-preview') }}" class="btn btn-ghost-strong btn-sm">
-          <i class="bi bi-arrow-clockwise"></i> Fix Blank Fields
-        </a>
+        @if(Route::has('families.populate-preview'))
+          <a href="{{ route('families.populate-preview') }}" class="btn btn-ghost-strong btn-sm">
+            <i class="bi bi-arrow-clockwise"></i> Fix Blank Fields
+          </a>
+        @else
+          <form action="{{ route('families.populate') }}" method="POST" class="d-inline" onsubmit="return confirm('This will auto-populate all families with blank fields from their students\\' parent records. Continue?')">
+            @csrf
+            <button type="submit" class="btn btn-ghost-strong btn-sm">
+              <i class="bi bi-arrow-clockwise"></i> Fix Blank Fields
+            </button>
+          </form>
+        @endif
         <a href="{{ route('families.link') }}" class="btn btn-settings-primary">
           <i class="bi bi-link-45deg"></i> Link Two Students
         </a>
