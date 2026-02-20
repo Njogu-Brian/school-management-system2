@@ -50,6 +50,8 @@ class FamilyArchiveService
                 $s->family_id = null;
                 $s->save();
             }
+            // Deactivate or delete profile update link before deleting family
+            \App\Models\FamilyUpdateLink::where('family_id', $familyId)->delete();
             $family->delete();
         });
     }
@@ -98,6 +100,14 @@ class FamilyArchiveService
                 $s->archived_family_id = null;
                 $s->save();
             }
+
+            // Create profile update link for the restored family
+            \App\Models\FamilyUpdateLink::create([
+                'family_id' => $family->id,
+                'student_id' => null,
+                'token' => \App\Models\FamilyUpdateLink::generateToken(),
+                'is_active' => true,
+            ]);
         });
     }
 }

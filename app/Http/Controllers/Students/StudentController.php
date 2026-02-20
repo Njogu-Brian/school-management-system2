@@ -1744,7 +1744,7 @@ class StudentController extends Controller
                     'title' => 'Welcome Student (SMS/WA)',
                     'type' => 'sms',
                     'subject' => null,
-                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! 🎉\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nWe look forward to partnering with you in nurturing your child's growth and success.\n\nWarm regards,\n{{school_name}}",
+                    'content' => "Dear {{parent_name}},\n\nWelcome to {{school_name}}! 🎉\nWe are delighted to inform you that {{student_name}} has been successfully admitted.\n\nAdmission Number: {{admission_number}}\nClass: {{class_name}} {{stream_name}}\n\nUpdate your profile here: {{profile_update_link}}\n\nWarm regards,\n{{school_name}}",
                 ]
             );
         }
@@ -1772,6 +1772,10 @@ class StudentController extends Controller
         $streamName = optional($student->stream)->name ?? '';
         $fullName = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
         
+        // Create or get profile update link and use absolute URL (required for emails/SMS)
+        $profileLink = get_or_create_profile_update_link_for_student($student->fresh());
+        $profileUpdateUrl = $profileLink ? url()->route('family-update.form', ['token' => $profileLink->token]) : '';
+
         $variables = [
             'parent_name' => $parentName,
             'student_name' => $fullName,
@@ -1781,7 +1785,7 @@ class StudentController extends Controller
             'school_name' => $schoolName,
             'school_phone' => $schoolPhone,
             'school_email' => $schoolEmail,
-            'profile_update_link' => url('/parent/profile'),
+            'profile_update_link' => $profileUpdateUrl,
         ];
         
         // Replace placeholders

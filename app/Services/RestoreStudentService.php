@@ -102,6 +102,11 @@ class RestoreStudentService
             $student->archived_by = null;
             $student->save();
 
+            // Reactivate profile update links for this student (student-only links)
+            \App\Models\FamilyUpdateLink::where('student_id', $student->id)
+                ->whereNull('family_id')
+                ->update(['is_active' => true]);
+
             // Restore family if this student had one removed (archived_family_id set)
             app(FamilyArchiveService::class)->onStudentRestored($student->fresh());
 

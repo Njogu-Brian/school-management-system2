@@ -57,6 +57,45 @@ class CleanupSingleChildFamilies extends Command
         }
 
         $this->newLine();
+        $this->info('--- Profile update links (review) ---');
+
+        $profileLinkIssues = FamilyUpdateLink::with(['family', 'student'])
+            ->get()
+            ->filter(function ($link) {
+                if ($link->family_id) {
+                    return !$link->family || $link->family->students->isEmpty();
+                }
+                if ($link->student_id) {
+                    return !$link->student || $link->student->archive || $link->student->is_alumni;
+                }
+                return true; // both null – invalid
+            });
+
+        if ($profileLinkIssues->isEmpty()) {
+            $this->info('No orphaned or invalid profile update links.');
+        } else {
+            $rows = $profileLinkIssues->map(function ($link) {
+                if ($link->family_id) {
+                    $reason = !$link->family ? 'family missing' : 'family has no students';
+                } elseif ($link->student_id) {
+                    $reason = !$link->student ? 'student missing' : ($link->student->archive ? 'student archived' : 'student is alumni');
+                } else {
+                    $reason = 'no family, no student';
+                }
+                return [
+                    $link->id,
+                    substr($link->token ?? '', 0, 12) . '...',
+                    $link->family_id ?? '—',
+                    $link->student_id ?? '—',
+                    $link->is_active ? 'yes' : 'no',
+                    $reason,
+                ];
+            })->toArray();
+            $this->table(['ID', 'Token', 'family_id', 'student_id', 'Active', 'Reason'], $rows);
+            $this->warn('Total: ' . $profileLinkIssues->count() . ' profile update link(s) to review. Consider deleting orphaned links.');
+        }
+
+        $this->newLine();
         $this->info('--- Payment links with no name (review) ---');
 
         $noNameLinks = PaymentLink::with(['student', 'family.students'])

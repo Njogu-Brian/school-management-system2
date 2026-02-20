@@ -81,6 +81,11 @@ class ArchiveStudentService
             $student->archived_by = $actorId;
             $student->save();
 
+            // Deactivate profile update links that exclusively serve this student (student-only links)
+            \App\Models\FamilyUpdateLink::where('student_id', $student->id)
+                ->whereNull('family_id')
+                ->update(['is_active' => false]);
+
             // Audit
             ArchiveAudit::create([
                 'student_id' => $student->id,

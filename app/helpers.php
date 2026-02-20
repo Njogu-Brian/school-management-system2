@@ -242,6 +242,55 @@ if (!function_exists('get_or_create_payment_link_for_student')) {
 }
 
 /**
+ * Get or create the profile update link for a student (family or student-only).
+ * Only creates/returns for active (non-archived, non-alumni) students.
+ *
+ * @param \App\Models\Student $student
+ * @return \App\Models\FamilyUpdateLink|null
+ */
+if (!function_exists('get_or_create_profile_update_link_for_student')) {
+    function get_or_create_profile_update_link_for_student($student)
+    {
+        if (!$student || !$student->id || !class_exists(\App\Models\FamilyUpdateLink::class)) {
+            return null;
+        }
+        if ($student->archive || $student->is_alumni ?? false) {
+            return null;
+        }
+
+        // Family link: student has family with 2+ siblings
+        if ($student->family_id) {
+            $family = $student->family;
+            if (!$family) {
+                return null;
+            }
+            $link = \App\Models\FamilyUpdateLink::where('family_id', $family->id)->first();
+            if ($link) {
+                return $link->is_active ? $link : null;
+            }
+            return \App\Models\FamilyUpdateLink::create([
+                'family_id' => $family->id,
+                'student_id' => null,
+                'token' => \App\Models\FamilyUpdateLink::generateToken(),
+                'is_active' => true,
+            ]);
+        }
+
+        // Student-only link (no family)
+        $link = \App\Models\FamilyUpdateLink::where('student_id', $student->id)->whereNull('family_id')->first();
+        if ($link) {
+            return $link->is_active ? $link : null;
+        }
+        return \App\Models\FamilyUpdateLink::create([
+            'family_id' => null,
+            'student_id' => $student->id,
+            'token' => \App\Models\FamilyUpdateLink::generateToken(),
+            'is_active' => true,
+        ]);
+    }
+}
+
+/**
  * When siblings are linked (family_id set or family merged), ensure one shared family payment link
  * and expire old per-student links for that family (like profile update link).
  *
@@ -337,17 +386,11 @@ if (!function_exists('replace_placeholders')) {
                         ?? '';
             $fatherName = optional($entity->parent)->father_name ?? '';
             
-            // Get profile update link
+            // Get profile update link (family or student-only); use absolute URL for emails/SMS
             $profileUpdateLink = '';
-            if ($entity->family && $entity->family->updateLink && $entity->family->updateLink->is_active) {
-                $profileUpdateLink = route('family-update.form', $entity->family->updateLink->token);
-            } elseif ($entity->family) {
-                // Create link if it doesn't exist
-                $link = \App\Models\FamilyUpdateLink::firstOrCreate(
-                    ['family_id' => $entity->family->id],
-                    ['token' => \App\Models\FamilyUpdateLink::generateToken(), 'is_active' => true]
-                );
-                $profileUpdateLink = route('family-update.form', $link->token);
+            $link = get_or_create_profile_update_link_for_student($entity);
+            if ($link) {
+                $profileUpdateLink = url()->route('family-update.form', ['token' => $link->token]);
             }
             
             $replacements += [

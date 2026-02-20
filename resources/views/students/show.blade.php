@@ -176,9 +176,14 @@
             <span class="fw-bold">Student Information</span>
             <div class="d-flex align-items-center gap-2">
               <span class="badge bg-light text-dark">ID {{ $student->id }}</span>
-              @if($student->family && $student->family->updateLink)
-                <span class="badge bg-light text-dark">Profile Update Link</span>
-                <button type="button" class="btn btn-sm btn-ghost-strong" onclick="navigator.clipboard.writeText('{{ route('family-update.form', $student->family->updateLink->token) }}'); this.innerText='Copied'; setTimeout(()=>this.innerText='Copy Link',1500);">Copy Link</button>
+              @if(!$student->archive && !($student->is_alumni ?? false))
+                @php $profileLink = get_or_create_profile_update_link_for_student($student); @endphp
+                @if($profileLink)
+                  <span class="badge bg-light text-dark">Profile Update Link</span>
+                  @php $profileUrl = url()->route('family-update.form', ['token' => $profileLink->token]); @endphp
+                  <a href="{{ $profileUrl }}" target="_blank" class="btn btn-sm btn-ghost-strong">Open Link</a>
+                  <button type="button" class="btn btn-sm btn-ghost-strong" onclick="navigator.clipboard.writeText('{{ $profileUrl }}'); this.innerText='Copied!'; setTimeout(()=>this.innerText='Copy Link',1500);">Copy Link</button>
+                @endif
               @endif
             </div>
           </div>
