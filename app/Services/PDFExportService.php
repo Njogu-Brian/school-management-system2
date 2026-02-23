@@ -196,7 +196,7 @@ class PDFExportService
             'school_logo' => setting('school_logo'),
             'logo_path' => (function () {
                 $logo = setting('school_logo');
-                if ($logo && \Illuminate\Support\Facades\storage_public()->exists($logo)) {
+                if ($logo && storage_public()->exists($logo)) {
                     return storage_path('app/public/' . $logo);
                 }
                 if ($logo && file_exists(public_path('images/' . $logo))) {

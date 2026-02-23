@@ -228,7 +228,7 @@ class ReceiptService
         }
         
         $logoPath = null;
-        if (!empty($settings['school_logo']) && \Illuminate\Support\Facades\storage_public()->exists($settings['school_logo'])) {
+        if (!empty($settings['school_logo']) && storage_public()->exists($settings['school_logo'])) {
             $logoPath = storage_path('app/public/' . $settings['school_logo']);
         } elseif (!empty($settings['school_logo']) && file_exists(public_path('images/' . $settings['school_logo']))) {
             $logoPath = public_path('images/' . $settings['school_logo']);
