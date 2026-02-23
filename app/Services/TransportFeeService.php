@@ -171,16 +171,30 @@ class TransportFeeService
             if ($amount > 0 && !$skipInvoice) {
                 self::syncInvoice($fee, self::transportVotehead());
             } elseif ($amount == 0 && !$skipInvoice) {
-                // If amount is 0 and not skipped, remove any existing transport item immediately
+                // If amount is 0 and not skipped, remove any existing transport item immediately.
+                // Delete payment allocations first so payments are freed for re-allocation.
                 $votehead = self::transportVotehead();
                 DB::transaction(function () use ($fee, $votehead) {
                     $invoice = \App\Services\InvoiceService::ensure($fee->student_id, $fee->year, $fee->term);
-                    // Only delete transport items with source='transport' - this is safe as it only affects transport items
-                    \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                    $items = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
                         ->where('votehead_id', $votehead->id)
                         ->where('source', 'transport')
-                        ->delete();
+                        ->get();
+
+                    foreach ($items as $item) {
+                        $paymentIds = $item->allocations()->pluck('payment_id')->unique()->filter();
+                        $item->allocations()->delete();
+                        $item->delete();
+                        foreach ($paymentIds as $paymentId) {
+                            $payment = \App\Models\Payment::find($paymentId);
+                            if ($payment) {
+                                $payment->updateAllocationTotals();
+                            }
+                        }
+                    }
+
                     \App\Services\InvoiceService::recalc($invoice);
+                    \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent($fee->student_id);
                 });
             }
 

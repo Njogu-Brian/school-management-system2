@@ -3,6 +3,8 @@
 namespace App\Observers;
 
 use App\Models\OptionalFee;
+use App\Models\InvoiceItem;
+use App\Services\InvoiceService;
 use App\Services\SwimmingWalletService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +39,7 @@ class OptionalFeeObserver
             // If changed from billed to non-billed (unbilled), handle unbilling
             if ($oldStatus === 'billed' && $newStatus !== 'billed') {
                 $this->handleUnbilling($optionalFee, 'updated');
+                $this->removeInvoiceItemForOptionalFee($optionalFee);
             }
             // If changed to billed, handle billing
             elseif ($newStatus === 'billed' && $oldStatus !== 'billed') {
@@ -67,6 +70,7 @@ class OptionalFeeObserver
     public function deleted(OptionalFee $optionalFee): void
     {
         $this->handleUnbilling($optionalFee, 'deleted');
+        $this->removeInvoiceItemForOptionalFee($optionalFee);
     }
 
     /**
@@ -285,5 +289,71 @@ class OptionalFeeObserver
 
         // Must also be optional (not mandatory)
         return $isSwimming && !$votehead->is_mandatory;
+    }
+
+    /**
+     * When an optional fee is removed (deleted or unbilled), remove the corresponding
+     * invoice item so the invoice no longer shows that charge. Handles both swimming
+     * and non-swimming optional fees (e.g. transport as optional, diary, etc.).
+     * Deletes payment allocations so payments are freed for re-allocation.
+     */
+    protected function removeInvoiceItemForOptionalFee(OptionalFee $optionalFee): void
+    {
+        $studentId = $optionalFee->student_id ?? ($optionalFee->student ? $optionalFee->student->id : null);
+        if (!$studentId || !$optionalFee->votehead_id || !$optionalFee->year || !$optionalFee->term) {
+            return;
+        }
+
+        try {
+            DB::transaction(function () use ($optionalFee, $studentId) {
+                $invoice = \App\Models\Invoice::where('student_id', $studentId)
+                    ->where('year', $optionalFee->year)
+                    ->where('term', $optionalFee->term)
+                    ->first();
+
+                if (!$invoice) {
+                    return;
+                }
+
+                $item = InvoiceItem::where('invoice_id', $invoice->id)
+                    ->where('votehead_id', $optionalFee->votehead_id)
+                    ->where('source', 'optional')
+                    ->first();
+
+                if (!$item) {
+                    return;
+                }
+
+                $paymentIds = $item->allocations()->pluck('payment_id')->unique()->filter();
+
+                $item->allocations()->delete();
+                $item->delete();
+
+                InvoiceService::recalc($invoice);
+                InvoiceService::allocateUnallocatedPaymentsForStudent($studentId);
+
+                foreach ($paymentIds as $paymentId) {
+                    $payment = \App\Models\Payment::find($paymentId);
+                    if ($payment) {
+                        $payment->updateAllocationTotals();
+                    }
+                }
+
+                Log::info('Removed invoice item for removed optional fee', [
+                    'optional_fee_id' => $optionalFee->id,
+                    'student_id' => $studentId,
+                    'votehead_id' => $optionalFee->votehead_id,
+                    'invoice_item_id' => $item->id,
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Failed to remove invoice item for optional fee', [
+                'optional_fee_id' => $optionalFee->id,
+                'student_id' => $studentId ?? null,
+                'votehead_id' => $optionalFee->votehead_id ?? null,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+        }
     }
 }

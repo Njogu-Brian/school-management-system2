@@ -94,10 +94,12 @@ class PaymentController extends Controller
         if ($request->filled('allocation_status')) {
             $status = $request->allocation_status;
             if ($status === 'unallocated') {
-                $query->where(function ($q) {
-                    $q->where('unallocated_amount', '>', 0)
-                      ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
-                });
+                // Reversed payments must never appear as unallocated - they are already reversed
+                $query->where('reversed', false)
+                    ->where(function ($q) {
+                        $q->where('unallocated_amount', '>', 0)
+                          ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
+                    });
             } elseif ($status === 'allocated') {
                 $query->whereRaw('COALESCE(unallocated_amount, amount - COALESCE(allocated_amount, 0)) <= 0');
             }
