@@ -43,8 +43,8 @@ class Staff extends Model
             
             // Use Storage facade to generate URL (handles symlink automatically)
             try {
-                if (Storage::disk('public')->exists($path)) {
-                    return Storage::disk('public')->url($path);
+                if (storage_public()->exists($path)) {
+                    return storage_public()->url($path);
                 }
             } catch (\Exception $e) {
                 // Fall through to fallback

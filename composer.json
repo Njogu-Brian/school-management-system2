@@ -16,7 +16,8 @@
         "maatwebsite/excel": "^3.1",
         "pusher/pusher-php-server": "^7.2",
         "smalot/pdfparser": "^2.12",
-        "spatie/laravel-permission": "^6.21"
+        "spatie/laravel-permission": "^6.21",
+        "league/flysystem-aws-s3-v3": "^3.0"
     },
     "require-dev": {
         "barryvdh/laravel-ide-helper": "^3.5",

@@ -55,7 +55,7 @@ class StaffDocumentController extends Controller
         ]);
 
         $file = $request->file('file');
-        $filePath = $file->store('staff_documents', 'public');
+        $filePath = $file->store('staff_documents', config('filesystems.public_disk', 'public'));
 
         StaffDocument::create([
             'staff_id' => $request->staff_id,
@@ -80,8 +80,8 @@ class StaffDocumentController extends Controller
     public function destroy(StaffDocument $document)
     {
         // Delete file from storage
-        if (Storage::disk('public')->exists($document->file_path)) {
-            Storage::disk('public')->delete($document->file_path);
+        if (storage_public()->exists($document->file_path)) {
+            storage_public()->delete($document->file_path);
         }
 
         $document->delete();
@@ -91,11 +91,11 @@ class StaffDocumentController extends Controller
 
     public function download(StaffDocument $document)
     {
-        if (!Storage::disk('public')->exists($document->file_path)) {
+        if (!storage_public()->exists($document->file_path)) {
             return back()->with('error', 'File not found.');
         }
 
-        return Storage::disk('public')->download($document->file_path, $document->title . '.' . pathinfo($document->file_path, PATHINFO_EXTENSION));
+        return storage_public()->download($document->file_path, $document->title . '.' . pathinfo($document->file_path, PATHINFO_EXTENSION));
     }
 
     private function getDocumentTypes()

@@ -78,12 +78,12 @@ class StaffProfileController extends Controller
         $photoUpdated = false;
         if ($request->hasFile('photo')) {
             // Delete old photo if exists
-            if ($staff->photo && Storage::disk('public')->exists($staff->photo)) {
-                Storage::disk('public')->delete($staff->photo);
+            if ($staff->photo && storage_public()->exists($staff->photo)) {
+                storage_public()->delete($staff->photo);
             }
             
             // Store new photo
-            $photoPath = $request->file('photo')->store('staff_photos', 'public');
+            $photoPath = $request->file('photo')->store('staff_photos', config('filesystems.public_disk', 'public'));
             $staff->photo = $photoPath;
             $staff->save();
             $photoUpdated = true;

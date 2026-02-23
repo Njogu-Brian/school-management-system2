@@ -70,7 +70,7 @@ class FixEquityRefsFromReparse extends Command
             $pdfPathToParse = $localFile;
             $this->line('Using local PDF: ' . $localFile);
         } else {
-            $fullPath = Storage::disk('private')->path($statementPath);
+            $fullPath = storage_local_path(config('filesystems.private_disk', 'private'), $statementPath);
             if (!file_exists($fullPath)) {
                 $this->error('Statement file not found in storage: ' . $fullPath);
                 $this->line('If you imported the DB from production, provide the PDF with: --file="C:\path\to\your\statement.pdf"');

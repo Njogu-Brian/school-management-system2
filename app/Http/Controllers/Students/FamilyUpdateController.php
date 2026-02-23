@@ -581,7 +581,7 @@ class FamilyUpdateController extends Controller
                     // Handle parent ID uploads - save to Document model
                     if (request()->hasFile('father_id_document')) {
                         $file = request()->file('father_id_document');
-                        $path = $file->store('documents', 'public');
+                        $path = $file->store('documents', config('filesystems.public_disk', 'public'));
                         
                         // Create document record
                         Document::create([
@@ -602,14 +602,14 @@ class FamilyUpdateController extends Controller
                         
                         // Also update legacy father_id_document for backward compatibility
                         if ($parent->father_id_document) {
-                            Storage::disk('private')->delete($parent->father_id_document);
+                            storage_private()->delete($parent->father_id_document);
                         }
                         $parent->father_id_document = $path;
                     }
                     
                     if (request()->hasFile('mother_id_document')) {
                         $file = request()->file('mother_id_document');
-                        $path = $file->store('documents', 'public');
+                        $path = $file->store('documents', config('filesystems.public_disk', 'public'));
                         
                         // Create document record
                         Document::create([
@@ -630,7 +630,7 @@ class FamilyUpdateController extends Controller
                         
                         // Also update legacy mother_id_document for backward compatibility
                         if ($parent->mother_id_document) {
-                            Storage::disk('private')->delete($parent->mother_id_document);
+                            storage_private()->delete($parent->mother_id_document);
                         }
                         $parent->mother_id_document = $path;
                     }
@@ -844,7 +844,7 @@ class FamilyUpdateController extends Controller
                 
                 if (request()->hasFile($fileKeyPhoto)) {
                     $file = request()->file($fileKeyPhoto);
-                    $path = $file->store('documents', 'public');
+                    $path = $file->store('documents', config('filesystems.public_disk', 'public'));
                     
                     // Create document record
                     Document::create([
@@ -865,14 +865,14 @@ class FamilyUpdateController extends Controller
                     
                     // Also update legacy photo_path for backward compatibility
                     if ($student->photo_path) {
-                        Storage::disk('public')->delete($student->photo_path);
+                        storage_public()->delete($student->photo_path);
                     }
                     $student->photo_path = $path;
                 }
                 
                 if (request()->hasFile($fileKeyCert)) {
                     $file = request()->file($fileKeyCert);
-                    $path = $file->store('documents', 'public');
+                    $path = $file->store('documents', config('filesystems.public_disk', 'public'));
                     
                     // Create document record
                     Document::create([
@@ -893,7 +893,7 @@ class FamilyUpdateController extends Controller
                     
                     // Also update legacy birth_certificate_path for backward compatibility
                     if ($student->birth_certificate_path) {
-                        Storage::disk('private')->delete($student->birth_certificate_path);
+                        storage_private()->delete($student->birth_certificate_path);
                     }
                     $student->birth_certificate_path = $path;
                 }

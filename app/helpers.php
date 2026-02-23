@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Setting;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use App\Models\CommunicationPlaceholder;
 
@@ -773,6 +774,43 @@ if (!function_exists('get_subordinate_classroom_ids')) {
  * If the exception is due to insufficient SMS credits, flash a warning to the user.
  * Call this in catch blocks after SMS send attempts (web requests only).
  */
+/**
+ * Get the Storage disk for public files (local or S3 based on config).
+ */
+if (!function_exists('storage_public')) {
+    function storage_public(): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        return Storage::disk(config('filesystems.public_disk', 'public'));
+    }
+}
+
+/**
+ * Get the Storage disk for private files (local or S3 based on config).
+ */
+if (!function_exists('storage_private')) {
+    function storage_private(): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        return Storage::disk(config('filesystems.private_disk', 'private'));
+    }
+}
+
+/**
+ * Get a local filesystem path for a stored file. For local disks returns the path.
+ * For S3, downloads to a temp file and returns that path (caller should not rely on persistence).
+ */
+if (!function_exists('storage_local_path')) {
+    function storage_local_path(string $diskName, string $path): string
+    {
+        $driver = config("filesystems.disks.{$diskName}.driver", 'local');
+        if ($driver === 'local') {
+            return Storage::disk($diskName)->path($path);
+        }
+        $tmp = tempnam(sys_get_temp_dir(), 'laravel_');
+        file_put_contents($tmp, Storage::disk($diskName)->get($path));
+        return $tmp;
+    }
+}
+
 if (!function_exists('flash_sms_credit_warning')) {
     function flash_sms_credit_warning(\Throwable $e): void
     {

@@ -183,7 +183,7 @@ class StaffController extends Controller
         $staffData['staff_id'] = $staffId;
 
         if ($request->hasFile('photo')) {
-            $staffData['photo'] = $request->file('photo')->store('staff_photos', 'public');
+            $staffData['photo'] = $request->file('photo')->store('staff_photos', config('filesystems.public_disk', 'public'));
         }
 
         $staff = Staff::create($staffData);
@@ -435,12 +435,12 @@ class StaffController extends Controller
 
             if ($request->hasFile('photo')) {
                 // Delete old photo if exists
-                if ($staff->photo && Storage::disk('public')->exists($staff->photo)) {
-                    Storage::disk('public')->delete($staff->photo);
+                if ($staff->photo && storage_public()->exists($staff->photo)) {
+                    storage_public()->delete($staff->photo);
                 }
                 
                 // Store new photo
-                $staffData['photo'] = $request->file('photo')->store('staff_photos', 'public');
+                $staffData['photo'] = $request->file('photo')->store('staff_photos', config('filesystems.public_disk', 'public'));
             }
 
             $staff->update($staffData);

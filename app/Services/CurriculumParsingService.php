@@ -157,7 +157,7 @@ class CurriculumParsingService
      */
     protected function extractTextFromPdf(CurriculumDesign $curriculumDesign): array
     {
-        $filePath = Storage::path($curriculumDesign->file_path);
+        $filePath = storage_local_path(config('filesystems.private_disk', 'private'), $curriculumDesign->file_path);
         
         if (!file_exists($filePath)) {
             throw new \Exception("PDF file not found: {$filePath}");

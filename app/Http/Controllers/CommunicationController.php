@@ -414,7 +414,7 @@ class CommunicationController extends Controller
         $mediaUrl = null;
         if ($request->hasFile('media')) {
             $path = $request->file('media')->store('whatsapp_media', 'public');
-            $mediaUrl = Storage::disk('public')->url($path);
+            $mediaUrl = storage_public()->url($path);
         }
 
         $recipients = $this->collectRecipients($data, 'whatsapp');

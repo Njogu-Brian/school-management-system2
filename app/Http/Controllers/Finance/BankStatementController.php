@@ -832,7 +832,7 @@ class BankStatementController extends Controller
         try {
             // Store uploaded file
             $file = $request->file('statement_file');
-            $path = $file->store('bank-statements', 'private');
+            $path = $file->store('bank-statements', config('filesystems.private_disk', 'private'));
 
             // Parse statement
             $result = $this->parser->parseStatement(
@@ -3886,7 +3886,7 @@ class BankStatementController extends Controller
             abort(404, 'Statement file not found');
         }
 
-        if (!Storage::disk('private')->exists($transaction->statement_file_path)) {
+        if (!storage_private()->exists($transaction->statement_file_path)) {
             abort(404, 'Statement file not found');
         }
 
@@ -3911,19 +3911,15 @@ class BankStatementController extends Controller
             abort(404, 'Statement file not found');
         }
 
-        if (!Storage::disk('private')->exists($transaction->statement_file_path)) {
+        if (!storage_private()->exists($transaction->statement_file_path)) {
             abort(404, 'Statement file not found');
         }
 
-        $path = Storage::disk('private')->path($transaction->statement_file_path);
-        
-        if (!file_exists($path)) {
-            abort(404, 'Statement file not found');
-        }
-
-        return response()->file($path, [
-            'Content-Type' => 'application/pdf',
-        ]);
+        return storage_private()->response(
+            $transaction->statement_file_path,
+            'bank-statement-' . $transaction->id . '.pdf',
+            ['Content-Type' => 'application/pdf']
+        );
     }
 
     /**
@@ -3938,11 +3934,11 @@ class BankStatementController extends Controller
             abort(404, 'Statement file not found');
         }
 
-        if (!Storage::disk('private')->exists($transaction->statement_file_path)) {
+        if (!storage_private()->exists($transaction->statement_file_path)) {
             abort(404, 'Statement file not found');
         }
 
-        return Storage::disk('private')->download($transaction->statement_file_path, 'bank-statement-' . $transaction->id . '.pdf');
+        return storage_private()->download($transaction->statement_file_path, 'bank-statement-' . $transaction->id . '.pdf');
     }
 
     /**
@@ -6010,8 +6006,8 @@ class BankStatementController extends Controller
             }
 
             // Delete the PDF file
-            if ($transaction->statement_file_path && Storage::disk('private')->exists($transaction->statement_file_path)) {
-                Storage::disk('private')->delete($transaction->statement_file_path);
+            if ($transaction->statement_file_path && storage_private()->exists($transaction->statement_file_path)) {
+                storage_private()->delete($transaction->statement_file_path);
             }
 
             // Delete all transactions from this statement

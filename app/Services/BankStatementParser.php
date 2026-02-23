@@ -64,7 +64,7 @@ class BankStatementParser
         if (preg_match('#^[A-Za-z]:[/\\\\]#', $pdfPath) || str_starts_with($pdfPath, '/')) {
             return $pdfPath;
         }
-        return Storage::disk('private')->path($pdfPath);
+        return storage_local_path(config('filesystems.private_disk', 'private'), $pdfPath);
     }
 
     /**
@@ -72,7 +72,7 @@ class BankStatementParser
      */
     public function parseStatement(string $pdfPath, ?int $bankAccountId = null, ?string $bankType = null): array
     {
-        $fullPath = Storage::disk('private')->path($pdfPath);
+        $fullPath = storage_local_path(config('filesystems.private_disk', 'private'), $pdfPath);
         
         // Detect bank type if not provided
         if (!$bankType) {

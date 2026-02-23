@@ -94,7 +94,7 @@ class DocumentManagementController extends Controller
             : $validated['document_type'];
 
         $file = $request->file('file');
-        $path = $file->store('documents', 'public');
+        $path = $file->store('documents', config('filesystems.public_disk', 'public'));
 
         $document = Document::create([
             'title' => $validated['title'],
@@ -125,32 +125,30 @@ class DocumentManagementController extends Controller
 
     public function download(Document $document)
     {
-        if (!Storage::disk('public')->exists($document->file_path)) {
+        if (!storage_public()->exists($document->file_path)) {
             return back()->with('error', 'File not found.');
         }
 
-        return Storage::disk('public')->download($document->file_path, $document->file_name);
+        return storage_public()->download($document->file_path, $document->file_name);
     }
 
     public function preview(Document $document)
     {
-        if (!Storage::disk('public')->exists($document->file_path)) {
+        if (!storage_public()->exists($document->file_path)) {
             abort(404, 'File not found.');
         }
-        $path = Storage::disk('public')->path($document->file_path);
-        $mime = $document->file_type ?? mime_content_type($path);
+        $mime = $document->file_type ?? 'application/octet-stream';
 
         // For images and pdf, force inline view
         $inlineTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         if (in_array(strtolower($mime), $inlineTypes)) {
-            return response()->file($path, [
+            return storage_public()->response($document->file_path, $document->file_name, [
                 'Content-Type' => $mime,
                 'Content-Disposition' => 'inline; filename="' . $document->file_name . '"',
             ]);
         }
 
-        // Fallback to download
-        return response()->download($path, $document->file_name);
+        return storage_public()->download($document->file_path, $document->file_name);
     }
 
     public function email(Request $request, Document $document)
@@ -161,16 +159,17 @@ class DocumentManagementController extends Controller
             'message' => 'nullable|string',
         ]);
 
-        if (!Storage::disk('public')->exists($document->file_path)) {
+        if (!storage_public()->exists($document->file_path)) {
             return back()->with('error', 'File not found.');
         }
 
-        $path = Storage::disk('public')->path($document->file_path);
+        $content = storage_public()->get($document->file_path);
+        $mime = $document->file_type ?? 'application/octet-stream';
 
-        Mail::raw($validated['message'] ?? 'Please find the attached document.', function ($message) use ($validated, $document, $path) {
+        Mail::raw($validated['message'] ?? 'Please find the attached document.', function ($message) use ($validated, $document, $content, $mime) {
             $message->to($validated['to'])
                 ->subject($validated['subject'])
-                ->attach($path, ['as' => $document->file_name, 'mime' => $document->file_type]);
+                ->attachData($content, $document->file_name, ['mime' => $mime]);
         });
 
         return back()->with('success', 'Document emailed successfully.');
@@ -184,7 +183,7 @@ class DocumentManagementController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('documents', 'public');
+        $path = $file->store('documents', config('filesystems.public_disk', 'public'));
 
         $maxVersion = $document->versions()->max('version') ?? $document->version;
         $newVersion = $maxVersion + 1;
@@ -211,7 +210,7 @@ class DocumentManagementController extends Controller
 
     public function destroy(Document $document)
     {
-        Storage::disk('public')->delete($document->file_path);
+        storage_public()->delete($document->file_path);
         $document->delete();
         return redirect()->route('documents.index')
             ->with('success', 'Document deleted successfully.');

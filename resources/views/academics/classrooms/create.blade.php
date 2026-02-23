@@ -45,6 +45,28 @@
 
         <div class="row g-3 mt-1">
           <div class="col-md-6">
+            <label class="form-label">Campus</label>
+            <select name="campus" class="form-select">
+              <option value="">-- Select Campus --</option>
+              <option value="upper">Upper Campus (Creche–Grade 3)</option>
+              <option value="lower">Lower Campus (Grade 4–9)</option>
+            </select>
+            <small class="text-muted d-block">Required for senior teacher supervision scope</small>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Level Type</label>
+            <select name="level_type" class="form-select">
+              <option value="">-- Select Level --</option>
+              <option value="preschool">Preschool</option>
+              <option value="lower_primary">Lower Primary (Grade 1–3)</option>
+              <option value="upper_primary">Upper Primary (Grade 4–6)</option>
+              <option value="junior_high">Junior High (Grade 7–9)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-md-6">
             <div class="form-check">
               <input type="checkbox" name="is_beginner" value="1" class="form-check-input" id="is_beginner">
               <label class="form-check-label" for="is_beginner">Beginner Class (First Class)</label>

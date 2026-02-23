@@ -100,7 +100,7 @@ class CurriculumDesignController extends Controller
             }
 
             // Store file
-            $filePath = $file->store('curriculum_designs', 'private');
+            $filePath = $file->store('curriculum_designs', config('filesystems.private_disk', 'private'));
             
             // Get page count (approximate)
             $pages = $this->getPdfPageCount(Storage::path($filePath));
@@ -246,8 +246,8 @@ class CurriculumDesignController extends Controller
         $this->authorize('delete', $curriculumDesign);
 
         // Delete file
-        if (Storage::disk('private')->exists($curriculumDesign->file_path)) {
-            Storage::disk('private')->delete($curriculumDesign->file_path);
+        if (storage_private()->exists($curriculumDesign->file_path)) {
+            storage_private()->delete($curriculumDesign->file_path);
         }
 
         $curriculumDesign->delete();

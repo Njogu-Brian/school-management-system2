@@ -157,7 +157,7 @@ class ProductController extends Controller
             $currentImages = $product->images ?? [];
             foreach ($request->remove_images as $imagePath) {
                 if (in_array($imagePath, $currentImages)) {
-                    Storage::disk('public')->delete($imagePath);
+                    storage_public()->delete($imagePath);
                     $currentImages = array_diff($currentImages, [$imagePath]);
                 }
             }
@@ -190,7 +190,7 @@ class ProductController extends Controller
         // Delete associated images
         if ($product->images) {
             foreach ($product->images as $imagePath) {
-                Storage::disk('public')->delete($imagePath);
+                storage_public()->delete($imagePath);
             }
         }
 

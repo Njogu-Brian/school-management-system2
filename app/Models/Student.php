@@ -388,8 +388,8 @@ class Student extends Model
             $path = ltrim($path, '/');
             
             // Check if file exists on public disk
-            if (Storage::disk('public')->exists($path)) {
-                return Storage::disk('public')->url($path);
+            if (storage_public()->exists($path)) {
+                return storage_public()->url($path);
             }
             
             // Fallback: try direct asset() approach

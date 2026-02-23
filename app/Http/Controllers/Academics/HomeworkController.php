@@ -354,7 +354,7 @@ class HomeworkController extends Controller
             if ($request->hasFile('attachment')) {
                 // Delete old attachment
                 if ($path) {
-                    Storage::disk('public')->delete($path);
+                    storage_public()->delete($path);
                 }
                 $path = $request->file('attachment')->store('homeworks','public');
             }
@@ -409,13 +409,13 @@ class HomeworkController extends Controller
 
         // Delete attachment if exists
         if ($homework->file_path) {
-            Storage::disk('public')->delete($homework->file_path);
+            storage_public()->delete($homework->file_path);
         }
 
         // Delete attachment paths if exists
         if ($homework->attachment_paths && is_array($homework->attachment_paths)) {
             foreach ($homework->attachment_paths as $path) {
-                Storage::disk('public')->delete($path);
+                storage_public()->delete($path);
             }
         }
 

@@ -178,7 +178,7 @@ class ReceiptService
         // Save to storage if requested
         if ($options['save'] ?? false) {
             $filename = 'receipts/receipt_' . ($data['receipt_number'] ?? $payment->receipt_number) . '_' . time() . '.pdf';
-            Storage::disk('public')->put($filename, $pdf->output());
+            storage_public()->put($filename, $pdf->output());
             return $filename;
         }
         
@@ -228,7 +228,7 @@ class ReceiptService
         }
         
         $logoPath = null;
-        if (!empty($settings['school_logo']) && \Illuminate\Support\Facades\Storage::disk('public')->exists($settings['school_logo'])) {
+        if (!empty($settings['school_logo']) && \Illuminate\Support\Facades\storage_public()->exists($settings['school_logo'])) {
             $logoPath = storage_path('app/public/' . $settings['school_logo']);
         } elseif (!empty($settings['school_logo']) && file_exists(public_path('images/' . $settings['school_logo']))) {
             $logoPath = public_path('images/' . $settings['school_logo']);

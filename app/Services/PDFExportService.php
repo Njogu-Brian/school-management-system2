@@ -48,7 +48,7 @@ class PDFExportService
             // Save to storage if requested
             if ($options['save'] ?? false) {
                 $path = $options['path'] ?? 'pdfs/' . $filename;
-                Storage::disk('public')->put($path, $pdf->output());
+                storage_public()->put($path, $pdf->output());
                 
                 return [
                     'success' => true,
@@ -196,7 +196,7 @@ class PDFExportService
             'school_logo' => setting('school_logo'),
             'logo_path' => (function () {
                 $logo = setting('school_logo');
-                if ($logo && \Illuminate\Support\Facades\Storage::disk('public')->exists($logo)) {
+                if ($logo && \Illuminate\Support\Facades\storage_public()->exists($logo)) {
                     return storage_path('app/public/' . $logo);
                 }
                 if ($logo && file_exists(public_path('images/' . $logo))) {

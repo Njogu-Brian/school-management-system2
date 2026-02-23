@@ -54,6 +54,10 @@ class Document extends Model
 
     public function getFileUrlAttribute()
     {
+        $disk = config('filesystems.public_disk', 'public');
+        if (in_array($disk, ['s3_public', 's3'])) {
+            return storage_public()->url($this->file_path);
+        }
         return asset('storage/' . $this->file_path);
     }
 

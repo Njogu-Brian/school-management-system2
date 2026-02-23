@@ -66,6 +66,8 @@ class ClassroomController extends Controller
             'next_class_id' => 'nullable|exists:classrooms,id',
             'is_beginner' => 'nullable|boolean',
             'is_alumni' => 'nullable|boolean',
+            'campus' => 'nullable|in:lower,upper',
+            'level_type' => 'nullable|in:preschool,lower_primary,upper_primary,junior_high',
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
         ]);
@@ -75,6 +77,8 @@ class ClassroomController extends Controller
             'next_class_id' => $request->next_class_id,
             'is_beginner' => $request->boolean('is_beginner'),
             'is_alumni' => $request->boolean('is_alumni'),
+            'campus' => $request->campus,
+            'level_type' => $request->level_type,
         ]);
 
         if ($request->has('teacher_ids')) {
@@ -110,6 +114,8 @@ class ClassroomController extends Controller
             'next_class_id' => 'nullable|exists:classrooms,id|different:id',
             'is_beginner' => 'nullable|boolean',
             'is_alumni' => 'nullable|boolean',
+            'campus' => 'nullable|in:lower,upper',
+            'level_type' => 'nullable|in:preschool,lower_primary,upper_primary,junior_high',
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
         ]);
@@ -120,6 +126,8 @@ class ClassroomController extends Controller
             'next_class_id' => $request->next_class_id,
             'is_beginner' => $request->boolean('is_beginner'),
             'is_alumni' => $request->boolean('is_alumni'),
+            'campus' => $request->campus,
+            'level_type' => $request->level_type,
         ]);
 
         $classroom->teachers()->sync($request->teacher_ids ?? []);

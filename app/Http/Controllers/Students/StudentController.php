@@ -533,9 +533,9 @@ class StudentController extends Controller
             // Handle photo upload
             if ($request->hasFile('photo')) {
                 if ($student->photo_path) {
-                    Storage::disk('public')->delete($student->photo_path);
+                    storage_public()->delete($student->photo_path);
                 }
-                $student->photo_path = $request->file('photo')->store('students/photos', 'public');
+                $student->photo_path = $request->file('photo')->store('students/photos', config('filesystems.public_disk', 'public'));
                 $student->save();
             }
             
@@ -910,9 +910,9 @@ class StudentController extends Controller
         // Handle photo upload
         if ($request->hasFile('photo')) {
             if ($student->photo_path) {
-                Storage::disk('public')->delete($student->photo_path);
+                storage_public()->delete($student->photo_path);
             }
-            $student->photo_path = $request->file('photo')->store('students/photos', 'public');
+            $student->photo_path = $request->file('photo')->store('students/photos', config('filesystems.public_disk', 'public'));
             $student->save();
         }
         
@@ -1091,16 +1091,16 @@ class StudentController extends Controller
 
         if ($request->hasFile('father_id_document')) {
             if ($parent->father_id_document) {
-                Storage::disk('private')->delete($parent->father_id_document);
+                storage_private()->delete($parent->father_id_document);
             }
-            $updates['father_id_document'] = $request->file('father_id_document')->store('parent_ids', 'private');
+            $updates['father_id_document'] = $request->file('father_id_document')->store('parent_ids', config('filesystems.private_disk', 'private'));
         }
 
         if ($request->hasFile('mother_id_document')) {
             if ($parent->mother_id_document) {
-                Storage::disk('private')->delete($parent->mother_id_document);
+                storage_private()->delete($parent->mother_id_document);
             }
-            $updates['mother_id_document'] = $request->file('mother_id_document')->store('parent_ids', 'private');
+            $updates['mother_id_document'] = $request->file('mother_id_document')->store('parent_ids', config('filesystems.private_disk', 'private'));
         }
 
         if (!empty($updates)) {

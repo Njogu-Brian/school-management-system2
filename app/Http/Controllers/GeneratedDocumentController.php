@@ -63,8 +63,8 @@ class GeneratedDocumentController extends Controller
     public function destroy(GeneratedDocument $generatedDocument)
     {
         // Delete PDF file if exists
-        if ($generatedDocument->pdf_path && Storage::disk('public')->exists($generatedDocument->pdf_path)) {
-            Storage::disk('public')->delete($generatedDocument->pdf_path);
+        if ($generatedDocument->pdf_path && storage_public()->exists($generatedDocument->pdf_path)) {
+            storage_public()->delete($generatedDocument->pdf_path);
         }
 
         $generatedDocument->delete();

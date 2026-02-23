@@ -177,11 +177,8 @@ class DocumentGeneratorService
     protected function savePdf($pdf, string $filename): string
     {
         $directory = 'documents/' . date('Y/m');
-        Storage::disk('public')->makeDirectory($directory);
-
         $path = $directory . '/' . $filename;
-        $pdf->save(storage_path('app/public/' . $path));
-
+        storage_public()->put($path, $pdf->output());
         return $path;
     }
 
@@ -192,8 +189,8 @@ class DocumentGeneratorService
     {
         $logoPath = Setting::where('key', 'school_logo')->value('value');
         
-        if ($logoPath && Storage::disk('public')->exists($logoPath)) {
-            return storage_path('app/public/' . $logoPath);
+        if ($logoPath && storage_public()->exists($logoPath)) {
+            return storage_local_path(config('filesystems.public_disk', 'public'), $logoPath);
         }
 
         return '';
@@ -206,8 +203,8 @@ class DocumentGeneratorService
     {
         $signaturePath = Setting::where('key', "signature_{$type}")->value('value');
         
-        if ($signaturePath && Storage::disk('public')->exists($signaturePath)) {
-            return storage_path('app/public/' . $signaturePath);
+        if ($signaturePath && storage_public()->exists($signaturePath)) {
+            return storage_local_path(config('filesystems.public_disk', 'public'), $signaturePath);
         }
 
         return '';
@@ -218,8 +215,8 @@ class DocumentGeneratorService
      */
     protected function getStudentPhotoPath(Student $student): string
     {
-        if ($student->photo_path && Storage::disk('public')->exists($student->photo_path)) {
-            return storage_path('app/public/' . $student->photo_path);
+        if ($student->photo_path && storage_public()->exists($student->photo_path)) {
+            return storage_local_path(config('filesystems.public_disk', 'public'), $student->photo_path);
         }
 
         return '';
@@ -230,8 +227,8 @@ class DocumentGeneratorService
      */
     protected function getStaffPhotoPath(Staff $staff): string
     {
-        if ($staff->photo_path && Storage::disk('public')->exists($staff->photo_path)) {
-            return storage_path('app/public/' . $staff->photo_path);
+        if ($staff->photo_path && storage_public()->exists($staff->photo_path)) {
+            return storage_local_path(config('filesystems.public_disk', 'public'), $staff->photo_path);
         }
 
         return '';

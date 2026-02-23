@@ -377,10 +377,10 @@ class OnlineAdmissionController extends Controller
 
             // Copy passport photo from admissions to students/photos if it exists
             $photoPath = null;
-            if ($admission->passport_photo && Storage::disk('public')->exists($admission->passport_photo)) {
+            if ($admission->passport_photo && storage_public()->exists($admission->passport_photo)) {
                 // Copy the file to students/photos directory
                 $newPath = 'students/photos/' . basename($admission->passport_photo);
-                if (Storage::disk('public')->copy($admission->passport_photo, $newPath)) {
+                if (storage_public()->copy($admission->passport_photo, $newPath)) {
                     $photoPath = $newPath;
                 } else {
                     // If copy fails, try to move it
@@ -515,10 +515,10 @@ class OnlineAdmissionController extends Controller
     {
         // Delete uploaded files
         if ($admission->passport_photo) {
-            Storage::disk('public')->delete($admission->passport_photo);
+            storage_public()->delete($admission->passport_photo);
         }
         if ($admission->birth_certificate) {
-            Storage::disk('private')->delete($admission->birth_certificate);
+            storage_private()->delete($admission->birth_certificate);
         }
         $admission->delete();
 

@@ -41,10 +41,10 @@ class FileDownloadController extends Controller
         $path = $record->{$field};
         abort_unless($path, 404);
 
-        abort_unless(Storage::disk('private')->exists($path), 404);
+        abort_unless(storage_private()->exists($path), 404);
 
         $filename = $map[$model]['label'] . '-' . $id . '-' . basename($path);
-        return Storage::disk('private')->download($path, $filename);
+        return storage_private()->download($path, $filename);
     }
 }
 
