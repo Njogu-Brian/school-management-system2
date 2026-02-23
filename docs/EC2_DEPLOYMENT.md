@@ -65,7 +65,23 @@ DB_USERNAME=your_user
 DB_PASSWORD=your_password
 ```
 
-### 6. Configure Nginx
+### 6. Install Python dependencies (bank statement parser)
+
+The bank statement parser uses Python and pdfplumber. On the server:
+
+```bash
+# Ensure Python 3 and pip are installed
+sudo apt install -y python3 python3-pip
+
+# Install parser dependencies (run from project root)
+pip3 install -r /var/www/erp/app/Services/python/requirements.txt --user
+# Or system-wide (so php-fpm can use it):
+sudo pip3 install -r /var/www/erp/app/Services/python/requirements.txt
+```
+
+Verify: `python3 /var/www/erp/app/Services/python/bank_statement_parser.py --help` should run without "pdfplumber not installed".
+
+### 7. Configure Nginx
 
 ```nginx
 server {
@@ -147,6 +163,7 @@ FILESYSTEM_PRIVATE_DISK=s3_private
 | Issue | Fix |
 |-------|-----|
 | 404 on bank statement PDF | Ensure storage/app/private/bank-statements has files; run `php artisan storage:link` |
+| **pdfplumber not installed** | On EC2: `sudo apt install -y python3 python3-pip` then `sudo pip3 install -r /var/www/erp/app/Services/python/requirements.txt` |
 | 500 error | Check `storage/logs/laravel.log` |
 | Permission denied | `sudo chown -R www-data:www-data /var/www/erp/storage` |
 | Composer memory limit | `php -d memory_limit=-1 /usr/local/bin/composer install` |
