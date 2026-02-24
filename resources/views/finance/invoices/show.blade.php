@@ -197,6 +197,22 @@
             </a>
             @endif
         </div>
+        @php
+            $uniformItem = \App\Services\UniformFeeService::getUniformItem($invoice);
+        @endphp
+        @if(!$uniformItem)
+        <div class="finance-card-body border-bottom">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span class="text-muted"><i class="bi bi-tshirt"></i> Add a uniform line for this student (optional). Amount will update fee balance and appear on invoice, payments and statement.</span>
+                <form action="{{ route('finance.invoices.uniform.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2">
+                    @csrf
+                    <label class="form-label mb-0">Amount (Ksh)</label>
+                    <input type="number" name="amount" class="form-control form-control-sm" style="width: 120px;" step="0.01" min="0" required placeholder="0.00">
+                    <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Uniform</button>
+                </form>
+            </div>
+        </div>
+        @endif
         <div class="finance-card-body p-0">
             <div class="table-responsive px-3 pb-3">
                 <table class="finance-table table-hover align-middle mb-0">
@@ -365,16 +381,29 @@
                             </td>
                             <td>
                                 <div class="edit-actions-view{{ $item->id }}">
+                                    @if(($item->source ?? '') === \App\Services\UniformFeeService::SOURCE)
                                     <button type="button" 
                                             class="btn btn-sm btn-finance btn-finance-outline"
-                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Item') }}')">
+                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Uniform') }}', true)">
+                                        <i class="bi bi-pencil"></i> Adjust
+                                    </button>
+                                    <form action="{{ route('finance.invoices.uniform.remove', $invoice) }}" method="POST" class="d-inline" onsubmit="return confirm('Remove uniform line from this invoice?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i> Remove</button>
+                                    </form>
+                                    @else
+                                    <button type="button" 
+                                            class="btn btn-sm btn-finance btn-finance-outline"
+                                            onclick="startInlineEdit({{ $item->id }}, {{ $item->amount }}, '{{ addslashes($item->votehead->name ?? 'Item') }}', false)">
                                         <i class="bi bi-pencil"></i> Edit
                                     </button>
+                                    @endif
                                 </div>
                                 <div class="edit-actions-edit{{ $item->id }}" style="display: none;">
                                     <button type="button" 
                                             class="btn btn-sm btn-success"
-                                            onclick="saveInlineEdit({{ $item->id }}, {{ $invoice->id }})">
+                                            onclick="saveInlineEdit({{ $item->id }}, {{ $invoice->id }}, {{ ($item->source ?? '') === \App\Services\UniformFeeService::SOURCE ? 'true' : 'false' }})">
                                         <i class="bi bi-check"></i> Save
                                     </button>
                                     <button type="button" 
@@ -387,10 +416,17 @@
                         </tr>
                         
                         <!-- Inline Edit Reason Row -->
-                        <tr id="reasonRow{{ $item->id }}" style="display: none;" class="table-warning">
+                        <tr id="reasonRow{{ $item->id }}" style="display: none;" class="table-warning" data-is-uniform="{{ ($item->source ?? '') === \App\Services\UniformFeeService::SOURCE ? '1' : '0' }}">
                             <td></td>
                             <td colspan="8">
                                 <div class="mb-2">
+                                    @if(($item->source ?? '') === \App\Services\UniformFeeService::SOURCE)
+                                    <label class="form-label small mb-1"><strong>Optional note:</strong></label>
+                                    <textarea class="form-control form-control-sm" 
+                                              id="reason{{ $item->id }}" 
+                                              rows="2" 
+                                              placeholder="Optional note (amount is updated directly; no credit/debit note)"></textarea>
+                                    @else
                                     <label class="form-label small mb-1"><strong>Reason for amount change:</strong> <span class="text-danger">*</span></label>
                                     <textarea class="form-control form-control-sm" 
                                               id="reason{{ $item->id }}" 
@@ -398,6 +434,7 @@
                                               placeholder="Enter reason for changing the amount..."
                                               required></textarea>
                                     <small class="text-muted">Decreasing amount will create a credit note. Increasing will create a debit note.</small>
+                                    @endif
                                 </div>
                             </td>
                             <td></td>
@@ -686,7 +723,7 @@
 @push('scripts')
 <script>
 // Inline editing for invoice items - NO MODAL, NO FLICKERING
-function startInlineEdit(itemId, currentAmount, voteheadName) {
+function startInlineEdit(itemId, currentAmount, voteheadName, isUniform) {
     console.log('[Invoice Edit] Starting inline edit for item:', itemId);
     
     // Hide display, show edit form
@@ -695,6 +732,11 @@ function startInlineEdit(itemId, currentAmount, voteheadName) {
     
     // Show reason row
     document.getElementById('reasonRow' + itemId).style.display = 'table-row';
+    var reasonInput = document.getElementById('reason' + itemId);
+    if (reasonInput) {
+        reasonInput.removeAttribute('required');
+        if (isUniform) reasonInput.placeholder = 'Optional note (no credit/debit note)';
+    }
     
     // Toggle action buttons
     document.querySelector('.edit-actions-view' + itemId).style.display = 'none';
@@ -723,8 +765,13 @@ function cancelInlineEdit(itemId) {
     document.getElementById('reason' + itemId).value = '';
 }
 
-function saveInlineEdit(itemId, invoiceId) {
+function saveInlineEdit(itemId, invoiceId, isUniform) {
     console.log('[Invoice Edit] Saving inline edit for item:', itemId);
+    
+    if (typeof isUniform === 'undefined') {
+        var reasonRow = document.getElementById('reasonRow' + itemId);
+        isUniform = reasonRow && reasonRow.getAttribute('data-is-uniform') === '1';
+    }
     
     // Get values
     var newAmount = document.getElementById('newAmount' + itemId).value;
@@ -737,7 +784,7 @@ function saveInlineEdit(itemId, invoiceId) {
         return;
     }
     
-    if (!reason || reason.trim() === '') {
+    if (!isUniform && (!reason || reason.trim() === '')) {
         alert('Please enter a reason for the change');
         document.getElementById('reason' + itemId).focus();
         return;
@@ -755,7 +802,7 @@ function saveInlineEdit(itemId, invoiceId) {
     // Prepare data
     var formData = new FormData();
     formData.append('new_amount', newAmount);
-    formData.append('reason', reason);
+    formData.append('reason', isUniform ? (reason || 'Uniform amount adjusted') : reason);
     formData.append('_token', csrfToken);
     
     // Build URL

@@ -1509,6 +1509,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             ->name('invoices.items.update');
         Route::get('invoices/{invoice}/history', [InvoiceController::class, 'history'])
             ->name('invoices.history');
+        Route::post('invoices/{invoice}/uniform', [InvoiceController::class, 'storeUniform'])
+            ->name('invoices.uniform.store');
+        Route::delete('invoices/{invoice}/uniform', [InvoiceController::class, 'removeUniform'])
+            ->name('invoices.uniform.remove');
             
         // Discounts (Fee Concessions)
         Route::get('discounts/replicate', [DiscountController::class, 'replicateForm'])->name('discounts.replicate.form');

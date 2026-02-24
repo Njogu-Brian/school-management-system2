@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Models\Votehead;
 use App\Services\DocumentNumberService;
 use App\Services\InvoiceService;
+use App\Services\UniformFeeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\OptionalFee;
@@ -247,7 +248,7 @@ class InvoiceController extends Controller
         
         $request->validate([
             'new_amount' => 'required|numeric|min:0',
-            'reason' => 'required|string|max:255',
+            'reason' => $item->source === UniformFeeService::SOURCE ? 'nullable|string|max:255' : 'required|string|max:255',
             'notes' => 'nullable|string',
         ]);
 
@@ -259,6 +260,28 @@ class InvoiceController extends Controller
                 return response()->json(['success' => true, 'message' => 'No change.']);
             }
             return back()->with('success', 'No change.');
+        }
+
+        // Uniform items: adjust amount directly, no credit/debit notes
+        if ($item->source === UniformFeeService::SOURCE) {
+            try {
+                UniformFeeService::updateUniformAmount($item, $newAmount);
+                $message = 'Uniform amount updated.';
+                if ($isAjax) {
+                    return response()->json(['success' => true, 'message' => $message, 'item' => $item->fresh()]);
+                }
+                return back()->with('success', $message);
+            } catch (\Exception $e) {
+                \Log::error('Uniform amount update failed: ' . $e->getMessage(), [
+                    'invoice_id' => $invoice->id,
+                    'item_id' => $item->id,
+                    'exception' => $e
+                ]);
+                if ($isAjax) {
+                    return response()->json(['success' => false, 'error' => 'Update failed: ' . $e->getMessage()], 422);
+                }
+                return back()->with('error', 'Update failed: ' . $e->getMessage());
+            }
         }
 
         try {
@@ -303,7 +326,38 @@ class InvoiceController extends Controller
             return back()->with('error', 'Update failed: ' . $e->getMessage());
         }
     }
-    
+
+    /**
+     * Add or update uniform line on this invoice (shortcut; no credit/debit notes).
+     */
+    public function storeUniform(Request $request, Invoice $invoice)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:0',
+        ]);
+        try {
+            UniformFeeService::addOrUpdateUniform($invoice, (float) $request->amount);
+            return back()->with('success', 'Uniform amount added/updated. It will appear on the invoice, payments and statement.');
+        } catch (\Exception $e) {
+            \Log::error('Uniform store failed: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
+            return back()->with('error', 'Failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove uniform line from this invoice.
+     */
+    public function removeUniform(Invoice $invoice)
+    {
+        try {
+            UniformFeeService::removeUniform($invoice);
+            return back()->with('success', 'Uniform line removed from invoice.');
+        } catch (\Exception $e) {
+            \Log::error('Uniform remove failed: ' . $e->getMessage(), ['invoice_id' => $invoice->id]);
+            return back()->with('error', 'Failed: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Show invoice edit history (credit/debit notes, audit log)
      */
