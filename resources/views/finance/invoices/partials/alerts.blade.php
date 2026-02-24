@@ -26,7 +26,7 @@
     </div>
 @endif
 
-@if($errors->any())
+@if(isset($errors) && is_object($errors) && $errors->any())
     <div class="alert alert-danger alert-dismissible fade show">
         <i class="bi bi-exclamation-circle me-2"></i><strong>Validation Errors:</strong>
         <ul class="mb-0 mt-2">

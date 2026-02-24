@@ -5,7 +5,7 @@
         'title' => 'Invoices',
         'icon' => 'bi bi-file-text',
         'subtitle' => 'Manage and track all student invoices',
-        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print Bulk PDF</a><a href="' . route('finance.invoices.create') . '" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Invoice</a>'
+        'actions' => '<a href="' . route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print Bulk PDF</a>'
     ])
 
     @includeIf('finance.invoices.partials.alerts')
@@ -95,7 +95,6 @@
                 <i class="bi bi-send"></i> Send Selected
             </button>
             <a href="{{ route('finance.invoices.print', request()->only(['year','term','votehead_id','class_id','stream_id','student_id'])) }}" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print Bulk PDF</a>
-            <a href="{{ route('finance.invoices.create') }}" class="btn btn-finance btn-finance-primary"><i class="bi bi-plus-circle"></i> Create Invoice</a>
         </div>
     </div>
 
@@ -239,10 +238,7 @@
                                         <i class="bi bi-file-text"></i>
                                     </div>
                                     <h4>No invoices found</h4>
-                                    <p class="text-muted mb-3">Get started by creating your first invoice</p>
-                                    <a href="{{ route('finance.invoices.create') }}" class="btn btn-finance btn-finance-primary">
-                                        <i class="bi bi-plus-circle"></i> Create Invoice
-                                    </a>
+                                    <p class="text-muted mb-3">Use <a href="{{ route('finance.posting.index') }}">Post Pending Fees</a> to generate invoices for students.</p>
                                 </div>
                             </td>
                         </tr>

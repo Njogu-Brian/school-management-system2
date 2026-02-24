@@ -1231,7 +1231,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Invoices
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('/',               [InvoiceController::class, 'index'])->name('index');
-            Route::get('/create',         [InvoiceController::class, 'create'])->name('create');
+            Route::get('/create',         fn () => redirect()->route('finance.invoices.index'))->name('create');
             Route::post('/generate',      [InvoiceController::class, 'generate'])->name('generate');
             Route::get('/{invoice}',      [InvoiceController::class, 'show'])->name('show');
             Route::get('/{invoice}/edit', [InvoiceController::class, 'edit'])->name('edit');
