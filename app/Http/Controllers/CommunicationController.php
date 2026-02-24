@@ -77,12 +77,14 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'exclude_staff'  => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
             'attachment'     => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,mp4,mov,avi,webm|max:20480',
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
         $subject     = $data['title'] ?? 'Untitled Email';
         $messageBody = $data['message'];
@@ -205,12 +207,14 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'exclude_staff'  => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
             'sender_id'      => 'nullable|string|in:finance,default,""',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
         $message = $data['message'];
         if ($data['template_id']) {
@@ -372,12 +376,14 @@ class CommunicationController extends Controller
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'exclude_staff'  => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
             'schedule'       => 'nullable|string|in:now,later',
             'send_at'        => 'nullable|date',
             'media'          => 'nullable|file|mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,webm|max:20480',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
         $message = $data['message'];
         $title = 'WhatsApp';
@@ -689,10 +695,12 @@ class CommunicationController extends Controller
                 'student_id' => 'nullable|integer',
                 'selected_student_ids' => 'nullable|string',
                 'fee_balance_only' => 'nullable|boolean',
+                'exclude_staff' => 'nullable|boolean',
                 'exclude_student_ids' => 'nullable|string',
                 'template_id' => 'nullable|exists:communication_templates,id',
             ]);
             $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+            $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
             // Try to get recipients, but handle DB errors gracefully
             try {

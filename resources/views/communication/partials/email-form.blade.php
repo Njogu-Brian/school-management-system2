@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
             channelInput.value = 'email';
             previewForm.appendChild(channelInput);
 
-            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_student_ids'].forEach(field => {
+            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_staff', 'exclude_student_ids'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');

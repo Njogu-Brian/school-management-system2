@@ -53,9 +53,11 @@ class CommunicationNoteController extends Controller
             'student_id' => 'nullable|required_if:target,student|exists:students,id',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
+            'exclude_staff' => 'nullable|boolean',
             'exclude_student_ids' => 'nullable|string',
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
+        $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
 
         $students = $this->collectNoteRecipients($data);
         if ($students->isEmpty()) {
@@ -135,6 +137,20 @@ class CommunicationNoteController extends Controller
                 $students = $students->filter(fn ($s) => isset($studentIdsWithBalance[$s->id]))->values();
             }
 
+            if (! empty($data['exclude_staff'] ?? null)) {
+                $students = $students->filter(function ($s) {
+                    $s->loadMissing('category');
+                    return ! $s->category || strtolower($s->category->name) !== 'staff';
+                })->values();
+            }
+
+            // Order by classroom name, then by student name (so "All students" prints by class)
+            $students = $students->sortBy(function ($s) {
+                $classOrder = $s->classroom ? $s->classroom->name : 'ZZZ';
+                $name = $s->full_name ?? trim($s->first_name . ' ' . $s->last_name) ?? $s->admission_number ?? '';
+                return $classOrder . '|' . $name;
+            })->values();
+
             return $students;
         }
 
@@ -143,9 +159,17 @@ class CommunicationNoteController extends Controller
             'email'
         );
 
-        // contact => Student; we want unique students
+        // contact => Student; we want unique students, ordered by classroom then name
         $students = collect($recipients)->filter(fn ($entity) => $entity instanceof Student)->values();
         $unique = $students->unique('id')->values();
+
+        // Order by classroom name, then by student name (consistent with "All students")
+        $unique = $unique->sortBy(function ($s) {
+            $s->loadMissing('classroom');
+            $classOrder = $s->classroom ? $s->classroom->name : 'ZZZ';
+            $name = $s->full_name ?? trim(($s->first_name ?? '') . ' ' . ($s->last_name ?? '')) ?: ($s->admission_number ?? '');
+            return $classOrder . '|' . $name;
+        })->values();
 
         return $unique;
     }

@@ -179,6 +179,17 @@ class CommunicationHelperService
             });
         }
 
+        // Exclude students in staff category (children whose student category name is "Staff")
+        if (!empty($data['exclude_staff'])) {
+            $out = array_filter($out, function ($entity) {
+                if (!$entity instanceof Student) {
+                    return true;
+                }
+                $entity->loadMissing('category');
+                return !$entity->category || strtolower($entity->category->name) !== 'staff';
+            });
+        }
+
         return $out;
     }
 }

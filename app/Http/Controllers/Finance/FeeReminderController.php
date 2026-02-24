@@ -110,6 +110,20 @@ class FeeReminderController extends Controller
     protected function sendReminder(FeeReminder $reminder)
     {
         $student = $reminder->student;
+        if (!$student) {
+            return;
+        }
+
+        // Never send fee reminders to children in the staff category
+        $student->loadMissing('category');
+        if ($student->category && strtolower($student->category->name) === 'staff') {
+            $reminder->update([
+                'status' => 'failed',
+                'error_message' => 'Skipped: student is in staff category (fee reminders are not sent to staff children).',
+            ]);
+            return;
+        }
+
         $parent = $student->parent ?? null;
 
         // Use templates from CommunicationTemplateSeeder if no custom message
@@ -353,7 +367,10 @@ class FeeReminderController extends Controller
             // Find students with outstanding fees due on this date
             $invoices = Invoice::where('status', '!=', 'reversed')
                 ->whereHas('student', function($q) {
-                    $q->whereNotNull('parent_id');
+                    $q->whereNotNull('parent_id')
+                        ->whereDoesntHave('category', function($q2) {
+                            $q2->whereRaw('LOWER(name) = ?', ['staff']);
+                        });
                 })
                 ->with(['student.parent', 'payments'])
                 ->get()
@@ -399,7 +416,10 @@ class FeeReminderController extends Controller
             $installments = \App\Models\FeePaymentPlanInstallment::where('due_date', $dueDate)
                 ->whereIn('status', ['pending', 'partial'])
                 ->whereHas('paymentPlan.student', function($q) {
-                    $q->whereNotNull('parent_id');
+                    $q->whereNotNull('parent_id')
+                        ->whereDoesntHave('category', function($q2) {
+                            $q2->whereRaw('LOWER(name) = ?', ['staff']);
+                        });
                 })
                 ->with(['paymentPlan.student.parent', 'paymentPlan'])
                 ->get();
@@ -440,7 +460,10 @@ class FeeReminderController extends Controller
         $installmentsDueToday = \App\Models\FeePaymentPlanInstallment::where('due_date', $today)
             ->whereIn('status', ['pending', 'partial'])
             ->whereHas('paymentPlan.student', function($q) {
-                $q->whereNotNull('parent_id');
+                $q->whereNotNull('parent_id')
+                    ->whereDoesntHave('category', function($q2) {
+                        $q2->whereRaw('LOWER(name) = ?', ['staff']);
+                    });
             })
             ->with(['paymentPlan.student.parent', 'paymentPlan'])
             ->get();
@@ -481,7 +504,10 @@ class FeeReminderController extends Controller
             $overdueInstallments = \App\Models\FeePaymentPlanInstallment::where('due_date', $overdueDate)
                 ->whereIn('status', ['overdue', 'partial'])
                 ->whereHas('paymentPlan.student', function($q) {
-                    $q->whereNotNull('parent_id');
+                    $q->whereNotNull('parent_id')
+                        ->whereDoesntHave('category', function($q2) {
+                            $q2->whereRaw('LOWER(name) = ?', ['staff']);
+                        });
                 })
                 ->with(['paymentPlan.student.parent', 'paymentPlan'])
                 ->get()
