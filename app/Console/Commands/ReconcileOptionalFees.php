@@ -11,6 +11,7 @@ use App\Models\SwimmingLedger;
 use App\Models\Votehead;
 use App\Services\InvoiceService;
 use App\Services\TransportFeeService;
+use App\Services\SwimmingWalletService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -19,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  * Reconcile optional fees with invoices and (for swimming) swimming wallets.
  * - Billed optional fee but no invoice item → add item to invoice
  * - Invoice item with source=optional but no billed OptionalFee → remove from invoice
- * - Swimming billed optional fee → verify wallet credit exists (report only)
+ * - Swimming billed optional fee → verify wallet credit exists; with --fix create missing credit
  * Records changes for tracking when --fix is used.
  */
 class ReconcileOptionalFees extends Command
@@ -37,6 +38,7 @@ class ReconcileOptionalFees extends Command
         'added_to_invoice' => [],
         'removed_from_invoice' => [],
         'swimming_wallet_missing' => [],
+        'swimming_wallet_fixed' => [],
         'errors' => [],
     ];
 
@@ -178,18 +180,34 @@ class ReconcileOptionalFees extends Command
             }
         }
 
+        // 3) With --fix: create missing swimming wallet credits for billed optional fees
+        if ($fix && count($this->report['swimming_wallet_missing']) > 0) {
+            $walletService = app(SwimmingWalletService::class);
+            $stillMissing = [];
+            foreach ($this->report['swimming_wallet_missing'] as $r) {
+                if ($this->creditSwimmingWalletForOptionalFee($walletService, $r)) {
+                    $this->report['swimming_wallet_fixed'][] = $r;
+                } else {
+                    $stillMissing[] = $r;
+                }
+            }
+            $this->report['swimming_wallet_missing'] = $stillMissing;
+        }
+
         $this->outputReport($fix);
         $this->maybeExportCsv();
 
-        if ($fix && (count($this->report['added_to_invoice']) + count($this->report['removed_from_invoice']) > 0)) {
+        if ($fix && (count($this->report['added_to_invoice']) + count($this->report['removed_from_invoice']) + count($this->report['swimming_wallet_fixed']) > 0)) {
             Log::info('Optional fee reconciliation completed', [
                 'year' => $year,
                 'term' => $term,
                 'added_count' => count($this->report['added_to_invoice']),
                 'removed_count' => count($this->report['removed_from_invoice']),
+                'swimming_credited_count' => count($this->report['swimming_wallet_fixed']),
                 'swimming_missing_count' => count($this->report['swimming_wallet_missing']),
                 'added' => $this->report['added_to_invoice'],
                 'removed' => $this->report['removed_from_invoice'],
+                'swimming_fixed' => $this->report['swimming_wallet_fixed'],
             ]);
         }
 
@@ -349,10 +367,38 @@ class ReconcileOptionalFees extends Command
         }
     }
 
+    private function creditSwimmingWalletForOptionalFee(SwimmingWalletService $walletService, array $r): bool
+    {
+        $optionalFee = OptionalFee::with('student')->find($r['optional_fee_id']);
+        $student = $optionalFee ? $optionalFee->student : Student::find($r['student_id']);
+        if (!$optionalFee || !$student) {
+            $this->report['errors'][] = "Swimming credit failed: optional_fee_id={$r['optional_fee_id']} not found.";
+            return false;
+        }
+        try {
+            $walletService->creditFromOptionalFee(
+                $student,
+                $optionalFee,
+                (float) $r['amount'],
+                "Swimming termly fee for Term {$optionalFee->term} (reconcile)"
+            );
+            return true;
+        } catch (\Throwable $e) {
+            $this->report['errors'][] = "Swimming credit failed for {$r['admission']}: " . $e->getMessage();
+            Log::error('ReconcileOptionalFees swimming credit failed', [
+                'optional_fee_id' => $r['optional_fee_id'],
+                'student_id' => $r['student_id'],
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
     private function outputReport(bool $fix): void
     {
         $added = $this->report['added_to_invoice'];
         $removed = $this->report['removed_from_invoice'];
+        $swimmingFixed = $this->report['swimming_wallet_fixed'];
         $swimmingMissing = $this->report['swimming_wallet_missing'];
         $errors = $this->report['errors'];
 
@@ -382,8 +428,22 @@ class ReconcileOptionalFees extends Command
             );
         }
 
+        if ($swimmingFixed) {
+            $this->info('Swimming wallet credited:');
+            $this->table(
+                ['Student', 'Admission', 'Votehead', 'Amount', 'Action'],
+                array_map(fn ($r) => [
+                    $r['student_name'],
+                    $r['admission'],
+                    $r['votehead'],
+                    number_format($r['amount'], 2),
+                    'Credited',
+                ], $swimmingFixed)
+            );
+        }
+
         if ($swimmingMissing) {
-            $this->warn('Swimming wallet credit missing (report only; fix via Optional Fee or re-bill):');
+            $this->warn('Swimming wallet credit missing (run with --fix to create credit):');
             $this->table(
                 ['Student', 'Admission', 'Votehead', 'Amount'],
                 array_map(fn ($r) => [$r['student_name'], $r['admission'], $r['votehead'], number_format($r['amount'], 2)], $swimmingMissing)
@@ -395,8 +455,8 @@ class ReconcileOptionalFees extends Command
         }
 
         $this->newLine();
-        $this->info('Summary: ' . count($added) . ' added to invoice, ' . count($removed) . ' removed from invoice, ' . count($swimmingMissing) . ' swimming wallet missing.');
-        if (!$fix && (count($added) + count($removed) > 0)) {
+        $this->info('Summary: ' . count($added) . ' added to invoice, ' . count($removed) . ' removed from invoice, ' . count($swimmingFixed) . ' swimming wallet credited, ' . count($swimmingMissing) . ' swimming wallet missing.');
+        if (!$fix && (count($added) + count($removed) + count($swimmingMissing) > 0)) {
             $this->comment('Run with --fix to apply changes.');
         }
     }
@@ -417,6 +477,9 @@ class ReconcileOptionalFees extends Command
         }
         foreach ($this->report['swimming_wallet_missing'] as $r) {
             $rows[] = ['action' => 'swimming_missing', 'student' => $r['student_name'], 'admission' => $r['admission'], 'votehead' => $r['votehead'], 'amount' => $r['amount']];
+        }
+        foreach ($this->report['swimming_wallet_fixed'] as $r) {
+            $rows[] = ['action' => 'swimming_credited', 'student' => $r['student_name'], 'admission' => $r['admission'], 'votehead' => $r['votehead'], 'amount' => $r['amount']];
         }
 
         $fp = fopen($path, 'w');
