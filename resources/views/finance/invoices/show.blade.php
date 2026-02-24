@@ -200,19 +200,21 @@
         @php
             $uniformItem = \App\Services\UniformFeeService::getUniformItem($invoice);
         @endphp
-        @if(!$uniformItem)
         <div class="finance-card-body border-bottom">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <span class="text-muted"><i class="bi bi-tshirt"></i> Add a uniform line for this student (optional). Amount will update fee balance and appear on invoice, payments and statement.</span>
+                <span class="text-muted"><i class="bi bi-tshirt"></i> {{ $uniformItem ? 'Uniform line on this invoice. Change amount or remove in the table below.' : 'Add a uniform line for this student (optional). Amount will update fee balance and appear on invoice, payments and statement.' }}</span>
+                @if(!$uniformItem)
                 <form action="{{ route('finance.invoices.uniform.store', $invoice) }}" method="POST" class="d-flex align-items-center gap-2">
                     @csrf
                     <label class="form-label mb-0">Amount (Ksh)</label>
                     <input type="number" name="amount" class="form-control form-control-sm" style="width: 120px;" step="0.01" min="0" required placeholder="0.00">
                     <button type="submit" class="btn btn-sm btn-finance btn-finance-primary"><i class="bi bi-plus-lg"></i> Add Uniform</button>
                 </form>
+                @else
+                <a href="#item-{{ $uniformItem->id }}" class="btn btn-sm btn-finance btn-finance-outline"><i class="bi bi-pencil"></i> Adjust / Remove in table below</a>
+                @endif
             </div>
         </div>
-        @endif
         <div class="finance-card-body p-0">
             <div class="table-responsive px-3 pb-3">
                 <table class="finance-table table-hover align-middle mb-0">
@@ -325,7 +327,7 @@
                             $paid = $item->getAllocatedAmount() ?? 0;
                             $balance = $afterDiscount - $paid;
                         @endphp
-                        <tr>
+                        <tr id="item-{{ $item->id }}">
                             <td>{{ $lineNumber }}</td>
                             <td>
                                 {{ $item->votehead->name ?? 'Unknown' }}
