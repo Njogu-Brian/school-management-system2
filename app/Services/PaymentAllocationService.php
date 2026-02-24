@@ -38,7 +38,7 @@ class PaymentAllocationService
                 $amount = (float)$allocation['amount'];
                 
                 // Validate allocation doesn't exceed payment
-                if ($currentAllocated + $totalAllocated + $amount > $payment->amount) {
+                if ($currentAllocated + $totalAllocated + $amount > (float) $payment->amount + 0.01) {
                     throw new \Exception('Allocation exceeds payment amount.');
                 }
                 
@@ -109,6 +109,13 @@ class PaymentAllocationService
         }
         
         $studentId = $studentId ?? $payment->student_id;
+
+        // Only allocate the unallocated portion (avoids "Allocation exceeds payment amount" when payment already has allocations)
+        $alreadyAllocated = (float) $payment->allocations()->sum('amount');
+        $remaining = (float) $payment->amount - $alreadyAllocated;
+        if ($remaining <= 0) {
+            return $payment->fresh();
+        }
         
         // Get unpaid invoice items for student
         $invoiceItems = InvoiceItem::whereHas('invoice', function ($q) use ($studentId) {
@@ -131,8 +138,7 @@ class PaymentAllocationService
         } else {
             $invoiceItems = $invoiceItems->sortBy('invoice.issued_date')->values();
         }
-        
-        $remaining = $payment->amount;
+
         $allocations = [];
         
         foreach ($invoiceItems as $item) {
@@ -153,11 +159,13 @@ class PaymentAllocationService
         if (!empty($allocations)) {
             $this->allocatePayment($payment, $allocations);
         } else {
-            // No items to allocate - this is an overpayment
-            $payment->update([
-                'allocated_amount' => 0,
-                'unallocated_amount' => $payment->amount,
-            ]);
+            // No items to allocate - this is an overpayment (only update if we had unallocated amount)
+            if ($alreadyAllocated < (float) $payment->amount) {
+                $payment->update([
+                    'allocated_amount' => $alreadyAllocated,
+                    'unallocated_amount' => (float) $payment->amount - $alreadyAllocated,
+                ]);
+            }
         }
         
         return $payment->fresh();

@@ -1608,6 +1608,28 @@ class BankStatementParser
                 );
                 $created[] = $payment;
             }
+
+            // If no per-allocation shortfall but transaction total > sum of existing payments (unassigned remainder),
+            // create one payment for the first sibling so "Create Payment" can collect the remainder.
+            if (empty($created)) {
+                $transactionTotal = (float) $transaction->amount;
+                $unassignedRemaining = $transactionTotal - $totalActive;
+                if ($unassignedRemaining > 0.01) {
+                    $firstAllocation = collect($transaction->shared_allocations)->first();
+                    $firstStudentId = $firstAllocation ? (int) ($firstAllocation['student_id'] ?? 0) : 0;
+                    if ($firstStudentId > 0) {
+                        $student = Student::findOrFail($firstStudentId);
+                        $payment = $this->createSinglePayment(
+                            $transaction,
+                            $student,
+                            $unassignedRemaining,
+                            $sharedReceiptNumber ?? null,
+                            $skipAllocation
+                        );
+                        $created[] = $payment;
+                    }
+                }
+            }
         } else {
             $remaining = (float) $transaction->amount - $totalActive;
             if ($remaining > 0.01) {

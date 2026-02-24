@@ -2781,6 +2781,9 @@ class BankStatementController extends Controller
                 if ($remainingAmount !== null && $remainingAmount <= 0.01) {
                     $message = 'No additional payment was created because the transaction is already fully collected.';
                 }
+                if ($remainingAmount !== null && $remainingAmount > 0.01 && $bankStatement->is_shared) {
+                    $message = 'No payment was created for the remaining Ksh ' . number_format($remainingAmount, 2) . '. If shared amounts do not add up to the transaction total, use "Edit Amounts" to assign the remainder to a student, then try again.';
+                }
 
                 return redirect()
                     ->route('finance.bank-statements.show', $id)
