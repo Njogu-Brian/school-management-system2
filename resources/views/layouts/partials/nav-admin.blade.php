@@ -427,14 +427,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     </div>
     
     {{-- Invoicing --}}
-    @php
-        $invoicesActive = Request::is('finance/invoices*');
-    @endphp
-    <a href="#invoicesMenu" data-bs-toggle="collapse" aria-expanded="{{ $invoicesActive ? 'true' : 'false' }}" class="{{ $invoicesActive ? 'parent-active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
-    <div class="collapse {{ $invoicesActive ? 'show' : '' }}" id="invoicesMenu" style="padding-left: 20px;">
-        <a href="{{ route('finance.invoices.index') }}" class="sublink {{ Request::is('finance/invoices') && !Request::is('finance/invoices/*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> All Invoices</a>
-        <a href="{{ route('finance.invoices.index') }}" class="sublink"><i class="bi bi-tshirt"></i> Add Uniform (via invoice)</a>
-    </div>
+    <a href="{{ route('finance.invoices.index') }}" class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
     <a href="{{ route('finance.journals.index') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
     
     {{-- Billing Configuration --}}
