@@ -784,6 +784,8 @@ class StudentStatementController extends Controller
 
             InvoiceService::recalc($invoice);
 
+            \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
+
             return back()->with('success', 'Debit entry added successfully.');
         }
 
@@ -803,6 +805,8 @@ class StudentStatementController extends Controller
         ]);
 
         InvoiceService::recalc($invoiceItem->invoice);
+
+        \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent($invoiceItem->invoice->student_id);
 
         return back()->with('success', 'Credit entry added successfully.');
     }

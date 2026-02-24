@@ -493,6 +493,7 @@ class BalanceBroughtForwardController extends Controller
                     // Enable auto-allocation to ensure payments are allocated properly
                     app()->instance('auto_allocating', true);
                     InvoiceService::recalc($invoice);
+                    InvoiceService::allocateUnallocatedPaymentsForStudent($studentId);
                     app()->instance('auto_allocating', false);
 
                     // Also recalculate all invoices for this student to ensure statements are updated
@@ -634,6 +635,7 @@ class BalanceBroughtForwardController extends Controller
             $invoice = \App\Models\Invoice::find($invoiceId);
             if ($invoice) {
                 InvoiceService::recalc($invoice);
+                InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
             }
         }
 
@@ -698,6 +700,7 @@ class BalanceBroughtForwardController extends Controller
 
                         $invoiceIds[] = $invoice->id;
                         InvoiceService::recalc($invoice);
+                        InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
                         $restored++;
                     } catch (\Exception $e) {
                         Log::error('Balance brought forward reversal error', [
@@ -712,6 +715,7 @@ class BalanceBroughtForwardController extends Controller
                     $invoice = \App\Models\Invoice::find($invoiceId);
                     if ($invoice) {
                         InvoiceService::recalc($invoice);
+                        InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
                     }
                 }
 
@@ -890,6 +894,7 @@ class BalanceBroughtForwardController extends Controller
                 $invoice = $invoiceItem->invoice;
                 $invoiceItem->delete();
                 InvoiceService::recalc($invoice);
+                InvoiceService::allocateUnallocatedPaymentsForStudent($invoice->student_id);
                 return 1;
             });
 

@@ -431,6 +431,18 @@ class PaymentController extends Controller
             }
         });
 
+        // Auto-allocate for this student so new payment (and any other unallocated) is allocated to outstanding invoices
+        if (isset($createdPayment) && $createdPayment->student_id) {
+            try {
+                \App\Services\InvoiceService::allocateUnallocatedPaymentsForStudent($createdPayment->student_id);
+            } catch (\Exception $e) {
+                Log::warning('Auto-allocation after payment create failed', [
+                    'student_id' => $createdPayment->student_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // Auto-match to bank statement transaction if transaction code matches
         try {
             $this->autoMatchToBankStatement($createdPayment);
@@ -3076,11 +3088,11 @@ class PaymentController extends Controller
         $errors = [];
         $skipped = 0;
         
-        // Get all unallocated payments
+        // Get all unallocated payments (use COALESCE so NULL allocated_amount is treated as 0)
         $unallocatedPayments = Payment::where('reversed', false)
             ->where(function($q) {
                 $q->where('unallocated_amount', '>', 0)
-                  ->orWhereRaw('amount > allocated_amount');
+                  ->orWhereRaw('amount > COALESCE(allocated_amount, 0)');
             })
             // Exclude swimming payments - they are managed separately and allocated to wallets
             ->where('receipt_number', 'not like', 'SWIM-%')

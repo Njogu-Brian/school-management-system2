@@ -132,7 +132,7 @@ class InvoiceService
             ->where('source', 'balance_brought_forward')
             ->first();
         
-        if (!$existingItem) {
+            if (!$existingItem) {
             InvoiceItem::create([
                 'invoice_id' => $invoice->id,
                 'votehead_id' => $votehead->id,
@@ -142,9 +142,10 @@ class InvoiceService
                 'source' => 'balance_brought_forward',
                 'effective_date' => $invoice->issued_date ?? now(),
             ]);
-            
+
             // Recalculate invoice to include the new item
             self::recalc($invoice);
+            self::allocateUnallocatedPaymentsForStudent($invoice->student_id);
         }
     }
 
