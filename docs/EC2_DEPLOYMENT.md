@@ -81,7 +81,25 @@ sudo pip3 install -r /var/www/erp/app/Services/python/requirements.txt
 
 Verify: `python3 /var/www/erp/app/Services/python/bank_statement_parser.py --help` should run without "pdfplumber not installed".
 
-### 7. Configure Nginx
+### 7. Writable directories for web server
+
+PHP-FPM runs as `www-data`. Ensure it can write to `storage`, `bootstrap/cache`, and `public/images` (branding uploads):
+
+```bash
+sudo mkdir -p /var/www/erp/public/images
+sudo chown -R www-data:www-data /var/www/erp/storage /var/www/erp/bootstrap/cache /var/www/erp/public/images
+sudo chmod -R 775 /var/www/erp/storage /var/www/erp/bootstrap/cache /var/www/erp/public/images
+```
+
+If you deploy as `ubuntu` and need that user to retain ownership of the rest of the app, only fix the writable dirs:
+
+```bash
+sudo mkdir -p /var/www/erp/public/images
+sudo chown -R www-data:www-data /var/www/erp/public/images
+sudo chown -R www-data:www-data /var/www/erp/storage /var/www/erp/bootstrap/cache
+```
+
+### 8. Configure Nginx
 
 ```nginx
 server {
@@ -164,6 +182,7 @@ FILESYSTEM_PRIVATE_DISK=s3_private
 |-------|-----|
 | 404 on bank statement PDF | Ensure storage/app/private/bank-statements has files; run `php artisan storage:link` |
 | **pdfplumber not installed** | On EC2: `sudo apt install -y python3 python3-pip` then `sudo pip3 install -r /var/www/erp/app/Services/python/requirements.txt` |
+| **Unable to write in public/images** | `sudo mkdir -p /var/www/erp/public/images && sudo chown -R www-data:www-data /var/www/erp/public/images` |
 | 500 error | Check `storage/logs/laravel.log` |
 | Permission denied | `sudo chown -R www-data:www-data /var/www/erp/storage` |
 | Composer memory limit | `php -d memory_limit=-1 /usr/local/bin/composer install` |
