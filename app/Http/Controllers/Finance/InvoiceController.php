@@ -368,9 +368,17 @@ class InvoiceController extends Controller
             'items.debitNotes.issuedBy',
             'creditNotes.issuedBy',
             'debitNotes.issuedBy',
-            'items.allocations.payment',
+            'items.allocations.payment.paymentMethod',
         ]);
-        
+
+        // Payments that have at least one allocation to an item on this invoice (so all payments for this invoice show in history)
+        $paymentsForHistory = \App\Models\Payment::whereHas('allocations', function ($q) use ($invoice) {
+            $q->whereHas('invoiceItem', fn ($q2) => $q2->where('invoice_id', $invoice->id));
+        })
+            ->with('paymentMethod')
+            ->orderBy('payment_date', 'desc')
+            ->get();
+
         // Get audit logs for invoice
         $auditLogs = \App\Models\AuditLog::where('auditable_type', Invoice::class)
             ->where('auditable_id', $invoice->id)
@@ -380,8 +388,8 @@ class InvoiceController extends Controller
             })
             ->orderBy('created_at', 'desc')
             ->get();
-        
-        return view('finance.invoices.history', compact('invoice', 'auditLogs'));
+
+        return view('finance.invoices.history', compact('invoice', 'auditLogs', 'paymentsForHistory'));
     }
 
     private function filteredInvoicesQuery(Request $request): Builder

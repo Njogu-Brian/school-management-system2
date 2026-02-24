@@ -103,7 +103,10 @@
             @endif
 
             <!-- Payment History -->
-            @if($invoice->payments->isNotEmpty())
+            @php
+                $invoicePaymentHistory = $paymentsForHistory ?? $invoice->payments;
+            @endphp
+            @if($invoicePaymentHistory->isNotEmpty())
             <div class="finance-card finance-animate mb-4">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Payment History</h5>
@@ -122,7 +125,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($invoice->payments as $payment)
+                                @foreach($invoicePaymentHistory as $payment)
                                 <tr>
                                     <td>{{ $payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : 'N/A' }}</td>
                                     <td>
