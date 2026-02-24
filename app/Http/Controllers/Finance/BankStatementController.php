@@ -3564,21 +3564,9 @@ class BankStatementController extends Controller
                     'Cannot edit allocations: One or more related payments have been reversed.'
                 );
             }
-            
-            // Check if any payment is fully allocated (prevent editing if it would cause issues)
-            $fullyAllocatedPayments = \App\Models\Payment::where(function ($q) use ($referenceNumber) {
-                    $q->where('transaction_code', $referenceNumber)
-                      ->orWhere('transaction_code', 'LIKE', $referenceNumber . '-%');
-                })
-                ->where('reversed', false)
-                ->whereRaw('allocated_amount >= amount')
-                ->exists();
-            
-            if ($fullyAllocatedPayments) {
-                return back()->with('warning', 
-                    'One or more payments are fully allocated. Editing may require payment reversal first.'
-                );
-            }
+
+            // When payments are fully allocated, editing is allowed: syncSharedPayments will deallocate
+            // excess if an amount is reduced.
         } elseif ($normalized['status'] !== 'draft' && $normalized['status'] !== 'confirmed') {
             return back()->with('error', 'Can only edit allocations for draft or confirmed shared transactions');
         }
