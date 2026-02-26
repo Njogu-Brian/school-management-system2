@@ -200,7 +200,7 @@ class CommunicationController extends Controller
 
         $data = $request->validate([
             'template_id'    => 'nullable|exists:communication_templates,id',
-            'message'        => 'nullable|string|max:300',
+            'message'        => 'nullable|string',
             'target'         => 'required|string',
             'custom_numbers' => 'nullable|string',
             'classroom_id'   => 'nullable|integer',
