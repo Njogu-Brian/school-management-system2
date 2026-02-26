@@ -135,14 +135,6 @@ class BankStatementController extends Controller
                       ->where('is_archived', false)
                       ->where('transaction_type', 'credit'); // Only credit transactions
                 break;
-            case 'confirmed':
-                // Confirmed transactions that haven't been collected yet
-                $query->where('status', 'confirmed')
-                      ->whereRaw($bankIsUncollectedSql) // Exclude collected/partial transactions
-                      ->where('is_duplicate', false)
-                      ->where('is_archived', false)
-                      ->where('transaction_type', 'credit'); // Only credit transactions
-                break;
             case 'collected':
                 // Fully collected: sum of active payments >= amount, or linked existing payments cover amount
                 $query->where('is_duplicate', false)
@@ -160,7 +152,7 @@ class BankStatementController extends Controller
                       ->where('transaction_type', 'credit'); // Only money IN transactions
                 break;
             case 'swimming':
-                // Swimming transactions (only if column exists); exclude duplicates
+                // Swimming transactions (only if column exists); exclude duplicates and archived
                 if ($hasSwimmingColumn) {
                     $query->where('is_swimming_transaction', true)
                           ->where('is_archived', false)
@@ -172,30 +164,13 @@ class BankStatementController extends Controller
                     $query->whereRaw('1 = 0');
                 }
                 break;
-            case 'equity':
-                // Equity bank statement transactions only (no C2B); exclude collected and duplicates
-                $query->where('bank_type', 'equity')
-                      ->where('is_archived', false)
-                      ->where(function ($q) {
-                          $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
-                      })
-                      ->where('transaction_type', 'credit')
-                      ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')');
-                if ($hasSwimmingColumn) {
-                    $query->where(function($q) {
-                        $q->where('is_swimming_transaction', false)
-                          ->orWhereNull('is_swimming_transaction');
-                    });
-                }
-                break;
             case 'all':
-                // All transactions - exclude swimming, archived, and duplicates
+                // All transactions - include everything except archived and duplicates (including swimming)
                 $query->where('is_archived', false)
                       ->where(function ($q) {
                           $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
                       })
                       ->where('transaction_type', 'credit'); // Exclude debit transactions
-                // Swimming exclusion is handled below
                 break;
             default:
                 // Default to 'all' behavior
@@ -210,10 +185,6 @@ class BankStatementController extends Controller
         // Additional filters
         if ($request->filled('status')) {
             $query->where('status', $request->status);
-        }
-
-        if ($request->filled('match_status')) {
-            $query->where('match_status', $request->match_status);
         }
 
         if ($request->filled('bank_account_id')) {
@@ -251,19 +222,17 @@ class BankStatementController extends Controller
             });
         }
         
-        // CRITICAL: Apply swimming exclusion as the FINAL constraint after all other filters
-        // Swimming transactions MUST ONLY appear in 'swimming' view - this cannot be overridden
-        if ($view !== 'swimming' && $hasSwimmingColumn) {
+        // Apply swimming exclusion only for specific views (not for 'all' or 'swimming')
+        // All view shows everything including swimming; swimming view shows only swimming
+        $viewsExcludingSwimming = ['auto-assigned', 'manual-assigned', 'draft', 'unassigned', 'collected'];
+        if ($view !== 'swimming' && $view !== 'all' && in_array($view, $viewsExcludingSwimming) && $hasSwimmingColumn) {
             $query->where(function($q) {
                 $q->where('is_swimming_transaction', false)
                   ->orWhereNull('is_swimming_transaction');
             });
         }
 
-        // Equity view: only bank statement transactions (no C2B - C2B are M-Pesa only)
-        $c2bQuery = $view === 'equity'
-            ? MpesaC2BTransaction::whereRaw('1 = 0')
-            : $this->getC2BTransactionsQuery($request, $view);
+        $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
         $c2bTransactions = $c2bQuery->get();
         
         // Check for duplicates across both types
@@ -336,9 +305,6 @@ class BankStatementController extends Controller
         if ($view === 'all' || $view === 'swimming') {
             $totalAmount = $bankTransactions->sum('amount') + $c2bTransactions->sum('trans_amount');
             $totalCount = $bankTransactions->count() + $c2bTransactions->count();
-        } elseif ($view === 'equity') {
-            $totalAmount = $bankTransactions->sum('amount');
-            $totalCount = $bankTransactions->count();
         } elseif ($view === 'archived') {
             // For archived, only calculate total for credit (money IN) transactions
             $totalAmount = $bankTransactions->where('transaction_type', 'credit')->sum('amount') 
@@ -362,14 +328,10 @@ class BankStatementController extends Controller
         
         $counts = [
             'all' => BankStatementTransaction::where('is_archived', false)
-                ->where('is_duplicate', false)
-                ->where('transaction_type', 'credit') // Exclude debit transactions
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
+                ->where(function($q) {
+                    $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
                 })
+                ->where('transaction_type', 'credit')
                 ->count(),
             'auto-assigned' => BankStatementTransaction::where('match_status', 'matched')
                 ->where('match_confidence', '>=', 0.85)
@@ -438,18 +400,6 @@ class BankStatementController extends Controller
                     });
                 })
                 ->count(),
-            'confirmed' => BankStatementTransaction::where('status', 'confirmed')
-                ->whereRaw($bankIsUncollectedSql) // Exclude collected/partial transactions
-                ->where('is_duplicate', false)
-                ->where('is_archived', false)
-                ->where('transaction_type', 'credit') // Only credit transactions
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
             'collected' => BankStatementTransaction::where('is_duplicate', false)
                 ->where('is_archived', false)
                 ->where('transaction_type', 'credit') // Only credit transactions
@@ -478,18 +428,6 @@ class BankStatementController extends Controller
                     ->where('is_archived', false)
                     ->count()
                 : 0,
-            'equity' => BankStatementTransaction::where('bank_type', 'equity')
-                ->where('is_archived', false)
-                ->where('is_duplicate', false)
-                ->where('transaction_type', 'credit')
-                ->whereRaw('NOT (' . $bankIsCollectedSqlWithLinked . ')')
-                ->when($hasSwimmingColumn, function($q) {
-                    $q->where(function($subQ) {
-                        $subQ->where('is_swimming_transaction', false)
-                             ->orWhereNull('is_swimming_transaction');
-                    });
-                })
-                ->count(),
         ];
 
         // Add C2B counts to existing counts
@@ -599,12 +537,6 @@ class BankStatementController extends Controller
                     ->whereRaw($c2bIsUncollectedSql) // Exclude already collected (e.g. paylinks)
                     ->where('is_duplicate', false);
                 break;
-            case 'confirmed':
-                // C2B transactions that are processed but don't have payment yet (uncollected)
-                $query->where('status', 'processed')
-                    ->whereRaw($c2bIsUncollectedSql)
-                    ->where('is_duplicate', false);
-                break;
             case 'collected':
                 // C2B transactions fully collected (sum of active payments equals transaction amount)
                 $query->where('is_duplicate', false)
@@ -627,11 +559,10 @@ class BankStatementController extends Controller
                 }
                 break;
             case 'all':
-                // All transactions - exclude swimming, archived, and duplicates
+                // All C2B transactions - include swimming, exclude duplicates only
                 $query->where('is_duplicate', false);
                 break;
             default:
-                // Default to all - exclude swimming, archived, and duplicates
                 $query->where('is_duplicate', false);
         }
 
@@ -660,9 +591,9 @@ class BankStatementController extends Controller
             $query->whereDate('trans_time', '<=', $request->date_to);
         }
         
-        // CRITICAL: Apply swimming exclusion as the FINAL constraint after all other filters
-        // Swimming C2B transactions MUST ONLY appear in 'swimming' view - this cannot be overridden
-        if ($view !== 'swimming' && Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')) {
+        // Apply swimming exclusion for specific views (not for 'all' or 'swimming')
+        $c2bViewsExcludingSwimming = ['auto-assigned', 'manual-assigned', 'draft', 'unassigned', 'collected'];
+        if ($view !== 'swimming' && $view !== 'all' && in_array($view, $c2bViewsExcludingSwimming) && Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')) {
             $query->where(function($q) {
                 $q->where('is_swimming_transaction', false)
                   ->orWhereNull('is_swimming_transaction');
@@ -684,9 +615,9 @@ class BankStatementController extends Controller
         $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
         $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01 AND (mpesa_c2b_transactions.payment_id IS NULL OR ' . $c2bLinkedPaymentSql . ' < mpesa_c2b_transactions.trans_amount - 0.01)';
         
-        // Base query to exclude swimming transactions for non-swimming views
+        // Base query to exclude swimming for specific views (all and swimming include everything/swimming)
         $excludeSwimming = function($query) use ($view, $hasSwimmingColumn) {
-            if ($view !== 'swimming' && $hasSwimmingColumn) {
+            if (!in_array($view, ['all', 'swimming']) && $hasSwimmingColumn) {
                 $query->where(function($q) {
                     $q->where('is_swimming_transaction', false)
                       ->orWhereNull('is_swimming_transaction');
@@ -737,11 +668,6 @@ class BankStatementController extends Controller
             'unassigned' => MpesaC2BTransaction::where('allocation_status', 'unallocated')
                 ->whereNull('student_id')
                 ->whereRaw($c2bIsUncollectedSql) // Exclude already collected
-                ->where('is_duplicate', false)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
-                ->count(),
-            'confirmed' => MpesaC2BTransaction::where('status', 'processed')
-                ->whereRaw($c2bIsUncollectedSql)
                 ->where('is_duplicate', false)
                 ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
@@ -3933,135 +3859,167 @@ class BankStatementController extends Controller
     }
 
     /**
-     * Bulk confirm transactions
+     * Bulk confirm transactions: confirm auto-assigned or manual-assigned, create payments, open receipt view
      */
     public function bulkConfirm(Request $request)
     {
-        // Debug: Log what we're receiving
-        \Log::info('Bulk confirm request', [
-            'transaction_ids' => $request->input('transaction_ids'),
-            'all_input' => $request->all(),
-        ]);
-        
-        // Handle both array and JSON string formats
         $transactionIds = $request->input('transaction_ids', []);
-        
-        // If it's a JSON string, decode it
         if (is_string($transactionIds)) {
             $transactionIds = json_decode($transactionIds, true) ?? [];
         }
-        
-        // Ensure it's an array and convert to integers
-        if (!is_array($transactionIds)) {
-            $transactionIds = [];
-        }
-        
-        $transactionIds = array_filter(array_map('intval', $transactionIds));
-        
+        $transactionIds = array_filter(array_map('intval', (array) $transactionIds));
+        $transactionIds = array_slice($transactionIds, 0, 20);
+
         if (empty($transactionIds)) {
-            return redirect()
-                ->route('finance.bank-statements.index')
-                ->with('error', 'Please select at least one draft transaction to confirm.');
+            return redirect()->route('finance.bank-statements.index')
+                ->with('error', 'Please select at least one transaction.');
         }
 
-        $confirmed = 0;
-        $c2bConfirmed = 0;
+        $receiptIds = [];
         $errors = [];
+        $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
 
         foreach ($transactionIds as $transactionId) {
             try {
-                // Resolve: try C2B first, then bank (IDs may exist in only one table)
                 $c2bTransaction = MpesaC2BTransaction::find($transactionId);
                 if ($c2bTransaction) {
                     if (!$c2bTransaction->student_id) {
-                        $errors[] = "C2B #{$transactionId} must be matched to a student before confirming";
                         continue;
                     }
-                    if ($c2bTransaction->status === 'processed' || $c2bTransaction->status === 'failed') {
+                    if ($c2bTransaction->status === 'failed') {
                         continue;
                     }
-                    $c2bTransaction->update(['status' => 'processed']);
-                    if (!$c2bTransaction->payment_id) {
+                    $ref = $c2bTransaction->trans_id;
+                    $existingPayments = \App\Models\Payment::where('reversed', false)
+                        ->where(function ($q) use ($ref) {
+                            $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        })
+                        ->get();
+                    if ($existingPayments->isNotEmpty()) {
+                        $first = $existingPayments->first();
+                        if (!$c2bTransaction->payment_id) {
+                            $c2bTransaction->update(['payment_id' => $first->id, 'status' => 'processed']);
+                        }
+                        foreach ($existingPayments as $p) {
+                            $receiptIds[] = $p->id;
+                        }
                         try {
-                            $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
+                            $paymentController->sendPaymentNotifications($first);
+                        } catch (\Throwable $e) {
+                            Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                        }
+                        continue;
+                    }
+                    if ($c2bTransaction->status !== 'processed') {
+                        try {
+                            $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
+                            if ($payment) {
+                                $receiptIds[] = $payment->id;
+                                try {
+                                    $paymentController->sendPaymentNotifications($payment);
+                                } catch (\Throwable $e) {
+                                    Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $payment->id, 'message' => $e->getMessage()]);
+                                }
+                            }
                         } catch (\Exception $e) {
                             $errors[] = "C2B #{$transactionId}: " . $e->getMessage();
-                            continue;
                         }
+                    } elseif ($c2bTransaction->payment_id) {
+                        $receiptIds[] = $c2bTransaction->payment_id;
                     }
-                    $c2bConfirmed++;
-                    $confirmed++;
                     continue;
                 }
 
                 $transaction = BankStatementTransaction::find($transactionId);
-                if (!$transaction) {
-                    continue;
-                }
-
-                if (!$transaction->student_id && !$transaction->is_shared) {
-                    $errors[] = "Transaction #{$transactionId} must be matched before confirming";
-                    continue;
-                }
-
-                if ($transaction->status === 'confirmed') {
+                if (!$transaction || (!$transaction->student_id && !$transaction->is_shared)) {
                     continue;
                 }
                 if ($transaction->status === 'rejected') {
-                    $errors[] = "Transaction #{$transactionId} is rejected and cannot be confirmed";
                     continue;
                 }
 
-                $transaction->confirm();
-                if ($transaction->student_id || $transaction->is_shared) {
+                $ref = $transaction->reference_number;
+                $existingPayments = \App\Models\Payment::where('reversed', false)
+                    ->where(function ($q) use ($ref) {
+                        $q->where('transaction_code', $ref)
+                          ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                    })
+                    ->get();
+
+                if ($existingPayments->isNotEmpty()) {
+                    $first = $existingPayments->first();
+                    if (!$transaction->payment_id) {
+                        $transaction->update([
+                            'payment_id' => $first->id,
+                            'payment_created' => true,
+                            'status' => $transaction->status === 'draft' ? 'confirmed' : $transaction->status,
+                        ]);
+                    } else {
+                        $transaction->update(['payment_created' => true, 'status' => 'confirmed']);
+                    }
+                    foreach ($existingPayments as $p) {
+                        $receiptIds[] = $p->id;
+                    }
+                    try {
+                        $paymentController->sendPaymentNotifications($first);
+                    } catch (\Throwable $e) {
+                        Log::warning('Bulk confirm: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                    }
+                    continue;
+                }
+
+                if ($transaction->status !== 'confirmed') {
+                    $transaction->confirm();
                     if (!$transaction->match_status || $transaction->match_status === 'unmatched') {
                         $transaction->update(['match_status' => 'manual']);
                     }
                 }
                 $transaction->refresh();
 
-                $isSwimming = Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
-                    && $transaction->is_swimming_transaction;
-
-                if ($isSwimming) {
+                if ($transaction->is_swimming_transaction ?? false) {
                     try {
                         $this->processSwimmingTransaction($transaction);
-                        Log::info('Bulk confirmed swimming transaction', ['transaction_id' => $transaction->id, 'student_id' => $transaction->student_id]);
                     } catch (\Exception $e) {
                         $errors[] = "Transaction #{$transactionId} (swimming): " . $e->getMessage();
-                        Log::error('Failed to process swimming transaction', ['transaction_id' => $transaction->id, 'error' => $e->getMessage()]);
-                        continue;
                     }
-                } else {
-                    Log::info('Bulk confirmed transaction', ['transaction_id' => $transaction->id, 'student_id' => $transaction->student_id]);
+                    continue;
                 }
-                $confirmed++;
+
+                if ($transaction->payment_created) {
+                    if ($transaction->payment_id) {
+                        $receiptIds[] = $transaction->payment_id;
+                    }
+                    continue;
+                }
+
+                try {
+                    $normalized = (object) $this->normalizeTransaction($transaction);
+                    $payment = $this->createPaymentForBankStatement($transaction, $normalized);
+                    if ($payment) {
+                        $receiptIds[] = $payment->id;
+                        \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($transaction->id, $payment->id);
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
+                }
             } catch (\Exception $e) {
                 $errors[] = "Transaction #{$transactionId}: " . $e->getMessage();
             }
         }
 
-        $bankIds = array_intersect($transactionIds, BankStatementTransaction::whereIn('id', $transactionIds)->pluck('id')->toArray());
-        $swimmingCount = $bankIds ? BankStatementTransaction::whereIn('id', $bankIds)->where('is_swimming_transaction', true)->where('status', 'confirmed')->count() : 0;
-        $feeCount = $confirmed - $swimmingCount;
-
-        $message = "Confirmed {$confirmed} transaction(s).";
-        if ($c2bConfirmed > 0) {
-            $message .= " {$c2bConfirmed} C2B (payment created/linked).";
-        }
-        if ($swimmingCount > 0) {
-            $message .= " {$swimmingCount} allocated to swimming wallets.";
-        }
-        if ($feeCount > 0) {
-            $message .= " {$feeCount} ready for fee allocation (use Auto-Assign to create payments).";
-        }
+        $receiptIds = array_values(array_unique($receiptIds));
+        $message = count($receiptIds) > 0
+            ? 'Confirmed and created payments. ' . count($receiptIds) . ' receipt(s) ready. Communications sent.'
+            : 'No payments created or linked for selected transactions.';
         if (!empty($errors)) {
-            $message .= " Errors: " . implode(', ', array_slice($errors, 0, 5));
+            $message .= ' Errors: ' . implode('; ', array_slice($errors, 0, 3));
         }
 
-        return redirect()
-            ->route('finance.bank-statements.index')
-            ->with($errors ? 'warning' : 'success', $message);
+        $redirect = redirect()->route('finance.bank-statements.index')->with('success', $message);
+        if (!empty($receiptIds)) {
+            $redirect->with('receipt_ids', $receiptIds);
+        }
+        return $redirect;
     }
 
     /**

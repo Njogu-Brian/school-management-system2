@@ -3,15 +3,84 @@
 @push('styles')
 <style>
     /* Fix for sticky header overlapping transactions table in bank statements view */
-    /* The sticky .app-header (position: sticky, top: 0, z-index: 950) was covering the transactions table */
-    
-    /* Ensure the transactions table section is properly positioned and visible */
-    /* Using ID selector ensures this only affects this specific view */
     #bank-statements-transactions-section {
         position: relative;
         z-index: 1;
         margin-top: 0;
-        scroll-margin-top: 100px; /* Add scroll margin to account for sticky header when scrolling to table */
+        scroll-margin-top: 100px;
+    }
+
+    /* Responsive bank statements - card layout on mobile */
+    @media (max-width: 767.98px) {
+        .nav-tabs-finance {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 0.5rem;
+        }
+        .nav-tabs-finance .nav-link {
+            white-space: nowrap;
+            font-size: 0.85rem;
+            padding: 0.5rem 0.75rem;
+        }
+        #bulkActionsContainer {
+            flex-direction: column;
+            align-items: stretch !important;
+        }
+        #bulkActionsContainer .d-flex.gap-2 {
+            flex-wrap: wrap;
+            justify-content: flex-start;
+        }
+        #bulkActionsContainer .btn, #bulkActionsContainer .form button {
+            font-size: 0.8rem;
+            padding: 0.35rem 0.6rem;
+        }
+        .finance-filter-card .row.g-3 [class^="col-"] {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+        /* Mobile transaction cards */
+        .finance-table-wrapper .table-responsive {
+            overflow-x: visible;
+        }
+        .finance-table-wrapper table thead {
+            display: none;
+        }
+        .finance-table-wrapper table tbody tr {
+            display: block;
+            border: 1px solid var(--bs-border-color, #dee2e6);
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: var(--bs-body-bg, #fff);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .finance-table-wrapper table tbody td {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0.5rem 0;
+            border: none;
+            gap: 0.75rem;
+        }
+        .finance-table-wrapper table tbody td[data-label]:not([data-label=""])::before {
+            content: attr(data-label);
+            font-weight: 600;
+            color: var(--bs-secondary);
+            flex-shrink: 0;
+            min-width: 80px;
+        }
+        .finance-table-wrapper table tbody td:first-child {
+            border-bottom: 1px solid var(--bs-border-color-translucent, rgba(0,0,0,0.1));
+        }
+        .finance-table-wrapper table tbody td .btn-group {
+            flex-wrap: wrap;
+        }
+    }
+    @media (min-width: 768px) {
+        .finance-table-wrapper tbody td[data-label]::before {
+            display: none;
+        }
     }
 </style>
 @endpush
@@ -72,8 +141,8 @@
         </div>
     @endif
 
-    <!-- Summary Card - Only show for 'all', 'swimming', 'archived', and 'equity' views -->
-    @if(in_array($view ?? 'all', ['all', 'swimming', 'archived', 'equity']) && isset($totalAmount))
+    <!-- Summary Card - Only show for 'all', 'swimming', and 'archived' views -->
+    @if(in_array($view ?? 'all', ['all', 'swimming', 'archived']) && isset($totalAmount))
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <div class="card-body">
             <div class="row">
@@ -83,8 +152,6 @@
                             Total Archived Amount (Money IN Only)
                         @elseif(($view ?? 'all') === 'swimming')
                             Total Swimming Amount
-                        @elseif(($view ?? 'all') === 'equity')
-                            Total Equity Amount
                         @else
                             Total Parsed Amount
                         @endif
@@ -98,8 +165,6 @@
                             Credit transactions only
                         @elseif(($view ?? 'all') === 'swimming')
                             Swimming transactions
-                        @elseif(($view ?? 'all') === 'equity')
-                            Equity bank transactions
                         @else
                             Compare with statement total
                         @endif
@@ -135,18 +200,8 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {{ ($view ?? 'all') == 'equity' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'equity'] + request()->except('view')) }}">
-                        <i class="bi bi-bank2"></i> Equity <span class="badge bg-primary">{{ $counts['equity'] ?? 0 }}</span>
-                    </a>
-                </li>
-                <li class="nav-item">
                     <a class="nav-link {{ ($view ?? 'all') == 'unassigned' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'unassigned'] + request()->except('view')) }}">
                         Unassigned <span class="badge bg-secondary">{{ $counts['unassigned'] ?? 0 }}</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ ($view ?? 'all') == 'confirmed' ? 'active' : '' }}" href="{{ route('finance.bank-statements.index', ['view' => 'confirmed'] + request()->except('view')) }}">
-                        Confirmed <span class="badge bg-primary">{{ $counts['confirmed'] ?? 0 }}</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -176,25 +231,16 @@
     <!-- Filters -->
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <form method="GET" action="{{ route('finance.bank-statements.index') }}" class="row g-3">
+            @if(($view ?? 'all') === 'all')
             <div class="col-md-3">
                 <label class="finance-form-label">Status</label>
                 <select name="status" class="finance-form-select">
                     <option value="">All Statuses</option>
                     <option value="draft" {{ request('status') == 'draft' ? 'selected' : '' }}>Draft</option>
-                    <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>Confirmed</option>
                     <option value="rejected" {{ request('status') == 'rejected' ? 'selected' : '' }}>Rejected</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="finance-form-label">Match Status</label>
-                <select name="match_status" class="finance-form-select">
-                    <option value="">All</option>
-                    <option value="matched" {{ request('match_status') == 'matched' ? 'selected' : '' }}>Matched</option>
-                    <option value="unmatched" {{ request('match_status') == 'unmatched' ? 'selected' : '' }}>Unmatched</option>
-                    <option value="multiple_matches" {{ request('match_status') == 'multiple_matches' ? 'selected' : '' }}>Multiple Matches</option>
-                    <option value="manual" {{ request('match_status') == 'manual' ? 'selected' : '' }}>Manual</option>
-                </select>
-            </div>
+            @endif
             <div class="col-md-3">
                 <label class="finance-form-label">Swimming Transaction</label>
                 <select name="is_swimming" class="finance-form-select">
@@ -249,14 +295,7 @@
                 @csrf
                 <div id="bulkTransactionIdsContainer"></div>
                 <button type="button" class="btn btn-finance btn-finance-success" onclick="bulkConfirm()" id="bulkConfirmBtn" style="display: none;">
-                    <i class="bi bi-check-circle"></i> Confirm Selected
-                </button>
-            </form>
-            <form id="bulkConfirmAndCreateForm" method="POST" action="{{ route('finance.bank-statements.bulk-confirm-and-create') }}">
-                @csrf
-                <div id="bulkConfirmAndCreateIdsContainer"></div>
-                <button type="button" class="btn btn-finance btn-finance-primary" onclick="bulkConfirmAndCreate()" id="bulkConfirmAndCreateBtn" style="display: none;">
-                    <i class="bi bi-check2-all"></i> Confirm & Create Payments
+                    <i class="bi bi-check-circle"></i> Confirm & Create Payments
                 </button>
             </form>
             
@@ -303,16 +342,9 @@
         </div>
         
         <div class="d-flex gap-2">
-            <form id="autoAssignForm" method="POST" action="{{ route('finance.bank-statements.auto-assign') }}">
+            <form method="POST" action="{{ route('finance.bank-statements.reconcile-payments') }}" onsubmit="return confirm('Reconcile payment links for all bank statement transactions? This syncs transaction status with actual payments and can fix transactions stuck in Confirmed when payments already exist.');">
                 @csrf
-                <div id="autoAssignTransactionIdsContainer"></div>
-                <button type="button" class="btn btn-finance btn-finance-primary" onclick="autoAssign()" id="autoAssignBtn">
-                    <i class="bi bi-magic"></i> Auto-Assign (Create Payments for Confirmed)
-                </button>
-            </form>
-            <form method="POST" action="{{ route('finance.bank-statements.reconcile-payments') }}" onsubmit="return confirm('Reconcile payment links for all bank statement transactions?');">
-                @csrf
-                <button type="submit" class="btn btn-finance btn-finance-secondary">
+                <button type="submit" class="btn btn-finance btn-finance-secondary" title="Sync transaction payment_created and payment_id with actual payments by reference number. Fixes transactions stuck in Confirmed when matching payments exist." data-bs-toggle="tooltip" data-bs-placement="bottom">
                     <i class="bi bi-arrow-repeat"></i> Reconcile Payments
                 </button>
             </form>
@@ -333,7 +365,7 @@
                 <thead>
                     <tr>
                         <th width="40">
-                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'confirmed', 'collected', 'unassigned', 'all', 'swimming', 'equity']) || !request('view'))
+                            @if(in_array(request('view'), ['draft', 'auto-assigned', 'manual-assigned', 'collected', 'unassigned', 'all', 'swimming']) || !request('view'))
                                 <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                             @else
                                 <span class="text-muted">—</span>
@@ -373,8 +405,9 @@
                         <th>Reference</th>
                         <th>Phone</th>
                         <th>Student</th>
-                        <th>Match Status</th>
+                        @if(($view ?? 'all') === 'all')
                         <th>Status</th>
+                        @endif
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -398,6 +431,7 @@
                             $txnIsArchived = $isC2B ? false : ($transaction->is_archived ?? false);
                             $txnPaymentCreated = $isC2B ? ($transaction->payment_id !== null) : ($transaction->payment_created ?? false);
                             $txnIsSwimming = $isC2B ? ($transaction->is_swimming_transaction ?? false) : ($transaction->is_swimming_transaction ?? false);
+                            $txnIsEquity = !$isC2B && ($transaction->bank_type ?? null) === 'equity';
                             $txnStudentId = $transaction->student_id;
                             $txnIsShared = $isC2B ? false : ($transaction->is_shared ?? false);
                             $txnSharedAllocations = $isC2B ? [] : ($transaction->shared_allocations ?? []);
@@ -406,11 +440,15 @@
                             $isFullyCollected = $txnStatus === 'confirmed' && $activeTotal >= ($txnAmount - 0.01);
                             $isPartiallyCollected = $txnStatus === 'confirmed' && $activeTotal > 0.01 && $activeTotal < ($txnAmount - 0.01);
                             
-                            // Permission checks
-                            $canConfirm = $txnStatus === 'draft' 
-                                && !$txnIsDuplicate 
+                            // Permission checks - only auto-assigned or manual-assigned (NOT unassigned)
+                            $isAutoOrManualAssigned = $isC2B
+                                ? in_array($txnAllocationStatus ?? '', ['auto_matched', 'manually_allocated'])
+                                : in_array($txnMatchStatus ?? '', ['matched', 'manual']);
+                            $canConfirm = !$txnIsDuplicate 
                                 && !$txnIsArchived
-                                && ($txnStudentId || $txnIsShared);
+                                && $isAutoOrManualAssigned
+                                && ($txnStudentId || $txnIsShared)
+                                && ($txnStatus === 'draft' || ($txnStatus === 'confirmed' && !$txnPaymentCreated));
                             $canArchive = $txnMatchStatus === 'unmatched'
                                 && !$txnIsArchived
                                 && !$txnIsDuplicate
@@ -418,7 +456,6 @@
                                 && !$isC2B; // C2B transactions can't be archived
                             // For C2B, check if swimming column exists
                             $c2bCanSwim = $isC2B ? \Illuminate\Support\Facades\Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction') : true;
-                            $txnAllocationStatus = $isC2B ? ($transaction->allocation_status ?? 'unallocated') : null;
                             
                             $canTransferToSwimming = $txnStatus === 'confirmed' 
                                 && $txnPaymentCreated 
@@ -458,14 +495,14 @@
                                 && !$txnIsSwimming;
                         @endphp
                         <tr>
-                            <td>
+                            <td data-label="Select">
                                 @if($canConfirm || $canArchive || $canTransferToSwimming || $canTransferFromSwimming || $canMarkAsSwimming || $canSelectDraftUnmatched)
                                     <input type="checkbox" class="transaction-checkbox" value="{{ $transaction->id }}" data-txn-type="{{ $isC2B ? 'c2b' : 'bank' }}" onchange="updateBulkIds()" data-can-confirm="{{ $canConfirm ? '1' : '0' }}" data-can-archive="{{ $canArchive ? '1' : '0' }}" data-can-transfer-swimming="{{ $canTransferToSwimming ? '1' : '0' }}" data-can-transfer-from-swimming="{{ $canTransferFromSwimming ? '1' : '0' }}" data-can-mark-swimming="{{ ($canMarkAsSwimming || $canSelectDraftUnmatched) ? '1' : '0' }}">
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td>
+                            <td data-label="Date">
                                 @if($isC2B)
                                     <span class="badge bg-success mb-1 d-block" style="font-size: 0.7rem;">C2B</span>
                                 @endif
@@ -474,12 +511,17 @@
                                     <br><small class="text-muted">{{ $transaction->trans_time->format('h:i A') }}</small>
                                 @endif
                             </td>
-                            <td>
-                                <div class="d-flex align-items-center gap-2">
+                            <td data-label="Amount">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
                                     <strong class="text-success">
                                         +Ksh {{ number_format($txnAmount, 2) }}
                                     </strong>
-                                    @if($txnIsSwimming)
+                                    @if($txnIsEquity && file_exists(public_path('images/equity-bank-logo.png')))
+                                        <img src="{{ asset('images/equity-bank-logo.png') }}" alt="Equity Bank" class="bank-type-logo" style="height: 20px; max-width: 60px; object-fit: contain;" title="Equity Bank Payment">
+                                    @endif
+                                    @if($txnIsSwimming && in_array($view ?? 'all', ['all', 'swimming']) && file_exists(public_path('images/swim logo.png')))
+                                        <img src="{{ asset('images/swim logo.png') }}" alt="Swimming" class="swim-logo" style="height: 20px; max-width: 40px; object-fit: contain;" title="Swimming Transaction">
+                                    @elseif($txnIsSwimming)
                                         <span class="badge bg-info" title="Swimming Transaction">
                                             <i class="bi bi-water"></i>
                                         </span>
@@ -491,7 +533,7 @@
                                     @endif
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Description">
                                 <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $txnDescription }}">
                                     {{ $txnDescription }}
                                     @if($isC2B && $transaction->first_name)
@@ -499,14 +541,14 @@
                                     @endif
                                 </div>
                             </td>
-                            <td>
+                            <td data-label="Reference">
                                 <code>{{ $txnReference }}</code>
                                 @if($isC2B && $transaction->bill_ref_number && $transaction->bill_ref_number !== $transaction->trans_id)
                                     <br><small class="text-muted">Ref: {{ $transaction->bill_ref_number }}</small>
                                 @endif
                             </td>
-                            <td>{{ $txnPhone ?? 'N/A' }}</td>
-                            <td>
+                            <td data-label="Phone">{{ $txnPhone ?? 'N/A' }}</td>
+                            <td data-label="Student">
                                 @if($txnIsDuplicate)
                                     <span class="text-danger">
                                         <i class="bi bi-exclamation-triangle"></i> Duplicate
@@ -572,26 +614,7 @@
                                     <br><small class="text-info">Payer: {{ $transaction->payer_name }}</small>
                                 @endif
                             </td>
-                            <td>
-                                @if($txnMatchStatus == 'matched')
-                                    <span class="badge bg-success">Matched</span>
-                                    @if($txnMatchConfidence > 0)
-                                        @php
-                                            // C2B stores 0-100, bank stores 0-1; display always as 0-100%
-                                            $displayConfidence = $txnMatchConfidence > 1
-                                                ? min(100, (int) round($txnMatchConfidence))
-                                                : min(100, (int) round($txnMatchConfidence * 100));
-                                        @endphp
-                                        <br><small class="text-muted">{{ $displayConfidence }}%</small>
-                                    @endif
-                                @elseif($txnMatchStatus == 'multiple_matches')
-                                    <span class="badge bg-warning">Multiple</span>
-                                @elseif($txnMatchStatus == 'manual')
-                                    <span class="badge bg-info">Manual</span>
-                                @else
-                                    <span class="badge bg-secondary">Unmatched</span>
-                                @endif
-                            </td>
+                            @if(($view ?? 'all') === 'all')
                             <td>
                                 @if($txnIsArchived)
                                     <span class="badge bg-secondary">Archived</span>
@@ -613,7 +636,8 @@
                                     <span class="badge bg-warning">Draft</span>
                                 @endif
                             </td>
-                            <td>
+                            @endif
+                            <td data-label="Actions">
                                 <div class="btn-group btn-group-sm">
                                     @if($isC2B)
                                         <a href="{{ route('finance.bank-statements.show', $transaction->id) }}?type=c2b" class="btn btn-finance btn-finance-secondary" title="View">
@@ -694,7 +718,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="10" class="text-center py-4 text-muted">
+                            <td colspan="{{ ($view ?? 'all') === 'all' ? 10 : 9 }}" class="text-center py-4 text-muted">
                                 <i class="bi bi-inbox"></i> No transactions found
                             </td>
                         </tr>
@@ -746,19 +770,14 @@
             const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'));
             const checkedIds = checked.map(cb => parseInt(cb.value));
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
-            const bulkConfirmAndCreateIdsContainer = document.getElementById('bulkConfirmAndCreateIdsContainer');
-            const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
             const bulkArchiveIdsContainer = document.getElementById('bulkArchiveTransactionIdsContainer');
             const bulkSwimmingIdsContainer = document.getElementById('bulkSwimmingTransactionIdsContainer');
             const bulkConfirmBtn = document.getElementById('bulkConfirmBtn');
-            const bulkConfirmAndCreateBtn = document.getElementById('bulkConfirmAndCreateBtn');
-            const bulkArchiveBtn = document.getElementById('bulkArchiveBtn');
+            const bulkArchiveBtn = document.getElementById('bulkArchiveIdsContainer');
             const bulkActionsContainer = document.getElementById('bulkActionsContainer');
             
             // Clear existing hidden inputs
             bulkIdsContainer.innerHTML = '';
-            if (bulkConfirmAndCreateIdsContainer) bulkConfirmAndCreateIdsContainer.innerHTML = '';
-            autoAssignIdsContainer.innerHTML = '';
             if (bulkArchiveIdsContainer) {
                 bulkArchiveIdsContainer.innerHTML = '';
             }
@@ -796,13 +815,6 @@
                 if (canMarkAsSwimming) {
                     markableAsSwimmingIds.push(id);
                 }
-                
-                // Add to auto-assign container (for all checked)
-                const autoAssignInput = document.createElement('input');
-                autoAssignInput.type = 'hidden';
-                autoAssignInput.name = 'transaction_ids[]';
-                autoAssignInput.value = id;
-                autoAssignIdsContainer.appendChild(autoAssignInput);
             });
             
             // Create hidden inputs for confirmable transactions
@@ -812,13 +824,6 @@
                 bulkInput.name = 'transaction_ids[]';
                 bulkInput.value = id;
                 bulkIdsContainer.appendChild(bulkInput);
-                if (bulkConfirmAndCreateIdsContainer) {
-                    const createInput = document.createElement('input');
-                    createInput.type = 'hidden';
-                    createInput.name = 'transaction_ids[]';
-                    createInput.value = id;
-                    bulkConfirmAndCreateIdsContainer.appendChild(createInput);
-                }
             });
             
             // Create hidden inputs for archivable transactions
@@ -848,17 +853,15 @@
             
             if (confirmableIds.length > 0) {
                 bulkConfirmBtn.style.display = 'inline-block';
-                if (bulkConfirmAndCreateBtn) bulkConfirmAndCreateBtn.style.display = 'inline-block';
             } else {
                 bulkConfirmBtn.style.display = 'none';
-                if (bulkConfirmAndCreateBtn) bulkConfirmAndCreateBtn.style.display = 'none';
             }
 
             // Hint when selection has no confirmable transactions
             var hintEl = document.getElementById('bulkSelectionHint');
             if (hintEl) {
                 if (checked.length > 0 && confirmableIds.length === 0) {
-                    hintEl.textContent = 'Selected transactions are already confirmed/collected. No confirmation needed. For C2B use "Confirm & Create Payments" if uncollected; for creating payments from confirmed bank transactions use "Auto-Assign".';
+                    hintEl.textContent = 'Selected transactions are already confirmed and collected. No action needed.';
                     hintEl.style.display = 'block';
                 } else {
                     hintEl.textContent = '';
@@ -991,50 +994,24 @@
         }
 
         function bulkConfirm() {
-            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
-            
-            if (checked.length === 0) {
-                alert('Please select at least one transaction to confirm');
+            const confirmableIds = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
+                .filter(cb => cb.getAttribute('data-can-confirm') === '1')
+                .map(cb => parseInt(cb.value));
+            if (confirmableIds.length === 0) {
+                alert('Please select at least one transaction that can be confirmed (draft or auto/manual-assigned without payment).');
                 return;
             }
-            
-            // All checkboxes shown are confirmable (they're only shown if status is draft and has student_id/is_shared)
-            // No need to filter - if it has a checkbox, it can be confirmed
             const bulkIdsContainer = document.getElementById('bulkTransactionIdsContainer');
             bulkIdsContainer.innerHTML = '';
-            checked.forEach(id => {
+            confirmableIds.forEach(id => {
                 const input = document.createElement('input');
                 input.type = 'hidden';
                 input.name = 'transaction_ids[]';
                 input.value = id;
                 bulkIdsContainer.appendChild(input);
             });
-            
-            if (confirm(`Confirm ${checked.length} transaction(s)? This will confirm draft, auto-assigned, and manual-assigned transactions.`)) {
+            if (confirm(`Confirm and create payments for ${confirmableIds.length} transaction(s)? Receipts will open for printing.`)) {
                 document.getElementById('bulkConfirmForm').submit();
-            }
-        }
-
-        function bulkConfirmAndCreate() {
-            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked'))
-                .filter(cb => cb.getAttribute('data-can-confirm') === '1')
-                .map(cb => parseInt(cb.value));
-            if (checked.length === 0) {
-                alert('Please select at least one transaction that can be confirmed (draft, matched to student or shared).');
-                return;
-            }
-            const container = document.getElementById('bulkConfirmAndCreateIdsContainer');
-            if (!container) return;
-            container.innerHTML = '';
-            checked.forEach(id => {
-                const input = document.createElement('input');
-                input.type = 'hidden';
-                input.name = 'transaction_ids[]';
-                input.value = id;
-                container.appendChild(input);
-            });
-            if (confirm(`Confirm and create payments for ${checked.length} transaction(s)? Existing payments will be linked; matched transactions will get new payments. Receipts will open for printing and communications will be sent.`)) {
-                document.getElementById('bulkConfirmAndCreateForm').submit();
             }
         }
 
@@ -1063,42 +1040,7 @@
             }
         }
 
-        function autoAssign() {
-            const checked = Array.from(document.querySelectorAll('.transaction-checkbox:checked')).map(cb => parseInt(cb.value));
-            const form = document.getElementById('autoAssignForm');
-            const autoAssignIdsContainer = document.getElementById('autoAssignTransactionIdsContainer');
-            
-            if (!form) {
-                alert('Error: Auto-assign form not found. Please refresh the page.');
-                return;
-            }
-            
-            if (!autoAssignIdsContainer) {
-                alert('Error: Auto-assign container not found. Please refresh the page.');
-                return;
-            }
-            
-            autoAssignIdsContainer.innerHTML = '';
-            
-            if (checked.length === 0) {
-                if (confirm('Create payments for all confirmed transactions? This will create payments for confirmed transactions that are matched (auto-assigned or manual-assigned) but don\'t have payments yet.')) {
-                    form.submit();
-                }
-            } else {
-                checked.forEach(id => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'transaction_ids[]';
-                    input.value = id;
-                    autoAssignIdsContainer.appendChild(input);
-                });
-                if (confirm(`Create payments for ${checked.length} selected transaction(s)? This will process confirmed transactions that are matched (auto-assigned or manual-assigned) but don't have payments yet.`)) {
-                    form.submit();
-                }
-            }
-        }
-
-        // Update auto-assign IDs when checkboxes change
+        // Update bulk IDs when checkboxes change
         document.addEventListener('DOMContentLoaded', function() {
             const checkboxes = document.querySelectorAll('.transaction-checkbox');
             checkboxes.forEach(cb => {
@@ -1115,6 +1057,16 @@
 
 @section('js')
 <script>
+// Initialize Bootstrap tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    const tooltipEls = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        tooltipEls.forEach(el => new bootstrap.Tooltip(el));
+    } else if (typeof $ !== 'undefined' && $.fn.tooltip) {
+        $(tooltipEls).tooltip();
+    }
+});
+
 let isRefreshing = false;
 
 function refreshTransactions() {
