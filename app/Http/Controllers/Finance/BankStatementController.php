@@ -2395,14 +2395,27 @@ class BankStatementController extends Controller
     
     /**
      * Helper: Create swimming payment for C2B and ensure swimming wallet is credited.
-     * Handles: new payment, existing payment (by trans_id+student_id), or transaction
-     * already linked to a payment (e.g. was collected as fee then marked swimming).
+     * Handles: single student, shared siblings, existing payment (by trans_id+student_id), or
+     * transaction already linked to a payment (e.g. was collected as fee then marked swimming).
      */
     protected function createSwimmingPaymentForC2B($c2bTransaction)
     {
+        // Shared siblings: create payment per allocation and credit each wallet
+        if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
+            $payments = $this->createSplitSwimmingPaymentsForC2B($c2bTransaction, $c2bTransaction->shared_allocations);
+            $c2bTransaction->update([
+                'payment_id' => $payments[0]->id,
+                'status' => 'processed',
+                'allocated_amount' => (float) $c2bTransaction->trans_amount,
+                'unallocated_amount' => 0,
+            ]);
+            return $payments[0];
+        }
+
+        // Single student
         $student = $c2bTransaction->student;
         if (!$student) {
-            throw new \Exception('Student not found for C2B swimming transaction');
+            throw new \Exception('Student not found for C2B swimming transaction. Ensure the transaction is assigned to a student or has valid shared allocations.');
         }
         
         $ref = $c2bTransaction->trans_id;
