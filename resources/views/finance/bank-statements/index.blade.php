@@ -10,6 +10,18 @@
         scroll-margin-top: 100px;
     }
 
+    /* Consistent font across filter tabs - no font change when switching */
+    .nav-tabs-finance .nav-link,
+    .nav-tabs-finance .nav-link.active {
+        font-family: inherit;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .nav-tabs-finance .nav-link .badge {
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
     /* Responsive bank statements - card layout on mobile */
     @media (max-width: 767.98px) {
         .nav-tabs-finance {
@@ -18,7 +30,8 @@
             -webkit-overflow-scrolling: touch;
             padding-bottom: 0.5rem;
         }
-        .nav-tabs-finance .nav-link {
+        .nav-tabs-finance .nav-link,
+        .nav-tabs-finance .nav-link.active {
             white-space: nowrap;
             font-size: 0.85rem;
             padding: 0.5rem 0.75rem;
@@ -493,6 +506,10 @@
                                 && !$txnIsDuplicate
                                 && !$txnIsArchived
                                 && !$txnIsSwimming;
+                            // Payer full name: C2B = first + middle + last; Bank = payer_name
+                            $payerFullName = $isC2B
+                                ? trim(implode(' ', array_filter([$transaction->first_name ?? '', $transaction->middle_name ?? '', $transaction->last_name ?? ''])))
+                                : ($transaction->payer_name ?? '');
                         @endphp
                         <tr>
                             <td data-label="Select">
@@ -535,17 +552,21 @@
                             </td>
                             <td data-label="Description">
                                 <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $txnDescription }}">
-                                    {{ $txnDescription }}
-                                    @if($isC2B && $transaction->first_name)
-                                        <br><small class="text-muted">Payer: {{ $transaction->full_name }}</small>
+                                    @if($isC2B && $transaction->bill_ref_number)
+                                        <strong>{{ $transaction->bill_ref_number }}</strong>
+                                        @if($payerFullName)
+                                            <br><small class="text-muted">Payer: {{ $payerFullName }}</small>
+                                        @endif
+                                    @else
+                                        {{ $txnDescription }}
+                                        @if($isC2B && $payerFullName)
+                                            <br><small class="text-muted">Payer: {{ $payerFullName }}</small>
+                                        @endif
                                     @endif
                                 </div>
                             </td>
                             <td data-label="Reference">
                                 <code>{{ $txnReference }}</code>
-                                @if($isC2B && $transaction->bill_ref_number && $transaction->bill_ref_number !== $transaction->trans_id)
-                                    <br><small class="text-muted">Ref: {{ $transaction->bill_ref_number }}</small>
-                                @endif
                             </td>
                             <td data-label="Phone">{{ $txnPhone ?? 'N/A' }}</td>
                             <td data-label="Student">
@@ -610,8 +631,8 @@
                                 @else
                                     <span class="text-muted">Unmatched</span>
                                 @endif
-                                @if(!$isC2B && $transaction->payer_name)
-                                    <br><small class="text-info">Payer: {{ $transaction->payer_name }}</small>
+                                @if(!$isC2B && $payerFullName)
+                                    <br><small class="text-info">Payer: {{ $payerFullName }}</small>
                                 @endif
                             </td>
                             @if(($view ?? 'all') === 'all')
