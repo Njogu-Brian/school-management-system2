@@ -1340,7 +1340,22 @@ class BankStatementController extends Controller
         }
         $canCreateAdditionalPayments = $bankStatement->status === 'confirmed'
             && $remainingAmount > 0.01
-            && ($bankStatement->student_id || ($bankStatement->is_shared ?? false));
+            && ($bankStatement->student_id || ($bankStatement->is_shared ?? false))
+            && !($bankStatement->is_swimming_transaction ?? false);
+
+        $swimmingWalletCredited = false;
+        if ($bankStatement->is_swimming_transaction ?? false) {
+            if ($isC2B) {
+                $swimmingWalletCredited = \App\Models\SwimmingLedger::where('source_type', MpesaC2BTransaction::class)
+                    ->where('source_id', $bankStatement->id)
+                    ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                    ->exists();
+            } elseif (Schema::hasTable('swimming_transaction_allocations')) {
+                $swimmingWalletCredited = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
+                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
+                    ->exists();
+            }
+        }
 
         return view('finance.bank-statements.show', compact(
             'bankStatement',
@@ -1355,7 +1370,8 @@ class BankStatementController extends Controller
             'remainingAmount',
             'canCreateAdditionalPayments',
             'swimmingAllocations',
-            'swimmingTotal'
+            'swimmingTotal',
+            'swimmingWalletCredited'
         ));
     }
 

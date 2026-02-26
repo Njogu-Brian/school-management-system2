@@ -200,6 +200,8 @@
                                         <span class="badge bg-warning">Multiple Matches</span>
                                     @elseif($bankStatement->match_status == 'manual')
                                         <span class="badge bg-info">Manual</span>
+                                    @elseif(($swimmingWalletCredited ?? false))
+                                        <span class="badge bg-info">Manual</span>
                                     @else
                                         <span class="badge bg-secondary">Unmatched</span>
                                     @endif
@@ -983,17 +985,7 @@
 
                     @php
                         $isSwimming = $bankStatement->is_swimming_transaction ?? false;
-                        $hasAllocations = false;
-                        if ($isSwimming) {
-                            if (!$isC2B && \Illuminate\Support\Facades\Schema::hasTable('swimming_transaction_allocations')) {
-                                $hasAllocations = \App\Models\SwimmingTransactionAllocation::where('bank_statement_transaction_id', $bankStatement->id)
-                                    ->where('status', '!=', \App\Models\SwimmingTransactionAllocation::STATUS_REVERSED)
-                                    ->exists();
-                            } elseif ($isC2B && $bankStatement->payment_id) {
-                                // For C2B, check if payment exists (indicates allocation)
-                                $hasAllocations = true;
-                            }
-                        }
+                        $hasAllocations = $isSwimming && ($swimmingWalletCredited ?? false);
                     @endphp
                     @if($isSwimming && !$hasAllocations && $bankStatement->status !== 'rejected')
                         <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement->id) }}{{ isset($isC2B) && $isC2B ? '?type=c2b' : '?type=bank' }}" class="mb-2" onsubmit="return confirm('Revert this transaction from swimming? It will be treated as a regular fee payment again.')">
