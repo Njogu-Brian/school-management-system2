@@ -95,6 +95,123 @@
             display: none;
         }
     }
+
+    /* Desktop: visually appealing transaction rows */
+    .finance-table-wrapper .finance-table tbody tr {
+        transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .finance-table-wrapper .finance-table tbody tr:hover {
+        background: color-mix(in srgb, var(--fin-primary, #0f766e) 4%, var(--fin-surface, #fff) 96%) !important;
+    }
+    .finance-table-wrapper .finance-table tbody tr:nth-child(even) {
+        background: color-mix(in srgb, var(--fin-primary, #0f766e) 2%, var(--fin-surface, #fff) 98%);
+    }
+    .finance-table-wrapper .finance-table tbody tr:nth-child(even):hover {
+        background: color-mix(in srgb, var(--fin-primary, #0f766e) 5%, var(--fin-surface, #fff) 95%) !important;
+    }
+    /* Description block - clear hierarchy */
+    .bank-txn-description {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .bank-txn-description .txn-primary {
+        font-weight: 600;
+        color: var(--fin-text, #0f172a);
+        line-height: 1.35;
+    }
+    .bank-txn-description .txn-payer {
+        font-size: 0.8rem;
+        color: var(--fin-muted, #6b7280);
+    }
+    /* Reference - monospace with subtle pill */
+    .bank-txn-reference,
+    td[data-label="Reference"] code {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+        font-size: 0.85rem;
+        padding: 0.2rem 0.5rem;
+        background: color-mix(in srgb, var(--fin-primary, #0f766e) 8%, transparent 92%);
+        border-radius: 6px;
+        color: var(--fin-primary, #0f766e);
+    }
+    /* Amount emphasis */
+    .bank-txn-amount {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+    }
+    /* Status badges - pill style */
+    .finance-table-wrapper .badge {
+        border-radius: 999px;
+        padding: 0.35rem 0.65rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    /* Mobile: polished transaction cards */
+    @media (max-width: 767.98px) {
+        .finance-table-wrapper table tbody tr {
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border: 1px solid var(--fin-border, #e5e7eb);
+            border-left: 4px solid var(--fin-primary, #0f766e);
+        }
+        .finance-table-wrapper table tbody tr:first-child td {
+            padding-top: 1rem;
+        }
+        .finance-table-wrapper table tbody tr td:first-child {
+            padding-top: 1rem;
+            border-bottom: none;
+            padding-bottom: 0.5rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Date"] {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+            padding: 0.75rem 1rem;
+            background: color-mix(in srgb, var(--fin-primary, #0f766e) 6%, var(--fin-surface, #fff) 94%);
+            border-radius: 0.5rem 0.5rem 0 0;
+            margin: 0 1rem;
+            margin-top: 0.5rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Amount"] {
+            padding: 0.5rem 1rem 0.75rem;
+            font-size: 1.1rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Amount"] strong {
+            font-size: 1.05rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Description"] {
+            padding: 0.75rem 1rem;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Description"]::before {
+            display: none;
+        }
+        .finance-table-wrapper table tbody td[data-label="Description"] .bank-txn-description {
+            width: 100%;
+        }
+        .finance-table-wrapper table tbody td[data-label="Reference"] code {
+            font-size: 0.8rem;
+            padding: 0.2rem 0.4rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Student"] {
+            padding: 0.75rem 1rem;
+        }
+        .finance-table-wrapper table tbody td[data-label="Actions"] {
+            padding: 0.75rem 1rem;
+            border-top: 1px solid var(--fin-border, rgba(0,0,0,0.08));
+            margin-top: 0.25rem;
+        }
+        .finance-table-wrapper table tbody td[data-label]::before {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            min-width: 70px;
+        }
+    }
 </style>
 @endpush
 
@@ -529,7 +646,7 @@
                                 @endif
                             </td>
                             <td data-label="Amount">
-                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <div class="d-flex align-items-center gap-2 flex-wrap bank-txn-amount">
                                     <strong class="text-success">
                                         +Ksh {{ number_format($txnAmount, 2) }}
                                     </strong>
@@ -551,22 +668,22 @@
                                 </div>
                             </td>
                             <td data-label="Description">
-                                <div class="text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $txnDescription }}">
+                                <div class="bank-txn-description text-break" style="max-width: 300px; word-wrap: break-word; white-space: pre-wrap;" title="{{ $txnDescription }}">
                                     @if($isC2B && $transaction->bill_ref_number)
-                                        <strong>{{ $transaction->bill_ref_number }}</strong>
+                                        <span class="txn-primary">{{ $transaction->bill_ref_number }}</span>
                                         @if($payerFullName)
-                                            <br><small class="text-muted">Payer: {{ $payerFullName }}</small>
+                                            <span class="txn-payer"><i class="bi bi-person me-1"></i>{{ $payerFullName }}</span>
                                         @endif
                                     @else
-                                        {{ $txnDescription }}
+                                        <span class="txn-primary">{{ $txnDescription }}</span>
                                         @if($isC2B && $payerFullName)
-                                            <br><small class="text-muted">Payer: {{ $payerFullName }}</small>
+                                            <span class="txn-payer"><i class="bi bi-person me-1"></i>{{ $payerFullName }}</span>
                                         @endif
                                     @endif
                                 </div>
                             </td>
                             <td data-label="Reference">
-                                <code>{{ $txnReference }}</code>
+                                <code class="bank-txn-reference">{{ $txnReference }}</code>
                             </td>
                             <td data-label="Phone">{{ $txnPhone ?? 'N/A' }}</td>
                             <td data-label="Student">
