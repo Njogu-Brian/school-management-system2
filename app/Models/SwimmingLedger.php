@@ -32,6 +32,7 @@ class SwimmingLedger extends Model
     const TYPE_DEBIT = 'debit';
 
     const SOURCE_TRANSACTION = 'transaction';
+    const SOURCE_BANK_TRANSACTION = 'bank_transaction';
     const SOURCE_OPTIONAL_FEE = 'optional_fee';
     const SOURCE_ADJUSTMENT = 'adjustment';
     const SOURCE_ATTENDANCE = 'attendance';

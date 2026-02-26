@@ -705,8 +705,8 @@
             </div>
             @endif
 
-            <!-- Payment Information -->
-            @if($activePayments->isNotEmpty() || $reversedPayments->isNotEmpty())
+            <!-- Payment Information (hidden for swimming - uses wallet credits, not fee payments) -->
+            @if(!$isSwimmingTransaction && ($activePayments->isNotEmpty() || $reversedPayments->isNotEmpty()))
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Created Payment(s)</h5>
@@ -783,7 +783,7 @@
                     @endif
                 </div>
             </div>
-            @elseif($bankStatement->status === 'confirmed' && !$bankStatement->payment_created)
+            @elseif(!$isSwimmingTransaction && $bankStatement->status === 'confirmed' && !$bankStatement->payment_created)
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0">
                 <div class="finance-card-header">
                     <h5 class="mb-0">Transaction Status</h5>

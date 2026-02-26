@@ -2394,112 +2394,68 @@ class BankStatementController extends Controller
     }
     
     /**
-     * Helper: Create swimming payment for C2B and ensure swimming wallet is credited.
-     * Handles: single student, shared siblings, existing payment (by trans_id+student_id), or
-     * transaction already linked to a payment (e.g. was collected as fee then marked swimming).
+     * Process C2B swimming transaction: credit swimming wallets only (no Payment creation)
      */
     protected function createSwimmingPaymentForC2B($c2bTransaction)
     {
-        // Shared siblings: create payment per allocation and credit each wallet
-        if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
-            $payments = $this->createSplitSwimmingPaymentsForC2B($c2bTransaction, $c2bTransaction->shared_allocations);
-            $c2bTransaction->update([
-                'payment_id' => $payments[0]->id,
-                'status' => 'processed',
-                'allocated_amount' => (float) $c2bTransaction->trans_amount,
-                'unallocated_amount' => 0,
-            ]);
-            return $payments[0];
-        }
-
-        // Single student
-        $student = $c2bTransaction->student;
-        if (!$student) {
-            throw new \Exception('Student not found for C2B swimming transaction. Ensure the transaction is assigned to a student or has valid shared allocations.');
-        }
-        
+        $walletService = app(\App\Services\SwimmingWalletService::class);
         $ref = $c2bTransaction->trans_id;
-        $amount = (float) $c2bTransaction->trans_amount;
-        $swimmingWalletService = app(\App\Services\SwimmingWalletService::class);
-        $payment = null;
-        
-        // 1) Transaction already has a linked payment (e.g. was collected as fee first, then marked swimming)
-        if ($c2bTransaction->payment_id) {
-            $payment = \App\Models\Payment::where('id', $c2bTransaction->payment_id)
-                ->where('reversed', false)
-                ->where('student_id', $student->id)
-                ->first();
-            if ($payment) {
-                $c2bTransaction->update(['status' => 'processed']);
-                $this->ensureSwimmingWalletCreditedForPayment($swimmingWalletService, $student, $payment, $amount, $ref);
-                return $payment;
+        $c2bClass = \App\Models\MpesaC2BTransaction::class;
+
+        if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
+            foreach ($c2bTransaction->shared_allocations as $allocation) {
+                $studentId = (int) ($allocation['student_id'] ?? 0);
+                $amount = (float) ($allocation['amount'] ?? 0);
+                if ($studentId <= 0 || $amount <= 0) {
+                    continue;
+                }
+                $student = Student::find($studentId);
+                if (!$student) {
+                    continue;
+                }
+                if ($this->swimmingAlreadyCreditedFromC2B($c2bTransaction->id, $studentId, $amount)) {
+                    continue;
+                }
+                $walletService->creditFromBankTransaction(
+                    $student,
+                    $c2bTransaction,
+                    $amount,
+                    "Swimming payment from M-PESA #{$ref} (shared)"
+                );
+            }
+        } else {
+            $student = $c2bTransaction->student;
+            if (!$student) {
+                throw new \Exception('Student not found for C2B swimming transaction. Ensure the transaction is assigned to a student or has valid shared allocations.');
+            }
+            $amount = (float) $c2bTransaction->trans_amount;
+            if (!$this->swimmingAlreadyCreditedFromC2B($c2bTransaction->id, $student->id, $amount)) {
+                $walletService->creditFromBankTransaction(
+                    $student,
+                    $c2bTransaction,
+                    $amount,
+                    "Swimming payment from M-PESA #{$ref}"
+                );
             }
         }
-        
-        // 2) Existing payment with same transaction_code and student_id (e.g. duplicate confirm or re-confirm)
-        $existingPayment = \App\Models\Payment::withTrashed()
-            ->where('transaction_code', $ref)
-            ->where('student_id', $student->id)
-            ->where('reversed', false)
-            ->whereNull('deleted_at')
-            ->first();
-        
-        if ($existingPayment) {
-            $c2bTransaction->update([
-                'payment_id' => $existingPayment->id,
-                'status' => 'processed',
-            ]);
-            $this->ensureSwimmingWalletCreditedForPayment($swimmingWalletService, $student, $existingPayment, $amount, $ref);
-            return $existingPayment;
-        }
-        
-        // Ensure transaction code is unique (checking withTrashed to respect unique constraint)
-        // This will handle cases where a soft-deleted payment exists with the same code
-        $transactionCode = $this->ensureUniqueTransactionCode($ref, $student->id);
-        
-        $payment = \App\Models\Payment::create([
-            'student_id' => $student->id,
-            'amount' => $c2bTransaction->trans_amount,
-            'payment_method' => 'mpesa',
-            'payment_date' => $c2bTransaction->trans_time,
-            'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
-            'transaction_code' => $transactionCode,
-            'status' => 'approved',
-            'notes' => 'M-PESA Paybill swimming payment - ' . $c2bTransaction->full_name,
-            'created_by' => \Illuminate\Support\Facades\Auth::id(),
-        ]);
-        
-        // Update C2B transaction with payment_id and status
+
         $c2bTransaction->update([
-            'payment_id' => $payment->id,
-            'status' => 'processed', // Mark as processed when payment is created
-        ]);
-        
-        // Credit swimming wallet (new payment always needs wallet credit)
-        $swimmingWalletService->creditFromTransaction(
-            $student,
-            $payment,
-            $c2bTransaction->trans_amount,
-            "Swimming payment from M-PESA transaction #{$c2bTransaction->trans_id}"
-        );
-        
-        $payment->update([
-            'allocated_amount' => $c2bTransaction->trans_amount,
+            'status' => 'processed',
+            'allocated_amount' => (float) $c2bTransaction->trans_amount,
             'unallocated_amount' => 0,
         ]);
-        
-        // Generate receipt and send notifications
-        try {
-            \App\Jobs\ProcessSiblingPaymentsJob::dispatchSync($c2bTransaction->id, $payment->id);
-        } catch (\Exception $e) {
-            Log::warning('Failed to process notifications for swimming C2B payment', [
-                'transaction_id' => $c2bTransaction->id,
-                'payment_id' => $payment->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-        
-        return $payment;
+
+        return null; // No payment created
+    }
+
+    protected function swimmingAlreadyCreditedFromC2B(int $c2bId, int $studentId, float $amount): bool
+    {
+        return \App\Models\SwimmingLedger::where('source_type', \App\Models\MpesaC2BTransaction::class)
+            ->where('source_id', $c2bId)
+            ->where('student_id', $studentId)
+            ->where('amount', $amount)
+            ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+            ->exists();
     }
 
     /**
@@ -2886,10 +2842,16 @@ class BankStatementController extends Controller
                 }
 
                 if ($isC2B) {
-                    $swimPayments = $this->createSplitSwimmingPaymentsForC2B($transaction, $swimAllocations);
-
+                    $walletService = app(\App\Services\SwimmingWalletService::class);
+                    foreach ($swimAllocations as $alloc) {
+                        $sid = (int) ($alloc['student_id'] ?? 0);
+                        $amt = (float) ($alloc['amount'] ?? 0);
+                        if ($sid > 0 && $amt > 0 && ($s = Student::find($sid))) {
+                            $walletService->creditFromBankTransaction($s, $transaction, $amt, "Swimming split from M-PESA #{$transaction->trans_id}");
+                        }
+                    }
                     $transaction->update([
-                        'payment_id' => $feePayments[0]->id ?? ($swimPayments[0]->id ?? null),
+                        'payment_id' => $feePayments[0]->id ?? null,
                         'status' => 'processed',
                         'allocation_status' => 'manually_allocated',
                         'allocated_amount' => $feeTotal + $swimTotal,
@@ -3119,20 +3081,31 @@ class BankStatementController extends Controller
             if ($bankStatement->is_swimming_transaction ?? false) {
                 // For C2B, check swimming wallet directly; for bank statements, use allocations table
                 if ($isC2B) {
-                    // Reverse C2B swimming wallet credits
-                    if ($transaction->payment_id) {
-                        $payment = Payment::find($transaction->payment_id);
-                        if ($payment && $transaction->student_id) {
-                            $wallet = \App\Models\SwimmingWallet::where('student_id', $transaction->student_id)->first();
-                            if ($wallet) {
-                                $oldBalance = $wallet->balance;
-                                $newBalance = $oldBalance - $transaction->trans_amount;
-                                $wallet->update([
-                                    'balance' => max(0, $newBalance),
-                                    'total_debited' => ($wallet->total_debited ?? 0) + $transaction->trans_amount,
-                                    'last_transaction_at' => now(),
-                                ]);
-                            }
+                    // Reverse C2B swimming wallet credits (ledger entries with source = this C2B transaction)
+                    $credits = \App\Models\SwimmingLedger::where('source_type', \App\Models\MpesaC2BTransaction::class)
+                        ->where('source_id', $transaction->id)
+                        ->where('type', \App\Models\SwimmingLedger::TYPE_CREDIT)
+                        ->get();
+                    foreach ($credits as $ledger) {
+                        $wallet = \App\Models\SwimmingWallet::where('student_id', $ledger->student_id)->first();
+                        if ($wallet) {
+                            $amount = (float) $ledger->amount;
+                            $oldBalance = $wallet->balance;
+                            $newBalance = $oldBalance - $amount;
+                            $wallet->update([
+                                'balance' => max(0, $newBalance),
+                                'total_debited' => ($wallet->total_debited ?? 0) + $amount,
+                                'last_transaction_at' => now(),
+                            ]);
+                            \App\Models\SwimmingLedger::create([
+                                'student_id' => $ledger->student_id,
+                                'type' => \App\Models\SwimmingLedger::TYPE_DEBIT,
+                                'amount' => $amount,
+                                'balance_after' => max(0, $newBalance),
+                                'source' => \App\Models\SwimmingLedger::SOURCE_ADJUSTMENT,
+                                'description' => 'Transaction rejected – C2B swimming credit reversed: ' . ($transaction->trans_id ?? 'N/A'),
+                                'created_by' => auth()->id(),
+                            ]);
                         }
                     }
                 } else {
@@ -3936,22 +3909,7 @@ class BankStatementController extends Controller
                     if ($c2bTransaction->status !== 'processed') {
                         try {
                             if ($isC2bSwimming) {
-                                if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
-                                    $this->createPaymentForC2B($c2bTransaction->fresh());
-                                    $walletService = app(\App\Services\SwimmingWalletService::class);
-                                    $newPayments = \App\Models\Payment::where('reversed', false)
-                                        ->where(function ($q) use ($ref) {
-                                            $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                                        })->get();
-                                    foreach ($newPayments as $p) {
-                                        $student = $p->student;
-                                        if ($student) {
-                                            $this->ensureSwimmingWalletCreditedForPayment($walletService, $student, $p, (float) $p->amount, $ref);
-                                        }
-                                    }
-                                } else {
-                                    $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
-                                }
+                                $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
                             } else {
                                 $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
                                 if ($payment) {
@@ -4126,22 +4084,7 @@ class BankStatementController extends Controller
                     if ($c2bTransaction->status !== 'processed') {
                         try {
                             if ($isC2bSwimming) {
-                                if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
-                                    $this->createPaymentForC2B($c2bTransaction->fresh());
-                                    $walletService = app(\App\Services\SwimmingWalletService::class);
-                                    $newPayments = \App\Models\Payment::where('reversed', false)
-                                        ->where(function ($q) use ($ref) {
-                                            $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
-                                        })->get();
-                                    foreach ($newPayments as $p) {
-                                        $student = $p->student;
-                                        if ($student) {
-                                            $this->ensureSwimmingWalletCreditedForPayment($walletService, $student, $p, (float) $p->amount, $ref);
-                                        }
-                                    }
-                                } else {
-                                    $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
-                                }
+                                $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
                             } else {
                                 $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
                                 if ($payment) {

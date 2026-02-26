@@ -168,7 +168,6 @@ class SwimmingTransactionService
         return DB::transaction(function () use ($transaction, $allocations) {
             $totalAllocated = 0;
             $createdAllocations = [];
-            $createdPayments = [];
 
             foreach ($allocations as $allocation) {
                 $studentId = (int) ($allocation['student_id'] ?? 0);
@@ -193,10 +192,9 @@ class SwimmingTransactionService
                 ]);
                 $createdAllocations[] = $allocationRecord;
 
-                $payment = $this->createSplitSwimmingPayment($transaction, $student, $amount, $allocationRecord->id);
-                $this->walletService->creditFromTransaction(
+                $this->walletService->creditFromBankTransaction(
                     $student,
-                    $payment,
+                    $transaction,
                     $amount,
                     "Swimming split from transaction #{$transaction->reference_number}"
                 );
@@ -205,8 +203,6 @@ class SwimmingTransactionService
                     'status' => SwimmingTransactionAllocation::STATUS_ALLOCATED,
                     'notes' => trim(($allocationRecord->notes ?? '') . "\nProcessed in split allocation."),
                 ]);
-
-                $createdPayments[] = $payment;
             }
 
             $transaction->update([
@@ -215,7 +211,7 @@ class SwimmingTransactionService
 
             return [
                 'allocations' => $createdAllocations,
-                'payments' => $createdPayments,
+                'payments' => [],
                 'total' => $totalAllocated,
             ];
         });
@@ -252,38 +248,18 @@ class SwimmingTransactionService
         
         foreach ($allocations as $allocation) {
             try {
-                // Find or create payment from transaction (pass allocation amount for shared transactions)
-                $payment = $this->getOrCreatePaymentFromTransaction(
-                    $allocation->bankStatementTransaction, 
+                // Credit wallet directly (no Payment created)
+                $this->walletService->creditFromBankTransaction(
                     $allocation->student,
-                    $allocation->amount // Pass allocation amount for shared transactions
-                );
-                
-                // Credit wallet
-                $this->walletService->creditFromTransaction(
-                    $allocation->student,
-                    $payment,
+                    $allocation->bankStatementTransaction,
                     $allocation->amount,
-                    "Swimming payment allocation from transaction #{$allocation->bankStatementTransaction->reference_number}"
+                    "Swimming allocation from transaction #{$allocation->bankStatementTransaction->reference_number}"
                 );
                 
                 // Update allocation status
                 $allocation->update([
                     'status' => SwimmingTransactionAllocation::STATUS_ALLOCATED,
                 ]);
-                
-                // Mark payment as fully allocated since it goes directly to wallet (no invoice allocation needed)
-                // Refresh payment to get latest values
-                $payment->refresh();
-                $payment->updateAllocationTotals();
-                
-                // If payment is fully allocated to wallet, ensure it's marked correctly
-                if ($payment->unallocated_amount <= 0.01) {
-                    $payment->update([
-                        'allocated_amount' => $payment->amount,
-                        'unallocated_amount' => 0,
-                    ]);
-                }
                 
                 $results['processed']++;
             } catch (\Exception $e) {

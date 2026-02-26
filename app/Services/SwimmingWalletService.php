@@ -92,6 +92,58 @@ class SwimmingWalletService
     }
 
     /**
+     * Credit wallet directly from bank/C2B transaction (no Payment created)
+     */
+    public function creditFromBankTransaction(Student $student, object $transaction, float $amount, ?string $description = null): ?SwimmingLedger
+    {
+        $ref = $transaction->trans_id ?? $transaction->reference_number ?? $transaction->id ?? 'unknown';
+        $desc = $description ?? "Swimming payment from transaction #{$ref}";
+
+        $exists = SwimmingLedger::where('source_type', get_class($transaction))
+            ->where('source_id', $transaction->id)
+            ->where('student_id', $student->id)
+            ->where('amount', $amount)
+            ->where('type', SwimmingLedger::TYPE_CREDIT)
+            ->exists();
+        if ($exists) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($student, $transaction, $amount, $desc) {
+            $wallet = SwimmingWallet::getOrCreateForStudent($student->id);
+            $oldBalance = $wallet->balance;
+            $newBalance = $oldBalance + $amount;
+
+            $wallet->update([
+                'balance' => $newBalance,
+                'total_credited' => $wallet->total_credited + $amount,
+                'last_transaction_at' => now(),
+            ]);
+
+            $ledger = SwimmingLedger::create([
+                'student_id' => $student->id,
+                'type' => SwimmingLedger::TYPE_CREDIT,
+                'amount' => $amount,
+                'balance_after' => $newBalance,
+                'source' => SwimmingLedger::SOURCE_BANK_TRANSACTION,
+                'source_id' => $transaction->id,
+                'source_type' => get_class($transaction),
+                'description' => $desc,
+                'created_by' => auth()->id(),
+            ]);
+
+            Log::info('Swimming wallet credited from bank transaction (no payment)', [
+                'student_id' => $student->id,
+                'transaction_id' => $transaction->id,
+                'amount' => $amount,
+                'balance' => $newBalance,
+            ]);
+
+            return $ledger;
+        });
+    }
+
+    /**
      * Credit wallet from admin adjustment
      */
     public function creditFromAdjustment(Student $student, float $amount, string $description, ?User $user = null): SwimmingLedger
