@@ -426,6 +426,9 @@ class BankStatementController extends Controller
             'swimming' => Schema::hasColumn('bank_statement_transactions', 'is_swimming_transaction')
                 ? BankStatementTransaction::where('is_swimming_transaction', true)
                     ->where('is_archived', false)
+                    ->where(function ($q) {
+                        $q->where('is_duplicate', false)->orWhereNull('is_duplicate');
+                    })
                     ->count()
                 : 0,
         ];
@@ -615,25 +618,25 @@ class BankStatementController extends Controller
         $c2bIsCollectedSql = '(' . $c2bActiveSumSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01 OR (mpesa_c2b_transactions.payment_id IS NOT NULL AND ' . $c2bLinkedPaymentSql . ' >= mpesa_c2b_transactions.trans_amount - 0.01))';
         $c2bIsUncollectedSql = $c2bActiveSumSql . ' <= 0.01 AND (mpesa_c2b_transactions.payment_id IS NULL OR ' . $c2bLinkedPaymentSql . ' < mpesa_c2b_transactions.trans_amount - 0.01)';
         
-        // Base query to exclude swimming for specific views (all and swimming include everything/swimming)
-        $excludeSwimming = function($query) use ($view, $hasSwimmingColumn) {
-            if (!in_array($view, ['all', 'swimming']) && $hasSwimmingColumn) {
+        // Base query to exclude swimming for category counts (all and swimming counts are always full)
+        $excludeSwimming = function($query) use ($hasSwimmingColumn) {
+            if ($hasSwimmingColumn) {
                 $query->where(function($q) {
                     $q->where('is_swimming_transaction', false)
                       ->orWhereNull('is_swimming_transaction');
                 });
             }
         };
-        
+
+        // 'all' count: always include swimming (view-invariant so tab counts stay consistent)
         $counts = [
             'all' => MpesaC2BTransaction::where('is_duplicate', false)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'auto-assigned' => MpesaC2BTransaction::where('match_confidence', '>=', 80)
                 ->where('allocation_status', 'auto_matched')
                 ->whereNull('payment_id')
                 ->where('is_duplicate', false)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->when($hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'manual-assigned' => MpesaC2BTransaction::where('is_duplicate', false)
                 ->where(function ($q) use ($c2bIsPartialSql) {
@@ -644,7 +647,7 @@ class BankStatementController extends Controller
                         $q2->whereRaw($c2bIsPartialSql);
                     });
                 })
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->when($hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'draft' => MpesaC2BTransaction::where(function($q) {
                     // C2B transactions with low confidence matches (similar to bank statement draft logic)
@@ -663,21 +666,21 @@ class BankStatementController extends Controller
                 ->whereNull('payment_id')
                 ->whereRaw($c2bIsUncollectedSql) // Exclude already collected by payment ref
                 ->where('is_duplicate', false)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->when($hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'unassigned' => MpesaC2BTransaction::where('allocation_status', 'unallocated')
                 ->whereNull('student_id')
                 ->whereRaw($c2bIsUncollectedSql) // Exclude already collected
                 ->where('is_duplicate', false)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->when($hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'collected' => MpesaC2BTransaction::where('is_duplicate', false)
                 ->whereRaw($c2bIsCollectedSql)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->when($hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'archived' => 0, // C2B doesn't have archived flag
             'duplicate' => MpesaC2BTransaction::where('is_duplicate', true)
-                ->when($view !== 'swimming' && $hasSwimmingColumn, $excludeSwimming)
+                ->when($hasSwimmingColumn, $excludeSwimming)
                 ->count(),
             'swimming' => $hasSwimmingColumn
                 ? MpesaC2BTransaction::where('is_swimming_transaction', true)
