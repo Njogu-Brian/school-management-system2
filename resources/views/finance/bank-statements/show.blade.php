@@ -449,58 +449,65 @@
             </div>
             @endif
 
-            <!-- Linked Payment -->
+            <!-- Linked Payment (fee receipts) - hidden for swimming (swimming uses wallet credits, not fee receipts) -->
             @php
+                $isSwimmingTransaction = (bool) ($bankStatement->is_swimming_transaction ?? false);
                 $linkedPayment = null;
-                // First, check payment_id directly (most reliable)
-                if ($bankStatement->payment_id) {
-                    $linkedPayment = \App\Models\Payment::with(['student'])->find($bankStatement->payment_id);
-                }
-                
-                // Also check the raw transaction's payment_id (in case normalized data is stale)
-                if (!$linkedPayment && isset($rawTransaction->payment_id)) {
-                    $linkedPayment = \App\Models\Payment::with(['student'])->find($rawTransaction->payment_id);
-                }
-                
-                // Also check for payments by reference number (for sibling sharing)
-                if (!$linkedPayment && $bankStatement->reference_number) {
-                    $linkedPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
-                        ->where('reversed', false)
-                        ->whereNull('deleted_at')
-                        ->with(['student'])
-                        ->first();
-                }
-                
-                // For C2B, also check by trans_id
-                if (!$linkedPayment && $isC2B && isset($rawTransaction->trans_id)) {
-                    $linkedPayment = \App\Models\Payment::where('transaction_code', $rawTransaction->trans_id)
-                        ->where('reversed', false)
-                        ->whereNull('deleted_at')
-                        ->with(['student'])
-                        ->first();
-                }
-                
-                // Also check by reference from raw transaction (for bank statements)
-                if (!$linkedPayment && !$isC2B && isset($rawTransaction->reference_number)) {
-                    $linkedPayment = \App\Models\Payment::where('transaction_code', $rawTransaction->reference_number)
-                        ->where('reversed', false)
-                        ->whereNull('deleted_at')
-                        ->with(['student'])
-                        ->first();
-                }
-                
-                // Check for sibling payments (shared transaction code)
                 $siblingPayments = collect();
-                $refToCheck = $bankStatement->reference_number ?? ($rawTransaction->reference_number ?? null);
-                if ($refToCheck) {
-                    $siblingPayments = \App\Models\Payment::where('transaction_code', 'LIKE', $refToCheck . '-%')
-                        ->where('reversed', false)
-                        ->whereNull('deleted_at')
-                        ->with(['student'])
-                        ->get();
+                if (!$isSwimmingTransaction) {
+                    // First, check payment_id directly (most reliable)
+                    if ($bankStatement->payment_id) {
+                        $linkedPayment = \App\Models\Payment::with(['student'])->find($bankStatement->payment_id);
+                    }
+                    if (!$linkedPayment && isset($rawTransaction->payment_id)) {
+                        $linkedPayment = \App\Models\Payment::with(['student'])->find($rawTransaction->payment_id);
+                    }
+                    if (!$linkedPayment && $bankStatement->reference_number) {
+                        $linkedPayment = \App\Models\Payment::where('transaction_code', $bankStatement->reference_number)
+                            ->where('reversed', false)
+                            ->whereNull('deleted_at')
+                            ->with(['student'])
+                            ->first();
+                    }
+                    if (!$linkedPayment && $isC2B && isset($rawTransaction->trans_id)) {
+                        $linkedPayment = \App\Models\Payment::where('transaction_code', $rawTransaction->trans_id)
+                            ->where('reversed', false)
+                            ->whereNull('deleted_at')
+                            ->with(['student'])
+                            ->first();
+                    }
+                    if (!$linkedPayment && !$isC2B && isset($rawTransaction->reference_number)) {
+                        $linkedPayment = \App\Models\Payment::where('transaction_code', $rawTransaction->reference_number)
+                            ->where('reversed', false)
+                            ->whereNull('deleted_at')
+                            ->with(['student'])
+                            ->first();
+                    }
+                    $refToCheck = $bankStatement->reference_number ?? ($rawTransaction->reference_number ?? null);
+                    if ($refToCheck) {
+                        $siblingPayments = \App\Models\Payment::where('transaction_code', 'LIKE', $refToCheck . '-%')
+                            ->where('reversed', false)
+                            ->whereNull('deleted_at')
+                            ->with(['student'])
+                            ->get();
+                    }
                 }
             @endphp
-            @if($linkedPayment || $siblingPayments->isNotEmpty())
+            @if($isSwimmingTransaction && $bankStatement->status === 'confirmed')
+            <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0" style="border-left: 4px solid #17a2b8 !important;">
+                <div class="finance-card-header d-flex justify-content-between align-items-center" style="background-color: #d1ecf1;">
+                    <h5 class="mb-0">
+                        <i class="bi bi-droplet-fill text-info"></i> Swimming Wallet Credited
+                    </h5>
+                    <span class="badge bg-info">Complete</span>
+                </div>
+                <div class="finance-card-body p-4" style="background-color: #f8f9fa;">
+                    <p class="mb-0 text-muted">
+                        <i class="bi bi-check-circle text-success"></i> Amount allocated to swimming wallet(s). No fee receipt is issued for swimming payments.
+                    </p>
+                </div>
+            </div>
+            @elseif($linkedPayment || $siblingPayments->isNotEmpty())
             <div class="finance-card finance-animate mb-4 shadow-sm rounded-4 border-0" style="border-left: 4px solid #28a745 !important;">
                 <div class="finance-card-header d-flex justify-content-between align-items-center" style="background-color: #d4edda;">
                     <h5 class="mb-0">
