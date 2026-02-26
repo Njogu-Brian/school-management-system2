@@ -2028,21 +2028,23 @@ class BankStatementController extends Controller
 
         $transaction->refresh();
         $receiptIds = [];
-        if ($transaction->payment_id) {
-            $receiptIds[] = $transaction->payment_id;
+        if (!$isSwimming) {
+            if ($transaction->payment_id) {
+                $receiptIds[] = $transaction->payment_id;
+            }
+            $reference = $bankStatement->reference_number ?? null;
+            if ($reference) {
+                $refPayments = \App\Models\Payment::where('reversed', false)
+                    ->where(function ($q) use ($reference) {
+                        $q->where('transaction_code', $reference)
+                          ->orWhere('transaction_code', 'LIKE', $reference . '-%');
+                    })
+                    ->pluck('id')
+                    ->toArray();
+                $receiptIds = array_merge($receiptIds, $refPayments);
+            }
+            $receiptIds = array_values(array_unique($receiptIds));
         }
-        $reference = $bankStatement->reference_number ?? null;
-        if ($reference) {
-            $refPayments = \App\Models\Payment::where('reversed', false)
-                ->where(function ($q) use ($reference) {
-                    $q->where('transaction_code', $reference)
-                      ->orWhere('transaction_code', 'LIKE', $reference . '-%');
-                })
-                ->pluck('id')
-                ->toArray();
-            $receiptIds = array_merge($receiptIds, $refPayments);
-        }
-        $receiptIds = array_values(array_unique($receiptIds));
         
         $redirect = redirect()
             ->route('finance.bank-statements.show', $id)
@@ -3893,6 +3895,9 @@ class BankStatementController extends Controller
                         continue;
                     }
                     $ref = $c2bTransaction->trans_id;
+                    $isC2bSwimming = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')
+                        && ($c2bTransaction->is_swimming_transaction ?? false);
+
                     $existingPayments = \App\Models\Payment::where('reversed', false)
                         ->where(function ($q) use ($ref) {
                             $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
@@ -3903,31 +3908,52 @@ class BankStatementController extends Controller
                         if (!$c2bTransaction->payment_id) {
                             $c2bTransaction->update(['payment_id' => $first->id, 'status' => 'processed']);
                         }
-                        foreach ($existingPayments as $p) {
-                            $receiptIds[] = $p->id;
-                        }
-                        try {
-                            $paymentController->sendPaymentNotifications($first);
-                        } catch (\Throwable $e) {
-                            Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                        if (!$isC2bSwimming) {
+                            foreach ($existingPayments as $p) {
+                                $receiptIds[] = $p->id;
+                            }
+                            try {
+                                $paymentController->sendPaymentNotifications($first);
+                            } catch (\Throwable $e) {
+                                Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                            }
                         }
                         continue;
                     }
                     if ($c2bTransaction->status !== 'processed') {
                         try {
-                            $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
-                            if ($payment) {
-                                $receiptIds[] = $payment->id;
-                                try {
-                                    $paymentController->sendPaymentNotifications($payment);
-                                } catch (\Throwable $e) {
-                                    Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $payment->id, 'message' => $e->getMessage()]);
+                            if ($isC2bSwimming) {
+                                if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
+                                    $this->createPaymentForC2B($c2bTransaction->fresh());
+                                    $walletService = app(\App\Services\SwimmingWalletService::class);
+                                    $newPayments = \App\Models\Payment::where('reversed', false)
+                                        ->where(function ($q) use ($ref) {
+                                            $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                                        })->get();
+                                    foreach ($newPayments as $p) {
+                                        $student = $p->student;
+                                        if ($student) {
+                                            $this->ensureSwimmingWalletCreditedForPayment($walletService, $student, $p, (float) $p->amount, $ref);
+                                        }
+                                    }
+                                } else {
+                                    $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
+                                }
+                            } else {
+                                $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
+                                if ($payment) {
+                                    $receiptIds[] = $payment->id;
+                                    try {
+                                        $paymentController->sendPaymentNotifications($payment);
+                                    } catch (\Throwable $e) {
+                                        Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $payment->id, 'message' => $e->getMessage()]);
+                                    }
                                 }
                             }
                         } catch (\Exception $e) {
                             $errors[] = "C2B #{$transactionId}: " . $e->getMessage();
                         }
-                    } elseif ($c2bTransaction->payment_id) {
+                    } elseif ($c2bTransaction->payment_id && !$isC2bSwimming) {
                         $receiptIds[] = $c2bTransaction->payment_id;
                     }
                     continue;
@@ -4059,6 +4085,9 @@ class BankStatementController extends Controller
                         continue;
                     }
                     $ref = $c2bTransaction->trans_id;
+                    $isC2bSwimming = Schema::hasColumn('mpesa_c2b_transactions', 'is_swimming_transaction')
+                        && ($c2bTransaction->is_swimming_transaction ?? false);
+
                     $existingPayments = \App\Models\Payment::where('reversed', false)
                         ->where(function ($q) use ($ref) {
                             $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
@@ -4069,31 +4098,52 @@ class BankStatementController extends Controller
                         if (!$c2bTransaction->payment_id) {
                             $c2bTransaction->update(['payment_id' => $first->id, 'status' => 'processed']);
                         }
-                        foreach ($existingPayments as $p) {
-                            $receiptIds[] = $p->id;
-                        }
-                        try {
-                            $paymentController->sendPaymentNotifications($first);
-                        } catch (\Throwable $e) {
-                            Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                        if (!$isC2bSwimming) {
+                            foreach ($existingPayments as $p) {
+                                $receiptIds[] = $p->id;
+                            }
+                            try {
+                                $paymentController->sendPaymentNotifications($first);
+                            } catch (\Throwable $e) {
+                                Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $first->id, 'message' => $e->getMessage()]);
+                            }
                         }
                         continue;
                     }
                     if ($c2bTransaction->status !== 'processed') {
                         try {
-                            $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
-                            if ($payment) {
-                                $receiptIds[] = $payment->id;
-                                try {
-                                    $paymentController->sendPaymentNotifications($payment);
-                                } catch (\Throwable $e) {
-                                    Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $payment->id, 'message' => $e->getMessage()]);
+                            if ($isC2bSwimming) {
+                                if ($c2bTransaction->is_shared && !empty($c2bTransaction->shared_allocations)) {
+                                    $this->createPaymentForC2B($c2bTransaction->fresh());
+                                    $walletService = app(\App\Services\SwimmingWalletService::class);
+                                    $newPayments = \App\Models\Payment::where('reversed', false)
+                                        ->where(function ($q) use ($ref) {
+                                            $q->where('transaction_code', $ref)->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                                        })->get();
+                                    foreach ($newPayments as $p) {
+                                        $student = $p->student;
+                                        if ($student) {
+                                            $this->ensureSwimmingWalletCreditedForPayment($walletService, $student, $p, (float) $p->amount, $ref);
+                                        }
+                                    }
+                                } else {
+                                    $this->createSwimmingPaymentForC2B($c2bTransaction->fresh());
+                                }
+                            } else {
+                                $payment = $this->confirmAndCreatePaymentForC2B($c2bTransaction->fresh());
+                                if ($payment) {
+                                    $receiptIds[] = $payment->id;
+                                    try {
+                                        $paymentController->sendPaymentNotifications($payment);
+                                    } catch (\Throwable $e) {
+                                        Log::warning('Bulk confirm C2B: send notification failed', ['payment_id' => $payment->id, 'message' => $e->getMessage()]);
+                                    }
                                 }
                             }
                         } catch (\Exception $e) {
                             $errors[] = "C2B #{$transactionId}: " . $e->getMessage();
                         }
-                    } elseif ($c2bTransaction->payment_id) {
+                    } elseif ($c2bTransaction->payment_id && !$isC2bSwimming) {
                         $receiptIds[] = $c2bTransaction->payment_id;
                     }
                     continue;

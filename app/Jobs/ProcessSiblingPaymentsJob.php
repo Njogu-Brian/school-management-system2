@@ -49,26 +49,34 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
                 return;
             }
 
+            // Swimming payments go to swimming wallets, not fee invoices - skip fee receipts
+            $isSwimming = false;
+            if ($transaction) {
+                $isSwimming = (bool) ($transaction->is_swimming_transaction ?? false);
+            }
+
             $receiptService = app(\App\Services\ReceiptService::class);
             $paymentController = app(\App\Http\Controllers\Finance\PaymentController::class);
 
-            // Process main payment first (receipt and notifications)
-            try {
-                $receiptService->generateReceipt($payment, ['save' => true]);
-            } catch (\Exception $e) {
-                Log::warning('Receipt generation failed for main payment', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage()
-                ]);
-            }
+            // Process main payment (receipt and notifications) - skip for swimming
+            if (!$isSwimming) {
+                try {
+                    $receiptService->generateReceipt($payment, ['save' => true]);
+                } catch (\Exception $e) {
+                    Log::warning('Receipt generation failed for main payment', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
 
-            try {
-                $paymentController->sendPaymentNotifications($payment);
-            } catch (\Exception $e) {
-                Log::warning('Payment notification failed for main payment', [
-                    'payment_id' => $payment->id,
-                    'error' => $e->getMessage()
-                ]);
+                try {
+                    $paymentController->sendPaymentNotifications($payment);
+                } catch (\Exception $e) {
+                    Log::warning('Payment notification failed for main payment', [
+                        'payment_id' => $payment->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
 
             // Process sibling payments if transaction is shared
@@ -103,6 +111,9 @@ class ProcessSiblingPaymentsJob implements ShouldQueue
                 }
 
                 foreach ($siblingPayments as $siblingPayment) {
+                    if ($isSwimming) {
+                        continue; // Swimming: no fee receipts or notifications
+                    }
                     try {
                         // Generate receipt for sibling payment
                         $receiptService->generateReceipt($siblingPayment, ['save' => true]);
