@@ -563,8 +563,8 @@
                             $txnIsSwimming = $isC2B ? ($transaction->is_swimming_transaction ?? false) : ($transaction->is_swimming_transaction ?? false);
                             $txnIsEquity = !$isC2B && ($transaction->bank_type ?? null) === 'equity';
                             $txnStudentId = $transaction->student_id;
-                            $txnIsShared = $isC2B ? false : ($transaction->is_shared ?? false);
-                            $txnSharedAllocations = $isC2B ? [] : ($transaction->shared_allocations ?? []);
+                            $txnIsShared = $transaction->is_shared ?? false;
+                            $txnSharedAllocations = $transaction->shared_allocations ?? [];
                             $txnAllocationStatus = $isC2B ? ($transaction->allocation_status ?? 'unallocated') : null;
                             $activeTotal = (float) ($transaction->active_payment_total ?? 0);
                             $isFullyCollected = $txnStatus === 'confirmed' && $activeTotal >= ($txnAmount - 0.01);
