@@ -232,13 +232,14 @@ class BankStatementController extends Controller
             });
         }
 
-        $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
-        $c2bTransactions = $c2bQuery->get();
-        
-        // Check for duplicates across both types
-        $this->checkCrossTypeDuplicates($c2bTransactions);
-        
-        // Combine transactions
+        // When filtering by a specific statement file, only show bank transactions from that PDF (exclude C2B - they don't belong to uploaded statements)
+        $c2bTransactions = collect();
+        if (!$request->filled('statement_file')) {
+            $c2bQuery = $this->getC2BTransactionsQuery($request, $view);
+            $c2bTransactions = $c2bQuery->get();
+            $this->checkCrossTypeDuplicates($c2bTransactions);
+        }
+
         $bankTransactions = $query->get();
         
         // Get sort parameter (amount_desc, amount_asc, or date for default)

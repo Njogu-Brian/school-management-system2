@@ -361,6 +361,10 @@
     <!-- Filters -->
     <div class="finance-filter-card finance-animate shadow-sm rounded-4 border-0 mb-4">
         <form method="GET" action="{{ route('finance.bank-statements.index') }}" class="row g-3">
+            @if(request('statement_file'))
+                <input type="hidden" name="statement_file" value="{{ request('statement_file') }}">
+            @endif
+            <input type="hidden" name="view" value="{{ $view ?? 'all' }}">
             @if(($view ?? 'all') === 'all')
             <div class="col-md-3">
                 <label class="finance-form-label">Status</label>
