@@ -1304,7 +1304,8 @@ class PaymentController extends Controller
             $paymentsToRemove = $allPayments->reject(function ($p) use ($activeStudentIds) {
                 return in_array($p->student_id, $activeStudentIds, true);
             });
-            
+            $paymentWasRemoved = $paymentsToRemove->contains('id', $payment->id);
+
             foreach ($paymentsToRemove as $removePayment) {
                 $invoiceIds = collect();
                 foreach ($removePayment->allocations as $allocation) {
@@ -1330,8 +1331,10 @@ class PaymentController extends Controller
                 }
             }
             
-            // Increment version for optimistic locking
-            $payment->increment('version');
+            // Increment version for optimistic locking (skip if this payment was removed)
+            if (!$paymentWasRemoved) {
+                $payment->increment('version');
+            }
             
             // Log audit trail
             try {
@@ -1351,6 +1354,7 @@ class PaymentController extends Controller
             return [
                 'message' => "Shared allocations updated successfully. Payment shared among {$siblingCount} sibling(s). Receipts and statements have been regenerated.",
                 'payments_to_notify' => $paymentsToNotify->unique('id')->values(),
+                'payment_was_removed' => $paymentWasRemoved,
             ];
         });
         
@@ -1366,8 +1370,12 @@ class PaymentController extends Controller
             }
         }
         
+        $redirectPayment = $result['payment_was_removed']
+            ? $result['payments_to_notify']->first()
+            : $payment;
+
         return redirect()
-            ->route('finance.payments.show', $payment)
+            ->route('finance.payments.show', $redirectPayment)
             ->with('success', $result['message']);
     }
 
