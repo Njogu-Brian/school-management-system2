@@ -227,7 +227,17 @@ class InvoiceController extends Controller
             'debitNotes.invoiceItem',
             'payments.paymentMethod'
         ]);
-        return view('finance.invoices.show', compact('invoice', 'appliedDiscounts'));
+
+        // Payments that have at least one allocation to an item on this invoice
+        // (matches history page logic; $invoice->payments uses invoice_id and can miss allocated payments)
+        $paymentsForHistory = \App\Models\Payment::whereHas('allocations', function ($q) use ($invoice) {
+            $q->whereHas('invoiceItem', fn ($q2) => $q2->where('invoice_id', $invoice->id));
+        })
+            ->with(['paymentMethod', 'allocations.invoiceItem'])
+            ->orderBy('payment_date', 'desc')
+            ->get();
+
+        return view('finance.invoices.show', compact('invoice', 'appliedDiscounts', 'paymentsForHistory'));
     }
 
     public function importForm()

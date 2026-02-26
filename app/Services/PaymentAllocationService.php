@@ -90,6 +90,52 @@ class PaymentAllocationService
     }
     
     /**
+     * Allocate payment to a specific invoice's items (FIFO).
+     * Used by M-PESA webhook when a transaction is tied to an invoice.
+     */
+    public function allocateToInvoice(Payment $payment, \App\Models\Invoice $invoice): Payment
+    {
+        if (strpos($payment->receipt_number ?? '', 'SWIM-') === 0) {
+            $payment->update(['allocated_amount' => $payment->amount, 'unallocated_amount' => 0]);
+            return $payment->fresh();
+        }
+        $alreadyAllocated = (float) $payment->allocations()->sum('amount');
+        $remaining = (float) $payment->amount - $alreadyAllocated;
+        if ($remaining <= 0) {
+            return $payment->fresh();
+        }
+
+        $invoiceItems = InvoiceItem::where('invoice_id', $invoice->id)
+            ->where('status', 'active')
+            ->with(['invoice'])
+            ->get()
+            ->filter(fn ($item) => $item->getBalance() > 0)
+            ->sortBy('invoice.issued_date')
+            ->values();
+
+        $allocations = [];
+        foreach ($invoiceItems as $item) {
+            if ($remaining <= 0) break;
+            $balance = $item->getBalance();
+            $allocateAmount = min($remaining, $balance);
+            if ($allocateAmount > 0) {
+                $allocations[] = ['invoice_item_id' => $item->id, 'amount' => $allocateAmount];
+                $remaining -= $allocateAmount;
+            }
+        }
+
+        if (!empty($allocations)) {
+            $this->allocatePayment($payment, $allocations);
+        } else {
+            $payment->update([
+                'allocated_amount' => $alreadyAllocated,
+                'unallocated_amount' => (float) $payment->amount - $alreadyAllocated,
+            ]);
+        }
+        return $payment->fresh();
+    }
+
+    /**
      * Auto-allocate payment to invoice items (FIFO).
      * Optionally prefer a specific term so that term's items are allocated first (e.g. for fees comparison).
      *

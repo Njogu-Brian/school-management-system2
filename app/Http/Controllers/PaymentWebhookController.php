@@ -158,6 +158,31 @@ class PaymentWebhookController extends Controller
                         $receiptService = app(\App\Services\ReceiptService::class);
                         $txnCode = $result['mpesa_receipt_number'] ?? $transaction->reference;
 
+                        // Idempotency: check if payment already exists (webhook retry or API fallback ran first)
+                        $existingPayment = \App\Models\Payment::where('payment_transaction_id', $transaction->id)
+                            ->orWhere(function ($q) use ($txnCode, $transaction) {
+                                $q->where('transaction_code', $txnCode)
+                                    ->where('student_id', $transaction->student_id);
+                            })
+                            ->first();
+                        if ($existingPayment) {
+                            Log::info('M-PESA webhook: Payment already exists (retry/race), skipping creation', [
+                                'transaction_id' => $transaction->id,
+                                'payment_id' => $existingPayment->id,
+                                'transaction_code' => $txnCode,
+                            ]);
+                            $transaction->update([
+                                'payment_id' => $existingPayment->id,
+                                'status' => 'completed',
+                                'mpesa_receipt_number' => $result['mpesa_receipt_number'] ?? $transaction->mpesa_receipt_number,
+                            ]);
+                            if ($transaction->payment_link_id) {
+                                $transaction->paymentLink?->update(['payment_id' => $existingPayment->id]);
+                            }
+                            $webhook->markAsProcessed('Payment already existed');
+                            return response()->json(['success' => true], 200);
+                        }
+
                         // Shared payment: create one payment per sibling allocation, allocate, receipt, notify each
                         if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
                             $firstPaymentId = null;

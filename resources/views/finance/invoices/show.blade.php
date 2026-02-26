@@ -663,8 +663,11 @@
 
     {{-- Credit/Debit Notes are now shown as line items in the invoice items table above --}}
 
-    <!-- Payment History -->
-    @if($invoice->payments->isNotEmpty())
+    <!-- Payment History (payments that have allocations to this invoice's items) -->
+    @php
+        $paymentsForHistory = $paymentsForHistory ?? $invoice->payments;
+    @endphp
+    @if($paymentsForHistory->isNotEmpty())
     <div class="finance-card finance-animate mb-5 shadow-sm rounded-4 border-0">
         <div class="finance-card-header">
             <h5 class="mb-0">Payment History</h5>
@@ -677,13 +680,19 @@
                             <th>Date</th>
                             <th>Receipt Number</th>
                             <th class="text-end">Amount</th>
+                            <th class="text-end">Allocated to this invoice</th>
                             <th>Method</th>
                             <th>Reference</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($invoice->payments as $payment)
+                        @foreach($paymentsForHistory as $payment)
+                        @php
+                            $allocatedToInvoice = $payment->allocations
+                                ->filter(fn($a) => $a->invoiceItem && $a->invoiceItem->invoice_id == $invoice->id)
+                                ->sum('amount');
+                        @endphp
                         <tr>
                             <td>{{ $payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d M Y') : 'N/A' }}</td>
                             <td>
@@ -692,6 +701,14 @@
                                 </a>
                             </td>
                             <td class="text-end">Ksh {{ number_format($payment->amount, 2) }}</td>
+                            <td class="text-end">
+                                <span class="{{ $allocatedToInvoice < $payment->amount ? 'text-warning' : '' }}">
+                                    Ksh {{ number_format($allocatedToInvoice, 2) }}
+                                </span>
+                                @if($allocatedToInvoice < $payment->amount && $allocatedToInvoice > 0)
+                                    <small class="text-muted d-block">(partial)</small>
+                                @endif
+                            </td>
                             <td>{{ $payment->paymentMethod->name ?? $payment->payment_method ?? 'N/A' }}</td>
                             <td>{{ $payment->transaction_code ?? '—' }}</td>
                             <td>

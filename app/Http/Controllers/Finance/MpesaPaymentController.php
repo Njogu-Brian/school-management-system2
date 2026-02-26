@@ -814,11 +814,11 @@ class MpesaPaymentController extends Controller
         }
 
         // Still processing - rely on webhook for updates (don't query API too early)
-        // Only query M-PESA API as fallback after 60 seconds if webhook hasn't arrived
-        // This prevents premature failure detection
+        // Only query M-PESA API as fallback after 30 seconds if webhook hasn't arrived
+        // This prevents premature failure detection and reduces user wait time
         
         $secondsSinceCreated = $transaction->created_at->diffInSeconds(now());
-        $shouldQueryAPI = $secondsSinceCreated > 60; // Only query after 60 seconds
+        $shouldQueryAPI = $secondsSinceCreated > 30; // Only query after 30 seconds
         
         if (!$transaction->transaction_id) {
             return response()->json([
@@ -827,7 +827,7 @@ class MpesaPaymentController extends Controller
             ]);
         }
 
-        // For first 60 seconds, only check database (webhook will update it)
+        // For first 30 seconds, only check database (webhook will update it)
         // Don't query M-PESA API yet as it may return pending status incorrectly
         if (!$shouldQueryAPI) {
             Log::debug('Skipping API query - waiting for webhook', [
@@ -841,11 +841,11 @@ class MpesaPaymentController extends Controller
             ]);
         }
 
-        // After 60 seconds, query API as fallback (webhook might be delayed)
+        // After 30 seconds, query API as fallback (webhook might be delayed)
         try {
             $result = $this->mpesaGateway->queryStkPushStatus($transaction->transaction_id);
 
-            Log::info('M-PESA Query Response (fallback after 60s)', [
+            Log::info('M-PESA Query Response (fallback after 30s)', [
                 'transaction_id' => $transaction->id,
                 'result' => $result,
             ]);
@@ -1098,6 +1098,27 @@ class MpesaPaymentController extends Controller
             $txnCode = $mpesaReceiptNumber ?? $transaction->transaction_id;
             $receiptService = app(\App\Services\ReceiptService::class);
             $allocationService = app(\App\Services\PaymentAllocationService::class);
+
+            // Idempotency: check if payment already exists (webhook may have created it)
+            $existingPayment = Payment::where('payment_transaction_id', $transaction->id)
+                ->orWhere(function ($q) use ($txnCode, $transaction) {
+                    $q->where('transaction_code', $txnCode)
+                        ->where('student_id', $transaction->student_id);
+                })
+                ->first();
+            if ($existingPayment) {
+                Log::info('Payment already exists (webhook/race), skipping creation', [
+                    'transaction_id' => $transaction->id,
+                    'payment_id' => $existingPayment->id,
+                ]);
+                $transaction->update([
+                    'payment_id' => $existingPayment->id,
+                    'status' => 'completed',
+                    'external_transaction_id' => $mpesaReceiptNumber,
+                ]);
+                DB::commit();
+                return;
+            }
 
             // Shared payment (siblings): create one payment per child, allocate, receipt and notify each
             if ($transaction->is_shared && !empty($transaction->shared_allocations)) {
