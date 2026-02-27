@@ -13,6 +13,7 @@ use App\Services\SMSService;
 use App\Services\WhatsAppService;
 use App\Services\CommunicationHelperService;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 use App\Mail\GenericMail;
 use Illuminate\Support\Facades\Storage;
 
@@ -124,6 +125,7 @@ class CommunicationController extends Controller
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
+        $reportRows = [];
 
         foreach ($recipients as $email => $entity) {
             try {
@@ -131,6 +133,7 @@ class CommunicationController extends Controller
                 Mail::to($email)->send(new GenericMail($subject, $personalized, $attachmentPath));
 
                 $sentCount++;
+                $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $email), 'contact' => $email, 'status' => 'sent'];
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
                     'recipient_id'   => $entity->id ?? null,
@@ -147,7 +150,9 @@ class CommunicationController extends Controller
                 ]);
             } catch (\Throwable $e) {
                 $failedCount++;
-                $failures[] = ['email' => $email, 'reason' => $e->getMessage()];
+                $reason = $e->getMessage();
+                $failures[] = ['email' => $email, 'reason' => $reason];
+                $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $email), 'contact' => $email, 'status' => 'failed', 'reason' => $reason];
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
                     'recipient_id'   => $entity->id ?? null,
@@ -170,6 +175,8 @@ class CommunicationController extends Controller
         if ($failedCount > 0) {
             $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
         }
+        $reportId = $this->storeDeliveryReport('email', $reportRows, ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => 0]);
+        $withData['delivery_report_id'] = $reportId;
 
         return redirect()->route('communication.send.email')->with($withData);
     }
@@ -250,11 +257,13 @@ class CommunicationController extends Controller
         }
         $recipients = [];
         $skipped = [];
+        $reportRowsSkipped = [];
         foreach ($rawRecipients as $phone => $entity) {
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
                 $label = $this->formatSkippedRecipientLabel($phone, $entity);
                 $skipped[] = $label;
+                $reportRowsSkipped[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'skipped', 'reason' => 'Invalid/non-Kenyan number'];
                 continue;
             }
             $recipients[$normalized] = $entity;
@@ -267,6 +276,7 @@ class CommunicationController extends Controller
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
+        $reportRows = [];
         foreach ($recipients as $phone => $entity) {
             try {
                 $personalized = replace_placeholders($message, $entity);
@@ -278,12 +288,17 @@ class CommunicationController extends Controller
                     $status = 'failed';
                 }
                 $status === 'sent' ? $sentCount++ : $failedCount++;
+                $reason = null;
                 if ($status !== 'sent') {
+                    $reason = is_array($response) ? json_encode($response) : (string) $response;
+                    $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'failed', 'reason' => $reason];
                     $failures[] = [
                         'phone' => $phone,
                         'reason' => $response,
                         'insufficient_credits' => (is_array($response) && ($response['error_code'] ?? '') === 'INSUFFICIENT_CREDITS'),
                     ];
+                } else {
+                    $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'sent'];
                 }
 
                 CommunicationLog::create([
@@ -300,17 +315,20 @@ class CommunicationController extends Controller
                     'scope'          => 'sms',
                     'sent_at'        => now(),
 
-                    // NEW (match to your provider fields):
-                    'provider_id'    => data_get($response,'id') 
+                    // HostPinnacle uses transactionId; store it for DLR matching
+                    'provider_id'    => data_get($response, 'transactionId')
+                                        ?? data_get($response,'id') 
                                         ?? data_get($response,'message_id') 
                                         ?? data_get($response,'MessageID'),
                     'provider_status'=> strtolower(data_get($response,'status','sent')),
                 ]);
             } catch (\Throwable $e) {
                 $failedCount++;
+                $reason = $e->getMessage();
+                $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'failed', 'reason' => $reason];
                 $failures[] = [
                     'phone' => $phone,
-                    'reason' => $e->getMessage(),
+                    'reason' => $reason,
                 ];
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
@@ -345,6 +363,9 @@ class CommunicationController extends Controller
                 $withData['error'] = 'Some sends failed. Sample: ' . json_encode(array_diff_key($failures[0] ?? [], ['insufficient_credits' => true]));
             }
         }
+        $allReportRows = array_merge($reportRows, $reportRowsSkipped);
+        $reportId = $this->storeDeliveryReport('sms', $allReportRows, ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => count($skipped)]);
+        $withData['delivery_report_id'] = $reportId;
 
         return redirect()->route('communication.send.sms')->with($withData);
     }
@@ -432,10 +453,12 @@ class CommunicationController extends Controller
         $skipped = [];
         // For WhatsApp, keep numbers but surface invalid format earlier for clarity
         $normalizedRecipients = [];
+        $reportRowsSkipped = [];
         foreach ($recipients as $phone => $entity) {
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
                 $skipped[] = $this->formatSkippedRecipientLabel($phone, $entity);
+                $reportRowsSkipped[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'skipped', 'reason' => 'Invalid/non-Kenyan number'];
                 continue;
             }
             $normalizedRecipients[$normalized] = $entity;
@@ -490,6 +513,7 @@ class CommunicationController extends Controller
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
+        $reportRows = [];
         $delayBetweenMessages = 5; // Default 5 seconds for account protection
         $lastSentTime = 0;
         $totalRecipients = count($recipients);
@@ -548,7 +572,11 @@ class CommunicationController extends Controller
                 }
                 
                 $status === 'sent' ? $sentCount++ : $failedCount++;
-                if ($status !== 'sent') {
+                $reason = $status !== 'sent' ? ($isRateLimited ? 'Rate limited (retried)' : json_encode(data_get($response, 'body') ?? [])) : null;
+                if ($status === 'sent') {
+                    $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'sent'];
+                } else {
+                    $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'failed', 'reason' => $reason];
                     $failures[] = [
                         'phone' => $phone,
                         'reason' => $isRateLimited ? 'Rate limited (retried)' : (data_get($response, 'body') ?? 'unknown'),
@@ -579,9 +607,11 @@ class CommunicationController extends Controller
                 ]);
             } catch (\Throwable $e) {
                 $failedCount++;
+                $reason = $e->getMessage();
+                $reportRows[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'failed', 'reason' => $reason];
                 $failures[] = [
                     'phone' => $phone,
-                    'reason' => $e->getMessage(),
+                    'reason' => $reason,
                 ];
                 CommunicationLog::create([
                     'recipient_type' => $data['target'],
@@ -611,6 +641,9 @@ class CommunicationController extends Controller
         if ($failedCount > 0) {
             $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
         }
+        $allReportRows = array_merge($reportRows, $reportRowsSkipped);
+        $reportId = $this->storeDeliveryReport('whatsapp', $allReportRows, ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => count($skipped)]);
+        $withData['delivery_report_id'] = $reportId;
 
         return redirect()->route('communication.send.whatsapp')->with($withData);
     }
@@ -871,6 +904,187 @@ class CommunicationController extends Controller
             return trim($entity->first_name . ' ' . ($entity->last_name ?? '')) . " ({$phone})";
         }
         return $phone;
+    }
+
+    /**
+     * Format recipient display name for delivery report.
+     */
+    private function formatRecipientDisplayName($entity, string $contact): string
+    {
+        if (!$entity) {
+            return 'Custom / ' . $contact;
+        }
+        if ($entity instanceof \App\Models\Student) {
+            $studentName = trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? ''));
+            $parentName = null;
+            if ($entity->parent) {
+                $parentName = trim($entity->parent->father_name ?? $entity->parent->guardian_name ?? $entity->parent->mother_name ?? '');
+            }
+            $parts = array_filter([$studentName, $parentName ? "({$parentName})" : null]);
+            return $parts ? implode(' – ', $parts) : ($studentName ?: $contact);
+        }
+        if ($entity instanceof \App\Models\Staff) {
+            return trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')) ?: $contact;
+        }
+        return $contact;
+    }
+
+    /**
+     * Store delivery report in cache and return report ID.
+     */
+    private function storeDeliveryReport(string $channel, array $recipients, array $summary): string
+    {
+        $reportId = 'dr_' . uniqid() . '_' . time();
+        $report = [
+            'channel' => $channel,
+            'recipients' => $recipients,
+            'summary' => $summary,
+            'created_at' => now()->toIso8601String(),
+        ];
+        Cache::put("comm_report:{$reportId}", $report, now()->addHours(2));
+        return $reportId;
+    }
+
+    /**
+     * Show delivery report (recipients with success/failure status).
+     * Opens in new tab after send.
+     */
+    public function deliveryReport(string $reportId)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        $report = Cache::get("comm_report:{$reportId}");
+        if (!$report) {
+            return redirect()->route('communication.send.sms')->with('error', 'Delivery report expired or not found.');
+        }
+
+        return view('communication.delivery-report', [
+            'report' => $report,
+            'reportId' => $reportId,
+        ]);
+    }
+
+    /**
+     * Show HostPinnacle DLR upload form
+     */
+    public function smsDlrUpload()
+    {
+        abort_unless(can_access("communication", "sms", "add"), 403);
+        return view('communication.sms-dlr-upload');
+    }
+
+    /**
+     * Process HostPinnacle DLR CSV: update CommunicationLog and show reconciliation report.
+     * Identifies: delivered at HP, failed at HP, not in DLR (never reached HostPinnacle).
+     */
+    public function smsDlrProcess(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add"), 403);
+
+        $request->validate(['dlr_file' => 'required|file|mimes:csv,txt|max:10240']);
+
+        $file = $request->file('dlr_file');
+        $dateFrom = $request->input('date_from') ? \Carbon\Carbon::parse($request->date_from)->startOfDay() : now()->subDays(7)->startOfDay();
+        $dateTo = $request->input('date_to') ? \Carbon\Carbon::parse($request->date_to)->endOfDay() : now()->endOfDay();
+
+        $dlrRows = [];
+        $handle = fopen($file->getRealPath(), 'r');
+        if (!$handle) {
+            return back()->with('error', 'Could not read the CSV file.');
+        }
+        $header = fgetcsv($handle);
+        while (($row = fgetcsv($handle)) !== false) {
+            if (count($row) < 10) continue;
+            $txnId = trim(str_replace('`', '', $row[0] ?? ''));
+            $mobile = trim(str_replace('`', '', $row[2] ?? ''));
+            $status = strtoupper(trim($row[8] ?? ''));
+            $cause = trim($row[9] ?? '');
+            $deliveredTime = $row[13] ?? null;
+            if ($txnId) {
+                $dlrRows[$txnId] = [
+                    'transaction_id' => $txnId,
+                    'mobile' => $mobile,
+                    'status' => $status,
+                    'cause' => $cause,
+                    'delivered_time' => $deliveredTime,
+                ];
+            }
+        }
+        fclose($handle);
+
+        $updated = 0;
+        $notInLogs = [];
+        foreach ($dlrRows as $txnId => $dlr) {
+            $log = CommunicationLog::where('channel', 'sms')
+                ->where(function ($q) use ($txnId) {
+                    $q->where('provider_id', $txnId)
+                        ->orWhere('provider_id', 'like', $txnId . '%')
+                        ->orWhere('provider_id', 'like', '%' . $txnId);
+                })
+                ->first();
+            if ($log) {
+                $hpStatus = strtolower($dlr['status']) === 'delivered' ? 'sent' : 'failed';
+                $log->update([
+                    'provider_status' => $dlr['status'],
+                    'status' => $hpStatus,
+                    'error_code' => $dlr['cause'],
+                    'delivered_at' => $dlr['delivered_time'] ? \Carbon\Carbon::parse($dlr['delivered_time']) : null,
+                ]);
+                $updated++;
+            } else {
+                $notInLogs[] = $dlr;
+            }
+        }
+
+        $ourLogs = CommunicationLog::where('channel', 'sms')
+            ->whereBetween('sent_at', [$dateFrom, $dateTo])
+            ->orderBy('sent_at', 'desc')
+            ->get();
+
+        $inDlrDelivered = [];
+        $inDlrFailed = [];
+        $notInDlr = [];
+        foreach ($ourLogs as $log) {
+            $pid = trim(str_replace('`', '', (string)($log->provider_id ?? '')));
+            $dlrEntry = $dlrRows[$pid] ?? null;
+            if (!$dlrEntry && $pid) {
+                $pidDigits = preg_replace('/[^0-9]/', '', $pid);
+                foreach ($dlrRows as $txnId => $d) {
+                    if (preg_replace('/[^0-9]/', '', $txnId) === $pidDigits) {
+                        $dlrEntry = $d;
+                        break;
+                    }
+                }
+            }
+            $rec = [
+                'id' => $log->id,
+                'contact' => $log->contact,
+                'message_preview' => \Str::limit($log->message, 60),
+                'sent_at' => $log->sent_at?->format('d M Y H:i'),
+                'internal_status' => $log->status,
+            ];
+            if ($dlrEntry) {
+                $rec['hp_status'] = $dlrEntry['status'];
+                $rec['hp_cause'] = $dlrEntry['cause'];
+                if (strtoupper($dlrEntry['status']) === 'DELIVERED') {
+                    $inDlrDelivered[] = $rec;
+                } else {
+                    $inDlrFailed[] = $rec;
+                }
+            } else {
+                $rec['reason'] = 'Not in DLR – message may not have reached HostPinnacle';
+                $notInDlr[] = $rec;
+            }
+        }
+
+        return view('communication.sms-dlr-report', [
+            'updated' => $updated,
+            'dlrTotal' => count($dlrRows),
+            'inDlrDelivered' => $inDlrDelivered,
+            'inDlrFailed' => $inDlrFailed,
+            'notInDlr' => $notInDlr,
+            'notInLogs' => array_slice($notInLogs, 0, 20),
+        ]);
     }
 
     /**

@@ -119,8 +119,16 @@
             </div>
         </div>
 
-        @if(($progress['status'] ?? '') === 'completed' && ($progress['failed'] ?? 0) > 0)
+        @if(($progress['status'] ?? '') === 'completed')
         <div class="mt-4">
+            @if(($progress['report_id'] ?? null))
+            <a href="{{ route('communication.delivery-report', $progress['report_id']) }}" target="_blank" rel="noopener" class="btn btn-settings-primary mb-3">
+                <i class="bi bi-box-arrow-up-right"></i> View delivery report (recipients & status)
+            </a>
+            @endif
+        </div>
+        @if(($progress['failed'] ?? 0) > 0)
+        <div class="mt-2">
             <div class="alert alert-warning">
                 <strong>Some messages failed to send.</strong> You can retry failed messages.
             </div>
@@ -132,6 +140,7 @@
                 </button>
             </form>
         </div>
+        @endif
         @endif
 
         @if(($progress['status'] ?? '') === 'processing')

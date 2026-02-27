@@ -121,6 +121,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         $skippedCount = 0;
         $failedCount = 0;
         $processed = 0;
+        $reportRows = [];
         $delayBetweenMessages = 5; // Default 5 seconds for account protection
         $lastSentTime = 0;
 
@@ -154,6 +155,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     
                     if ($alreadySent) {
                         $skippedCount++;
+                        $reportRows[] = $this->buildReportRow($phone, $entityData, 'skipped', 'Already sent in last 24h');
                         $this->updateProgress([
                             'skipped' => $skippedCount,
                             'processed' => $processed,
@@ -262,8 +264,10 @@ class BulkSendWhatsAppMessages implements ShouldQueue
 
                 if ($status === 'sent') {
                     $sentCount++;
+                    $reportRows[] = $this->buildReportRow($phone, $entityData, 'sent');
                 } else {
                     $failedCount++;
+                    $reportRows[] = $this->buildReportRow($phone, $entityData, 'failed', json_encode(data_get($response, 'body') ?? $response));
                 }
 
                 $lastSentTime = time();
@@ -287,6 +291,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     'trace' => $e->getTraceAsString(),
                 ]);
 
+                $reportRows[] = $this->buildReportRow($phone, $entityData ?? [], 'failed', $e->getMessage());
                 // Log failed attempt
                 CommunicationLog::create([
                     'recipient_type' => $this->target,
@@ -309,6 +314,16 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             }
         }
 
+        // Store delivery report for viewing
+        $reportId = 'dr_wa_' . $this->trackingId;
+        $report = [
+            'channel' => 'whatsapp',
+            'recipients' => $reportRows,
+            'summary' => ['sent' => $sentCount, 'failed' => $failedCount, 'skipped' => $skippedCount],
+            'created_at' => now()->toIso8601String(),
+        ];
+        Cache::put("comm_report:{$reportId}", $report, now()->addHours(24));
+
         // Final progress update
         $this->updateProgress([
             'status' => 'completed',
@@ -316,6 +331,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             'failed' => $failedCount,
             'skipped' => $skippedCount,
             'processed' => $processed,
+            'report_id' => $reportId,
         ]);
 
         Log::info('Bulk WhatsApp send job completed', [
@@ -325,6 +341,23 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             'skipped' => $skippedCount,
             'total' => $totalRecipients,
         ]);
+    }
+
+    /**
+     * Build a report row for delivery report
+     */
+    protected function buildReportRow(string $phone, $entityData, string $status, ?string $reason = null): array
+    {
+        $name = 'Custom / ' . $phone;
+        if (is_array($entityData)) {
+            $studentName = trim(($entityData['first_name'] ?? '') . ' ' . ($entityData['last_name'] ?? ''));
+            $name = $studentName ?: $phone;
+        }
+        $row = ['name' => $name, 'contact' => $phone, 'status' => $status];
+        if ($reason) {
+            $row['reason'] = $reason;
+        }
+        return $row;
     }
 
     /**

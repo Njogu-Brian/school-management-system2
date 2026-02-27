@@ -4,6 +4,14 @@
             @if(session($key))
                 <div class="alert alert-{{ $style }} alert-dismissible fade show" role="alert">
                     {{ session($key) }}
+                    @if(session('delivery_report_id'))
+                        <a href="{{ route('communication.delivery-report', session('delivery_report_id')) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-{{ $style }} ms-2" id="delivery-report-link">
+                            <i class="bi bi-box-arrow-up-right"></i> View full report
+                        </a>
+                        <script>
+                            (function(){ var l=document.getElementById('delivery-report-link'); if(l) l.click(); })();
+                        </script>
+                    @endif
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 @if(session('skipped_recipients') && in_array($key, ['warning', 'success']))

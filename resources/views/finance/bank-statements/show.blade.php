@@ -226,7 +226,7 @@
 
                                 @if($bankStatement->match_notes)
                                 <dt class="col-sm-5">Match Notes:</dt>
-                                <dd class="col-sm-7">{{ $bankStatement->match_notes }}</dd>
+                                <dd class="col-sm-7">{{ preg_replace_callback('/([\d,]+)%/', fn($m) => min(100, (int) str_replace(',', '', $m[1])) . '%', $bankStatement->match_notes) }}</dd>
                                 @endif
                             </dl>
                         </div>
@@ -256,7 +256,8 @@
                                 } elseif (isset($match['student_id'])) {
                                     // C2B format - has student_id, need to load student
                                     $student = \App\Models\Student::find($match['student_id']);
-                                    $confidence = $match['confidence'] ?? ($match['confidence'] ?? 0) / 100; // C2B uses 0-100, convert to 0-1
+                                    $rawConf = $match['confidence'] ?? 0;
+                                    $confidence = $rawConf > 1 ? min(1.0, $rawConf / 100) : $rawConf; // C2B uses 0-100, normalize to 0-1
                                     $matchType = $match['reason'] ?? 'unknown';
                                     $matchedValue = $match['admission_number'] ?? $match['student_name'] ?? '';
                                 } else {
@@ -312,7 +313,7 @@
                                                 <span class="text-muted">Matched: {{ $matchedValue }}</span>
                                             @endif
                                             <span class="badge bg-{{ $confidence >= 0.9 ? 'success' : ($confidence >= 0.8 ? 'warning' : 'secondary') }}">
-                                                {{ number_format($confidence * 100, 0) }}% confidence
+                                                {{ min(100, (int) round($confidence * 100)) }}% confidence
                                             </span>
                                         </div>
                                     </div>
@@ -321,7 +322,7 @@
                                             @csrf
                                             @method('PUT')
                                             <input type="hidden" name="student_id" value="{{ $student->id }}">
-                                            <input type="hidden" name="match_notes" value="Selected from {{ count($possibleMatches) }} possible matches ({{ $matchType }}, {{ number_format($confidence * 100, 0) }}% confidence)">
+                                            <input type="hidden" name="match_notes" value="Selected from {{ count($possibleMatches) }} possible matches ({{ $matchType }}, {{ min(100, (int) round($confidence * 100)) }}% confidence)">
                                             <button type="submit" class="btn btn-sm btn-finance btn-finance-primary">
                                                 <i class="bi bi-check-circle"></i> Select
                                             </button>

@@ -14,6 +14,8 @@
             'actions' => '<a href="' . route('communication.logs') . '" class="btn btn-ghost-strong"><i class="bi bi-clock-history"></i> Logs</a>'
         ])
 
+        @include('communication.partials.flash')
+
         <div class="settings-card">
             <div class="card-body">
                 @include('communication.partials.email-form')

@@ -594,6 +594,10 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/send-sms*') ? 'active' : '' }}">
     <i class="bi bi-chat"></i> Send SMS
     </a>
+    <a href="{{ route('communication.sms-dlr') }}" 
+    class="sublink {{ Request::is('communication/sms-dlr*') ? 'active' : '' }}">
+    <i class="bi bi-file-earmark-arrow-up"></i> SMS DLR (HostPinnacle)
+    </a>
     <a href="{{ route('communication.send.whatsapp') }}" 
     class="sublink {{ Request::is('communication/send-whatsapp*') ? 'active' : '' }}">
     <i class="bi bi-whatsapp"></i> Send WhatsApp
