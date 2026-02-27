@@ -1057,6 +1057,21 @@ class MpesaPaymentController extends Controller
         try {
             DB::beginTransaction();
 
+            // Pessimistic lock: prevent webhook and status-poll from processing same transaction concurrently
+            $transaction = PaymentTransaction::where('id', $transaction->id)->lockForUpdate()->first();
+            if (!$transaction) {
+                DB::rollBack();
+                return;
+            }
+            if ($transaction->payment_id && $transaction->status === 'completed') {
+                Log::info('Payment already processed (after lock)', [
+                    'transaction_id' => $transaction->id,
+                    'payment_id' => $transaction->payment_id,
+                ]);
+                DB::commit();
+                return;
+            }
+
             // Extract M-PESA receipt number
             // Handle both webhook callback format and query response format
             $mpesaReceiptNumber = null;
@@ -1146,9 +1161,8 @@ class MpesaPaymentController extends Controller
                         'payment_date' => now(),
                         'receipt_number' => \App\Services\ReceiptNumberService::receiptNumberForSibling($sharedBaseReceipt, $siblingIndex),
                         'shared_receipt_number' => $sharedBaseReceipt,
-                        'transaction_id' => $txnCode,
-                        'status' => 'approved',
-                        'notes' => 'M-PESA Payment (shared) - ' . $txnCode,
+                        'transaction_code' => $txnCode,
+                        'narration' => 'M-PESA Payment (shared) - ' . $txnCode,
                         'created_by' => $transaction->initiated_by,
                     ]);
                     $siblingIndex++;
@@ -1190,13 +1204,14 @@ class MpesaPaymentController extends Controller
             $payment = Payment::create([
                 'student_id' => $transaction->student_id,
                 'invoice_id' => $transaction->invoice_id,
+                'payment_transaction_id' => $transaction->id,
+                'family_id' => $transaction->student->family_id ?? null,
                 'amount' => $transaction->amount,
                 'payment_method' => 'mpesa',
                 'payment_date' => now(),
                 'receipt_number' => \App\Services\ReceiptNumberService::generateForPayment(),
-                'transaction_id' => $txnCode,
-                'status' => 'approved',
-                'notes' => 'M-PESA STK Push payment',
+                'transaction_code' => $txnCode,
+                'narration' => 'M-PESA STK Push payment',
                 'created_by' => $transaction->initiated_by,
             ]);
 
@@ -1232,6 +1247,36 @@ class MpesaPaymentController extends Controller
                 'payment_id' => $payment->id,
                 'receipt_number' => $payment->receipt_number,
             ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            // Duplicate receipt_number: another process created payment; treat as success if we can find it
+            $code = (string) $e->getCode();
+            if (($code === '23000' || $code === '23001') && str_contains($e->getMessage(), 'Duplicate entry') && str_contains($e->getMessage(), 'receipt_number')) {
+                $txnCodeForLookup = $transaction->mpesa_receipt_number ?? $transaction->external_transaction_id ?? $transaction->transaction_id;
+                $existingPayment = Payment::where('payment_transaction_id', $transaction->id)
+                    ->orWhere(function ($q) use ($txnCodeForLookup, $transaction) {
+                        $q->where('transaction_code', $txnCodeForLookup)->where('student_id', $transaction->student_id);
+                    })
+                    ->first();
+                if ($existingPayment) {
+                    Log::info('Duplicate receipt number – payment already created by another process', [
+                        'transaction_id' => $transaction->id,
+                        'payment_id' => $existingPayment->id,
+                    ]);
+                    $transaction->update([
+                        'payment_id' => $existingPayment->id,
+                        'status' => 'completed',
+                        'external_transaction_id' => $mpesaReceiptNumber ?? $transaction->mpesa_receipt_number,
+                    ]);
+                    return;
+                }
+            }
+            Log::error('Failed to process successful payment', [
+                'transaction_id' => $transaction->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
             

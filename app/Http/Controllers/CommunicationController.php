@@ -253,7 +253,8 @@ class CommunicationController extends Controller
         foreach ($rawRecipients as $phone => $entity) {
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
-                $skipped[] = $phone;
+                $label = $this->formatSkippedRecipientLabel($phone, $entity);
+                $skipped[] = $label;
                 continue;
             }
             $recipients[$normalized] = $entity;
@@ -328,10 +329,14 @@ class CommunicationController extends Controller
 
         $summary = "SMS: sent {$sentCount}, failed {$failedCount}";
         if ($skipped) {
-            $summary .= '. Skipped non-Kenyan: ' . implode(', ', array_slice($skipped, 0, 3)) . (count($skipped) > 3 ? '…' : '');
+            $skippedPreview = implode('; ', array_slice($skipped, 0, 5));
+            $summary .= '. Skipped (' . count($skipped) . ' invalid/non-Kenyan): ' . $skippedPreview . (count($skipped) > 5 ? '…' : '');
         }
         $flashType = ($failedCount > 0 || $skipped) ? 'warning' : 'success';
         $withData = [$flashType => $summary];
+        if ($skipped) {
+            $withData['skipped_recipients'] = $skipped;
+        }
         if ($failedCount > 0) {
             $hasInsufficientCredits = collect($failures)->contains('insufficient_credits', true);
             if ($hasInsufficientCredits) {
@@ -430,7 +435,7 @@ class CommunicationController extends Controller
         foreach ($recipients as $phone => $entity) {
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
-                $skipped[] = $phone;
+                $skipped[] = $this->formatSkippedRecipientLabel($phone, $entity);
                 continue;
             }
             $normalizedRecipients[$normalized] = $entity;
@@ -595,10 +600,14 @@ class CommunicationController extends Controller
 
         $summary = "WhatsApp: sent {$sentCount}, failed {$failedCount}";
         if ($skipped) {
-            $summary .= '. Skipped invalid/non-Kenyan: ' . implode(', ', array_slice($skipped, 0, 3)) . (count($skipped) > 3 ? '…' : '');
+            $skippedPreview = implode('; ', array_slice($skipped, 0, 5));
+            $summary .= '. Skipped (' . count($skipped) . ' invalid/non-Kenyan): ' . $skippedPreview . (count($skipped) > 5 ? '…' : '');
         }
         $flashType = ($failedCount > 0 || $skipped) ? 'warning' : 'success';
         $withData = [$flashType => $summary];
+        if ($skipped) {
+            $withData['skipped_recipients'] = $skipped;
+        }
         if ($failedCount > 0) {
             $withData['error'] = 'Some sends failed. Sample: ' . json_encode($failures[0] ?? []);
         }
@@ -838,6 +847,30 @@ class CommunicationController extends Controller
     private function collectRecipients(array $data, string $type): array
     {
         return CommunicationHelperService::collectRecipients($data, $type);
+    }
+
+    /**
+     * Format a human-readable label for a skipped recipient (invalid/non-Kenyan phone).
+     */
+    private function formatSkippedRecipientLabel(string $phone, $entity): string
+    {
+        if (!$entity) {
+            return "{$phone} (custom number)";
+        }
+        if ($entity instanceof \App\Models\Student) {
+            $studentName = trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? ''));
+            $parentName = null;
+            if ($entity->parent) {
+                $parentName = trim($entity->parent->father_name ?? $entity->parent->guardian_name ?? $entity->parent->mother_name ?? '');
+            }
+            $parts = array_filter([$studentName ? "student: {$studentName}" : null, $parentName ? "parent: {$parentName}" : null]);
+            $label = $parts ? implode(', ', $parts) : $phone;
+            return "{$label} ({$phone})";
+        }
+        if ($entity instanceof \App\Models\Staff) {
+            return trim($entity->first_name . ' ' . ($entity->last_name ?? '')) . " ({$phone})";
+        }
+        return $phone;
     }
 
     /**

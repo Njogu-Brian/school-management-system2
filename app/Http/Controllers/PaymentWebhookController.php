@@ -121,6 +121,11 @@ class PaymentWebhookController extends Controller
                     }
 
                     DB::transaction(function () use ($transaction, $result, $webhook) {
+                        // Pessimistic lock: prevent concurrent processing with status-poll
+                        $transaction = PaymentTransaction::where('id', $transaction->id)->lockForUpdate()->first();
+                        if (!$transaction || $transaction->status === 'completed') {
+                            return;
+                        }
                         // Update transaction with M-PESA receipt details
                         $transaction->update([
                             'status' => 'completed',
