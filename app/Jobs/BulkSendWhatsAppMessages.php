@@ -324,6 +324,18 @@ class BulkSendWhatsAppMessages implements ShouldQueue
         ];
         Cache::put("comm_report:{$reportId}", $report, now()->addHours(24));
 
+        // Track in recent reports for Delivery Reports index
+        $key = 'comm_recent_report_ids';
+        $recent = Cache::get($key, []);
+        array_unshift($recent, [
+            'id' => $reportId,
+            'channel' => 'whatsapp',
+            'summary' => $report['summary'],
+            'created_at' => $report['created_at'],
+        ]);
+        $recent = array_slice($recent, 0, 20);
+        Cache::put($key, $recent, now()->addHours(2));
+
         // Final progress update
         $this->updateProgress([
             'status' => 'completed',

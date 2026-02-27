@@ -1176,7 +1176,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::put('whatsapp-sessions/{id}/settings', [WasenderSessionController::class, 'updateSettings'])->name('communication.wasender.sessions.update-settings');
         Route::delete('whatsapp-sessions/{id}', [WasenderSessionController::class, 'destroy'])->name('communication.wasender.sessions.destroy');
 
-        // Delivery report (opens in new tab after send)
+        // Delivery reports index (discoverable from nav) + single report view
+        Route::get('delivery-reports', [CommunicationController::class, 'deliveryReportsIndex'])->name('communication.delivery-reports.index');
         Route::get('delivery-report/{reportId}', [CommunicationController::class, 'deliveryReport'])->name('communication.delivery-report');
 
         // HostPinnacle SMS DLR upload & reconciliation

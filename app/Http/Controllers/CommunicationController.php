@@ -942,7 +942,34 @@ class CommunicationController extends Controller
             'created_at' => now()->toIso8601String(),
         ];
         Cache::put("comm_report:{$reportId}", $report, now()->addHours(2));
+
+        // Track recent reports for Delivery Reports index page
+        $key = 'comm_recent_report_ids';
+        $recent = Cache::get($key, []);
+        array_unshift($recent, [
+            'id' => $reportId,
+            'channel' => $channel,
+            'summary' => $summary,
+            'created_at' => now()->toIso8601String(),
+        ]);
+        $recent = array_slice($recent, 0, 20);
+        Cache::put($key, $recent, now()->addHours(2));
+
         return $reportId;
+    }
+
+    /**
+     * List recent delivery reports (discoverable from nav).
+     */
+    public function deliveryReportsIndex()
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        $recent = Cache::get('comm_recent_report_ids', []);
+
+        return view('communication.delivery-reports-index', [
+            'recent' => $recent,
+        ]);
     }
 
     /**
