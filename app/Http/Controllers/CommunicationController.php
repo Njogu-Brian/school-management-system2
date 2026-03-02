@@ -121,13 +121,14 @@ class CommunicationController extends Controller
             ? $request->file('attachment')->store('email_attachments', 'public')
             : null;
 
-        $recipients = $this->collectRecipients($data, 'email');
+        $rawRecipients = $this->collectRecipients($data, 'email');
+        $recipients = $this->expandRecipientsToPairs($rawRecipients);
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
         $reportRows = [];
 
-        foreach ($recipients as $email => $entity) {
+        foreach ($recipients as [$email, $entity]) {
             try {
                 $personalized = replace_placeholders($messageBody, $entity);
                 Mail::to($email)->send(new GenericMail($subject, $personalized, $attachmentPath));
@@ -258,7 +259,7 @@ class CommunicationController extends Controller
         $recipients = [];
         $skipped = [];
         $reportRowsSkipped = [];
-        foreach ($rawRecipients as $phone => $entity) {
+        foreach ($this->expandRecipientsToPairs($rawRecipients) as [$phone, $entity]) {
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
                 $label = $this->formatSkippedRecipientLabel($phone, $entity);
@@ -266,7 +267,7 @@ class CommunicationController extends Controller
                 $reportRowsSkipped[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'skipped', 'reason' => 'Invalid/non-Kenyan number'];
                 continue;
             }
-            $recipients[$normalized] = $entity;
+            $recipients[] = [$normalized, $entity];
         }
         $title = 'SMS';
         if (!empty($data['template_id'])) {
@@ -277,7 +278,7 @@ class CommunicationController extends Controller
         $failedCount = 0;
         $failures = [];
         $reportRows = [];
-        foreach ($recipients as $phone => $entity) {
+        foreach ($recipients as [$phone, $entity]) {
             try {
                 $personalized = replace_placeholders($message, $entity);
                 $response = $smsService->sendSMS($phone, $personalized, $chosenSender);
@@ -317,8 +318,8 @@ class CommunicationController extends Controller
 
                     // HostPinnacle uses transactionId; store it for DLR matching
                     'provider_id'    => data_get($response, 'transactionId')
-                                        ?? data_get($response,'id') 
-                                        ?? data_get($response,'message_id') 
+                                        ?? data_get($response,'id')
+                                        ?? data_get($response,'message_id')
                                         ?? data_get($response,'MessageID'),
                     'provider_status'=> strtolower(data_get($response,'status','sent')),
                 ]);
@@ -449,21 +450,19 @@ class CommunicationController extends Controller
             $mediaUrl = storage_public()->url($path);
         }
 
-        $recipients = $this->collectRecipients($data, 'whatsapp');
+        $rawRecipients = $this->collectRecipients($data, 'whatsapp');
         $skipped = [];
-        // For WhatsApp, keep numbers but surface invalid format earlier for clarity
-        $normalizedRecipients = [];
         $reportRowsSkipped = [];
-        foreach ($recipients as $phone => $entity) {
+        $recipients = [];
+        foreach ($this->expandRecipientsToPairs($rawRecipients) as [$phone, $entity]) {
             $normalized = $this->normalizeKenyanPhone($phone);
             if (!$normalized) {
                 $skipped[] = $this->formatSkippedRecipientLabel($phone, $entity);
                 $reportRowsSkipped[] = ['name' => $this->formatRecipientDisplayName($entity, $phone), 'contact' => $phone, 'status' => 'skipped', 'reason' => 'Invalid/non-Kenyan number'];
                 continue;
             }
-            $normalizedRecipients[$normalized] = $entity;
+            $recipients[] = [$normalized, $entity];
         }
-        $recipients = $normalizedRecipients;
         
         // For bulk sends (>10 recipients), use queue job for reliability
         $useQueue = count($recipients) > 10 || $request->has('use_queue');
@@ -473,18 +472,19 @@ class CommunicationController extends Controller
             // Generate tracking ID
             $trackingId = 'whatsapp_bulk_' . uniqid() . '_' . time();
             
-            // Prepare recipients data (serialize entities)
+            // Prepare recipients data (serialize entities) - list of [phone, entityData] for sibling support
             $recipientsData = [];
-            foreach ($recipients as $phone => $entity) {
-                // Store entity data for reconstruction in job
-                $recipientsData[$phone] = [
-                    'id' => $entity->id ?? null,
-                    'classroom_id' => $entity->classroom_id ?? null,
-                    'type' => get_class($entity),
-                    // Store additional data that might be needed for placeholders
-                    'first_name' => $entity->first_name ?? null,
-                    'last_name' => $entity->last_name ?? null,
-                    'admission_number' => $entity->admission_number ?? null,
+            foreach ($recipients as [$phone, $entity]) {
+                $recipientsData[] = [
+                    'phone' => $phone,
+                    'entity' => [
+                        'id' => $entity->id ?? null,
+                        'classroom_id' => $entity->classroom_id ?? null,
+                        'type' => is_object($entity) ? get_class($entity) : null,
+                        'first_name' => $entity->first_name ?? null,
+                        'last_name' => $entity->last_name ?? null,
+                        'admission_number' => $entity->admission_number ?? null,
+                    ],
                 ];
             }
             
@@ -519,7 +519,7 @@ class CommunicationController extends Controller
         $totalRecipients = count($recipients);
         
         $index = 0;
-        foreach ($recipients as $phone => $entity) {
+        foreach ($recipients as [$phone, $entity]) {
             $index++;
             try {
                 // Calculate delay needed since last message (skip delay for first message)
@@ -752,13 +752,16 @@ class CommunicationController extends Controller
                 $recipients = [];
             }
 
-            // Get first student entity from recipients
+            // Get first student entity from recipients (handles contact => entity or contact => [entity, ...])
             $firstStudent = null;
             if (!empty($recipients)) {
-                foreach ($recipients as $contact => $entity) {
-                    if ($entity instanceof Student) {
-                        $firstStudent = $entity;
-                        break;
+                foreach ($recipients as $contact => $entityOrEntities) {
+                    $entities = is_array($entityOrEntities) ? $entityOrEntities : [$entityOrEntities];
+                    foreach ($entities as $entity) {
+                        if ($entity instanceof Student) {
+                            $firstStudent = $entity;
+                            break 2;
+                        }
                     }
                 }
             }
@@ -880,6 +883,11 @@ class CommunicationController extends Controller
     private function collectRecipients(array $data, string $type): array
     {
         return CommunicationHelperService::collectRecipients($data, $type);
+    }
+
+    private function expandRecipientsToPairs(array $rawRecipients): array
+    {
+        return CommunicationHelperService::expandRecipientsToPairs($rawRecipients);
     }
 
     /**

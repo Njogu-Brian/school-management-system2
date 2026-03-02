@@ -36,7 +36,7 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                 'classroom_id' => $item->classroom_id,
             ], $item->type);
 
-            foreach ($recipients as $contact => $entity) {
+            foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as [$contact, $entity]) {
                 $personalized = replace_placeholders($template->content, $entity);
 
                 try {

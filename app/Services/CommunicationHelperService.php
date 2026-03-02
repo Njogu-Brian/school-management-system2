@@ -50,7 +50,12 @@ class CommunicationHelperService
                                 ],
                                 default => [$s->parent->father_phone, $s->parent->mother_phone],
                             };
-                            foreach ($contacts as $c) if ($c) $out[$c] = $s;
+                            foreach ($contacts as $c) {
+                                if ($c) {
+                                    if (!isset($out[$c])) $out[$c] = [];
+                                    if (!in_array($s, $out[$c], true)) $out[$c][] = $s;
+                                }
+                            }
                         }
                     });
             }
@@ -72,7 +77,9 @@ class CommunicationHelperService
                     ],
                     default => [$student->parent->father_phone, $student->parent->mother_phone],
                 };
-                foreach ($contacts as $c) if ($c) $out[$c] = $student;
+                foreach ($contacts as $c) {
+                    if ($c) $out[$c] = [$student];
+                }
             }
         }
 
@@ -94,7 +101,12 @@ class CommunicationHelperService
                             ],
                             default => [$s->parent->father_phone, $s->parent->mother_phone],
                         };
-                        foreach ($contacts as $c) if ($c) $out[$c] = $s;
+                        foreach ($contacts as $c) {
+                            if ($c) {
+                                if (!isset($out[$c])) $out[$c] = [];
+                                if (!in_array($s, $out[$c], true)) $out[$c][] = $s;
+                            }
+                        }
                     }
                 });
         }
@@ -116,7 +128,12 @@ class CommunicationHelperService
                             ],
                             default => [$s->parent->father_phone, $s->parent->mother_phone],
                         };
-                        foreach ($contacts as $c) if ($c) $out[$c] = $s;
+                        foreach ($contacts as $c) {
+                            if ($c) {
+                                if (!isset($out[$c])) $out[$c] = [];
+                                if (!in_array($s, $out[$c], true)) $out[$c][] = $s;
+                            }
+                        }
                     }
                 });
         }
@@ -156,12 +173,12 @@ class CommunicationHelperService
                 : array_filter(array_map('intval', explode(',', (string) $data['exclude_student_ids'])));
         }
         if (!empty($excludeIds)) {
-            $out = array_filter($out, function ($entity) use ($excludeIds) {
-                if (!$entity instanceof Student) {
-                    return true;
-                }
-                return !in_array((int) $entity->id, $excludeIds, true);
-            });
+            $out = array_map(function ($entities) use ($excludeIds) {
+                $list = is_array($entities) ? $entities : [$entities];
+                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || !in_array((int) $e->id, $excludeIds, true));
+                return count($filtered) === 1 ? $filtered[0] : (count($filtered) > 1 ? array_values($filtered) : null);
+            }, $out);
+            $out = array_filter($out);
         }
 
         // Only recipients with fee balance (students/parents who have at least one invoice with balance > 0)
@@ -171,25 +188,50 @@ class CommunicationHelperService
                 ->pluck('student_id')
                 ->flip()
                 ->all();
-            $out = array_filter($out, function ($entity) use ($studentIdsWithBalance) {
-                if (!$entity instanceof Student) {
-                    return true; // keep non-student entries (e.g. custom emails)
-                }
-                return isset($studentIdsWithBalance[$entity->id]);
-            });
+            $out = array_map(function ($entities) use ($studentIdsWithBalance) {
+                $list = is_array($entities) ? $entities : [$entities];
+                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithBalance[$e->id]));
+                return count($filtered) === 1 ? $filtered[0] : (count($filtered) > 1 ? array_values($filtered) : null);
+            }, $out);
+            $out = array_filter($out);
         }
 
         // Exclude students in staff category (children whose student category name is "Staff")
         if (!empty($data['exclude_staff'])) {
-            $out = array_filter($out, function ($entity) {
-                if (!$entity instanceof Student) {
-                    return true;
+            $out = array_map(function ($entities) {
+                $list = is_array($entities) ? $entities : [$entities];
+                $filtered = [];
+                foreach ($list as $e) {
+                    if (!($e instanceof Student)) {
+                        $filtered[] = $e;
+                    } else {
+                        $e->loadMissing('category');
+                        if (!$e->category || strtolower($e->category->name) !== 'staff') {
+                            $filtered[] = $e;
+                        }
+                    }
                 }
-                $entity->loadMissing('category');
-                return !$entity->category || strtolower($entity->category->name) !== 'staff';
-            });
+                return count($filtered) === 1 ? $filtered[0] : (count($filtered) > 1 ? $filtered : null);
+            }, $out);
+            $out = array_filter($out);
         }
 
         return $out;
+    }
+
+    /**
+     * Expand recipients (contact => entity or contact => entity[]) into flat list of [contact, entity] pairs.
+     * Use when sending to ensure siblings sharing the same contact each get a separate personalized message.
+     */
+    public static function expandRecipientsToPairs(array $rawRecipients): array
+    {
+        $pairs = [];
+        foreach ($rawRecipients as $contact => $entityOrEntities) {
+            $entities = is_array($entityOrEntities) ? $entityOrEntities : [$entityOrEntities];
+            foreach ($entities as $entity) {
+                $pairs[] = [$contact, $entity];
+            }
+        }
+        return $pairs;
     }
 }

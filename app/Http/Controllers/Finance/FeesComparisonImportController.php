@@ -261,6 +261,10 @@ class FeesComparisonImportController extends Controller
             $status = 'ok';
             $message = null;
             $difference = null;
+            $importFeeBalance = ($importInvoiced !== null || $importPaid !== null)
+                ? (float) (($importInvoiced ?? 0) - ($importPaid ?? 0))
+                : null;
+
             if (!$student) {
                 $status = 'missing_student';
                 $message = 'Student not found or archived/alumni (excluded from import)';
@@ -277,6 +281,7 @@ class FeesComparisonImportController extends Controller
                     'system_swimming_balance' => null,
                     'import_total_paid' => $importPaid,
                     'import_total_invoiced' => $importInvoiced,
+                    'import_fee_balance' => $importFeeBalance,
                     'difference' => null,
                     'status' => $status,
                     'message' => $message,
@@ -327,6 +332,7 @@ class FeesComparisonImportController extends Controller
                 'system_swimming_balance' => $sys['swimming_balance'] ?? null,
                 'import_total_paid' => $importPaid,
                 'import_total_invoiced' => $importInvoiced,
+                'import_fee_balance' => $importFeeBalance,
                 'difference' => $difference,
                 'status' => $status,
                 'message' => $message,
@@ -532,11 +538,12 @@ class FeesComparisonImportController extends Controller
                 ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? null)
                 : null;
 
+            // Fee balance includes overpayments (negative) so it matches student statements
             $out[$student->admission_number] = [
                 'student_id' => $student->id,
                 'total_invoiced' => $totalInvoiced,
                 'total_paid' => $totalPaid,
-                'invoice_balance' => max(0, $invoiceBalance),
+                'invoice_balance' => $invoiceBalance,
                 'swimming_balance' => $swimmingBalance,
                 'parent_phone' => $parentPhone,
             ];

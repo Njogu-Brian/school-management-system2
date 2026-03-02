@@ -159,8 +159,16 @@ class CommunicationNoteController extends Controller
             'email'
         );
 
-        // contact => Student; we want unique students, ordered by classroom then name
-        $students = collect($recipients)->filter(fn ($entity) => $entity instanceof Student)->values();
+        // contact => Student or contact => [Student, ...]; we want unique students, ordered by classroom then name
+        $students = collect();
+        foreach ($recipients as $entityOrEntities) {
+            $entities = is_array($entityOrEntities) ? $entityOrEntities : [$entityOrEntities];
+            foreach ($entities as $entity) {
+                if ($entity instanceof Student) {
+                    $students->push($entity);
+                }
+            }
+        }
         $unique = $students->unique('id')->values();
 
         // Order by classroom name, then by student name (consistent with "All students")

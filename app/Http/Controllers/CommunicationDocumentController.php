@@ -117,10 +117,12 @@ class CommunicationDocumentController extends Controller
                 $studentName = $student->full_name ?? $student->first_name . ' ' . $student->last_name;
                 $useTemplate = $template !== null;
 
-                foreach ($recipients as $contact => $entity) {
+                foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as [$contact, $entity]) {
                     // Prepare personalized body for each recipient
                     if ($useTemplate) {
-                        $parentName = $entity['name'] ?? 'Parent';
+                        $parentName = (is_object($entity) && $entity->parent)
+                            ? ($entity->parent->father_name ?? $entity->parent->mother_name ?? 'Parent')
+                            : 'Parent';
                         
                         $variables = [
                             'parent_name' => $parentName,

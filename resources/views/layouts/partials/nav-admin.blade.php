@@ -614,10 +614,12 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     class="sublink {{ Request::is('communication/communication-templates*') ? 'active' : '' }}">
     <i class="bi bi-layer-forward"></i> Templates
     </a>
+    @if(Route::has('communication.delivery-reports.index'))
     <a href="{{ route('communication.delivery-reports.index') }}" 
     class="sublink {{ Request::is('communication/delivery-reports*') ? 'active' : '' }}">
     <i class="bi bi-clipboard2-check"></i> Delivery Reports
     </a>
+    @endif
     <a href="{{ route('communication.logs') }}" 
     class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Logs

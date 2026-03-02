@@ -140,7 +140,12 @@ class BulkSendWhatsAppMessages implements ShouldQueue
             'processed' => 0,
         ]);
 
-        foreach ($this->recipients as $phone => $entityData) {
+        foreach ($this->recipients as $item) {
+            $phone = $item['phone'] ?? null;
+            $entityData = $item['entity'] ?? $item;
+            if (!$phone) {
+                continue;
+            }
             $processed++;
             
             try {

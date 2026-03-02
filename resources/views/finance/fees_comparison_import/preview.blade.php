@@ -185,6 +185,8 @@
                                     <th class="text-end col-num">Sys paid</th>
                                     <th class="text-end col-num">Imp paid</th>
                                     <th class="text-end col-num">Paid diff</th>
+                                    <th class="text-end col-num">Sys balance</th>
+                                    <th class="text-end col-num">Imp balance</th>
                                     <th class="col-status">Status</th>
                                     @if(!empty($previewId))
                                     <th class="text-center col-stmt">Statement</th>
@@ -258,6 +260,24 @@
                                                     <span class="text-muted">—</span>
                                                 @endif
                                             </td>
+                                            <td class="text-end col-num">
+                                                @if(isset($row['system_invoice_balance']) && $row['system_invoice_balance'] !== null)
+                                                    <span class="{{ ($row['system_invoice_balance'] ?? 0) < 0 ? 'text-success' : '' }}">
+                                                        {{ number_format($row['system_invoice_balance'], 0) }}
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="text-end col-num">
+                                                @if(isset($row['import_fee_balance']) && $row['import_fee_balance'] !== null)
+                                                    <span class="{{ ($row['import_fee_balance'] ?? 0) < 0 ? 'text-success' : '' }}">
+                                                        {{ number_format($row['import_fee_balance'], 0) }}
+                                                    </span>
+                                                @else
+                                                    <span class="text-muted">—</span>
+                                                @endif
+                                            </td>
                                             <td class="col-status">
                                                 @if($status === 'ok')
                                                     <span class="badge bg-success">Match</span>
@@ -299,6 +319,8 @@
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_total_paid'] ?? 0)), 2) }}</td>
                                     <td class="text-end">—</td>
+                                    <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['system_invoice_balance'] ?? 0)), 2) }}</td>
+                                    <td class="text-end">KES {{ number_format(collect($preview)->sum(fn($r) => (float)($r['import_fee_balance'] ?? 0)), 2) }}</td>
                                     <td colspan="{{ !empty($previewId) ? 2 : 1 }}"></td>
                                 </tr>
                             </tfoot>
@@ -309,7 +331,7 @@
                 <div class="finance-card-body border-top d-flex justify-content-between align-items-center">
                     <p class="text-muted small mb-0">
                         <i class="bi bi-info-circle me-1"></i>
-                        System totals are for <strong>{{ $year }} Term {{ $term }} only</strong> — this term's invoice and payments allocated to this term. Other terms and legacy are excluded. Swimming fees and payments are excluded. Archived and alumni are excluded. No changes are made from this view.
+                        System totals are for <strong>{{ $year }} Term {{ $term }} only</strong> — this term's invoice and payments allocated to this term. <strong>Sys balance</strong> and <strong>Imp balance</strong> = invoiced − paid; system balance includes overpayments (negative = credit) so it matches student statements. Other terms and legacy excluded. Swimming excluded. No changes made from this view.
                     </p>
                     <a href="{{ route('finance.fees-comparison-import.index') }}" class="btn btn-finance btn-finance-outline">
                         <i class="bi bi-arrow-left"></i> Back to Import
@@ -327,7 +349,7 @@
                     <div class="row">
                         <div class="col-md-6">
                             <ul class="list-unstyled mb-0">
-                                <li class="mb-2"><span class="badge bg-success">Match</span> — System and import agree on invoiced and paid (like-with-like).</li>
+                                <li class="mb-2"><span class="badge bg-success">Match</span> — System and import agree on invoiced, paid, and balance (like-with-like). Sys balance includes overpayments (negative = credit) to match student statements.</li>
                                 <li class="mb-2"><span class="badge bg-danger">Missing</span> — In import but student not found in system.</li>
                                 <li class="mb-2"><span class="badge bg-warning text-dark">Amount differs</span> — System vs import differ on invoiced and/or paid; warning icons show which column differs.</li>
                             </ul>

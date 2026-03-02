@@ -1922,35 +1922,36 @@ class MpesaPaymentController extends Controller
                 $unifiedService->matchC2BTransaction($c2bTransaction);
                 $c2bTransaction->refresh();
 
-                // Auto-confirm and create payment when admission number matches a single student (no siblings)
+                // C2B (manual paybill with admission number) should NEVER auto-confirm.
+                // All C2B transactions remain in AutoAssign/Draft for manual confirmation,
+                // so staff can handle siblings or wrong admission numbers.
+                //
+                // Exception: If this C2B was from a payment link or admin-prompted STK push,
+                // the STK webhook already created the Payment. Link this C2B to that existing
+                // payment so it shows as collected (no duplicate payment, no duplicate receipt).
                 $t = $c2bTransaction;
-                if ($t->student_id
-                    && $t->allocation_status === 'auto_matched'
-                    && (int) ($t->match_confidence ?? 0) >= 80
-                    && trim((string) ($t->bill_ref_number ?? '')) !== '') {
-                    $student = $t->student;
-                    if ($student) {
-                        $hasSiblings = \App\Models\Student::where('family_id', $student->family_id)
-                            ->where('id', '!=', $student->id)
-                            ->where('archive', 0)
-                            ->where('is_alumni', false)
-                            ->exists();
-                        if (!$hasSiblings && !$t->payment_id && $t->status !== 'processed') {
-                            try {
-                                app(\App\Http\Controllers\Finance\BankStatementController::class)
-                                    ->confirmAndCreatePaymentForC2B($t);
-                                \Illuminate\Support\Facades\Log::info('C2B auto-confirmed and payment created (admission match, no siblings)', [
-                                    'c2b_id' => $t->id,
-                                    'trans_id' => $t->trans_id,
-                                    'student_id' => $t->student_id,
-                                ]);
-                            } catch (\Throwable $e) {
-                                \Illuminate\Support\Facades\Log::warning('C2B auto-confirm failed', [
-                                    'c2b_id' => $t->id,
-                                    'error' => $e->getMessage(),
-                                ]);
-                            }
-                        }
+                if ($t->student_id && !$t->payment_id && $t->status !== 'processed') {
+                    $existingPayment = \App\Models\Payment::where('reversed', false)
+                        ->where('student_id', $t->student_id)
+                        ->whereIn('payment_channel', ['payment_link', 'stk_push'])
+                        ->where(function ($q) use ($t) {
+                            $ref = $t->trans_id;
+                            $q->where('transaction_code', $ref)
+                              ->orWhere('transaction_code', 'LIKE', $ref . '-%');
+                        })
+                        ->first();
+                    if ($existingPayment) {
+                        $t->update([
+                            'payment_id' => $existingPayment->id,
+                            'status' => 'processed',
+                            'allocated_amount' => $t->trans_amount,
+                            'unallocated_amount' => 0,
+                        ]);
+                        \Illuminate\Support\Facades\Log::info('C2B linked to existing STK/payment-link payment', [
+                            'c2b_id' => $t->id,
+                            'trans_id' => $t->trans_id,
+                            'payment_id' => $existingPayment->id,
+                        ]);
                     }
                 }
             }
