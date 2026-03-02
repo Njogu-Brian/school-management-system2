@@ -51,6 +51,14 @@
     </a>
 </li>
 
+<li>
+    <a href="{{ route('gallery.index') }}"
+       class="{{ Request::is('gallery*') ? 'active' : '' }}">
+        <i class="bi bi-images"></i>
+        <span>Gallery</span>
+    </a>
+</li>
+
 <!-- Profile -->
 <li>
     <a href="{{ route('staff.profile.show') }}"

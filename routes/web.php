@@ -32,6 +32,7 @@ use App\Http\Controllers\Admin\SeniorTeacherAssignmentController;
 use App\Http\Controllers\Academics\AcademicConfigController;
 use App\Http\Controllers\Settings\SchoolDayController;
 use App\Http\Controllers\Settings\SettingController;
+use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\Reports\PhoneNormalizationReportController;
 
 // Students & Parents
@@ -270,6 +271,7 @@ Route::get('/home', function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth'])->group(function () {
+    Route::get('/gallery', [GalleryController::class, 'index'])->name('gallery.index');
     Route::get('/admin/home',    [DashboardController::class, 'adminDashboard'])->name('admin.dashboard');
     Route::get('/teacher/home',  [DashboardController::class, 'teacherDashboard'])->name('teacher.dashboard');
     Route::get('/supervisor/home',  [DashboardController::class, 'supervisorDashboard'])->name('supervisor.dashboard');
@@ -903,6 +905,11 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:Super Admin|Admin|Secretary')
         ->group(function () {
             Route::get('/', [SettingController::class, 'index'])->name('index');
+
+            // Gallery management
+            Route::post('/gallery/upload', [GalleryController::class, 'upload'])->name('gallery.upload');
+            Route::delete('/gallery/{galleryImage}', [GalleryController::class, 'destroy'])->name('gallery.destroy');
+            Route::post('/gallery/reorder', [GalleryController::class, 'reorder'])->name('gallery.reorder');
 
             // Branding / General / Regional / System / IDs
             Route::post('/update-branding', [SettingController::class, 'updateBranding'])->name('update.branding');

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Setting;
+use App\Models\GalleryImage;
 use Carbon\Carbon;
 use App\Models\StaffCategory;
 use App\Models\Department;
@@ -44,6 +45,7 @@ class SettingController extends Controller
             'settings'        => $settings,
             'modules'         => $availableModules,
             'enabledModules'  => $enabledModules ?? [],
+            'galleryImages'   => GalleryImage::orderBy('sort_order')->orderBy('id')->get(),
             'backupSchedule'  => Setting::getJson('backup_schedule', [
                 'frequency' => 'weekly',
                 'time'      => '02:00',

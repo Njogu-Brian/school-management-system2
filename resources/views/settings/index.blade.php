@@ -53,6 +53,11 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-gallery-tab" data-bs-toggle="pill" data-bs-target="#tab-gallery" type="button" role="tab">
+                    <i class="bi bi-images"></i> Gallery
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-modules-tab" data-bs-toggle="pill" data-bs-target="#tab-modules" type="button" role="tab">
                     <i class="bi bi-sliders"></i> Modules & Features
                 </button>
@@ -67,6 +72,7 @@
         <div class="tab-content tab-surface" id="settingsTabContent">
             @include('settings.partials.general')
             @include('settings.partials.branding')
+            @include('settings.partials.gallery')
             @include('settings.partials.regional')
             @include('settings.partials.ids')
             @include('settings.partials.modules')
@@ -116,3 +122,17 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+(function() {
+    var hash = window.location.hash;
+    if (hash === '#tab-gallery') {
+        var tab = document.querySelector('#tab-gallery-tab');
+        if (tab && typeof bootstrap !== 'undefined') {
+            new bootstrap.Tab(tab).show();
+        }
+    }
+})();
+</script>
+@endpush
