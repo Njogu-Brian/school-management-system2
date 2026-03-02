@@ -47,14 +47,14 @@ class MpesaSmartMatchingService
             $suggestions = array_merge($suggestions, $parentSiblingMatches);
         }
 
-        // Method 5: Match by name similarity (only if not matched by parent)
-        // Skip if we already have parent-based matches to avoid matching payer name to student
-        if (empty($parentSiblingMatches)) {
-            $nameMatches = $this->matchByName($transaction);
-            if (!empty($nameMatches)) {
-                $suggestions = array_merge($suggestions, $nameMatches);
-            }
+        // Method 4b: Match by reference/particulars as student name (e.g. "job" -> student Job)
+        $refNameMatches = $this->matchByReferenceAsStudentName($transaction);
+        if (!empty($refNameMatches)) {
+            $suggestions = array_merge($suggestions, $refNameMatches);
         }
+
+        // Payer name (full_name) is only used to match PARENT in Method 4 (matchByParentAndReference).
+        // It must never be used for direct student name similarity — so we do not call matchByName().
 
         // Remove duplicates and sort by confidence
         $suggestions = $this->deduplicateAndSort($suggestions);
@@ -389,49 +389,91 @@ class MpesaSmartMatchingService
     }
 
     /**
-     * Match by name similarity (only for direct student name matches)
+     * Match by reference/particulars as student name.
+     * When the payer enters the student name in the reference (e.g. "job"), match students with that name.
+     * Skips when reference looks like an admission number (RKS/digits) — already handled by matchByAdmissionNumber.
      */
-    protected function matchByName(MpesaC2BTransaction $transaction): array
+    protected function matchByReferenceAsStudentName(MpesaC2BTransaction $transaction): array
     {
+        $ref = trim($transaction->bill_ref_number ?? '');
+        if (strlen($ref) < 2) {
+            return [];
+        }
+
+        // Skip if reference looks like admission number (RKS123, digits, etc.)
+        if (preg_match('/RKS\s*\d+/i', $ref) || preg_match('/^[A-Z]*\d{3,}$/i', $ref)) {
+            return [];
+        }
+
+        $refUpper = strtoupper($ref);
+        $refLower = strtolower($ref);
+
+        // Exact match on first_name or last_name (primary: students named "Job" when reference is "job")
+        $exactMatches = Student::with('classroom')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->where(function ($q) use ($refUpper, $refLower) {
+                $q->whereRaw('UPPER(TRIM(first_name)) = ?', [$refUpper])
+                  ->orWhereRaw('UPPER(TRIM(last_name)) = ?', [$refUpper])
+                  ->orWhereRaw('LOWER(TRIM(first_name)) = ?', [$refLower])
+                  ->orWhereRaw('LOWER(TRIM(last_name)) = ?', [$refLower]);
+            })
+            ->get();
+
         $matches = [];
-        
-        $fullName = trim($transaction->full_name);
-        if (empty($fullName) || $fullName === 'Unknown') {
+        foreach ($exactMatches as $student) {
+            $matches[] = [
+                'student_id' => $student->id,
+                'student_name' => $student->first_name . ' ' . $student->last_name,
+                'admission_number' => $student->admission_number,
+                'classroom_name' => $student->classroom ? $student->classroom->name : null,
+                'confidence' => 95,
+                'reason' => 'Reference matches student name: ' . $ref,
+                'match_type' => 'reference_student_name',
+            ];
+        }
+
+        if (!empty($matches)) {
             return $matches;
         }
 
-        // Split name into parts
-        $nameParts = explode(' ', strtoupper($fullName));
-        
-        // Search students by name parts
-        $students = Student::where(function ($query) use ($nameParts) {
-            foreach ($nameParts as $part) {
-                if (strlen($part) >= 3) { // Only search meaningful parts
-                    $query->orWhereRaw('UPPER(first_name) LIKE ?', ['%' . $part . '%'])
-                          ->orWhereRaw('UPPER(last_name) LIKE ?', ['%' . $part . '%'])
-                          ->orWhereRaw('UPPER(middle_name) LIKE ?', ['%' . $part . '%']);
+        // High-similarity match (e.g. "job" vs "Job" already caught above; handle "Job Kamau" -> "Job")
+        $nameParts = array_filter(explode(' ', $ref), function ($p) {
+            return strlen(trim($p)) >= 2;
+        });
+        if (empty($nameParts)) {
+            return [];
+        }
+
+        $students = Student::with('classroom')
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->where(function ($query) use ($nameParts) {
+                foreach ($nameParts as $part) {
+                    if (strlen($part) >= 2) {
+                        $query->orWhereRaw('UPPER(first_name) LIKE ?', ['%' . strtoupper($part) . '%'])
+                              ->orWhereRaw('UPPER(last_name) LIKE ?', ['%' . strtoupper($part) . '%'])
+                              ->orWhereRaw('UPPER(middle_name) LIKE ?', ['%' . strtoupper($part) . '%']);
+                    }
                 }
-            }
-        })->with('classroom')->get();
+            })
+            ->get();
 
         foreach ($students as $student) {
             $studentFullName = strtoupper($student->first_name . ' ' . $student->last_name);
             $similarity = 0;
-            
-            // Calculate similarity percentage
-            similar_text(strtoupper($fullName), $studentFullName, $similarity);
-            
-            if ($similarity >= 60) {
-                $confidence = min(70, round($similarity)); // Cap at 70 for name matches
-                
+            similar_text($refUpper, $studentFullName, $similarity);
+            if ($similarity >= 70) {
+                $confidence = (int) round($similarity);
+                $confidence = min(90, max(80, $confidence));
                 $matches[] = [
                     'student_id' => $student->id,
                     'student_name' => $student->first_name . ' ' . $student->last_name,
                     'admission_number' => $student->admission_number,
                     'classroom_name' => $student->classroom ? $student->classroom->name : null,
                     'confidence' => $confidence,
-                    'reason' => 'Name similarity (' . round($similarity) . '%)',
-                    'match_type' => 'name_similarity',
+                    'reason' => 'Matched: ' . $student->admission_number . ' ' . $confidence . '% confidence',
+                    'match_type' => 'reference_student_name',
                 ];
             }
         }
