@@ -107,6 +107,9 @@ server {
     server_name erp.royalkingsschools.sc.ke;
     root /var/www/erp/public;
 
+    # Allow up to 12MB uploads (logo 5MB + background 10MB)
+    client_max_body_size 12M;
+
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-Content-Type-Options "nosniff";
     index index.php;
@@ -180,6 +183,7 @@ FILESYSTEM_PRIVATE_DISK=s3_private
 
 | Issue | Fix |
 |-------|-----|
+| **413 Request Entity Too Large** (background/logo upload) | Add `client_max_body_size 12M;` inside the `server { }` block in your Nginx config (e.g. `/etc/nginx/sites-available/default`), then run `sudo nginx -t && sudo systemctl reload nginx` |
 | 404 on bank statement PDF | Ensure storage/app/private/bank-statements has files; run `php artisan storage:link` |
 | **pdfplumber not installed** | On EC2: `sudo apt install -y python3 python3-pip` then `sudo pip3 install -r /var/www/erp/app/Services/python/requirements.txt` |
 | **Unable to write in public/images** | `sudo mkdir -p /var/www/erp/public/images && sudo chown -R www-data:www-data /var/www/erp/public/images` |
