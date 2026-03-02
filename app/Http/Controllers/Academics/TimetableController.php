@@ -23,14 +23,24 @@ class TimetableController extends Controller
         $user = Auth::user();
         
         // Filter classrooms based on user role
-        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && !is_supervisor()) {
+        if (($user->hasRole('Teacher') || $user->hasRole('teacher')) && !is_supervisor() && !$user->hasRole('Senior Teacher')) {
             $assignedClassroomIds = $user->getAssignedClassroomIds();
             if (!empty($assignedClassroomIds)) {
                 $classrooms = Classroom::whereIn('id', $assignedClassroomIds)->orderBy('name')->get();
             } else {
                 $classrooms = collect();
             }
-            // Teachers can only see their own timetable
+            $teachers = collect();
+        } elseif ($user->hasRole('Senior Teacher')) {
+            $allClassroomIds = array_unique(array_merge(
+                $user->getAssignedClassroomIds(),
+                $user->getSupervisedClassroomIds()
+            ));
+            if (!empty($allClassroomIds)) {
+                $classrooms = Classroom::whereIn('id', $allClassroomIds)->orderBy('name')->get();
+            } else {
+                $classrooms = collect();
+            }
             $teachers = collect();
         } elseif (is_supervisor() && !$user->hasAnyRole(['Admin', 'Super Admin'])) {
             // Supervisors can see their subordinates' classrooms

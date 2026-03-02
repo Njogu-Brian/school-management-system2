@@ -132,6 +132,7 @@
                   <th style="width:50px;">#</th>
                   <th>Admission #</th>
                   <th>Name</th>
+                  <th>Class/Stream</th>
                   <th style="width:280px;">Status</th>
                   <th style="width:220px;">Preset Reason</th>
                   <th>Notes</th>
@@ -157,6 +158,12 @@
                         <small class="text-danger d-inline-flex align-items-center gap-1">
                           <i class="bi bi-exclamation-triangle"></i> {{ $consecutive }} consecutive absence(s)
                         </small>
+                      @endif
+                    </td>
+                    <td>
+                      <div>{{ $student->classroom->name ?? 'N/A' }}</div>
+                      @if($student->stream)
+                        <small class="text-muted">{{ $student->stream->name }}</small>
                       @endif
                     </td>
                     <td>

@@ -34,7 +34,7 @@
         <div class="card-body">
             <form method="GET" action="{{ route('senior_teacher.fee_balances') }}">
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Classroom</label>
                         <select name="classroom_id" class="form-select">
                             <option value="">All Classrooms</option>
@@ -45,16 +45,27 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <label class="form-label">Stream</label>
+                        <select name="stream_id" class="form-select">
+                            <option value="">All Streams</option>
+                            @foreach($streams ?? [] as $stream)
+                                <option value="{{ $stream->id }}" {{ request('stream_id') == $stream->id ? 'selected' : '' }}>
+                                    {{ $stream->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label">Balance Status</label>
-                        <select name="balance_status" class="form-select">
+                        <select name="balance_status" class="form-select" style="min-width:140px;">
                             <option value="">All</option>
                             <option value="with_balance" {{ request('balance_status') === 'with_balance' ? 'selected' : '' }}>With Balance</option>
                             <option value="cleared" {{ request('balance_status') === 'cleared' ? 'selected' : '' }}>Cleared</option>
                             <option value="overpaid" {{ request('balance_status') === 'overpaid' ? 'selected' : '' }}>Overpaid</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">&nbsp;</label>
                         <div>
                             <button type="submit" class="btn btn-primary">

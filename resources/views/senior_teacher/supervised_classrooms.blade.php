@@ -33,56 +33,62 @@
                 </div>
             </div>
         @else
-            <div class="row g-4">
-                @foreach($classrooms as $classroom)
-                    <div class="col-md-6 col-lg-4">
-                        <div class="st-card h-100">
-                            <div class="st-card-header">
-                                <i class="bi bi-building-fill me-2"></i>{{ $classroom->name }}
-                            </div>
-                            <div class="st-card-body">
-                                <div class="mb-4">
-                                    <div class="st-info-item">
-                                        <span class="text-muted"><i class="bi bi-people me-2"></i>Students</span>
-                                        <span class="st-badge st-badge-info">{{ $classroom->students_count }}</span>
-                                    </div>
-                                    <div class="st-info-item">
-                                        <span class="text-muted"><i class="bi bi-calendar me-2"></i>Academic Year</span>
-                                        <span class="st-badge st-badge-secondary">{{ $classroom->academicYear->name ?? 'N/A' }}</span>
-                                    </div>
-                                    @if($classroom->teachers->isNotEmpty())
-                                        <div class="mt-4">
-                                            <span class="text-muted d-block mb-2"><i class="bi bi-person-badge me-2"></i>Assigned Teachers</span>
-                                            <div class="d-flex flex-wrap gap-2">
-                                                @foreach($classroom->teachers->take(3) as $teacher)
+            <div class="st-card">
+                <div class="st-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-building-fill me-2"></i>Supervised Classrooms by Stream</span>
+                </div>
+                <div class="st-card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Class</th>
+                                    <th>Stream</th>
+                                    <th>Students</th>
+                                    <th>Assigned Teachers</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($streamRows as $row)
+                                    <tr>
+                                        <td><strong>{{ $row->classroom->name }}</strong></td>
+                                        <td>{{ $row->stream ? $row->stream->name : '—' }}</td>
+                                        <td><span class="badge bg-info">{{ $row->student_count }} students</span></td>
+                                        <td>
+                                            @if($row->classroom->teachers->isNotEmpty())
+                                                @foreach($row->classroom->teachers->take(2) as $teacher)
                                                     <span class="badge bg-light text-dark border">{{ $teacher->name }}</span>
                                                 @endforeach
-                                                @if($classroom->teachers->count() > 3)
-                                                    <span class="badge bg-light text-dark border">+{{ $classroom->teachers->count() - 3 }} more</span>
+                                                @if($row->classroom->teachers->count() > 2)
+                                                    <span class="badge bg-light text-dark border">+{{ $row->classroom->teachers->count() - 2 }}</span>
                                                 @endif
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ route('senior_teacher.students.index') }}?classroom_id={{ $row->classroom->id }}{{ $row->stream ? '&stream_id='.$row->stream->id : '' }}" 
+                                                   class="btn btn-outline-primary" title="View Students">
+                                                    <i class="bi bi-people"></i>
+                                                </a>
+                                                <a href="{{ route('attendance.mark.form') }}?class={{ $row->classroom->id }}{{ $row->stream ? '&stream='.$row->stream->id : '' }}" 
+                                                   class="btn btn-outline-success" title="Mark Attendance">
+                                                    <i class="bi bi-calendar-check"></i>
+                                                </a>
+                                                <a href="{{ route('senior_teacher.fee_balances') }}?classroom_id={{ $row->classroom->id }}{{ $row->stream ? '&stream_id='.$row->stream->id : '' }}" 
+                                                   class="btn btn-outline-info" title="Fee Balances">
+                                                    <i class="bi bi-currency-exchange"></i>
+                                                </a>
                                             </div>
-                                        </div>
-                                    @endif
-                                </div>
-                                
-                                <div class="d-grid gap-2">
-                                    <a href="{{ route('senior_teacher.students.index') }}?classroom_id={{ $classroom->id }}" 
-                                       class="btn btn-st-outline btn-sm">
-                                        <i class="bi bi-people me-2"></i>View Students
-                                    </a>
-                                    <a href="{{ route('attendance.records') }}?classroom_id={{ $classroom->id }}" 
-                                       class="btn btn-outline-success btn-sm">
-                                        <i class="bi bi-calendar-check me-2"></i>View Attendance
-                                    </a>
-                                    <a href="{{ route('senior_teacher.fee_balances') }}?classroom_id={{ $classroom->id }}" 
-                                       class="btn btn-outline-info btn-sm">
-                                        <i class="bi bi-currency-exchange me-2"></i>Fee Balances
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
                     </div>
-                @endforeach
+                </div>
             </div>
         @endif
     </div>

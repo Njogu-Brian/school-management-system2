@@ -77,13 +77,37 @@ class SeniorTeacherController extends Controller
         $totalStudents = $students->count();
         $activeStudents = (clone $students)->where('status', 'Active')->count();
         
-        // Supervised classrooms (from assigned campus)
+        // Supervised classrooms (from assigned campus), with stream-level rows for display
         $supervisedClassroomIds = $user->getSupervisedClassroomIds();
         $supervisedClassrooms = empty($supervisedClassroomIds)
             ? collect()
             : Classroom::whereIn('id', $supervisedClassroomIds)
                 ->withCount('students')
+                ->with(['primaryStreams'])
                 ->get();
+
+        $supervisedStreamRows = collect();
+        if ($supervisedClassrooms->isNotEmpty()) {
+            foreach ($supervisedClassrooms as $classroom) {
+                $streams = $classroom->primaryStreams;
+                if ($streams->isNotEmpty()) {
+                    foreach ($streams as $stream) {
+                        $count = Student::where('classroom_id', $classroom->id)->where('stream_id', $stream->id)->count();
+                        $supervisedStreamRows->push((object)[
+                            'classroom' => $classroom,
+                            'stream' => $stream,
+                            'student_count' => $count,
+                        ]);
+                    }
+                } else {
+                    $supervisedStreamRows->push((object)[
+                        'classroom' => $classroom,
+                        'stream' => null,
+                        'student_count' => $classroom->students()->count(),
+                    ]);
+                }
+            }
+        }
 
         // Supervised staff (from assigned campus)
         $supervisedStaff = empty($staffIds)
@@ -185,6 +209,7 @@ class SeniorTeacherController extends Controller
             'filters' => $filters,
             'kpis' => $kpis,
             'supervisedClassrooms' => $supervisedClassrooms,
+            'supervisedStreamRows' => $supervisedStreamRows,
             'supervisedStaff' => $supervisedStaff,
             'assignedClassrooms' => $assignedClassrooms,
             'todayAttendance' => $todayAttendance,
@@ -266,18 +291,41 @@ class SeniorTeacherController extends Controller
     }
 
     /**
-     * Show all supervised classrooms (from assigned campus)
+     * Show all supervised classrooms (from assigned campus), grouped by streams.
+     * Displays Class | Stream | Students so senior teachers see stream-level view.
      */
     public function supervisedClassrooms()
     {
         $user = auth()->user();
         $classroomIds = $user->getSupervisedClassroomIds();
         $classrooms = Classroom::whereIn('id', $classroomIds)
-            ->withCount('students')
-            ->with(['teachers'])
+            ->with(['teachers', 'primaryStreams'])
             ->get();
 
-        return view('senior_teacher.supervised_classrooms', compact('classrooms'));
+        // Build stream-level rows: (classroom, stream|null, student_count)
+        $streamRows = collect();
+        foreach ($classrooms as $classroom) {
+            $streams = $classroom->primaryStreams;
+            if ($streams->isNotEmpty()) {
+                foreach ($streams as $stream) {
+                    $count = Student::where('classroom_id', $classroom->id)->where('stream_id', $stream->id)->count();
+                    $streamRows->push((object)[
+                        'classroom' => $classroom,
+                        'stream' => $stream,
+                        'student_count' => $count,
+                    ]);
+                }
+            } else {
+                // Classroom with no streams - show as single row
+                $streamRows->push((object)[
+                    'classroom' => $classroom,
+                    'stream' => null,
+                    'student_count' => $classroom->students()->count(),
+                ]);
+            }
+        }
+
+        return view('senior_teacher.supervised_classrooms', compact('classrooms', 'streamRows'));
     }
 
     /**
@@ -331,8 +379,8 @@ class SeniorTeacherController extends Controller
         }
         
         $students = $query->orderBy('first_name')->paginate(50);
-        $classrooms = Classroom::whereIn('id', $classroomIds)->get();
-        $streams = Stream::all();
+        $classrooms = Classroom::whereIn('id', $classroomIds)->orderBy('name')->get();
+        $streams = Stream::whereIn('classroom_id', $classroomIds)->orderBy('name')->get();
         
         return view('senior_teacher.students', compact('students', 'classrooms', 'streams'));
     }
@@ -398,6 +446,9 @@ class SeniorTeacherController extends Controller
         if ($request->filled('classroom_id')) {
             $query->where('classroom_id', $request->classroom_id);
         }
+        if ($request->filled('stream_id')) {
+            $query->where('stream_id', $request->stream_id);
+        }
         
         $allStudents = $query->orderBy('first_name')->get();
         
@@ -442,9 +493,10 @@ class SeniorTeacherController extends Controller
             ['path' => $request->url(), 'query' => $request->query()]
         );
         
-        $classrooms = Classroom::whereIn('id', $classroomIds)->get();
+        $classrooms = Classroom::whereIn('id', $classroomIds)->orderBy('name')->get();
+        $streams = Stream::whereIn('classroom_id', $classroomIds)->orderBy('name')->get();
         
-        return view('senior_teacher.fee_balances', compact('students', 'classrooms'));
+        return view('senior_teacher.fee_balances', compact('students', 'classrooms', 'streams'));
     }
 }
 

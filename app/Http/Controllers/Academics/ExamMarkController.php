@@ -41,11 +41,14 @@ class ExamMarkController extends Controller
 
     public function index(Request $request)
     {
+        $user = Auth::user();
         $query = ExamMark::with(['student','subject','exam']);
 
-        // Teachers can only see marks for their assigned classes
-        if (Auth::user()->hasRole('Teacher')) {
-            $assignedClassroomIds = Auth::user()->getAssignedClassroomIds();
+        // Teachers and Senior Teachers see marks for their assigned/supervised classes
+        if ($user->hasRole('Teacher') || $user->hasRole('Senior Teacher')) {
+            $assignedClassroomIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
+                : $user->getAssignedClassroomIds();
             
             if (!empty($assignedClassroomIds)) {
                 $query->whereHas('student', function($q) use ($assignedClassroomIds) {
@@ -66,15 +69,18 @@ class ExamMarkController extends Controller
         $marks = $query->latest()->paginate(50)->withQueryString();
 
         // Filter exams based on user role
-        if (Auth::user()->hasRole('Teacher')) {
-            $staff = Auth::user()->staff;
+        if ($user->hasRole('Teacher') || $user->hasRole('Senior Teacher')) {
+            $staff = $user->staff;
             if ($staff) {
-                $assignedClassroomIds = DB::table('classroom_subjects')
+                $classIds = DB::table('classroom_subjects')
                     ->where('staff_id', $staff->id)
                     ->distinct()
                     ->pluck('classroom_id')
                     ->toArray();
-                $exams = Exam::whereIn('classroom_id', $assignedClassroomIds)->latest()->take(30)->get();
+                $classIds = $user->hasRole('Senior Teacher')
+                    ? array_unique(array_merge($classIds, $user->getSupervisedClassroomIds()))
+                    : $classIds;
+                $exams = Exam::whereIn('classroom_id', $classIds)->latest()->take(30)->get();
             } else {
                 $exams = collect();
             }
@@ -92,7 +98,9 @@ class ExamMarkController extends Controller
         // Filter exams and classrooms based on user role
         $isTeacher = $user->hasRole('Teacher') || $user->hasRole('teacher') || $user->hasRole('Senior Teacher');
         if ($isTeacher) {
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
+            $assignedClassroomIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
+                : $user->getAssignedClassroomIds();
             $staff = $user->staff;
             
             if (!empty($assignedClassroomIds)) {
@@ -167,12 +175,14 @@ class ExamMarkController extends Controller
 
         $exam = Exam::findOrFail($v['exam_id']);
 
-        // Check if teacher has access to this exam's classroom
-        if (Auth::user()->hasRole('Teacher') || Auth::user()->hasRole('teacher')) {
-            $user = Auth::user();
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
+        // Check if teacher/senior teacher has access to this exam's classroom
+        $authUser = Auth::user();
+        if ($authUser->hasRole('Teacher') || $authUser->hasRole('teacher') || $authUser->hasRole('Senior Teacher')) {
+            $user = $authUser;
+            $assignedClassroomIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
+                : $user->getAssignedClassroomIds();
             
-            // Check if teacher is assigned to this classroom
             if (!in_array($v['classroom_id'], $assignedClassroomIds)) {
                 return back()
                     ->withInput()
@@ -201,8 +211,10 @@ class ExamMarkController extends Controller
             
             // Allow access if:
             // 1. Teacher is directly assigned to the classroom (can enter marks for any subject), OR
-            // 2. Teacher teaches this specific subject in this classroom
-            if (!$isDirectlyAssigned && !$hasSubjectAccess) {
+            // 2. Teacher teaches this specific subject in this classroom, OR
+            // 3. Senior Teacher supervises this classroom (can enter marks for any subject)
+            $isSupervised = $user->hasRole('Senior Teacher') && in_array($v['classroom_id'], $user->getSupervisedClassroomIds(), true);
+            if (!$isDirectlyAssigned && !$hasSubjectAccess && !$isSupervised) {
                 return back()
                     ->withInput()
                     ->with('error', 'You do not have access to enter marks for this subject in this classroom.');
@@ -228,12 +240,14 @@ class ExamMarkController extends Controller
 
         abort_unless($examId && $classId && $subId, 404);
 
-        // Check if teacher has access
-        if (Auth::user()->hasRole('Teacher') || Auth::user()->hasRole('teacher')) {
-            $user = Auth::user();
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
+        // Check if teacher/senior teacher has access
+        $authUser = Auth::user();
+        if ($authUser->hasRole('Teacher') || $authUser->hasRole('teacher') || $authUser->hasRole('Senior Teacher')) {
+            $user = $authUser;
+            $assignedClassroomIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
+                : $user->getAssignedClassroomIds();
             
-            // Check if teacher is assigned to this classroom
             if (!in_array($classId, $assignedClassroomIds)) {
                 abort(403, 'You do not have access to enter marks for this classroom.');
             }
@@ -260,8 +274,10 @@ class ExamMarkController extends Controller
             
             // Allow access if:
             // 1. Teacher is directly assigned to the classroom (can enter marks for any subject), OR
-            // 2. Teacher teaches this specific subject in this classroom
-            if (!$isDirectlyAssigned && !$hasSubjectAccess) {
+            // 2. Teacher teaches this specific subject in this classroom, OR
+            // 3. Senior Teacher supervises this classroom
+            $isSupervised = $user->hasRole('Senior Teacher') && in_array($classId, $user->getSupervisedClassroomIds(), true);
+            if (!$isDirectlyAssigned && !$hasSubjectAccess && !$isSupervised) {
                 abort(403, 'You do not have access to enter marks for this subject in this classroom.');
             }
         }
@@ -307,12 +323,14 @@ class ExamMarkController extends Controller
 
         $exam = Exam::findOrFail($data['exam_id']);
 
-        // Check if teacher has access to this exam's classroom
-        if (Auth::user()->hasRole('Teacher')) {
-            $user = Auth::user();
-            $assignedClassroomIds = $user->getAssignedClassroomIds();
+        // Check if teacher/senior teacher has access to this exam's classroom
+        $authUser = Auth::user();
+        if ($authUser->hasRole('Teacher') || $authUser->hasRole('teacher') || $authUser->hasRole('Senior Teacher')) {
+            $user = $authUser;
+            $assignedClassroomIds = $user->hasRole('Senior Teacher')
+                ? array_unique(array_merge($user->getAssignedClassroomIds(), $user->getSupervisedClassroomIds()))
+                : $user->getAssignedClassroomIds();
             
-            // Check if teacher is assigned to this classroom
             if (!in_array($data['classroom_id'], $assignedClassroomIds)) {
                 return back()
                     ->withInput()
@@ -328,14 +346,18 @@ class ExamMarkController extends Controller
                     ->where('subject_id', $data['subject_id'])
                     ->exists();
                 
-                // If no subject-specific assignment, but teacher is assigned to class, allow access
-                if (!$hasSubjectAccess && !$user->isAssignedToClassroom($data['classroom_id'])) {
+                // If no subject-specific assignment, check direct class assignment or senior teacher supervision
+                $isDirectOrSupervised = $user->isAssignedToClassroom($data['classroom_id'])
+                    || ($user->hasRole('Senior Teacher') && in_array($data['classroom_id'], $user->getSupervisedClassroomIds(), true));
+                if (!$hasSubjectAccess && !$isDirectOrSupervised) {
                     return back()
                         ->withInput()
                         ->with('error', 'You do not have access to enter marks for this subject in this classroom.');
                 }
             } else {
-                if (!$user->isAssignedToClassroom($data['classroom_id'])) {
+                $canAccess = $user->isAssignedToClassroom($data['classroom_id'])
+                    || ($user->hasRole('Senior Teacher') && in_array($data['classroom_id'], $user->getSupervisedClassroomIds(), true));
+                if (!$canAccess) {
                     abort(403, 'You do not have access to enter marks.');
                 }
             }

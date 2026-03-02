@@ -187,6 +187,44 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all stream IDs in supervised classrooms (for Senior Teachers).
+     * Senior teachers supervise by campus, so they see all streams in that campus's classrooms.
+     */
+    public function getSupervisedStreamIds(): array
+    {
+        $classroomIds = $this->getSupervisedClassroomIds();
+        if (empty($classroomIds)) {
+            return [];
+        }
+        return \App\Models\Academics\Stream::whereIn('classroom_id', $classroomIds)
+            ->pluck('id')
+            ->toArray();
+    }
+
+    /**
+     * Get effective stream IDs for teachers: assigned streams + supervised streams (for Senior Teachers).
+     * Used in attendance, students list, etc. so senior teachers can see and filter by all streams in their scope.
+     */
+    public function getEffectiveStreamIds(): array
+    {
+        $assigned = $this->getAssignedStreamIds();
+        if ($this->hasRole('Senior Teacher')) {
+            $supervised = $this->getSupervisedStreamIds();
+            return array_values(array_unique(array_merge($assigned, $supervised)));
+        }
+        return $assigned;
+    }
+
+    /**
+     * Check if this user supervises a stream (stream belongs to a supervised classroom).
+     */
+    public function isSupervisingStream($streamId): bool
+    {
+        $streamIds = $this->getSupervisedStreamIds();
+        return in_array((int) $streamId, $streamIds, true);
+    }
+
+    /**
      * Get stream assignments with classroom_id and stream_id
      * Returns array of objects with classroom_id and stream_id
      */

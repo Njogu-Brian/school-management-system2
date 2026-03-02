@@ -104,7 +104,7 @@
             </a>
           </div>
           <div class="card-body">
-            @if($supervisedClassrooms->isEmpty())
+            @if(($supervisedStreamRows ?? collect())->isEmpty())
               <div class="text-center py-4">
                 <i class="bi bi-inbox fs-1 text-muted"></i>
                 <p class="text-muted mt-2">No classrooms assigned for supervision yet.</p>
@@ -115,27 +115,25 @@
                   <thead>
                     <tr>
                       <th>Class</th>
+                      <th>Stream</th>
                       <th>Students</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    @foreach($supervisedClassrooms->take(5) as $classroom)
+                    @foreach(($supervisedStreamRows ?? collect())->take(5) as $row)
                       <tr>
-                        <td>
-                          <strong>{{ $classroom->name }}</strong>
-                        </td>
-                        <td>
-                          <span class="badge bg-info">{{ $classroom->students_count }} students</span>
-                        </td>
+                        <td><strong>{{ $row->classroom->name }}</strong></td>
+                        <td>{{ $row->stream ? $row->stream->name : '—' }}</td>
+                        <td><span class="badge bg-info">{{ $row->student_count }} students</span></td>
                         <td>
                           <div class="btn-group btn-group-sm">
-                            <a href="{{ route('senior_teacher.students.index') }}?classroom_id={{ $classroom->id }}" 
+                            <a href="{{ route('senior_teacher.students.index') }}?classroom_id={{ $row->classroom->id }}{{ $row->stream ? '&stream_id='.$row->stream->id : '' }}" 
                                class="btn btn-outline-primary" title="View Students">
                               <i class="bi bi-people"></i>
                             </a>
-                            <a href="{{ route('attendance.records') }}?classroom_id={{ $classroom->id }}" 
-                               class="btn btn-outline-success" title="View Attendance">
+                            <a href="{{ route('attendance.mark.form') }}?class={{ $row->classroom->id }}{{ $row->stream ? '&stream='.$row->stream->id : '' }}" 
+                               class="btn btn-outline-success" title="Mark Attendance">
                               <i class="bi bi-calendar-check"></i>
                             </a>
                           </div>

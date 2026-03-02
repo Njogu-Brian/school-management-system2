@@ -59,7 +59,8 @@ class AttendanceController extends Controller
                 ))
                 : $user->getAssignedClassroomIds();
             
-            $assignedStreamIds = $user->getAssignedStreamIds();
+            // Senior teachers see all streams in supervised classrooms; regular teachers see assigned streams only
+            $assignedStreamIds = $user->getEffectiveStreamIds();
             
             $classes = !empty($assignedClassIds) 
                 ? Classroom::whereIn('id', $assignedClassIds)->orderBy('name')->pluck('name', 'id')
@@ -77,11 +78,14 @@ class AttendanceController extends Controller
                 }
             }
             
+            // Show streams: filter by class if selected; for senior teachers include all streams in supervised classrooms
             $streams = $selectedClass
                 ? Stream::where('classroom_id', $selectedClass)
-                    ->whereIn('id', $assignedStreamIds)
+                    ->when(!empty($assignedStreamIds), fn($q) => $q->whereIn('id', $assignedStreamIds))
                     ->pluck('name', 'id')
-                : Stream::whereIn('id', $assignedStreamIds)->pluck('name', 'id');
+                : (empty($assignedStreamIds) && $user->hasRole('Senior Teacher')
+                    ? Stream::whereIn('classroom_id', $assignedClassIds)->pluck('name', 'id')
+                    : Stream::whereIn('id', $assignedStreamIds)->pluck('name', 'id'));
         } else {
             // Admin/Secretary can see all; optionally filter by campus
             $classesQuery = Classroom::query();
@@ -95,7 +99,7 @@ class AttendanceController extends Controller
         }
 
         $studentsQuery = Student::query()
-            ->with('classroom')
+            ->with(['classroom', 'stream'])
             ->where('archive', 0)
             ->where('is_alumni', false);
         
@@ -179,13 +183,17 @@ public function mark(Request $request)
     $selectedClass = $request->input('class');
     $selectedStream = $request->input('stream');
     
-    // If user is a teacher or senior teacher, validate they're assigned to the class/stream
+    // If user is a teacher or senior teacher, validate they're assigned/supervise the class/stream
     $isTeacher = $user->hasRole('teacher') || $user->hasRole('Teacher') || $user->hasRole('Senior Teacher');
     if ($isTeacher) {
-        if ($selectedClass && !$user->isAssignedToClassroom($selectedClass)) {
+        $hasClassAccess = $selectedClass && ($user->isAssignedToClassroom($selectedClass)
+            || ($user->hasRole('Senior Teacher') && in_array($selectedClass, $user->getSupervisedClassroomIds(), true)));
+        if ($selectedClass && !$hasClassAccess) {
             return back()->with('error', 'You are not assigned to this class.');
         }
-        if ($selectedStream && !$user->isAssignedToStream($selectedStream)) {
+        $hasStreamAccess = !$selectedStream || $user->isAssignedToStream($selectedStream)
+            || ($user->hasRole('Senior Teacher') && $user->isSupervisingStream($selectedStream));
+        if ($selectedStream && !$hasStreamAccess) {
             return back()->with('error', 'You are not assigned to this stream.');
         }
     }
@@ -443,7 +451,7 @@ private function applyPlaceholders(string $content, Student $student, string $hu
                 ))
                 : (array) $user->getAssignedClassroomIds())
             : [];
-        $assignedStreamIds = $isTeacher ? (array) $user->getAssignedStreamIds() : [];
+        $assignedStreamIds = $isTeacher ? (array) $user->getEffectiveStreamIds() : [];
 
         if ($isTeacher && $selectedClass && !in_array($selectedClass, $assignedClassIds)) {
             $selectedClass = null;
