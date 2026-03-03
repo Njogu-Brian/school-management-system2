@@ -131,7 +131,10 @@
               </div>
 
               <div class="mt-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div class="text-muted"><span id="selectedCount">0</span> student(s) selected</div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <span class="text-muted"><span id="selectedCount">0</span> student(s) selected</span>
+                  <span id="streamRequiredHint" class="text-warning small d-none">Select a stream above, then click the button.</span>
+                </div>
                 <button type="submit" class="btn btn-settings-primary" id="submitBtn" disabled>
                   <i class="bi bi-save"></i> Assign Selected Students to Stream
                 </button>
@@ -170,9 +173,14 @@
   }
   function updateSelectedCount() {
     const checked = document.querySelectorAll('.student-checkbox:checked').length;
+    const streamSelectEl = document.querySelector('select[name="stream_id"]');
+    const stream = streamSelectEl ? streamSelectEl.value : '';
     document.getElementById('selectedCount').textContent = checked;
-    const stream = document.querySelector('select[name="stream_id"]').value;
-    document.getElementById('submitBtn').disabled = checked === 0 || !stream;
+    document.getElementById('submitBtn').disabled = checked === 0;
+    const hint = document.getElementById('streamRequiredHint');
+    if (hint) {
+      hint.classList.toggle('d-none', !(checked > 0 && !stream));
+    }
   }
   document.querySelectorAll('.student-checkbox').forEach(cb => cb.addEventListener('change', updateSelectedCount));
   const streamSelect = document.querySelector('select[name="stream_id"]');
