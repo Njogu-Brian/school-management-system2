@@ -1001,9 +1001,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Bulk stream assignment - MUST be before resource route to avoid conflicts
     Route::get('/students/bulk-assign-streams', [StudentController::class, 'bulkAssignStreams'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.bulk.assign-streams');
     Route::post('/students/bulk-assign-streams', [StudentController::class, 'processBulkStreamAssignment'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign-streams.process');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.bulk.assign-streams.process');
 
     // Archived list must be defined before the resource route to avoid being captured by /students/{student}
     Route::get('/students/archived', [StudentController::class, 'archived'])
@@ -1034,7 +1034,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Helper for cascading class → streams
     Route::post('/get-streams', [StudentController::class, 'getStreams'])
-        ->middleware('role:Super Admin|Admin|Secretary|Teacher')->name('students.getStreams');
+        ->middleware('role:Super Admin|Admin|Secretary|Teacher|Senior Teacher')->name('students.getStreams');
 
     // API-like search (inside auth)
     Route::get('/api/students/search', [StudentController::class, 'search'])
@@ -1052,7 +1052,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
     // Bulk assign (class/stream) + bulk archive/restore
     Route::post('/students/bulk-assign', [StudentController::class, 'bulkAssign'])
-        ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.assign');
+        ->middleware('role:Super Admin|Admin|Secretary|Senior Teacher')->name('students.bulk.assign');
 
     Route::post('/students/bulk-archive', [StudentController::class, 'bulkArchive'])
         ->middleware('role:Super Admin|Admin|Secretary')->name('students.bulk.archive');

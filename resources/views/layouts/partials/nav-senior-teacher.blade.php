@@ -54,6 +54,20 @@
      class="{{ $studentsActive ? 'active' : '' }}">
     <i class="bi bi-people"></i> All Students
   </a>
+
+  {{-- Streams (assign streams to classes) --}}
+  @if (Route::has('academics.streams.index'))
+    <a href="{{ route('academics.streams.index') }}" class="{{ Request::is('academics/streams*') ? 'active' : '' }}">
+      <i class="bi bi-diagram-3"></i> Streams
+    </a>
+  @endif
+
+  {{-- Bulk Assign Students to Streams --}}
+  @if (Route::has('students.bulk.assign-streams'))
+    <a href="{{ route('students.bulk.assign-streams') }}" class="{{ Request::is('students/bulk-assign-streams*') ? 'active' : '' }}">
+      <i class="bi bi-people-fill"></i> Bulk Assign Streams
+    </a>
+  @endif
   
   {{-- Fee Balances --}}
   <a href="{{ route('senior_teacher.fee_balances') }}" 

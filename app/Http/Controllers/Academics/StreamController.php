@@ -8,23 +8,49 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Models\Academics\Stream;
 use App\Models\Academics\Classroom;
+use App\Models\Student;
 
 class StreamController extends Controller
 {
+    /**
+     * Get supervised classroom IDs for senior teachers (empty for non–senior teachers).
+     */
+    protected function supervisedClassroomIds(): array
+    {
+        $user = auth()->user();
+        if (!$user || !$user->hasRole('Senior Teacher')) {
+            return [];
+        }
+        return $user->getSupervisedClassroomIds();
+    }
+
     public function index()
     {
-        $streams = Stream::with(['classroom', 'classrooms', 'teachers'])->orderBy('classroom_id')->orderBy('name')->get();
+        $query = Stream::with(['classroom', 'classrooms', 'teachers'])->orderBy('classroom_id')->orderBy('name');
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (!empty($supervisedIds)) {
+            $query->where(function ($q) use ($supervisedIds) {
+                $q->whereIn('classroom_id', $supervisedIds)
+                    ->orWhereHas('classrooms', fn ($c) => $c->whereIn('classrooms.id', $supervisedIds));
+            });
+        }
+        $streams = $query->get();
         return view('academics.streams.index', compact('streams'));
     }
 
     public function create()
     {
         $classrooms = Classroom::orderBy('name')->get();
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (!empty($supervisedIds)) {
+            $classrooms = $classrooms->whereIn('id', $supervisedIds)->values();
+        }
         return view('academics.streams.create', compact('classrooms'));
     }
 
     public function store(Request $request)
     {
+        $supervisedIds = $this->supervisedClassroomIds();
         $request->validate([
             'name' => [
                 'required',
@@ -39,6 +65,18 @@ class StreamController extends Controller
             'classroom_ids' => 'nullable|array',
             'classroom_ids.*' => 'exists:classrooms,id',
         ]);
+        if (!empty($supervisedIds)) {
+            if (!in_array((int) $request->classroom_id, $supervisedIds, true)) {
+                abort(403, 'You can only assign streams to classes you supervise.');
+            }
+            if ($request->has('classroom_ids')) {
+                foreach ((array) $request->classroom_ids as $cid) {
+                    if (!in_array((int) $cid, $supervisedIds, true)) {
+                        abort(403, 'You can only assign streams to classes you supervise.');
+                    }
+                }
+            }
+        }
 
         $stream = Stream::create([
             'name' => $request->name,
@@ -60,7 +98,18 @@ class StreamController extends Controller
     public function edit($id)
     {
         $stream = Stream::with('classrooms')->findOrFail($id);
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (!empty($supervisedIds)) {
+            $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
+                $stream->classrooms->contains(fn ($c) => in_array((int) $c->id, $supervisedIds, true));
+            if (!$allowed) {
+                abort(403, 'You can only edit streams for classes you supervise.');
+            }
+        }
         $classrooms = Classroom::orderBy('name')->get();
+        if (!empty($supervisedIds)) {
+            $classrooms = $classrooms->whereIn('id', $supervisedIds)->values();
+        }
         $assignedClassrooms = $stream->classrooms->pluck('id')->toArray();
 
         return view('academics.streams.edit', compact('stream', 'classrooms', 'assignedClassrooms'));
@@ -69,7 +118,25 @@ class StreamController extends Controller
     public function update(Request $request, $id)
     {
         $stream = Stream::findOrFail($id);
-        
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (!empty($supervisedIds)) {
+            $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
+                $stream->classrooms->contains(fn ($c) => in_array((int) $c->id, $supervisedIds, true));
+            if (!$allowed) {
+                abort(403, 'You can only edit streams for classes you supervise.');
+            }
+            if (!in_array((int) $request->classroom_id, $supervisedIds, true)) {
+                abort(403, 'You can only assign streams to classes you supervise.');
+            }
+            if ($request->has('classroom_ids')) {
+                foreach ((array) $request->classroom_ids as $cid) {
+                    if (!in_array((int) $cid, $supervisedIds, true)) {
+                        abort(403, 'You can only assign streams to classes you supervise.');
+                    }
+                }
+            }
+        }
+
         $request->validate([
             'name' => [
                 'required',
@@ -106,7 +173,18 @@ class StreamController extends Controller
     public function assignTeachers(Request $request, $id)
     {
         $stream = Stream::findOrFail($id);
-        
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (!empty($supervisedIds)) {
+            $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
+                $stream->classrooms->contains(fn ($c) => in_array((int) $c->id, $supervisedIds, true));
+            if (!$allowed) {
+                abort(403, 'You can only assign teachers to streams for classes you supervise.');
+            }
+            if (!in_array((int) $request->classroom_id, $supervisedIds, true)) {
+                abort(403, 'You can only assign teachers for classrooms you supervise.');
+            }
+        }
+
         $request->validate([
             'teacher_ids' => 'nullable|array',
             'teacher_ids.*' => 'exists:users,id',
@@ -178,18 +256,35 @@ class StreamController extends Controller
     public function destroy($id)
     {
         $stream = Stream::findOrFail($id);
-        
+        $supervisedIds = $this->supervisedClassroomIds();
+        if (!empty($supervisedIds)) {
+            $allowed = in_array((int) $stream->classroom_id, $supervisedIds, true) ||
+                $stream->classrooms->contains(fn ($c) => in_array((int) $c->id, $supervisedIds, true));
+            if (!$allowed) {
+                abort(403, 'You can only delete streams for classes you supervise.');
+            }
+        }
+
+        // Move any students in this stream to "no stream" but keep their classroom
+        $studentsUpdated = Student::withArchived()
+            ->where('stream_id', $stream->id)
+            ->update(['stream_id' => null]);
+
         // Delete teacher assignments first
         DB::table('stream_teacher')
             ->where('stream_id', $stream->id)
             ->delete();
-        
+
         // Detach from additional classrooms
         $stream->classrooms()->detach();
-        
+
         $stream->delete();
 
+        $message = $studentsUpdated > 0
+            ? "Stream deleted successfully. {$studentsUpdated} student(s) moved to no stream (class unchanged)."
+            : 'Stream deleted successfully.';
+
         return redirect()->route('academics.streams.index')
-            ->with('success', 'Stream deleted successfully.');
+            ->with('success', $message);
     }
 }

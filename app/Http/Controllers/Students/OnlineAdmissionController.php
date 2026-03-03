@@ -246,10 +246,15 @@ class OnlineAdmissionController extends Controller
     }
 
     /**
-     * Update admission status (review, accept, reject, waitlist)
+     * Update admission status (review, accept, reject, waitlist).
+     * Stream is normalized so when changed/cleared the admission record is updated immediately.
      */
     public function updateStatus(Request $request, OnlineAdmission $admission)
     {
+        $streamId = $request->input('stream_id');
+        if ($streamId === '' || $streamId === null || !is_numeric($streamId) || (int) $streamId < 1) {
+            $request->merge(['stream_id' => null]);
+        }
         $request->validate([
             'application_status' => 'required|in:pending,under_review,accepted,rejected,waitlisted',
             'review_notes' => 'nullable|string',

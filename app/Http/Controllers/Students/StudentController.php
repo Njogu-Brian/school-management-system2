@@ -50,6 +50,18 @@ class StudentController extends Controller
     }
 
     /**
+     * Get supervised classroom IDs for the current user (Senior Teacher only). Empty array otherwise.
+     */
+    protected function getSupervisedClassroomIdsForUser(): array
+    {
+        $user = auth()->user();
+        if (!$user || !$user->hasRole('Senior Teacher')) {
+            return [];
+        }
+        return $user->getSupervisedClassroomIds();
+    }
+
+    /**
      * List students with filtering and pagination
      *
      * @param Request $request
@@ -513,7 +525,11 @@ class StudentController extends Controller
             if (isset($studentData['dob']) && empty($studentData['dob'])) {
                 $studentData['dob'] = null;
             }
-            
+            // Normalize stream_id: empty string or 0 => null
+            if (array_key_exists('stream_id', $studentData) && ($studentData['stream_id'] === '' || (int) ($studentData['stream_id'] ?? 0) < 1)) {
+                $studentData['stream_id'] = null;
+            }
+
             $emergencyPhone = $this->formatPhoneWithCode(
                 $request->emergency_contact_phone,
                 $request->input('emergency_contact_country_code', '+254')
@@ -788,6 +804,10 @@ class StudentController extends Controller
 
         if (!$incomingCategoryId || $incomingCategoryId <= 0) {
             unset($updateData['category_id']);
+        }
+        // Normalize stream_id: empty string or 0 => null so child's stream is updated/cleared immediately
+        if (array_key_exists('stream_id', $updateData) && ($updateData['stream_id'] === '' || (int) ($updateData['stream_id'] ?? 0) < 1)) {
+            $updateData['stream_id'] = null;
         }
         
         // Normalize gender to lowercase
@@ -1936,12 +1956,26 @@ class StudentController extends Controller
             'stream_id' => 'nullable|exists:streams,id',
         ]);
 
-        Student::withArchived()->whereIn('id', $request->student_ids)->update(array_filter([
-            'classroom_id' => $request->classroom_id,
-            'stream_id'    => $request->stream_id,
-        ]));
+        $studentIds = $request->student_ids;
+        $supervisedIds = $this->getSupervisedClassroomIdsForUser();
+        if (!empty($supervisedIds)) {
+            $studentIds = Student::withArchived()
+                ->whereIn('id', $studentIds)
+                ->whereIn('classroom_id', $supervisedIds)
+                ->pluck('id')
+                ->toArray();
+            if (empty($studentIds)) {
+                return back()->with('error', 'None of the selected students are in classes you supervise.');
+            }
+        }
 
-        return back()->with('success','Selected students updated.');
+        $payload = array_filter([
+            'classroom_id' => $request->classroom_id,
+            'stream_id'    => $request->filled('stream_id') && (int) $request->stream_id > 0 ? $request->stream_id : null,
+        ]);
+        Student::withArchived()->whereIn('id', $studentIds)->update($payload);
+
+        return back()->with('success', 'Selected students updated.');
     }
 
     /**
@@ -1950,20 +1984,31 @@ class StudentController extends Controller
     public function bulkAssignStreams(Request $request)
     {
         $classrooms = Classroom::orderBy('name')->get();
-        $streams = Stream::with('classroom')->orderBy('name')->get();
-        
+        $streams = Stream::with(['classroom', 'classrooms'])->orderBy('name')->get();
+        $supervisedIds = $this->getSupervisedClassroomIdsForUser();
+        if (!empty($supervisedIds)) {
+            $classrooms = $classrooms->whereIn('id', $supervisedIds)->values();
+            $streams = $streams->filter(function ($s) use ($supervisedIds) {
+                return in_array((int) $s->classroom_id, $supervisedIds, true)
+                    || $s->classrooms->contains(fn ($c) => in_array((int) $c->id, $supervisedIds, true));
+            })->values();
+        }
+
         $selectedClassroom = null;
         $students = collect();
-        
+
         if ($request->filled('classroom_id')) {
             $selectedClassroom = Classroom::findOrFail($request->classroom_id);
+            if (!empty($supervisedIds) && !in_array((int) $selectedClassroom->id, $supervisedIds, true)) {
+                abort(403, 'You can only assign streams for students in classes you supervise.');
+            }
             $students = Student::where('classroom_id', $selectedClassroom->id)
                 ->where('archive', 0)
                 ->with(['stream', 'parent'])
                 ->orderBy('first_name')
                 ->get();
         }
-        
+
         return view('students.bulk_assign_streams', compact('classrooms', 'streams', 'selectedClassroom', 'students'));
     }
 
@@ -2030,21 +2075,24 @@ class StudentController extends Controller
             'classroom_id' => 'required|exists:classrooms,id',
         ]);
 
+        $classroom = Classroom::findOrFail($request->classroom_id);
+        $supervisedIds = $this->getSupervisedClassroomIdsForUser();
+        if (!empty($supervisedIds) && !in_array((int) $classroom->id, $supervisedIds, true)) {
+            return back()->withInput()->with('error', 'You can only assign streams for students in classes you supervise.');
+        }
+
         // Verify stream belongs to the classroom
         $stream = Stream::findOrFail($request->stream_id);
-        $classroom = Classroom::findOrFail($request->classroom_id);
-        
-        // Check if stream is assigned to this classroom (primary or via pivot)
-        $isValidStream = $stream->classroom_id == $classroom->id || 
+        $isValidStream = $stream->classroom_id == $classroom->id ||
                         $stream->classrooms->contains('id', $classroom->id);
-        
+
         if (!$isValidStream) {
             return back()->withInput()->with('error', 'The selected stream is not assigned to this classroom.');
         }
 
         // Update students
         $updated = Student::whereIn('id', $request->student_ids)
-            ->where('classroom_id', $classroom->id) // Ensure students are in the correct classroom
+            ->where('classroom_id', $classroom->id)
             ->update(['stream_id' => $request->stream_id]);
 
         if ($updated > 0) {
