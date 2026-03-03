@@ -145,8 +145,14 @@
                             }
                             $isFullyCollected = ($remainingAmount ?? 0) <= 0.01 && ($activeTotal ?? 0) > 0.01;
                             $isPartiallyCollected = ($remainingAmount ?? 0) > 0.01 && ($activeTotal ?? 0) > 0.01;
+                            // Draft = has suggestions awaiting confirmation; Unmatched = no match at all
+                            $hasSuggestions = count($possibleMatches ?? []) > 0 || !empty($rawTransaction->matching_suggestions ?? null);
+                            $isUnmatched = ($bankStatement->match_status ?? '') === 'unmatched' && !$bankStatement->student_id;
+                            $showUnmatchedBadge = $displayStatus === 'draft' && $isUnmatched && !$hasSuggestions;
                         @endphp
-                        @if($displayStatus == 'draft')
+                        @if($showUnmatchedBadge)
+                            <span class="badge bg-secondary">Unmatched</span>
+                        @elseif($displayStatus == 'draft')
                             <span class="badge bg-warning">Draft</span>
                         @elseif($displayStatus == 'confirmed' && $isFullyCollected)
                             <span class="badge bg-success">Collected</span>

@@ -210,6 +210,24 @@ class MpesaC2BTransaction extends Model
         ]);
     }
 
+    /**
+     * Auto-match to multiple siblings with smart allocations (for auto-assigned sibling payments).
+     * Allocations: [['student_id' => X, 'amount' => Y], ...]
+     */
+    public function autoMatchSiblings(array $siblingIds, array $allocations, $confidence, $reason)
+    {
+        $this->update([
+            'student_id' => $siblingIds[0] ?? null,
+            'is_shared' => true,
+            'shared_allocations' => $allocations,
+            'match_confidence' => $confidence,
+            'match_reason' => $reason,
+            'allocation_status' => $confidence >= 80 ? 'auto_matched' : 'unallocated',
+            'allocated_amount' => array_sum(array_column($allocations, 'amount')),
+            'unallocated_amount' => max(0, (float) $this->trans_amount - array_sum(array_column($allocations, 'amount'))),
+        ]);
+    }
+
     public function storeSuggestions(array $suggestions)
     {
         $this->update([
