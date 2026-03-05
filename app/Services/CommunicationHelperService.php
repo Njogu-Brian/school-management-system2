@@ -176,7 +176,7 @@ class CommunicationHelperService
             $out = array_map(function ($entities) use ($excludeIds) {
                 $list = is_array($entities) ? $entities : [$entities];
                 $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || !in_array((int) $e->id, $excludeIds, true));
-                return count($filtered) === 1 ? $filtered[0] : (count($filtered) > 1 ? array_values($filtered) : null);
+                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
             }, $out);
             $out = array_filter($out);
         }
@@ -191,7 +191,7 @@ class CommunicationHelperService
             $out = array_map(function ($entities) use ($studentIdsWithBalance) {
                 $list = is_array($entities) ? $entities : [$entities];
                 $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithBalance[$e->id]));
-                return count($filtered) === 1 ? $filtered[0] : (count($filtered) > 1 ? array_values($filtered) : null);
+                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
             }, $out);
             $out = array_filter($out);
         }
@@ -211,7 +211,7 @@ class CommunicationHelperService
                         }
                     }
                 }
-                return count($filtered) === 1 ? $filtered[0] : (count($filtered) > 1 ? $filtered : null);
+                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? $filtered : null);
             }, $out);
             $out = array_filter($out);
         }
