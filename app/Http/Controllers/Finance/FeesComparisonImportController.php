@@ -530,7 +530,10 @@ class FeesComparisonImportController extends Controller
                 $itemsQuery->where(function ($q) {
                     $q->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
                 });
-                $totalInvoiced = (float) $itemsQuery->get()->sum(fn ($i) => (float) ($i->amount ?? 0) - (float) ($i->discount_amount ?? 0));
+
+                // For import comparison, "System Invoiced" should be the gross charge (before discounts),
+                // so we sum the full line amounts and do NOT subtract any discount_amount here.
+                $totalInvoiced = (float) $itemsQuery->get()->sum(fn ($i) => (float) ($i->amount ?? 0));
 
                 // Total paid: allocations to this term's invoice (no legacy, no other terms)
                 $allocationsQuery = PaymentAllocation::whereHas('invoiceItem', function ($q) use ($invoice) {
