@@ -107,10 +107,10 @@ class PaymentAllocationService
 
         $invoiceItems = InvoiceItem::where('invoice_id', $invoice->id)
             ->where('status', 'active')
-            ->with(['invoice'])
+            ->with(['invoice', 'votehead'])
             ->get()
             ->filter(fn ($item) => $item->getBalance() > 0)
-            ->sortBy('invoice.issued_date')
+            ->sort(self::invoiceItemsAllocationOrder())
             ->values();
 
         $allocations = [];
@@ -168,22 +168,14 @@ class PaymentAllocationService
             $q->where('student_id', $studentId);
         })
         ->where('status', 'active')
-        ->with(['invoice'])
+        ->with(['invoice', 'votehead'])
         ->get()
         ->filter(function ($item) {
             return $item->getBalance() > 0;
         });
 
-        // Sort: if preferTermId set, put that term's items first, then by issued_date
-        if ($preferTermId !== null) {
-            $invoiceItems = $invoiceItems->sortBy(function ($item) use ($preferTermId) {
-                $termId = $item->invoice->term_id ?? -1;
-                $issued = $item->invoice->issued_date?->format('Y-m-d') ?? '9999-99-99';
-                return [$termId == $preferTermId ? 0 : 1, $issued];
-            })->values();
-        } else {
-            $invoiceItems = $invoiceItems->sortBy('invoice.issued_date')->values();
-        }
+        // Sort: BBF first (always), then preferTermId if set, then by issued_date
+        $invoiceItems = $invoiceItems->sort(self::invoiceItemsAllocationOrder($preferTermId))->values();
 
         $allocations = [];
         
@@ -215,6 +207,44 @@ class PaymentAllocationService
         }
         
         return $payment->fresh();
+    }
+
+    /**
+     * Check if an invoice item is Balance Brought Forward (BBF).
+     * BBF must always be cleared first when allocating payments.
+     */
+    protected static function isBalanceBroughtForwardItem(InvoiceItem $item): bool
+    {
+        if (($item->source ?? null) === 'balance_brought_forward') {
+            return true;
+        }
+        $code = $item->votehead?->code ?? null;
+        return $code === 'BAL_BF';
+    }
+
+    /**
+     * Return sort callback for invoice items: BBF first, then preferTermId, then issued_date.
+     * Ensures Balance Brought Forward is always cleared before other fees.
+     */
+    protected static function invoiceItemsAllocationOrder(?int $preferTermId = null): \Closure
+    {
+        return function ($a, $b) use ($preferTermId) {
+            $aBbf = self::isBalanceBroughtForwardItem($a) ? 0 : 1;
+            $bBbf = self::isBalanceBroughtForwardItem($b) ? 0 : 1;
+            if ($aBbf !== $bBbf) {
+                return $aBbf <=> $bBbf;
+            }
+            if ($preferTermId !== null) {
+                $aTerm = ($a->invoice->term_id ?? -1) == $preferTermId ? 0 : 1;
+                $bTerm = ($b->invoice->term_id ?? -1) == $preferTermId ? 0 : 1;
+                if ($aTerm !== $bTerm) {
+                    return $aTerm <=> $bTerm;
+                }
+            }
+            $aDate = $a->invoice->issued_date?->format('Y-m-d') ?? '9999-99-99';
+            $bDate = $b->invoice->issued_date?->format('Y-m-d') ?? '9999-99-99';
+            return strcmp($aDate, $bDate);
+        };
     }
     
     /**
