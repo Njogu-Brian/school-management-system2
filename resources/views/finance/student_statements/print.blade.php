@@ -271,7 +271,9 @@
     <div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
     @endif
     
+    @unless($isPdfExport ?? false)
     <button class="print-btn no-print" onclick="window.print()">Print</button>
+    @endunless
     
     <!-- Header -->
     <div class="header">

@@ -16,6 +16,7 @@ use App\Models\InvoiceItem;
 use App\Models\Votehead;
 use App\Services\InvoiceService;
 use App\Services\LegacyStatementRecalcService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
@@ -32,7 +33,7 @@ class StudentStatementController extends Controller
         // Eager load classroom and stream relationships
         $student->load(['classroom', 'stream']);
         
-        $year = $request->get('year', now()->year);
+        $year = (int) ($request->get('year') ?: $this->defaultStatementYear($student));
         $term = $request->get('term');
         
         // Get all invoices for the student with detailed items (exclude reversed).
@@ -863,7 +864,7 @@ class StudentStatementController extends Controller
 
     public function print(Request $request, Student $student)
     {
-        $year = $request->get('year', now()->year);
+        $year = (int) ($request->get('year') ?: $this->defaultStatementYear($student));
         $term = $request->get('term');
         
         // Same year scope as show(): by year column or academic_year relation
@@ -1275,9 +1276,13 @@ class StudentStatementController extends Controller
     
     public function export(Request $request, Student $student)
     {
-        $year = $request->get('year', now()->year);
+        $year = (int) ($request->get('year') ?: $this->defaultStatementYear($student));
         $term = $request->get('term');
         $format = $request->get('format', 'pdf'); // pdf or csv
+
+        if ($format === 'pdf') {
+            return $this->exportPdf($request, $student, $year, $term);
+        }
         
         // Same year scope as show(): by year column or academic_year relation
         $invoicesQuery = Invoice::where('student_id', $student->id)
@@ -1313,11 +1318,7 @@ class StudentStatementController extends Controller
             ->orderBy('created_at')
             ->get();
         
-        if ($format === 'csv') {
-            return $this->exportCsv($student, $invoices, $payments, $discounts, $year, $term);
-        } else {
-            return $this->exportPdf($student, $invoices, $payments, $discounts, $year, $term);
-        }
+        return $this->exportCsv($student, $invoices, $payments, $discounts, $year, $term);
     }
     
     private function exportCsv($student, $invoices, $payments, $discounts, $year, $term)
@@ -1406,31 +1407,15 @@ class StudentStatementController extends Controller
         return response()->stream($callback, 200, $headers);
     }
     
-    private function exportPdf($student, $invoices, $payments, $discounts, $year, $term)
+    private function exportPdf(Request $request, Student $student, $year, $term)
     {
-        // Get terms for display
-        $terms = \App\Models\Term::orderBy('name')->get();
-        $branding = $this->branding();
-        $statementHeader = \App\Models\Setting::get('statement_header', '');
-        $statementFooter = \App\Models\Setting::get('statement_footer', '');
-        $printedAt = now();
-        $printedBy = optional(auth()->user())->name ?? 'System';
-        
-        // For PDF, we'll use the same view but with print styles
-        return view('finance.student_statements.print', compact(
-            'student',
-            'invoices',
-            'payments',
-            'discounts',
-            'year',
-            'term',
-            'terms',
-            'branding',
-            'statementHeader',
-            'statementFooter',
-            'printedAt',
-            'printedBy'
-        ));
+        $printView = $this->print($request, $student);
+        $html = $printView->with('isPdfExport', true)->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4');
+        $filename = "statement_{$student->admission_number}_{$year}" . ($term ? "_term{$term}" : '') . ".pdf";
+
+        return $pdf->stream($filename);
     }
 
     /**
@@ -1477,6 +1462,25 @@ class StudentStatementController extends Controller
             );
         }
         return $ids->unique()->filter()->values()->toArray();
+    }
+
+    private function defaultStatementYear(Student $student): int
+    {
+        $invoiceYears = Invoice::where('student_id', $student->id)
+            ->with('academicYear:id,year')
+            ->get(['id', 'year', 'academic_year_id'])
+            ->map(function ($invoice) {
+                return $invoice->year ?: optional($invoice->academicYear)->year;
+            });
+
+        $legacyYears = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+            ->pluck('academic_year');
+
+        return (int) ($invoiceYears
+            ->merge($legacyYears)
+            ->filter()
+            ->map(fn ($year) => (int) $year)
+            ->max() ?: now()->year);
     }
 
     private function branding(): array
