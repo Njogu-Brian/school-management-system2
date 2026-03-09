@@ -40,6 +40,10 @@ class InvoiceService
                 'academic_year_id' => $academicYear->id ?? $invoice->academic_year_id,
                 'term_id' => $termModel->id ?? $invoice->term_id,
             ]);
+            // Ensure BBF is materialized for Term 1 2026+ even if invoice existed before import
+            if ($year >= 2026 && $term == 1) {
+                self::addBalanceBroughtForward($invoice, $student);
+            }
             return $invoice;
         }
         
@@ -51,6 +55,10 @@ class InvoiceService
             }
             if (!$invoice->term_id && $termModel) {
                 $invoice->update(['term_id' => $termModel->id]);
+            }
+            // Ensure BBF is materialized for Term 1 2026+ even if invoice existed before import
+            if ($year >= 2026 && $term == 1) {
+                self::addBalanceBroughtForward($invoice, $student);
             }
             return $invoice;
         }
@@ -111,8 +119,40 @@ class InvoiceService
     {
         $balanceBroughtForward = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
         
-        if ($balanceBroughtForward <= 0) {
-            return; // No balance to bring forward
+        if (abs((float) $balanceBroughtForward) < 0.01) {
+            return; // No balance to bring forward (debit or credit)
+        }
+
+        // Legacy overpayment (negative) is materialized as a Payment credit so it can auto-allocate to future invoice items.
+        if ((float) $balanceBroughtForward < 0) {
+            $invoiceYear = (int) ($invoice->year ?? ($invoice->academicYear?->year ?? now()->year));
+            $sourceYear = $invoiceYear - 1;
+            $creditAmount = abs((float) $balanceBroughtForward);
+
+            $transactionCode = "BBF-{$invoiceYear}-{$student->id}";
+            $receiptNumber = $transactionCode;
+
+            $payment = Payment::firstOrCreate(
+                ['transaction_code' => $transactionCode],
+                [
+                    'receipt_number' => $receiptNumber,
+                    'student_id' => $student->id,
+                    'family_id' => $student->family_id,
+                    'invoice_id' => $invoice->id,
+                    'amount' => $creditAmount,
+                    'allocated_amount' => 0,
+                    'unallocated_amount' => $creditAmount,
+                    'payment_method' => 'Balance B/F',
+                    'payment_channel' => 'balance_brought_forward',
+                    'narration' => "Overpayment brought forward from {$sourceYear}",
+                    'payment_date' => ($invoice->issued_date ?? now()),
+                ]
+            );
+
+            $payment->updateAllocationTotals();
+            self::allocateUnallocatedPaymentsForStudent($student->id);
+            self::recalc($invoice);
+            return;
         }
         
         // Find or create a votehead for "Balance Brought Forward"

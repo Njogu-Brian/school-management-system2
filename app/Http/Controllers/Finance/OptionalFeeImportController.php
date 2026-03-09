@@ -606,15 +606,30 @@ class OptionalFeeImportController extends Controller
                     ->first();
 
                 if ($invoice) {
-                    $deleted = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
+                    $items = \App\Models\InvoiceItem::where('invoice_id', $invoice->id)
                         ->where('votehead_id', $fee->votehead_id)
                         ->where('source', 'optional')
-                        ->delete();
-                    
-                    $itemsDeleted += $deleted;
+                        ->get();
 
-                    // Recalculate invoice
+                    foreach ($items as $item) {
+                        $paymentIds = $item->allocations()->pluck('payment_id')->unique()->filter()->values();
+                        $item->allocations()->delete();
+                        $item->delete();
+
+                        // Refresh affected payments so any released money becomes available for auto-allocation
+                        foreach ($paymentIds as $paymentId) {
+                            $payment = \App\Models\Payment::find($paymentId);
+                            if ($payment) {
+                                $payment->updateAllocationTotals();
+                            }
+                        }
+                    }
+
+                    $itemsDeleted += $items->count();
+
+                    // Recalculate invoice and attempt to auto-allocate any credit balance
                     InvoiceService::recalc($invoice);
+                    InvoiceService::allocateUnallocatedPaymentsForStudent((int) $fee->student_id);
                 }
 
                 // Delete optional fee

@@ -339,11 +339,21 @@ class OptionalFeeController extends Controller
         $paymentIds = $item->allocations()->pluck('payment_id')->unique()->filter()->values();
 
         $item->allocations()->delete();
+        // IMPORTANT: Update payment allocation totals BEFORE auto-allocation,
+        // otherwise stale allocated/unallocated columns can prevent auto-allocation from running.
+        foreach ($paymentIds as $paymentId) {
+            $payment = \App\Models\Payment::find($paymentId);
+            if ($payment) {
+                $payment->updateAllocationTotals();
+            }
+        }
+
         $item->delete();
 
         InvoiceService::recalc($invoice);
         InvoiceService::allocateUnallocatedPaymentsForStudent($studentId);
 
+        // Refresh affected payments after any re-allocation
         foreach ($paymentIds as $paymentId) {
             $payment = \App\Models\Payment::find($paymentId);
             if ($payment) {

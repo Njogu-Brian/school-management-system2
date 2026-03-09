@@ -35,5 +35,31 @@ class PaymentAllocation extends Model
     {
         return $this->belongsTo(User::class, 'allocated_by');
     }
+
+    protected static function booted(): void
+    {
+        $recalcPaymentTotals = function (self $allocation): void {
+            try {
+                $payment = $allocation->relationLoaded('payment')
+                    ? $allocation->payment
+                    : Payment::find($allocation->payment_id);
+
+                if ($payment) {
+                    $payment->updateAllocationTotals();
+                }
+            } catch (\Throwable $e) {
+                // Best-effort: never block allocation CRUD due to a totals refresh issue
+                \Log::warning('Failed to refresh payment allocation totals', [
+                    'payment_id' => $allocation->payment_id,
+                    'invoice_item_id' => $allocation->invoice_item_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        };
+
+        static::created($recalcPaymentTotals);
+        static::updated($recalcPaymentTotals);
+        static::deleted($recalcPaymentTotals);
+    }
 }
 

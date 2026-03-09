@@ -44,7 +44,12 @@ class StudentBalanceService
         if (!$studentModel) {
             return 0.0;
         }
-        if (self::studentHasBalanceBroughtForwardOnInvoice($studentModel)) {
+        // If we've already materialized BBF into the live 2026+ system (invoice item or a credit payment),
+        // do not add legacy again (prevents double-counting).
+        if (
+            self::studentHasBalanceBroughtForwardOnInvoice($studentModel) ||
+            self::studentHasBalanceBroughtForwardCreditPayment($studentModel)
+        ) {
             return 0.0; // Invoice is source of truth; do not add legacy on top
         }
         return self::getLegacyBalanceBroughtForward($studentModel);
@@ -85,6 +90,24 @@ class StudentBalanceService
         })
             ->where('votehead_id', $votehead->id)
             ->where('source', 'balance_brought_forward')
+            ->exists();
+    }
+
+    /**
+     * Whether the student has a "credit balance brought forward" already created in live data.
+     * We represent legacy overpayments as a Payment with payment_channel=balance_brought_forward so they
+     * can be auto-allocated like normal payments.
+     */
+    public static function studentHasBalanceBroughtForwardCreditPayment($student): bool
+    {
+        $studentModel = $student instanceof Student ? $student : Student::find($student);
+        if (!$studentModel) {
+            return false;
+        }
+
+        return \App\Models\Payment::where('student_id', $studentModel->id)
+            ->where('reversed', false)
+            ->where('payment_channel', 'balance_brought_forward')
             ->exists();
     }
 

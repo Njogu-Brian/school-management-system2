@@ -202,7 +202,9 @@ class StudentStatementController extends Controller
 
         // For 2026+, prepend Balance Brought Forward from legacy (positive = debit owed, negative = credit/overpayment)
         if ($year >= 2026 && !$hasBalanceBroughtForwardInInvoices) {
-            $legacyBbf = \App\Models\LegacyStatementTerm::getBalanceBroughtForward($student);
+            // Use StudentBalanceService so we don't double-count if BBF has been materialized
+            // as an invoice item (debit) or as a BBF credit payment (overpayment).
+            $legacyBbf = \App\Services\StudentBalanceService::getBalanceBroughtForward($student);
             if ($legacyBbf !== null && abs((float) $legacyBbf) >= 0.01) {
                 $bfDate = \Carbon\Carbon::createFromDate((int) $year, 1, 1)->startOfDay();
                 if ((float) $legacyBbf > 0) {
@@ -384,6 +386,26 @@ class StudentStatementController extends Controller
                             'model_id' => $allocation->id,
                         ]);
                     }
+
+                    // If the payment is only partially allocated, show the remainder as a credit balance.
+                    // This makes the statement behave like a true debit/credit ledger and avoids "money missing"
+                    // just because it isn't tied to a votehead yet.
+                    $allocatedAll = (float) $payment->allocations->sum('amount');
+                    $unallocatedRemainder = max(0, (float) $payment->amount - $allocatedAll);
+                    if ($unallocatedRemainder > 0.01) {
+                        $detailedTransactions->push([
+                            'date' => $payment->payment_date,
+                            'type' => 'Payment',
+                            'description' => 'Payment - ' . ($payment->paymentMethod->name ?? 'N/A') . ' (Credit balance)',
+                            'reference' => $payment->receipt_number,
+                            'votehead' => 'Credit Balance',
+                            'debit' => 0,
+                            'credit' => $unallocatedRemainder,
+                            'payment_id' => $payment->id,
+                            'model_type' => 'Payment',
+                            'model_id' => $payment->id,
+                        ]);
+                    }
                 }
             }
         }
@@ -511,7 +533,8 @@ class StudentStatementController extends Controller
             return $inv->items->filter(fn($i) => ($i->source ?? null) !== 'swimming_attendance')->sum('discount_amount');
         });
 
-        // Total payments = sum of allocations to displayed invoices where item has source != swimming_attendance and payment is not a swimming payment
+        // Total payments = sum of allocations to displayed invoices where item has source != swimming_attendance and payment is not a swimming payment,
+        // plus any credit balance (unallocated remainder) for the payments in this view.
         $invoiceIds = $invoices->pluck('id')->toArray();
         $totalPayments = 0;
         if (!empty($invoiceIds)) {
@@ -527,6 +550,16 @@ class StudentStatementController extends Controller
                 }
             })->sum('amount');
         }
+
+        $totalPayments += (float) $payments
+            ->filter(function ($p) use ($swimmingPaymentIdsSet) {
+                if ($p->reversed) return false;
+                return !isset($swimmingPaymentIdsSet[$p->id]);
+            })
+            ->sum(function ($p) {
+                $allocatedAll = (float) $p->allocations->sum('amount');
+                return max(0, (float) $p->amount - $allocatedAll);
+            });
         $totalCreditNotes = 0;
         $totalDebitNotes = 0;
         
