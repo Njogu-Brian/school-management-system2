@@ -240,6 +240,7 @@ class FeesComparisonImportController extends Controller
 
             $systemPaid = $sys['total_paid'] ?? 0;
             $systemInvoiced = $sys['total_invoiced'] ?? 0;
+            $systemFeeBalance = $sys['invoice_balance'] ?? null; // includes overpayments/credits
             $importPaid = $imp && isset($imp['total_fees_paid']) && $imp['total_fees_paid'] !== null
                 ? (float) $imp['total_fees_paid'] : null;
             $importInvoiced = $imp && isset($imp['total_invoiced']) && $imp['total_invoiced'] !== null
@@ -306,17 +307,31 @@ class FeesComparisonImportController extends Controller
                 $paidMatch = ($importPaid === null) || (abs($importPaid - $systemPaid) <= 0.01);
                 $invMatch = ($importInvoiced === null) || (abs($importInvoiced - $systemInvoiced) <= 0.01);
 
+                // Additionally, compare fee balances (system includes overpayments/unallocated credits).
+                $feeBalanceMatch = false;
+                if ($importFeeBalance !== null && $systemFeeBalance !== null) {
+                    $feeBalanceMatch = abs($importFeeBalance - (float) $systemFeeBalance) <= 0.01;
+                }
+
                 if (!$paidMatch || !$invMatch) {
-                    $status = 'amount_differs';
-                    $difference = !$invMatch ? $invDiff : $paidDiff;
-                    $messageParts = [];
-                    if (!$invMatch) {
-                        $messageParts[] = 'Invoiced: Sys KES ' . number_format($systemInvoiced, 2) . ' vs Imp KES ' . number_format($importInvoiced ?? 0, 2);
+                    if ($feeBalanceMatch) {
+                        // Totals differ (often due to overpayments/unallocated credits), but fee balances align.
+                        // Treat as OK so students like Astrid with overpayments already accounted for are not flagged.
+                        $status = 'ok';
+                        $difference = null;
+                        $message = 'Totals differ but fee balances match (overpayment/credit already accounted for).';
+                    } else {
+                        $status = 'amount_differs';
+                        $difference = !$invMatch ? $invDiff : $paidDiff;
+                        $messageParts = [];
+                        if (!$invMatch) {
+                            $messageParts[] = 'Invoiced: Sys KES ' . number_format($systemInvoiced, 2) . ' vs Imp KES ' . number_format($importInvoiced ?? 0, 2);
+                        }
+                        if (!$paidMatch) {
+                            $messageParts[] = 'Paid: Sys KES ' . number_format($systemPaid, 2) . ' vs Imp KES ' . number_format($importPaid ?? 0, 2);
+                        }
+                        $message = implode('; ', $messageParts);
                     }
-                    if (!$paidMatch) {
-                        $messageParts[] = 'Paid: Sys KES ' . number_format($systemPaid, 2) . ' vs Imp KES ' . number_format($importPaid ?? 0, 2);
-                    }
-                    $message = implode('; ', $messageParts);
                 }
             }
 
@@ -328,7 +343,7 @@ class FeesComparisonImportController extends Controller
                 'parent_phone' => $sys['parent_phone'] ?? null,
                 'system_total_invoiced' => $systemInvoiced,
                 'system_total_paid' => $systemPaid,
-                'system_invoice_balance' => $sys['invoice_balance'] ?? null,
+                'system_invoice_balance' => $systemFeeBalance,
                 'system_swimming_balance' => $sys['swimming_balance'] ?? null,
                 'import_total_paid' => $importPaid,
                 'import_total_invoiced' => $importInvoiced,
@@ -533,6 +548,21 @@ class FeesComparisonImportController extends Controller
             }
 
             $invoiceBalance = $totalInvoiced - $totalPaid;
+
+            // Include overpayments/unallocated credits in the fee balance so that
+            // comparison behaves like student statements. Any positive unallocated_amount
+            // reduces what the student still owes for fees.
+            $creditBalance = 0.0;
+            $creditQuery = \App\Models\Payment::where('student_id', $student->id)
+                ->where('reversed', false)
+                ->where('receipt_number', 'not like', 'SWIM-%');
+
+            if (!empty($swimmingPaymentIds)) {
+                $creditQuery->whereNotIn('id', $swimmingPaymentIds);
+            }
+
+            $creditBalance = (float) $creditQuery->sum('unallocated_amount');
+            $feeBalance = $invoiceBalance - $creditBalance;
             $swimmingBalance = (float) (SwimmingWallet::where('student_id', $student->id)->value('balance') ?? 0);
             $parentPhone = $student->parent
                 ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? null)
@@ -543,7 +573,7 @@ class FeesComparisonImportController extends Controller
                 'student_id' => $student->id,
                 'total_invoiced' => $totalInvoiced,
                 'total_paid' => $totalPaid,
-                'invoice_balance' => $invoiceBalance,
+                'invoice_balance' => $feeBalance,
                 'swimming_balance' => $swimmingBalance,
                 'parent_phone' => $parentPhone,
             ];
