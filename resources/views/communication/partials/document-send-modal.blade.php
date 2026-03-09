@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Clear existing hidden ids[]
     modalEl.querySelectorAll('input[name="ids[]"]').forEach(el => el.remove());
+    modalEl.querySelectorAll('.send-doc-extra-param').forEach(el => el.remove());
 
     (ids || []).forEach(id => {
       const hidden = document.createElement('input');
@@ -116,6 +117,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (defaults.message) document.getElementById('sendDocMessage').value = defaults.message;
     if (defaults.subject) document.getElementById('sendDocSubject').value = defaults.subject;
+    if (defaults.params) {
+      Object.entries(defaults.params).forEach(([key, value]) => {
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = key;
+        hidden.value = value ?? '';
+        hidden.className = 'send-doc-extra-param';
+        document.getElementById('sendDocumentForm').appendChild(hidden);
+      });
+    }
     
     // If default channel is specified, uncheck others
     if (defaults.channel) {

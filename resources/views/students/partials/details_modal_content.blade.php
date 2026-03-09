@@ -126,6 +126,11 @@
             <i class="bi bi-file-text me-1"></i> Full Statement
           </a>
         @endif
+        @if($student->family_id && Route::has('finance.student-statements.family.show'))
+          <a href="{{ route('finance.student-statements.family.show', $student->family_id) }}" class="btn btn-sm btn-ghost-strong" target="_blank">
+            <i class="bi bi-people me-1"></i> Family Statement
+          </a>
+        @endif
         @if(Route::has('finance.payments.create'))
           <a href="{{ route('finance.payments.create', ['student_id' => $student->id]) }}" class="btn btn-sm btn-primary" target="_blank">
             <i class="bi bi-cash-stack me-1"></i> Collect Payment

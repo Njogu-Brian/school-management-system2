@@ -1384,6 +1384,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         
         // Student Statements
         Route::get('student-statements', [StudentStatementController::class, 'index'])->name('student-statements.index');
+        Route::get('student-statements/family/{family}', [StudentStatementController::class, 'showFamily'])->name('student-statements.family.show');
+        Route::get('student-statements/family/{family}/print', [StudentStatementController::class, 'familyPrint'])->name('student-statements.family.print');
+        Route::get('student-statements/family/{family}/export', [StudentStatementController::class, 'familyExport'])->name('student-statements.family.export');
         Route::get('student-statements/{student}', [StudentStatementController::class, 'show'])->name('student-statements.show');
         Route::put('student-statements/{student}/legacy-lines/{line}', [StudentStatementController::class, 'updateLegacyLine'])->name('student-statements.legacy-lines.update');
         Route::post('student-statements/{student}/entries', [StudentStatementController::class, 'storeEntry'])->name('student-statements.entries.store');

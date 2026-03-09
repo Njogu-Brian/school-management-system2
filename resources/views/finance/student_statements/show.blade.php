@@ -5,7 +5,7 @@
         'title' => 'Student Fee Statement',
         'icon' => 'bi bi-file-text',
         'subtitle' => $student->full_name . ' (' . $student->admission_number . ')',
-        'actions' => (isset($comparisonPreviewId) && $comparisonPreviewId ? '<a href="' . route('finance.fees-comparison-import.show', $comparisonPreviewId) . '" class="btn btn-finance btn-finance-outline me-2"><i class="bi bi-arrow-left"></i> Back to comparison</a>' : '') . '<a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'pdf']) . '" target="_blank" class="btn btn-finance btn-finance-primary"><i class="bi bi-file-pdf"></i> Export PDF</a><a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'csv']) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-spreadsheet"></i> Export CSV</a><a href="' . route('finance.student-statements.print', ['student' => $student->id, 'year' => $year, 'term' => $term]) . '" class="btn btn-finance btn-finance-outline" onclick="window.open(\'' . route('finance.student-statements.print', ['student' => $student->id, 'year' => $year, 'term' => $term]) . '\', \'StatementWindow\', \'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no\'); return false;"><i class="bi bi-printer"></i> Print</a><button type=\"button\" class=\"btn btn-finance btn-finance-secondary\" onclick=\"openSendDocument(\'statement\', [' . $student->id . '], {channel:\'sms\', message:\'Your statement is ready. Please find the link below.\'})\"><i class=\"bi bi-send\"></i> Send</button>'
+        'actions' => (isset($comparisonPreviewId) && $comparisonPreviewId ? '<a href="' . route('finance.fees-comparison-import.show', $comparisonPreviewId) . '" class="btn btn-finance btn-finance-outline me-2"><i class="bi bi-arrow-left"></i> Back to comparison</a>' : '') . ($student->family_id ? '<a href="' . route('finance.student-statements.family.show', ['family' => $student->family_id, 'year' => $year, 'term' => $term]) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-people"></i> Family Statement</a>' : '') . '<a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'pdf']) . '" target="_blank" class="btn btn-finance btn-finance-primary"><i class="bi bi-file-pdf"></i> Export PDF</a><a href="' . route('finance.student-statements.export', ['student' => $student->id, 'year' => $year, 'term' => $term, 'format' => 'csv']) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-earmark-spreadsheet"></i> Export CSV</a><a href="' . route('finance.student-statements.print', ['student' => $student->id, 'year' => $year, 'term' => $term]) . '" class="btn btn-finance btn-finance-outline" onclick="window.open(\'' . route('finance.student-statements.print', ['student' => $student->id, 'year' => $year, 'term' => $term]) . '\', \'StatementWindow\', \'width=800,height=900,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no,status=no\'); return false;"><i class="bi bi-printer"></i> Print</a><button type="button" class="btn btn-finance btn-finance-outline" data-url="' . e($publicStatementUrl ?? '') . '" onclick="var u=this.getAttribute(\'data-url\'); if(u) { navigator.clipboard.writeText(u); var orig=this.innerHTML; this.innerHTML=\'<i class=&quot;bi bi-check&quot;></i> Copied!\'; var s=this; setTimeout(function(){s.innerHTML=orig}, 2000); }"><i class="bi bi-link-45deg"></i> Copy Public Link</button><button type=\"button\" class=\"btn btn-finance btn-finance-secondary\" onclick=\"openSendDocument(\'statement\', [' . $student->id . '], {channel:\'sms\', message:\'Your statement is ready. Please find the link below.\', params:{year:\'' . $year . '\', term:\'' . ($term ?? '') . '\'}})\"><i class=\"bi bi-send\"></i> Send</button>'
     ])
 
     {{-- Filters --}}
@@ -76,7 +76,7 @@
             <div class="finance-stat-card border-primary finance-animate">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Total Charges</h6>
+                        <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">Total Invoiced</h6>
                         <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">Ksh {{ number_format($totalCharges, 2) }}</h4>
                     </div>
                     <i class="bi bi-arrow-up-circle" style="font-size: 2rem; color: var(--finance-primary);"></i>
@@ -122,6 +122,22 @@
             </div>
         </div>
     </div>
+
+    @if(abs((float) ($balanceBroughtForward ?? 0)) > 0.009)
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="finance-stat-card border-warning finance-animate">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-2" style="font-size: 0.8rem; font-weight: 600;">{{ $balanceBroughtForward >= 0 ? 'Balance B/F' : 'Overpayment B/F' }}</h6>
+                            <h4 class="mb-0" style="font-size: 1.4rem; font-weight: 700;">Ksh {{ number_format(abs((float) $balanceBroughtForward), 2) }}</h4>
+                        </div>
+                        <i class="bi bi-clock-history" style="font-size: 2rem; color: #f59e0b;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- Add Statement Entry --}}
     <div class="finance-card finance-animate shadow-sm rounded-4 border-0 mb-4">

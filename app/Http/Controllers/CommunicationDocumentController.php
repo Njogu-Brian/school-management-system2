@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use App\Mail\GenericMail;
 use App\Models\Finance\Invoice;
+use App\Models\Family;
 use App\Models\Payment;
 use App\Models\Academics\ReportCard;
 use App\Models\Student;
@@ -29,11 +31,13 @@ class CommunicationDocumentController extends Controller
         $data = $request->validate([
             'channels' => ['required', 'array', 'min:1'],
             'channels.*' => [Rule::in(['sms', 'email', 'whatsapp'])],
-            'type'    => ['required', Rule::in(['invoice', 'receipt', 'statement', 'report_card'])],
+            'type'    => ['required', Rule::in(['invoice', 'receipt', 'statement', 'family_statement', 'report_card'])],
             'ids'     => ['required', 'array', 'min:1'],
             'ids.*'   => ['integer'],
             'subject' => ['nullable', 'string', 'max:255'],
             'message' => ['required', 'string', 'max:2000'],
+            'year' => ['nullable', 'integer'],
+            'term' => ['nullable', 'string', 'max:50'],
         ]);
 
         $channels = array_unique($data['channels']);
@@ -41,13 +45,15 @@ class CommunicationDocumentController extends Controller
         $ids      = array_unique($data['ids']);
         $subject  = $data['subject'] ?? 'School Update';
         $message  = $data['message'];
+        $year     = !empty($data['year']) ? (int) $data['year'] : null;
+        $term     = ($data['term'] ?? '') !== '' ? $data['term'] : null;
 
         $sent = 0;
         $failed = 0;
 
         foreach ($ids as $id) {
-            [$student, $link, $title] = $this->resolveTarget($type, $id);
-            if (!$student || !$link) {
+            [$student, $viewLink, $attachmentLink, $title] = $this->resolveTarget($type, $id, $year, $term);
+            if (!$student || !$viewLink) {
                 $failed++;
                 continue;
             }
@@ -127,7 +133,7 @@ class CommunicationDocumentController extends Controller
                         $variables = [
                             'parent_name' => $parentName,
                             'student_name' => $studentName,
-                            'finance_portal_link' => $link,
+                            'finance_portal_link' => $viewLink,
                             'school_name' => $schoolName,
                         ];
                         
@@ -139,10 +145,10 @@ class CommunicationDocumentController extends Controller
                             $templateSubject = str_replace('{{' . $key . '}}', $value, $templateSubject);
                         }
                         
-                        $body = $templateContent . "\n\n" . $link;
+                        $body = $templateContent . "\n\n" . $viewLink;
                         $finalSubject = $channel === 'email' ? $templateSubject : $subject;
                     } else {
-                        $body = trim($message . "\n\n" . $link);
+                        $body = trim($message . "\n\n" . $viewLink);
                         $finalSubject = $subject;
                     }
                     try {
@@ -158,7 +164,7 @@ class CommunicationDocumentController extends Controller
                         } elseif ($channel === 'whatsapp') {
                             $response = $whatsAppService->sendMessage($contact, $body);
                         } else {
-                            $this->sendEmailWithOptionalPdf($contact, $finalSubject, $body, $link);
+                            $this->sendEmailWithOptionalPdf($contact, $finalSubject, $body, $attachmentLink ?: $viewLink);
                             $response = ['status' => 'sent'];
                         }
 
@@ -207,65 +213,129 @@ class CommunicationDocumentController extends Controller
         return back()->with($failed ? 'warning' : 'success', $summary);
     }
 
-    private function resolveTarget(string $type, int $id): array
+    private function resolveTarget(string $type, int $id, ?int $year = null, ?string $term = null): array
     {
         $student = null;
-        $link = null;
+        $viewLink = null;
+        $attachmentLink = null;
         $title = ucfirst(str_replace('_', ' ', $type));
 
         if ($type === 'invoice') {
             $invoice = Invoice::with('student')->find($id);
             if ($invoice && $invoice->student) {
                 $student = $invoice->student;
-                $link = URL::route('finance.invoices.print_single', $invoice);
+                $viewLink = URL::route('invoices.public', $invoice->hashed_id);
+                $attachmentLink = $viewLink;
                 $title = 'Invoice';
             }
         } elseif ($type === 'receipt') {
             $payment = Payment::with('student')->find($id);
             if ($payment && $payment->student) {
                 $student = $payment->student;
-                $link = URL::route('finance.payments.receipt', $payment);
+                $viewLink = URL::route('receipts.public', $payment->public_token);
+                $attachmentLink = $viewLink;
                 $title = 'Receipt';
             }
         } elseif ($type === 'statement') {
             $student = Student::find($id);
             if ($student) {
-                $link = URL::route('finance.student-statements.export', [
-                    'student' => $student->id,
-                    'format'  => 'pdf',
-                ]);
+                $statementYear = $year ?: $this->resolveStatementYearForStudent($student);
+                $statementLink = \App\Http\Controllers\Finance\StudentStatementController::getOrCreateStatementLink(
+                    'student',
+                    $student->id,
+                    $statementYear,
+                    $term,
+                    auth()->id()
+                );
+                $viewLink = $statementLink->getUrl();
+                $attachmentLink = $statementLink->getUrl(['format' => 'pdf']);
                 $title = 'Statement';
+            }
+        } elseif ($type === 'family_statement') {
+            $family = Family::with(['students' => function ($q) {
+                $q->where('archive', 0)->where('is_alumni', false);
+            }])->find($id);
+            $student = $family?->students->first();
+            if ($family && $student) {
+                $statementYear = $year ?: $this->resolveStatementYearForFamily($family);
+                $statementLink = \App\Http\Controllers\Finance\StudentStatementController::getOrCreateStatementLink(
+                    'family',
+                    $family->id,
+                    $statementYear,
+                    $term,
+                    auth()->id()
+                );
+                $viewLink = $statementLink->getUrl();
+                $attachmentLink = $statementLink->getUrl(['format' => 'pdf']);
+                $title = 'Family Statement';
             }
         } elseif ($type === 'report_card') {
             $rc = ReportCard::with('student')->find($id);
             if ($rc && $rc->student) {
                 $student = $rc->student;
-                $link = URL::route('academics.report_cards.pdf', $rc);
+                $viewLink = URL::route('academics.report_cards.pdf', $rc);
+                $attachmentLink = $viewLink;
                 $title = 'Report Card';
             }
         }
 
-        return [$student, $link, $title];
+        return [$student, $viewLink, $attachmentLink, $title];
     }
 
-    private function sendEmailWithOptionalPdf(string $to, string $subject, string $message, string $link): void
+    private function sendEmailWithOptionalPdf(string $to, string $subject, string $message, string $attachmentUrl): void
     {
         $tmpPath = null;
         try {
-            $response = Http::timeout(20)->get($link);
+            $response = Http::timeout(20)->get($attachmentUrl);
             if ($response->successful()) {
                 $tmpPath = tempnam(sys_get_temp_dir(), 'doc') . '.pdf';
-                file_put_contents($tmpPath, $response->body());
+                $contentType = strtolower((string) $response->header('Content-Type'));
+                if (str_contains($contentType, 'text/html')) {
+                    file_put_contents($tmpPath, Pdf::loadHTML($response->body())->output());
+                } else {
+                    file_put_contents($tmpPath, $response->body());
+                }
             }
         } catch (\Throwable) {
             // fallback to no attachment
         }
 
-        Mail::to($to)->send(new GenericMail($subject, $message . "\n\n" . $link, $tmpPath));
+        Mail::to($to)->send(new GenericMail($subject, $message, $tmpPath));
 
         if ($tmpPath && file_exists($tmpPath)) {
             @unlink($tmpPath);
         }
+    }
+
+    private function resolveStatementYearForStudent(Student $student): int
+    {
+        $invoiceYears = \App\Models\Invoice::where('student_id', $student->id)
+            ->with('academicYear:id,year')
+            ->get(['id', 'year', 'academic_year_id'])
+            ->map(fn ($invoice) => $invoice->year ?: optional($invoice->academicYear)->year);
+
+        $legacyYears = \App\Models\LegacyStatementTerm::where('student_id', $student->id)
+            ->pluck('academic_year');
+
+        return (int) ($invoiceYears->merge($legacyYears)->filter()->max() ?: now()->year);
+    }
+
+    private function resolveStatementYearForFamily(Family $family): int
+    {
+        $studentIds = $family->students->pluck('id')->all();
+        if (empty($studentIds)) {
+            return now()->year;
+        }
+
+        $invoiceYears = \App\Models\Invoice::whereIn('student_id', $studentIds)
+            ->with('academicYear:id,year')
+            ->get(['id', 'year', 'academic_year_id'])
+            ->map(fn ($invoice) => $invoice->year ?: optional($invoice->academicYear)->year);
+
+        $legacyYears = \App\Models\LegacyStatementTerm::whereIn('student_id', $studentIds)
+            ->pluck('academic_year');
+
+        return (int) ($invoiceYears->merge($legacyYears)->filter()->max() ?: now()->year);
     }
 }
 

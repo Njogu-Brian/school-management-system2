@@ -480,6 +480,9 @@
                 <div class="d-flex gap-2">
                   <a href="{{ route('finance.accountant-dashboard.student-history', $student) }}" class="btn btn-sm btn-ghost-strong">Payment Plan History <i class="bi bi-calendar-check"></i></a>
                   <a href="{{ route('finance.student-statements.show', $student) }}" class="btn btn-sm btn-ghost-strong">View Student Statement <i class="bi bi-arrow-right"></i></a>
+                  @if($student->family_id)
+                    <a href="{{ route('finance.student-statements.family.show', $student->family_id) }}" class="btn btn-sm btn-ghost-strong">View Family Statement <i class="bi bi-people"></i></a>
+                  @endif
                 </div>
               </div>
               

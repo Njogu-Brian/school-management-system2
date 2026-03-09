@@ -38,7 +38,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Statement of Accounts - {{ $student->full_name }}</title>
+    <title>Statement of Accounts - {{ isset($family) ? ($family->guardian_name ?: 'Family Statement') : $student->full_name }}</title>
     @include('layouts.partials.favicon')
     @include('layouts.partials.branding-vars')
     <style>
@@ -272,7 +272,15 @@
     @endif
     
     @unless($isPdfExport ?? false)
-    <button class="print-btn no-print" onclick="window.print()">Print</button>
+    <div class="no-print" style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000;">
+        @if(!empty($paymentLinkUrl))
+            <a href="{{ $paymentLinkUrl }}" class="print-btn" style="position: static; text-decoration: none;">Pay Now</a>
+        @endif
+        @if(!empty($updateLinkUrl))
+            <a href="{{ $updateLinkUrl }}" class="print-btn" style="position: static; text-decoration: none; background: {{ $brandSecondary }};">Update Profile</a>
+        @endif
+        <button class="print-btn" onclick="window.print()" style="position: static;">Print</button>
+    </div>
     @endunless
     
     <!-- Header -->
@@ -305,7 +313,15 @@
     
     <!-- Student Info -->
     <div class="student-info">
-        Student: {{ strtoupper($student->full_name) }}({{ $student->admission_number }})
+        @if(isset($family))
+            Family: {{ strtoupper($family->guardian_name ?: ('FAMILY #' . $family->id)) }}
+            @if(isset($students) && $students->isNotEmpty())
+                <br>Students:
+                {{ $students->map(fn ($item) => $item->full_name . ' (' . $item->admission_number . ')')->implode(', ') }}
+            @endif
+        @else
+            Student: {{ strtoupper($student->full_name) }}({{ $student->admission_number }})
+        @endif
     </div>
     
     <!-- Transactions Table -->
@@ -313,6 +329,9 @@
         <thead>
             <tr>
                 <th class="date-col">Date</th>
+                @if($showStudentColumn ?? false)
+                    <th>Student</th>
+                @endif
                 <th class="narration-col">Narration</th>
                 <th class="amount-col">Dr Amount</th>
                 <th class="amount-col">Cr Amount</th>
@@ -322,11 +341,14 @@
         <tbody>
             @foreach($grouped as $groupKey => $groupTransactions)
                 <tr class="section-header">
-                    <td colspan="5">{{ $groupKey }}</td>
+                    <td colspan="{{ ($showStudentColumn ?? false) ? 6 : 5 }}">{{ $groupKey }}</td>
                 </tr>
                 @foreach($groupTransactions as $txn)
                     <tr>
                         <td>{{ \Carbon\Carbon::parse($txn['date'])->format('d-M-Y') }}</td>
+                        @if($showStudentColumn ?? false)
+                            <td>{{ $txn['student_name'] ?? 'N/A' }}</td>
+                        @endif
                         <td>{{ $txn['narration'] ?? 'N/A' }}</td>
                         <td class="amount-col">{{ $txn['debit'] > 0 ? number_format($txn['debit'], 2) : '-' }}</td>
                         <td class="amount-col">{{ $txn['credit'] > 0 ? number_format($txn['credit'], 2) : '-' }}</td>
@@ -335,7 +357,7 @@
                 @endforeach
             @endforeach
             <tr style="background-color: #f5f5f5; font-weight: 700;">
-                <td colspan="2" style="text-align: right;">Totals:</td>
+                <td colspan="{{ ($showStudentColumn ?? false) ? 3 : 2 }}" style="text-align: right;">Totals:</td>
                 <td class="amount-col">{{ number_format($totalDebit ?? 0, 2) }}</td>
                 <td class="amount-col">{{ number_format($totalCredit ?? 0, 2) }}</td>
                 <td class="balance-col">{{ number_format($finalBalance ?? 0, 2) }}</td>
@@ -346,7 +368,23 @@
     <!-- Summary -->
     <div class="summary-section">
         <div class="summary-row">
-            <span class="summary-label">Fees as at statement date:</span>
+            <span class="summary-label">{{ ($balanceBroughtForward ?? 0) >= 0 ? 'Balance B/F:' : 'Overpayment B/F:' }}</span>
+            <span class="summary-value">{{ number_format(abs((float) ($balanceBroughtForward ?? 0)), 2) }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Total Invoiced:</span>
+            <span class="summary-value">{{ number_format($totalCharges ?? 0, 2) }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Total Payments:</span>
+            <span class="summary-value">{{ number_format($totalPayments ?? 0, 2) }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Total Discounts:</span>
+            <span class="summary-value">{{ number_format($totalDiscounts ?? 0, 2) }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Ledger Totals (Dr / Cr / Balance):</span>
             <span class="summary-value">{{ number_format($totalDebit ?? 0, 2) }}&nbsp;&nbsp;&nbsp;{{ number_format($totalCredit ?? 0, 2) }}&nbsp;&nbsp;&nbsp;{{ number_format($finalBalance ?? 0, 2) }}</span>
         </div>
         <div class="current-balance">

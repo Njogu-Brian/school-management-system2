@@ -13,6 +13,8 @@ use App\Models\LegacyStatementLine;
 use App\Models\PaymentAllocation;
 use App\Models\LegacyStatementLineEditHistory;
 use App\Models\InvoiceItem;
+use App\Models\Family;
+use App\Models\StatementLink;
 use App\Models\Votehead;
 use App\Services\InvoiceService;
 use App\Services\LegacyStatementRecalcService;
@@ -650,6 +652,9 @@ class StudentStatementController extends Controller
         $comparisonPreviewId = $request->get('comparison_preview_id');
         $voteheads = Votehead::where('is_active', true)->orderBy('name')->get();
 
+        $statementLink = self::getOrCreateStatementLink('student', $student->id, $year, $term, auth()->id());
+        $publicStatementUrl = $statementLink->getUrl();
+
         return view('finance.student_statements.show', compact(
             'student',
             'invoices',
@@ -672,7 +677,8 @@ class StudentStatementController extends Controller
             'detailedTransactions',
             'hasBalanceBroughtForwardInInvoices',
             'comparisonPreviewId',
-            'voteheads'
+            'voteheads',
+            'publicStatementUrl'
         ));
     }
 
@@ -1215,6 +1221,13 @@ class StudentStatementController extends Controller
                 ->orderByDesc('term_number')
                 ->first();
             $finalBalance = $lastLegacyTerm->ending_balance ?? 0;
+            $totalCharges = (float) $detailedTransactions->sum('debit');
+            $totalPayments = (float) $detailedTransactions
+                ->filter(fn ($txn) => ($txn['type'] ?? null) === 'Payment')
+                ->sum('credit');
+            $totalDiscounts = (float) $detailedTransactions
+                ->filter(fn ($txn) => ($txn['type'] ?? null) === 'Discount')
+                ->sum('credit');
         } else {
             // Same exclusion rules as show: exclude daily-attendance swimming and payments marked as swimming
             $totalCharges = $invoices->sum(function($inv) {
@@ -1270,8 +1283,42 @@ class StudentStatementController extends Controller
             'totalCredit',
             'finalBalance',
             'balanceBroughtForward',
-            'hasBalanceBroughtForwardInInvoices'
+            'hasBalanceBroughtForwardInInvoices',
+            'totalCharges',
+            'totalPayments',
+            'totalDiscounts'
         ));
+    }
+
+    public function showFamily(Request $request, Family $family)
+    {
+        $year = (int) ($request->get('year') ?: $this->defaultFamilyStatementYear($family));
+        $term = $request->get('term');
+        $data = $this->buildFamilyStatementData($family, $year, $term);
+
+        return view('finance.student_statements.family', $data);
+    }
+
+    public function familyPrint(Request $request, Family $family)
+    {
+        $year = (int) ($request->get('year') ?: $this->defaultFamilyStatementYear($family));
+        $term = $request->get('term');
+        $data = $this->buildFamilyStatementData($family, $year, $term);
+
+        return view('finance.student_statements.print', $data);
+    }
+
+    public function familyExport(Request $request, Family $family)
+    {
+        $year = (int) ($request->get('year') ?: $this->defaultFamilyStatementYear($family));
+        $term = $request->get('term');
+        $printView = $this->familyPrint($request, $family);
+        $html = $printView->with('isPdfExport', true)->render();
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4');
+        $filename = 'family-statement-' . $family->id . '-' . $year . ($term ? '-term-' . $term : '') . '.pdf';
+
+        return $pdf->stream($filename);
     }
     
     public function export(Request $request, Student $student)
@@ -1424,21 +1471,85 @@ class StudentStatementController extends Controller
      */
     public function publicView(string $hash, Request $request)
     {
-        // Find student by hashed_id (we'll need to add this to Student model)
-        // For now, we'll use a different approach - generate a token for statements
-        // Actually, statements are dynamic, so we'll use student's admission number as hash
-        // Or better: create a statement token system
-        
-        // For simplicity, let's use student ID encoded in hash
-        // In production, you'd want a proper token system
-        $student = Student::where('admission_number', $hash)->first();
-        
-        if (!$student) {
+        $link = StatementLink::active()->where('token', $hash)->first();
+
+        if (!$link || !$link->isUsable()) {
             abort(404, 'Statement not found');
         }
-        
-        // Use the same logic as show method
-        return $this->show($request, $student);
+
+        $request->merge([
+            'year' => $link->period_year,
+            'term' => $link->period_term,
+        ]);
+
+        if ($link->scope === 'family') {
+            $family = $link->family()->with(['students' => function ($q) {
+                $q->where('archive', 0)->where('is_alumni', false)->with(['classroom', 'stream']);
+            }, 'updateLink'])->first();
+
+            if (!$family) {
+                abort(404, 'Statement family not found');
+            }
+
+            $paymentLink = \App\Models\PaymentLink::getOrCreateFamilyLink($family->id, null, 'statement_public');
+            $updateLinkUrl = ($family->updateLink && $family->updateLink->is_active)
+                ? route('family-update.form', $family->updateLink->token)
+                : null;
+
+            if ($request->get('format') === 'pdf') {
+                $printView = $this->familyPrint($request, $family)->with([
+                    'isPublic' => true,
+                    'paymentLinkUrl' => $paymentLink ? route('payment.link.show', $paymentLink->hashed_id) : null,
+                    'updateLinkUrl' => $updateLinkUrl,
+                ]);
+
+                $html = $printView->with('isPdfExport', true)->render();
+
+                return Pdf::loadHTML($html)
+                    ->setPaper('a4')
+                    ->stream('family-statement-' . $family->id . '-' . $link->period_year . '.pdf');
+            }
+
+            return $this->familyPrint($request, $family)->with([
+                'isPublic' => true,
+                'paymentLinkUrl' => $paymentLink ? route('payment.link.show', $paymentLink->hashed_id) : null,
+                'updateLinkUrl' => $updateLinkUrl,
+            ]);
+        }
+
+        $student = $link->student()->with(['classroom', 'stream', 'family.updateLink'])->first();
+        if (!$student) {
+            abort(404, 'Statement student not found');
+        }
+
+        $paymentLinkUrl = null;
+        if ($student->family_id) {
+            $paymentLink = \App\Models\PaymentLink::getOrCreateFamilyLink($student->family_id, null, 'statement_public');
+            $paymentLinkUrl = route('payment.link.show', $paymentLink->hashed_id);
+        }
+        $updateLinkUrl = ($student->family && $student->family->updateLink && $student->family->updateLink->is_active)
+            ? route('family-update.form', $student->family->updateLink->token)
+            : null;
+
+        if ($request->get('format') === 'pdf') {
+            $printView = $this->print($request, $student)->with([
+                'isPublic' => true,
+                'paymentLinkUrl' => $paymentLinkUrl,
+                'updateLinkUrl' => $updateLinkUrl,
+            ]);
+
+            $html = $printView->with('isPdfExport', true)->render();
+
+            return Pdf::loadHTML($html)
+                ->setPaper('a4')
+                ->stream('statement-' . $student->admission_number . '-' . $link->period_year . '.pdf');
+        }
+
+        return $this->print($request, $student)->with([
+            'isPublic' => true,
+            'paymentLinkUrl' => $paymentLinkUrl,
+            'updateLinkUrl' => $updateLinkUrl,
+        ]);
     }
 
     /**
@@ -1481,6 +1592,191 @@ class StudentStatementController extends Controller
             ->filter()
             ->map(fn ($year) => (int) $year)
             ->max() ?: now()->year);
+    }
+
+    private function defaultFamilyStatementYear(Family $family): int
+    {
+        $studentIds = $family->students()
+            ->where('archive', 0)
+            ->where('is_alumni', false)
+            ->pluck('id');
+
+        if ($studentIds->isEmpty()) {
+            return now()->year;
+        }
+
+        $invoiceYears = Invoice::whereIn('student_id', $studentIds)
+            ->with('academicYear:id,year')
+            ->get(['id', 'year', 'academic_year_id'])
+            ->map(function ($invoice) {
+                return $invoice->year ?: optional($invoice->academicYear)->year;
+            });
+
+        $legacyYears = \App\Models\LegacyStatementTerm::whereIn('student_id', $studentIds)
+            ->pluck('academic_year');
+
+        return (int) ($invoiceYears
+            ->merge($legacyYears)
+            ->filter()
+            ->map(fn ($year) => (int) $year)
+            ->max() ?: now()->year);
+    }
+
+    private function buildFamilyStatementData(Family $family, int $year, $term): array
+    {
+        $family->load(['students' => function ($q) {
+            $q->where('archive', 0)->where('is_alumni', false)->with(['classroom', 'stream']);
+        }, 'updateLink']);
+
+        $students = $family->students->values();
+        $transactions = collect();
+        $totalDebit = 0.0;
+        $totalCredit = 0.0;
+        $finalBalance = 0.0;
+        $balanceBroughtForward = 0.0;
+        $totalCharges = 0.0;
+        $totalPayments = 0.0;
+        $totalDiscounts = 0.0;
+
+        foreach ($students as $student) {
+            $studentRequest = Request::create('/', 'GET', [
+                'year' => $year,
+                'term' => $term,
+            ]);
+
+            $viewData = $this->print($studentRequest, $student)->getData();
+
+            foreach (($viewData['detailedTransactions'] ?? collect()) as $transaction) {
+                $transaction['student_name'] = $student->full_name;
+                $transaction['admission_number'] = $student->admission_number;
+                $transactions->push($transaction);
+            }
+
+            $totalDebit += (float) ($viewData['totalDebit'] ?? 0);
+            $totalCredit += (float) ($viewData['totalCredit'] ?? 0);
+            $finalBalance += (float) ($viewData['finalBalance'] ?? 0);
+            $balanceBroughtForward += (float) ($viewData['balanceBroughtForward'] ?? 0);
+            $totalCharges += (float) ($viewData['totalCharges'] ?? 0);
+            $totalPayments += (float) ($viewData['totalPayments'] ?? 0);
+            $totalDiscounts += (float) ($viewData['totalDiscounts'] ?? 0);
+        }
+
+        $detailedTransactions = $transactions->sortBy('date')->values();
+        $terms = $this->statementTermsForYear($year);
+        $years = $this->statementYearsForStudentIds($students->pluck('id')->all());
+        $branding = $this->branding();
+        $statementHeader = \App\Models\Setting::get('statement_header', '');
+        $statementFooter = \App\Models\Setting::get('statement_footer', '');
+        $paymentLink = \App\Models\PaymentLink::getOrCreateFamilyLink($family->id, auth()->id(), 'family_statement');
+        $paymentLinkUrl = $paymentLink ? route('payment.link.show', $paymentLink->hashed_id) : null;
+        $updateLinkUrl = ($family->updateLink && $family->updateLink->is_active)
+            ? route('family-update.form', $family->updateLink->token)
+            : null;
+
+        $statementLink = self::getOrCreateStatementLink('family', $family->id, $year, $term, auth()->id());
+        $publicStatementUrl = $statementLink->getUrl();
+
+        return [
+            'family' => $family,
+            'students' => $students,
+            'year' => $year,
+            'term' => $term,
+            'terms' => $terms,
+            'years' => $years,
+            'branding' => $branding,
+            'statementHeader' => $statementHeader,
+            'statementFooter' => $statementFooter,
+            'detailedTransactions' => $detailedTransactions,
+            'totalDebit' => $totalDebit,
+            'totalCredit' => $totalCredit,
+            'finalBalance' => $finalBalance,
+            'balanceBroughtForward' => $balanceBroughtForward,
+            'hasBalanceBroughtForwardInInvoices' => false,
+            'showStudentColumn' => true,
+            'totalCharges' => $totalCharges,
+            'totalPayments' => $totalPayments,
+            'totalDiscounts' => $totalDiscounts,
+            'paymentLinkUrl' => $paymentLinkUrl,
+            'updateLinkUrl' => $updateLinkUrl,
+            'publicStatementUrl' => $publicStatementUrl,
+        ];
+    }
+
+    private function statementTermsForYear(int $year)
+    {
+        if ($year < 2026) {
+            return collect([
+                (object) ['id' => 'legacy-1', 'name' => 'Term 1'],
+                (object) ['id' => 'legacy-2', 'name' => 'Term 2'],
+                (object) ['id' => 'legacy-3', 'name' => 'Term 3'],
+            ]);
+        }
+
+        $academicYear = \App\Models\AcademicYear::where('year', $year)->first();
+        $query = \App\Models\Term::query();
+        if ($academicYear) {
+            $query->where('academic_year_id', $academicYear->id);
+        }
+
+        return $query->orderBy('name')->get();
+    }
+
+    private function statementYearsForStudentIds(array $studentIds)
+    {
+        $invoiceYears = Invoice::whereIn('student_id', $studentIds)
+            ->with('academicYear:id,year')
+            ->get(['id', 'year', 'academic_year_id'])
+            ->map(function ($invoice) {
+                return $invoice->year ?: optional($invoice->academicYear)->year;
+            });
+
+        $legacyYears = \App\Models\LegacyStatementTerm::whereIn('student_id', $studentIds)
+            ->pluck('academic_year');
+
+        $academicYears = \App\Models\AcademicYear::distinct()->pluck('year');
+
+        return $invoiceYears->merge($legacyYears)
+            ->merge($academicYears)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->reverse()
+            ->values();
+    }
+
+    public static function getOrCreateStatementLink(string $scope, int $ownerId, int $year, $term = null, $createdBy = null): StatementLink
+    {
+        $query = StatementLink::active()
+            ->where('scope', $scope)
+            ->where('period_year', $year);
+
+        if ($term === null || $term === '') {
+            $query->whereNull('period_term');
+        } else {
+            $query->where('period_term', $term);
+        }
+
+        if ($scope === 'family') {
+            $query->where('family_id', $ownerId)->whereNull('student_id');
+        } else {
+            $query->where('student_id', $ownerId)->whereNull('family_id');
+        }
+
+        $existing = $query->latest()->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        return StatementLink::create([
+            'scope' => $scope,
+            'student_id' => $scope === 'student' ? $ownerId : null,
+            'family_id' => $scope === 'family' ? $ownerId : null,
+            'period_year' => $year,
+            'period_term' => $term,
+            'is_active' => true,
+            'expires_at' => now()->addDays(90),
+            'created_by' => $createdBy,
+        ]);
     }
 
     private function branding(): array
