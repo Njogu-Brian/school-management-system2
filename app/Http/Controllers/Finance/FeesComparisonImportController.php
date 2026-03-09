@@ -548,9 +548,19 @@ class FeesComparisonImportController extends Controller
                     }
                 });
                 $totalPaid = (float) $allocationsQuery->sum('amount');
+
+                // Discounts affect the fee balance (what is actually owed), but not the gross "System Invoiced".
+                $discountTotal = 0.0;
+                $discountItemsQuery = InvoiceItem::where('invoice_id', $invoice->id)->where('status', 'active');
+                $discountItemsQuery->where(function ($q) {
+                    $q->whereNull('source')->orWhere('source', '!=', 'swimming_attendance');
+                });
+                $discountTotal += (float) $discountItemsQuery->get()->sum(fn ($i) => (float) ($i->discount_amount ?? 0));
+                $discountTotal += (float) ($invoice->discount_amount ?? 0);
             }
 
-            $invoiceBalance = $totalInvoiced - $totalPaid;
+            // Invoice balance used for comparisons: charges minus discounts minus payments
+            $invoiceBalance = ($totalInvoiced - ($discountTotal ?? 0.0)) - $totalPaid;
 
             // Include overpayments/unallocated credits in the fee balance so that
             // comparison behaves like student statements. Any positive unallocated_amount
