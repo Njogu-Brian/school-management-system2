@@ -60,28 +60,6 @@
             position: relative;
         }
         
-        .watermark {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 400px;
-            height: 400px;
-            min-width: 400px;
-            min-height: 400px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center center;
-            opacity: 0.2;
-            z-index: 0;
-            pointer-events: none;
-        }
-        
-        body > *:not(.watermark) {
-            position: relative;
-            z-index: 10;
-        }
-        
         @media print {
             body {
                 width: 210mm;
@@ -90,6 +68,8 @@
                 margin: 0;
             }
             .no-print { display: none !important; }
+            .transactions-table tbody tr:hover { background-color: transparent !important; }
+            .transactions-table th { background: {{ $brandPrimary }} !important; }
             @page {
                 size: A4;
                 margin: 10mm;
@@ -97,53 +77,59 @@
         }
         
         .header {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            text-align: center;
             border-bottom: 2px solid {{ $brandPrimary }};
-            padding-bottom: 15px;
         }
         
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
+        .header-logo {
+            margin-bottom: 10px;
         }
         
-        .header-table td {
-            vertical-align: top;
-        }
-        
-        .logo-cell {
-            width: 120px;
-        }
-        
-        .logo-cell img {
-            height: 100px;
-            display: block;
+        .header-logo img {
+            height: 72px;
+            max-width: 160px;
+            object-fit: contain;
         }
         
         .school-name {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
             color: {{ $brandPrimary }};
         }
         
         .school-info {
+            font-size: 11px;
+            line-height: 1.7;
+            color: {{ $brandMuted }};
+            margin-bottom: 4px;
+        }
+        
+        .header-date {
             font-size: 10px;
-            line-height: 1.6;
+            color: {{ $brandMuted }};
+            margin-top: 6px;
         }
         
         .statement-title {
             text-align: center;
-            font-size: {{ (int)$brandHeadingFont + 1 }}px;
+            font-size: {{ (int)$brandHeadingFont + 2 }}px;
             font-weight: 700;
-            margin: 20px 0;
+            margin: 24px 0 16px;
             text-transform: uppercase;
+            letter-spacing: 1px;
             color: {{ $brandPrimary }};
         }
         
         .student-info {
-            margin-bottom: 15px;
+            margin-bottom: 18px;
+            padding: 10px 14px;
+            background: #f8fafc;
+            border-left: 4px solid {{ $brandPrimary }};
             font-size: 12px;
             font-weight: 600;
         }
@@ -151,94 +137,131 @@
         .transactions-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
-            font-size: 10px;
+            margin-bottom: 24px;
+            font-size: 11px;
         }
         
         .transactions-table th,
         .transactions-table td {
-            padding: 8px 6px;
+            padding: 10px 8px;
             text-align: left;
-            border: 1px solid #ddd;
+            border: 1px solid #e2e8f0;
         }
         
         .transactions-table th {
             background-color: {{ $brandPrimary }};
             color: #fff;
             font-weight: 700;
-            text-align: center;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .transactions-table th.amount-col,
+        .transactions-table th.balance-col {
+            text-align: right;
+        }
+        
+        .transactions-table tbody tr:not(.section-header):not(.totals-row) {
+            background-color: #fff;
+        }
+        
+        .transactions-table tbody tr:nth-child(even):not(.section-header):not(.totals-row) {
+            background-color: #fafbfc;
+        }
+        
+        .transactions-table tbody tr:hover:not(.section-header):not(.totals-row) {
+            background-color: #f1f5f9;
         }
         
         .transactions-table .date-col {
-            width: 10%;
+            width: 11%;
         }
         
         .transactions-table .narration-col {
-            width: 45%;
+            width: 44%;
         }
         
         .transactions-table .amount-col {
-            width: 12%;
+            width: 13%;
             text-align: right;
         }
         
         .transactions-table .balance-col {
-            width: 12%;
+            width: 13%;
             text-align: right;
         }
         
         .transactions-table td.amount-col,
         .transactions-table td.balance-col {
-            font-family: 'Courier New', monospace;
+            font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
+            font-weight: 500;
         }
         
         .section-header {
-            background-color: #e8e8e8;
+            background-color: #e2e8f0;
             font-weight: 700;
             font-size: 11px;
-            padding: 10px 6px;
+            padding: 10px 8px;
+            color: {{ $brandPrimary }};
+        }
+        
+        .totals-row {
+            background-color: #e2e8f0 !important;
+            font-weight: 700;
+            border-top: 2px solid {{ $brandPrimary }};
         }
         
         .summary-section {
-            margin-top: 30px;
-            border-top: 2px solid {{ $brandPrimary }};
-            padding-top: 15px;
+            margin-top: 28px;
+            padding: 20px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
         }
         
         .summary-row {
             display: table;
             width: 100%;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .summary-row:last-of-type {
+            margin-bottom: 0;
         }
         
         .summary-label {
             display: table-cell;
             width: 70%;
             font-weight: 600;
+            font-size: 12px;
         }
         
         .summary-value {
             display: table-cell;
             width: 30%;
             text-align: right;
-            font-family: 'Courier New', monospace;
+            font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
+            font-weight: 500;
         }
         
         .current-balance {
-            font-size: {{ (int)$brandHeadingFont - 2 }}px;
+            font-size: {{ (int)$brandHeadingFont }}px;
             font-weight: 700;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 2px solid {{ $brandPrimary }};
-            text-align: right;
-            color: {{ $brandPrimary }};
+            margin-top: 18px;
+            padding: 14px 18px;
+            background: {{ $brandPrimary }};
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
         }
         
         .footer {
-            margin-top: 40px;
-            padding-top: 15px;
-            border-top: 1px solid #ddd;
-            font-size: {{ max(8, (int)$brandSmallFont - 2) }}px;
+            margin-top: 36px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+            font-size: {{ max(9, (int)$brandSmallFont - 1) }}px;
             color: {{ $brandMuted }};
             text-align: center;
         }
@@ -264,13 +287,6 @@
     </style>
 </head>
 <body>
-    @php
-        $watermarkLogo = $branding['logoBase64'] ?? null;
-    @endphp
-    @if($watermarkLogo)
-    <div class="watermark" style="background-image: url('{!! $watermarkLogo !!}');"></div>
-    @endif
-    
     @unless($isPdfExport ?? false)
     <div class="no-print" style="position: fixed; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 1000;">
         @if(!empty($paymentLinkUrl))
@@ -283,29 +299,21 @@
     </div>
     @endunless
     
-    <!-- Header -->
+    <!-- Header (centered) -->
     <div class="header">
-        <table class="header-table">
-            <tr>
-                <td class="logo-cell">
-                    @if($logo)
-                        <img src="{{ $logo }}" alt="Logo">
-                    @endif
-                </td>
-                <td>
-                    <div class="school-name">{{ $schoolName }}</div>
-                    <div class="school-info">
-                        @if($schoolAddress){{ $schoolAddress }}<br>@endif
-                        @if($schoolPhone)CALL US ON: {{ $schoolPhone }}@endif
-                        @if($schoolEmail) | EMAIL US ON: {{ $schoolEmail }}@endif
-                        @if($schoolWebsite)<br>WEBSITE: {{ $schoolWebsite }}@endif
-                    </div>
-                </td>
-                <td style="text-align: right; font-size: 10px;">
-                    <div>{{ now()->format('l, F d, Y') }}</div>
-                </td>
-            </tr>
-        </table>
+        @if($logo)
+            <div class="header-logo">
+                <img src="{{ $logo }}" alt="Logo">
+            </div>
+        @endif
+        <div class="school-name">{{ $schoolName }}</div>
+        <div class="school-info">
+            @if($schoolAddress){{ $schoolAddress }}<br>@endif
+            @if($schoolPhone)CALL US ON: {{ $schoolPhone }}@endif
+            @if($schoolEmail) | EMAIL US ON: {{ $schoolEmail }}@endif
+            @if($schoolWebsite)<br>WEBSITE: {{ $schoolWebsite }}@endif
+        </div>
+        <div class="header-date">{{ now()->format('l, F d, Y') }}</div>
     </div>
     
     <!-- Statement Title -->
@@ -356,7 +364,7 @@
                     </tr>
                 @endforeach
             @endforeach
-            <tr style="background-color: #f5f5f5; font-weight: 700;">
+            <tr class="totals-row">
                 <td colspan="{{ ($showStudentColumn ?? false) ? 3 : 2 }}" style="text-align: right;">Totals:</td>
                 <td class="amount-col">{{ number_format($totalDebit ?? 0, 2) }}</td>
                 <td class="amount-col">{{ number_format($totalCredit ?? 0, 2) }}</td>
