@@ -234,6 +234,16 @@
             <form method="GET" action="{{ route('finance.fee-balances.index') }}" class="row g-3">
                 <input type="hidden" name="view" value="{{ $view ?? 'all' }}">
                 <div class="col-md-3">
+                    <label class="finance-form-label">Term</label>
+                    <select name="term_id" class="finance-form-select">
+                        @foreach($terms ?? collect() as $t)
+                            <option value="{{ $t->id }}" {{ ($selectedTermId ?? null) == $t->id ? 'selected' : '' }}>
+                                {{ $t->name }} ({{ optional($t->academicYear)->year ?? '' }})
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label class="finance-form-label">Classroom</label>
                     <select name="classroom_id" class="finance-form-select">
                         <option value="">All Classrooms</option>

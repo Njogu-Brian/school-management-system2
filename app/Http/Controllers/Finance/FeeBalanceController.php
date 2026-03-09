@@ -24,8 +24,24 @@ class FeeBalanceController extends Controller
      */
     public function index(Request $request)
     {
-        // Get current term
-        $currentTerm = Term::where('is_current', true)->first();
+        // Get current term - use term_id for alignment with Admin Dashboard
+        $currentTerm = Term::where('is_current', true)->with('academicYear')->first();
+        $termId = $request->input('term_id') ?: $currentTerm?->id;
+        $year = $request->input('year', $currentTerm?->academicYear?->year ?? now()->year);
+        $termNumber = $request->input('term', $currentTerm ? $this->extractTermNumber($currentTerm->name) : 1);
+        
+        // Resolve term_id from year+term if not set (for alignment with dashboard)
+        if (!$termId && $year && $termNumber) {
+            $resolvedTerm = Term::whereHas('academicYear', fn($q) => $q->where('year', $year))
+                ->where(function ($q) use ($termNumber) {
+                    $q->where('name', 'like', '%Term ' . $termNumber . '%')
+                      ->orWhere('name', 'like', '% ' . $termNumber);
+                })
+                ->first();
+            $termId = $resolvedTerm?->id;
+        }
+        
+        $selectedTerm = $termId ? Term::with('academicYear')->find($termId) : $currentTerm;
         
         // Get filters
         $classroomId = $request->input('classroom_id');
@@ -33,8 +49,6 @@ class FeeBalanceController extends Controller
         $attendanceFilter = $request->input('attendance_filter');
         $paymentPlanFilter = $request->input('payment_plan_filter');
         $bbfFilter = $request->input('bbf_filter');
-        $year = $request->input('year', now()->year);
-        $termNumber = $request->input('term', $currentTerm ? $this->extractTermNumber($currentTerm->name) : 1);
         
         // Build student query
         $studentsQuery = Student::query()
@@ -54,11 +68,11 @@ class FeeBalanceController extends Controller
         $balanceBroughtForwardVotehead = Votehead::where('code', 'BAL_BF')->first();
         
         // Enrich each student with financial and attendance data
-        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $currentTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter, $balanceBroughtForwardVotehead) {
-            // Get invoice for this term
+        $enrichedStudents = $students->map(function ($student) use ($year, $termNumber, $termId, $selectedTerm, $balanceStatus, $attendanceFilter, $paymentPlanFilter, $balanceBroughtForwardVotehead) {
+            // Get invoice for this term (use term_id when available for alignment with Admin Dashboard)
             $invoice = Invoice::where('student_id', $student->id)
-                ->where('year', $year)
-                ->where('term', $termNumber)
+                ->when($termId, fn($q) => $q->where('term_id', $termId))
+                ->when(!$termId, fn($q) => $q->where('year', $year)->where('term', $termNumber))
                 ->first();
             
             $totalInvoiced = $invoice ? $invoice->total : 0;
@@ -69,7 +83,7 @@ class FeeBalanceController extends Controller
             $balanceBroughtForwardData = $this->getBalanceBroughtForwardData($student, $balanceBroughtForwardVotehead, $invoice, $balance);
             
             // Get attendance data since term start
-            $termStartDate = $currentTerm ? $currentTerm->opening_date : Carbon::now()->startOfMonth();
+            $termStartDate = $selectedTerm?->opening_date ?? Carbon::now()->startOfMonth();
             $attendanceData = $this->getAttendanceStats($student->id, $termStartDate);
             
             // Get payment plan status
@@ -225,9 +239,9 @@ class FeeBalanceController extends Controller
                 $displayStudents = $unpaidAbsent;
                 break;
             case 'with-bbf':
-                // Show only students with balance brought forward
+                // Show only students who still owe balance brought forward
                 $displayStudents = $filteredStudents->filter(function ($s) {
-                    return ($s['balance_brought_forward'] ?? 0) > 0;
+                    return ($s['balance_brought_forward_balance'] ?? 0) > 0;
                 });
                 break;
             default:
@@ -256,8 +270,8 @@ class FeeBalanceController extends Controller
             'in_school_balance_amount' => $filteredStudents->filter(function ($s) {
                 return $s['is_in_school'] && $s['balance'] > 0;
             })->sum('balance'),
-            // Balance brought forward statistics
-            'students_with_bbf' => $filteredStudents->where('balance_brought_forward', '>', 0)->count(),
+            // Balance brought forward statistics (students_with_bbf = those who still owe BBF)
+            'students_with_bbf' => $filteredStudents->filter(fn($s) => ($s['balance_brought_forward_balance'] ?? 0) > 0)->count(),
             'total_bbf_amount' => $filteredStudents->sum('balance_brought_forward'),
             'total_bbf_paid' => $filteredStudents->sum('balance_brought_forward_paid'),
             'total_bbf_balance' => $filteredStudents->sum('balance_brought_forward_balance'),
@@ -275,7 +289,7 @@ class FeeBalanceController extends Controller
             'unpaid-present' => $unpaidPresent->count(),
             'unpaid-absent' => $unpaidAbsent->count(),
             'with-bbf' => $filteredStudents->filter(function ($s) {
-                return ($s['balance_brought_forward'] ?? 0) > 0;
+                return ($s['balance_brought_forward_balance'] ?? 0) > 0;
             })->count(),
         ];
         
@@ -285,8 +299,10 @@ class FeeBalanceController extends Controller
         
         $displayStudents = $displayStudents->sortBy($sortBy, SORT_REGULAR, $sortOrder === 'desc')->values();
         
-        // Get classrooms for filter
+        // Get classrooms and terms for filter (align with Admin Dashboard)
         $classrooms = Classroom::orderBy('name')->get();
+        $terms = Term::with('academicYear')->orderBy('academic_year_id')->orderBy('name')->get();
+        $years = \App\Models\AcademicYear::orderBy('year', 'desc')->get();
         
         return view('finance.fee_balances.index', [
             'students' => $displayStudents,
@@ -294,7 +310,12 @@ class FeeBalanceController extends Controller
             'counts' => $counts,
             'view' => $view,
             'classrooms' => $classrooms,
+            'terms' => $terms,
+            'years' => $years,
             'currentTerm' => $currentTerm,
+            'selectedTermId' => $termId,
+            'selectedYear' => $year,
+            'selectedTermNumber' => $termNumber,
             'filters' => $request->all(),
         ]);
     }
@@ -431,8 +452,15 @@ class FeeBalanceController extends Controller
             $bbfBalance = $invoiceBfAmount - $invoiceBfPaid;
         } elseif ($legacyBf > 0) {
             $bbfAmount = $legacyBf;
-            $bbfPaid = 0;
-            $bbfBalance = $legacyBf;
+            // If student has paid (invoice balance <= 0), treat legacy BBF as cleared
+            // Payments go to invoices; overpayment/cleared balance implies BBF was paid
+            if (abs($invoiceBalance) < 0.01 || $invoiceBalance < 0) {
+                $bbfPaid = $legacyBf;
+                $bbfBalance = 0;
+            } else {
+                $bbfPaid = 0;
+                $bbfBalance = $legacyBf;
+            }
         }
         
         // Determine payment status
