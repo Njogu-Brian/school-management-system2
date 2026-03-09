@@ -153,6 +153,7 @@
     <form id="bulkActionsForm" method="POST" action="{{ route('finance.discounts.allocations.bulk-approve') }}">
         @csrf
         <div id="bulkCheckboxesContainer" style="display: none;"></div>
+    </form>
 
         <!-- Allocations Table -->
         <div class="finance-card finance-animate shadow-sm rounded-4 border-0">
@@ -160,7 +161,7 @@
                 <span><i class="bi bi-table me-2"></i> Allocations</span>
                 <div id="bulkActions" style="display: none;" class="mt-2 mt-md-0">
                     <div class="btn-group flex-wrap">
-                        <button type="submit" class="btn btn-sm btn-finance btn-finance-success">
+                        <button type="submit" form="bulkActionsForm" class="btn btn-sm btn-finance btn-finance-success">
                             <i class="bi bi-check-circle"></i> <span class="d-none d-md-inline">Approve Selected</span>
                         </button>
                         <button type="button" id="bulkRejectBtn" class="btn btn-sm btn-finance btn-finance-danger">
@@ -330,7 +331,6 @@
             </div>
             @endif
         </div>
-    </form>
         </div>
 
         <!-- Allocate Tab -->
