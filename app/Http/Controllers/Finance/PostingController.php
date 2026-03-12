@@ -160,18 +160,22 @@ class PostingController extends Controller
                 ->with('info', 'All changes were rejected. No fees were posted.');
         }
         
-        $run = $this->postingService->commitWithTracking(
-            $diffs,
-            (int)$request->year,
-            (int)$request->term,
-            (bool)$request->activate_now,
-            $request->effective_date,
-            $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id', 'student_ids', 'student_category_id'])
-        );
+        try {
+            $run = $this->postingService->commitWithTracking(
+                $diffs,
+                (int)$request->year,
+                (int)$request->term,
+                (bool)$request->activate_now,
+                $request->effective_date,
+                $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id', 'student_ids', 'student_category_id'])
+            );
 
-        return redirect()
-            ->route('finance.posting.show', $run)
-            ->with('success', "Posting run #{$run->id} completed. {$run->items_posted_count} items posted.");
+            return redirect()
+                ->route('finance.posting.show', $run)
+                ->with('success', "Posting run #{$run->id} completed. {$run->items_posted_count} items posted.");
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage())->withInput();
+        }
     }
     
     public function show(FeePostingRun $run)

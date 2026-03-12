@@ -288,11 +288,31 @@ class FeePostingService
         array $filters = []
     ): FeePostingRun {
         return DB::transaction(function () use ($diffs, $year, $term, $activateNow, $effectiveDate, $filters) {
-            // Create posting run
+            $academicYear = AcademicYear::where('year', $year)->first();
+            $termModel = null;
+            if ($academicYear) {
+                $termModel = Term::where('academic_year_id', $academicYear->id)
+                    ->where(function ($q) use ($term) {
+                        $q->where('name', 'like', "%Term {$term}%")
+                          ->orWhere('name', 'like', "% {$term}");
+                    })
+                    ->first();
+                if (!$termModel) {
+                    $termModel = Term::where('academic_year_id', $academicYear->id)
+                        ->orderBy('opening_date')
+                        ->orderBy('name')
+                        ->skip($term - 1)
+                        ->first();
+                }
+            }
+            if (!$termModel || !$academicYear) {
+                throw new \InvalidArgumentException(
+                    "Could not resolve term for year {$year}, term {$term}. Ensure the academic year and term exist in Settings > Academic."
+                );
+            }
             $run = FeePostingRun::create([
-                'academic_year_id' => AcademicYear::where('year', $year)->first()->id ?? null,
-                'term_id' => Term::whereHas('academicYear', fn($q) => $q->where('year', $year))
-                    ->where('name', 'like', "%Term {$term}%")->first()->id ?? null,
+                'academic_year_id' => $academicYear->id,
+                'term_id' => $termModel->id,
                 'run_type' => 'commit',
                 'status' => 'pending',
                 'posted_by' => auth()->id(),
