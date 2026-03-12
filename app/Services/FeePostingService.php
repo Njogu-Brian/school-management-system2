@@ -288,6 +288,7 @@ class FeePostingService
         array $filters = []
     ): FeePostingRun {
         return DB::transaction(function () use ($diffs, $year, $term, $activateNow, $effectiveDate, $filters) {
+            // Include inactive academic years so posting works for any configured year/term
             $academicYear = AcademicYear::where('year', $year)->first();
             $termModel = null;
             if ($academicYear) {
@@ -298,6 +299,13 @@ class FeePostingService
                     })
                     ->first();
                 if (!$termModel) {
+                    // Fallback: match term number via regex (e.g. "Term 2", "Term 2 2026")
+                    $termModel = Term::where('academic_year_id', $academicYear->id)
+                        ->whereRaw("name REGEXP ?", ["Term[[:space:]]*{$term}([^0-9]|$)"])
+                        ->first();
+                }
+                if (!$termModel) {
+                    // Fallback: Nth term by opening_date/name (1-based)
                     $termModel = Term::where('academic_year_id', $academicYear->id)
                         ->orderBy('opening_date')
                         ->orderBy('name')
@@ -307,7 +315,7 @@ class FeePostingService
             }
             if (!$termModel || !$academicYear) {
                 throw new \InvalidArgumentException(
-                    "Could not resolve term for year {$year}, term {$term}. Ensure the academic year and term exist in Settings > Academic."
+                    "Could not resolve term for year {$year}, term {$term}. Ensure the academic year and term exist in Settings > Academic (including inactive years)."
                 );
             }
             $run = FeePostingRun::create([
