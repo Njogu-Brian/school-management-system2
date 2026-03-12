@@ -4,39 +4,40 @@
     <span>Duplicate Transport Fees</span>
   </div>
   <div class="finance-card-body p-4">
-    <p class="transport-desc text-muted small mb-3">Copy transport fees from one term to another. Select a class or specific students; leave empty for entire school.</p>
+    <p class="transport-desc text-muted small mb-3">Copy transport fees from one term to another. Select a class or specific students; leave empty for entire school. Target must be a future term.</p>
     <form method="POST" action="{{ route('finance.transport-fees.duplicate') }}">
       @csrf
       <div class="row g-3">
-        <div class="col-md-6">
-          <label class="finance-form-label">Source</label>
-          <div class="row g-2">
-            <div class="col-6">
-              <input type="number" name="source_year" class="finance-form-control" value="{{ $year }}" required placeholder="Year">
-            </div>
-            <div class="col-6">
-              <select name="source_term" class="finance-form-select" required>
-                @foreach([1,2,3] as $t)
-                  <option value="{{ $t }}" @selected($term == $t)>Term {{ $t }}</option>
-                @endforeach
-              </select>
-            </div>
-          </div>
+        <div class="col-12">
+          <label class="finance-form-label">Source (from)</label>
+          <select name="source_year_term" class="finance-form-select" required>
+            @foreach(($termsByYear ?? collect())->sortKeysDesc() as $yr => $terms)
+              @foreach($terms as $t)
+                @php $termNum = (int) preg_replace('/[^0-9]/', '', $t->name) ?: 1; @endphp
+                <option value="{{ $t->academicYear->year ?? $yr }}|{{ $termNum }}" @selected(($year ?? '') == ($t->academicYear->year ?? $yr) && ($term ?? '') == $termNum)>
+                  {{ $t->academicYear->year ?? $yr }} – {{ $t->name }}
+                </option>
+              @endforeach
+            @endforeach
+            @if(($termsByYear ?? collect())->isEmpty())
+              <option value="{{ $year ?? date('Y') }}|{{ $term ?? 1 }}">{{ $year ?? date('Y') }} – Term {{ $term ?? 1 }}</option>
+            @endif
+          </select>
         </div>
-        <div class="col-md-6">
-          <label class="finance-form-label">Target</label>
-          <div class="row g-2">
-            <div class="col-6">
-              <input type="number" name="target_year" class="finance-form-control" required placeholder="Year">
-            </div>
-            <div class="col-6">
-              <select name="target_term" class="finance-form-select" required>
-                @foreach([1,2,3] as $t)
-                  <option value="{{ $t }}">Term {{ $t }}</option>
-                @endforeach
-              </select>
-            </div>
-          </div>
+        <div class="col-12">
+          <label class="finance-form-label">Target (to) – future terms only</label>
+          <select name="target_year_term" class="finance-form-select" required>
+            <option value="">Select target term</option>
+            @foreach($futureTerms ?? [] as $t)
+              @php $termNum = (int) preg_replace('/[^0-9]/', '', $t->name) ?: 1; @endphp
+              <option value="{{ $t->academicYear->year ?? '' }}|{{ $termNum }}">
+                {{ $t->academicYear->year ?? '?' }} – {{ $t->name }}
+              </option>
+            @endforeach
+            @if(($futureTerms ?? collect())->isEmpty())
+              <option value="" disabled>No future terms in calendar</option>
+            @endif
+          </select>
         </div>
         <div class="col-md-6">
           <label class="finance-form-label">Classroom (optional)</label>

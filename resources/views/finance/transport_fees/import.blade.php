@@ -40,19 +40,21 @@
               <input type="file" name="file" class="form-control" accept=".xlsx,.xls,.csv" required>
               <small class="text-muted">Supported formats: .xlsx, .xls, .csv</small>
             </div>
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="finance-form-label">Year</label>
-                <input type="number" name="year" class="finance-form-control" value="{{ request('year', date('Y')) }}" required>
-              </div>
-              <div class="col-md-6">
-                <label class="finance-form-label">Term</label>
-                <select name="term" class="finance-form-select" required>
-                  @foreach([1,2,3] as $t)
-                    <option value="{{ $t }}" @selected(request('term') == $t)>Term {{ $t }}</option>
-                  @endforeach
-                </select>
-              </div>
+            <div class="mb-3">
+              <label class="finance-form-label">Target term (future terms only – from academic calendar)</label>
+              <select name="year_term" class="finance-form-select" required>
+                <option value="">Select term</option>
+                @foreach($futureTerms ?? [] as $t)
+                  @php $termNum = (int) preg_replace('/[^0-9]/', '', $t->name) ?: 1; @endphp
+                  <option value="{{ $t->academicYear->year ?? '' }}|{{ $termNum }}">
+                    {{ $t->academicYear->year ?? '?' }} – {{ $t->name }}
+                  </option>
+                @endforeach
+                @if(($futureTerms ?? collect())->isEmpty())
+                  <option value="" disabled>No future terms in Settings → Academic Calendar</option>
+                @endif
+              </select>
+              <small class="text-muted">Only terms with opening date today or later. Add terms in Settings → Academic Calendar if needed.</small>
             </div>
             <button class="btn btn-finance btn-finance-primary w-100 mt-3">
               <i class="bi bi-eye"></i> Preview &amp; Apply

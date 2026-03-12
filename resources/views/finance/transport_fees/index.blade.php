@@ -46,14 +46,25 @@
             </div>
             <div class="col-6 col-sm-3 col-lg-2">
               <label class="finance-form-label">Year</label>
-              <input type="number" name="year" class="finance-form-control" value="{{ $year }}" onchange="this.form.submit()">
+              <select name="year" class="finance-form-select" onchange="this.form.submit()">
+                @foreach(\App\Models\AcademicYear::orderByDesc('year')->get() as $ay)
+                  <option value="{{ $ay->year }}" @selected($year == $ay->year)>{{ $ay->year }}</option>
+                @endforeach
+              </select>
             </div>
             <div class="col-6 col-sm-3 col-lg-2">
               <label class="finance-form-label">Term</label>
               <select name="term" class="finance-form-select" onchange="this.form.submit()">
-                @foreach([1,2,3] as $t)
-                  <option value="{{ $t }}" @selected($term == $t)>Term {{ $t }}</option>
+                @php
+                  $termsForYear = ($allTerms ?? collect())->filter(fn($t) => $t->academicYear && $t->academicYear->year == $year);
+                  $termNum = fn($t) => (int) preg_replace('/[^0-9]/', '', $t->name) ?: 1;
+                @endphp
+                @foreach($termsForYear as $t)
+                  <option value="{{ $termNum($t) }}" @selected($term == $termNum($t))>{{ $t->name }}</option>
                 @endforeach
+                @if($termsForYear->isEmpty())
+                  <option value="{{ $term }}">Term {{ $term }}</option>
+                @endif
               </select>
             </div>
           </div>
@@ -241,11 +252,10 @@
         </div>
       </div>
 
-      {{-- Sidebar: Import + Duplicate --}}
+      {{-- Sidebar: Duplicate only (Import & History in submenu) --}}
       <div class="col-12 col-xl-4">
         <div class="transport-sidebar">
-          @include('finance.transport_fees.partials.import_tabs', ['year' => $year, 'term' => $term])
-          @include('finance.transport_fees.partials.duplicate_form', ['classrooms' => $classrooms, 'year' => $year, 'term' => $term])
+          @include('finance.transport_fees.partials.duplicate_form', ['classrooms' => $classrooms, 'year' => $year, 'term' => $term, 'termsByYear' => $termsByYear ?? collect(), 'futureTerms' => $futureTerms ?? collect()])
         </div>
       </div>
     </div>

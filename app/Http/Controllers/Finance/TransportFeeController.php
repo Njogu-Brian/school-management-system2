@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Academics\Classroom;
+use App\Models\AcademicYear;
 use App\Models\DropOffPoint;
 use App\Models\Student;
+use App\Models\Term;
 use App\Models\TransportFee;
 use App\Services\TransportFeeService;
+use Carbon\Carbon;
 use App\Exports\ArrayExport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -56,6 +59,21 @@ class TransportFeeController extends Controller
             $totalAmount = $feeMap->sum('amount');
         }
 
+        $termsByYear = Term::with('academicYear')
+            ->whereNotNull('opening_date')
+            ->orderBy('opening_date')
+            ->get()
+            ->groupBy(fn($t) => $t->academicYear?->year ?? 'unknown');
+
+        // Future/current terms: not yet ended (closing_date >= today)
+        $futureTerms = Term::with('academicYear')
+            ->where(function ($q) {
+                $q->where('closing_date', '>=', Carbon::today())
+                  ->orWhereNull('closing_date');
+            })
+            ->orderBy('opening_date')
+            ->get();
+
         return view('finance.transport_fees.index', [
             'classrooms' => $classrooms,
             'classroomId' => $classroomId,
@@ -67,6 +85,9 @@ class TransportFeeController extends Controller
             'term' => $term,
             'academicYearId' => $academicYearId,
             'totalAmount' => $totalAmount,
+            'termsByYear' => $termsByYear,
+            'futureTerms' => $futureTerms,
+            'allTerms' => Term::with('academicYear')->whereNotNull('opening_date')->orderBy('opening_date')->get(),
         ]);
     }
 
@@ -142,9 +163,14 @@ class TransportFeeController extends Controller
             'file' => 'required|file|mimes:xlsx,xls,csv,txt',
             'year' => 'nullable|integer',
             'term' => 'nullable|integer|in:1,2,3',
+            'year_term' => 'nullable|string|regex:/^\d+\|\d+$/',
         ]);
 
-        [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
+        if ($request->filled('year_term')) {
+            [$year, $term] = array_map('intval', explode('|', $request->year_term));
+        } else {
+            [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
+        }
 
         $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];
 
@@ -698,7 +724,18 @@ class TransportFeeController extends Controller
      */
     public function importView()
     {
-        return view('finance.transport_fees.import');
+        // Future/current terms: not yet ended (closing_date >= today)
+        $futureTerms = Term::with('academicYear')
+            ->where(function ($q) {
+                $q->where('closing_date', '>=', Carbon::today())
+                  ->orWhereNull('closing_date');
+            })
+            ->orderBy('opening_date')
+            ->get();
+
+        return view('finance.transport_fees.import', [
+            'futureTerms' => $futureTerms,
+        ]);
     }
 
     /**
@@ -708,10 +745,8 @@ class TransportFeeController extends Controller
     public function duplicate(Request $request)
     {
         $request->validate([
-            'source_year' => 'required|integer',
-            'source_term' => 'required|in:1,2,3',
-            'target_year' => 'required|integer',
-            'target_term' => 'required|in:1,2,3',
+            'source_year_term' => 'required|string|regex:/^\d+\|\d+$/',
+            'target_year_term' => 'required|string|regex:/^\d+\|\d+$/',
             'student_ids' => 'nullable|array',
             'student_ids.*' => 'exists:students,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
@@ -721,16 +756,19 @@ class TransportFeeController extends Controller
             return back()->with('error', 'Select either classroom or specific students, not both. Clear one to use the other.');
         }
 
+        [$sourceYear, $sourceTerm] = array_map('intval', explode('|', $request->source_year_term));
+        [$targetYear, $targetTerm] = array_map('intval', explode('|', $request->target_year_term));
+
         $result = \App\Services\FeeDuplicationService::duplicateTransport(
-            (int) $request->source_year,
-            (int) $request->source_term,
-            (int) $request->target_year,
-            (int) $request->target_term,
+            $sourceYear,
+            $sourceTerm,
+            $targetYear,
+            $targetTerm,
             $request->student_ids ? array_map('intval', $request->student_ids) : null,
             $request->classroom_id ? (int) $request->classroom_id : null
         );
 
-        return back()->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$request->target_year} Term {$request->target_term}. " .
+        return back()->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$targetYear} Term {$targetTerm}. " .
             ($result['updated'] ? "{$result['updated']} updated." : '') .
             ($result['created'] ? "{$result['created']} created." : ''));
     }
