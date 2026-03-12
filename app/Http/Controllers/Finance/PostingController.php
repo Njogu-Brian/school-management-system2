@@ -46,6 +46,8 @@ class PostingController extends Controller
                 'class_id'=>'nullable|exists:classrooms,id',
                 'stream_id'=>'nullable|exists:streams,id',
                 'student_id'=>'nullable|exists:students,id',
+                'student_ids'=>'nullable|array',
+                'student_ids.*'=>'exists:students,id',
                 'student_category_id'=>'nullable|exists:student_categories,id',
                 'effective_date'=>'nullable|date'
             ]);
@@ -58,6 +60,8 @@ class PostingController extends Controller
                 'class_id'=>'nullable|exists:classrooms,id',
                 'stream_id'=>'nullable|exists:streams,id',
                 'student_id'=>'nullable|exists:students,id',
+                'student_ids'=>'nullable|array',
+                'student_ids.*'=>'exists:students,id',
                 'student_category_id'=>'nullable|exists:student_categories,id',
                 'effective_date'=>'nullable|date'
             ]);
@@ -162,7 +166,7 @@ class PostingController extends Controller
             (int)$request->term,
             (bool)$request->activate_now,
             $request->effective_date,
-            $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id', 'student_category_id'])
+            $request->only(['votehead_id', 'class_id', 'stream_id', 'student_id', 'student_ids', 'student_category_id'])
         );
 
         return redirect()

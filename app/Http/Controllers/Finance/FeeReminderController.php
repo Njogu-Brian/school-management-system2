@@ -349,7 +349,8 @@ class FeeReminderController extends Controller
         }
 
         // Calculate total outstanding for student including balance brought forward
-        return \App\Services\StudentBalanceService::getTotalOutstandingBalance($student);
+        // Use dueOnly=true so we don't include fees not yet due (e.g. next term pending)
+        return \App\Services\StudentBalanceService::getTotalOutstandingBalance($student, true);
     }
 
     /**

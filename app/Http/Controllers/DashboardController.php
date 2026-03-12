@@ -239,8 +239,13 @@ class DashboardController extends Controller
                         })
                         ->sum('amount');
 
+                    // Only include invoices that are due (exclude not-yet-due, e.g. next term)
                     $feesOutstanding = (float) Invoice::whereIn('id', $termInvoiceIds)
                         ->whereIn('status', ['unpaid', 'partial'])
+                        ->where(function ($q) {
+                            $q->whereNull('due_date')
+                              ->orWhereDate('due_date', '<=', now()->toDateString());
+                        })
                         ->sum('balance');
                     $financeScope = 'term';
                 }
@@ -262,7 +267,7 @@ class DashboardController extends Controller
                 ->get()
                 ->sum(fn ($item) => (float) $item->amount - (float) ($item->discount_amount ?? 0));
 
-            $feesOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingFeesExcludingSwimming();
+            $feesOutstanding = \App\Services\StudentBalanceService::getTotalOutstandingFeesExcludingSwimming(true);
         }
 
         // Votehead breakdown - total invoiced per votehead

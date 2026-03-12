@@ -1273,6 +1273,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
             Route::post('/class/save',    [OptionalFeeController::class, 'saveClassBilling'])->name('save_class');
             Route::get('/student',        [OptionalFeeController::class, 'studentView'])->name('student_view');
             Route::post('/student/save',  [OptionalFeeController::class, 'saveStudentBilling'])->name('save_student');
+            Route::post('/duplicate',     [OptionalFeeController::class, 'duplicate'])->name('duplicate');
         });
         Route::post('optional-fees/import/preview', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importPreview'])->name('optional-fees.import.preview');
         Route::post('optional-fees/import/commit', [\App\Http\Controllers\Finance\OptionalFeeImportController::class, 'importCommit'])->name('optional-fees.import.commit');
@@ -1284,6 +1285,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Transport Fees
         Route::get('transport-fees', [TransportFeeController::class, 'index'])->name('transport-fees.index');
         Route::post('transport-fees/bulk-update', [TransportFeeController::class, 'bulkUpdate'])->name('transport-fees.bulk-update');
+        Route::post('transport-fees/duplicate', [TransportFeeController::class, 'duplicate'])->name('transport-fees.duplicate');
         Route::get('transport-fees/import', [TransportFeeController::class, 'importView'])->name('transport-fees.import');
         Route::post('transport-fees/import/preview', [TransportFeeController::class, 'importPreview'])->name('transport-fees.import.preview');
         Route::post('transport-fees/import/commit', [TransportFeeController::class, 'importCommit'])->name('transport-fees.import.commit');

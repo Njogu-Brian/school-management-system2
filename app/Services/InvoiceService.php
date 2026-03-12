@@ -31,15 +31,22 @@ class InvoiceService
             ->where('term', $term)
             ->first();
         
+        // Resolve due_date from term's opening_date (academic days) when available
+        $dueDate = $termModel && $termModel->opening_date ? $termModel->opening_date->toDateString() : null;
+
         // If found and soft deleted, restore it
         if ($invoice && $invoice->trashed()) {
             $invoice->restore();
             // Update the invoice with current data
-            $invoice->update([
+            $updateData = [
                 'family_id' => $student->family_id,
                 'academic_year_id' => $academicYear->id ?? $invoice->academic_year_id,
                 'term_id' => $termModel->id ?? $invoice->term_id,
-            ]);
+            ];
+            if ($dueDate) {
+                $updateData['due_date'] = $dueDate;
+            }
+            $invoice->update($updateData);
             // Ensure BBF is materialized for Term 1 2026+ even if invoice existed before import
             if ($year >= 2026 && $term == 1) {
                 self::addBalanceBroughtForward($invoice, $student);
@@ -49,12 +56,19 @@ class InvoiceService
         
         // If found and not deleted, return it
         if ($invoice && !$invoice->trashed()) {
-            // Update academic_year_id and term_id if they're null (for legacy invoices)
+            // Update academic_year_id, term_id, and due_date if needed (for legacy invoices)
+            $updateData = [];
             if (!$invoice->academic_year_id && $academicYear) {
-                $invoice->update(['academic_year_id' => $academicYear->id]);
+                $updateData['academic_year_id'] = $academicYear->id;
             }
             if (!$invoice->term_id && $termModel) {
-                $invoice->update(['term_id' => $termModel->id]);
+                $updateData['term_id'] = $termModel->id;
+            }
+            if ($dueDate) {
+                $updateData['due_date'] = $dueDate;
+            }
+            if (!empty($updateData)) {
+                $invoice->update($updateData);
             }
             // Ensure BBF is materialized for Term 1 2026+ even if invoice existed before import
             if ($year >= 2026 && $term == 1) {
@@ -78,6 +92,7 @@ class InvoiceService
                 'balance' => 0,
                 'status' => 'unpaid',
                 'issued_date' => now(),
+                'due_date' => $dueDate,
             ]);
             
             // Add balance brought forward for first term of 2026 (only if invoice was just created)

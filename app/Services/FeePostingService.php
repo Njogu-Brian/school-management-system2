@@ -1208,13 +1208,23 @@ class FeePostingService
     
     /**
      * Get filtered students
-     * IMPORTANT: If student_id is provided, ONLY return that student (ignore class/stream filters)
+     * IMPORTANT: If student_id or student_ids is provided, ONLY return those student(s) (ignore class/stream filters)
      */
     private function getFilteredStudents(array $filters): Collection
     {
+        // If student_ids array is provided, return only those students
+        $studentIds = $filters['student_ids'] ?? null;
+        if (is_array($studentIds) && !empty($studentIds)) {
+            $ids = array_filter(array_map('intval', $studentIds));
+            if (!empty($ids)) {
+                return Student::whereIn('id', $ids)
+                    ->where('archive', 0)
+                    ->where('is_alumni', false)
+                    ->get();
+            }
+        }
+
         // If student_id is explicitly provided, ONLY return that student
-        // This ensures optional fees are only applied to the selected student
-        // But still exclude alumni/archived students
         if (!empty($filters['student_id'])) {
             return Student::where('id', $filters['student_id'])
                 ->where('archive', 0)

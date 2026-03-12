@@ -7,7 +7,6 @@
         'title' => 'Optional Fees',
         'icon' => 'bi bi-toggle-on',
         'subtitle' => 'Manage optional fees for classes and individual students',
-        'actions' => '<a href="' . route('finance.optional-fees.import-history') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-clock-history"></i> Import History</a>'
     ])
 
     {{-- Tabs --}}
@@ -112,49 +111,21 @@
         </div>
     </div>
 
-    {{-- Import Section --}}
+    {{-- Import + History + Duplicate --}}
     <div class="row mt-4">
-        <div class="col-12">
-            <div class="finance-card shadow-sm rounded-4 border-0">
-                <div class="finance-card-header d-flex align-items-center gap-2">
-                    <i class="bi bi-upload"></i>
-                    <span>Import Optional Fees</span>
-                </div>
-                <div class="finance-card-body p-4">
-                    <p class="text-muted">Upload an Excel file with columns: Name, Admission Number, then individual votehead names (e.g., Yorghut, Skating, Ballet, etc.). Each row represents a student, and amounts are entered in the corresponding votehead columns.</p>
-                    <form method="POST" action="{{ route('finance.optional-fees.import.preview') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <label class="finance-form-label">File (.xlsx/.csv)</label>
-                                <input type="file" name="file" class="form-control" accept=".xlsx,.xls,.csv" required>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="finance-form-label">Year</label>
-                                <input type="number" name="year" class="finance-form-control" value="{{ $currentYear ?? now()->year }}" required>
-                            </div>
-                            <div class="col-md-2">
-                                <label class="finance-form-label">Term</label>
-                                <select name="term" class="finance-form-select" required>
-                                    @foreach([1,2,3] as $t)
-                                        <option value="{{ $t }}" @selected(($currentTermNumber ?? 1) == $t)>Term {{ $t }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
-                                <button class="btn btn-finance btn-finance-primary w-100">
-                                    <i class="bi bi-eye"></i> Preview &amp; apply
-                                </button>
-                            </div>
-                            <div class="col-md-2 d-flex align-items-end">
-                                <a class="btn btn-outline-secondary w-100" href="{{ route('finance.optional-fees.import.template') }}">
-                                    <i class="bi bi-download"></i> Template
-                                </a>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
+        <div class="col-lg-6">
+            @include('finance.optional_fees.partials.import_tabs', [
+                'defaultYear' => $defaultYear ?? now()->year,
+                'defaultTerm' => $defaultTerm ?? 1,
+            ])
+        </div>
+        <div class="col-lg-6">
+            @include('finance.optional_fees.partials.duplicate_form', [
+                'classrooms' => $classrooms,
+                'optionalVoteheads' => $optionalVoteheads,
+                'defaultYear' => $defaultYear ?? now()->year,
+                'defaultTerm' => $defaultTerm ?? 1,
+            ])
         </div>
     </div>
   </div>

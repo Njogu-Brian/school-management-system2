@@ -363,6 +363,43 @@ class OptionalFeeController extends Controller
     }
 
     /**
+     * Duplicate optional fees from source term to target term.
+     * Scope: student_ids (array), classroom_id, or entire school.
+     */
+    public function duplicate(Request $request)
+    {
+        $request->validate([
+            'source_year' => 'required|integer',
+            'source_term' => 'required|in:1,2,3',
+            'target_year' => 'required|integer',
+            'target_term' => 'required|in:1,2,3',
+            'votehead_ids' => 'nullable|array',
+            'votehead_ids.*' => 'exists:voteheads,id',
+            'student_ids' => 'nullable|array',
+            'student_ids.*' => 'exists:students,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+        ]);
+
+        if ($request->classroom_id && $request->filled('student_ids')) {
+            return back()->with('error', 'Please select either classroom or specific students, not both.');
+        }
+
+        $result = \App\Services\FeeDuplicationService::duplicateOptional(
+            (int) $request->source_year,
+            (int) $request->source_term,
+            (int) $request->target_year,
+            (int) $request->target_term,
+            $request->votehead_ids ? array_map('intval', $request->votehead_ids) : null,
+            $request->student_ids ? array_map('intval', $request->student_ids) : null,
+            $request->classroom_id ? (int) $request->classroom_id : null
+        );
+
+        return back()->with('success', "Duplicated {$result['duplicated']} optional fee(s) to {$request->target_year} Term {$request->target_term}. " .
+            ($result['updated'] ? "{$result['updated']} invoice items updated." : '') .
+            ($result['created'] ? "{$result['created']} invoice items created." : ''));
+    }
+
+    /**
      * Try the DocumentNumberService; if it fails (e.g. document_counters table missing),
      * fall back to a simple predictable sequence: INV-YYYY-#####.
      */

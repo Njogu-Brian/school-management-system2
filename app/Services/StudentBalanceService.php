@@ -10,11 +10,12 @@ class StudentBalanceService
 {
     /**
      * Get total outstanding balance for a student including balance brought forward from legacy data.
-     * 
+     *
      * @param Student|int $student Student model or ID
+     * @param bool $dueOnly If true, only include invoices with due_date <= today (exclude not-yet-due)
      * @return float Total outstanding balance (invoices balance + balance brought forward)
      */
-    public static function getTotalOutstandingBalance($student): float
+    public static function getTotalOutstandingBalance($student, bool $dueOnly = false): float
     {
         $studentModel = $student instanceof Student ? $student : Student::find($student);
         if (!$studentModel) {
@@ -23,9 +24,15 @@ class StudentBalanceService
         
         // getBalanceBroughtForward() returns 0 when student already has BBF on invoice (single source of truth)
         $balanceBroughtForward = self::getBalanceBroughtForward($studentModel);
-        $invoiceBalance = Invoice::where('student_id', $studentModel->id)
-            ->where('status', '!=', 'reversed')
-            ->sum('balance');
+        $query = Invoice::where('student_id', $studentModel->id)
+            ->where('status', '!=', 'reversed');
+        if ($dueOnly) {
+            $query->where(function ($q) {
+                $q->whereNull('due_date')
+                  ->orWhereDate('due_date', '<=', now()->toDateString());
+            });
+        }
+        $invoiceBalance = $query->sum('balance');
         return $invoiceBalance + $balanceBroughtForward; // can be negative (overpayment)
     }
 
@@ -135,10 +142,11 @@ class StudentBalanceService
      * - All invoice balances (which already account for payments, discounts, credit/debit notes)
      * - Balance brought forward from legacy imports (only if not already in invoices)
      * - All voteheads including transport
-     * 
+     *
+     * @param bool $dueOnly If true, only include invoices with due_date <= today (exclude not-yet-due)
      * @return float Total outstanding fees
      */
-    public static function getTotalOutstandingFees(): float
+    public static function getTotalOutstandingFees(bool $dueOnly = false): float
     {
         // Sum all invoice balances (unpaid and partial only)
         // invoice.balance already accounts for:
@@ -146,9 +154,15 @@ class StudentBalanceService
         // - Discounts (item-level and invoice-level, already subtracted in total)
         // - Credit/debit notes (they modify item amounts directly, included in total)
         // - All voteheads including transport
-        $invoiceOutstanding = Invoice::whereIn('status', ['unpaid', 'partial'])
-            ->where('status', '!=', 'reversed')
-            ->sum('balance') ?? 0;
+        $query = Invoice::whereIn('status', ['unpaid', 'partial'])
+            ->where('status', '!=', 'reversed');
+        if ($dueOnly) {
+            $query->where(function ($q) {
+                $q->whereNull('due_date')
+                  ->orWhereDate('due_date', '<=', now()->toDateString());
+            });
+        }
+        $invoiceOutstanding = $query->sum('balance') ?? 0;
 
         // Check if balance brought forward is already included in invoices
         // Balance brought forward is stored as BAL_BF votehead items
@@ -157,10 +171,17 @@ class StudentBalanceService
         
         if ($balanceBroughtForwardVotehead) {
             // Calculate unpaid balance brought forward from invoice items
-            $balanceBroughtForwardInInvoices = \App\Models\InvoiceItem::whereHas('invoice', function($q) {
+            $bfInvoiceQuery = function($q) use ($dueOnly) {
                 $q->whereIn('status', ['unpaid', 'partial'])
                   ->where('status', '!=', 'reversed');
-            })
+                if ($dueOnly) {
+                    $q->where(function ($sub) {
+                        $sub->whereNull('due_date')
+                            ->orWhereDate('due_date', '<=', now()->toDateString());
+                    });
+                }
+            };
+            $balanceBroughtForwardInInvoices = \App\Models\InvoiceItem::whereHas('invoice', $bfInvoiceQuery)
             ->where('votehead_id', $balanceBroughtForwardVotehead->id)
             ->where('source', 'balance_brought_forward')
             ->where('status', 'active')
@@ -215,19 +236,27 @@ class StudentBalanceService
      * Total outstanding fees excluding swimming (for dashboard).
      * Swimming is managed separately in the Swimming module and must not be included in main fee totals.
      *
+     * @param bool $dueOnly If true, only include invoices with due_date <= today (exclude not-yet-due)
      * @return float Total outstanding fees (invoice items only, excluding swimming votehead) + balance brought forward
      */
-    public static function getTotalOutstandingFeesExcludingSwimming(): float
+    public static function getTotalOutstandingFeesExcludingSwimming(bool $dueOnly = false): float
     {
         $swimmingVoteheadIds = \App\Models\Votehead::where(function ($q) {
             $q->where('name', 'like', '%swim%')->orWhere('code', 'like', '%SWIM%');
         })->pluck('id')->toArray();
 
         // Sum unpaid portion of invoice items (excluding swimming) for unpaid/partial invoices
-        $invoiceOutstanding = \App\Models\InvoiceItem::whereHas('invoice', function ($q) {
+        $invoiceQuery = function ($q) use ($dueOnly) {
             $q->whereIn('status', ['unpaid', 'partial'])
                 ->where('status', '!=', 'reversed');
-        })
+            if ($dueOnly) {
+                $q->where(function ($sub) {
+                    $sub->whereNull('due_date')
+                        ->orWhereDate('due_date', '<=', now()->toDateString());
+                });
+            }
+        };
+        $invoiceOutstanding = \App\Models\InvoiceItem::whereHas('invoice', $invoiceQuery)
             ->where('status', 'active')
             ->when(!empty($swimmingVoteheadIds), fn ($q) => $q->whereNotIn('votehead_id', $swimmingVoteheadIds))
             ->get()

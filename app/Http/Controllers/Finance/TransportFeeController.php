@@ -23,42 +23,38 @@ class TransportFeeController extends Controller
         $classroomId = $request->input('classroom_id');
         $classrooms = Classroom::orderBy('name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
-        // Get all active students (not just those with existing transport fees)
-        // This allows viewing and assigning transport fees to any student
-        $students = Student::with(['classroom', 'stream', 'dropOffPoint', 'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint'])
-            ->where('archive', 0)
-            ->where('is_alumni', false)
-            ->when($classroomId, fn($q) => $q->where('classroom_id', $classroomId))
-            ->orderBy('first_name')
-            ->get();
-            
-        $feeStudentIds = TransportFee::where('year', $year)->where('term', $term)->pluck('student_id');
 
-        $studentIds = $students->pluck('id');
-        $feeMap = $studentIds->isEmpty() 
-            ? collect() 
-            : TransportFee::where('year', $year)
-                ->where('term', $term)
-                ->whereIn('student_id', $studentIds)
-                ->get()
-                ->keyBy('student_id');
-            
-        // Get student assignments for morning/evening drop-off points
-        $assignmentMap = $studentIds->isEmpty()
-            ? collect()
-            : \App\Models\StudentAssignment::whereIn('student_id', $studentIds)
-                ->get()
-                ->keyBy('student_id');
+        // Lazy load: only fetch students and fees when classroom filter is applied (avoid loading whole school)
+        $students = collect();
+        $feeMap = collect();
+        $assignmentMap = collect();
+        $totalAmount = 0;
 
-        $totalAmount = $feeMap->sum('amount');
-        
-        // Get recent imports for this term/year (for sidebar display)
-        $recentImports = \App\Models\TransportFeeImport::with('importedBy', 'reversedBy')
-            ->where('year', $year)
-            ->where('term', $term)
-            ->orderBy('imported_at', 'desc')
-            ->limit(5)
-            ->get();
+        if ($classroomId) {
+            $students = Student::with(['classroom', 'stream', 'dropOffPoint', 'assignments.morningDropOffPoint', 'assignments.eveningDropOffPoint'])
+                ->where('archive', 0)
+                ->where('is_alumni', false)
+                ->when($classroomId, fn($q) => $q->where('classroom_id', $classroomId))
+                ->orderBy('first_name')
+                ->get();
+
+            $studentIds = $students->pluck('id');
+            $feeMap = $studentIds->isEmpty()
+                ? collect()
+                : TransportFee::where('year', $year)
+                    ->where('term', $term)
+                    ->whereIn('student_id', $studentIds)
+                    ->get()
+                    ->keyBy('student_id');
+
+            $assignmentMap = $studentIds->isEmpty()
+                ? collect()
+                : \App\Models\StudentAssignment::whereIn('student_id', $studentIds)
+                    ->get()
+                    ->keyBy('student_id');
+
+            $totalAmount = $feeMap->sum('amount');
+        }
 
         return view('finance.transport_fees.index', [
             'classrooms' => $classrooms,
@@ -71,7 +67,6 @@ class TransportFeeController extends Controller
             'term' => $term,
             'academicYearId' => $academicYearId,
             'totalAmount' => $totalAmount,
-            'recentImports' => $recentImports,
         ]);
     }
 
@@ -704,6 +699,40 @@ class TransportFeeController extends Controller
     public function importView()
     {
         return view('finance.transport_fees.import');
+    }
+
+    /**
+     * Duplicate transport fees from source term to target term.
+     * Scope: student_ids (array), classroom_id, or entire school.
+     */
+    public function duplicate(Request $request)
+    {
+        $request->validate([
+            'source_year' => 'required|integer',
+            'source_term' => 'required|in:1,2,3',
+            'target_year' => 'required|integer',
+            'target_term' => 'required|in:1,2,3',
+            'student_ids' => 'nullable|array',
+            'student_ids.*' => 'exists:students,id',
+            'classroom_id' => 'nullable|exists:classrooms,id',
+        ]);
+
+        if ($request->classroom_id && $request->filled('student_ids')) {
+            return back()->with('error', 'Select either classroom or specific students, not both. Clear one to use the other.');
+        }
+
+        $result = \App\Services\FeeDuplicationService::duplicateTransport(
+            (int) $request->source_year,
+            (int) $request->source_term,
+            (int) $request->target_year,
+            (int) $request->target_term,
+            $request->student_ids ? array_map('intval', $request->student_ids) : null,
+            $request->classroom_id ? (int) $request->classroom_id : null
+        );
+
+        return back()->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$request->target_year} Term {$request->target_term}. " .
+            ($result['updated'] ? "{$result['updated']} updated." : '') .
+            ($result['created'] ? "{$result['created']} created." : ''));
     }
 }
 

@@ -71,6 +71,9 @@
         <input type="hidden" name="class_id" value="{{ $filters['class_id'] ?? '' }}">
         <input type="hidden" name="stream_id" value="{{ $filters['stream_id'] ?? '' }}">
         <input type="hidden" name="student_id" value="{{ $filters['student_id'] ?? '' }}">
+        @foreach((array)($filters['student_ids'] ?? []) as $sid)
+        <input type="hidden" name="student_ids[]" value="{{ $sid }}">
+        @endforeach
         <input type="hidden" name="student_category_id" value="{{ $filters['student_category_id'] ?? '' }}">
         <input type="hidden" name="effective_date" value="{{ $filters['effective_date'] ?? '' }}">
         

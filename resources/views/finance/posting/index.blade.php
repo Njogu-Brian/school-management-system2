@@ -71,6 +71,36 @@
           </select>
         </div>
 
+        <div class="col-12">
+          <label class="finance-form-label">Or select specific student(s)</label>
+          <div class="d-flex gap-2 flex-wrap align-items-start">
+            @include('partials.student_live_search', [
+              'hiddenInputId' => 'posting_student_id',
+              'hiddenInputName' => 'student_id',
+              'displayInputId' => 'posting_student_display',
+              'resultsId' => 'posting_student_results',
+              'placeholder' => 'Search & add students by name or admission #',
+              'initialLabel' => '',
+              'initialStudentId' => '',
+            ])
+            <div class="flex-grow-1">
+              <small class="text-muted d-block">Leave empty to use class/stream filters. Search and add students to post for specific students only.</small>
+              <div id="posting-selected-students" class="mt-2 d-flex flex-wrap gap-1">
+                @foreach((array) request('student_ids', []) as $sid)
+                  @php $s = \App\Models\Student::find($sid); @endphp
+                  @if($s)
+                    <span class="badge bg-primary d-inline-flex align-items-center gap-1">
+                      {{ $s->full_name }} ({{ $s->admission_number }})
+                      <input type="hidden" name="student_ids[]" value="{{ $s->id }}">
+                      <button type="button" class="btn-close btn-close-white btn-close-sm" aria-label="Remove" onclick="this.parentElement.remove()"></button>
+                    </span>
+                  @endif
+                @endforeach
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="col-12 d-flex gap-2 flex-wrap">
           <button type="submit" class="btn btn-finance btn-finance-primary">
             <i class="bi bi-search"></i> Preview
@@ -141,4 +171,36 @@
     </div>
   </div>
   @endif
+
+  @push('scripts')
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('posting-selected-students');
+    const displayInput = document.getElementById('posting_student_display');
+    const hiddenInput = document.getElementById('posting_student_id');
+    if (!container) return;
+
+    function addStudentToList(stu) {
+      if (container.querySelector(`input[value="${stu.id}"]`)) return; // already added
+      const span = document.createElement('span');
+      span.className = 'badge bg-primary d-inline-flex align-items-center gap-1';
+      span.innerHTML = `${escapeHtml(stu.full_name)} (${escapeHtml(stu.admission_number || '')}) ` +
+        `<input type="hidden" name="student_ids[]" value="${stu.id}">` +
+        `<button type="button" class="btn-close btn-close-white btn-close-sm" aria-label="Remove" onclick="this.parentElement.remove()"></button>`;
+      container.appendChild(span);
+      displayInput.value = '';
+      hiddenInput.value = '';
+    }
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+    window.addEventListener('student-selected', function(e) {
+      if (e.detail && e.detail.id) addStudentToList(e.detail);
+    });
+  });
+  </script>
+  @endpush
 @endsection
