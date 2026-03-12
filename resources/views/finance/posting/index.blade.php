@@ -14,6 +14,12 @@
       <i class="bi bi-funnel"></i> <span>Select Criteria</span>
     </div>
     <div class="finance-card-body p-4">
+      <div class="alert alert-light border mb-3">
+        <small class="text-muted">
+          <i class="bi bi-info-circle me-1"></i>
+          <strong>Tip:</strong> Leaving Class, Stream, and Student as "All" will post for the <strong>entire school</strong>. To post for fewer students, select a Class, Stream, or search and add specific students.
+        </small>
+      </div>
       <form method="POST" action="{{ route('finance.posting.preview') }}" class="row g-3">
         @csrf
 

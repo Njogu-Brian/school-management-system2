@@ -10,6 +10,39 @@
 
     @include('finance.invoices.partials.alerts')
     
+    {{-- Show filters scope so user knows what will be committed --}}
+    @if(isset($filters))
+    <div class="alert alert-info mb-3 d-flex align-items-start gap-2">
+        <i class="bi bi-info-circle fs-5"></i>
+        <div>
+            <strong>Posting scope:</strong>
+            Year {{ $filters['year'] ?? request('year') }}, Term {{ $filters['term'] ?? request('term') }}
+            @if(!empty($filters['class_id']))
+                | Class: {{ \App\Models\Academics\Classroom::find($filters['class_id'])?->name ?? 'N/A' }}
+            @else
+                | Class: <strong>All</strong>
+            @endif
+            @if(!empty($filters['stream_id']))
+                | Stream: {{ \App\Models\Academics\Stream::find($filters['stream_id'])?->name ?? 'N/A' }}
+            @else
+                | Stream: <strong>All</strong>
+            @endif
+            @if(!empty($filters['student_ids']) && is_array($filters['student_ids']))
+                | <strong>{{ count($filters['student_ids']) }} specific students</strong>
+            @elseif(!empty($filters['class_id']) || !empty($filters['stream_id']))
+                | (filtered)
+            @else
+                | <strong>Entire school</strong>
+            @endif
+            @if(isset($groupedDiffs))
+                <span class="text-muted">→ {{ $groupedDiffs->total() }} students</span>
+            @endif
+            <br>
+            <small class="text-muted">To post for fewer students, click Back and select a Class, Stream, or specific students before previewing.</small>
+        </div>
+    </div>
+    @endif
+
     <div class="finance-card finance-animate mb-3 shadow-sm rounded-4 border-0">
         <div class="finance-card-body p-4">
             @if(isset($summary))

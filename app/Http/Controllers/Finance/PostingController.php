@@ -128,6 +128,7 @@ class PostingController extends Controller
             'class_id' => $request->input('class_id'),
             'stream_id' => $request->input('stream_id'),
             'student_id' => $request->input('student_id'),
+            'student_ids' => $request->input('student_ids'),
             'student_category_id' => $request->input('student_category_id'),
             'effective_date' => $request->input('effective_date'),
             'per_page' => $perPage,
