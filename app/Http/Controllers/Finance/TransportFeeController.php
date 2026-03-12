@@ -163,7 +163,7 @@ class TransportFeeController extends Controller
             'file' => 'required|file|mimes:xlsx,xls,csv,txt',
             'year' => 'nullable|integer',
             'term' => 'nullable|integer|in:1,2,3',
-            'year_term' => 'nullable|string|regex:/^\d+\|\d+$/',
+            'year_term' => ['nullable', 'string', 'regex:/^\d+\|\d+$/'],
         ]);
 
         if ($request->filled('year_term')) {
@@ -745,8 +745,8 @@ class TransportFeeController extends Controller
     public function duplicate(Request $request)
     {
         $request->validate([
-            'source_year_term' => 'required|string|regex:/^\d+\|\d+$/',
-            'target_year_term' => 'required|string|regex:/^\d+\|\d+$/',
+            'source_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'target_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
             'student_ids' => 'nullable|array',
             'student_ids.*' => 'exists:students,id',
             'classroom_id' => 'nullable|exists:classrooms,id',
