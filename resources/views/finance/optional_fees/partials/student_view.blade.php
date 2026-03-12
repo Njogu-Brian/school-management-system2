@@ -14,18 +14,29 @@
     </div>
 
     <div class="col-md-3">
-        <label class="form-label">Term</label>
-        <select name="term" id="termSelect" class="form-select" required>
-            <option value="">Select</option>
-            @for($i = 1; $i <= 3; $i++)
-                <option value="{{ $i }}" {{ (request('term', $currentTermNumber ?? 1) == $i) ? 'selected' : '' }}>Term {{ $i }}</option>
-            @endfor
+        <label class="form-label">Year</label>
+        <select name="year" id="yearInput" class="form-select" required>
+            @foreach(\App\Models\AcademicYear::orderByDesc('year')->get() as $ay)
+                <option value="{{ $ay->year }}" {{ (request('year', $defaultYear ?? now()->year) == $ay->year) ? 'selected' : '' }}>{{ $ay->year }}</option>
+            @endforeach
         </select>
     </div>
 
     <div class="col-md-3">
-        <label class="form-label">Year</label>
-        <input type="number" name="year" id="yearInput" value="{{ request('year', $currentYear ?? now()->year) }}" class="form-control" required>
+        <label class="form-label">Term</label>
+        <select name="term" id="termSelect" class="form-select" required>
+            @php
+                $reqYear = request('year', $defaultYear ?? now()->year);
+                $termsForYear = ($allTerms ?? collect())->filter(fn($t) => $t->academicYear && $t->academicYear->year == $reqYear);
+                $termNum = fn($t) => (int) preg_replace('/[^0-9]/', '', $t->name) ?: 1;
+            @endphp
+            @foreach($termsForYear as $t)
+                <option value="{{ $termNum($t) }}" {{ (request('term', $defaultTerm ?? 1) == $termNum($t)) ? 'selected' : '' }}>{{ $t->name }}</option>
+            @endforeach
+            @if($termsForYear->isEmpty())
+                <option value="{{ request('term', $defaultTerm ?? 1) }}">Term {{ request('term', $defaultTerm ?? 1) }}</option>
+            @endif
+        </select>
     </div>
 </form>
 

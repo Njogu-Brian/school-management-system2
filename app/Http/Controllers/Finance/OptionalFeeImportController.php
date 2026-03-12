@@ -24,9 +24,14 @@ class OptionalFeeImportController extends Controller
             'file' => 'required|file|mimes:xlsx,xls,csv,txt',
             'year' => 'nullable|integer',
             'term' => 'nullable|integer|in:1,2,3',
+            'year_term' => ['nullable', 'string', 'regex:/^\d+\|\d+$/'],
         ]);
 
-        [$year, $term] = $this->resolveYearAndTerm($request->year, $request->term);
+        if ($request->filled('year_term')) {
+            [$year, $term] = array_map('intval', explode('|', $request->year_term));
+        } else {
+            [$year, $term] = $this->resolveYearAndTerm($request->year, $request->term);
+        }
 
         try {
             $sheet = Excel::toArray([], $request->file('file'))[0] ?? [];

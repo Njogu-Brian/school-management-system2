@@ -9,9 +9,11 @@ use App\Models\FeeStructure;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\OptionalFee;
+use App\Models\Term;
 use App\Services\InvoiceService;
 use App\Models\Student;
 use App\Models\Votehead;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -109,10 +111,30 @@ class OptionalFeeController extends Controller
             $linkedActivities = collect();
         }
 
+        $termsByYear = Term::with('academicYear')
+            ->whereNotNull('opening_date')
+            ->orderBy('opening_date')
+            ->get()
+            ->groupBy(fn($t) => $t->academicYear?->year ?? 'unknown');
+
+        $futureTerms = Term::with('academicYear')
+            ->where(function ($q) {
+                $q->where('closing_date', '>=', Carbon::today())
+                  ->orWhereNull('closing_date');
+            })
+            ->orderBy('opening_date')
+            ->get();
+
+        $allTerms = Term::with('academicYear')
+            ->whereNotNull('opening_date')
+            ->orderBy('opening_date')
+            ->get();
+
         return view('finance.optional_fees.index', compact(
             'defaultYear', 'defaultTerm',
             'view', 'classrooms', 'optionalVoteheads', 'allStudents',
-            'students', 'student', 'statuses', 'term', 'year', 'linkedActivities'
+            'students', 'student', 'statuses', 'term', 'year', 'linkedActivities',
+            'termsByYear', 'futureTerms', 'allTerms'
         ));
     }
 
@@ -369,10 +391,8 @@ class OptionalFeeController extends Controller
     public function duplicate(Request $request)
     {
         $request->validate([
-            'source_year' => 'required|integer',
-            'source_term' => 'required|in:1,2,3',
-            'target_year' => 'required|integer',
-            'target_term' => 'required|in:1,2,3',
+            'source_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'target_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
             'votehead_ids' => 'nullable|array',
             'votehead_ids.*' => 'exists:voteheads,id',
             'student_ids' => 'nullable|array',
@@ -384,17 +404,20 @@ class OptionalFeeController extends Controller
             return back()->with('error', 'Please select either classroom or specific students, not both.');
         }
 
+        [$sourceYear, $sourceTerm] = array_map('intval', explode('|', $request->source_year_term));
+        [$targetYear, $targetTerm] = array_map('intval', explode('|', $request->target_year_term));
+
         $result = \App\Services\FeeDuplicationService::duplicateOptional(
-            (int) $request->source_year,
-            (int) $request->source_term,
-            (int) $request->target_year,
-            (int) $request->target_term,
+            $sourceYear,
+            $sourceTerm,
+            $targetYear,
+            $targetTerm,
             $request->votehead_ids ? array_map('intval', $request->votehead_ids) : null,
             $request->student_ids ? array_map('intval', $request->student_ids) : null,
             $request->classroom_id ? (int) $request->classroom_id : null
         );
 
-        return back()->with('success', "Duplicated {$result['duplicated']} optional fee(s) to {$request->target_year} Term {$request->target_term}. " .
+        return back()->with('success', "Duplicated {$result['duplicated']} optional fee(s) to {$targetYear} Term {$targetTerm}. " .
             ($result['updated'] ? "{$result['updated']} invoice items updated." : '') .
             ($result['created'] ? "{$result['created']} invoice items created." : ''));
     }
