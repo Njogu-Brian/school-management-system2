@@ -265,6 +265,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                                         ?? data_get($response, 'body.messageId')
                                         ?? data_get($response, 'body.id'),
                     'provider_status'=> data_get($response, 'body.status') ?? data_get($response, 'status'),
+                    'tracking_id'   => $this->trackingId,
                 ]);
 
                 if ($status === 'sent') {
@@ -310,6 +311,7 @@ class BulkSendWhatsAppMessages implements ShouldQueue
                     'response'       => $e->getMessage(),
                     'scope'          => 'whatsapp',
                     'sent_at'        => now(),
+                    'tracking_id'    => $this->trackingId,
                 ]);
 
                 $this->updateProgress([

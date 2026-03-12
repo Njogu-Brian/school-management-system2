@@ -123,6 +123,42 @@ class CommunicationController extends Controller
 
         $rawRecipients = $this->collectRecipients($data, 'email');
         $recipients = $this->expandRecipientsToPairs($rawRecipients);
+
+        // For bulk sends (>10 recipients), use queue job to avoid 504 timeout
+        $useQueue = count($recipients) > 10 || $request->has('use_queue');
+        if ($useQueue) {
+            $trackingId = 'email_bulk_' . uniqid() . '_' . time();
+            $recipientsData = [];
+            foreach ($recipients as [$email, $entity]) {
+                $recipientsData[] = [
+                    'email' => $email,
+                    'entity' => [
+                        'id' => $entity->id ?? null,
+                        'classroom_id' => $entity->classroom_id ?? null,
+                        'type' => is_object($entity) ? get_class($entity) : null,
+                        'first_name' => $entity->first_name ?? null,
+                        'last_name' => $entity->last_name ?? null,
+                        'admission_number' => $entity->admission_number ?? null,
+                    ],
+                ];
+            }
+            \App\Jobs\BulkSendEmail::dispatch(
+                $trackingId,
+                $recipientsData,
+                $messageBody,
+                $subject,
+                $data['target'],
+                $attachmentPath,
+                auth()->id()
+            );
+            \Log::info('Email bulk send job dispatched', [
+                'tracking_id' => $trackingId,
+                'recipient_count' => count($recipients),
+            ]);
+            $progressUrl = url('/communication/send-email/progress') . '?tracking_id=' . urlencode($trackingId) . '&total=' . count($recipients);
+            return redirect($progressUrl)->with('info', 'Bulk email started. Processing in background. You can track progress below.');
+        }
+
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
@@ -274,6 +310,42 @@ class CommunicationController extends Controller
             $tpl   = CommunicationTemplate::find($data['template_id']);
             $title = $tpl?->title ?: $title;
         }
+
+        // For bulk sends (>10 recipients), use queue job to avoid 504 timeout
+        $useQueue = count($recipients) > 10 || $request->has('use_queue');
+        if ($useQueue) {
+            $trackingId = 'sms_bulk_' . uniqid() . '_' . time();
+            $recipientsData = [];
+            foreach ($recipients as [$phone, $entity]) {
+                $recipientsData[] = [
+                    'phone' => $phone,
+                    'entity' => [
+                        'id' => $entity->id ?? null,
+                        'classroom_id' => $entity->classroom_id ?? null,
+                        'type' => is_object($entity) ? get_class($entity) : null,
+                        'first_name' => $entity->first_name ?? null,
+                        'last_name' => $entity->last_name ?? null,
+                        'admission_number' => $entity->admission_number ?? null,
+                    ],
+                ];
+            }
+            \App\Jobs\BulkSendSMS::dispatch(
+                $trackingId,
+                $recipientsData,
+                $message,
+                $title,
+                $data['target'],
+                $request->input('sender_id'),
+                auth()->id()
+            );
+            \Log::info('SMS bulk send job dispatched', [
+                'tracking_id' => $trackingId,
+                'recipient_count' => count($recipients),
+            ]);
+            $progressUrl = url('/communication/send-sms/progress') . '?tracking_id=' . urlencode($trackingId) . '&total=' . count($recipients);
+            return redirect($progressUrl)->with('info', 'Bulk SMS started. Processing in background. You can track progress below.');
+        }
+
         $sentCount = 0;
         $failedCount = 0;
         $failures = [];
@@ -649,6 +721,58 @@ class CommunicationController extends Controller
     }
 
     /**
+     * Show progress for bulk SMS send
+     */
+    public function smsProgress(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add"), 403);
+        $trackingId = $request->query('tracking_id');
+        if (!$trackingId) {
+            return redirect()->route('communication.send.sms')->with('error', 'Invalid tracking ID');
+        }
+        $progress = Cache::get("bulk_sms_progress:{$trackingId}", [
+            'status' => 'processing',
+            'total' => $request->query('total', 0),
+            'sent' => 0,
+            'failed' => 0,
+            'processed' => 0,
+        ]);
+        return view('communication.bulk-progress', [
+            'trackingId' => $trackingId,
+            'progress' => $progress,
+            'channel' => 'sms',
+            'backRoute' => 'communication.send.sms',
+            'backLabel' => 'Back to Send SMS',
+        ]);
+    }
+
+    /**
+     * Show progress for bulk Email send
+     */
+    public function emailProgress(Request $request)
+    {
+        abort_unless(can_access("communication", "email", "add"), 403);
+        $trackingId = $request->query('tracking_id');
+        if (!$trackingId) {
+            return redirect()->route('communication.send.email')->with('error', 'Invalid tracking ID');
+        }
+        $progress = Cache::get("bulk_email_progress:{$trackingId}", [
+            'status' => 'processing',
+            'total' => $request->query('total', 0),
+            'sent' => 0,
+            'failed' => 0,
+            'processed' => 0,
+        ]);
+        return view('communication.bulk-progress', [
+            'trackingId' => $trackingId,
+            'progress' => $progress,
+            'channel' => 'email',
+            'backRoute' => 'communication.send.email',
+            'backLabel' => 'Back to Send Email',
+        ]);
+    }
+
+    /**
      * Show progress for bulk WhatsApp send
      */
     public function whatsappProgress(Request $request)
@@ -861,6 +985,66 @@ class CommunicationController extends Controller
             \Log::error('Preview error', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return back()->with('error', 'Preview failed: ' . $e->getMessage());
         }
+    }
+
+    /* ========== CONVERSATIONS (Bulk Campaign Tracking) ========== */
+    /**
+     * Track bulk send campaigns - view exactly which messages were sent, failed, or skipped.
+     */
+    public function conversations(Request $request)
+    {
+        abort_unless(can_access("communication", "sms", "add") || can_access("communication", "email", "add"), 403);
+
+        $channelFilter = $request->query('channel');
+        $trackingIdFilter = $request->query('tracking_id');
+        $dateFrom = $request->query('date_from');
+        $dateTo = $request->query('date_to');
+
+        // Get distinct tracking IDs from communication_logs (bulk sends have tracking_id)
+        $campaignsQuery = CommunicationLog::query()
+            ->whereNotNull('tracking_id')
+            ->where('tracking_id', '!=', '');
+
+        if ($channelFilter) {
+            $campaignsQuery->where('channel', $channelFilter);
+        }
+        if ($trackingIdFilter) {
+            $campaignsQuery->where('tracking_id', 'like', '%' . $trackingIdFilter . '%');
+        }
+        if ($dateFrom) {
+            $campaignsQuery->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $campaignsQuery->whereDate('created_at', '<=', $dateTo);
+        }
+
+        $campaigns = $campaignsQuery
+            ->selectRaw('tracking_id, channel, title, MIN(created_at) as first_sent_at, MAX(created_at) as last_sent_at')
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw("SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent_count")
+            ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count")
+            ->groupBy('tracking_id', 'channel', 'title')
+            ->orderByDesc('first_sent_at')
+            ->paginate(15);
+
+        // If a specific tracking_id is requested, load its logs
+        $campaignLogs = collect();
+        $selectedTrackingId = $request->query('view');
+        if ($selectedTrackingId) {
+            $campaignLogs = CommunicationLog::where('tracking_id', $selectedTrackingId)
+                ->orderBy('created_at')
+                ->get();
+        }
+
+        return view('communication.conversations', compact(
+            'campaigns',
+            'campaignLogs',
+            'selectedTrackingId',
+            'channelFilter',
+            'trackingIdFilter',
+            'dateFrom',
+            'dateTo'
+        ));
     }
 
     /* ========== LOGS ========== */

@@ -20,6 +20,8 @@ class SendScheduledCommunicationsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public $timeout = 300; // 5 min max for cron dispatch; actual sends run in child jobs
+
     public function handle(SMSService $smsService, WhatsAppService $whatsAppService)
     {
         $now = now();
@@ -36,7 +38,73 @@ class SendScheduledCommunicationsJob implements ShouldQueue
                 'classroom_id' => $item->classroom_id,
             ], $item->type);
 
-            foreach (CommunicationHelperService::expandRecipientsToPairs($recipients) as [$contact, $entity]) {
+            $pairs = CommunicationHelperService::expandRecipientsToPairs($recipients);
+
+            // For large batches (>10), dispatch bulk job to avoid timeout
+            if (count($pairs) > 10) {
+                $trackingId = 'scheduled_' . $item->type . '_' . $item->id . '_' . time();
+                $title = $template->title ?? ucfirst($item->type);
+
+                if ($item->type === 'email') {
+                    $recipientsData = [];
+                    foreach ($pairs as [$email, $entity]) {
+                        $recipientsData[] = [
+                            'email' => $email,
+                            'entity' => [
+                                'id' => $entity->id ?? null,
+                                'classroom_id' => $entity->classroom_id ?? null,
+                                'type' => is_object($entity) ? get_class($entity) : null,
+                                'first_name' => $entity->first_name ?? null,
+                                'last_name' => $entity->last_name ?? null,
+                                'admission_number' => $entity->admission_number ?? null,
+                            ],
+                        ];
+                    }
+                    \App\Jobs\BulkSendEmail::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, null);
+                } elseif ($item->type === 'whatsapp') {
+                    $recipientsData = [];
+                    foreach ($pairs as [$phone, $entity]) {
+                        $normalized = $this->normalizeKenyanPhone($phone);
+                        if (!$normalized) continue;
+                        $recipientsData[] = [
+                            'phone' => $normalized,
+                            'entity' => [
+                                'id' => $entity->id ?? null,
+                                'classroom_id' => $entity->classroom_id ?? null,
+                                'type' => is_object($entity) ? get_class($entity) : null,
+                                'first_name' => $entity->first_name ?? null,
+                                'last_name' => $entity->last_name ?? null,
+                                'admission_number' => $entity->admission_number ?? null,
+                            ],
+                        ];
+                    }
+                    \App\Jobs\BulkSendWhatsAppMessages::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, true, null);
+                } else {
+                    // SMS - normalize Kenyan phones
+                    $recipientsData = [];
+                    foreach ($pairs as [$phone, $entity]) {
+                        $normalized = $this->normalizeKenyanPhone($phone);
+                        if ($normalized) {
+                            $recipientsData[] = [
+                                'phone' => $normalized,
+                                'entity' => [
+                                    'id' => $entity->id ?? null,
+                                    'classroom_id' => $entity->classroom_id ?? null,
+                                    'type' => is_object($entity) ? get_class($entity) : null,
+                                    'first_name' => $entity->first_name ?? null,
+                                    'last_name' => $entity->last_name ?? null,
+                                    'admission_number' => $entity->admission_number ?? null,
+                                ],
+                            ];
+                        }
+                    }
+                    \App\Jobs\BulkSendSMS::dispatch($trackingId, $recipientsData, $template->content, $title, $item->target, null, null);
+                }
+                $item->update(['status' => 'sent']);
+                continue;
+            }
+
+            foreach ($pairs as [$contact, $entity]) {
                 $personalized = replace_placeholders($template->content, $entity);
 
                 try {
@@ -102,5 +170,18 @@ class SendScheduledCommunicationsJob implements ShouldQueue
 
             $item->update(['status' => 'sent']);
         }
+    }
+
+    private function normalizeKenyanPhone(?string $phone): ?string
+    {
+        if (!$phone) return null;
+        $clean = preg_replace('/[^\d+]/', '', $phone);
+        $clean = ltrim($clean, '+');
+        if (str_starts_with($clean, '0')) {
+            $clean = '254' . substr($clean, 1);
+        }
+        if (!str_starts_with($clean, '254')) return null;
+        if (!preg_match('/^254\d{8,9}$/', $clean)) return null;
+        return $clean;
     }
 }

@@ -1165,6 +1165,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
 
         Route::get('send-sms',   [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
         Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
+        Route::get('send-sms/progress', [CommunicationController::class, 'smsProgress'])->name('communication.send.sms.progress');
+        Route::get('send-email/progress', [CommunicationController::class, 'emailProgress'])->name('communication.send.email.progress');
         Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
         Route::post('send-whatsapp', [CommunicationController::class, 'sendWhatsApp'])->name('communication.send.whatsapp.submit');
         Route::get('send-whatsapp/progress', [CommunicationController::class, 'whatsappProgress'])->name('communication.send.whatsapp.progress');
@@ -1191,9 +1193,10 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('sms-dlr', [CommunicationController::class, 'smsDlrUpload'])->name('communication.sms-dlr');
         Route::post('sms-dlr', [CommunicationController::class, 'smsDlrProcess'])->name('communication.sms-dlr.process');
 
-        // Logs
+        // Logs & Conversations (track bulk campaigns and delivery status)
         Route::get('logs',           [CommunicationController::class, 'logs'])->name('communication.logs');
         Route::get('logs/scheduled', [CommunicationController::class, 'logsScheduled'])->name('communication.logs.scheduled');
+        Route::get('conversations',  [CommunicationController::class, 'conversations'])->name('communication.conversations');
 
         // Pending Jobs
         Route::get('pending-jobs', [CommunicationController::class, 'pendingJobs'])->name('communication.pending-jobs');

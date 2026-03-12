@@ -11,7 +11,7 @@ class CommunicationLog extends Model
         'title', 'message', 'status', 'type', 'sent_at',
         'classroom_id', 'stream_id', 'scope', 'response',
         'provider_id', 'provider_status', 'delivered_at', 'error_code',
-        'payment_id'
+        'payment_id', 'tracking_id'
     ];
     
     protected $guarded = []; 
