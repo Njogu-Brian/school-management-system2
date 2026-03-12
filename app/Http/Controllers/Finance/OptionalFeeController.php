@@ -385,10 +385,9 @@ class OptionalFeeController extends Controller
     }
 
     /**
-     * Duplicate optional fees from source term to target term.
-     * Scope: student_ids (array), classroom_id, or entire school.
+     * Preview optional fee duplication – show proposed changes for approve/reject.
      */
-    public function duplicate(Request $request)
+    public function duplicatePreview(Request $request)
     {
         $request->validate([
             'source_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
@@ -407,7 +406,7 @@ class OptionalFeeController extends Controller
         [$sourceYear, $sourceTerm] = array_map('intval', explode('|', $request->source_year_term));
         [$targetYear, $targetTerm] = array_map('intval', explode('|', $request->target_year_term));
 
-        $result = \App\Services\FeeDuplicationService::duplicateOptional(
+        $items = \App\Services\FeeDuplicationService::previewOptional(
             $sourceYear,
             $sourceTerm,
             $targetYear,
@@ -417,9 +416,65 @@ class OptionalFeeController extends Controller
             $request->classroom_id ? (int) $request->classroom_id : null
         );
 
-        return back()->with('success', "Duplicated {$result['duplicated']} optional fee(s) to {$targetYear} Term {$targetTerm}. " .
-            ($result['updated'] ? "{$result['updated']} invoice items updated." : '') .
-            ($result['created'] ? "{$result['created']} invoice items created." : ''));
+        if (empty($items)) {
+            return back()->with('error', 'No optional fees found to duplicate for the selected source term and filters.');
+        }
+
+        return view('finance.optional_fees.duplicate_preview', [
+            'items' => $items,
+            'sourceYear' => $sourceYear,
+            'sourceTerm' => $sourceTerm,
+            'targetYear' => $targetYear,
+            'targetTerm' => $targetTerm,
+        ]);
+    }
+
+    /**
+     * Commit optional fee duplication – process only approved items.
+     */
+    public function duplicateCommit(Request $request)
+    {
+        $request->validate([
+            'source_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'target_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'approved' => 'nullable|array',
+            'approved.*' => 'string',
+        ]);
+
+        [$targetYear, $targetTerm] = array_map('intval', explode('|', $request->target_year_term));
+
+        $items = [];
+        foreach ($request->input('approved', []) as $encoded) {
+            $row = json_decode(base64_decode($encoded), true);
+            if ($row && isset($row['student_id'], $row['votehead_id'], $row['amount'])) {
+                $items[] = [
+                    'student_id' => (int) $row['student_id'],
+                    'votehead_id' => (int) $row['votehead_id'],
+                    'amount' => (float) $row['amount'],
+                ];
+            }
+        }
+
+        if (empty($items)) {
+            return redirect()->route('finance.optional_fees.index')
+                ->with('error', 'No items selected to duplicate. Please approve at least one item.');
+        }
+
+        $result = \App\Services\FeeDuplicationService::duplicateOptionalSelected($targetYear, $targetTerm, $items);
+
+        return redirect()->route('finance.optional_fees.index')
+            ->with('success', "Duplicated {$result['duplicated']} optional fee(s) to {$targetYear} Term {$targetTerm}. " .
+                ($result['updated'] ? "{$result['updated']} invoice items updated." : '') .
+                ($result['created'] ? "{$result['created']} invoice items created." : ''));
+    }
+
+    /**
+     * Duplicate optional fees from source term to target term (legacy – now goes through preview).
+     * Kept for backwards compatibility; redirects to preview.
+     */
+    public function duplicate(Request $request)
+    {
+        return $this->duplicatePreview($request);
     }
 
     /**

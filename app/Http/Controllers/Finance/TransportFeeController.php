@@ -739,10 +739,9 @@ class TransportFeeController extends Controller
     }
 
     /**
-     * Duplicate transport fees from source term to target term.
-     * Scope: student_ids (array), classroom_id, or entire school.
+     * Preview transport fee duplication – show proposed changes for approve/reject.
      */
-    public function duplicate(Request $request)
+    public function duplicatePreview(Request $request)
     {
         $request->validate([
             'source_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
@@ -759,7 +758,7 @@ class TransportFeeController extends Controller
         [$sourceYear, $sourceTerm] = array_map('intval', explode('|', $request->source_year_term));
         [$targetYear, $targetTerm] = array_map('intval', explode('|', $request->target_year_term));
 
-        $result = \App\Services\FeeDuplicationService::duplicateTransport(
+        $items = \App\Services\FeeDuplicationService::previewTransport(
             $sourceYear,
             $sourceTerm,
             $targetYear,
@@ -768,9 +767,65 @@ class TransportFeeController extends Controller
             $request->classroom_id ? (int) $request->classroom_id : null
         );
 
-        return back()->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$targetYear} Term {$targetTerm}. " .
-            ($result['updated'] ? "{$result['updated']} updated." : '') .
-            ($result['created'] ? "{$result['created']} created." : ''));
+        if (empty($items)) {
+            return back()->with('error', 'No transport fees found to duplicate for the selected source term and filters.');
+        }
+
+        return view('finance.transport_fees.duplicate_preview', [
+            'items' => $items,
+            'sourceYear' => $sourceYear,
+            'sourceTerm' => $sourceTerm,
+            'targetYear' => $targetYear,
+            'targetTerm' => $targetTerm,
+        ]);
+    }
+
+    /**
+     * Commit transport fee duplication – process only approved items.
+     */
+    public function duplicateCommit(Request $request)
+    {
+        $request->validate([
+            'source_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'target_year_term' => ['required', 'string', 'regex:/^\d+\|\d+$/'],
+            'approved' => 'nullable|array',
+            'approved.*' => 'string',
+        ]);
+
+        [$targetYear, $targetTerm] = array_map('intval', explode('|', $request->target_year_term));
+
+        $items = [];
+        foreach ($request->input('approved', []) as $encoded) {
+            $row = json_decode(base64_decode($encoded), true);
+            if ($row && isset($row['student_id'], $row['amount'])) {
+                $items[] = [
+                    'student_id' => (int) $row['student_id'],
+                    'amount' => (float) $row['amount'],
+                    'drop_off_point_id' => $row['drop_off_point_id'] ?? null,
+                    'drop_off_point_name' => $row['drop_off_point_name'] ?? null,
+                ];
+            }
+        }
+
+        if (empty($items)) {
+            return redirect()->route('finance.transport-fees.index')
+                ->with('error', 'No items selected to duplicate. Please approve at least one item.');
+        }
+
+        $result = \App\Services\FeeDuplicationService::duplicateTransportSelected($targetYear, $targetTerm, $items);
+
+        return redirect()->route('finance.transport-fees.index')
+            ->with('success', "Duplicated {$result['duplicated']} transport fee(s) to {$targetYear} Term {$targetTerm}. " .
+                ($result['updated'] ? "{$result['updated']} updated." : '') .
+                ($result['created'] ? "{$result['created']} created." : ''));
+    }
+
+    /**
+     * Duplicate transport fees from source term to target term (legacy – now goes through preview).
+     */
+    public function duplicate(Request $request)
+    {
+        return $this->duplicatePreview($request);
     }
 }
 
