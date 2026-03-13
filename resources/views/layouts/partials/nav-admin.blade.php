@@ -628,10 +628,12 @@ class="{{ $isCommunicationActive ? 'parent-active' : '' }}">
     <i class="bi bi-clipboard2-check"></i> Delivery Reports
     </a>
     @endif
+    @if(Route::has('communication.conversations'))
     <a href="{{ route('communication.conversations') }}" 
     class="sublink {{ Request::is('communication/conversations*') ? 'active' : '' }}">
     <i class="bi bi-chat-square-text"></i> Conversations
     </a>
+    @endif
     <a href="{{ route('communication.logs') }}" 
     class="sublink {{ Request::is('communication/logs*') ? 'active' : '' }}">
     <i class="bi bi-clock-history"></i> Logs
