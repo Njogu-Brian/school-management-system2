@@ -1163,10 +1163,11 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
         Route::post('send-email',[CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
 
-        Route::get('send-sms',   [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
-        Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
+        // Progress routes MUST come before base routes (more specific first)
         Route::get('send-sms/progress', [CommunicationController::class, 'smsProgress'])->name('communication.send.sms.progress');
         Route::get('send-email/progress', [CommunicationController::class, 'emailProgress'])->name('communication.send.email.progress');
+        Route::get('send-sms',   [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
+        Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
         Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
         Route::post('send-whatsapp', [CommunicationController::class, 'sendWhatsApp'])->name('communication.send.whatsapp.submit');
         Route::get('send-whatsapp/progress', [CommunicationController::class, 'whatsappProgress'])->name('communication.send.whatsapp.progress');
