@@ -155,7 +155,7 @@ class CommunicationController extends Controller
                 'tracking_id' => $trackingId,
                 'recipient_count' => count($recipients),
             ]);
-            $progressUrl = url('/communication/send-email/progress') . '?tracking_id=' . urlencode($trackingId) . '&total=' . count($recipients);
+            $progressUrl = route('communication.send.email.progress', ['tracking_id' => $trackingId, 'total' => count($recipients)]);
             return redirect($progressUrl)->with('info', 'Bulk email started. Processing in background. You can track progress below.');
         }
 
@@ -342,7 +342,7 @@ class CommunicationController extends Controller
                 'tracking_id' => $trackingId,
                 'recipient_count' => count($recipients),
             ]);
-            $progressUrl = url('/communication/send-sms/progress') . '?tracking_id=' . urlencode($trackingId) . '&total=' . count($recipients);
+            $progressUrl = route('communication.send.sms.progress', ['tracking_id' => $trackingId, 'total' => count($recipients)]);
             return redirect($progressUrl)->with('info', 'Bulk SMS started. Processing in background. You can track progress below.');
         }
 

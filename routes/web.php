@@ -1163,9 +1163,9 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::get('send-email', [CommunicationController::class, 'createEmail'])->name('communication.send.email');
         Route::post('send-email',[CommunicationController::class, 'sendEmail'])->name('communication.send.email.submit');
 
-        // Progress routes MUST come before base routes (more specific first)
-        Route::get('send-sms/progress', [CommunicationController::class, 'smsProgress'])->name('communication.send.sms.progress');
-        Route::get('send-email/progress', [CommunicationController::class, 'emailProgress'])->name('communication.send.email.progress');
+        // Bulk send progress (separate paths to avoid routing conflicts)
+        Route::get('bulk-sms-progress', [CommunicationController::class, 'smsProgress'])->name('communication.send.sms.progress');
+        Route::get('bulk-email-progress', [CommunicationController::class, 'emailProgress'])->name('communication.send.email.progress');
         Route::get('send-sms',   [CommunicationController::class, 'createSMS'])->name('communication.send.sms');
         Route::post('send-sms',  [CommunicationController::class, 'sendSMS'])->name('communication.send.sms.submit');
         Route::get('send-whatsapp', [CommunicationController::class, 'createWhatsApp'])->name('communication.send.whatsapp');
