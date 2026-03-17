@@ -580,8 +580,10 @@ def parse_bank_table(rows, header_row=None, page_number=None, table_index=None):
                 particulars_col = i
             elif "INSTRUMENT" in cell_str and "ID" in cell_str:
                 instrument_id_col = i  # Track this - might contain part of particulars
-            elif "TRANSACTION REFERENCE" in cell_str or ("REFERENCE" in cell_str and "CUSTOMER" not in cell_str) or "TRANS REF" in cell_str or "TRAN REF" in cell_str:
-                transaction_reference_col = i  # Equity statement: reference column (e.g. 54377534 for APP)
+            elif ("TRANSACTION REFERENCE" in cell_str or "TRANS REF" in cell_str or "TRAN REF" in cell_str or
+                  "TXN REF" in cell_str or "TRANS. REF" in cell_str or
+                  ("REFERENCE" in cell_str and "CUSTOMER" not in cell_str and "REMARKS" not in cell_str)):
+                transaction_reference_col = i  # Equity statement: reference column (e.g. 54118185 for APP)
             elif "CUSTOMER REFERENCE" in cell_str or "CUSTOMER REF" in cell_str:
                 if transaction_reference_col is None:
                     transaction_reference_col = i  # Fallback: some statements use Customer Reference as ref

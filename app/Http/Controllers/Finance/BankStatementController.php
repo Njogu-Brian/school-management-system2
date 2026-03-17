@@ -1681,6 +1681,7 @@ class BankStatementController extends Controller
             $validated = $request->validate([
                 'student_id' => 'nullable|exists:students,id',
                 'match_notes' => 'nullable|string|max:1000',
+                'reference_number' => 'nullable|string|max:50',
             ]);
 
             DB::transaction(function () use ($transaction, $validated, $isC2B, $id) {
@@ -1811,14 +1812,22 @@ class BankStatementController extends Controller
                 ]);
             } else {
                 // Update bank statement transaction
-                $transaction->update([
+                $updates = [
                     'student_id' => $student?->id,
                     'family_id' => $student?->family_id,
                     'status' => $newStatus,
                     'match_status' => $student ? 'manual' : 'unmatched',
                     'match_confidence' => $student ? 1.0 : 0,
                     'match_notes' => $matchNotes,
-                ]);
+                ];
+                // Allow correcting reference_number (e.g. Equity APP transactions where parser missed it)
+                if (array_key_exists('reference_number', $validated) && $validated['reference_number'] !== null) {
+                    $ref = trim((string) $validated['reference_number']);
+                    if ($ref !== '') {
+                        $updates['reference_number'] = $ref;
+                    }
+                }
+                $transaction->update($updates);
             }
 
             // Learn from manual assignment: store so future matching can suggest this student for similar reference/description

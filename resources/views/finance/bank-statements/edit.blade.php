@@ -32,7 +32,14 @@
                         <dd class="col-sm-8">{{ $bankStatement->phone_number ?? 'N/A' }}</dd>
 
                         <dt class="col-sm-4">Reference:</dt>
-                        <dd class="col-sm-8"><code>{{ $bankStatement->reference_number ?? 'N/A' }}</code></dd>
+                        <dd class="col-sm-8">
+                            @if(!($isC2B ?? false))
+                                <input type="text" name="reference_number" class="form-control form-control-sm d-inline-block" style="max-width: 180px;" value="{{ old('reference_number', $bankStatement->reference_number ?? '') }}" placeholder="e.g. 54118185">
+                                <small class="form-text text-muted">Correct the reference from your statement (Transaction Reference column) to avoid duplicates.</small>
+                            @else
+                                <code>{{ $bankStatement->reference_number ?? 'N/A' }}</code>
+                            @endif
+                        </dd>
                     </dl>
                 </div>
             </div>
