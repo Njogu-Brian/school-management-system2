@@ -563,6 +563,23 @@ class StudentStatementController extends Controller
                 $allocatedAll = (float) $p->allocations->sum('amount');
                 return max(0, (float) $p->amount - $allocatedAll);
             });
+
+        // Include unallocated amounts from payments not in $payments (e.g. BBF credit, or payments with no allocations to displayed invoices)
+        if ($year >= 2026) {
+            $paymentIdsInView = $payments->pluck('id')->toArray();
+            $otherPayments = Payment::where('student_id', $student->id)
+                ->where('reversed', false)
+                ->where('receipt_number', 'not like', 'SWIM-%')
+                ->whereYear('payment_date', $year)
+                ->when(!empty($paymentIdsInView), fn ($q) => $q->whereNotIn('id', $paymentIdsInView))
+                ->get();
+            foreach ($otherPayments as $p) {
+                $allocatedAll = (float) $p->allocations->sum('amount');
+                $unallocated = max(0, (float) $p->amount - $allocatedAll);
+                $totalPayments += $unallocated;
+            }
+        }
+
         $totalCreditNotes = 0;
         $totalDebitNotes = 0;
         
