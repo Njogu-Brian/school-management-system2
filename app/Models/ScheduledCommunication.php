@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ScheduledCommunication extends Model
 {
     protected $fillable = [
-        'type', 'template_id', 'target', 'classroom_id', 'send_at', 'status'
+        'type', 'template_id', 'target', 'classroom_id', 'classroom_ids', 'send_at', 'status'
     ];
 
     protected $casts = [

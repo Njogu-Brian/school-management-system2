@@ -74,7 +74,9 @@ class CommunicationController extends Controller
             'target'         => 'required|string',
             'custom_emails'  => 'nullable|string',
             'title'          => 'nullable|string|max:255',
-            'classroom_id'   => 'nullable|integer',
+            'classroom_id'   => 'nullable|integer|exists:classrooms,id',
+            'classroom_ids'  => 'nullable',
+            'classroom_ids.*' => 'integer|exists:classrooms,id',
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
@@ -86,6 +88,7 @@ class CommunicationController extends Controller
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
+        $data = $this->normalizeClassroomIdsForRecipients($data);
 
         $subject     = $data['title'] ?? 'Untitled Email';
         $messageBody = $data['message'];
@@ -100,19 +103,25 @@ class CommunicationController extends Controller
             return back()->with('error', 'Message body is required.');
         }
 
+        if ($data['target'] === 'class' && empty(\App\Services\CommunicationHelperService::normalizeClassroomIds($data))) {
+            return back()->with('error', 'Please select at least one classroom.');
+        }
+
         if ($request->schedule === 'later' && empty($data['template_id'])) {
             return back()->with('error', 'Select a template when scheduling email.');
         }
 
         // === HANDLE SCHEDULED EMAIL ===
         if ($request->schedule === 'later' && $request->send_at) {
+            $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
             ScheduledCommunication::create([
-                'type'         => 'email',
-                'template_id'  => $data['template_id'] ?? null,
-                'target'       => $data['target'],
-                'classroom_id' => $data['classroom_id'] ?? null,
-                'send_at'      => $data['send_at'],
-                'status'       => 'pending',
+                'type'          => 'email',
+                'template_id'   => $data['template_id'] ?? null,
+                'target'        => $data['target'],
+                'classroom_id'  => $classroomIds[0] ?? null,
+                'classroom_ids' => !empty($classroomIds) ? implode(',', $classroomIds) : null,
+                'send_at'       => $data['send_at'],
+                'status'        => 'pending',
             ]);
             return redirect()->route('communication.send.email')->with('success', 'Email scheduled for ' . $data['send_at']);
         }
@@ -247,7 +256,9 @@ class CommunicationController extends Controller
             'message'        => 'nullable|string',
             'target'         => 'required|string',
             'custom_numbers' => 'nullable|string',
-            'classroom_id'   => 'nullable|integer',
+            'classroom_id'   => 'nullable|integer|exists:classrooms,id',
+            'classroom_ids'  => 'nullable',
+            'classroom_ids.*' => 'integer|exists:classrooms,id',
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
@@ -259,6 +270,7 @@ class CommunicationController extends Controller
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
+        $data = $this->normalizeClassroomIdsForRecipients($data);
 
         $message = $data['message'];
         if ($data['template_id']) {
@@ -270,19 +282,25 @@ class CommunicationController extends Controller
             return back()->with('error', 'Message content is required.');
         }
 
+        if ($data['target'] === 'class' && empty(\App\Services\CommunicationHelperService::normalizeClassroomIds($data))) {
+            return back()->with('error', 'Please select at least one classroom.');
+        }
+
         if ($request->schedule === 'later' && empty($data['template_id'])) {
             return back()->with('error', 'Select a template when scheduling SMS.');
         }
 
         // === HANDLE SCHEDULED SMS ===
         if ($request->schedule === 'later' && $request->send_at) {
+            $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
             ScheduledCommunication::create([
-                'type'         => 'sms',
-                'template_id'  => $data['template_id'] ?? null,
-                'target'       => $data['target'],
-                'classroom_id' => $data['classroom_id'] ?? null,
-                'send_at'      => $data['send_at'],
-                'status'       => 'pending',
+                'type'          => 'sms',
+                'template_id'   => $data['template_id'] ?? null,
+                'target'        => $data['target'],
+                'classroom_id'  => $classroomIds[0] ?? null,
+                'classroom_ids' => !empty($classroomIds) ? implode(',', $classroomIds) : null,
+                'send_at'       => $data['send_at'],
+                'status'        => 'pending',
             ]);
             return redirect()->route('communication.send.sms')->with('success', 'SMS scheduled for ' . $data['send_at']);
         }
@@ -471,7 +489,9 @@ class CommunicationController extends Controller
             'message'        => 'nullable|string|max:1000',
             'target'         => 'required|string',
             'custom_numbers' => 'nullable|string',
-            'classroom_id'   => 'nullable|integer',
+            'classroom_id'   => 'nullable|integer|exists:classrooms,id',
+            'classroom_ids'  => 'nullable',
+            'classroom_ids.*' => 'integer|exists:classrooms,id',
             'student_id'     => 'nullable|integer',
             'selected_student_ids' => 'nullable|string',
             'fee_balance_only' => 'nullable|boolean',
@@ -483,6 +503,7 @@ class CommunicationController extends Controller
         ]);
         $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
         $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
+        $data = $this->normalizeClassroomIdsForRecipients($data);
 
         $message = $data['message'];
         $title = 'WhatsApp';
@@ -496,6 +517,10 @@ class CommunicationController extends Controller
             return back()->with('error', 'Message content is required.');
         }
 
+        if ($data['target'] === 'class' && empty(\App\Services\CommunicationHelperService::normalizeClassroomIds($data))) {
+            return back()->with('error', 'Please select at least one classroom.');
+        }
+
         if ($request->schedule === 'later' && empty($data['template_id'])) {
             return back()->with('error', 'Select a template when scheduling WhatsApp.');
         }
@@ -505,13 +530,15 @@ class CommunicationController extends Controller
             if ($request->hasFile('media')) {
                 return back()->with('error', 'Scheduling with media is not supported yet. Please send now.');
             }
+            $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
             ScheduledCommunication::create([
-                'type'         => 'whatsapp',
-                'template_id'  => $data['template_id'] ?? null,
-                'target'       => $data['target'],
-                'classroom_id' => $data['classroom_id'] ?? null,
-                'send_at'      => $data['send_at'],
-                'status'       => 'pending',
+                'type'          => 'whatsapp',
+                'template_id'   => $data['template_id'] ?? null,
+                'target'        => $data['target'],
+                'classroom_id'  => $classroomIds[0] ?? null,
+                'classroom_ids' => !empty($classroomIds) ? implode(',', $classroomIds) : null,
+                'send_at'       => $data['send_at'],
+                'status'        => 'pending',
             ]);
             return redirect()->route('communication.send.whatsapp')->with('success', 'WhatsApp message scheduled for ' . $data['send_at']);
         }
@@ -857,13 +884,19 @@ class CommunicationController extends Controller
                 'message' => 'required|string',
                 'channel' => 'required|string|in:sms,whatsapp,email',
                 'target' => 'required|string',
-                'classroom_id' => 'nullable|integer',
+                'classroom_id' => 'nullable|integer|exists:classrooms,id',
+                'classroom_ids' => 'nullable',
+                'classroom_ids.*' => 'integer|exists:classrooms,id',
                 'student_id' => 'nullable|integer',
                 'selected_student_ids' => 'nullable|string',
+                'custom_numbers' => 'nullable|string',
+                'custom_emails' => 'nullable|string',
                 'fee_balance_only' => 'nullable|boolean',
                 'exclude_staff' => 'nullable|boolean',
                 'exclude_student_ids' => 'nullable|string',
                 'template_id' => 'nullable|exists:communication_templates,id',
+                'sender_id' => 'nullable|string',
+                'title' => 'nullable|string|max:255',
             ]);
             $data['fee_balance_only'] = !empty($request->boolean('fee_balance_only'));
             $data['exclude_staff'] = !empty($request->boolean('exclude_staff'));
@@ -898,12 +931,15 @@ class CommunicationController extends Controller
                             ->where('archive', 0)
                             ->where('is_alumni', false)
                             ->find($data['student_id']);
-                    } elseif ($data['target'] === 'class' && !empty($data['classroom_id'])) {
-                        $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
-                            ->where('archive', 0)
-                            ->where('is_alumni', false)
-                            ->where('classroom_id', $data['classroom_id'])
-                            ->first();
+                    } elseif ($data['target'] === 'class') {
+                        $classroomIds = \App\Services\CommunicationHelperService::normalizeClassroomIds($data);
+                        if (!empty($classroomIds)) {
+                            $firstStudent = Student::with(['family.updateLink', 'classroom', 'parent'])
+                                ->where('archive', 0)
+                                ->where('is_alumni', false)
+                                ->whereIn('classroom_id', $classroomIds)
+                                ->first();
+                        }
                     } elseif ($data['target'] === 'specific_students' && !empty($data['selected_student_ids'])) {
                         $studentIds = array_filter(explode(',', $data['selected_student_ids']));
                         if (!empty($studentIds)) {
@@ -1064,6 +1100,16 @@ class CommunicationController extends Controller
     }
 
     /* ========== RECIPIENT BUILDER ========== */
+    /**
+     * Normalize classroom_id(s) into classroom_ids array for collectRecipients.
+     */
+    private function normalizeClassroomIdsForRecipients(array $data): array
+    {
+        $ids = CommunicationHelperService::normalizeClassroomIds($data);
+        $data['classroom_ids'] = $ids;
+        return $data;
+    }
+
     private function collectRecipients(array $data, string $type): array
     {
         return CommunicationHelperService::collectRecipients($data, $type);

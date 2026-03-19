@@ -36,6 +36,9 @@ class SendScheduledCommunicationsJob implements ShouldQueue
             $recipients = CommunicationHelperService::collectRecipients([
                 'target' => $item->target,
                 'classroom_id' => $item->classroom_id,
+                'classroom_ids' => $item->classroom_ids
+                    ? array_filter(array_map('intval', explode(',', $item->classroom_ids)))
+                    : null,
             ], $item->type);
 
             $pairs = CommunicationHelperService::expandRecipientsToPairs($recipients);

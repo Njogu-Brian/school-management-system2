@@ -49,7 +49,7 @@
             <option value="">-- Select Target --</option>
             <option value="parents" {{ old('target')==='parents' ? 'selected' : '' }}>All students</option>
             <option value="staff" {{ old('target')==='staff' ? 'selected' : '' }}>Staff</option>
-            <option value="class" {{ old('target')==='class' ? 'selected' : '' }}>Specific Class</option>
+            <option value="class" {{ old('target')==='class' ? 'selected' : '' }}>Specific Class(es)</option>
             <option value="student" {{ old('target')==='student' ? 'selected' : '' }}>Single Student (parents)</option>
             <option value="specific_students" {{ old('target')==='specific_students' ? 'selected' : '' }}>Select Specific Students</option>
             <option value="custom" {{ old('target')==='custom' ? 'selected' : '' }}>Custom numbers</option>
@@ -78,15 +78,16 @@
 
     {{-- Target detail --}}
     <div class="col-12 col-lg-6 wa-target-field wa-target-class d-none">
-        <label class="form-label fw-semibold">Classroom</label>
-        <select name="classroom_id" class="form-select">
-            <option value="">-- Select Class --</option>
+        <label class="form-label fw-semibold">Classroom(s)</label>
+        <select name="classroom_ids[]" class="form-select" multiple size="5">
+            @php $oldClassIds = is_array(old('classroom_ids')) ? old('classroom_ids') : (old('classroom_id') ? [old('classroom_id')] : []); @endphp
             @foreach($classes as $class)
-                <option value="{{ $class->id }}" {{ old('classroom_id') == $class->id ? 'selected' : '' }}>
+                <option value="{{ $class->id }}" {{ in_array($class->id, $oldClassIds) ? 'selected' : '' }}>
                     {{ $class->name }}
                 </option>
             @endforeach
         </select>
+        <small class="text-muted d-block mt-1">Hold Ctrl/Cmd to select multiple classes.</small>
     </div>
     <div class="col-12 col-lg-6 wa-target-field wa-target-student d-none">
         <label class="form-label fw-semibold">Student</label>
@@ -349,8 +350,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         if (target === 'class' && usesStudentData) {
-            const classSel = document.querySelector('select[name="classroom_id"]');
-            if (!classSel || !classSel.value) {
+            const classSel = document.querySelector('select[name="classroom_ids[]"]');
+            if (!classSel || !classSel.selectedOptions?.length) {
                 evt.preventDefault();
                 alert('Select a class to use class/student placeholders.');
                 return;
@@ -455,9 +456,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            if (target === 'class' && !formData.get('classroom_id')) {
-                alert('Please select a classroom to preview the message.');
-                return;
+            if (target === 'class') {
+                const classIds = formData.getAll('classroom_ids[]');
+                if (!classIds || classIds.length === 0) {
+                    alert('Please select at least one classroom to preview the message.');
+                    return;
+                }
             }
             
             if (target === 'specific_students') {
@@ -496,7 +500,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewForm.appendChild(channelInput);
 
             // Add form fields
-            ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_staff', 'exclude_student_ids'].forEach(field => {
+            ['target', 'student_id', 'selected_student_ids', 'template_id', 'fee_balance_only', 'exclude_staff', 'exclude_student_ids', 'custom_numbers'].forEach(field => {
                 const value = formData.get(field);
                 if (value) {
                     const input = document.createElement('input');
@@ -505,6 +509,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     input.value = value;
                     previewForm.appendChild(input);
                 }
+            });
+            // Add classroom_ids (multi-select)
+            formData.getAll('classroom_ids[]').forEach(id => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'classroom_ids[]';
+                input.value = id;
+                previewForm.appendChild(input);
             });
 
             document.body.appendChild(previewForm);

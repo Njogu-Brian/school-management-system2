@@ -83,10 +83,11 @@ class CommunicationHelperService
             }
         }
 
-        // Entire class (exclude alumni and archived)
-        if ($target === 'class' && !empty($data['classroom_id'])) {
+        // Entire class(es) (exclude alumni and archived) – supports single or multiple classrooms
+        $classroomIds = self::normalizeClassroomIds($data);
+        if ($target === 'class' && !empty($classroomIds)) {
             Student::with('parent')
-                ->where('classroom_id', $data['classroom_id'])
+                ->whereIn('classroom_id', $classroomIds)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
                 ->get()
@@ -217,6 +218,24 @@ class CommunicationHelperService
         }
 
         return $out;
+    }
+
+    /**
+     * Normalize classroom_id(s) to array of IDs. Supports classroom_ids (array or comma-separated) and classroom_id (single).
+     */
+    public static function normalizeClassroomIds(array $data): array
+    {
+        if (!empty($data['classroom_ids'])) {
+            $ids = $data['classroom_ids'];
+            if (is_array($ids)) {
+                return array_values(array_filter(array_map('intval', $ids)));
+            }
+            return array_values(array_filter(array_map('intval', explode(',', (string) $ids))));
+        }
+        if (!empty($data['classroom_id'])) {
+            return [(int) $data['classroom_id']];
+        }
+        return [];
     }
 
     /**

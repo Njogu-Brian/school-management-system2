@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\Route;
 use App\Models\StudentAssignment;
 use App\Models\Vehicle;
 
@@ -14,7 +15,13 @@ class DropOffPoint extends Model
 
     protected $fillable = [
         'name',
+        'route_id',
     ];
+
+    public function route()
+    {
+        return $this->belongsTo(Route::class);
+    }
 
     // Relationship with Student Assignments
     public function assignments()
@@ -27,11 +34,4 @@ class DropOffPoint extends Model
         return $this->belongsToMany(Vehicle::class, 'drop_off_point_vehicle')
             ->withTimestamps();
     }
-    // app/Models/Vehicle.php
-    public function dropOffPoints()
-    {
-        return $this->belongsToMany(DropOffPoint::class, 'drop_off_point_vehicle')
-            ->withTimestamps();
-    }
-
 }

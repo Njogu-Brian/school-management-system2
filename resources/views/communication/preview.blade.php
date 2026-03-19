@@ -570,21 +570,37 @@
                 </div>
             </div>
             
-            <button onclick="window.history.back()" class="action-btn btn-back">
+            <a href="{{ route('communication.send.' . $channel) }}" class="action-btn btn-back" style="text-decoration: none;">
                 <i class="bi bi-arrow-left"></i> Back to Edit
-            </button>
+            </a>
             
             <form method="POST" action="{{ route('communication.send.' . $channel . '.submit') }}" id="sendForm" style="display: none;">
                 @csrf
                 <input type="hidden" name="message" value="{{ htmlspecialchars($originalMessage ?? $formData['message'] ?? '') }}">
                 <input type="hidden" name="target" value="{{ $formData['target'] ?? '' }}">
-                <input type="hidden" name="classroom_id" value="{{ $formData['classroom_id'] ?? '' }}">
+                @php
+                    $previewClassIds = $formData['classroom_ids'] ?? [];
+                    if (!is_array($previewClassIds) && !empty($formData['classroom_id'] ?? null)) {
+                        $previewClassIds = [$formData['classroom_id']];
+                    } elseif (!is_array($previewClassIds)) {
+                        $previewClassIds = $previewClassIds ? array_filter(explode(',', (string)$previewClassIds)) : [];
+                    }
+                @endphp
+                @foreach($previewClassIds as $cid)
+                <input type="hidden" name="classroom_ids[]" value="{{ $cid }}">
+                @endforeach
                 <input type="hidden" name="student_id" value="{{ $formData['student_id'] ?? '' }}">
                 <input type="hidden" name="selected_student_ids" value="{{ $formData['selected_student_ids'] ?? '' }}">
                 <input type="hidden" name="template_id" value="{{ $formData['template_id'] ?? '' }}">
                 <input type="hidden" name="schedule" value="now">
+                <input type="hidden" name="custom_numbers" value="{{ $formData['custom_numbers'] ?? '' }}">
+                <input type="hidden" name="custom_emails" value="{{ $formData['custom_emails'] ?? '' }}">
+                <input type="hidden" name="title" value="{{ $formData['title'] ?? '' }}">
+                <input type="hidden" name="fee_balance_only" value="{{ !empty($formData['fee_balance_only']) ? '1' : '0' }}">
+                <input type="hidden" name="exclude_staff" value="{{ !empty($formData['exclude_staff']) ? '1' : '0' }}">
+                <input type="hidden" name="exclude_student_ids" value="{{ $formData['exclude_student_ids'] ?? '' }}">
                 @if($channel === 'sms')
-                <input type="hidden" name="sender_id" value="">
+                <input type="hidden" name="sender_id" value="{{ $formData['sender_id'] ?? '' }}">
                 @endif
             </form>
             
