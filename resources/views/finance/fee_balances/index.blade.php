@@ -94,9 +94,9 @@
             'subtitle' => 'Track student fee balances and attendance status',
             'actions' => '
                 <div class="btn-group">
-                    <a href="' . route('finance.fee-balances.print', request()->all()) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print</a>
-                    <a href="' . route('finance.fee-balances.export-pdf', request()->all()) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF</a>
-                    <a href="' . route('finance.fee-balances.export', request()->all()) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-download"></i> Export CSV</a>
+                    <a href="' . url('/finance/fee-balances/print?' . http_build_query(request()->all())) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print</a>
+                    <a href="' . url('/finance/fee-balances/export-pdf?' . http_build_query(request()->all())) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF</a>
+                    <a href="' . url('/finance/fee-balances/export?' . http_build_query(request()->all())) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-download"></i> Export CSV</a>
                 </div>'
         ])
 
