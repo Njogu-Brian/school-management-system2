@@ -1,4 +1,7 @@
 <tr class="{{ $student['is_in_school'] && $student['balance'] > 1000 ? 'highlight-row' : '' }}">
+    <td class="text-center">
+        <input type="checkbox" class="form-check-input fee-exclude-student" name="exclude_ids[]" value="{{ $student['id'] }}" title="Exclude from export">
+    </td>
     <td><strong>{{ $student['admission_number'] }}</strong></td>
     <td>
         <div>

@@ -93,11 +93,12 @@
             'icon' => 'bi bi-cash-stack',
             'subtitle' => 'Track student fee balances and attendance status',
             'actions' => '
-                <div class="btn-group">
-                    <a href="' . url('/finance/fee-balances/export?' . http_build_query(array_merge(request()->all(), ['format' => 'print']))) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print</a>
-                    <a href="' . url('/finance/fee-balances/export?' . http_build_query(array_merge(request()->all(), ['format' => 'pdf']))) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF</a>
-                    <a href="' . url('/finance/fee-balances/export?' . http_build_query(array_merge(request()->all(), ['format' => 'csv']))) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-download"></i> Export CSV</a>
-                </div>'
+                <div class="btn-group" id="fee-balance-export-buttons">
+                    <a href="#" data-format="print" data-target="_blank" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-printer"></i> Print</a>
+                    <a href="#" data-format="pdf" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-file-pdf"></i> Export PDF</a>
+                    <a href="#" data-format="csv" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-download"></i> Export CSV</a>
+                </div>
+                <small class="d-block mt-1 text-muted"><i class="bi bi-info-circle"></i> Staff children excluded automatically. Check "Exclude" to omit from export.</small>'
         ])
 
         {{-- Summary Cards --}}
@@ -317,6 +318,7 @@
                 <table class="table table-hover finance-table">
                     <thead>
                         <tr>
+                            <th style="width: 45px;" title="Check to exclude from export">Excl.</th>
                             <th>Adm No</th>
                             <th>Student Name</th>
                             <th>Class</th>
@@ -337,7 +339,7 @@
                             @include('finance.fee_balances.partials.student_row', ['student' => $student])
                         @empty
                             <tr>
-                                <td colspan="13" class="text-center py-5">
+                                <td colspan="14" class="text-center py-5">
                                     <i class="bi bi-inbox fs-1 text-muted"></i>
                                     <p class="text-muted mt-2">No students found matching your criteria.</p>
                                 </td>
@@ -377,5 +379,31 @@
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const baseParams = @json(request()->except('exclude_ids'));
+    const exportBtns = document.querySelectorAll('.fee-export-btn');
+    exportBtns.forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const excludeIds = Array.from(document.querySelectorAll('input.fee-exclude-student:checked')).map(cb => cb.value);
+            const params = new URLSearchParams();
+            Object.keys(baseParams).forEach(function(k) {
+                const v = baseParams[k];
+                if (Array.isArray(v)) v.forEach(x => params.append(k + '[]', x));
+                else if (v != null && v !== '') params.set(k, v);
+            });
+            params.set('format', btn.dataset.format);
+            excludeIds.forEach(id => params.append('exclude_ids[]', id));
+            const url = '{{ url("/finance/fee-balances/export") }}?' + params.toString();
+            if (btn.dataset.target === '_blank') window.open(url);
+            else window.location = url;
+        });
+    });
+});
+</script>
+@endpush
 @endsection
 

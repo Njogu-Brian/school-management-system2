@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\Student;
+use App\Models\User;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Attendance;
@@ -527,7 +528,7 @@ class FeeBalanceController extends Controller
         // CSV export
         return response()->streamDownload(function () use ($request) {
             $data = $this->index($request)->getData();
-            $students = $data['students'];
+            $students = $this->filterStudentsForExport(collect($data['students']), $request);
             
             $handle = fopen('php://output', 'w');
             
@@ -598,21 +599,22 @@ class FeeBalanceController extends Controller
     }
 
     /**
-     * Export fee balance list as PDF (download) - learners per class with child name, balance, both parents' contacts
+     * Export fee balance list as PDF (download) - learners per class/stream with child name, balance, both parents' contacts
      */
     public function exportPdf(Request $request)
     {
         $data = $this->index($request)->getData();
-        $students = collect($data['students']);
+        $students = $this->filterStudentsForExport(collect($data['students']), $request);
         $selectedTermId = $data['selectedTermId'] ?? null;
         $selectedTerm = $selectedTermId ? Term::with('academicYear')->find($selectedTermId) : Term::where('is_current', true)->with('academicYear')->first();
 
-        $studentsByClass = $students->groupBy('classroom');
+        $studentsByStream = $this->groupAndSortStudentsByStream($students);
 
         $pdfService = new PDFExportService();
         return $pdfService->generatePDF('finance.fee_balances.pdf', [
-            'studentsByClass' => $studentsByClass,
+            'studentsByStream' => $studentsByStream,
             'selectedTerm' => $selectedTerm,
+            'logoBase64' => $this->getSchoolLogoBase64(),
         ], [
             'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
             'stream' => false,
@@ -620,25 +622,115 @@ class FeeBalanceController extends Controller
     }
 
     /**
-     * Print fee balance list (open in browser for printing) - learners per class with child name, balance, both parents' contacts
+     * Print fee balance list (open in browser for printing)
      */
     public function printPdf(Request $request)
     {
         $data = $this->index($request)->getData();
-        $students = collect($data['students']);
+        $students = $this->filterStudentsForExport(collect($data['students']), $request);
         $selectedTermId = $data['selectedTermId'] ?? null;
         $selectedTerm = $selectedTermId ? Term::with('academicYear')->find($selectedTermId) : Term::where('is_current', true)->with('academicYear')->first();
 
-        $studentsByClass = $students->groupBy('classroom');
+        $studentsByStream = $this->groupAndSortStudentsByStream($students);
 
         $pdfService = new PDFExportService();
         return $pdfService->generatePDF('finance.fee_balances.pdf', [
-            'studentsByClass' => $studentsByClass,
+            'studentsByStream' => $studentsByStream,
             'selectedTerm' => $selectedTerm,
+            'logoBase64' => $this->getSchoolLogoBase64(),
         ], [
             'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
             'stream' => true,
         ]);
+    }
+
+    /**
+     * Filter students for export: exclude staff children and manually excluded IDs
+     */
+    private function filterStudentsForExport($students, Request $request)
+    {
+        $staffChildIds = $this->getStaffChildStudentIds();
+        $excludeIds = array_filter((array) $request->input('exclude_ids', []));
+
+        return $students->filter(function ($student) use ($staffChildIds, $excludeIds) {
+            if (in_array($student['id'], $staffChildIds)) {
+                return false;
+            }
+            if (in_array((string) $student['id'], $excludeIds) || in_array((int) $student['id'], $excludeIds)) {
+                return false;
+            }
+            return true;
+        })->values();
+    }
+
+    /**
+     * Get student IDs whose parent is a staff member (user with staff record has parent_id)
+     */
+    private function getStaffChildStudentIds(): array
+    {
+        $staffParentIds = User::whereHas('staff')
+            ->whereNotNull('parent_id')
+            ->pluck('parent_id')
+            ->toArray();
+
+        if (empty($staffParentIds)) {
+            return [];
+        }
+
+        return Student::whereIn('parent_id', $staffParentIds)->pluck('id')->toArray();
+    }
+
+    /**
+     * Group students by class+stream and sort by: Creche, Foundation, PP1, PP2, Grade 1-9
+     */
+    private function groupAndSortStudentsByStream($students)
+    {
+        $grouped = $students->groupBy(function ($student) {
+            $classroom = $student['classroom'] ?? 'N/A';
+            $stream = $student['stream'] ?? 'General';
+            return $classroom . ' | ' . $stream;
+        });
+
+        return $grouped->sortBy(function ($students, $key) {
+            $classroom = explode(' | ', $key)[0] ?? '';
+            $name = strtolower(trim($classroom));
+            if (strpos($name, 'creche') !== false) return 1;
+            if (strpos($name, 'foundation') !== false) return 2;
+            if (preg_match('/^pp1/', $name)) return 3;
+            if (preg_match('/^pp2/', $name)) return 4;
+            if (preg_match('/^grade\s*1(?!\d)/', $name)) return 5;
+            if (preg_match('/^grade\s*2(?!\d)/', $name)) return 6;
+            if (preg_match('/^grade\s*3(?!\d)/', $name)) return 7;
+            if (preg_match('/^grade\s*4(?!\d)/', $name)) return 8;
+            if (preg_match('/^grade\s*5(?!\d)/', $name)) return 9;
+            if (preg_match('/^grade\s*6(?!\d)/', $name)) return 10;
+            if (preg_match('/^grade\s*7(?!\d)/', $name)) return 11;
+            if (preg_match('/^grade\s*8(?!\d)/', $name)) return 12;
+            if (preg_match('/^grade\s*9(?!\d)/', $name)) return 13;
+            return 1000;
+        }, SORT_NATURAL);
+    }
+
+    /**
+     * Get school logo as base64 data URI for PDF embedding
+     */
+    private function getSchoolLogoBase64(): ?string
+    {
+        $logo = setting('school_logo');
+        $paths = [];
+        if ($logo && storage_public()->exists($logo)) {
+            $paths[] = storage_path('app/public/' . $logo);
+        }
+        if ($logo && file_exists(public_path('images/' . $logo))) {
+            $paths[] = public_path('images/' . $logo);
+        }
+        foreach ($paths as $path) {
+            if (file_exists($path)) {
+                $mime = mime_content_type($path) ?: 'image/png';
+                return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+            }
+        }
+        return null;
     }
 }
 

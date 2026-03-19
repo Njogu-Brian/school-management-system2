@@ -32,6 +32,45 @@
         .class-section {
             margin-bottom: 25px;
             page-break-inside: avoid;
+            page-break-before: always;
+        }
+        .class-section:first-of-type {
+            page-break-before: auto;
+        }
+        .section-header {
+            display: table;
+            width: 100%;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+        .section-header .logo-cell {
+            width: 70px;
+            vertical-align: top;
+            padding-right: 12px;
+        }
+        .section-header .logo-cell img {
+            max-height: 60px;
+            max-width: 70px;
+            object-fit: contain;
+        }
+        .section-header .info-cell {
+            vertical-align: top;
+        }
+        .section-header .school-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .section-header .contact-info {
+            font-size: 9px;
+            color: #555;
+            line-height: 1.4;
+        }
+        .section-header .report-title {
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 4px;
         }
         .class-header {
             background-color: #2563eb;
@@ -80,24 +119,47 @@
         @media print {
             .class-section {
                 page-break-inside: avoid;
+                page-break-before: always;
+            }
+            .class-section:first-of-type {
+                page-break-before: auto;
             }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        @if($branding['school_name'] ?? null)
-            <div class="school-name">{{ $branding['school_name'] }}</div>
-        @endif
-        <h1>Fee Balance List</h1>
-        <p><strong>Term:</strong> {{ $selectedTerm?->name ?? 'Current Term' }} ({{ optional($selectedTerm?->academicYear)->year ?? now()->year }})</p>
-        <p><strong>Generated:</strong> {{ $generated_at ?? now()->format('F j, Y H:i') }}</p>
-    </div>
-
-    @foreach($studentsByClass as $classroom => $students)
+    @foreach($studentsByStream as $classStream => $students)
     <div class="class-section">
+        <div class="section-header">
+            <table style="width:100%; border-collapse:collapse;">
+                <tr>
+                    <td class="logo-cell" style="width:70px; vertical-align:top; padding-right:12px;">
+                        @if(!empty($logoBase64))
+                            <img src="{{ $logoBase64 }}" alt="Logo" style="max-height:60px; max-width:70px; object-fit:contain;">
+                        @endif
+                    </td>
+                    <td class="info-cell" style="vertical-align:top;">
+                        @if($branding['school_name'] ?? null)
+                            <div class="school-name">{{ $branding['school_name'] }}</div>
+                        @endif
+                        <div class="contact-info">
+                            @php
+                                $contactParts = array_filter([
+                                    $branding['school_address'] ?? null,
+                                    ($branding['school_phone'] ?? null) ? 'Tel: ' . ($branding['school_phone']) : null,
+                                    $branding['school_email'] ?? null,
+                                ]);
+                            @endphp
+                            {{ implode(' • ', $contactParts) }}
+                        </div>
+                        <div class="report-title">Fee Balance List</div>
+                        <div class="contact-info">Term: {{ $selectedTerm?->name ?? 'Current Term' }} ({{ optional($selectedTerm?->academicYear)->year ?? now()->year }}) &nbsp;•&nbsp; {{ $generated_at ?? now()->format('F j, Y H:i') }}</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
         <div class="class-header">
-            {{ $classroom }} ({{ $students->count() }} learner{{ $students->count() !== 1 ? 's' : '' }})
+            {{ str_replace(' | ', ' - ', $classStream) }} ({{ $students->count() }} learner{{ $students->count() !== 1 ? 's' : '' }})
         </div>
 
         <table>
@@ -142,6 +204,15 @@
                 </tr>
                 @endforeach
             </tbody>
+            <tfoot>
+                <tr style="background-color: #e2e8f0; font-weight: bold;">
+                    <td colspan="3" class="text-end">Total Class Fee Balance:</td>
+                    <td class="text-end {{ $students->sum('balance') > 0 ? 'balance-positive' : 'balance-zero' }}">
+                        Ksh {{ number_format($students->sum('balance'), 2) }}
+                    </td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
         </table>
     </div>
     @endforeach
