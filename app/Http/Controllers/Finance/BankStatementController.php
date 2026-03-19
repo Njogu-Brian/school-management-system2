@@ -5447,9 +5447,18 @@ class BankStatementController extends Controller
                 $this->swimmingTransactionService->unmarkAsSwimming($transaction);
             }
 
+            // If rejected, reset to draft so user can assign and collect
+            if (($transaction->status ?? '') === 'rejected') {
+                $transaction->update([
+                    'status' => 'draft',
+                    'match_status' => 'unmatched',
+                    'match_notes' => null,
+                ]);
+            }
+
             return redirect()
                 ->route('finance.bank-statements.show', [$id] + ($typeHint ? ['type' => $typeHint] : []))
-                ->with('success', 'Transaction reverted from swimming successfully. It can now be used for fee collection.');
+                ->with('success', 'Transaction reverted from swimming successfully. It can now be used for fee collection. Assign it to a student below.');
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Failed to unmark transaction: ' . $e->getMessage());

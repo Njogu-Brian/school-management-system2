@@ -994,8 +994,8 @@
                         $isSwimming = $bankStatement->is_swimming_transaction ?? false;
                         $hasAllocations = $isSwimming && ($swimmingWalletCredited ?? false);
                     @endphp
-                    @if($isSwimming && !$hasAllocations && $bankStatement->status !== 'rejected')
-                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement->id) }}{{ isset($isC2B) && $isC2B ? '?type=c2b' : '?type=bank' }}" class="mb-2" onsubmit="return confirm('Revert this transaction from swimming? It will be treated as a regular fee payment again.')">
+                    @if($isSwimming && !$hasAllocations)
+                        <form method="POST" action="{{ route('finance.bank-statements.unmark-swimming', $bankStatement->id) }}{{ isset($isC2B) && $isC2B ? '?type=c2b' : '?type=bank' }}" class="mb-2" onsubmit="return confirm('Revert this transaction from swimming? It will be treated as a regular fee payment again. You can then assign it to a student and collect it.')">
                             @csrf
                             <button type="submit" class="btn btn-finance btn-finance-warning w-100" title="Revert to regular payments (unmark as swimming)">
                                 <i class="bi bi-arrow-return-left"></i> Revert to Regular Payments
