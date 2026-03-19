@@ -12,8 +12,7 @@ $r = DB::select("
            p.father_name, p.father_phone, p.mother_name, p.mother_phone, p.guardian_phone
     FROM students s
     LEFT JOIN parent_info p ON s.parent_id = p.id
-    WHERE s.deleted_at IS NULL
-    AND (s.parent_id IS NULL OR (
+    WHERE (s.parent_id IS NULL OR (
         COALESCE(TRIM(p.father_phone),'') = '' AND
         COALESCE(TRIM(p.mother_phone),'') = '' AND
         COALESCE(TRIM(p.guardian_phone),'') = ''
@@ -31,7 +30,7 @@ foreach ($r as $x) {
 echo "\n=== 2. SIBLINGS WITH DIFFERENT PARENT DETAILS ===\n\n";
 $families = DB::select("
     SELECT family_id FROM students
-    WHERE family_id IS NOT NULL AND family_id > 0 AND deleted_at IS NULL
+    WHERE family_id IS NOT NULL AND family_id > 0
     GROUP BY family_id HAVING COUNT(*) > 1
 ");
 $mismatches = 0;
@@ -40,7 +39,7 @@ foreach ($families as $f) {
         SELECT s.id, s.admission_number, s.first_name, s.last_name, s.parent_id,
                p.father_name, p.father_phone, p.mother_name, p.mother_phone
         FROM students s LEFT JOIN parent_info p ON s.parent_id = p.id
-        WHERE s.family_id = ? AND s.deleted_at IS NULL
+        WHERE s.family_id = ?
     ", [$f->family_id]);
     $pids = array_unique(array_filter(array_map(fn($x)=>$x->parent_id, $sibs)));
     $fphones = array_unique(array_filter(array_map(fn($x)=>trim($x->father_phone??''), $sibs)));

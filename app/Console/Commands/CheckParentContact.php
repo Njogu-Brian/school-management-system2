@@ -18,7 +18,6 @@ class CheckParentContact extends Command
 
         $noContact = DB::table('students')
             ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
-            ->whereNull('students.deleted_at')
             ->where(function ($q) {
                 $q->whereNull('students.parent_id')
                     ->orWhere(function ($q2) {
@@ -72,7 +71,6 @@ class CheckParentContact extends Command
 
         $familiesWithSiblings = DB::table('students')
             ->whereNotNull('family_id')
-            ->whereNull('deleted_at')
             ->where('family_id', '>', 0)
             ->select('family_id')
             ->groupBy('family_id')
@@ -84,7 +82,6 @@ class CheckParentContact extends Command
             $siblings = DB::table('students')
                 ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
                 ->where('students.family_id', $fid)
-                ->whereNull('students.deleted_at')
                 ->select(
                     'students.id',
                     'students.admission_number',
