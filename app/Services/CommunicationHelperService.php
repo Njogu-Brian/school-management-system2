@@ -90,6 +90,7 @@ class CommunicationHelperService
                 ->whereIn('classroom_id', $classroomIds)
                 ->where('archive', 0)
                 ->where('is_alumni', false)
+                ->activeForCurrentTerm()
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
@@ -112,11 +113,12 @@ class CommunicationHelperService
                 });
         }
 
-        // All students (via parent contacts) – every non-archived, non-alumni student; send to parent when available
+        // All students (via parent contacts) – every non-archived, non-alumni student active for current term; send to parent when available
         if ($target === 'parents') {
             Student::with('parent')
                 ->where('archive', 0)
                 ->where('is_alumni', false)
+                ->activeForCurrentTerm()
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     if ($s->parent) {
@@ -143,6 +145,7 @@ class CommunicationHelperService
         if ($target === 'students') {
             Student::where('archive', 0)
                 ->where('is_alumni', false)
+                ->activeForCurrentTerm()
                 ->get()
                 ->each(function ($s) use (&$out, $type) {
                     $contact = match ($type) {

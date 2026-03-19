@@ -88,6 +88,8 @@ class Student extends Model
         // Status & lifecycle
         'status',
         'admission_date',
+        'enrollment_year',
+        'enrollment_term',
         'graduation_date',
         'transfer_date',
         'transfer_to_school',
@@ -177,6 +179,47 @@ class Student extends Model
         
         // Consider student as "new" if admitted in current academic year or later
         return $admissionYear >= $academicYear;
+    }
+
+    /**
+     * Scope: students who are active for the current term (excludes those enrolling in a future term).
+     * Use for attendance, communications "all students", etc.
+     */
+    public function scopeActiveForCurrentTerm(Builder $query, ?int $year = null, ?int $term = null): Builder
+    {
+        $year = $year ?? (int) (setting('current_year') ?? date('Y'));
+        $term = $term ?? get_current_term_number() ?? 1;
+
+        return $query->where(function ($q) use ($year, $term) {
+            $q->whereNull('enrollment_year')
+                ->orWhereNull('enrollment_term')
+                ->orWhere(function ($q2) use ($year, $term) {
+                    $q2->where('enrollment_year', '<', $year)
+                        ->orWhere(function ($q3) use ($year, $term) {
+                            $q3->where('enrollment_year', $year)
+                                ->where('enrollment_term', '<=', $term);
+                        });
+                });
+        });
+    }
+
+    /**
+     * Check if this student is active for the current term (not enrolling in a future term).
+     */
+    public function isActiveForCurrentTerm(?int $year = null, ?int $term = null): bool
+    {
+        if ($this->enrollment_year === null || $this->enrollment_term === null) {
+            return true;
+        }
+        $year = $year ?? (int) (setting('current_year') ?? date('Y'));
+        $term = $term ?? get_current_term_number() ?? 1;
+        if ($this->enrollment_year < $year) {
+            return true;
+        }
+        if ($this->enrollment_year === $year && $this->enrollment_term <= $term) {
+            return true;
+        }
+        return false;
     }
 
     public function getFullNameAttribute()

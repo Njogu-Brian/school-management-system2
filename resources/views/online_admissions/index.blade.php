@@ -100,8 +100,8 @@
       <div class="col-md-3">
         <div class="settings-card stat-card border-start border-4 border-success h-100">
           <div class="card-body">
-            <div class="text-muted text-uppercase small">Accepted</div>
-            <h4 class="mb-0">{{ $admissions->where('application_status', 'accepted')->count() }}</h4>
+            <div class="text-muted text-uppercase small">Enrolled</div>
+            <h4 class="mb-0">{{ $admissions->whereIn('application_status', ['accepted', 'enrolled'])->count() }}</h4>
           </div>
         </div>
       </div>
@@ -132,6 +132,7 @@
                     'pending' => 'pill-secondary',
                     'under_review' => 'pill-info',
                     'accepted' => 'pill-success',
+                    'enrolled' => 'pill-success',
                     'rejected' => 'pill-danger',
                     'waitlisted' => 'pill-warning'
                   ];

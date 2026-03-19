@@ -184,12 +184,12 @@
               <div class="mb-3">
                 <label class="form-label">Update Status</label>
                 <select name="application_status" class="form-select" required>
-                  <option value="pending" @selected($admission->application_status=='pending')>Pending</option>
+                  <option value="pending" @selected(in_array($admission->application_status, ['pending']))>Pending</option>
                   <option value="under_review" @selected($admission->application_status=='under_review')>Under Review</option>
-                  <option value="accepted" @selected($admission->application_status=='accepted')>Accepted</option>
                   <option value="rejected" @selected($admission->application_status=='rejected')>Rejected</option>
                   <option value="waitlisted" @selected($admission->application_status=='waitlisted')>Waitlisted</option>
                 </select>
+                <small class="text-muted">To enroll, use "Approve and Enroll" below.</small>
               </div>
               <div class="mb-3">
                 <label class="form-label">Assign Classroom</label>
@@ -229,6 +229,17 @@
               @else
                 <form action="{{ route('online-admissions.approve', $admission) }}" method="POST" onsubmit="return confirm('Approve and enroll this student?')">
                   @csrf
+                  <div class="mb-3">
+                    <label class="form-label">Enroll In</label>
+                    <select name="enrollment_term_option" class="form-select" id="enrollmentTermOption">
+                      @foreach($enrollmentTermOptions ?? [] as $opt)
+                        <option value="{{ $opt['year'] }}-{{ $opt['term'] }}" data-year="{{ $opt['year'] }}" data-term="{{ $opt['term'] }}">{{ $opt['label'] }}</option>
+                      @endforeach
+                    </select>
+                    <input type="hidden" name="enrollment_year" id="enrollmentYearInput" value="{{ ($enrollmentTermOptions ?? [])[0]['year'] ?? get_current_academic_year() }}">
+                    <input type="hidden" name="enrollment_term" id="enrollmentTermInput" value="{{ ($enrollmentTermOptions ?? [])[0]['term'] ?? get_current_term_number() }}">
+                    <small class="text-muted">Select when the student will join. If Term 2 or later, they won't appear in attendance/communications until that term.</small>
+                  </div>
                   <div class="mb-3">
                     <label class="form-label">Classroom</label>
                     <select name="classroom_id" class="form-select" required id="approveClassroomId">
@@ -427,6 +438,20 @@
     if (approveClassroom && approveStream) {
       approveClassroom.addEventListener('change', ()=> loadStreamsForClassroom(approveClassroom.value, approveStream, approveSection, admissionStreamId));
       if (approveClassroom.value) loadStreamsForClassroom(approveClassroom.value, approveStream, approveSection, admissionStreamId);
+    }
+
+    // Sync enrollment term hidden inputs
+    const enrollmentOpt = document.getElementById('enrollmentTermOption');
+    const yearInput = document.getElementById('enrollmentYearInput');
+    const termInput = document.getElementById('enrollmentTermInput');
+    if (enrollmentOpt && yearInput && termInput) {
+      enrollmentOpt.addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        if (opt) {
+          yearInput.value = opt.getAttribute('data-year') || '';
+          termInput.value = opt.getAttribute('data-term') || '';
+        }
+      });
     }
   })();
 </script>

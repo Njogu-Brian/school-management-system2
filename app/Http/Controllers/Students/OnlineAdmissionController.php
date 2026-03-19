@@ -43,7 +43,7 @@ class OnlineAdmissionController extends Controller
         }
 
         $admissions = $query->paginate(20);
-        $statuses = ['pending', 'under_review', 'accepted', 'rejected', 'waitlisted'];
+        $statuses = ['pending', 'under_review', 'enrolled', 'rejected', 'waitlisted'];
 
         return view('online_admissions.index', compact('admissions', 'statuses'));
     }
@@ -241,8 +241,21 @@ class OnlineAdmissionController extends Controller
         $trips = Trip::orderBy('trip_name')->get();
         $dropOffPoints = DropOffPoint::orderBy('name')->get();
         $countryCodes = $this->getCountryCodes();
-        
-        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'trips', 'dropOffPoints', 'countryCodes'));
+
+        // Enrollment term options: current term + future terms in this year
+        $currentYear = get_current_academic_year() ?? (int) date('Y');
+        $currentTerm = get_current_term_number() ?? 1;
+        $enrollmentTermOptions = [['year' => $currentYear, 'term' => $currentTerm, 'label' => "Term {$currentTerm} {$currentYear} (Current)"]];
+        for ($t = $currentTerm + 1; $t <= 3; $t++) {
+            $enrollmentTermOptions[] = ['year' => $currentYear, 'term' => $t, 'label' => "Term {$t} {$currentYear}"];
+        }
+        // Next year terms
+        $nextYear = $currentYear + 1;
+        for ($t = 1; $t <= 3; $t++) {
+            $enrollmentTermOptions[] = ['year' => $nextYear, 'term' => $t, 'label' => "Term {$t} {$nextYear}"];
+        }
+
+        return view('online_admissions.show', compact('admission', 'classrooms', 'streams', 'categories', 'trips', 'dropOffPoints', 'countryCodes', 'enrollmentTermOptions'));
     }
 
     /**
@@ -256,7 +269,7 @@ class OnlineAdmissionController extends Controller
             $request->merge(['stream_id' => null]);
         }
         $request->validate([
-            'application_status' => 'required|in:pending,under_review,accepted,rejected,waitlisted',
+            'application_status' => 'required|in:pending,under_review,rejected,waitlisted',
             'review_notes' => 'nullable|string',
             'classroom_id' => 'nullable|exists:classrooms,id',
             'stream_id' => 'nullable|exists:streams,id',
@@ -344,6 +357,8 @@ class OnlineAdmissionController extends Controller
             'residential_area' => 'required|string|max:255',
             'preferred_hospital' => 'nullable|string|max:255',
             'marital_status' => 'nullable|in:married,single_parent,co_parenting',
+            'enrollment_year' => 'nullable|integer|min:2020|max:2030',
+            'enrollment_term' => 'nullable|integer|in:1,2,3',
         ]);
 
         DB::transaction(function () use ($admission, $validated) {
@@ -402,6 +417,9 @@ class OnlineAdmissionController extends Controller
                 }
             }
 
+            $enrollmentYear = $validated['enrollment_year'] ?? null;
+            $enrollmentTerm = $validated['enrollment_term'] ?? null;
+
             // Create student
             $student = Student::create([
                 'admission_number' => $admissionNumber,
@@ -435,9 +453,13 @@ class OnlineAdmissionController extends Controller
                 'residential_area' => $validated['residential_area'] ?? $admission->residential_area,
                 'status' => 'active',
                 'admission_date' => now(),
+                'enrollment_year' => $enrollmentYear,
+                'enrollment_term' => $enrollmentTerm,
             ]);
 
             if (!empty($validated['transport_fee_amount'])) {
+                $transportYear = $enrollmentYear ?? (get_current_academic_year() ?? (int) date('Y'));
+                $transportTerm = $enrollmentTerm ?? (get_current_term_number() ?? 1);
                 TransportFeeService::upsertFee([
                     'student_id' => $student->id,
                     'amount' => $validated['transport_fee_amount'],
@@ -445,13 +467,15 @@ class OnlineAdmissionController extends Controller
                     'drop_off_point_name' => $dropOffPointLabel,
                     'source' => 'online_admission',
                     'note' => 'Captured during online admission approval',
+                    'year' => $transportYear,
+                    'term' => $transportTerm,
                 ]);
             }
 
             // Update admission record
             $admission->update([
                 'enrolled' => true,
-                'application_status' => 'accepted',
+                'application_status' => 'enrolled',
                 'reviewed_by' => auth()->id(),
                 'review_date' => now(),
                 'classroom_id' => $validated['classroom_id'],
@@ -468,9 +492,11 @@ class OnlineAdmissionController extends Controller
                 ]);
             }
             
-            // Charge fees for newly admitted student
+            // Charge fees for newly admitted student (use enrollment term if set)
             try {
-                \App\Services\FeePostingService::chargeFeesForNewStudent($student);
+                $feeYear = $enrollmentYear ?? (get_current_academic_year() ?? (int) date('Y'));
+                $feeTerm = $enrollmentTerm ?? (get_current_term_number() ?? 1);
+                \App\Services\FeePostingService::chargeFeesForNewStudent($student, $feeYear, $feeTerm);
             } catch (\Exception $e) {
                 Log::warning('Failed to charge fees for new student from online admission: ' . $e->getMessage(), [
                     'student_id' => $student->id,

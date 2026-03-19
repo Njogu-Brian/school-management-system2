@@ -18,10 +18,20 @@ class UnassignStreamsFromClassesWithoutStreams extends Command
         $dryRun = $this->option('dry-run');
 
         // Get classrooms that have NO streams (primary + pivot)
-        $classroomsWithoutStreams = Classroom::withCount(['primaryStreams', 'streams'])
+        $byCount = Classroom::withCount(['primaryStreams', 'streams'])
             ->get()
             ->filter(fn ($c) => ($c->primary_streams_count ?? 0) + ($c->streams_count ?? 0) === 0);
 
+        // Also explicitly include Foundation, Creche, Grade 3-9 (case-insensitive) in case of data inconsistency
+        $forced = Classroom::where(function ($q) {
+            $q->orWhereRaw('UPPER(name) LIKE ?', ['%FOUNDATION%'])
+                ->orWhereRaw('UPPER(name) LIKE ?', ['%CRECHE%']);
+            foreach (range(3, 9) as $n) {
+                $q->orWhereRaw('(UPPER(name) LIKE ? OR UPPER(name) LIKE ?)', ["%GRADE {$n} %", "%GRADE {$n}"]);
+            }
+        })->get();
+
+        $classroomsWithoutStreams = $byCount->merge($forced)->unique('id');
         $classroomIds = $classroomsWithoutStreams->pluck('id')->toArray();
 
         if (empty($classroomIds)) {

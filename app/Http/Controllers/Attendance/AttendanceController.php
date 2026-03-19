@@ -101,7 +101,8 @@ class AttendanceController extends Controller
         $studentsQuery = Student::query()
             ->with(['classroom', 'stream'])
             ->where('archive', 0)
-            ->where('is_alumni', false);
+            ->where('is_alumni', false)
+            ->activeForCurrentTerm();
         
         if ($isTeacher) {
             $streamAssignments = $user->getStreamAssignments();
