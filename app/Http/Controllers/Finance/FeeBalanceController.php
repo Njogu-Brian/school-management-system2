@@ -101,6 +101,7 @@ class FeeBalanceController extends Controller
                 'admission_number' => $student->admission_number,
                 'full_name' => $student->full_name,
                 'classroom' => $student->classroom ? $student->classroom->name : 'N/A',
+                'classroom_id' => $student->classroom_id,
                 'stream' => $student->stream ? $student->stream->name : null,
                 'parent_phone' => $student->parent ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? 'N/A') : 'N/A',
                 'father_name' => $student->parent?->father_name,
@@ -526,44 +527,21 @@ class FeeBalanceController extends Controller
         }
 
         // CSV export
-        return response()->streamDownload(function () use ($request) {
+        $includeAmounts = filter_var($request->query('include_amounts', true), FILTER_VALIDATE_BOOLEAN);
+        return response()->streamDownload(function () use ($request, $includeAmounts) {
             $data = $this->index($request)->getData();
             $students = $this->filterStudentsForExport(collect($data['students']), $request);
             
             $handle = fopen('php://output', 'w');
             
-            // Headers
-            fputcsv($handle, [
-                'Admission No',
-                'Student Name',
-                'Class',
-                'Stream',
-                'Father Name',
-                'Father Phone',
-                'Mother Name',
-                'Mother Phone',
-                'Total Invoiced',
-                'Total Paid',
-                'Balance',
-                'Balance %',
-                'Payment Status',
-                'Balance Brought Forward',
-                'BBF Paid',
-                'BBF Balance',
-                'BBF Payment Status',
-                'Days in School',
-                'Days Present',
-                'Days Absent',
-                'Attendance %',
-                'In School',
-                'Has Payment Plan',
-                'Plan Status',
-                'Next Installment',
-            ]);
+            $headers = ['Admission No', 'Student Name', 'Class', 'Stream', 'Father Name', 'Father Phone', 'Mother Name', 'Mother Phone'];
+            if ($includeAmounts) {
+                $headers = array_merge($headers, ['Total Invoiced', 'Total Paid', 'Balance', 'Balance %', 'Payment Status', 'Balance Brought Forward', 'BBF Paid', 'BBF Balance', 'BBF Payment Status', 'Days in School', 'Days Present', 'Days Absent', 'Attendance %', 'In School', 'Has Payment Plan', 'Plan Status', 'Next Installment']);
+            }
+            fputcsv($handle, $headers);
             
-            // Data rows
             foreach ($students as $student) {
-                fputcsv($handle, [
+                $row = [
                     $student['admission_number'],
                     $student['full_name'],
                     $student['classroom'],
@@ -572,24 +550,29 @@ class FeeBalanceController extends Controller
                     $student['father_phone'] ?? '',
                     $student['mother_name'] ?? '',
                     $student['mother_phone'] ?? '',
-                    number_format($student['total_invoiced'], 2),
-                    number_format($student['total_paid'], 2),
-                    number_format($student['balance'], 2),
-                    $student['balance_percentage'] . '%',
-                    ucfirst(str_replace('_', ' ', $student['payment_status'])),
-                    number_format($student['balance_brought_forward'] ?? 0, 2),
-                    number_format($student['balance_brought_forward_paid'] ?? 0, 2),
-                    number_format($student['balance_brought_forward_balance'] ?? 0, 2),
-                    ucfirst(str_replace('_', ' ', $student['bbf_payment_status'] ?? 'no_bbf')),
-                    $student['attendance_days'],
-                    $student['days_present'],
-                    $student['days_absent'],
-                    $student['attendance_rate'] . '%',
-                    $student['is_in_school'] ? 'Yes' : 'No',
-                    $student['has_payment_plan'] ? 'Yes' : 'No',
-                    ucfirst(str_replace('_', ' ', $student['payment_plan_status'])),
-                    $student['next_installment_date'] ? $student['next_installment_date']->format('Y-m-d') : '',
-                ]);
+                ];
+                if ($includeAmounts) {
+                    $row = array_merge($row, [
+                        number_format($student['total_invoiced'], 2),
+                        number_format($student['total_paid'], 2),
+                        number_format($student['balance'], 2),
+                        $student['balance_percentage'] . '%',
+                        ucfirst(str_replace('_', ' ', $student['payment_status'])),
+                        number_format($student['balance_brought_forward'] ?? 0, 2),
+                        number_format($student['balance_brought_forward_paid'] ?? 0, 2),
+                        number_format($student['balance_brought_forward_balance'] ?? 0, 2),
+                        ucfirst(str_replace('_', ' ', $student['bbf_payment_status'] ?? 'no_bbf')),
+                        $student['attendance_days'],
+                        $student['days_present'],
+                        $student['days_absent'],
+                        $student['attendance_rate'] . '%',
+                        $student['is_in_school'] ? 'Yes' : 'No',
+                        $student['has_payment_plan'] ? 'Yes' : 'No',
+                        ucfirst(str_replace('_', ' ', $student['payment_plan_status'])),
+                        $student['next_installment_date'] ? $student['next_installment_date']->format('Y-m-d') : '',
+                    ]);
+                }
+                fputcsv($handle, $row);
             }
             
             fclose($handle);
@@ -609,12 +592,14 @@ class FeeBalanceController extends Controller
         $selectedTerm = $selectedTermId ? Term::with('academicYear')->find($selectedTermId) : Term::where('is_current', true)->with('academicYear')->first();
 
         $studentsByStream = $this->groupAndSortStudentsByStream($students);
+        $includeAmounts = filter_var($request->query('include_amounts', true), FILTER_VALIDATE_BOOLEAN);
 
         $pdfService = new PDFExportService();
         return $pdfService->generatePDF('finance.fee_balances.pdf', [
             'studentsByStream' => $studentsByStream,
             'selectedTerm' => $selectedTerm,
             'logoBase64' => $this->getSchoolLogoBase64(),
+            'includeAmounts' => $includeAmounts,
         ], [
             'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
             'stream' => false,
@@ -632,12 +617,14 @@ class FeeBalanceController extends Controller
         $selectedTerm = $selectedTermId ? Term::with('academicYear')->find($selectedTermId) : Term::where('is_current', true)->with('academicYear')->first();
 
         $studentsByStream = $this->groupAndSortStudentsByStream($students);
+        $includeAmounts = filter_var($request->query('include_amounts', true), FILTER_VALIDATE_BOOLEAN);
 
         $pdfService = new PDFExportService();
         return $pdfService->generatePDF('finance.fee_balances.pdf', [
             'studentsByStream' => $studentsByStream,
             'selectedTerm' => $selectedTerm,
             'logoBase64' => $this->getSchoolLogoBase64(),
+            'includeAmounts' => $includeAmounts,
         ], [
             'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
             'stream' => true,

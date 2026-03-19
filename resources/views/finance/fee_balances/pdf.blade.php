@@ -166,11 +166,13 @@
             <thead>
                 <tr>
                     <th style="width: 4%;">#</th>
-                    <th style="width: 22%;">Child's Name</th>
-                    <th style="width: 12%;">Adm No</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '22%' : '30%' }};">Child's Name</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '12%' : '18%' }};">Adm No</th>
+                    @if($includeAmounts ?? true)
                     <th style="width: 14%;" class="text-end">Fee Balance</th>
-                    <th style="width: 24%;">Father</th>
-                    <th style="width: 24%;">Mother</th>
+                    @endif
+                    <th style="width: {{ $includeAmounts ?? true ? '24%' : '26%' }};">Father</th>
+                    <th style="width: {{ $includeAmounts ?? true ? '24%' : '26%' }};">Mother</th>
                 </tr>
             </thead>
             <tbody>
@@ -179,9 +181,11 @@
                     <td>{{ $index + 1 }}</td>
                     <td>{{ $student['full_name'] }}</td>
                     <td>{{ $student['admission_number'] }}</td>
+                    @if($includeAmounts ?? true)
                     <td class="text-end {{ $student['balance'] > 0 ? 'balance-positive' : 'balance-zero' }}">
                         Ksh {{ number_format($student['balance'], 2) }}
                     </td>
+                    @endif
                     <td>
                         @if(!empty($student['father_name']) || !empty($student['father_phone']))
                             {{ $student['father_name'] ?? '-' }}<br>
@@ -204,6 +208,7 @@
                 </tr>
                 @endforeach
             </tbody>
+            @if($includeAmounts ?? true)
             <tfoot>
                 <tr style="background-color: #e2e8f0; font-weight: bold;">
                     <td colspan="3" class="text-end">Total Class Fee Balance:</td>
@@ -213,6 +218,7 @@
                     <td colspan="2"></td>
                 </tr>
             </tfoot>
+            @endif
         </table>
     </div>
     @endforeach

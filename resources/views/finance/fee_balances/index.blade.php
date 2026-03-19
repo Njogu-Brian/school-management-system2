@@ -93,12 +93,23 @@
             'icon' => 'bi bi-cash-stack',
             'subtitle' => 'Track student fee balances and attendance status',
             'actions' => '
-                <div class="btn-group" id="fee-balance-export-buttons">
-                    <a href="#" data-format="print" data-target="_blank" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-printer"></i> Print</a>
-                    <a href="#" data-format="pdf" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-file-pdf"></i> Export PDF</a>
-                    <a href="#" data-format="csv" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-download"></i> Export CSV</a>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="form-check mb-0">
+                        <input class="form-check-input" type="checkbox" id="feeBalanceIncludeAmounts" checked>
+                        <label class="form-check-label small" for="feeBalanceIncludeAmounts">Include amounts</label>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#feeBalanceExcludeModal">
+                        <i class="bi bi-person-x"></i> Exclude students
+                    </button>
+                    <span id="feeBalanceExcludeDisplay" class="badge bg-secondary d-none"><span id="feeBalanceExcludeBadge">0</span> excluded</span>
+                    <input type="hidden" id="feeBalanceExcludeIds" value="">
+                    <div class="btn-group">
+                        <a href="#" data-format="print" data-target="_blank" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-printer"></i> Print</a>
+                        <a href="#" data-format="pdf" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-file-pdf"></i> Export PDF</a>
+                        <a href="#" data-format="csv" class="btn btn-finance btn-finance-outline fee-export-btn"><i class="bi bi-download"></i> Export CSV</a>
+                    </div>
                 </div>
-                <small class="d-block mt-1 text-muted"><i class="bi bi-info-circle"></i> Staff children excluded automatically. Check "Exclude" to omit from export.</small>'
+                <small class="d-block mt-1 text-muted"><i class="bi bi-info-circle"></i> Staff children excluded automatically.</small>'
         ])
 
         {{-- Summary Cards --}}
@@ -318,7 +329,6 @@
                 <table class="table table-hover finance-table">
                     <thead>
                         <tr>
-                            <th style="width: 45px;" title="Check to exclude from export">Excl.</th>
                             <th>Adm No</th>
                             <th>Student Name</th>
                             <th>Class</th>
@@ -339,7 +349,7 @@
                             @include('finance.fee_balances.partials.student_row', ['student' => $student])
                         @empty
                             <tr>
-                                <td colspan="14" class="text-center py-5">
+                                <td colspan="13" class="text-center py-5">
                                     <i class="bi bi-inbox fs-1 text-muted"></i>
                                     <p class="text-muted mt-2">No students found matching your criteria.</p>
                                 </td>
@@ -380,15 +390,24 @@
     </div>
 </div>
 
+@include('finance.fee_balances.partials.exclude_modal', [
+    'students' => $students,
+    'classrooms' => $classrooms,
+])
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const baseParams = @json(request()->except('exclude_ids'));
+    const baseParams = @json(request()->except('exclude_ids', 'include_amounts'));
     const exportBtns = document.querySelectorAll('.fee-export-btn');
+    const includeAmountsCheck = document.getElementById('feeBalanceIncludeAmounts');
+    const excludeIdsInput = document.getElementById('feeBalanceExcludeIds');
+
     exportBtns.forEach(function(btn) {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            const excludeIds = Array.from(document.querySelectorAll('input.fee-exclude-student:checked')).map(cb => cb.value);
+            const excludeIds = (excludeIdsInput && excludeIdsInput.value) ? excludeIdsInput.value.split(',').filter(Boolean) : [];
+            const includeAmounts = includeAmountsCheck ? includeAmountsCheck.checked : true;
             const params = new URLSearchParams();
             Object.keys(baseParams).forEach(function(k) {
                 const v = baseParams[k];
@@ -396,12 +415,78 @@ document.addEventListener('DOMContentLoaded', function() {
                 else if (v != null && v !== '') params.set(k, v);
             });
             params.set('format', btn.dataset.format);
+            params.set('include_amounts', includeAmounts ? '1' : '0');
             excludeIds.forEach(id => params.append('exclude_ids[]', id));
             const url = '{{ url("/finance/fee-balances/export") }}?' + params.toString();
             if (btn.dataset.target === '_blank') window.open(url);
             else window.location = url;
         });
     });
+
+    // Fee balance exclude modal logic
+    const modal = document.getElementById('feeBalanceExcludeModal');
+    if (modal) {
+        const searchInput = document.getElementById('feeBalanceExcludeSearchInput');
+        const classFilter = document.getElementById('feeBalanceExcludeClassFilter');
+        const selectAllBtn = document.getElementById('feeBalanceExcludeSelectAll');
+        const clearAllBtn = document.getElementById('feeBalanceExcludeClearAll');
+        const confirmBtn = document.getElementById('feeBalanceExcludeConfirm');
+        const countBadge = document.getElementById('feeBalanceExcludeCount');
+        const displayBadge = document.getElementById('feeBalanceExcludeDisplay');
+        const badgeNum = document.getElementById('feeBalanceExcludeBadge');
+        const noResults = document.getElementById('feeBalanceExcludeNoResults');
+        const allItems = document.querySelectorAll('.fee-balance-exclude-item');
+        const allCheckboxes = document.querySelectorAll('.fee-balance-exclude-checkbox');
+
+        function updateCount() {
+            const checked = document.querySelectorAll('.fee-balance-exclude-checkbox:checked');
+            const ids = Array.from(checked).map(cb => cb.value);
+            if (countBadge) countBadge.textContent = ids.length + ' excluded';
+            if (excludeIdsInput) excludeIdsInput.value = ids.join(',');
+            if (displayBadge) displayBadge.classList.toggle('d-none', ids.length === 0);
+            if (badgeNum) badgeNum.textContent = ids.length;
+        }
+
+        function filterList() {
+            const search = (searchInput && searchInput.value) ? searchInput.value.toLowerCase().trim() : '';
+            const classId = (classFilter && classFilter.value) ? classFilter.value : '';
+            let visible = 0;
+            allItems.forEach(function(item) {
+                const matchSearch = !search || (item.dataset.studentName || '').includes(search) || (item.dataset.admission || '').includes(search) || (item.dataset.className || '').includes(search);
+                const matchClass = !classId || (item.dataset.classId || '') === classId;
+                if (matchSearch && matchClass) {
+                    item.classList.remove('d-none');
+                    visible++;
+                } else {
+                    item.classList.add('d-none');
+                }
+            });
+            if (noResults) noResults.classList.toggle('d-none', visible > 0);
+        }
+
+        if (searchInput) searchInput.addEventListener('input', filterList);
+        if (classFilter) classFilter.addEventListener('change', filterList);
+        if (selectAllBtn) selectAllBtn.addEventListener('click', function() {
+            document.querySelectorAll('.fee-balance-exclude-item:not(.d-none) .fee-balance-exclude-checkbox').forEach(cb => { cb.checked = true; });
+            updateCount();
+        });
+        if (clearAllBtn) clearAllBtn.addEventListener('click', function() {
+            allCheckboxes.forEach(cb => { cb.checked = false; });
+            updateCount();
+        });
+        allCheckboxes.forEach(cb => cb.addEventListener('change', updateCount));
+        if (confirmBtn) confirmBtn.addEventListener('click', function() {
+            updateCount();
+            const bsModal = bootstrap.Modal.getInstance(modal);
+            if (bsModal) bsModal.hide();
+        });
+        modal.addEventListener('hidden.bs.modal', function() {
+            if (searchInput) searchInput.value = '';
+            if (classFilter) classFilter.value = '';
+            filterList();
+        });
+        updateCount();
+    }
 });
 </script>
 @endpush
