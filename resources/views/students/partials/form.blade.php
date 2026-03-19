@@ -103,13 +103,10 @@
     @endforeach
   </select>
 </div>
-<div class="col-md-4">
+<div class="col-md-4" id="stream-field-wrapper">
   <label class="form-label">Stream</label>
     <select name="stream_id" class="form-select" id="stream_id">
-    <option value="">Select</option>
-    @foreach($streams as $st)
-      <option value="{{ $st->id }}" data-classroom="{{ $st->classroom_id ?? '' }}" @selected(old('stream_id', $s->stream_id ?? '') == $st->id)>{{ $st->name }}</option>
-    @endforeach
+    <option value="">Select Stream</option>
   </select>
   <div class="form-text text-muted" id="stream-hint"></div>
 </div>
@@ -504,23 +501,28 @@
     const classroomSelect = document.querySelector('select[name="classroom_id"]');
     const streamSelect = document.querySelector('select[name="stream_id"]');
 
+    const streamWrapper = document.getElementById('stream-field-wrapper');
     function loadStreams(classroomId, preselect = '{{ old('stream_id', $s->stream_id ?? '') }}') {
-      if (!classroomId) { streamSelect.innerHTML = '<option value="">Select Stream</option>'; return; }
+      streamSelect.innerHTML = '<option value="">Select Stream</option>';
+      if (streamWrapper) streamWrapper.style.display = classroomId ? '' : 'none';
+      if (!classroomId) return;
       fetch('{{ route('students.getStreams') }}', {
         method: 'POST',
         headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}','Content-Type': 'application/json'},
         body: JSON.stringify({ classroom_id: classroomId })
       }).then(r=>r.json()).then(rows=>{
         const opts = ['<option value="">Select Stream</option>'];
-        rows.forEach(s=>{
+        (rows || []).forEach(s=>{
           const sel = (String(s.id) === String(preselect)) ? 'selected' : '';
           opts.push(`<option value="${s.id}" ${sel}>${s.name}</option>`);
         });
         streamSelect.innerHTML = opts.join('');
+        if (streamWrapper) streamWrapper.style.display = (rows && rows.length > 0) ? '' : 'none';
+        updateRequirement();
       }).catch(()=>{});
     }
     classroomSelect?.addEventListener('change', e => loadStreams(e.target.value, ''));
-    if (classroomSelect?.value) loadStreams(classroomSelect.value);
+    loadStreams(classroomSelect?.value || '', classroomSelect?.value ? '{{ old('stream_id', $s->stream_id ?? '') }}' : '');
   })();
 
   // family: clear
@@ -558,20 +560,15 @@
     syncFields();
   })();
 
-  // stream required if classroom has streams (based on data-classroom on stream options)
+  // stream required if classroom has streams (options loaded via getStreams)
   (function(){
     const classroomSelect = document.querySelector('select[name="classroom_id"]');
     const streamSelect = document.querySelector('select[name="stream_id"]');
     const hint = document.getElementById('stream-hint');
-    function updateRequirement() {
+    window.updateRequirement = function updateRequirement() {
       if (!classroomSelect || !streamSelect) return;
-      const cls = classroomSelect.value;
-      let hasStreams = false;
-      streamSelect.querySelectorAll('option').forEach(opt => {
-        if (opt.value && opt.getAttribute('data-classroom') === cls) {
-          hasStreams = true;
-        }
-      });
+      const opts = streamSelect.querySelectorAll('option');
+      const hasStreams = opts.length > 1; // more than just "Select Stream"
       if (hasStreams) {
         streamSelect.setAttribute('required', 'required');
         if (hint) hint.textContent = 'Stream is required for the selected classroom.';
@@ -579,9 +576,8 @@
         streamSelect.removeAttribute('required');
         if (hint) hint.textContent = '';
       }
-    }
-    classroomSelect?.addEventListener('change', updateRequirement);
-    updateRequirement();
+    };
+    classroomSelect?.addEventListener('change', ()=> window.updateRequirement && window.updateRequirement());
   })();
 
   // family: search & select

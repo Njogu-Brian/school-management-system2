@@ -193,21 +193,19 @@
               </div>
               <div class="mb-3">
                 <label class="form-label">Assign Classroom</label>
-                <select name="classroom_id" class="form-select">
+                <select name="classroom_id" class="form-select" id="statusClassroomId">
                   <option value="">Select Classroom</option>
                   @foreach($classrooms as $classroom)
                     <option value="{{ $classroom->id }}" @selected($admission->classroom_id==$classroom->id)>{{ $classroom->name }}</option>
                   @endforeach
                 </select>
               </div>
-              <div class="mb-3">
+              <div class="mb-3" id="statusStreamSection">
                 <label class="form-label">Assign Stream</label>
-                <select name="stream_id" class="form-select">
+                <select name="stream_id" class="form-select" id="statusStreamId">
                   <option value="">Select Stream</option>
-                  @foreach($streams as $stream)
-                    <option value="{{ $stream->id }}" @selected($admission->stream_id==$stream->id)>{{ $stream->name }}</option>
-                  @endforeach
                 </select>
+                <small class="text-muted">Only shown when the selected classroom has streams.</small>
               </div>
               <div class="mb-3">
                 <label class="form-label">Review Notes</label>
@@ -233,7 +231,7 @@
                   @csrf
                   <div class="mb-3">
                     <label class="form-label">Classroom</label>
-                    <select name="classroom_id" class="form-select" required>
+                    <select name="classroom_id" class="form-select" required id="approveClassroomId">
                       <option value="">Select Classroom</option>
                       @foreach($classrooms as $classroom)
                         <option value="{{ $classroom->id }}" @selected($admission->classroom_id==$classroom->id)>{{ $classroom->name }}</option>
@@ -283,14 +281,12 @@
                     <label class="form-label">Residential Area <span class="text-danger">*</span></label>
                     <input type="text" name="residential_area" class="form-control" value="{{ old('residential_area', $admission->residential_area) }}" required>
                   </div>
-                  <div class="mb-3">
+                  <div class="mb-3" id="approveStreamSection">
                     <label class="form-label">Stream</label>
-                    <select name="stream_id" class="form-select">
+                    <select name="stream_id" class="form-select" id="approveStreamId">
                       <option value="">Select Stream</option>
-                      @foreach($streams as $stream)
-                        <option value="{{ $stream->id }}" @selected($admission->stream_id==$stream->id)>{{ $stream->name }}</option>
-                      @endforeach
                     </select>
+                    <small class="text-muted">Only shown when the selected classroom has streams.</small>
                   </div>
                   <div class="mb-3">
                     <label class="form-label">Category</label>
@@ -385,6 +381,53 @@
     }
     select?.addEventListener('change', sync);
     sync();
+  })();
+
+  // Stream dropdown: only show when classroom has streams
+  (function(){
+    const getStreamsUrl = '{{ route("students.getStreams") }}';
+    const csrf = '{{ csrf_token() }}';
+
+    function loadStreamsForClassroom(classroomId, streamSelectEl, sectionEl, preselectId) {
+      if (!streamSelectEl) return;
+      streamSelectEl.innerHTML = '<option value="">Select Stream</option>';
+      if (sectionEl) sectionEl.style.display = 'none';
+      if (!classroomId) return;
+
+      fetch(getStreamsUrl, {
+        method: 'POST',
+        headers: {'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: JSON.stringify({ classroom_id: classroomId })
+      }).then(r=>r.json()).then(streams=>{
+        if (streams && streams.length > 0) {
+          streams.forEach(s=>{
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            if (String(s.id) === String(preselectId)) opt.selected = true;
+            streamSelectEl.appendChild(opt);
+          });
+          if (sectionEl) sectionEl.style.display = '';
+        }
+      }).catch(()=>{});
+    }
+
+    const statusClassroom = document.getElementById('statusClassroomId');
+    const statusStream = document.getElementById('statusStreamId');
+    const statusSection = document.getElementById('statusStreamSection');
+    const approveClassroom = document.getElementById('approveClassroomId');
+    const approveStream = document.getElementById('approveStreamId');
+    const approveSection = document.getElementById('approveStreamSection');
+    const admissionStreamId = '{{ $admission->stream_id ?? "" }}';
+
+    if (statusClassroom && statusStream) {
+      statusClassroom.addEventListener('change', ()=> loadStreamsForClassroom(statusClassroom.value, statusStream, statusSection, ''));
+      if (statusClassroom.value) loadStreamsForClassroom(statusClassroom.value, statusStream, statusSection, admissionStreamId);
+    }
+    if (approveClassroom && approveStream) {
+      approveClassroom.addEventListener('change', ()=> loadStreamsForClassroom(approveClassroom.value, approveStream, approveSection, admissionStreamId));
+      if (approveClassroom.value) loadStreamsForClassroom(approveClassroom.value, approveStream, approveSection, admissionStreamId);
+    }
   })();
 </script>
 @endpush

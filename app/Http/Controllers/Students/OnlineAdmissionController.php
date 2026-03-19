@@ -262,6 +262,15 @@ class OnlineAdmissionController extends Controller
             'stream_id' => 'nullable|exists:streams,id',
         ]);
 
+        // If classroom has no streams, clear stream_id
+        if ($request->filled('classroom_id')) {
+            $classroom = \App\Models\Academics\Classroom::withCount(['streams', 'primaryStreams'])->find($request->classroom_id);
+            $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
+            if (!$classroomHasStreams) {
+                $request->merge(['stream_id' => null]);
+            }
+        }
+
         $admission->update([
             'application_status' => $request->application_status,
             'review_notes' => $request->review_notes,

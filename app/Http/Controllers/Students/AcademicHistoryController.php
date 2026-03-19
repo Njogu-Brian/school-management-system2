@@ -45,6 +45,15 @@ class AcademicHistoryController extends Controller
         $data['student_id'] = $student->id;
         $data['promoted_by'] = auth()->id();
 
+        // Clear stream_id if classroom has no streams
+        if (!empty($data['classroom_id'])) {
+            $classroom = Classroom::withCount(['streams', 'primaryStreams'])->find($data['classroom_id']);
+            $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
+            if (!$classroomHasStreams) {
+                $data['stream_id'] = null;
+            }
+        }
+
         // If this is marked as current, unmark all other current entries
         if ($request->boolean('is_current')) {
             StudentAcademicHistory::where('student_id', $student->id)
@@ -83,6 +92,15 @@ class AcademicHistoryController extends Controller
     public function update(StoreAcademicHistoryRequest $request, Student $student, StudentAcademicHistory $academicHistory)
     {
         $data = $request->validated();
+
+        // Clear stream_id if classroom has no streams
+        if (!empty($data['classroom_id'])) {
+            $classroom = Classroom::withCount(['streams', 'primaryStreams'])->find($data['classroom_id']);
+            $classroomHasStreams = $classroom && (($classroom->streams_count ?? 0) + ($classroom->primary_streams_count ?? 0)) > 0;
+            if (!$classroomHasStreams) {
+                $data['stream_id'] = null;
+            }
+        }
 
         // If this is marked as current, unmark all other current entries
         if ($request->boolean('is_current')) {

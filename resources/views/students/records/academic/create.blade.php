@@ -26,21 +26,19 @@
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">Classroom</label>
-            <select name="classroom_id" class="form-select">
+            <select name="classroom_id" class="form-select" id="academic-classroom-id">
               <option value="">Select Classroom</option>
               @foreach($classrooms as $classroom)
                 <option value="{{ $classroom->id }}" @selected(old('classroom_id')==$classroom->id)>{{ $classroom->name }}</option>
               @endforeach
             </select>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-6" id="academic-stream-wrapper">
             <label class="form-label">Stream</label>
-            <select name="stream_id" class="form-select">
+            <select name="stream_id" class="form-select" id="academic-stream-id">
               <option value="">Select Stream</option>
-              @foreach($streams as $stream)
-                <option value="{{ $stream->id }}" @selected(old('stream_id')==$stream->id)>{{ $stream->name }}</option>
-              @endforeach
             </select>
+            <small class="text-muted">Only shown when the selected classroom has streams.</small>
           </div>
           <div class="col-md-6">
             <label class="form-label">Enrollment Date <span class="text-danger">*</span></label>
@@ -97,5 +95,39 @@
     </div>
   </form>
 </div>
+
+@push('scripts')
+<script>
+(function(){
+  const classroomSelect = document.getElementById('academic-classroom-id');
+  const streamSelect = document.getElementById('academic-stream-id');
+  const streamWrapper = document.getElementById('academic-stream-wrapper');
+  const getStreamsUrl = '{{ route("students.getStreams") }}';
+  const preselect = '{{ old("stream_id", "") }}';
+
+  function loadStreams(classroomId) {
+    streamSelect.innerHTML = '<option value="">Select Stream</option>';
+    if (streamWrapper) streamWrapper.style.display = classroomId ? '' : 'none';
+    if (!classroomId) return;
+    fetch(getStreamsUrl, {
+      method: 'POST',
+      headers: {'X-CSRF-TOKEN': '{{ csrf_token() }}','Content-Type': 'application/json'},
+      body: JSON.stringify({ classroom_id: classroomId })
+    }).then(r=>r.json()).then(streams=>{
+      (streams||[]).forEach(s=>{
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = s.name;
+        if (String(s.id) === String(preselect)) opt.selected = true;
+        streamSelect.appendChild(opt);
+      });
+      if (streamWrapper) streamWrapper.style.display = (streams && streams.length > 0) ? '' : 'none';
+    }).catch(()=>{});
+  }
+  classroomSelect?.addEventListener('change', ()=> loadStreams(classroomSelect.value));
+  loadStreams(classroomSelect?.value || '');
+})();
+</script>
+@endpush
 @endsection
 
