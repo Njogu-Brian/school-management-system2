@@ -1877,6 +1877,7 @@ class MpesaPaymentController extends Controller
             $transactionType = $data['TransactionType'] ?? 'Paybill';
 
             // Create C2B transaction record
+            // MSISDN can be null for "Organization To Organization Transfer" (TILL TO TILL) - use empty string
             $c2bTransaction = MpesaC2BTransaction::create([
                 'transaction_type' => $transactionType,
                 'trans_id' => $transId,
@@ -1887,7 +1888,7 @@ class MpesaPaymentController extends Controller
                 'invoice_number' => $invoiceNumber,
                 'org_account_balance' => $data['OrgAccountBalance'] ?? null,
                 'third_party_trans_id' => $data['ThirdPartyTransID'] ?? null,
-                'msisdn' => $msisdn,
+                'msisdn' => $msisdn ?? '',
                 'first_name' => $firstName,
                 'middle_name' => $middleName,
                 'last_name' => $lastName,
