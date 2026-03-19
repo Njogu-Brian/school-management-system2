@@ -27,7 +27,16 @@
     @endif
     @if(session('error'))
       <div class="transport-alert transport-alert-error alert alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-circle-fill me-2"></i>{{ session('error') }}
+        <div>
+          <i class="bi bi-exclamation-circle-fill me-2"></i>{{ session('error') }}
+          @if(session('transport_fee_errors'))
+            <ul class="mb-0 mt-2 ps-3" style="font-size: 0.9em;">
+              @foreach(session('transport_fee_errors') as $err)
+                <li>{{ $err }}</li>
+              @endforeach
+            </ul>
+          @endif
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif

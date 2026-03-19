@@ -96,14 +96,18 @@ class TransportFeeController extends Controller
         $request->validate([
             'year' => 'nullable|integer',
             'term' => 'nullable|integer|in:1,2,3',
-            'fees' => 'array',
+            'fees' => 'required|array',
+        ], [
+            'fees.required' => 'No student data received. Select a classroom first, then save.',
         ]);
 
         [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
         $updated = 0;
         $changes = [];
+        $errors = [];
 
-        $studentIds = array_keys($request->input('fees', []));
+        $feesInput = $request->input('fees', []);
+        $studentIds = array_filter(array_map('intval', array_keys($feesInput)));
         $existingFees = $studentIds
             ? TransportFee::where('year', $year)->where('term', $term)->whereIn('student_id', $studentIds)->get()->keyBy('student_id')
             : collect();
@@ -113,9 +117,15 @@ class TransportFeeController extends Controller
         $students = $studentIds ? Student::whereIn('id', $studentIds)->get()->keyBy('id') : collect();
         $dropOffPointNames = DropOffPoint::all()->keyBy('id');
 
-        foreach ($request->input('fees', []) as $studentId => $row) {
-            $amount = $row['amount'] ?? null;
-            $amount = ($amount === '' || $amount === null) ? null : (is_numeric($amount) ? (float) $amount : null);
+        foreach ($feesInput as $studentId => $row) {
+            $studentId = (int) $studentId;
+            if ($studentId <= 0) {
+                continue;
+            }
+
+            // Robust amount parsing: trim and handle "0", "0.00", " 5400 ", etc.
+            $amountRaw = trim((string) ($row['amount'] ?? ''));
+            $amount = ($amountRaw === '' || $amountRaw === null) ? null : (is_numeric($amountRaw) ? (float) $amountRaw : null);
 
             $dropOffPointId = !empty($row['drop_off_point_id']) ? (int) $row['drop_off_point_id'] : null;
             $dropOffPointName = trim((string) ($row['drop_off_point_name'] ?? '')) ?: null;
@@ -123,13 +133,19 @@ class TransportFeeController extends Controller
             $morningDropOffPointId = !empty($row['morning_drop_off_point_id']) ? (int) $row['morning_drop_off_point_id'] : null;
             $eveningDropOffPointId = !empty($row['evening_drop_off_point_id']) ? (int) $row['evening_drop_off_point_id'] : null;
 
-            $studentName = $students[$studentId]->full_name ?? "Student #{$studentId}";
+            $studentName = $students->get($studentId)?->full_name ?? "Student #{$studentId}";
+
+            $hasFeeData = $dropOffPointId !== null || $dropOffPointName !== null || $amount !== null;
+            $hasAssignmentData = $morningDropOffPointId !== null || $eveningDropOffPointId !== null;
+            if (!$hasFeeData && !$hasAssignmentData) {
+                continue;
+            }
 
             try {
                 $changeParts = [];
 
                 // Update transport fee (legacy amount + drop-off)
-                if ($dropOffPointId !== null || $dropOffPointName !== null || $amount !== null) {
+                if ($hasFeeData) {
                     $existing = $existingFees[$studentId] ?? null;
                     $oldAmount = $existing ? (float) $existing->amount : null;
                     $oldDropId = $existing?->drop_off_point_id ?? null;
@@ -157,6 +173,7 @@ class TransportFeeController extends Controller
                     if ($dropChanged) {
                         $changeParts[] = ($oldDropName ?: '—') . ' → ' . ($newDropName ?: '—');
                     }
+                    $updated++;
                 }
 
                 // Update student assignment for morning/evening drop-off points
@@ -178,6 +195,7 @@ class TransportFeeController extends Controller
                         if ($eveningChanged) {
                             $changeParts[] = 'Evening: ' . ($oldEvening ? ($dropOffPointNames[$oldEvening]->name ?? '—') : '—') . ' → ' . ($eveningDropOffPointId ? ($dropOffPointNames[$eveningDropOffPointId]->name ?? '—') : '—');
                         }
+                        $updated++;
                     }
                 } elseif ($morningDropOffPointId || $eveningDropOffPointId) {
                     \App\Models\StudentAssignment::create([
@@ -186,30 +204,44 @@ class TransportFeeController extends Controller
                         'evening_drop_off_point_id' => $eveningDropOffPointId,
                     ]);
                     $changeParts[] = 'Assignment created';
+                    $updated++;
                 }
 
                 if (!empty($changeParts)) {
                     $changes[] = $studentName . ': ' . implode(', ', $changeParts);
-                    $updated++;
                 }
             } catch (\Throwable $e) {
-                Log::warning('Transport fee update failed', [
+                Log::error('Transport fee update failed', [
                     'student_id' => $studentId,
                     'message' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);
+                $errors[] = $studentName . ': ' . $e->getMessage();
             }
         }
-
-        $message = $updated > 0
-            ? "{$updated} transport fee(s) and drop-off point(s) updated for Term {$term}, {$year}."
-            : "No changes were saved. Please ensure you have selected a classroom and made edits before saving.";
 
         $redirect = redirect()->route('finance.transport-fees.index', [
             'classroom_id' => $request->input('classroom_id'),
             'year' => $year,
             'term' => $term,
         ]);
+
+        if (!empty($errors)) {
+            return $redirect
+                ->with('error', 'Some updates failed: ' . implode('; ', array_slice($errors, 0, 5)) . (count($errors) > 5 ? ' (and ' . (count($errors) - 5) . ' more)' : ''))
+                ->with('transport_fee_errors', $errors);
+        }
+
+        if ($updated === 0 && !empty($feesInput)) {
+            Log::info('Transport fee bulkUpdate: no rows updated', [
+                'row_count' => count($feesInput),
+                'sample_row' => array_slice($feesInput, 0, 1, true),
+            ]);
+        }
+
+        $message = $updated > 0
+            ? "{$updated} transport fee(s) and drop-off point(s) updated for Term {$term}, {$year}."
+            : "No changes were saved. Please ensure you have selected a classroom and made edits before saving.";
 
         return $redirect
             ->with('success', $message)
