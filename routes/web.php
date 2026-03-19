@@ -1406,6 +1406,8 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         // Fee Balance Report (with attendance tracking)
         Route::get('fee-balances', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'index'])->name('fee-balances.index');
         Route::get('fee-balances/export', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'export'])->name('fee-balances.export');
+        Route::get('fee-balances/export-pdf', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'exportPdf'])->name('fee-balances.export-pdf');
+        Route::get('fee-balances/print', [\App\Http\Controllers\Finance\FeeBalanceController::class, 'printPdf'])->name('fee-balances.print');
         
         // Balance Brought Forward
         Route::get('balance-brought-forward', [\App\Http\Controllers\Finance\BalanceBroughtForwardController::class, 'index'])->name('balance-brought-forward.index');

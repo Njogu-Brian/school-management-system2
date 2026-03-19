@@ -13,6 +13,7 @@ use App\Models\Academics\Classroom;
 use App\Models\Votehead;
 use App\Models\InvoiceItem;
 use App\Services\StudentBalanceService;
+use App\Services\PDFExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -101,6 +102,12 @@ class FeeBalanceController extends Controller
                 'classroom' => $student->classroom ? $student->classroom->name : 'N/A',
                 'stream' => $student->stream ? $student->stream->name : null,
                 'parent_phone' => $student->parent ? ($student->parent->father_phone ?? $student->parent->mother_phone ?? $student->parent->guardian_phone ?? 'N/A') : 'N/A',
+                'father_name' => $student->parent?->father_name,
+                'father_phone' => $student->parent?->father_phone,
+                'mother_name' => $student->parent?->mother_name,
+                'mother_phone' => $student->parent?->mother_phone,
+                'guardian_name' => $student->parent?->guardian_name,
+                'guardian_phone' => $student->parent?->guardian_phone,
                 'total_invoiced' => $totalInvoiced,
                 'total_paid' => $totalPaid,
                 'balance' => $balance,
@@ -522,7 +529,10 @@ class FeeBalanceController extends Controller
                 'Student Name',
                 'Class',
                 'Stream',
-                'Parent Phone',
+                'Father Name',
+                'Father Phone',
+                'Mother Name',
+                'Mother Phone',
                 'Total Invoiced',
                 'Total Paid',
                 'Balance',
@@ -549,7 +559,10 @@ class FeeBalanceController extends Controller
                     $student['full_name'],
                     $student['classroom'],
                     $student['stream'] ?? '',
-                    $student['parent_phone'],
+                    $student['father_name'] ?? '',
+                    $student['father_phone'] ?? '',
+                    $student['mother_name'] ?? '',
+                    $student['mother_phone'] ?? '',
                     number_format($student['total_invoiced'], 2),
                     number_format($student['total_paid'], 2),
                     number_format($student['balance'], 2),
@@ -573,6 +586,50 @@ class FeeBalanceController extends Controller
             fclose($handle);
         }, 'fee_balance_report_' . now()->format('Y-m-d_His') . '.csv', [
             'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    /**
+     * Export fee balance list as PDF (download) - learners per class with child name, balance, both parents' contacts
+     */
+    public function exportPdf(Request $request)
+    {
+        $data = $this->index($request)->getData();
+        $students = collect($data['students']);
+        $selectedTermId = $data['selectedTermId'] ?? null;
+        $selectedTerm = $selectedTermId ? Term::with('academicYear')->find($selectedTermId) : Term::where('is_current', true)->with('academicYear')->first();
+
+        $studentsByClass = $students->groupBy('classroom');
+
+        $pdfService = new PDFExportService();
+        return $pdfService->generatePDF('finance.fee_balances.pdf', [
+            'studentsByClass' => $studentsByClass,
+            'selectedTerm' => $selectedTerm,
+        ], [
+            'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
+            'stream' => false,
+        ]);
+    }
+
+    /**
+     * Print fee balance list (open in browser for printing) - learners per class with child name, balance, both parents' contacts
+     */
+    public function printPdf(Request $request)
+    {
+        $data = $this->index($request)->getData();
+        $students = collect($data['students']);
+        $selectedTermId = $data['selectedTermId'] ?? null;
+        $selectedTerm = $selectedTermId ? Term::with('academicYear')->find($selectedTermId) : Term::where('is_current', true)->with('academicYear')->first();
+
+        $studentsByClass = $students->groupBy('classroom');
+
+        $pdfService = new PDFExportService();
+        return $pdfService->generatePDF('finance.fee_balances.pdf', [
+            'studentsByClass' => $studentsByClass,
+            'selectedTerm' => $selectedTerm,
+        ], [
+            'filename' => 'fee_balance_list_' . now()->format('Y-m-d_His') . '.pdf',
+            'stream' => true,
         ]);
     }
 }

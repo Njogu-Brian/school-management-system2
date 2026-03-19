@@ -92,7 +92,12 @@
             'title' => 'Fee Balance Report',
             'icon' => 'bi bi-cash-stack',
             'subtitle' => 'Track student fee balances and attendance status',
-            'actions' => '<a href="' . route('finance.fee-balances.export', request()->all()) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-download"></i> Export Report</a>'
+            'actions' => '
+                <div class="btn-group">
+                    <a href="' . route('finance.fee-balances.print', request()->all()) . '" target="_blank" class="btn btn-finance btn-finance-outline"><i class="bi bi-printer"></i> Print</a>
+                    <a href="' . route('finance.fee-balances.export-pdf', request()->all()) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-file-pdf"></i> Export PDF</a>
+                    <a href="' . route('finance.fee-balances.export', request()->all()) . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-download"></i> Export CSV</a>
+                </div>'
         ])
 
         {{-- Summary Cards --}}

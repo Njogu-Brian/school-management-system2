@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Fee Balance List - {{ $selectedTerm?->name ?? 'Current Term' }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            margin: 15px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .header .school-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .header p {
+            margin: 3px 0;
+            color: #666;
+            font-size: 10px;
+        }
+        .class-section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        .class-header {
+            background-color: #2563eb;
+            color: white;
+            padding: 8px 10px;
+            margin-bottom: 0;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f1f5f9;
+            font-weight: bold;
+            font-size: 10px;
+        }
+        tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        .text-end {
+            text-align: right;
+        }
+        .balance-positive {
+            color: #dc2626;
+            font-weight: bold;
+        }
+        .balance-zero {
+            color: #059669;
+        }
+        .footer {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 9px;
+        }
+        @media print {
+            .class-section {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        @if($branding['school_name'] ?? null)
+            <div class="school-name">{{ $branding['school_name'] }}</div>
+        @endif
+        <h1>Fee Balance List</h1>
+        <p><strong>Term:</strong> {{ $selectedTerm?->name ?? 'Current Term' }} ({{ optional($selectedTerm?->academicYear)->year ?? now()->year }})</p>
+        <p><strong>Generated:</strong> {{ $generated_at ?? now()->format('F j, Y H:i') }}</p>
+    </div>
+
+    @foreach($studentsByClass as $classroom => $students)
+    <div class="class-section">
+        <div class="class-header">
+            {{ $classroom }} ({{ $students->count() }} learner{{ $students->count() !== 1 ? 's' : '' }})
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 4%;">#</th>
+                    <th style="width: 22%;">Child's Name</th>
+                    <th style="width: 12%;">Adm No</th>
+                    <th style="width: 14%;" class="text-end">Fee Balance</th>
+                    <th style="width: 24%;">Father</th>
+                    <th style="width: 24%;">Mother</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($students as $index => $student)
+                <tr>
+                    <td>{{ $index + 1 }}</td>
+                    <td>{{ $student['full_name'] }}</td>
+                    <td>{{ $student['admission_number'] }}</td>
+                    <td class="text-end {{ $student['balance'] > 0 ? 'balance-positive' : 'balance-zero' }}">
+                        Ksh {{ number_format($student['balance'], 2) }}
+                    </td>
+                    <td>
+                        @if(!empty($student['father_name']) || !empty($student['father_phone']))
+                            {{ $student['father_name'] ?? '-' }}<br>
+                            <small>{{ $student['father_phone'] ?? '-' }}</small>
+                        @elseif(!empty($student['guardian_name']) || !empty($student['guardian_phone']))
+                            Guardian: {{ $student['guardian_name'] ?? '-' }}<br>
+                            <small>{{ $student['guardian_phone'] ?? '-' }}</small>
+                        @else
+                            -
+                        @endif
+                    </td>
+                    <td>
+                        @if(!empty($student['mother_name']) || !empty($student['mother_phone']))
+                            {{ $student['mother_name'] ?? '-' }}<br>
+                            <small>{{ $student['mother_phone'] ?? '-' }}</small>
+                        @else
+                            -
+                        @endif
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+    @endforeach
+
+    <div class="footer">
+        <p>Generated by {{ config('app.name') }} - {{ $generated_by ?? 'System' }}</p>
+    </div>
+</body>
+</html>
