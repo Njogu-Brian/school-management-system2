@@ -510,13 +510,21 @@ class FeeBalanceController extends Controller
     }
     
     /**
-     * Export fee balance report
+     * Export fee balance report (CSV, PDF download, or PDF print)
+     * Supports ?format=csv|pdf|print - default is csv
      */
     public function export(Request $request)
     {
-        // Reuse the same logic as index but export to Excel/CSV
-        // This will be similar to index() but return a download response
-        
+        $format = $request->query('format', 'csv');
+
+        if ($format === 'pdf') {
+            return $this->exportPdf($request);
+        }
+        if ($format === 'print') {
+            return $this->printPdf($request);
+        }
+
+        // CSV export
         return response()->streamDownload(function () use ($request) {
             $data = $this->index($request)->getData();
             $students = $data['students'];
