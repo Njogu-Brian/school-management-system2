@@ -101,60 +101,119 @@ class TransportFeeController extends Controller
 
         [$year, $term] = TransportFeeService::resolveYearAndTerm($request->year, $request->term);
         $updated = 0;
+        $changes = [];
+
+        $studentIds = array_keys($request->input('fees', []));
+        $existingFees = $studentIds
+            ? TransportFee::where('year', $year)->where('term', $term)->whereIn('student_id', $studentIds)->get()->keyBy('student_id')
+            : collect();
+        $existingAssignments = $studentIds
+            ? \App\Models\StudentAssignment::whereIn('student_id', $studentIds)->get()->keyBy('student_id')
+            : collect();
+        $students = $studentIds ? Student::whereIn('id', $studentIds)->get()->keyBy('id') : collect();
+        $dropOffPointNames = DropOffPoint::all()->keyBy('id');
 
         foreach ($request->input('fees', []) as $studentId => $row) {
             $amount = $row['amount'] ?? null;
             $amount = ($amount === '' || $amount === null) ? null : (is_numeric($amount) ? (float) $amount : null);
 
-            $dropOffPointId = $row['drop_off_point_id'] ?? null;
-            $dropOffPointName = $row['drop_off_point_name'] ?? null;
-            
-            // Handle morning and evening drop-off points
-            $morningDropOffPointId = $row['morning_drop_off_point_id'] ?? null;
-            $eveningDropOffPointId = $row['evening_drop_off_point_id'] ?? null;
+            $dropOffPointId = !empty($row['drop_off_point_id']) ? (int) $row['drop_off_point_id'] : null;
+            $dropOffPointName = trim((string) ($row['drop_off_point_name'] ?? '')) ?: null;
+
+            $morningDropOffPointId = !empty($row['morning_drop_off_point_id']) ? (int) $row['morning_drop_off_point_id'] : null;
+            $eveningDropOffPointId = !empty($row['evening_drop_off_point_id']) ? (int) $row['evening_drop_off_point_id'] : null;
+
+            $studentName = $students[$studentId]->full_name ?? "Student #{$studentId}";
 
             try {
-                // Update transport fee (even if amount is null - will create drop-off point only)
-                if ($dropOffPointId || $dropOffPointName || $amount !== null) {
+                $changeParts = [];
+
+                // Update transport fee (legacy amount + drop-off)
+                if ($dropOffPointId !== null || $dropOffPointName !== null || $amount !== null) {
+                    $existing = $existingFees[$studentId] ?? null;
+                    $oldAmount = $existing ? (float) $existing->amount : null;
+                    $oldDropId = $existing?->drop_off_point_id ?? null;
+                    $oldDropName = $existing?->drop_off_point_name ?? ($oldDropId ? ($dropOffPointNames[$oldDropId]->name ?? null) : null);
+                    $newDropName = $dropOffPointName ?? ($dropOffPointId ? ($dropOffPointNames[$dropOffPointId]->name ?? null) : null);
+
+                    $amountChanged = $oldAmount != ($amount ?? 0);
+                    $dropChanged = ($oldDropId != $dropOffPointId) || (Str::lower(trim($oldDropName ?? '')) !== Str::lower(trim($newDropName ?? '')));
+
                     TransportFeeService::upsertFee([
                         'student_id' => $studentId,
                         'amount' => $amount ?? 0,
                         'year' => $year,
                         'term' => $term,
-                        'drop_off_point_id' => $dropOffPointId ?: null,
+                        'drop_off_point_id' => $dropOffPointId,
                         'drop_off_point_name' => $dropOffPointName,
                         'source' => 'manual',
                         'note' => 'Updated from transport fee class view',
-                        'skip_invoice' => true, // Apply changes via Post Pending Fees
+                        'skip_invoice' => true,
                     ]);
+
+                    if ($amountChanged) {
+                        $changeParts[] = number_format($oldAmount ?? 0, 0) . ' → ' . number_format($amount ?? 0, 0);
+                    }
+                    if ($dropChanged) {
+                        $changeParts[] = ($oldDropName ?: '—') . ' → ' . ($newDropName ?: '—');
+                    }
                 }
-                
+
                 // Update student assignment for morning/evening drop-off points
-                $assignment = \App\Models\StudentAssignment::where('student_id', $studentId)->first();
+                $assignment = $existingAssignments[$studentId] ?? \App\Models\StudentAssignment::where('student_id', $studentId)->first();
+                $oldMorning = $assignment?->morning_drop_off_point_id ?? null;
+                $oldEvening = $assignment?->evening_drop_off_point_id ?? null;
+                $morningChanged = $oldMorning != $morningDropOffPointId;
+                $eveningChanged = $oldEvening != $eveningDropOffPointId;
+
                 if ($assignment) {
-                    $assignment->update([
-                        'morning_drop_off_point_id' => $morningDropOffPointId ?: null,
-                        'evening_drop_off_point_id' => $eveningDropOffPointId ?: null,
-                    ]);
+                    if ($morningChanged || $eveningChanged) {
+                        $assignment->update([
+                            'morning_drop_off_point_id' => $morningDropOffPointId,
+                            'evening_drop_off_point_id' => $eveningDropOffPointId,
+                        ]);
+                        if ($morningChanged) {
+                            $changeParts[] = 'Morning: ' . ($oldMorning ? ($dropOffPointNames[$oldMorning]->name ?? '—') : '—') . ' → ' . ($morningDropOffPointId ? ($dropOffPointNames[$morningDropOffPointId]->name ?? '—') : '—');
+                        }
+                        if ($eveningChanged) {
+                            $changeParts[] = 'Evening: ' . ($oldEvening ? ($dropOffPointNames[$oldEvening]->name ?? '—') : '—') . ' → ' . ($eveningDropOffPointId ? ($dropOffPointNames[$eveningDropOffPointId]->name ?? '—') : '—');
+                        }
+                    }
                 } elseif ($morningDropOffPointId || $eveningDropOffPointId) {
-                    // Create assignment if it doesn't exist but we have drop-off points
                     \App\Models\StudentAssignment::create([
                         'student_id' => $studentId,
-                        'morning_drop_off_point_id' => $morningDropOffPointId ?: null,
-                        'evening_drop_off_point_id' => $eveningDropOffPointId ?: null,
+                        'morning_drop_off_point_id' => $morningDropOffPointId,
+                        'evening_drop_off_point_id' => $eveningDropOffPointId,
                     ]);
+                    $changeParts[] = 'Assignment created';
                 }
-                
-                $updated++;
+
+                if (!empty($changeParts)) {
+                    $changes[] = $studentName . ': ' . implode(', ', $changeParts);
+                    $updated++;
+                }
             } catch (\Throwable $e) {
                 Log::warning('Transport fee update failed', [
                     'student_id' => $studentId,
                     'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
                 ]);
             }
         }
 
-        return back()->with('success', "{$updated} transport fee(s) and drop-off point(s) updated for Term {$term}, {$year}.");
+        $message = $updated > 0
+            ? "{$updated} transport fee(s) and drop-off point(s) updated for Term {$term}, {$year}."
+            : "No changes were saved. Please ensure you have selected a classroom and made edits before saving.";
+
+        $redirect = redirect()->route('finance.transport-fees.index', [
+            'classroom_id' => $request->input('classroom_id'),
+            'year' => $year,
+            'term' => $term,
+        ]);
+
+        return $redirect
+            ->with('success', $message)
+            ->with('transport_fee_changes', array_slice($changes, 0, 20));
     }
 
     public function importPreview(Request $request)

@@ -12,7 +12,16 @@
 
     @if(session('success'))
       <div class="transport-alert transport-alert-success alert alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
+        <div>
+          <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
+          @if(session('transport_fee_changes'))
+            <ul class="mb-0 mt-2 ps-3" style="font-size: 0.9em;">
+              @foreach(session('transport_fee_changes') as $change)
+                <li>{{ $change }}</li>
+              @endforeach
+            </ul>
+          @endif
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     @endif
@@ -89,6 +98,9 @@
               @csrf
               <input type="hidden" name="year" value="{{ $year }}">
               <input type="hidden" name="term" value="{{ $term }}">
+              @if($classroomId)
+              <input type="hidden" name="classroom_id" value="{{ $classroomId }}">
+              @endif
 
               {{-- Desktop table --}}
               <div class="transport-table-wrapper d-none d-lg-block">
