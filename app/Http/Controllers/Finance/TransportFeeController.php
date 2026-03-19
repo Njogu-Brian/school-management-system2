@@ -173,7 +173,9 @@ class TransportFeeController extends Controller
                     if ($dropChanged) {
                         $changeParts[] = ($oldDropName ?: '—') . ' → ' . ($newDropName ?: '—');
                     }
-                    $updated++;
+                    if ($amountChanged || $dropChanged) {
+                        $updated++;
+                    }
                 }
 
                 // Update student assignment for morning/evening drop-off points

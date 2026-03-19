@@ -103,7 +103,7 @@
           </div>
           <div class="finance-card-body transport-card-body p-0">
             @if($students->count())
-            <form method="POST" action="{{ route('finance.transport-fees.bulk-update') }}">
+            <form method="POST" action="{{ route('finance.transport-fees.bulk-update') }}" id="transport-fees-form">
               @csrf
               <input type="hidden" name="year" value="{{ $year }}">
               <input type="hidden" name="term" value="{{ $term }}">
@@ -346,6 +346,27 @@
   body.theme-dark .transport-mobile-card { background: var(--fin-bg); }
   body.theme-dark .transport-info-pill { background: color-mix(in srgb, var(--fin-primary) 15%, var(--fin-surface) 85%); }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+(function() {
+  var form = document.getElementById('transport-fees-form');
+  if (!form) return;
+  form.addEventListener('submit', function() {
+    // Desktop: table visible (.d-lg-block), mobile hidden (.d-lg-none)
+    // Mobile: table hidden (.d-none.d-lg-block), mobile visible
+    var isDesktop = window.matchMedia('(min-width: 992px)').matches;
+    var tableWrapper = form.querySelector('.transport-table-wrapper');
+    var mobileCards = form.querySelector('.transport-mobile-cards');
+    if (isDesktop && mobileCards) {
+      Array.prototype.forEach.call(mobileCards.querySelectorAll('input, select'), function(el) { el.disabled = true; });
+    } else if (!isDesktop && tableWrapper) {
+      Array.prototype.forEach.call(tableWrapper.querySelectorAll('input, select'), function(el) { el.disabled = true; });
+    }
+  });
+})();
+</script>
 @endpush
 @endsection
 
