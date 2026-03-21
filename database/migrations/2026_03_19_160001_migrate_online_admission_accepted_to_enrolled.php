@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // First add 'enrolled' to the enum
+        DB::statement("ALTER TABLE online_admissions MODIFY COLUMN application_status ENUM('pending', 'under_review', 'accepted', 'rejected', 'waitlisted', 'enrolled') DEFAULT 'pending'");
+
         DB::table('online_admissions')
             ->where('application_status', 'accepted')
             ->update(['application_status' => 'enrolled']);
@@ -25,5 +28,8 @@ return new class extends Migration
             ->where('application_status', 'enrolled')
             ->where('enrolled', true)
             ->update(['application_status' => 'accepted']);
+
+        // Restore enum without 'enrolled'
+        DB::statement("ALTER TABLE online_admissions MODIFY COLUMN application_status ENUM('pending', 'under_review', 'accepted', 'rejected', 'waitlisted') DEFAULT 'pending'");
     }
 };
