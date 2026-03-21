@@ -171,7 +171,7 @@
                     <div class="col-md-12">
                         <label class="form-label">Custom Message <span class="text-danger">*</span></label>
                         <textarea name="custom_message" id="custom_message" class="form-control" rows="5" placeholder="Leave empty to use template content">{{ old('custom_message') }}</textarea>
-                        <small class="text-muted">Placeholders: {{student_name}}, {{parent_name}}, {{outstanding_amount}}, {{finance_portal_link}}, {{swimming_balance}}, {{school_name}}</small>
+                        <small class="text-muted">Placeholders: @{{student_name}}, @{{parent_name}}, @{{outstanding_amount}}, @{{finance_portal_link}}, @{{swimming_balance}}, @{{school_name}}</small>
                         @error('custom_message')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                         @enderror
