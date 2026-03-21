@@ -179,6 +179,11 @@
 </div>
 @endif
 
+<!-- Fee Policy Notice -->
+<div style="margin-top: 12px; padding: 10px 12px; background-color: #fff8e6; border: 1px solid #e6b800; border-radius: 4px; font-size: 10px; font-weight: 600; color: #856404; text-align: center; line-height: 1.5;">
+    Fees once paid are not refundable or transferable. No fee rebate will be given for absenteeism.
+</div>
+
 <!-- Footer -->
 <div class="footer">
     <div class="thank-you">Thank You for Your Payment!</div>

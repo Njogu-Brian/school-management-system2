@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Models\FeeReminder;
 use App\Models\Invoice;
+use App\Models\ScheduledFeeCommunication;
 use App\Models\Student;
 use App\Services\SMSService;
 use App\Models\CommunicationTemplate;
@@ -24,23 +25,30 @@ class FeeReminderController extends Controller
     }
 
     /**
-     * Display fee reminders
+     * Display fee reminders and scheduled communications (unified at /finance/fee-reminders)
      */
     public function index(Request $request)
     {
-        $query = FeeReminder::with(['student', 'invoice']);
+        $tab = $request->get('tab', 'sent');
 
+        // Sent reminders
+        $remindersQuery = FeeReminder::with(['student', 'invoice']);
         if ($request->filled('status')) {
-            $query->where('status', $request->status);
+            $remindersQuery->where('status', $request->status);
         }
-
         if ($request->filled('student_id')) {
-            $query->where('student_id', $request->student_id);
+            $remindersQuery->where('student_id', $request->student_id);
         }
+        $reminders = $remindersQuery->latest()->paginate(20)->withQueryString();
 
-        $reminders = $query->latest()->paginate(20)->withQueryString();
+        // Scheduled communications
+        $scheduledQuery = ScheduledFeeCommunication::with(['student', 'template', 'createdBy'])->latest();
+        if ($request->filled('status')) {
+            $scheduledQuery->where('status', $request->status);
+        }
+        $scheduled = $scheduledQuery->paginate(20)->withQueryString();
 
-        return view('finance.fee_reminders.index', compact('reminders'));
+        return view('finance.fee_reminders.index', compact('reminders', 'scheduled', 'tab'));
     }
 
     /**

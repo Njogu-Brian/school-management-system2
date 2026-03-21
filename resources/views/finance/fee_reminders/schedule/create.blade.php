@@ -3,6 +3,7 @@
 @section('content')
 @php $classes = $classrooms; @endphp
 @include('communication.partials.student-selector-modal')
+@include('communication.partials.exclude-student-modal')
 @push('styles')
 @include('finance.partials.styles')
 @endpush
@@ -84,6 +85,28 @@
                 </select>
                 <small class="schedule-muted">Hold Ctrl/Cmd to select multiple</small>
                 @error('classroom_ids')<div class="schedule-error">{{ $message }}</div>@enderror
+              </div>
+
+              <div class="schedule-field target-field target-all d-none mt-3">
+                <label class="schedule-label">Exclusions</label>
+                <div class="schedule-check-group">
+                  <label class="schedule-check">
+                    <input type="hidden" name="exclude_staff" value="0">
+                    <input type="checkbox" name="exclude_staff" value="1" {{ old('exclude_staff', '1') !== '0' ? 'checked' : '' }}>
+                    <span>Exclude staff children</span>
+                  </label>
+                </div>
+                <small class="schedule-muted d-block mt-1">Do not send to parents of students in the Staff category.</small>
+                <div class="mt-2">
+                  <button type="button" class="schedule-btn schedule-btn-outline" data-bs-toggle="modal" data-bs-target="#excludeStudentSelectorModal">
+                    <i class="bi bi-person-x"></i> Exclude specific students
+                  </button>
+                  <input type="hidden" name="exclude_student_ids" id="excludeStudentIds" value="{{ old('exclude_student_ids') }}">
+                  <div id="excludeStudentsDisplay" class="mt-2 d-none">
+                    <small class="schedule-muted">Excluded: </small>
+                    <span class="schedule-badge" id="excludeStudentsBadge">0</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -262,8 +285,8 @@
               </div>
 
               <div class="schedule-field mt-3">
-                <button type="button" class="schedule-btn schedule-btn-ghost schedule-btn-sm" id="previewCountBtn">
-                  <i class="bi bi-eye"></i> Preview recipient count
+                <button type="button" class="schedule-btn schedule-btn-ghost schedule-btn-sm" id="previewRecipientsBtn">
+                  <i class="bi bi-eye"></i> Preview recipients
                 </button>
                 <span id="previewCountResult" class="schedule-muted ms-2"></span>
               </div>
@@ -293,6 +316,57 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+{{-- Preview Recipients Modal --}}
+<div class="modal fade" id="previewRecipientsModal" tabindex="-1" aria-labelledby="previewRecipientsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="previewRecipientsModalLabel">
+          <i class="bi bi-people"></i> Recipients Preview
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="previewRecipientsLoading" class="text-center py-5 d-none">
+          <div class="spinner-border text-primary" role="status"></div>
+          <p class="mt-2 text-muted">Loading recipients...</p>
+        </div>
+        <div id="previewRecipientsContent" class="d-none">
+          <p class="text-muted mb-3"><strong id="previewRecipientsCount">0</strong> parent(s) will receive this communication.</p>
+          <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm table-striped">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>#</th>
+                  <th>Student Name</th>
+                  <th>Admission #</th>
+                  <th>Parent Contact</th>
+                  <th class="text-end">Fee Balance (KES)</th>
+                </tr>
+              </thead>
+              <tbody id="previewRecipientsTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div id="previewRecipientsEmpty" class="text-center py-5 text-muted d-none">
+          <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+          <p class="mt-2">No recipients match the current filters.</p>
+        </div>
+        <div id="previewRecipientsError" class="alert alert-danger d-none">
+          Could not load recipients. Please try again.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-finance btn-finance-primary" data-bs-dismiss="modal" onclick="document.getElementById('scheduleSubmitBtn').focus()">
+          <i class="bi bi-calendar-check"></i> Continue to Schedule
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -398,29 +472,65 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  document.getElementById('previewCountBtn').addEventListener('click', function() {
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  document.getElementById('previewRecipientsBtn').addEventListener('click', function() {
     const form = document.getElementById('scheduleFeeForm');
     const formData = new FormData(form);
-    fetch('{{ route("finance.fee-reminders.schedule.preview-count") }}', {
+    const modal = new bootstrap.Modal(document.getElementById('previewRecipientsModal'));
+    const loading = document.getElementById('previewRecipientsLoading');
+    const content = document.getElementById('previewRecipientsContent');
+    const empty = document.getElementById('previewRecipientsEmpty');
+    const err = document.getElementById('previewRecipientsError');
+    const tbody = document.getElementById('previewRecipientsTableBody');
+    const countEl = document.getElementById('previewRecipientsCount');
+
+    loading.classList.remove('d-none');
+    content.classList.add('d-none');
+    empty.classList.add('d-none');
+    err.classList.add('d-none');
+    modal.show();
+
+    const payload = {
+      target: formData.get('target') || 'all',
+      student_id: formData.get('student_id'),
+      selected_student_ids: formData.get('selected_student_ids'),
+      classroom_ids: formData.getAll('classroom_ids[]'),
+      filter_type: formData.get('filter_type') || 'all',
+      balance_min: formData.get('balance_min'),
+      balance_percent_min: formData.get('balance_percent_min'),
+      exclude_staff: formData.get('exclude_staff') !== '0',
+      exclude_student_ids: formData.get('exclude_student_ids'),
+      _token: '{{ csrf_token() }}'
+    };
+
+    fetch('{{ route("finance.fee-reminders.schedule.preview-recipients") }}', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        target: formData.get('target') || 'all',
-        student_id: formData.get('student_id'),
-        selected_student_ids: formData.get('selected_student_ids'),
-        classroom_ids: formData.getAll('classroom_ids[]'),
-        filter_type: formData.get('filter_type') || 'all',
-        balance_min: formData.get('balance_min'),
-        balance_percent_min: formData.get('balance_percent_min'),
-        _token: '{{ csrf_token() }}'
-      })
+      body: JSON.stringify(payload)
     })
     .then(r => r.json())
     .then(res => {
-      document.getElementById('previewCountResult').textContent = '~' + (res.count || 0) + ' parent(s)';
+      loading.classList.add('d-none');
+      document.getElementById('previewCountResult').textContent = res.count + ' parent(s)';
+      if (res.recipients && res.recipients.length > 0) {
+        countEl.textContent = res.count;
+        tbody.innerHTML = res.recipients.map((r, i) =>
+          '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(r.student_name || '-') + '</td><td>' + escapeHtml(r.admission_number || '-') + '</td><td>' + escapeHtml(r.parent_contact || '-') + '</td><td class="text-end">' + escapeHtml(r.fee_balance || '0.00') + '</td></tr>'
+        ).join('');
+        content.classList.remove('d-none');
+      } else {
+        empty.classList.remove('d-none');
+      }
     })
     .catch(() => {
-      document.getElementById('previewCountResult').textContent = 'Could not preview';
+      loading.classList.add('d-none');
+      err.classList.remove('d-none');
+      document.getElementById('previewCountResult').textContent = 'Preview failed';
     });
   });
 });

@@ -11,6 +11,8 @@ class ScheduledFeeCommunication extends Model
         'student_id',
         'selected_student_ids',
         'classroom_ids',
+        'exclude_staff',
+        'exclude_student_ids',
         'filter_type',
         'balance_min',
         'balance_max',
@@ -33,6 +35,8 @@ class ScheduledFeeCommunication extends Model
     protected $casts = [
         'selected_student_ids' => 'array',
         'classroom_ids' => 'array',
+        'exclude_staff' => 'boolean',
+        'exclude_student_ids' => 'array',
         'channels' => 'array',
         'recurrence_times' => 'array',
         'recurrence_week_days' => 'array',

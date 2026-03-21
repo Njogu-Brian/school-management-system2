@@ -7,6 +7,7 @@ use App\Models\ScheduledFeeCommunication;
 use App\Models\CommunicationTemplate;
 use App\Models\Student;
 use App\Services\CommunicationHelperService;
+use App\Services\StudentBalanceService;
 use App\Models\Academics\Classroom;
 use Illuminate\Http\Request;
 
@@ -98,6 +99,8 @@ class ScheduledFeeCommunicationController extends Controller
             'recurrence_end_at' => 'nullable|date|after:recurrence_start_at',
             'send_at' => 'nullable|date',
             'send_now' => 'nullable|boolean',
+            'exclude_staff' => 'nullable|boolean',
+            'exclude_student_ids' => 'nullable|string',
         ];
 
         $validated = $request->validate($rules);
@@ -144,6 +147,14 @@ class ScheduledFeeCommunicationController extends Controller
         }
 
         $validated['classroom_ids'] = $validated['classroom_ids'] ?? null;
+
+        // Exclude options (apply when target is "all")
+        $validated['exclude_staff'] = $validated['target'] === 'all'
+            ? (bool) ($request->input('exclude_staff', true))
+            : true;
+        $validated['exclude_student_ids'] = $validated['target'] === 'all' && $request->filled('exclude_student_ids')
+            ? array_filter(array_map('intval', explode(',', (string) $request->exclude_student_ids)))
+            : null;
         $validated['created_by'] = auth()->id();
 
         if ($sendNow) {
@@ -188,7 +199,7 @@ class ScheduledFeeCommunicationController extends Controller
             ? 'Communication scheduled successfully. It will be sent automatically at the scheduled time.'
             : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.');
 
-        return redirect()->route($sendNow ? 'finance.fee-reminders.index' : 'finance.fee-reminders.schedule.index')
+        return redirect()->route('finance.fee-reminders.index', $sendNow ? [] : ['tab' => 'scheduled'])
             ->with('success', $msg);
     }
 
@@ -245,12 +256,18 @@ class ScheduledFeeCommunicationController extends Controller
 
     public function previewCount(Request $request)
     {
+        $excludeIds = $request->input('exclude_student_ids');
+        if (is_string($excludeIds)) {
+            $excludeIds = array_filter(array_map('intval', explode(',', $excludeIds)));
+        }
+
         $data = [
             'target' => $request->input('target'),
             'student_id' => $request->input('student_id'),
             'selected_student_ids' => $request->input('selected_student_ids'),
             'classroom_ids' => $request->input('classroom_ids'),
-            'exclude_staff' => true,
+            'exclude_staff' => (bool) $request->input('exclude_staff', true),
+            'exclude_student_ids' => !empty($excludeIds) ? $excludeIds : null,
         ];
 
         $ids = $request->input('classroom_ids');
@@ -290,5 +307,93 @@ class ScheduledFeeCommunicationController extends Controller
         $count = count(CommunicationHelperService::expandRecipientsToPairs($emailRecipients));
 
         return response()->json(['count' => $count]);
+    }
+
+    /**
+     * Preview recipients with student name, parent contact, and fee balance.
+     */
+    public function previewRecipients(Request $request)
+    {
+        $excludeIds = $request->input('exclude_student_ids');
+        if (is_string($excludeIds)) {
+            $excludeIds = array_filter(array_map('intval', explode(',', $excludeIds)));
+        }
+
+        $data = [
+            'target' => $request->input('target'),
+            'student_id' => $request->input('student_id'),
+            'selected_student_ids' => $request->input('selected_student_ids'),
+            'classroom_ids' => $request->input('classroom_ids'),
+            'exclude_staff' => (bool) $request->input('exclude_staff', true),
+            'exclude_student_ids' => !empty($excludeIds) ? $excludeIds : null,
+        ];
+
+        $ids = $request->input('classroom_ids');
+        if (is_string($ids)) {
+            $data['classroom_ids'] = array_filter(array_map('intval', explode(',', $ids)));
+        }
+
+        $sid = $request->input('selected_student_ids');
+        if (is_string($sid)) {
+            $data['selected_student_ids'] = array_filter(array_map('intval', explode(',', $sid)));
+        }
+
+        switch ($request->input('filter_type')) {
+            case 'outstanding_fees':
+                $data['fee_balance_only'] = true;
+                break;
+            case 'upcoming_invoices':
+                $data['upcoming_invoices_only'] = true;
+                break;
+            case 'swimming_balance':
+                $data['swimming_balance_only'] = true;
+                break;
+        }
+
+        if ($request->filled('balance_min') && (float) $request->balance_min > 0) {
+            if ($request->input('filter_type') === 'swimming_balance') {
+                $data['swimming_balance_min'] = (float) $request->balance_min;
+            } else {
+                $data['fee_balance_min'] = (float) $request->balance_min;
+            }
+        }
+        if ($request->filled('balance_percent_min') && (float) $request->balance_percent_min > 0) {
+            $data['fee_balance_percent_min'] = (float) $request->balance_percent_min;
+        }
+
+        // Collect from all channels and merge pairs (student may have multiple contacts)
+        $allPairs = [];
+        foreach (['email', 'sms', 'whatsapp'] as $channel) {
+            $channelRecipients = CommunicationHelperService::collectRecipients($data, $channel);
+            $allPairs = array_merge($allPairs, CommunicationHelperService::expandRecipientsToPairs($channelRecipients));
+        }
+        // Dedupe by contact+student_id to avoid showing same pair twice
+        $seen = [];
+        $pairs = [];
+        foreach ($allPairs as [$contact, $entity]) {
+            if (!$entity instanceof Student) {
+                continue;
+            }
+            $key = $contact . '-' . $entity->id;
+            if (!isset($seen[$key])) {
+                $seen[$key] = true;
+                $pairs[] = [$contact, $entity];
+            }
+        }
+
+        $recipients = [];
+        foreach ($pairs as [$contact, $entity]) {
+            $recipients[] = [
+                'student_name' => $entity->full_name ?? ($entity->first_name . ' ' . $entity->last_name),
+                'admission_number' => $entity->admission_number ?? $entity->admission_no ?? '-',
+                'parent_contact' => $contact,
+                'fee_balance' => number_format(StudentBalanceService::getTotalOutstandingBalance($entity, true), 2),
+            ];
+        }
+
+        return response()->json([
+            'count' => count($recipients),
+            'recipients' => $recipients,
+        ]);
     }
 }

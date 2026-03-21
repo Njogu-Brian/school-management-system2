@@ -212,7 +212,8 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
             'student_id' => $item->student_id,
             'selected_student_ids' => $item->selected_student_ids,
             'classroom_ids' => $item->classroom_ids,
-            'exclude_staff' => true,
+            'exclude_staff' => $item->exclude_staff ?? true,
+            'exclude_student_ids' => $item->exclude_student_ids,
         ];
 
         switch ($item->filter_type) {

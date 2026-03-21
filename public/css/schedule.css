@@ -28,7 +28,7 @@ body.theme-dark .schedule-page {
 }
 
 .schedule-page {
-  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Inherits font from body (branding: finance_primary_font) */
   background: var(--schedule-bg);
   min-height: 100vh;
   padding: 1.5rem 1rem 3rem;
