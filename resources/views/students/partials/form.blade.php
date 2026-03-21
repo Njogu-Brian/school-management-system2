@@ -43,6 +43,12 @@
           Create new family for this student (if no sibling selected)
         </label>
       </div>
+      <div class="form-check mt-2" id="use_sibling_parent_wrapper" style="display:none">
+        <input class="form-check-input" type="checkbox" value="1" name="use_sibling_parent" id="use_sibling_parent">
+        <label class="form-check-label" for="use_sibling_parent">
+          Use sibling's parent details (recommended – avoids duplicate parent records)
+        </label>
+      </div>
     </div>
   </div>
 
@@ -529,6 +535,10 @@
   document.getElementById('familyClear')?.addEventListener('click', ()=>{
     document.getElementById('family_id').value = '';
     document.getElementById('copy_family_from_student_id').value = '';
+    const wrap = document.getElementById('use_sibling_parent_wrapper');
+    if (wrap) wrap.style.display = 'none';
+    const cb = document.getElementById('use_sibling_parent');
+    if (cb) cb.checked = false;
   });
 
   // transport visibility + other drop-off input
@@ -602,10 +612,10 @@
           a.textContent = `${r.admission_number} — ${r.full_name}${cls}`;
           a.addEventListener('click', (e)=>{
             e.preventDefault();
-            // set hidden field to copy family from this student
             document.getElementById('copy_family_from_student_id').value = r.id;
-            // UI hint: also set Family ID placeholder to "will copy"
             document.getElementById('family_id').value = '';
+            const wrap = document.getElementById('use_sibling_parent_wrapper');
+            if (wrap) wrap.style.display = 'block';
             const modal = bootstrap.Modal.getInstance(document.getElementById('familySearchModal'));
             modal?.hide();
           });

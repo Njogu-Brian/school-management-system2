@@ -5,13 +5,16 @@ namespace App\Services;
 use App\Models\Student;
 use App\Models\Staff;
 use App\Models\Invoice;
+use App\Models\SwimmingWallet;
 
 class CommunicationHelperService
 {
     /**
      * Build a map of recipients => entity used for personalization.
-     * $target: students|parents|staff|class|student|specific_students|custom
-     * $data: ['target', 'classroom_id', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers', 'fee_balance_only', 'exclude_student_ids']
+     * $target: students|parents|staff|class|student|one_parent|specific_students|custom|all
+     * $data: ['target', 'classroom_id', 'classroom_ids', 'student_id', 'selected_student_ids', 'custom_emails', 'custom_numbers',
+     *         'fee_balance_only', 'swimming_balance_only', 'upcoming_invoices_only', 'fee_balance_min', 'fee_balance_percent_min',
+     *         'swimming_balance_min', 'exclude_student_ids', 'exclude_staff']
      * $type: 'email', 'sms', or 'whatsapp'
      */
     public static function collectRecipients(array $data, string $type): array
@@ -61,8 +64,8 @@ class CommunicationHelperService
             }
         }
 
-        // Single student (exclude alumni and archived)
-        if ($target === 'student' && !empty($data['student_id'])) {
+        // Single student / one parent (exclude alumni and archived)
+        if (($target === 'student' || $target === 'one_parent') && !empty($data['student_id'])) {
             $student = Student::with('parent', 'classroom')
                 ->where('archive', 0)
                 ->where('is_alumni', false)
@@ -114,7 +117,8 @@ class CommunicationHelperService
         }
 
         // All students (via parent contacts) – every non-archived, non-alumni student active for current term; send to parent when available
-        if ($target === 'parents') {
+        // 'all' is alias for 'parents' for fee communications
+        if ($target === 'parents' || $target === 'all') {
             Student::with('parent')
                 ->where('archive', 0)
                 ->where('is_alumni', false)
@@ -188,6 +192,7 @@ class CommunicationHelperService
         // Only recipients with fee balance (students/parents who have at least one invoice with balance > 0)
         if (!empty($data['fee_balance_only'])) {
             $studentIdsWithBalance = Invoice::where('balance', '>', 0)
+                ->where('status', '!=', 'reversed')
                 ->distinct()
                 ->pluck('student_id')
                 ->flip()
@@ -198,6 +203,97 @@ class CommunicationHelperService
                 return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
             }, $out);
             $out = array_filter($out);
+        }
+
+        // Only recipients with upcoming invoices (invoices not yet due: due_date > today, balance > 0)
+        if (!empty($data['upcoming_invoices_only'])) {
+            $today = now()->toDateString();
+            $studentIdsWithUpcoming = Invoice::where('balance', '>', 0)
+                ->where('status', '!=', 'reversed')
+                ->whereDate('due_date', '>', $today)
+                ->distinct()
+                ->pluck('student_id')
+                ->flip()
+                ->all();
+            $out = array_map(function ($entities) use ($studentIdsWithUpcoming) {
+                $list = is_array($entities) ? $entities : [$entities];
+                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithUpcoming[$e->id]));
+                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+            }, $out);
+            $out = array_filter($out);
+        }
+
+        // Only recipients with swimming balance (SwimmingWallet.balance < 0)
+        if (!empty($data['swimming_balance_only'])) {
+            $studentIdsWithSwimmingBalance = SwimmingWallet::where('balance', '<', 0)
+                ->pluck('student_id')
+                ->flip()
+                ->all();
+            $out = array_map(function ($entities) use ($studentIdsWithSwimmingBalance) {
+                $list = is_array($entities) ? $entities : [$entities];
+                $filtered = array_filter($list, fn ($e) => !($e instanceof Student) || isset($studentIdsWithSwimmingBalance[$e->id]));
+                return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+            }, $out);
+            $out = array_filter($out);
+        }
+
+        // Fee balance amount threshold (outstanding >= X)
+        if (isset($data['fee_balance_min']) && $data['fee_balance_min'] !== '' && $data['fee_balance_min'] !== null) {
+            $min = (float) $data['fee_balance_min'];
+            if ($min > 0) {
+                $out = array_map(function ($entities) use ($min) {
+                    $list = is_array($entities) ? $entities : [$entities];
+                    $filtered = array_filter($list, function ($e) use ($min) {
+                        if (!($e instanceof Student)) return true;
+                        $balance = StudentBalanceService::getTotalOutstandingBalance($e, true);
+                        return $balance >= $min;
+                    });
+                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                }, $out);
+                $out = array_filter($out);
+            }
+        }
+
+        // Fee balance percentage threshold (% of current term fees unpaid >= X)
+        if (isset($data['fee_balance_percent_min']) && $data['fee_balance_percent_min'] !== '' && $data['fee_balance_percent_min'] !== null) {
+            $percentMin = (float) $data['fee_balance_percent_min'];
+            if ($percentMin > 0) {
+                $currentTermId = get_current_term_id();
+                $out = array_map(function ($entities) use ($percentMin, $currentTermId) {
+                    $list = is_array($entities) ? $entities : [$entities];
+                    $filtered = array_filter($list, function ($e) use ($percentMin, $currentTermId) {
+                        if (!($e instanceof Student)) return true;
+                        $outstanding = StudentBalanceService::getTotalOutstandingBalance($e, false);
+                        if ($outstanding <= 0) return false;
+                        $termTotal = Invoice::where('student_id', $e->id)
+                            ->where('status', '!=', 'reversed')
+                            ->when($currentTermId, fn ($q) => $q->where('term_id', $currentTermId))
+                            ->sum('total');
+                        if ($termTotal <= 0) return false;
+                        $percent = ($outstanding / $termTotal) * 100;
+                        return $percent >= $percentMin;
+                    });
+                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                }, $out);
+                $out = array_filter($out);
+            }
+        }
+
+        // Swimming balance amount threshold (abs(balance) >= X when balance < 0)
+        if (isset($data['swimming_balance_min']) && $data['swimming_balance_min'] !== '' && $data['swimming_balance_min'] !== null) {
+            $min = (float) $data['swimming_balance_min'];
+            if ($min > 0) {
+                $out = array_map(function ($entities) use ($min) {
+                    $list = is_array($entities) ? $entities : [$entities];
+                    $filtered = array_filter($list, function ($e) use ($min) {
+                        if (!($e instanceof Student)) return true;
+                        $wallet = SwimmingWallet::getOrCreateForStudent($e->id);
+                        return $wallet->balance < 0 && abs((float) $wallet->balance) >= $min;
+                    });
+                    return count($filtered) === 1 ? reset($filtered) : (count($filtered) > 1 ? array_values($filtered) : null);
+                }, $out);
+                $out = array_filter($out);
+            }
         }
 
         // Exclude students in staff category (children whose student category name is "Staff")

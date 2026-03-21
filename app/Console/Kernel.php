@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
     {
         // Runs every minute — ensure Laravel's scheduler is active via cron or `php artisan schedule:work`
         $schedule->command('communications:send-scheduled')->everyMinute();
+        $schedule->command('fee-communications:process-scheduled')->everyMinute();
 
         // Process queued jobs (SMS, Email, WhatsApp bulk sends) — runs automatically every minute
         $schedule->command('queue:work --stop-when-empty --max-time=300')->everyMinute();

@@ -8,8 +8,14 @@
         'icon' => 'bi bi-bell',
         'subtitle' => 'Manage and send payment reminders to students',
         'actions' => '
-            <a href="' . route('finance.fee-reminders.create') . '" class="btn btn-finance btn-finance-primary">
+            <a href="' . route('finance.fee-reminders.schedule.create') . '" class="btn btn-finance btn-finance-primary">
+                <i class="bi bi-calendar-plus"></i> Schedule Custom Communication
+            </a>
+            <a href="' . route('finance.fee-reminders.create') . '" class="btn btn-finance btn-finance-outline">
                 <i class="bi bi-plus-circle"></i> Create Reminder
+            </a>
+            <a href="' . route('finance.fee-reminders.schedule.index') . '" class="btn btn-finance btn-finance-outline">
+                <i class="bi bi-calendar-check"></i> Scheduled
             </a>
             <form action="' . route('finance.fee-reminders.automated') . '" method="POST" class="d-inline">
                 ' . csrf_field() . '

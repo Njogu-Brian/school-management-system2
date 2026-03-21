@@ -453,6 +453,24 @@ if (!function_exists('replace_placeholders')) {
             $replacements['{invoice_link}'] = $paymentLinkUrl;
             $replacements['{{payment_plan_link}}'] = $paymentLinkUrl;
             $replacements['{payment_plan_link}'] = $paymentLinkUrl;
+
+            // Finance portal link (student statement)
+            $financePortalLink = $entity->id ? url('/finance/student-statements/' . $entity->id) : '';
+            $replacements['{{finance_portal_link}}'] = $financePortalLink;
+            $replacements['{finance_portal_link}'] = $financePortalLink;
+
+            // Swimming balance (amount owed when balance < 0)
+            if ($entity->id && class_exists(\App\Models\SwimmingWallet::class)) {
+                try {
+                    $wallet = \App\Models\SwimmingWallet::getOrCreateForStudent($entity->id);
+                    $swimBal = $wallet->balance < 0 ? abs((float) $wallet->balance) : 0;
+                    $swimBalStr = number_format($swimBal, 2);
+                } catch (\Throwable $e) {
+                    $swimBalStr = '0.00';
+                }
+                $replacements['{{swimming_balance}}'] = $swimBalStr;
+                $replacements['{swimming_balance}'] = $swimBalStr;
+            }
         } elseif ($entity instanceof \App\Models\Staff) {
             $staffName = $entity->full_name ?? trim(($entity->first_name ?? '').' '.($entity->last_name ?? ''));
             $replacements += [

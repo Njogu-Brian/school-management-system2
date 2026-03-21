@@ -76,6 +76,7 @@ use App\Http\Controllers\Finance\FeeStatementController;
 use App\Http\Controllers\Finance\StudentStatementController;
 use App\Http\Controllers\Finance\ReceiptController;
 use App\Http\Controllers\Finance\FeeReminderController;
+use App\Http\Controllers\Finance\ScheduledFeeCommunicationController;
 use App\Http\Controllers\Finance\FeePaymentPlanController;
 use App\Http\Controllers\Finance\FeeConcessionController;
 use App\Http\Controllers\Finance\DiscountController;
@@ -1500,6 +1501,13 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::post('fee-concessions/{feeConcession}/deactivate', [FeeConcessionController::class, 'deactivate'])->name('fee-concessions.deactivate');
 
         // Fee Reminders
+        // Schedule routes must come before resource to avoid "schedule" being captured as ID
+        Route::get('fee-reminders/schedule', [ScheduledFeeCommunicationController::class, 'index'])->name('fee-reminders.schedule.index');
+        Route::get('fee-reminders/schedule/create', [ScheduledFeeCommunicationController::class, 'create'])->name('fee-reminders.schedule.create');
+        Route::post('fee-reminders/schedule', [ScheduledFeeCommunicationController::class, 'store'])->name('fee-reminders.schedule.store');
+        Route::post('fee-reminders/schedule/preview-count', [ScheduledFeeCommunicationController::class, 'previewCount'])->name('fee-reminders.schedule.preview-count');
+        Route::delete('fee-reminders/schedule/{scheduledFeeCommunication}', [ScheduledFeeCommunicationController::class, 'destroy'])->name('fee-reminders.schedule.destroy');
+
         Route::resource('fee-reminders', FeeReminderController::class)->parameters(['fee-reminders' => 'feeReminder']);
         Route::post('fee-reminders/{feeReminder}/send', [FeeReminderController::class, 'send'])->name('fee-reminders.send');
         Route::post('fee-reminders/automated/send', [FeeReminderController::class, 'sendAutomatedReminders'])->name('fee-reminders.automated');

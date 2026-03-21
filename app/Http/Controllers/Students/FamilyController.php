@@ -97,6 +97,66 @@ class FamilyController extends Controller
     }
 
     /**
+     * Consolidate duplicate parent_info records for siblings with identical contact details.
+     * When siblings share the same father/mother phone and names but have different parent_id,
+     * updates all to use the canonical (lowest) parent_id and deletes orphaned parent_info.
+     */
+    private function consolidateSiblingParentsInFamily(int $familyId): void
+    {
+        $siblings = DB::table('students')
+            ->leftJoin('parent_info', 'students.parent_id', '=', 'parent_info.id')
+            ->where('students.family_id', $familyId)
+            ->select(
+                'students.id as student_id',
+                'students.parent_id',
+                'parent_info.father_phone',
+                'parent_info.mother_phone',
+                'parent_info.guardian_phone',
+                'parent_info.father_name',
+                'parent_info.mother_name'
+            )
+            ->get();
+
+        $parentIds = $siblings->pluck('parent_id')->unique()->filter()->values();
+        if ($parentIds->count() < 2) {
+            return;
+        }
+
+        $normalize = fn ($v) => trim((string) ($v ?? ''));
+        $signatures = $siblings->map(fn ($s) => implode('|', [
+            $normalize($s->father_phone),
+            $normalize($s->mother_phone),
+            $normalize($s->guardian_phone),
+            $normalize($s->father_name),
+            $normalize($s->mother_name),
+        ]));
+        if ($signatures->unique()->count() > 1) {
+            return; // Different contact details - do not consolidate
+        }
+
+        $canonicalParentId = $parentIds->min();
+        $toRemove = $parentIds->filter(fn ($id) => $id != $canonicalParentId)->values();
+        $studentsToUpdate = $siblings->whereIn('parent_id', $toRemove->toArray())->pluck('student_id')->toArray();
+
+        if (empty($studentsToUpdate)) {
+            return;
+        }
+
+        DB::table('students')->whereIn('id', $studentsToUpdate)->update(['parent_id' => $canonicalParentId]);
+        DB::table('users')->whereIn('parent_id', $toRemove->toArray())->update(['parent_id' => $canonicalParentId]);
+        DB::table('pos_orders')->whereIn('parent_id', $toRemove->toArray())->update(['parent_id' => $canonicalParentId]);
+
+        foreach ($toRemove as $pid) {
+            $stillUsed = DB::table('students')->where('parent_id', $pid)->exists()
+                || DB::table('users')->where('parent_id', $pid)->exists()
+                || DB::table('pos_orders')->where('parent_id', $pid)->exists();
+            if (!$stillUsed) {
+                DB::table('parent_info')->where('id', $pid)->delete();
+            }
+        }
+    }
+
+    /**
      * Build proposed changes and conflicts for "Fix blank fields" across all families.
      * Returns [ 'familyFills' => [], 'studentFills' => [], 'conflicts' => [] ].
      *
@@ -409,6 +469,9 @@ class FamilyController extends Controller
             // Link selected students to the chosen family
             Student::whereIn('id', $students->pluck('id'))->update(['family_id' => $family->id]);
 
+            // Consolidate duplicate parent records: if siblings have same contact details but different parent_id, use one
+            $this->consolidateSiblingParentsInFamily($family->id);
+
             // Merge other families into the chosen one
             foreach ($familiesToMerge as $familyId) {
                 if ($familyId == $family->id) {
@@ -505,6 +568,7 @@ class FamilyController extends Controller
             $student->update(['family_id' => $family->id]);
         }
 
+        $this->consolidateSiblingParentsInFamily($family->id);
         ensure_family_payment_link($family->id);
 
         return back()->with('success', 'Student linked to family as sibling.');

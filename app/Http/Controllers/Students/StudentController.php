@@ -415,22 +415,27 @@ class StudentController extends Controller
                 return back()->withInput()->with('error', 'Please select a stream for the chosen classroom.');
             }
 
-            // Enforce at least one parent/guardian name+phone
-            $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
-            $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
-            if (!$parentName || !$parentPhone) {
-                return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
+            // Handle family linkage first (needed for use_sibling_parent check)
+            $familyId = $request->input('family_id');
+            $useSiblingParent = $request->boolean('use_sibling_parent');
+            $ref = $request->filled('copy_family_from_student_id')
+                ? Student::withArchived()->with('parent')->find($request->copy_family_from_student_id)
+                : null;
+
+            // Enforce parent validation unless reusing sibling's parent
+            if (!$useSiblingParent || !$ref?->parent) {
+                $parentName = $request->father_name ?: $request->mother_name ?: $request->guardian_name;
+                $parentPhone = $request->father_phone ?: $request->mother_phone ?: $request->guardian_phone;
+                if (!$parentName || !$parentPhone) {
+                    return back()->withInput()->with('error', 'At least one parent/guardian name and phone is required.');
+                }
             }
 
-            // Handle family linkage
-            $familyId = $request->input('family_id');
-
             // If chosen a student to copy family from
-            if (!$familyId && $request->filled('copy_family_from_student_id')) {
-                $ref = Student::withArchived()->find($request->copy_family_from_student_id);
-                if ($ref && $ref->family_id) {
+            if (!$familyId && $ref) {
+                if ($ref->family_id) {
                     $familyId = $ref->family_id;
-                } elseif ($ref && $request->boolean('create_family_from_parent')) {
+                } elseif ($request->boolean('create_family_from_parent') && $ref->parent) {
                     // Create a family and assign both (if ref lacks family_id)
                     $fam = \App\Models\Family::create([
                         'guardian_name' => $ref->parent->guardian_name ?? ($ref->parent->father_name ?? $ref->parent->mother_name ?? 'Family '.$ref->admission_number),
@@ -440,7 +445,8 @@ class StudentController extends Controller
                     $ref->update(['family_id'=>$fam->id]);
                     $familyId = $fam->id;
                 }
-            } elseif (!$familyId && $request->boolean('create_family_from_parent')) {
+            }
+            if (!$familyId && $request->boolean('create_family_from_parent')) {
                 // Create new family for THIS student using parent info (will be populated after parent is created)
                 $fam = \App\Models\Family::create([
                     'guardian_name' => 'New Family', // Will be auto-populated when first student is linked
@@ -449,48 +455,51 @@ class StudentController extends Controller
                 ]);
                 $familyId = $fam->id;
             }
-            // Normalize country codes
-            $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
-            $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
-            $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
-            
-            // Create ParentInfo with defaults for country codes and normalized phone numbers
-            $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
-            $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
-            $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
-            $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode);
-            $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode);
-            $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
-            $parentData = [
-                'father_name' => $request->father_name,
-                'father_phone' => $fatherPhone,
-                'father_whatsapp' => $fatherWhatsapp,
-                'father_email' => $request->father_email,
-                'father_id_number' => $request->father_id_number,
-                'mother_name' => $request->mother_name,
-                'mother_phone' => $motherPhone,
-                'mother_whatsapp' => $motherWhatsapp,
-                'mother_email' => $request->mother_email,
-                'mother_id_number' => $request->mother_id_number,
-                'guardian_name' => $request->guardian_name,
-                'guardian_phone' => $guardianPhone,
-                'guardian_whatsapp' => $guardianWhatsapp,
-                'guardian_email' => $request->guardian_email,
-                'guardian_relationship' => $request->guardian_relationship,
-                'marital_status' => $request->marital_status,
-                'father_phone_country_code' => $fatherCountryCode,
-                'mother_phone_country_code' => $motherCountryCode,
-                'guardian_phone_country_code' => $guardianCountryCode,
-            ];
-
-            $parent = ParentInfo::create($parentData);
             $userId = auth()->id();
-            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_phone', $request->father_phone, $fatherPhone, $fatherCountryCode, 'student_create', $userId);
-            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_whatsapp', $request->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_create', $userId);
-            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_phone', $request->mother_phone, $motherPhone, $motherCountryCode, 'student_create', $userId);
-            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_whatsapp', $request->mother_whatsapp, $motherWhatsapp, $motherCountryCode, 'student_create', $userId);
-            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_phone', $request->guardian_phone, $guardianPhone, $guardianCountryCode, 'student_create', $userId);
-            $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_whatsapp', $request->guardian_whatsapp, $guardianWhatsapp, $guardianCountryCode, 'student_create', $userId);
+
+            // Use sibling's parent record when requested (avoids duplicate parent_info)
+            if ($useSiblingParent && $ref?->parent_id) {
+                $parent = $ref->parent;
+            } else {
+                // Create new ParentInfo
+                $fatherCountryCode = $this->normalizeCountryCode($request->input('father_phone_country_code', '+254'));
+                $motherCountryCode = $this->normalizeCountryCode($request->input('mother_phone_country_code', '+254'));
+                $guardianCountryCode = $this->normalizeCountryCode($request->input('guardian_phone_country_code', '+254'));
+                $fatherPhone = $this->formatPhoneWithCode($request->father_phone, $fatherCountryCode);
+                $fatherWhatsapp = $this->formatPhoneWithCode($request->father_whatsapp, $fatherCountryCode);
+                $motherPhone = $this->formatPhoneWithCode($request->mother_phone, $motherCountryCode);
+                $motherWhatsapp = $this->formatPhoneWithCode($request->mother_whatsapp, $motherCountryCode);
+                $guardianPhone = $this->formatPhoneWithCode($request->guardian_phone, $guardianCountryCode);
+                $guardianWhatsapp = $this->formatPhoneWithCode($request->guardian_whatsapp, $guardianCountryCode);
+                $parentData = [
+                    'father_name' => $request->father_name,
+                    'father_phone' => $fatherPhone,
+                    'father_whatsapp' => $fatherWhatsapp,
+                    'father_email' => $request->father_email,
+                    'father_id_number' => $request->father_id_number,
+                    'mother_name' => $request->mother_name,
+                    'mother_phone' => $motherPhone,
+                    'mother_whatsapp' => $motherWhatsapp,
+                    'mother_email' => $request->mother_email,
+                    'mother_id_number' => $request->mother_id_number,
+                    'guardian_name' => $request->guardian_name,
+                    'guardian_phone' => $guardianPhone,
+                    'guardian_whatsapp' => $guardianWhatsapp,
+                    'guardian_email' => $request->guardian_email,
+                    'guardian_relationship' => $request->guardian_relationship,
+                    'marital_status' => $request->marital_status,
+                    'father_phone_country_code' => $fatherCountryCode,
+                    'mother_phone_country_code' => $motherCountryCode,
+                    'guardian_phone_country_code' => $guardianCountryCode,
+                ];
+                $parent = ParentInfo::create($parentData);
+                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_phone', $request->father_phone, $fatherPhone, $fatherCountryCode, 'student_create', $userId);
+                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'father_whatsapp', $request->father_whatsapp, $fatherWhatsapp, $fatherCountryCode, 'student_create', $userId);
+                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_phone', $request->mother_phone, $motherPhone, $motherCountryCode, 'student_create', $userId);
+                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'mother_whatsapp', $request->mother_whatsapp, $motherWhatsapp, $motherCountryCode, 'student_create', $userId);
+                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_phone', $request->guardian_phone, $guardianPhone, $guardianCountryCode, 'student_create', $userId);
+                $this->logPhoneNormalization(ParentInfo::class, $parent->id, 'guardian_whatsapp', $request->guardian_whatsapp, $guardianWhatsapp, $guardianCountryCode, 'student_create', $userId);
+            }
 
             $admission_number = $this->generateNextAdmissionNumber();
 
