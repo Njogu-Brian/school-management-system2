@@ -3,23 +3,18 @@
 @section('content')
 @php $classes = $classrooms; @endphp
 @include('communication.partials.student-selector-modal')
+@push('styles')
+@include('finance.partials.styles')
+@endpush
 
-<div class="schedule-page">
-  <div class="schedule-shell">
-    <div class="schedule-hero">
-      <div class="schedule-hero-content">
-        <h1 class="schedule-hero-title">
-          <i class="bi bi-calendar-event"></i>
-          Schedule Fee Communication
-        </h1>
-        <p class="schedule-hero-subtitle">Target parents, set filters, and schedule automatic fee reminders. Balances are checked fresh at send time.</p>
-      </div>
-      <div class="schedule-hero-actions">
-        <a href="{{ route('finance.fee-reminders.schedule.index') }}" class="schedule-btn schedule-btn-ghost">
-          <i class="bi bi-arrow-left"></i> Back
-        </a>
-      </div>
-    </div>
+<div class="finance-page schedule-page">
+  <div class="finance-shell schedule-shell">
+    @include('finance.partials.header', [
+        'title' => 'Send or Schedule Fee Communication',
+        'icon' => 'bi bi-send-plus',
+        'subtitle' => 'Target parents, set filters, and send now or schedule. Balances are checked fresh at send time.',
+        'actions' => '<a href="' . route('finance.fee-reminders.schedule.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back</a>'
+    ])
 
     <form action="{{ route('finance.fee-reminders.schedule.store') }}" method="POST" id="scheduleFeeForm" class="schedule-form">
       @csrf
@@ -187,7 +182,14 @@
               <h2>Schedule</h2>
             </div>
             <div class="schedule-card-body">
-              <div class="schedule-field">
+              <div class="schedule-field mb-3">
+                <label class="schedule-check" style="display: flex; align-items: center; gap: 0.5rem;">
+                  <input type="checkbox" name="send_now" id="send_now" value="1" {{ old('send_now') ? 'checked' : '' }}>
+                  <span class="fw-semibold">Send immediately</span>
+                </label>
+                <small class="schedule-muted d-block mt-1">When checked, message is sent now. When unchecked, schedule for later.</small>
+              </div>
+              <div class="schedule-field recurrence-section">
                 <label class="schedule-label">Repeat <span class="text-danger">*</span></label>
                 <div class="schedule-radio-group schedule-radio-stack">
                   <label class="schedule-radio">
@@ -267,9 +269,9 @@
               </div>
 
               <div class="schedule-form-actions mt-4">
-                <a href="{{ route('finance.fee-reminders.schedule.index') }}" class="schedule-btn schedule-btn-ghost">Cancel</a>
-                <button type="submit" class="schedule-btn schedule-btn-primary">
-                  <i class="bi bi-calendar-check"></i> Schedule
+                <a href="{{ route('finance.fee-reminders.schedule.index') }}" class="btn btn-finance btn-finance-outline">Cancel</a>
+                <button type="submit" class="btn btn-finance btn-finance-primary" id="scheduleSubmitBtn">
+                  <i class="bi bi-calendar-check"></i> <span id="scheduleSubmitText">Schedule</span>
                 </button>
               </div>
             </div>
@@ -323,19 +325,29 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function toggleRecurrenceFields() {
+    const sendNow = document.getElementById('send_now')?.checked;
     const type = document.querySelector('input[name="recurrence_type"]:checked')?.value || 'once';
+    const recurrenceSection = document.querySelector('.recurrence-section');
+    if (recurrenceSection) recurrenceSection.style.display = sendNow ? 'none' : '';
     document.querySelectorAll('.recurrence-field').forEach(el => el.classList.add('d-none'));
-    document.querySelectorAll('.recurrence-once').forEach(el => el.classList.toggle('d-none', type !== 'once'));
-    document.querySelectorAll('.recurrence-recurring').forEach(el => el.classList.toggle('d-none', type === 'once'));
-    document.querySelectorAll('.recurrence-times').forEach(el => el.classList.toggle('d-none', type === 'once'));
-    document.querySelectorAll('.recurrence-weekly').forEach(el => el.classList.toggle('d-none', type !== 'weekly'));
-    document.getElementById('send_at').required = type === 'once';
-    document.getElementById('recurrence_start_at').required = type !== 'once';
+    if (!sendNow) {
+      document.querySelectorAll('.recurrence-once').forEach(el => el.classList.toggle('d-none', type !== 'once'));
+      document.querySelectorAll('.recurrence-recurring').forEach(el => el.classList.toggle('d-none', type === 'once'));
+      document.querySelectorAll('.recurrence-times').forEach(el => el.classList.toggle('d-none', type === 'once'));
+      document.querySelectorAll('.recurrence-weekly').forEach(el => el.classList.toggle('d-none', type !== 'weekly'));
+    }
+    const sendAt = document.getElementById('send_at');
+    const recStart = document.getElementById('recurrence_start_at');
+    if (sendAt) sendAt.required = !sendNow && type === 'once';
+    if (recStart) recStart.required = !sendNow && type !== 'once';
+    const submitText = document.getElementById('scheduleSubmitText');
+    if (submitText) submitText.textContent = sendNow ? 'Send Now' : 'Schedule';
   }
 
   targetRadios.forEach(r => r.addEventListener('change', toggleTargetFields));
   filterRadios.forEach(r => r.addEventListener('change', toggleBalanceFields));
   recurrenceRadios.forEach(r => r.addEventListener('change', toggleRecurrenceFields));
+  document.getElementById('send_now')?.addEventListener('change', toggleRecurrenceFields);
   toggleTargetFields();
   toggleBalanceFields();
   toggleRecurrenceFields();

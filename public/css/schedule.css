@@ -1,33 +1,30 @@
-/* Schedule Fee Communications - Modern Futuristic UI */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-:root {
-  --schedule-bg: #0f0f1a;
-  --schedule-surface: #16162a;
-  --schedule-surface-elevated: #1e1e35;
-  --schedule-border: rgba(99, 102, 241, 0.2);
-  --schedule-text: #e4e4f0;
-  --schedule-muted: #8b8ba7;
-  --schedule-primary: #6366f1;
-  --schedule-primary-glow: rgba(99, 102, 241, 0.4);
-  --schedule-accent: #22d3ee;
+/* Schedule Fee Communications - Uses branding colors from layouts.app */
+.schedule-page {
+  --schedule-bg: var(--brand-bg, #f5f7fb);
+  --schedule-surface: var(--brand-surface, #ffffff);
+  --schedule-surface-elevated: var(--brand-surface, #ffffff);
+  --schedule-border: color-mix(in srgb, var(--brand-primary, #0f766e) 15%, var(--brand-border, #e5e7eb));
+  --schedule-text: var(--brand-text, #0f172a);
+  --schedule-muted: var(--brand-muted, #6b7280);
+  --schedule-primary: var(--brand-primary, #0f766e);
+  --schedule-primary-glow: color-mix(in srgb, var(--brand-primary, #0f766e) 25%, transparent);
+  --schedule-accent: var(--brand-accent, #14b8a6);
   --schedule-success: #10b981;
   --schedule-warning: #f59e0b;
   --schedule-danger: #ef4444;
-  --schedule-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #22d3ee 100%);
-  --schedule-glass: rgba(22, 22, 42, 0.7);
-  --schedule-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --schedule-gradient: linear-gradient(135deg, var(--brand-primary, #0f766e) 0%, var(--brand-accent, #14b8a6) 100%);
+  --schedule-glass: var(--brand-surface, #ffffff);
+  --schedule-shadow: 0 8px 32px rgba(15, 118, 110, 0.12);
 }
 
-body:not(.theme-dark) .schedule-page {
-  --schedule-bg: #f0f4ff;
-  --schedule-surface: #ffffff;
-  --schedule-surface-elevated: #ffffff;
-  --schedule-border: rgba(99, 102, 241, 0.15);
-  --schedule-text: #1e1e2e;
-  --schedule-muted: #64748b;
-  --schedule-glass: rgba(255, 255, 255, 0.85);
-  --schedule-shadow: 0 8px 32px rgba(99, 102, 241, 0.12);
+body.theme-dark .schedule-page {
+  --schedule-bg: #0b1220;
+  --schedule-surface: #111827;
+  --schedule-surface-elevated: #1e293b;
+  --schedule-border: color-mix(in srgb, var(--brand-primary) 25%, #1f2937);
+  --schedule-text: #e5e7eb;
+  --schedule-muted: #9ca3af;
+  --schedule-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .schedule-page {

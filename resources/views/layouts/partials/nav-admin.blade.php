@@ -394,7 +394,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
 @php
     $financeActive = Request::is('finance*') || Request::is('voteheads*');
 @endphp
-<a href="#financeMenu" data-bs-toggle="collapse"aria-expanded="{{ $financeActive ? 'true' : 'false' }}"class="{{ $financeActive ? 'parent-active' : '' }}"><i class="bi bi-currency-dollar"></i> Finance</a>
+<a href="#financeMenu" data-bs-toggle="collapse" aria-expanded="{{ $financeActive ? 'true' : 'false' }}" class="{{ $financeActive ? 'parent-active' : '' }}"><i class="bi bi-currency-dollar"></i> Finance</a>
 <div class="collapse {{ $financeActive ? 'show' : '' }}" id="financeMenu">
     
     {{-- ============================================ --}}
@@ -404,8 +404,8 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     
     {{-- Fee Setup --}}
     <a href="{{ route('finance.voteheads.index') }}" class="{{ Request::is('finance/voteheads*') ? 'active' : '' }}"><i class="bi bi-list-ul"></i> Voteheads</a>
-    <a href="{{ route('finance.fee-structures.manage') }}"class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
-    <a href="{{ route('finance.posting.index') }}"class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
+    <a href="{{ route('finance.fee-structures.manage') }}" class="{{ Request::is('finance/fee-structures*') ? 'active' : '' }}"><i class="bi bi-table"></i> Fee Structures</a>
+    <a href="{{ route('finance.posting.index') }}" class="{{ Request::is('finance/posting*') ? 'active' : '' }}"><i class="bi bi-arrow-right-circle"></i> Posting (Pending → Active)</a>
     
     {{-- Additional Fees (Optional & Transport) --}}
     @php
@@ -436,7 +436,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     
     {{-- Invoicing --}}
     <a href="{{ route('finance.invoices.index') }}" class="{{ Request::is('finance/invoices*') ? 'active' : '' }}"><i class="bi bi-file-text"></i> Invoices</a>
-    <a href="{{ route('finance.journals.index') }}"class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
+    <a href="{{ route('finance.journals.index') }}" class="{{ Request::is('finance/journals*') || Request::is('finance/credits*') || Request::is('finance/debits*') ? 'active' : '' }}"><i class="bi bi-arrow-left-right"></i> Credit / Debit Adjustments</a>
     
     {{-- Billing Configuration --}}
     @php
@@ -447,8 +447,8 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
         <a href="{{ route('finance.fee-payment-plans.index') }}" class="sublink {{ Request::is('finance/fee-payment-plans*') ? 'active' : '' }}"><i class="bi bi-calendar-check"></i> Payment Plans</a>
         <a href="{{ route('finance.fee-concessions.index') }}" class="sublink {{ Request::is('finance/fee-concessions*') ? 'active' : '' }}"><i class="bi bi-tag-fill"></i> Fee Concessions</a>
     </div>
-    <a href="{{ route('finance.fee-reminders.index') }}"class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
-    <a href="{{ route('finance.document-settings.index') }}"class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
+    <a href="{{ route('finance.fee-reminders.index') }}" class="{{ Request::is('finance/fee-reminders*') ? 'active' : '' }}"><i class="bi bi-bell"></i> Fee Reminders</a>
+    <a href="{{ route('finance.document-settings.index') }}" class="{{ Request::is('finance/document-settings*') ? 'active' : '' }}"><i class="bi bi-file-earmark-text"></i> Document Settings</a>
     
     {{-- ============================================ --}}
     {{-- PAYMENT RELATED --}}
@@ -456,7 +456,7 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     <span class="small text-muted text-uppercase px-3 d-block mt-3 mb-1 fw-bold">Payments</span>
     
     {{-- Payment Processing --}}
-    <a href="{{ route('finance.payments.index') }}"class="{{ Request::is('finance/payments*') && !Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
+    <a href="{{ route('finance.payments.index') }}" class="{{ Request::is('finance/payments*') && !Request::is('finance/mpesa*') ? 'active' : '' }}"><i class="bi bi-cash-stack"></i> Payments</a>
     
     {{-- M-PESA Payments --}}
     @php
@@ -480,8 +480,8 @@ class="{{ $reportActive ? 'parent-active' : '' }}">
     </div>
     
     {{-- Payment Setup --}}
-    <a href="{{ route('finance.bank-accounts.index') }}"class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
-    <a href="{{ route('finance.payment-methods.index') }}"class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
+    <a href="{{ route('finance.bank-accounts.index') }}" class="{{ Request::is('finance/bank-accounts*') ? 'active' : '' }}"><i class="bi bi-bank"></i> Bank Accounts</a>
+    <a href="{{ route('finance.payment-methods.index') }}" class="{{ Request::is('finance/payment-methods*') ? 'active' : '' }}"><i class="bi bi-credit-card"></i> Payment Methods</a>
     
     {{-- Swimming Management (Payment Related) --}}
     @php

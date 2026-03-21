@@ -1,25 +1,21 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="schedule-page">
-  <div class="schedule-shell">
-    <div class="schedule-hero schedule-hero-index">
-      <div class="schedule-hero-content">
-        <h1 class="schedule-hero-title">
-          <i class="bi bi-calendar-check"></i>
-          Scheduled Fee Communications
-        </h1>
-        <p class="schedule-hero-subtitle">View and manage one-time and recurring fee communications to parents</p>
-      </div>
-      <div class="schedule-hero-actions">
-        <a href="{{ route('finance.fee-reminders.schedule.create') }}" class="schedule-btn schedule-btn-primary">
-          <i class="bi bi-plus-circle"></i> Schedule
-        </a>
-        <a href="{{ route('finance.fee-reminders.index') }}" class="schedule-btn schedule-btn-ghost" style="color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.4);">
-          <i class="bi bi-bell"></i> Fee Reminders
-        </a>
-      </div>
-    </div>
+<div class="finance-page schedule-page">
+  <div class="finance-shell schedule-shell">
+    @include('finance.partials.header', [
+        'title' => 'Scheduled Fee Communications',
+        'icon' => 'bi bi-calendar-check',
+        'subtitle' => 'View and manage one-time and recurring fee communications to parents',
+        'actions' => '
+            <a href="' . route('finance.fee-reminders.schedule.create') . '" class="btn btn-finance btn-finance-primary">
+                <i class="bi bi-send-plus"></i> Send or Schedule
+            </a>
+            <a href="' . route('finance.fee-reminders.index') . '" class="btn btn-finance btn-finance-outline" style="color: rgba(255,255,255,0.9); border-color: rgba(255,255,255,0.4);">
+                <i class="bi bi-bell"></i> Fee Reminders
+            </a>
+        '
+    ])
 
     @if(session('success'))
       <div class="schedule-alert schedule-alert-success">
@@ -175,7 +171,6 @@
 @push('styles')
 <link rel="stylesheet" href="{{ asset('css/schedule.css') }}">
 <style>
-.schedule-hero-index .schedule-btn-ghost:hover { color: white !important; border-color: rgba(255,255,255,0.6) !important; }
 .schedule-filter-form { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
 .schedule-filter-row { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
 .schedule-select-sm { max-width: 180px; }

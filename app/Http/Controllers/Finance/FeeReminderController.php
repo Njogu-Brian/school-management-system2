@@ -44,12 +44,11 @@ class FeeReminderController extends Controller
     }
 
     /**
-     * Show form to create manual reminder
+     * Redirect to schedule form (unified send/schedule flow)
      */
     public function create()
     {
-        $students = Student::with('classroom')->orderBy('first_name')->get();
-        return view('finance.fee_reminders.create', compact('students'));
+        return redirect()->route('finance.fee-reminders.schedule.create');
     }
 
     /**
@@ -547,7 +546,8 @@ class FeeReminderController extends Controller
             }
         }
 
-        return response()->json(['message' => 'Automated reminders sent']);
+        return redirect()->route('finance.fee-reminders.index')
+            ->with('success', 'Automated reminders sent. Parents with due fees and installments have been notified.');
     }
 
     protected function getInvoiceDueDate(Invoice $invoice)

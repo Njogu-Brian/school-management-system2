@@ -6,21 +6,18 @@
     @include('finance.partials.header', [
         'title' => 'Fee Payment Reminders',
         'icon' => 'bi bi-bell',
-        'subtitle' => 'Manage and send payment reminders to students',
+        'subtitle' => 'Send or schedule fee reminders to parents. Balances are checked fresh at send time.',
         'actions' => '
-            <a href="' . (Route::has('finance.fee-reminders.schedule.create') ? route('finance.fee-reminders.schedule.create') : url('/finance/fee-reminders/schedule/create')) . '" class="btn btn-finance btn-finance-primary">
-                <i class="bi bi-calendar-plus"></i> Schedule Custom Communication
+            <a href="' . route('finance.fee-reminders.schedule.create') . '" class="btn btn-finance btn-finance-primary">
+                <i class="bi bi-send-plus"></i> Send or Schedule
             </a>
-            <a href="' . route('finance.fee-reminders.create') . '" class="btn btn-finance btn-finance-outline">
-                <i class="bi bi-plus-circle"></i> Create Reminder
-            </a>
-            <a href="' . (Route::has('finance.fee-reminders.schedule.index') ? route('finance.fee-reminders.schedule.index') : url('/finance/fee-reminders/schedule')) . '" class="btn btn-finance btn-finance-outline">
+            <a href="' . route('finance.fee-reminders.schedule.index') . '" class="btn btn-finance btn-finance-outline">
                 <i class="bi bi-calendar-check"></i> Scheduled
             </a>
             <form action="' . route('finance.fee-reminders.automated') . '" method="POST" class="d-inline">
                 ' . csrf_field() . '
                 <button type="submit" class="btn btn-finance btn-finance-success">
-                    <i class="bi bi-send"></i> Send Automated Reminders
+                    <i class="bi bi-lightning"></i> Send Due Reminders
                 </button>
             </form>
         '
@@ -116,8 +113,8 @@
                                         </div>
                                         <h4>No reminders found</h4>
                                         <p class="text-muted mb-3">Create your first payment reminder to get started</p>
-                                        <a href="{{ route('finance.fee-reminders.create') }}" class="btn btn-finance btn-finance-primary">
-                                            <i class="bi bi-plus-circle"></i> Create Reminder
+                                        <a href="{{ route('finance.fee-reminders.schedule.create') }}" class="btn btn-finance btn-finance-primary">
+                                            <i class="bi bi-send-plus"></i> Send or Schedule
                                         </a>
                                     </div>
                                 </td>

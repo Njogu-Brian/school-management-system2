@@ -97,13 +97,15 @@ class ScheduledFeeCommunicationController extends Controller
             'recurrence_start_at' => 'nullable|date',
             'recurrence_end_at' => 'nullable|date|after:recurrence_start_at',
             'send_at' => 'nullable|date',
+            'send_now' => 'nullable|boolean',
         ];
 
         $validated = $request->validate($rules);
+        $sendNow = (bool) ($request->input('send_now') ?? false);
 
-        if ($validated['recurrence_type'] === 'once') {
+        if ($validated['recurrence_type'] === 'once' && !$sendNow) {
             $request->validate(['send_at' => 'required|date|after:now']);
-        } else {
+        } elseif (!$sendNow) {
             $request->validate([
                 'recurrence_start_at' => 'required|date|after:now',
                 'recurrence_times' => 'required|array|min:1',
@@ -144,7 +146,17 @@ class ScheduledFeeCommunicationController extends Controller
         $validated['classroom_ids'] = $validated['classroom_ids'] ?? null;
         $validated['created_by'] = auth()->id();
 
-        if ($validated['recurrence_type'] === 'once') {
+        if ($sendNow) {
+            $validated['recurrence_type'] = 'once';
+            $validated['send_at'] = now();
+            $validated['recurrence_times'] = null;
+            $validated['recurrence_week_days'] = null;
+            $validated['recurrence_start_at'] = null;
+            $validated['recurrence_end_at'] = null;
+            $validated['recurrence_next_at'] = null;
+        }
+
+        if ($validated['recurrence_type'] === 'once' && !$sendNow) {
             $validated['recurrence_times'] = null;
             $validated['recurrence_week_days'] = null;
             $validated['recurrence_start_at'] = null;
@@ -164,13 +176,19 @@ class ScheduledFeeCommunicationController extends Controller
                 : null;
         }
 
-        ScheduledFeeCommunication::create($validated);
+        $item = ScheduledFeeCommunication::create($validated);
 
-        $msg = $validated['recurrence_type'] === 'once'
+        if ($sendNow) {
+            \App\Jobs\ProcessScheduledFeeCommunicationsJob::dispatchSync();
+        }
+
+        $msg = $sendNow
+            ? 'Communication sent successfully. Parents with balances have been notified.'
+            : ($validated['recurrence_type'] === 'once'
             ? 'Communication scheduled successfully. It will be sent automatically at the scheduled time.'
-            : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.';
+            : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.');
 
-        return redirect()->route('finance.fee-reminders.schedule.index')
+        return redirect()->route($sendNow ? 'finance.fee-reminders.index' : 'finance.fee-reminders.schedule.index')
             ->with('success', $msg);
     }
 
