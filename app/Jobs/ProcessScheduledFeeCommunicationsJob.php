@@ -118,7 +118,62 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
             }
         }
 
-        $item->update(['status' => 'sent']);
+        if ($item->isRecurring()) {
+            $next = $this->calculateNextRecurrence($item);
+            if ($next) {
+                $item->update([
+                    'status' => 'active',
+                    'recurrence_next_at' => $next,
+                ]);
+            } else {
+                $item->update(['status' => 'completed']);
+            }
+        } else {
+            $item->update(['status' => 'sent']);
+        }
+    }
+
+    protected function calculateNextRecurrence(ScheduledFeeCommunication $item): ?\Carbon\Carbon
+    {
+        $now = now();
+        $times = $item->recurrence_times ?: ['09:00'];
+        $endAt = $item->recurrence_end_at;
+
+        if (in_array($item->recurrence_type, ['daily', 'times_per_day'])) {
+            $base = $now->copy()->startOfDay();
+            foreach ($times as $t) {
+                $parts = array_pad(explode(':', $t), 2, 0);
+                $candidate = $base->copy()->setTime((int) $parts[0], (int) $parts[1]);
+                if ($candidate->gt($now) && (!$endAt || $candidate->lte($endAt))) {
+                    return $candidate;
+                }
+            }
+            $parts = array_pad(explode(':', $times[0]), 2, 0);
+            $candidate = $base->copy()->addDay()->setTime((int) $parts[0], (int) $parts[1]);
+            return (!$endAt || $candidate->lte($endAt)) ? $candidate : null;
+        }
+
+        if ($item->recurrence_type === 'weekly') {
+            $weekDays = $item->recurrence_week_days ?: [1];
+            $base = $now->copy()->startOfDay();
+            for ($i = 0; $i <= 7; $i++) {
+                $check = $base->copy()->addDays($i);
+                $dayOfWeek = (int) $check->format('w');
+                if (!in_array($dayOfWeek, $weekDays)) {
+                    continue;
+                }
+                foreach ($times as $t) {
+                    $parts = array_pad(explode(':', $t), 2, 0);
+                    $candidate = $check->copy()->setTime((int) $parts[0], (int) $parts[1]);
+                    if ($candidate->gt($now) && (!$endAt || $candidate->lte($endAt))) {
+                        return $candidate;
+                    }
+                }
+            }
+            return null;
+        }
+
+        return null;
     }
 
     protected function getMessage(ScheduledFeeCommunication $item): string

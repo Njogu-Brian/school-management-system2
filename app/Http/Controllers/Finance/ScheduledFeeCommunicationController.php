@@ -74,7 +74,7 @@ class ScheduledFeeCommunicationController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $rules = [
             'target' => 'required|in:one_parent,specific_students,class,all',
             'student_id' => 'nullable|required_if:target,one_parent|exists:students,id',
             'selected_student_ids' => 'nullable|required_if:target,specific_students|string',
@@ -89,15 +89,37 @@ class ScheduledFeeCommunicationController extends Controller
             'channels.*' => 'in:sms,email,whatsapp',
             'template_id' => 'nullable|exists:communication_templates,id',
             'custom_message' => 'nullable|string',
-            'send_at' => 'required|date|after:now',
-        ]);
+            'recurrence_type' => 'required|in:once,daily,weekly,times_per_day',
+            'recurrence_times' => 'nullable|array',
+            'recurrence_times.*' => 'string|regex:/^\d{1,2}:\d{2}$/',
+            'recurrence_week_days' => 'nullable|array',
+            'recurrence_week_days.*' => 'integer|min:0|max:6',
+            'recurrence_start_at' => 'nullable|date',
+            'recurrence_end_at' => 'nullable|date|after:recurrence_start_at',
+            'send_at' => 'nullable|date',
+        ];
+
+        $validated = $request->validate($rules);
+
+        if ($validated['recurrence_type'] === 'once') {
+            $request->validate(['send_at' => 'required|date|after:now']);
+        } else {
+            $request->validate([
+                'recurrence_start_at' => 'required|date|after:now',
+                'recurrence_times' => 'required|array|min:1',
+                'recurrence_times.*' => 'string|regex:/^\d{1,2}:\d{2}$/',
+            ]);
+            if ($validated['recurrence_type'] === 'weekly') {
+                $request->validate(['recurrence_week_days' => 'required|array|min:1']);
+            }
+        }
 
         if (empty($validated['channels'])) {
             return back()->withInput()->withErrors(['channels' => 'Select at least one channel (SMS, Email, or WhatsApp).']);
         }
 
         $message = $validated['custom_message'] ?? null;
-        if (empty($message) && $validated['template_id']) {
+        if (empty($message) && ($validated['template_id'] ?? null)) {
             $tpl = CommunicationTemplate::find($validated['template_id']);
             $message = $tpl ? $tpl->content : null;
         }
@@ -110,7 +132,7 @@ class ScheduledFeeCommunicationController extends Controller
         }
 
         if ($validated['target'] === 'specific_students') {
-            $ids = array_filter(array_map('intval', explode(',', (string) $validated['selected_student_ids'])));
+            $ids = array_filter(array_map('intval', explode(',', (string) ($validated['selected_student_ids'] ?? ''))));
             if (empty($ids)) {
                 return back()->withInput()->withErrors(['selected_student_ids' => 'Please select at least one student.']);
             }
@@ -122,16 +144,80 @@ class ScheduledFeeCommunicationController extends Controller
         $validated['classroom_ids'] = $validated['classroom_ids'] ?? null;
         $validated['created_by'] = auth()->id();
 
+        if ($validated['recurrence_type'] === 'once') {
+            $validated['recurrence_times'] = null;
+            $validated['recurrence_week_days'] = null;
+            $validated['recurrence_start_at'] = null;
+            $validated['recurrence_end_at'] = null;
+            $validated['recurrence_next_at'] = null;
+        } else {
+            $validated['send_at'] = $validated['recurrence_start_at'];
+            $validated['recurrence_next_at'] = $this->computeFirstRecurrence(
+                $validated['recurrence_type'],
+                $validated['recurrence_times'] ?? ['09:00'],
+                $validated['recurrence_week_days'] ?? [1],
+                $validated['recurrence_start_at'],
+                $validated['recurrence_end_at'] ?? null
+            );
+            $validated['recurrence_week_days'] = $validated['recurrence_type'] === 'weekly'
+                ? ($validated['recurrence_week_days'] ?? [1])
+                : null;
+        }
+
         ScheduledFeeCommunication::create($validated);
 
+        $msg = $validated['recurrence_type'] === 'once'
+            ? 'Communication scheduled successfully. It will be sent automatically at the scheduled time.'
+            : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.';
+
         return redirect()->route('finance.fee-reminders.schedule.index')
-            ->with('success', 'Communication scheduled successfully. It will be sent automatically at the scheduled time.');
+            ->with('success', $msg);
+    }
+
+    protected function computeFirstRecurrence(string $type, array $times, array $weekDays, string $startAt, ?string $endAt): ?\Carbon\Carbon
+    {
+        $start = \Carbon\Carbon::parse($startAt);
+        $end = $endAt ? \Carbon\Carbon::parse($endAt) : null;
+
+        if ($type === 'daily' || $type === 'times_per_day') {
+            $base = $start->copy()->startOfDay();
+            foreach ($times as $t) {
+                $parts = array_pad(explode(':', $t), 2, 0);
+                $candidate = $base->copy()->setTime((int) $parts[0], (int) $parts[1]);
+                if ($candidate->gte($start) && (!$end || $candidate->lte($end))) {
+                    return $candidate;
+                }
+            }
+            $parts = array_pad(explode(':', $times[0]), 2, 0);
+            $candidate = $base->copy()->addDay()->setTime((int) $parts[0], (int) $parts[1]);
+            return (!$end || $candidate->lte($end)) ? $candidate : null;
+        }
+
+        if ($type === 'weekly') {
+            $base = $start->copy()->startOfDay();
+            for ($i = 0; $i <= 7; $i++) {
+                $check = $base->copy()->addDays($i);
+                $dayOfWeek = (int) $check->format('w');
+                if (!in_array($dayOfWeek, $weekDays)) {
+                    continue;
+                }
+                foreach ($times as $t) {
+                    $parts = array_pad(explode(':', $t), 2, 0);
+                    $candidate = $check->copy()->setTime((int) $parts[0], (int) $parts[1]);
+                    if ($candidate->gte($start) && (!$end || $candidate->lte($end))) {
+                        return $candidate;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     public function destroy(ScheduledFeeCommunication $scheduledFeeCommunication)
     {
-        if ($scheduledFeeCommunication->status !== 'pending') {
-            return back()->with('error', 'Only pending scheduled communications can be cancelled.');
+        if (!in_array($scheduledFeeCommunication->status, ['pending', 'active'])) {
+            return back()->with('error', 'Only pending or active scheduled communications can be cancelled.');
         }
 
         $scheduledFeeCommunication->update(['status' => 'cancelled']);
