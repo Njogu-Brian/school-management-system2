@@ -12,8 +12,10 @@ class ProcessScheduledFeeCommunications extends Command
 
     public function handle()
     {
-        dispatch(new ProcessScheduledFeeCommunicationsJob());
-        $this->info('Scheduled fee communications job dispatched.');
+        // Run synchronously so processing happens immediately when scheduler runs.
+        // No queue worker required — critical for servers where queue:work may not be running.
+        ProcessScheduledFeeCommunicationsJob::dispatchSync();
+        $this->info('Scheduled fee communications processed.');
 
         return self::SUCCESS;
     }

@@ -177,6 +177,20 @@
   .finance-animate:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(0,0,0,0.06); }
 
   .finance-muted { color: var(--fin-muted); }
+
+  .finance-page .form-section-header {
+    color: var(--fin-primary);
+    font-weight: 700;
+  }
+  .finance-page .placeholder-btn.btn-outline-secondary:hover {
+    border-color: var(--fin-primary);
+    color: var(--fin-primary);
+  }
+  .finance-page .card.border-primary {
+    border-color: color-mix(in srgb, var(--fin-primary) 40%, var(--fin-border)) !important;
+    background: var(--fin-surface);
+    border-radius: 12px;
+  }
 </style>
 @endonce
 

@@ -41,7 +41,35 @@ class ScheduledFeeCommunicationController extends Controller
             ->orderByRaw("TRIM(CONCAT_WS(' ', first_name, middle_name, last_name)) ASC")
             ->get();
 
-        return view('finance.fee_reminders.schedule.create', compact('templates', 'classrooms', 'students'));
+        $systemPlaceholders = $this->getSystemPlaceholders();
+        $customPlaceholders = class_exists(\App\Models\CustomPlaceholder::class)
+            ? \App\Models\CustomPlaceholder::all()
+            : collect();
+
+        return view('finance.fee_reminders.schedule.create', compact('templates', 'classrooms', 'students', 'systemPlaceholders', 'customPlaceholders'));
+    }
+
+    protected function getSystemPlaceholders(): array
+    {
+        return [
+            ['key' => 'school_name', 'value' => setting('school_name') ?? 'School Name'],
+            ['key' => 'school_phone', 'value' => setting('school_phone') ?? 'School Phone'],
+            ['key' => 'date', 'value' => now()->format('d M Y')],
+            ['key' => 'student_name', 'value' => "Student's full name"],
+            ['key' => 'admission_number', 'value' => 'Student admission number'],
+            ['key' => 'class_name', 'value' => 'Class name'],
+            ['key' => 'parent_name', 'value' => "Parent's full name"],
+            ['key' => 'father_name', 'value' => "Parent's full name"],
+            ['key' => 'outstanding_amount', 'value' => 'Outstanding fee balance'],
+            ['key' => 'invoice_number', 'value' => 'Invoice number'],
+            ['key' => 'total_amount', 'value' => 'Total invoice amount'],
+            ['key' => 'due_date', 'value' => 'Due date'],
+            ['key' => 'invoice_link', 'value' => 'Public invoice/payment link'],
+            ['key' => 'finance_portal_link', 'value' => 'Student statement link (finance portal)'],
+            ['key' => 'swimming_balance', 'value' => 'Swimming wallet balance (when applicable)'],
+            ['key' => 'payment_plan_link', 'value' => 'Payment plan link'],
+            ['key' => 'profile_update_link', 'value' => 'Profile update link for parents'],
+        ];
     }
 
     public function store(Request $request)

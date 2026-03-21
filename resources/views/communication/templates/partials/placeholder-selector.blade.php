@@ -13,7 +13,7 @@
         if (in_array($key, ['receipt_number', 'transaction_code', 'payment_date', 'amount', 'receipt_link', 'carried_forward'])) {
             return 'receipts';
         }
-        if (in_array($key, ['invoice_number', 'total_amount', 'due_date', 'outstanding_amount', 'status', 'invoice_link', 'days_overdue'])) {
+        if (in_array($key, ['invoice_number', 'total_amount', 'due_date', 'outstanding_amount', 'status', 'invoice_link', 'finance_portal_link', 'swimming_balance', 'days_overdue'])) {
             return 'invoices';
         }
         if (in_array($key, ['installment_count', 'installment_amount', 'installment_number', 'payment_plan_link', 'start_date', 'end_date', 'remaining_installments'])) {
