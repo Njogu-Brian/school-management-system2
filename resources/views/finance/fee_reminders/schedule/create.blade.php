@@ -202,7 +202,7 @@
                 <select name="template_id" id="template_id" class="schedule-select">
                   <option value="">-- Custom message --</option>
                   @foreach($templates as $tpl)
-                    <option value="{{ $tpl->id }}" data-content="{{ e($tpl->content ?: '') }}" {{ old('template_id') == $tpl->id ? 'selected' : '' }}>{{ $tpl->title }}</option>
+                    <option value="{{ $tpl->id }}" data-type="{{ $tpl->type ?? 'email' }}" data-content="{{ e($tpl->content ?: '') }}" {{ old('template_id') == $tpl->id ? 'selected' : '' }}>{{ $tpl->title }} ({{ ucfirst($tpl->type ?? 'email') }})</option>
                   @endforeach
                 </select>
               </div>
@@ -395,6 +395,23 @@
 @push('scripts')
 <script>
 function scheduleFormSubmit(form) {
+  // Client-side validation: require message or template
+  const templateSelect = document.getElementById('template_id');
+  const msgBox = document.getElementById('custom_message');
+  const hasTemplate = templateSelect && templateSelect.value && templateSelect.value !== '';
+  const hasMessage = msgBox && msgBox.value && msgBox.value.trim().length > 0;
+  if (!hasTemplate && !hasMessage) {
+    alert('Please provide a message or select a template.');
+    const firstInvalid = msgBox || templateSelect;
+    if (firstInvalid) firstInvalid.focus();
+    return false;
+  }
+  // Validate at least one channel
+  const channels = form.querySelectorAll('input[name="channels[]"]:checked');
+  if (!channels.length) {
+    alert('Please select at least one channel (SMS, Email, or WhatsApp).');
+    return false;
+  }
   const btn = document.getElementById('scheduleSubmitBtn');
   const icon = document.getElementById('scheduleSubmitIcon');
   const text = document.getElementById('scheduleSubmitText');
@@ -474,11 +491,42 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateSendAtMin, 60000);
   }
 
+  // Template selector: update message box when switching templates
   document.getElementById('template_id').addEventListener('change', function() {
     const opt = this.options[this.selectedIndex];
     const msg = document.getElementById('custom_message');
-    if (opt?.dataset?.content && !msg.value) msg.value = opt.dataset.content;
+    if (!msg) return;
+    if (opt?.value && opt?.dataset?.content !== undefined) {
+      msg.value = opt.dataset.content || '';
+    } else if (!opt?.value) {
+      msg.value = ''; // Clear when switching to "Custom message"
+    }
   });
+
+  // Filter templates by selected channels
+  function filterTemplatesByChannels() {
+    const channels = Array.from(document.querySelectorAll('input[name="channels[]"]:checked')).map(c => c.value);
+    const templateSelect = document.getElementById('template_id');
+    if (!templateSelect) return;
+    const selectedOpt = templateSelect.options[templateSelect.selectedIndex];
+    const options = templateSelect.querySelectorAll('option[value]');
+    options.forEach(opt => {
+      const type = (opt.dataset.type || 'email').toLowerCase();
+      const matches = channels.length === 0 || channels.some(ch => {
+        if (ch === 'whatsapp') return type === 'whatsapp' || type === 'sms';
+        return type === ch;
+      });
+      opt.style.display = matches ? '' : 'none';
+      opt.disabled = !matches;
+    });
+    // If selected template no longer matches channels, switch to custom
+    if (selectedOpt && selectedOpt.value && selectedOpt.disabled) {
+      templateSelect.value = '';
+      document.getElementById('custom_message').value = '';
+    }
+  }
+  document.querySelectorAll('input[name="channels[]"]').forEach(c => c.addEventListener('change', filterTemplatesByChannels));
+  filterTemplatesByChannels();
 
   document.addEventListener('studentsSelected', function(event) {
     const studentIds = event.detail.studentIds;

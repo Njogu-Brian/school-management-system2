@@ -47,6 +47,7 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
         $channels = $item->channels ?? ['email', 'sms', 'whatsapp'];
         $channels = is_array($channels) ? $channels : (array) $channels;
 
+        $totalSent = 0;
         foreach ($channels as $channel) {
             $recipients = $recipientData[$channel] ?? [];
             if (empty($recipients)) {
@@ -54,6 +55,11 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
             }
 
             $pairs = CommunicationHelperService::expandRecipientsToPairs($recipients);
+
+            if (empty($pairs)) {
+                Log::info('ProcessScheduledFeeCommunicationsJob: no recipients for channel', ['item_id' => $item->id, 'channel' => $channel, 'target' => $item->target]);
+                continue;
+            }
 
             if (count($pairs) > 10) {
                 $trackingId = 'scheduled_fee_' . $item->id . '_' . $channel . '_' . time();
@@ -68,11 +74,14 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                         $normalized = $this->normalizeKenyanPhone($contact);
                         if ($normalized) {
                             $recipientsData[] = ['phone' => $normalized, 'entity' => $entityData];
+                        } else {
+                            Log::warning('ProcessScheduledFeeCommunicationsJob: skipped invalid phone', ['contact' => $contact, 'channel' => $channel]);
                         }
                     }
                 }
 
                 if (!empty($recipientsData)) {
+                    $totalSent += count($recipientsData);
                     if ($channel === 'email') {
                         BulkSendEmail::dispatch($trackingId, $recipientsData, $message, $title, $item->target, null, $item->created_by);
                     } elseif ($channel === 'whatsapp') {
@@ -80,6 +89,7 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                     } else {
                         BulkSendSMS::dispatch($trackingId, $recipientsData, $message, $title, $item->target, 'finance', $item->created_by);
                     }
+                    Log::info('ProcessScheduledFeeCommunicationsJob: bulk job dispatched', ['item_id' => $item->id, 'channel' => $channel, 'count' => count($recipientsData)]);
                 }
             } else {
                 foreach ($pairs as [$contact, $entity]) {
@@ -106,6 +116,7 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                             'sent_at' => now(),
                             'tracking_id' => 'scheduled_fee_' . $item->id,
                         ]);
+                        $totalSent++;
                     } catch (\Throwable $e) {
                         Log::warning('Scheduled fee communication send failed', [
                             'item_id' => $item->id,
@@ -116,6 +127,14 @@ class ProcessScheduledFeeCommunicationsJob implements ShouldQueue
                     }
                 }
             }
+        }
+
+        if ($totalSent === 0) {
+            Log::warning('ProcessScheduledFeeCommunicationsJob: no messages sent (0 recipients matched filters)', [
+                'item_id' => $item->id,
+                'target' => $item->target,
+                'filter_type' => $item->filter_type,
+            ]);
         }
 
         if ($item->isRecurring()) {

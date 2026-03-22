@@ -29,7 +29,7 @@ class ScheduledFeeCommunicationController extends Controller
 
     public function create()
     {
-        $templates = CommunicationTemplate::whereIn('type', ['email', 'sms'])
+        $templates = CommunicationTemplate::whereIn('type', ['email', 'sms', 'whatsapp'])
             ->orWhere('code', 'like', 'finance_%')
             ->orderBy('title')
             ->get();
@@ -128,13 +128,27 @@ class ScheduledFeeCommunicationController extends Controller
             return back()->withInput()->withErrors(['channels' => 'Select at least one channel (SMS, Email, or WhatsApp).']);
         }
 
-        $message = $validated['custom_message'] ?? null;
-        if (empty($message) && ($validated['template_id'] ?? null)) {
+        $message = trim((string) ($validated['custom_message'] ?? ''));
+        if ($message === '' && ($validated['template_id'] ?? null)) {
             $tpl = CommunicationTemplate::find($validated['template_id']);
-            $message = $tpl ? $tpl->content : null;
+            $message = $tpl ? trim((string) ($tpl->content ?? '')) : '';
         }
-        if (empty($message)) {
+        if ($message === '') {
             return back()->withInput()->withErrors(['custom_message' => 'Please provide a message or select a template.']);
+        }
+
+        // Ensure template type matches at least one selected channel (when using template)
+        if (!empty($validated['template_id'])) {
+            $tpl = CommunicationTemplate::find($validated['template_id']);
+            if ($tpl) {
+                $tplType = strtolower($tpl->type ?? 'email');
+                $channels = array_map('strtolower', $validated['channels']);
+                $compatible = in_array($tplType, $channels)
+                    || ($tplType === 'sms' && in_array('whatsapp', $channels));
+                if (!$compatible) {
+                    return back()->withInput()->withErrors(['template_id' => 'Selected template type (' . ucfirst($tplType) . ') does not match your chosen channels.']);
+                }
+            }
         }
 
         if ($validated['target'] === 'class' && empty($validated['classroom_ids'])) {
