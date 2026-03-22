@@ -209,19 +209,30 @@ class ScheduledFeeCommunicationController extends Controller
         try {
             $item = ScheduledFeeCommunication::create($validated);
 
+            $sendJobError = null;
             if ($sendNow) {
-                \App\Jobs\ProcessScheduledFeeCommunicationsJob::dispatchSync();
+                try {
+                    \App\Jobs\ProcessScheduledFeeCommunicationsJob::dispatchSync();
+                } catch (\Throwable $jobEx) {
+                    \Illuminate\Support\Facades\Log::error('ProcessScheduledFeeCommunicationsJob failed on send now', [
+                        'error' => $jobEx->getMessage(),
+                        'trace' => $jobEx->getTraceAsString(),
+                    ]);
+                    $sendJobError = $jobEx->getMessage();
+                }
             }
 
             $msg = $sendNow
-                ? 'Communication sent successfully. Parents with balances have been notified.'
+                ? ($sendJobError
+                    ? 'Communication saved. Sending failed: ' . $sendJobError . ' Check logs. Run: php artisan queue:work'
+                    : 'Communication sent successfully. Parents with balances have been notified.')
                 : ($validated['recurrence_type'] === 'once'
                 ? 'Communication scheduled successfully. It will be sent automatically at the scheduled time.'
                 : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.');
 
             // Always redirect to Scheduled tab so user sees their item (Sent tab shows different FeeReminder data)
             return redirect()->route('finance.fee-reminders.index', ['tab' => 'scheduled'])
-                ->with('success', $msg);
+                ->with($sendJobError ? 'error' : 'success', $msg);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('Scheduled fee communication store failed', [
                 'error' => $e->getMessage(),
