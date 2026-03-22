@@ -203,6 +203,20 @@ mysql -u [username] -p [database_name] < backup_[timestamp].sql
 
 ## Troubleshooting
 
+### Issue: "Permission denied" when compiling views (file_put_contents storage/framework/views)
+**Solution:** The web server cannot write compiled Blade views. Fix permissions on the server:
+```bash
+cd /var/www/erp  # or your app path
+
+# Set permissions
+chmod -R 775 storage bootstrap/cache
+
+# Set ownership (use the user your web server runs as)
+# Ubuntu/Debian: www-data | CentOS/RHEL: apache | cPanel: your username
+sudo chown -R www-data:www-data storage bootstrap/cache
+```
+On **cPanel/shared hosting**, you may need to use your cPanel username. Find it with: `whoami`
+
 ### Issue: "Transaction ID conflict detected" errors still occur
 **Solution:**
 - Ensure you ran `php artisan transactions:fix-c2b-id-conflicts --fix`

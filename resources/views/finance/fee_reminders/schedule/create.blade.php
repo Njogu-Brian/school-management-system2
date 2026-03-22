@@ -17,6 +17,12 @@
         'actions' => '<a href="' . route('finance.fee-reminders.schedule.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+            <strong><i class="bi bi-exclamation-triangle"></i></strong> {{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
     @if($errors->any())
         <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
             <strong><i class="bi bi-exclamation-triangle"></i> Please fix the following:</strong>
@@ -29,7 +35,7 @@
         </div>
     @endif
 
-    <form action="{{ route('finance.fee-reminders.schedule.store') }}" method="POST" id="scheduleFeeForm" class="schedule-form">
+    <form action="{{ route('finance.fee-reminders.schedule.store') }}" method="POST" id="scheduleFeeForm" class="schedule-form" onsubmit="return scheduleFormSubmit(this)">
       @csrf
 
       <div class="schedule-grid">
@@ -306,7 +312,7 @@
               <div class="schedule-form-actions mt-4">
                 <a href="{{ route('finance.fee-reminders.schedule.index') }}" class="btn btn-finance btn-finance-outline">Cancel</a>
                 <button type="submit" class="btn btn-finance btn-finance-primary" id="scheduleSubmitBtn">
-                  <i class="bi bi-calendar-check"></i> <span id="scheduleSubmitText">Schedule</span>
+                  <span id="scheduleSubmitIcon"><i class="bi bi-calendar-check"></i></span> <span id="scheduleSubmitText">Schedule</span>
                 </button>
               </div>
             </div>
@@ -388,6 +394,18 @@
 
 @push('scripts')
 <script>
+function scheduleFormSubmit(form) {
+  const btn = document.getElementById('scheduleSubmitBtn');
+  const icon = document.getElementById('scheduleSubmitIcon');
+  const text = document.getElementById('scheduleSubmitText');
+  if (btn && btn.disabled) return false;
+  if (btn) {
+    btn.disabled = true;
+    if (icon) icon.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+    if (text) text.textContent = text.textContent === 'Send Now' ? 'Sending…' : 'Saving…';
+  }
+  return true;
+}
 document.addEventListener('DOMContentLoaded', function() {
   const targetRadios = document.querySelectorAll('input[name="target"]');
   const filterRadios = document.querySelectorAll('input[name="filter_type"]');

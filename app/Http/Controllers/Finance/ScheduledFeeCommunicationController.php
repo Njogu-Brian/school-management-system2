@@ -75,6 +75,11 @@ class ScheduledFeeCommunicationController extends Controller
 
     public function store(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info('Scheduled fee communication store request', [
+            'target' => $request->input('target'),
+            'send_now' => $request->boolean('send_now'),
+        ]);
+
         $rules = [
             'target' => 'required|in:one_parent,specific_students,class,all',
             'student_id' => 'nullable|required_if:target,one_parent|exists:students,id',
@@ -187,20 +192,29 @@ class ScheduledFeeCommunicationController extends Controller
                 : null;
         }
 
-        $item = ScheduledFeeCommunication::create($validated);
+        try {
+            $item = ScheduledFeeCommunication::create($validated);
 
-        if ($sendNow) {
-            \App\Jobs\ProcessScheduledFeeCommunicationsJob::dispatchSync();
+            if ($sendNow) {
+                \App\Jobs\ProcessScheduledFeeCommunicationsJob::dispatchSync();
+            }
+
+            $msg = $sendNow
+                ? 'Communication sent successfully. Parents with balances have been notified.'
+                : ($validated['recurrence_type'] === 'once'
+                ? 'Communication scheduled successfully. It will be sent automatically at the scheduled time.'
+                : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.');
+
+            // Always redirect to Scheduled tab so user sees their item (Sent tab shows different FeeReminder data)
+            return redirect()->route('finance.fee-reminders.index', ['tab' => 'scheduled'])
+                ->with('success', $msg);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Scheduled fee communication store failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return back()->withInput()->with('error', 'Failed to save: ' . $e->getMessage());
         }
-
-        $msg = $sendNow
-            ? 'Communication sent successfully. Parents with balances have been notified.'
-            : ($validated['recurrence_type'] === 'once'
-            ? 'Communication scheduled successfully. It will be sent automatically at the scheduled time.'
-            : 'Recurring communication scheduled. Balances are checked fresh each time before sending—parents who have paid will not receive the message.');
-
-        return redirect()->route('finance.fee-reminders.index', $sendNow ? [] : ['tab' => 'scheduled'])
-            ->with('success', $msg);
     }
 
     protected function computeFirstRecurrence(string $type, array $times, array $weekDays, string $startAt, ?string $endAt): ?\Carbon\Carbon
