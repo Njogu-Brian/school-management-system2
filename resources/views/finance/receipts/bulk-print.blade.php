@@ -2,9 +2,9 @@
     $brandPrimary = setting('finance_primary_color', '#3a1a59');
     $brandSecondary = setting('finance_secondary_color', '#14b8a6');
     $brandMuted = setting('finance_muted_color', '#6b7280');
-    $brandBodyFont = setting('finance_body_font_size', '13');
-    $brandHeadingFont = setting('finance_heading_font_size', '19');
-    $brandSmallFont = setting('finance_small_font_size', '11');
+    $brandBodyFont = setting('finance_body_font_size', '14');
+    $brandHeadingFont = setting('finance_heading_font_size', '20');
+    $brandSmallFont = setting('finance_small_font_size', '12');
     $branding = $branding ?? [];
     $school = $school ?? [];
     $firstPayment = $receipts[0]['payment'] ?? null;
@@ -35,7 +35,7 @@
         .receipt-container:last-child { page-break-after: auto; }
         .header { text-align: center; border-bottom: 2px solid {{ $brandPrimary }}; padding-bottom: 8px; margin-bottom: 10px; }
         .header h1 { font-size: {{ $brandHeadingFont }}px; color: {{ $brandPrimary }}; margin-bottom: 4px; font-weight: bold; }
-        .header .school-info { font-size: {{ $brandSmallFont }}px; color: {{ $brandMuted }}; line-height: 1.3; }
+        .header .school-info { font-size: {{ $brandBodyFont }}px; color: {{ $brandMuted }}; line-height: 1.4; }
         .receipt-title { text-align: center; font-size: {{ (int)$brandHeadingFont - 3 }}px; font-weight: bold; color: {{ $brandPrimary }}; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
         .receipt-details-table { width: 100%; margin-bottom: 10px; border-collapse: collapse; font-size: {{ $brandBodyFont }}px; }
         .receipt-details-table td { padding: 4px 6px; border: none; line-height: 1.5; }
@@ -58,11 +58,12 @@
         .total-section { margin-top: 10px; padding: 8px 10px; background-color: #f5f5f5; border: 1px solid {{ $brandPrimary }}; border-radius: 3px; }
         .total-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: {{ $brandSmallFont }}px; }
         .total-row.grand-total { font-size: 12px; font-weight: bold; color: {{ $brandPrimary }}; border-top: 1px solid {{ $brandPrimary }}; padding-top: 6px; margin-top: 6px; }
-        .footer { margin-top: 10px; text-align: center; font-size: {{ max(8, (int)$brandSmallFont - 2) }}px; color: {{ $brandMuted }}; border-top: 1px solid #ddd; padding-top: 8px; }
+        .footer { margin-top: 14px; text-align: center; font-size: {{ max(8, (int)$brandSmallFont - 2) }}px; color: {{ $brandMuted }}; border-top: 1px solid #ddd; padding-top: 12px; }
+        .footer-notice { padding: 10px 14px; background: #fff8e6; border: 1px solid #e6b800; border-radius: 4px; font-size: {{ $brandSmallFont }}px; font-weight: 600; color: #856404; line-height: 1.5; margin-bottom: 12px; }
         .footer .thank-you { font-size: {{ $brandSmallFont }}px; font-weight: bold; color: {{ $brandPrimary }}; margin-bottom: 4px; }
-        .profile-update-link { margin-top: 8px; padding: 8px 10px; background: #f8f9fa; border-radius: 6px; border: 1px solid #dee2e6; word-break: break-word; font-size: {{ $brandSmallFont }}px; line-height: 1.6; text-align: left; max-width: 100%; }
-        .profile-update-link strong { display: block; margin-bottom: 4px; color: {{ $brandPrimary }}; font-size: {{ $brandSmallFont }}px; }
-        .profile-update-link a { display: inline-block; color: {{ $brandSecondary }}; text-decoration: none; word-break: break-all; font-size: {{ max(8, (int)$brandSmallFont - 2) }}px; line-height: 1.4; margin-top: 4px; }
+        .footer-meta, .footer-details { font-size: {{ $brandSmallFont }}px; color: {{ $brandMuted }}; margin-bottom: 6px; }
+        .footer-sep { margin: 0 6px; opacity: 0.6; }
+        .footer-custom { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dee2e6; }
         body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: {{ $brandBodyFont }}px; color: {{ setting('finance_text_color', '#333') }}; background: #fff; }
         @page { size: A4 portrait; margin: 0; }
     </style>

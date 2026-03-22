@@ -1,9 +1,9 @@
 @php
     $brandPrimary = setting('finance_primary_color', '#3a1a59');
     $brandMuted = setting('finance_muted_color', '#6b7280');
-    $brandBodyFont = setting('finance_body_font_size', '13');
-    $brandHeadingFont = setting('finance_heading_font_size', '19');
-    $brandSmallFont = setting('finance_small_font_size', '11');
+    $brandBodyFont = setting('finance_body_font_size', '14');
+    $brandHeadingFont = setting('finance_heading_font_size', '20');
+    $brandSmallFont = setting('finance_small_font_size', '12');
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -72,9 +72,9 @@
         }
         
         .header .school-info {
-            font-size: {{ $brandSmallFont }}px;
+            font-size: {{ $brandBodyFont }}px;
             color: {{ $brandMuted }};
-            line-height: 1.3;
+            line-height: 1.4;
         }
         
         .receipt-title {
@@ -203,21 +203,47 @@
         }
         
         .footer {
-            margin-top: 10px;
+            margin-top: 14px;
             text-align: center;
             font-size: {{ max(8, (int)$brandSmallFont - 2) }}px;
             color: {{ $brandMuted }};
             border-top: 1px solid #ddd;
-            padding-top: 8px;
+            padding-top: 12px;
         }
-        
+
+        .footer-notice {
+            padding: 10px 14px;
+            background: #fff8e6;
+            border: 1px solid #e6b800;
+            border-radius: 4px;
+            font-size: {{ $brandSmallFont }}px;
+            font-weight: 600;
+            color: #856404;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
         .footer .thank-you {
             font-size: {{ $brandSmallFont }}px;
             font-weight: bold;
             color: {{ $brandPrimary }};
             margin-bottom: 4px;
         }
-        
+
+        .footer-meta, .footer-details {
+            font-size: {{ $brandSmallFont }}px;
+            color: {{ $brandMuted }};
+            margin-bottom: 6px;
+        }
+
+        .footer-sep { margin: 0 6px; opacity: 0.6; }
+
+        .footer-custom {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #dee2e6;
+        }
+
         .watermark {
             position: absolute;
             top: 50%;

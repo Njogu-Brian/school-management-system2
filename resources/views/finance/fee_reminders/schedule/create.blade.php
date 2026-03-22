@@ -17,6 +17,18 @@
         'actions' => '<a href="' . route('finance.fee-reminders.schedule.index') . '" class="btn btn-finance btn-finance-outline"><i class="bi bi-arrow-left"></i> Back</a>'
     ])
 
+    @if($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+            <strong><i class="bi bi-exclamation-triangle"></i> Please fix the following:</strong>
+            <ul class="mb-0 mt-2">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
     <form action="{{ route('finance.fee-reminders.schedule.store') }}" method="POST" id="scheduleFeeForm" class="schedule-form">
       @csrf
 
@@ -426,6 +438,24 @@ document.addEventListener('DOMContentLoaded', function() {
   toggleBalanceFields();
   toggleRecurrenceFields();
 
+  // Scroll to first error on validation failure
+  @if($errors->any())
+  const firstError = document.querySelector('.schedule-error, .is-invalid, .alert-danger');
+  if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  @endif
+
+  // Keep send_at min in the future (avoids "must be after now" validation)
+  const sendAtInput = document.getElementById('send_at');
+  if (sendAtInput) {
+    function updateSendAtMin() {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 1);
+      sendAtInput.min = now.toISOString().slice(0, 16);
+    }
+    updateSendAtMin();
+    setInterval(updateSendAtMin, 60000);
+  }
+
   document.getElementById('template_id').addEventListener('change', function() {
     const opt = this.options[this.selectedIndex];
     const msg = document.getElementById('custom_message');
@@ -500,6 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
       student_id: formData.get('student_id'),
       selected_student_ids: formData.get('selected_student_ids'),
       classroom_ids: formData.getAll('classroom_ids[]'),
+      channels: formData.getAll('channels[]'),
       filter_type: formData.get('filter_type') || 'all',
       balance_min: formData.get('balance_min'),
       balance_percent_min: formData.get('balance_percent_min'),

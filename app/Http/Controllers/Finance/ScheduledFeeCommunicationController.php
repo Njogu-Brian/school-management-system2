@@ -361,9 +361,15 @@ class ScheduledFeeCommunicationController extends Controller
             $data['fee_balance_percent_min'] = (float) $request->balance_percent_min;
         }
 
-        // Collect from all channels and merge pairs (student may have multiple contacts)
+        // Only collect from selected channels (default to all if none selected)
+        $channels = $request->input('channels');
+        if (empty($channels) || !is_array($channels)) {
+            $channels = ['email', 'sms', 'whatsapp'];
+        }
+        $channels = array_intersect($channels, ['email', 'sms', 'whatsapp']);
+
         $allPairs = [];
-        foreach (['email', 'sms', 'whatsapp'] as $channel) {
+        foreach ($channels as $channel) {
             $channelRecipients = CommunicationHelperService::collectRecipients($data, $channel);
             $allPairs = array_merge($allPairs, CommunicationHelperService::expandRecipientsToPairs($channelRecipients));
         }

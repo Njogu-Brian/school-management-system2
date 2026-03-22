@@ -24,11 +24,12 @@
         <img src="{{ $logo }}" alt="School Logo" style="max-height: 50px; max-width: 140px;">
     </div>
     @endif
-    <h1>{{ $school['name'] ?? ($branding['name'] ?? 'SCHOOL NAME') }}</h1>
-    @if(!empty($school['address'] ?? ''))
+    <h1 class="header-school-name">{{ $school['name'] ?? ($branding['name'] ?? 'SCHOOL NAME') }}</h1>
+    @if(!empty($school['address'] ?? '') || !empty($school['phone'] ?? '') || !empty($school['email'] ?? ''))
     <div class="school-info">
-        {{ $school['address'] ?? '' }}<br>
-        @if(!empty($school['phone'] ?? ''))Tel: {{ $school['phone'] }} | @endif
+        @if(!empty($school['address'] ?? '')){{ $school['address'] }}<br>@endif
+        @if(!empty($school['phone'] ?? ''))Tel: {{ $school['phone'] }}@endif
+        @if(!empty($school['phone'] ?? '') && !empty($school['email'] ?? '')) | @endif
         @if(!empty($school['email'] ?? ''))Email: {{ $school['email'] }}@endif
     </div>
     @endif
@@ -179,38 +180,23 @@
 </div>
 @endif
 
-<!-- Fee Policy Notice -->
-<div style="margin-top: 12px; padding: 10px 12px; background-color: #fff8e6; border: 1px solid #e6b800; border-radius: 4px; font-size: 10px; font-weight: 600; color: #856404; text-align: center; line-height: 1.5;">
-    Fees once paid are not refundable or transferable. No fee rebate will be given for absenteeism.
+<!-- Fee policy notice (prominent, before footer) -->
+<div class="receipt-policy-notice">
+    <strong>Important:</strong> Fees once paid are not refundable or transferable. No fee rebate will be given for absenteeism.
 </div>
 
 <!-- Footer -->
 <div class="footer">
     <div class="thank-you">Thank You for Your Payment!</div>
-    <div>This is a computer-generated receipt. No signature required.</div>
-    @php
-        $family = $student->family ?? null;
-        $updateLink = $family->updateLink ?? null;
-    @endphp
-    @if($updateLink && $updateLink->is_active)
-        @php $profileUpdateUrl = url('/family-update/' . $updateLink->token); @endphp
-        <div class="profile-update-link">
-            <strong>Update Your Profile:</strong>
-            <div style="margin-top: 4px;">
-                <a href="{{ $profileUpdateUrl }}" target="_blank" style="color: {{ $brandSecondary }}; text-decoration: none; word-break: break-all; display: inline-block;">
-                    {{ $profileUpdateUrl }}
-                </a>
-            </div>
-            <div style="margin-top: 4px; font-size: 9px; color: #666;">
-                Click the link above to update student and family information
-            </div>
-        </div>
-    @endif
-    <div style="margin-top: 10px;">
-        Generated on: {{ date('d M Y, H:i:s') }}<br>
-        @if(!empty($school['phone'] ?? ''))For inquiries, contact: {{ $school['phone'] }}@endif
+    <div class="footer-meta">This is a computer-generated receipt. No signature required.</div>
+    <div class="footer-details">
+        <span>Generated: {{ date('d M Y, H:i') }}</span>
+        @if(!empty($school['phone'] ?? ''))
+            <span class="footer-sep">|</span>
+            <span>Contact: {{ $school['phone'] }}</span>
+        @endif
     </div>
     @if(!empty($receipt_footer ?? ''))
-        <div style="margin-top: 6px;">{!! $receipt_footer !!}</div>
+        <div class="footer-custom">{!! $receipt_footer !!}</div>
     @endif
 </div>
