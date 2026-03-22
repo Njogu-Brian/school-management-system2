@@ -203,6 +203,9 @@ mysql -u [username] -p [database_name] < backup_[timestamp].sql
 
 ## Troubleshooting
 
+### Issue: Send/Schedule form does nothing (301 redirect loses POST data)
+**Solution:** Ensure APP_URL in `.env` uses HTTPS (e.g. `APP_URL=https://erp.royalkingsschools.sc.ke`). If the form posts to HTTP, the server may 301-redirect to HTTPS and the browser will re-request with GET, losing form data. The app now submits via fetch and retries on 301, but fixing APP_URL is the proper fix.
+
 ### Issue: "Permission denied" when compiling views (file_put_contents storage/framework/views)
 **Solution:** The web server cannot write compiled Blade views. Fix permissions on the server:
 ```bash

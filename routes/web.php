@@ -1505,7 +1505,7 @@ Route::get('/families/{family}/update-link', [FamilyUpdateController::class, 'sh
         Route::redirect('fee-reminders/automated/send', '/finance/fee-reminders', 302);
         Route::get('fee-reminders/schedule/create', [ScheduledFeeCommunicationController::class, 'create'])->name('fee-reminders.schedule.create');
         Route::post('fee-reminders/schedule', [ScheduledFeeCommunicationController::class, 'store'])->name('fee-reminders.schedule.store');
-        Route::get('fee-reminders/schedule', fn () => redirect('/finance/fee-reminders?tab=scheduled', 301))->name('fee-reminders.schedule.index');
+        Route::get('fee-reminders/schedule', fn () => redirect('/finance/fee-reminders?tab=scheduled', 302))->name('fee-reminders.schedule.index');
         Route::post('fee-reminders/schedule/preview-count', [ScheduledFeeCommunicationController::class, 'previewCount'])->name('fee-reminders.schedule.preview-count');
         Route::post('fee-reminders/schedule/preview-recipients', [ScheduledFeeCommunicationController::class, 'previewRecipients'])->name('fee-reminders.schedule.preview-recipients');
         Route::delete('fee-reminders/schedule/{scheduledFeeCommunication}', [ScheduledFeeCommunicationController::class, 'destroy'])->name('fee-reminders.schedule.destroy');

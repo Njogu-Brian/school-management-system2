@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 use Spatie\Permission\Models\Permission;
 use App\Models\OptionalFee;
 use App\Observers\OptionalFeeObserver;
@@ -19,6 +20,9 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (config('app.env') === 'production' && str_starts_with(config('app.url', ''), 'https://')) {
+            URL::forceScheme('https');
+        }
         Paginator::useBootstrap();
 
         // Register the @canAccess directive here (helpers.php no longer touches Blade)

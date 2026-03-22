@@ -421,7 +421,45 @@ function scheduleFormSubmit(form) {
     if (icon) icon.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
     if (text) text.textContent = text.textContent === 'Send Now' ? 'Sending…' : 'Saving…';
   }
-  return true;
+  // Submit via fetch to avoid 301 POST->GET data loss (browsers convert POST to GET on 301)
+  const formData = new FormData(form);
+  fetch(form.action, {
+    method: 'POST',
+    body: formData,
+    redirect: 'manual',
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  }).then(function(res) {
+    if (res.status === 301) {
+      var loc = res.headers.get('Location');
+      if (loc) {
+        var fullLoc = loc.startsWith('http') ? loc : new URL(loc, window.location.origin).href;
+        // 301 from server (e.g. HTTP->HTTPS): retry POST to the new URL to preserve form data
+        return fetch(fullLoc, { method: 'POST', body: formData, redirect: 'manual', credentials: 'same-origin' })
+          .then(function(r) { if (r.status === 302 && r.headers.get('Location')) window.location.href = r.headers.get('Location'); return r; });
+      }
+    }
+    if (res.status === 302 || res.type === 'opaqueredirect') {
+      var loc = res.headers.get('Location');
+      if (loc) window.location.href = loc;
+      return;
+    }
+    if (res.status === 422) {
+      return res.json().then(function(data) {
+        var msg = (data.errors && Object.values(data.errors).flat()).filter(Boolean) || [data.message || 'Validation failed'];
+        alert(msg.join('\n'));
+      });
+    }
+    if (!res.ok) {
+      return res.text().then(function() { alert('Server error: ' + res.status + '. Ensure storage permissions are correct and Laravel can write logs.'); });
+    }
+  }).catch(function(err) {
+    alert('Request failed. Check your connection.');
+    console.error(err);
+  }).finally(function() {
+    if (btn) { btn.disabled = false; if (icon) icon.innerHTML = '<i class="bi bi-calendar-check"></i>'; if (text) text.textContent = (document.getElementById('send_now')?.checked ? 'Send Now' : 'Schedule'); }
+  });
+  return false; // prevent default form submit
 }
 document.addEventListener('DOMContentLoaded', function() {
   const targetRadios = document.querySelectorAll('input[name="target"]');
