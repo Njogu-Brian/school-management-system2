@@ -7,6 +7,7 @@ import { MarkAttendanceScreen } from '@screens/Attendance/MarkAttendanceScreen';
 import { InvoicesListScreen } from '@screens/Finance/InvoicesListScreen';
 import { RecordPaymentScreen } from '@screens/Finance/RecordPaymentScreen';
 import { StudentStatementScreen } from '@screens/Finance/StudentStatementScreen';
+import { MpesaWaitingWebViewScreen } from '@screens/Finance/MpesaWaitingWebViewScreen';
 import { StaffDirectoryScreen } from '@screens/HR/StaffDirectoryScreen';
 import { RoutesListScreen } from '@screens/Transport/RoutesListScreen';
 import { LibraryBooksScreen } from '@screens/Library/LibraryBooksScreen';
@@ -79,6 +80,7 @@ export const FinanceNavigator = () => {
             <Stack.Screen name="FeeStructures" component={PlaceholderScreen} />
             <Stack.Screen name="Receipts" component={PlaceholderScreen} />
             <Stack.Screen name="Defaulters" component={PlaceholderScreen} />
+            <Stack.Screen name="MpesaWaitingWeb" component={MpesaWaitingWebViewScreen} />
         </Stack.Navigator>
     );
 };

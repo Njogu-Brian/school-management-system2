@@ -355,6 +355,7 @@ export const RecordPaymentScreen: React.FC<RecordPaymentScreenProps> = ({ naviga
                             : ''
                     }
                     onClose={() => setMpesaOpen(false)}
+                    navigation={navigation}
                 />
             )}
         </SafeAreaView>

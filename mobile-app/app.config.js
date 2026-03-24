@@ -1,3 +1,9 @@
+const apiBase =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  process.env.API_BASE_URL ||
+  'http://localhost:8000/api';
+const webBaseDefault = apiBase.replace(/\/api\/?$/i, '').replace(/\/$/, '') || 'http://localhost:8000';
+
 export default {
   expo: {
     newArchEnabled: true,
@@ -28,8 +34,10 @@ export default {
       ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
     ],
     extra: {
-      API_BASE_URL: process.env.API_BASE_URL || process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000/api',
+      API_BASE_URL: apiBase,
       API_TIMEOUT: process.env.API_TIMEOUT || process.env.EXPO_PUBLIC_API_TIMEOUT || '30000',
+      /** Public web origin (no /api). Override when API is on a different host than the portal. */
+      WEB_BASE_URL: process.env.EXPO_PUBLIC_WEB_BASE_URL || webBaseDefault,
     },
   },
 };

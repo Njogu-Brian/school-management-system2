@@ -473,6 +473,7 @@ export const StudentDetailScreen: React.FC<StudentDetailScreenProps> = ({ naviga
                     feeBalance != null && feeBalance > 0 ? String(Math.ceil(feeBalance)) : ''
                 }
                 onClose={() => setMpesaOpen(false)}
+                navigation={navigation}
             />
         </SafeAreaView>
     );

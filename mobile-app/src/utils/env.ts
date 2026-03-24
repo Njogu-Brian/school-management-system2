@@ -12,3 +12,10 @@ export function getWebBaseUrl(): string {
     const raw = extra?.WEB_BASE_URL ?? process.env.EXPO_PUBLIC_WEB_BASE_URL ?? API_BASE_URL;
     return raw.replace(/\/api\/?$/i, '').replace(/\/$/, '') || 'http://localhost:8000';
 }
+
+/**
+ * Public web origin (no `/api`). Set `EXPO_PUBLIC_WEB_BASE_URL` when the portal URL differs from the API host.
+ * Falls back to stripping `/api` from `API_BASE_URL`.
+ */
+export const WEB_BASE_URL =
+    extra?.WEB_BASE_URL ?? process.env.EXPO_PUBLIC_WEB_BASE_URL ?? getWebBaseUrl();

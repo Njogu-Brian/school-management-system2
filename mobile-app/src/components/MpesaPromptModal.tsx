@@ -19,11 +19,15 @@ import { SPACING, FONT_SIZES } from '@constants/theme';
 import { BRAND, RADIUS } from '@constants/designTokens';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
+type NavLike = { navigate: (name: string, params?: Record<string, unknown>) => void };
+
 interface MpesaPromptModalProps {
     visible: boolean;
     studentId: number;
     defaultAmount?: string;
     onClose: () => void;
+    /** When set, successful STK opens in-app WebView + background status polling. */
+    navigation?: NavLike;
 }
 
 export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
@@ -31,6 +35,7 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
     studentId,
     defaultAmount = '',
     onClose,
+    navigation,
 }) => {
     const { isDark, colors } = useTheme();
     const [phone, setPhone] = useState('');
@@ -75,6 +80,14 @@ export const MpesaPromptModal: React.FC<MpesaPromptModalProps> = ({
             setPhone('');
             setNotes('');
             onClose();
+
+            if (navigation && waiting_url) {
+                navigation.navigate('MpesaWaitingWeb', {
+                    waitingUrl: waiting_url,
+                    statusPollUrl: pollUrl || undefined,
+                });
+                return;
+            }
 
             Alert.alert(
                 'STK sent',
