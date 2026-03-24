@@ -116,6 +116,11 @@
             --brand-text: #e5e7eb;
             --brand-muted: #9ca3af;
         }
+        /* Readable text on phones; avoid iOS shrinking body copy */
+        html {
+            -webkit-text-size-adjust: 100%;
+            text-size-adjust: 100%;
+        }
         .sidebar {
             width: 240px;
             height: 100vh;
@@ -358,6 +363,40 @@
             .content.finance-content { 
                 padding: 0;
                 margin-left: 0; /* Remove margin on mobile */
+            }
+            /* ~18px root: larger UI without requiring pinch-zoom */
+            html { font-size: 112.5%; }
+            .content { padding: 16px 14px; }
+            .app-header {
+                padding: 12px 14px;
+                margin-bottom: 16px;
+            }
+            .table { font-size: 1rem; }
+            .table-sm td, .table-sm th {
+                padding: 0.55rem 0.5rem;
+                font-size: 0.95rem;
+            }
+            /* iOS: font-size < 16px on inputs triggers zoom-on-focus */
+            .form-control,
+            .form-select,
+            textarea.form-control,
+            .input-group-text {
+                font-size: 1rem !important;
+                min-height: 2.75rem;
+            }
+            textarea.form-control { min-height: 6rem; }
+            .btn {
+                min-height: 2.75rem;
+                padding: 0.5rem 1rem;
+            }
+            .btn-sm {
+                min-height: 2.5rem;
+                padding: 0.4rem 0.75rem;
+                font-size: 0.95rem;
+            }
+            /* Keep “small” copy legible */
+            small, .small {
+                font-size: 0.9375rem !important;
             }
         }
     </style>
